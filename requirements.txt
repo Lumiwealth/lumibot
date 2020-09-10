@@ -1,0 +1,1 @@
+alpaca_trade_api==0.50.1

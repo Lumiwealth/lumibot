@@ -1,3 +1,4 @@
 .idea
 todos.txt
 **/__pycache__
+.ipynb_checkpoints

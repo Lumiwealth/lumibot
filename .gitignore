@@ -1,4 +1,7 @@
 .idea
+logs
 todos.txt
+**.log
 **/__pycache__
+**/*.ipynb
 .ipynb_checkpoints

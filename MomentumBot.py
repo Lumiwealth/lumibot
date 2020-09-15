@@ -1,4 +1,4 @@
-import time, logging
+import time, logging, math
 
 from BlueprintBot import BlueprintBot
 
@@ -11,69 +11,90 @@ class MomentumBot(BlueprintBot):
     set by alpaca
     """
 
-    def run(self, increase_target=0.02, stop_loss_target=0.04, capital_per_asset=4000, total_capital=40000):
-        #setting risk management variables
-        self.total_capital = total_capital
-        self.capital_per_asset = capital_per_asset
-        self.max_positions = self.total_capital // self.capital_per_asset
+    #=====Overloading lifecycle methods=============
 
+    def initialize(self):
+        #canceling open orders
+        self.cancel_buying_orders()
+
+        # setting risk management variables
+        self.total_capital = 40000
+        self.capital_per_asset = 4000
+        self.max_positions = self.total_capital // self.capital_per_asset
+        self.increase_target = 0.02
+        self.stop_loss_target = 0.04
+
+    def before_market_opens(self):
         # sell all positions
         self.sell_all()
-        #Cancel all the buying orders
-        self.cancel_buying_orders()
-        #Get the account updated positions
-        self.update_positions()
-        #Await till the market is open
-        self.await_market_to_open()
 
-        #Check if the market will still be open for more than 15 minutes
-        time_to_close = self.get_time_to_close()
-        while time_to_close > 15 * 60:
-            #buy assets
-            self.buy_winning_stocks(increase_target, stop_loss_target)
-            self.update_positions()
+    def on_market_open(self):
+        ongoing_assets = self.get_ongoing_assets()
+        if len(ongoing_assets) < self.max_positions:
+            self.buy_winning_stocks(self.increase_target, self.stop_loss_target)
 
-            #Sleep for 10 minutes or till 15 minutes before the market closes
-            time_to_close = self.get_time_to_close()
-            sleeptime = time_to_close - 15 * 60
-            sleeptime = max(min(sleeptime, 60 * 10), 0)
-            time.sleep(sleeptime)
-
-        #sell all positions
+    def before_market_closes(self):
+        # sell all positions
         self.sell_all()
 
+    #=============Helper methods====================
+
     def buy_winning_stocks(self, increase_target, stop_loss_target):
-        if len(self.positions) >= self.max_positions:
-            return
+        logging.info("Requesting asset bars from alpaca API")
+        data = self.get_data()
+        logging.info("Selection best positions")
+        new_positions = self.select_assets(data, increase_target)
+        logging.info("Placing orders for assets %s." % [p.get('symbol') for p in new_positions])
+        self.place_orders(new_positions, stop_loss_target)
 
-        orders = []
-        #Get all the tradable assets data without a current account position
+    def get_data(self):
+        """extract the data"""
         assets = self.get_tradable_assets()
-        positions_symbols = [p.symbol for p in self.positions]
-        symbols = [a.symbol for a in assets if a.symbol not in positions_symbols]
+        ongoing_assets = self.get_ongoing_assets()
+        symbols = [a.symbol for a in assets if a.symbol not in ongoing_assets]
 
-        #Truncate the first 100 assets, so that get requests
-        #sent by the API does not exceed maximum
-        symbols = symbols[:100]
-        prices = self.get_last_prices(symbols)
-        changes = self.get_percentage_changes(symbols, time_unity='day', length=1)
-        for asset in assets:
-            change = changes.get(asset.symbol)
-            price = prices.get(asset.symbol)
-            if change is not None and price is not None:
-                if change >= increase_target:
-                    stop_price_func = lambda x: x * (1 - stop_loss_target)
-                    quantity = int(self.capital_per_asset/price)
-                    order = {
-                        'symbol': asset.symbol,
-                        'quantity': quantity,
-                        'side': 'buy',
-                        'stop_price_func': stop_price_func
-                    }
-                    orders.append(order)
+        bars = self.get_bars(symbols, 'day', 1)
+        data = []
+        for symbol in symbols:
+            bar = bars.get(symbol)
+            if bar:
+                first_value = bar[0].o
+                last_value = bar[-1].c
+                change = (last_value - first_value) / first_value
+                record = {
+                    'symbol': symbol,
+                    'price': last_value,
+                    'change': change
+                }
+                data.append(record)
+        return data
 
-                    if len(orders) + len(self.positions) == self.max_positions:
-                        logging.info('Maximum number of positions will be reached after orders submit')
-                        break
+    def select_assets(self, data, increase_target):
+        """Select the assets for which orders are going to be placed"""
+        potential_positions = []
+        for record in data:
+            price = record.get('price')
+            change = record.get('change')
+            if price and change and change>=increase_target:
+                potential_positions.append(record)
+
+        potential_positions.sort(key=lambda x: x.get('change'), reverse=True)
+        n_empty_positions = self.max_positions - len(self.get_ongoing_assets())
+        potential_positions = potential_positions[:n_empty_positions]
+        return potential_positions
+
+    def place_orders(self, new_positions, stop_loss_target):
+        """Placing the orders"""
+        orders = []
+        for position in new_positions:
+            stop_price_func = lambda x: x * (1 - stop_loss_target)
+            quantity = int(self.capital_per_asset / position.get('price'))
+            order = {
+                'symbol': position.get('symbol'),
+                'quantity': quantity,
+                'side': 'buy',
+                'stop_price_func': stop_price_func
+            }
+            orders.append(order)
 
         self.submit_orders(orders)

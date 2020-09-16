@@ -47,7 +47,11 @@ class BlueprintBot:
         #Connection to alpaca REST API
         self.alpaca = tradeapi.REST(api_key, api_secret, URL(api_base_url), version)
 
-        #getting the account object
+        #Connection to alpaca socket stream
+        self.stream = tradeapi.StreamConn(api_key, api_secret, URL(api_base_url))
+        self.set_streams()
+
+        # getting the account object
         self.account = self.get_account()
 
     #======Builtin helper functions=========
@@ -124,7 +128,7 @@ class BlueprintBot:
     def get_bars(self, symbols, time_unity, length):
         bar_sets = {}
         chunks = self.get_chunks(symbols)
-        with ThreadPoolExecutor() as executor:
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             tasks = []
             for chunk in chunks:
                 tasks.append(executor.submit(
@@ -155,16 +159,15 @@ class BlueprintBot:
                     kwargs['stop_loss'] = stop_loss
 
                 self.alpaca.submit_order(symbol, quantity, side, **kwargs)
-                logging.info("Market order of | %d %s %s | completed." % (quantity, symbol, side))
                 return True
             except Exception as e:
-                logging.error(
-                    "Market order of | %d %s %s | did not go through. The following eeror occured: %s" %
+                logging.info(
+                    "Market order of | %d %s %s | did not go through. The following error occured: %s" %
                     (quantity, symbol, side, e)
                 )
                 return False
         else:
-            logging.error("Market order of | %d %s %s | not completed" % (quantity, symbol, side))
+            logging.info("Market order of | %d %s %s | not completed" % (quantity, symbol, side))
             return True
 
     def submit_orders(self, orders):
@@ -200,6 +203,72 @@ class BlueprintBot:
 
         if cancel_open_orders:
             self.cancel_buying_orders()
+
+    #=======Stream Events========================
+
+    @staticmethod
+    def log_trade_event(data):
+        order = data.order
+        type_event = data.event
+        symbol = order.get('symbol')
+        side = order.get('side')
+        order_quantity = order.get('qty')
+        order_type = order.get('order_type').capitalize()
+
+        # if statement on event type
+        if type_event == 'fill':
+            price = data.price
+            filled_quantity = data.qty
+            logging.info(
+                "%s order of | %s %s %s | filled. %s$ per share" %
+                (order_type, filled_quantity, symbol, side, price)
+            )
+            if order_quantity != filled_quantity:
+                logging.info(
+                    "Initial %s order of | %s %s %s | completed." %
+                    (order_type, order_quantity, symbol, side)
+                )
+
+        elif type_event == 'partial_fill':
+            price = data.price
+            filled_quantity = data.qty
+            logging.info(
+                "%s order of | %s %s %s | partially filled." %
+                (order_type, order_quantity, symbol, side)
+            )
+            logging.info(
+                "%s order of | %s %s %s | completed. %s$ per share" %
+                (order_type, filled_quantity, symbol, side, price)
+            )
+
+        elif type_event == 'new':
+            logging.info(
+                "New %s order of | %s %s %s | submited." %
+                (order_type, order_quantity, symbol, side)
+            )
+
+        elif type_event == 'canceled':
+            logging.info(
+                "%s order of | %s %s %s | canceled." %
+                (order_type, order_quantity, symbol, side)
+            )
+
+    @staticmethod
+    def on_trade_event(data):
+        """Overload this method to trigger customized actions
+        after a trade_update event is sent via Socket Streams"""
+        pass
+
+    def set_streams(self):
+        """Set the asynchronous actions to be executed after
+        when events are sent via socket streams"""
+        @self.stream.on(r'^trade_updates$')
+        async def default_on_trade_event(conn, channel, data):
+            BlueprintBot.log_trade_event(data)
+            BlueprintBot.on_trade_event(data)
+
+        t = Thread(target=self.stream.run, args=[['trade_updates']])
+        t.start()
 
     #=======Lifecycle methods====================
 
@@ -256,31 +325,39 @@ class BlueprintBot:
         after market closes. Exampling: dumping stats/reports"""
         pass
 
+    def on_bot_crash(self):
+        """Use this lifecycle method to execute code
+        when an exception is raised and the bot crashes"""
+        pass
+
     def run(self):
         """The main execution point.
         Execute the lifecycle methods"""
-        logging.info("Executing the initialize lifecycle method")
-        self.initialize()
+        try:
+            logging.info("Executing the initialize lifecycle method")
+            self.initialize()
 
-        logging.info("Executing the before_market_opens lifecycle method")
-        if not self.is_market_open():
-            self.before_market_opens()
+            logging.info("Executing the before_market_opens lifecycle method")
+            if not self.is_market_open():
+                self.before_market_opens()
 
-        self.await_market_to_open()
-        time_to_close = self.get_time_to_close()
-        while time_to_close > self.minutes_before_closing * 60:
-            logging.info("Executing the on_market_open lifecycle method")
-            self.on_market_open()
+            self.await_market_to_open()
             time_to_close = self.get_time_to_close()
-            sleeptime = time_to_close - 15 * 60
-            sleeptime = max(min(sleeptime, 60 * self.sleeptime), 0)
-            logging.info("Sleeping for %d seconds" % sleeptime)
-            time.sleep(sleeptime)
+            while time_to_close > self.minutes_before_closing * 60:
+                logging.info("Executing the on_market_open lifecycle method")
+                self.on_market_open()
+                time_to_close = self.get_time_to_close()
+                sleeptime = time_to_close - 15 * 60
+                sleeptime = max(min(sleeptime, 60 * self.sleeptime), 0)
+                logging.info("Sleeping for %d seconds" % sleeptime)
+                time.sleep(sleeptime)
 
-        if self.is_market_open():
-            logging.info("Executing the before_market_closes lifecycle method")
-            self.before_market_closes()
+            if self.is_market_open():
+                logging.info("Executing the before_market_closes lifecycle method")
+                self.before_market_closes()
 
-        self.await_market_to_close()
-        logging.info("Executing the after_market_closes lifecycle method")
-        self.after_market_closes()
+            self.await_market_to_close()
+            logging.info("Executing the after_market_closes lifecycle method")
+            self.after_market_closes()
+        except:
+            self.on_bot_crash()

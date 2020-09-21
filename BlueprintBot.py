@@ -1,6 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from threading import Thread
 
+import requests
 import datetime as dt
 import time, logging, math
 
@@ -11,13 +12,19 @@ class BlueprintBot:
     def __init__(
         self, api_key, api_secret, api_base_url="https://paper-api.alpaca.markets",
         version='v2', logfile=None, max_workers=200, chunk_size=100,
-        minutes_before_closing=15, sleeptime=1
+        minutes_before_closing=15, sleeptime=1, debug=False
     ):
 
         #Setting Logging to both console and a file if logfile is specified
+        logging.getLogger("urllib3").setLevel(logging.ERROR)
+        logging.getLogger("requests").setLevel(logging.ERROR)
         self.logfile = logfile
         logger = logging.getLogger()
-        logger.setLevel(logging.INFO)
+        if debug:
+            logger.setLevel(logging.INFO)
+        else:
+            logger.setLevel(logging.DEBUG)
+
         logFormater = logging.Formatter("%(asctime)s: %(levelname)s: %(message)s")
         consoleHandler = logging.StreamHandler()
         consoleHandler.setFormatter(logFormater)
@@ -65,7 +72,7 @@ class BlueprintBot:
         orders = self.alpaca.list_orders(status="open")
         return orders
 
-    def cancel_buying_orders(self):
+    def cancel_open_orders(self):
         """Cancel all the buying orders with status still open"""
         orders = self.alpaca.list_orders(status="open")
         for order in orders:
@@ -100,6 +107,32 @@ class BlueprintBot:
         curr_time = clock.timestamp.replace(tzinfo=dt.timezone.utc).timestamp()
         time_to_close = closing_time - curr_time
         return time_to_close
+
+    def await_market_to_open(self):
+        """Executes infinite loop until market opens"""
+        isOpen = self.is_market_open()
+        while(not isOpen):
+            time_to_open = self.get_time_to_open()
+            if time_to_open > 60 * 60:
+                delta = dt.timedelta(seconds=time_to_open)
+                logging.info("Market will open in %s." % str(delta))
+                time.sleep(60 *60)
+            elif time_to_open > 60:
+                logging.info("%d minutes til market open." % int(time_to_open / 60))
+                time.sleep(60)
+            else:
+                logging.info("%d seconds til market open." % time_to_open)
+                time.sleep(time_to_open)
+
+            isOpen = self.is_market_open()
+
+    def await_market_to_close(self):
+        """Sleep until market closes"""
+        isOpen = self.is_market_open()
+        if isOpen:
+            time_to_close = self.get_time_to_close()
+            sleeptime = max(0, time_to_close)
+            time.sleep(sleeptime)
 
     def get_account(self):
         """Get the account data from the API"""
@@ -140,53 +173,62 @@ class BlueprintBot:
 
         return bar_sets
 
-    def submit_order(self, symbol, quantity, side, stop_price_func=None):
+    def submit_order(self, symbol, quantity, side, limit_price=None, stop_price=None):
         """Submit an order for an asset"""
         if(quantity > 0):
             try:
-                stop_loss = {}
-                if stop_price_func:
-                    last_price = self.get_last_price(symbol)
-                    stop_loss['stop_price'] = stop_price_func(last_price)
-
+                order_type = 'limit' if limit_price else 'market'
+                order_class = 'oto' if stop_price else None
+                time_in_force = 'day'
                 kwargs = {
-                    'type': 'market',
-                    'time_in_force' : 'day',
+                    'type': order_type,
+                    'order_class': order_class,
+                    'time_in_force': time_in_force,
+                    'limit_price': limit_price,
                 }
+                if stop_price:
+                    kwargs['stop_loss'] = {'stop_price': stop_price}
 
-                if stop_loss:
-                    kwargs['order_class'] = 'oto'
-                    kwargs['stop_loss'] = stop_loss
-
+                #Remove items with None values
+                kwargs = { k:v for k,v in kwargs.items() if v }
                 self.alpaca.submit_order(symbol, quantity, side, **kwargs)
                 return True
             except Exception as e:
-                logging.info(
-                    "Market order of | %d %s %s | did not go through. The following error occured: %s" %
-                    (quantity, symbol, side, e)
-                )
-                return False
+                message = str(e)
+                if "stop price must not be greater than base price / 1.001" in message:
+                    logging.info(
+                        "Order of | %d %s %s | did not go through because the share base price became lesser than the stop loss price." %
+                        (quantity, symbol, side)
+                    )
+                    return False
+                else:
+                    logging.debug(
+                        "Order of | %d %s %s | did not go through. The following error occured: %s" %
+                        (quantity, symbol, side, e)
+                    )
+                    return False
         else:
-            logging.info("Market order of | %d %s %s | not completed" % (quantity, symbol, side))
+            logging.info("Order of | %d %s %s | not completed" % (quantity, symbol, side))
             return True
 
     def submit_orders(self, orders):
         """submit orders"""
-        all_threads = []
-        for order in orders:
-            kwargs = {}
-            symbol = order.get('symbol')
-            quantity = order.get('quantity')
-            side = order.get('side')
-            stop_price_func = order.get('stop_price_func')
-            if stop_price_func: kwargs['stop_price_func'] = stop_price_func
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            tasks = []
+            for order in orders:
+                symbol = order.get('symbol')
+                quantity = order.get('quantity')
+                side = order.get('side')
 
-            t = Thread(target=self.submit_order, args=[symbol, quantity, side], kwargs=kwargs)
-            t.start()
-            all_threads.append(t)
+                func = lambda args, kwargs: self.submit_order(*args, **kwargs)
+                args = (symbol, quantity, side)
+                kwargs = {}
+                if order.get('stop_price'): kwargs['stop_price'] = order.get('stop_price')
+                if order.get('limit_price'): kwargs['limit_price'] = order.get('limit_price')
 
-        for t in all_threads:
-            t.join()
+                tasks.append(executor.submit(
+                    func, args, kwargs
+                ))
 
     def sell_all(self, cancel_open_orders=True):
         """sell all positions"""
@@ -202,7 +244,7 @@ class BlueprintBot:
         self.submit_orders(orders)
 
         if cancel_open_orders:
-            self.cancel_buying_orders()
+            self.cancel_open_orders()
 
     #=======Stream Events========================
 
@@ -253,6 +295,12 @@ class BlueprintBot:
                 (order_type, order_quantity, symbol, side)
             )
 
+        else:
+            logging.debug(
+                "Unhandled type event %s for %s order of | %s %s %s |" %
+                (type_event, order_type, order_quantity, symbol, side)
+            )
+
     @staticmethod
     def on_trade_event(data):
         """Overload this method to trigger customized actions
@@ -278,34 +326,8 @@ class BlueprintBot:
 
     def before_market_opens(self):
         """Lifecycle method executed before market opens
-        Example: self.cancel_buying_orders()"""
+        Example: self.cancel_open_orders()"""
         pass
-
-    def await_market_to_open(self):
-        """Executes infinite loop until market opens"""
-        isOpen = self.is_market_open()
-        while(not isOpen):
-            time_to_open = self.get_time_to_open()
-            if time_to_open > 60 * 60:
-                delta = dt.timedelta(seconds=time_to_open)
-                logging.info("Market will open in %s." % str(delta))
-                time.sleep(60 *60)
-            elif time_to_open > 60:
-                logging.info("%d minutes til market open." % int(time_to_open / 60))
-                time.sleep(60)
-            else:
-                logging.info("%d seconds til market open." % time_to_open)
-                time.sleep(time_to_open)
-
-            isOpen = self.is_market_open()
-
-    def await_market_to_close(self):
-        """Sleep until market closes"""
-        isOpen = self.is_market_open()
-        if isOpen:
-            time_to_close = self.get_time_to_close()
-            sleeptime = max(0, time_to_close)
-            time.sleep(sleeptime)
 
     def on_market_open(self):
         """Use this lifecycle method for trading.

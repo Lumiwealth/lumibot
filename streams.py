@@ -1,13 +1,12 @@
 """Testing connection streams"""
 
-
-import sys
+import sys, os
 import alpaca_trade_api as tradeapi
 import time
 from alpaca_trade_api.common import URL
 
-API_KEY = "PKH3TWXNFF5EX3EDT6QT"
-API_SECRET = "igIiQg2QV9okPwjEM2pF92c0gjZUjqxV9meYDouv"
+API_KEY = "PKMWTN5BTI83B117YE5C"
+API_SECRET = "qMzfeBp51dYIJDmqAizEbwAp3Qz6tHZFOUnqNLl9"
 ENDPOINT = "https://paper-api.alpaca.markets"
 USE_POLYGON = False
 
@@ -20,6 +19,8 @@ conn = tradeapi.StreamConn(
 )
 
 #===========Working=================================
+
+os.remove('logs/trade_updates.log')
 
 @conn.on(r'^trade_updates$')
 async def on_account_updates(conn, channel, account):

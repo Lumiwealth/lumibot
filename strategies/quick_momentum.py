@@ -1,38 +1,29 @@
-import time, logging, math
+from .strategy import Strategy
 
-from BlueprintBot import BlueprintBot
-
-class MomentumBot(BlueprintBot):
-    """A very simple risk management is impelmented in this bot:
-    4000$ to spend per asset and 40000$ in total, so the bot
-    should have 10 positions maximum and for each one spend 4000.
-    Also needs to set data stream, cannot retrieve all the data from the API
-    without risking of building very large urls or reaching the limit of
-    200 requests per minute set by alpaca """
+class QuickMomentum(Strategy):
 
     #=====Overloading lifecycle methods=============
 
     def initialize(self):
-        #canceling open orders
-        self.cancel_open_orders()
+        # canceling open orders
+        self.api.cancel_open_orders()
 
-        #setting sleeptime af each iteration to 5 minutes
+        # setting sleeptime af each iteration to 5 minutes
         self.sleeptime = 5
 
         # setting risk management variables
-        self.total_capital = 40000
         self.capital_per_asset = 4000
-        self.max_positions = self.total_capital // self.capital_per_asset
+        self.max_positions = self.budget // self.capital_per_asset
         self.increase_target = 0.02
         self.limit_increase_target = 0.02
         self.stop_loss_target = 0.04
 
     def before_market_opens(self):
         # sell all positions
-        self.sell_all()
+        self.api.sell_all()
 
     def on_market_open(self):
-        ongoing_assets = self.get_ongoing_assets()
+        ongoing_assets = self.api.get_ongoing_assets()
         if len(ongoing_assets) < self.max_positions:
             self.buy_winning_stocks(self.increase_target, self.stop_loss_target, self.limit_increase_target)
         else:
@@ -40,7 +31,7 @@ class MomentumBot(BlueprintBot):
 
     def before_market_closes(self):
         # sell all positions
-        self.sell_all()
+        self.api.sell_all()
 
     #=============Helper methods====================
 
@@ -54,16 +45,11 @@ class MomentumBot(BlueprintBot):
 
     def get_data(self):
         """extract the data"""
-        assets = self.get_tradable_assets()
-        ongoing_assets = self.get_ongoing_assets()
+        assets = self.api.get_tradable_assets()
+        ongoing_assets = self.api.get_ongoing_assets()
         symbols = [a.symbol for a in assets if a.symbol not in ongoing_assets]
 
-        bars = self.get_bars(symbols, 'day', 1)
-
-        print("="*100)
-        print(len(bars))
-        print("=" * 100)
-
+        bars = self.api.get_bars(symbols, 'day', 1)
         data = []
         for symbol in symbols:
             bar = bars.get(symbol)
@@ -85,7 +71,7 @@ class MomentumBot(BlueprintBot):
         for record in data:
             price = record.get('price')
             change = record.get('change')
-            if price and change and change>=increase_target:
+            if price and change and change >= increase_target:
                 potential_positions.append(record)
 
         potential_positions.sort(key=lambda x: x.get('change'), reverse=True)
@@ -93,15 +79,16 @@ class MomentumBot(BlueprintBot):
         for potential_position in potential_positions[:15]:
             symbol = potential_position.get('symbol')
             change = potential_position.get('change')
-            logging.info("Asset %s recorded %.2f%% increase over 24h" % (symbol, 100*change))
+            logging.info("Asset %s recorded %.2f%% increase over 24h" % (symbol, 100 * change))
 
-        positions_count = len(self.get_ongoing_assets())
+        ongoing_assets = self.api.get_ongoing_assets()
+        positions_count = len(ongoing_assets)
         n_empty_positions = self.max_positions - positions_count
         potential_positions = potential_positions[:n_empty_positions]
 
         logging.info(
-            "Account has %d postion(s). Looking for %d additional position(s). Max allowed %d." %
-            (positions_count, n_empty_positions, self.max_positions)
+            "Account has %d postion(s) %s. Looking for %d additional position(s). Max allowed %d." %
+            (positions_count, str(ongoing_assets), n_empty_positions, self.max_positions)
         )
 
         return potential_positions
@@ -124,4 +111,4 @@ class MomentumBot(BlueprintBot):
             }
             orders.append(order)
 
-        self.submit_orders(orders)
+        self.api.submit_orders(orders)

@@ -1,14 +1,8 @@
-"""Testing connection streams"""
+from main import API_KEY, API_SECRET, ENDPOINT, USE_POLYGON
 
-import sys, os
+import sys, os, time
 import alpaca_trade_api as tradeapi
-import time
 from alpaca_trade_api.common import URL
-
-API_KEY = "PKMWTN5BTI83B117YE5C"
-API_SECRET = "qMzfeBp51dYIJDmqAizEbwAp3Qz6tHZFOUnqNLl9"
-ENDPOINT = "https://paper-api.alpaca.markets"
-USE_POLYGON = False
 
 conn = tradeapi.StreamConn(
     API_KEY,
@@ -18,10 +12,10 @@ conn = tradeapi.StreamConn(
     data_stream='polygon' if USE_POLYGON else 'alpacadatav1'
 )
 
-#===========Working=================================
+if os.path.exists('logs/trade_updates.log'):
+    os.remove('logs/trade_updates.log')
 
-os.remove('logs/trade_updates.log')
-
+# ===========Working Stream channels=================================
 @conn.on(r'^trade_updates$')
 async def on_account_updates(conn, channel, account):
     with open('logs/trade_updates.log', 'a+') as f:
@@ -29,7 +23,7 @@ async def on_account_updates(conn, channel, account):
         f.write(str(account))
         f.write("\n" + "=" * 100 + "\n")
 
-#==========Testing=================================
+# ==========Testing Stream channels=================================
 @conn.on(r'T\..+')
 async def on_transaction(conn, channel, data):
     with open('logs/transaction.log', 'a+') as f:
@@ -62,10 +56,5 @@ async def on_second_bars(conn, channel, bar):
         f.write(str(bar))
         f.write("\n" + "=" * 100 + "\n")
 
-
-#@conn.on(r'^AM\..+$')
-#@conn.on(r'Q\..+', ['AAPL'])
-#@conn.on(r'T\..+', ['AAPL'])
-
-# blocks forever
+# ==========Add Subscribers=======================================
 conn.run(['trade_updates', 'alpacadatav1/AM.*', 'alpacadatav1/Q.*', 'alpacadatav1/T.*'])

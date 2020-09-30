@@ -1,1 +1,3 @@
 alpaca_trade_api==0.50.1
+yfinance==0.1.54
+pandas==1.1.2

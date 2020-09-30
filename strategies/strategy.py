@@ -1,4 +1,4 @@
-import time, logging
+import time, logging, traceback
 
 class Strategy:
     def __init__(self, budget, broker, minutes_before_closing=15, sleeptime=1):
@@ -6,7 +6,7 @@ class Strategy:
         self.name = self.__class__.__name__
         self.budget = budget
 
-        #Setting the API object
+        # Setting the API object
         self.api = broker
 
         #Setting how many minutes before market closes
@@ -30,6 +30,12 @@ class Strategy:
     def before_market_opens(self):
         """Lifecycle method executed before market opens
         Example: self.api.cancel_open_orders()"""
+        pass
+
+    def before_starting_trading(self):
+        """Lifecycle method executed after the market opens
+        and before entering the trading loop. Use this method
+        for daily resetting variables"""
         pass
 
     def on_market_open(self):
@@ -63,13 +69,15 @@ class Strategy:
             self.before_market_opens()
 
         self.api.await_market_to_open()
-        time_to_close = self.get_time_to_close()
+        self.before_starting_trading()
+
+        time_to_close = self.api.get_time_to_close()
         while time_to_close > self.minutes_before_closing * 60:
             logging.info(self.format_log_message(
                 "Executing the on_market_open lifecycle method"
             ))
             self.on_market_open()
-            time_to_close = self.get_time_to_close()
+            time_to_close = self.api.get_time_to_close()
             sleeptime = time_to_close - 15 * 60
             sleeptime = max(min(sleeptime, 60 * self.sleeptime), 0)
             logging.info(self.format_log_message(
@@ -83,7 +91,7 @@ class Strategy:
             ))
             self.before_market_closes()
 
-        self.await_market_to_close()
+        self.api.await_market_to_close()
         logging.info(self.format_log_message(
             "Executing the after_market_closes lifecycle method"
         ))
@@ -97,9 +105,11 @@ class Strategy:
         ))
         self.initialize()
         while True:
-            try:
-                self.run_trading_session()
-            except Exception as e:
-                logging.error(e)
-                self.on_bot_crash(e)
-                break
+            self.run_trading_session()
+            # try:
+            #     self.run_trading_session()
+            # except Exception as e:
+            #     logging.error(e)
+            #     logging.debug(traceback.format_exc())
+            #     self.on_bot_crash(e)
+            #     break

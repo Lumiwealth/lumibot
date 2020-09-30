@@ -8,6 +8,7 @@ import alpaca_trade_api as tradeapi
 from alpaca_trade_api.common import URL
 
 from .broker import Broker
+from sources.yahoo import Yahoo
 
 class Alpaca(Broker):
     def __init__(
@@ -112,19 +113,41 @@ class Alpaca(Broker):
         account = self.api.get_account()
         return account
 
-    def get_tradable_assets(self):
+    def get_tradable_assets(self, easy_to_borrow=None, filter_func=None):
         """Get the list of all tradable assets from the market"""
         assets = self.api.list_assets()
-        assets = [asset for asset in assets if asset.tradable]
-        return assets
+        result = []
+        for asset in assets:
+            is_valid = asset.tradable
+            if easy_to_borrow is not None and isinstance(easy_to_borrow, bool):
+                is_valid = is_valid & (easy_to_borrow==asset.easy_to_borrow)
+            if filter_func is not None:
+                filter_test = filter_func(asset.symbol)
+                is_valid = is_valid & filter_test
+
+            if is_valid: result.append(asset.symbol)
+
+        return result
 
     def get_last_price(self, symbol):
-        """Takes and asset symbol and returns the last known price"""
+        """Takes an asset symbol and returns the last known price"""
         bars = self.api.get_barset(symbol, 'minute', 1)
         last_price = bars[symbol][0].c
         return last_price
 
+    def get_last_prices(self, symbols):
+        """Takes a list of symbols and returns the last known prices"""
+        result = {}
+        bars = self.get_bars(symbols, 'minute', 1)
+        for symbol, symbol_bars in bars.items():
+            if symbol_bars:
+                last_value = symbol_bars[-1].c
+                result[symbol] = last_value
+
+        return result
+
     def get_bars(self, symbols, time_unity, length):
+        """Get bars for the list of symbols"""
         bar_sets = {}
         chunks = self.get_chunks(symbols, self.chunk_size)
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
@@ -138,6 +161,25 @@ class Alpaca(Broker):
                 bar_sets.update(task.result())
 
         return bar_sets
+
+    def get_momentums(self, symbols, time_unity, length):
+        """Helper function to get momentums from list of symbols"""
+        result = {}
+        bars = self.get_bars(symbols, time_unity, length)
+        for symbol, symbol_bars in bars.items():
+            if symbol_bars:
+                first_value = symbol_bars[0].o
+                last_value = symbol_bars[-1].c
+                momentum = (last_value - first_value) / first_value
+                result[symbol] = momentum
+
+        return result
+
+    def get_returns_for_asset(self, symbol, momentum_length):
+        """returns a pandas dataframe with historical price
+        and dividends"""
+        result = Yahoo.get_returns_for_asset(symbol, momentum_length)
+        return result
 
     def submit_order(self, symbol, quantity, side, limit_price=None, stop_price=None):
         """Submit an order for an asset"""

@@ -1,4 +1,7 @@
+import logging
+
 from .strategy import Strategy
+from sources.yahoo import Yahoo
 
 class QuickMomentum(Strategy):
 
@@ -8,11 +11,16 @@ class QuickMomentum(Strategy):
         # canceling open orders
         self.api.cancel_open_orders()
 
+        # creating an asset blacklist
+        self.blacklist = []
+
         # setting sleeptime af each iteration to 5 minutes
         self.sleeptime = 5
 
         # setting risk management variables
         self.capital_per_asset = 4000
+        self.period_trading_daily_average = 10
+        self.minimum_trading_daily_average = 500000
         self.max_positions = self.budget // self.capital_per_asset
         self.increase_target = 0.02
         self.limit_increase_target = 0.02
@@ -21,6 +29,10 @@ class QuickMomentum(Strategy):
     def before_market_opens(self):
         # sell all positions
         self.api.sell_all()
+
+    def before_starting_trading(self):
+        """Resetting the list of blacklisted assets"""
+        self.blacklist = []
 
     def on_market_open(self):
         ongoing_assets = self.api.get_ongoing_assets()
@@ -45,70 +57,84 @@ class QuickMomentum(Strategy):
 
     def get_data(self):
         """extract the data"""
-        assets = self.api.get_tradable_assets()
         ongoing_assets = self.api.get_ongoing_assets()
-        symbols = [a.symbol for a in assets if a.symbol not in ongoing_assets]
-
-        bars = self.api.get_bars(symbols, 'day', 1)
-        data = []
-        for symbol in symbols:
-            bar = bars.get(symbol)
-            if bar:
-                first_value = bar[0].o
-                last_value = bar[-1].c
-                change = (last_value - first_value) / first_value
-                record = {
-                    'symbol': symbol,
-                    'price': last_value,
-                    'change': change
-                }
-                data.append(record)
-        return data
+        assets = self.api.get_tradable_assets(easy_to_borrow=True)
+        symbols = [a for a in assets if a not in (ongoing_assets + self.blacklist)]
+        momentums = self.api.get_momentums(symbols, '15Min', 4 * 24)
+        return momentums
 
     def select_assets(self, data, increase_target):
         """Select the assets for which orders are going to be placed"""
-        potential_positions = []
-        for record in data:
-            price = record.get('price')
-            change = record.get('change')
-            if price and change and change >= increase_target:
-                potential_positions.append(record)
 
-        potential_positions.sort(key=lambda x: x.get('change'), reverse=True)
-        logging.info("The top 15 assets with increase over %d %% (Ranked by increase)" % (100 * increase_target))
-        for potential_position in potential_positions[:15]:
-            symbol = potential_position.get('symbol')
-            change = potential_position.get('change')
-            logging.info("Asset %s recorded %.2f%% increase over 24h" % (symbol, 100 * change))
+        #filtering and sorting assets on momentum
+        potential_positions = []
+        for symbol, momentum in data.items():
+            if momentum >= increase_target:
+                record = {
+                    'symbol': symbol,
+                    'momentum': momentum
+                }
+                potential_positions.append(record)
+        potential_positions.sort(key=lambda x: x.get('momentum'), reverse=True)
 
         ongoing_assets = self.api.get_ongoing_assets()
         positions_count = len(ongoing_assets)
         n_empty_positions = self.max_positions - positions_count
-        potential_positions = potential_positions[:n_empty_positions]
-
         logging.info(
             "Account has %d postion(s) %s. Looking for %d additional position(s). Max allowed %d." %
             (positions_count, str(ongoing_assets), n_empty_positions, self.max_positions)
         )
 
-        return potential_positions
+        logging.info(
+            "Selecting %d assets with increase over %d %% (Ranked by increase)" %
+            (n_empty_positions, 100 * increase_target)
+        )
+        selected_assets = []
+        for potential_position in potential_positions:
+            symbol = potential_position.get('symbol')
+            momentum = potential_position.get('momentum')
+            logging.info("Asset %s recorded %.2f%% increase over 24h" % (symbol, 100 * momentum))
+            atv = Yahoo.get_average_trading_volume(symbol, self.period_trading_daily_average)
+            test = atv >= self.minimum_trading_daily_average
+            if test:
+                selected_assets.append(potential_position)
+                logging.info("Asset %s added to order queue." % symbol)
+                if len(selected_assets) == n_empty_positions: break
+            else:
+                self.blacklist.append(symbol)
+                logging.info(
+                    "Asset %s blacklisted. Trading Daily Average %d inferior to %d." %
+                    (symbol, int(atv), self.minimum_trading_daily_average)
+                )
+
+        return selected_assets
 
     def place_orders(self, new_positions, stop_loss_target, limit_increase_target):
         """Placing the orders"""
         orders = []
+        symbols = [p.get('symbol') for p in new_positions]
+        last_prices = self.api.get_last_prices(symbols)
+        logging.info("Last prices for selected assets: %s" % str(last_prices))
         for position in new_positions:
-            price = position.get('price')
-            stop_price = price * (1 - stop_loss_target)
-            limit_price = price * (1 + limit_increase_target)
-            quantity = int(self.capital_per_asset / price)
-            order = {
-                'symbol': position.get('symbol'),
-                'quantity': quantity,
-                'side': 'buy',
-                'price': price,
-                'stop_price': stop_price,
-                'limit_price': limit_price
-            }
-            orders.append(order)
+            symbol = position.get('symbol')
+            price = last_prices.get(symbol)
+            if price:
+                stop_price = price * (1 - stop_loss_target)
+                limit_price = price * (1 + limit_increase_target)
+                quantity = int(self.capital_per_asset / price)
+                order = {
+                    'symbol': symbol,
+                    'quantity': quantity,
+                    'side': 'buy',
+                    'price': price,
+                    'stop_price': stop_price,
+                    'limit_price': limit_price
+                }
+                orders.append(order)
+            else:
+                logging.error(
+                    'Could not submit order for asset %s. Something went wrong when requesting last price'
+                    % symbol
+                )
 
         self.api.submit_orders(orders)

@@ -9,8 +9,8 @@ from brokers.alpaca import Alpaca
 from traders.trader import Trader
 
 BROKER = 'alpaca'
-API_KEY = "PK6PZU5KKBSKJZ2DXVEC"
-API_SECRET = "DXEhZMDu37npGWE36Z6gizdTnHxxSKEe7MkQeVEo"
+API_KEY = "PKIAJFZIW6EJU30ZQZE6"
+API_SECRET = "LzfCO9Uwj6X4j2pYMSriZNoBI503bRGR8kyAMAQO"
 ENDPOINT = "https://paper-api.alpaca.markets"
 USE_POLYGON = False
 

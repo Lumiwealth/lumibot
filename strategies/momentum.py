@@ -49,7 +49,7 @@ class Momentum(Strategy):
         momentums = []
         for symbol in self.symbols:
             df = Yahoo.get_returns_for_asset(symbol, self.period, period=self.period + 1)
-            symbol_return = df['return'][-1]
+            symbol_return = df['momentum'][-1]
             logging.info(
                 "%s has a return value of %.2f%% over the last %d day(s)." %
                 (symbol, 100*symbol_return, self.period)

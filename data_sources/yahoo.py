@@ -18,7 +18,7 @@ class Yahoo:
         df['dividend_yield'] = df['dividend'] / df['price']
         df['price_change'] = df['price'].pct_change()
         df['return'] = df['dividend_yield'] + df['price_change']
-        df['momentum'] = df['price'].pct_change(periods=momentum_length).shift(1)
+        df['momentum'] = df['price'].pct_change(periods=momentum_length)
         return df
 
     @staticmethod

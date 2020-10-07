@@ -4,7 +4,7 @@ import sys, os, time
 import alpaca_trade_api as tradeapi
 from alpaca_trade_api.common import URL
 
-from strategies import QuickMomentum, Momentum, Diversication
+from strategies import QuickMomentum, Momentum, Diversication, Demo
 from brokers import Alpaca
 from traders import Trader
 
@@ -21,8 +21,11 @@ if __name__ == '__main__':
     #momentum = Momentum(budget=budget, broker=broker)
     #trader.add_strategy(momentum)
 
-    diversication = Diversication(budget=budget, broker=broker)
-    trader.add_strategy(diversication)
+    # diversication = Diversication(budget=budget, broker=broker)
+    # trader.add_strategy(diversication)
+
+    demo = Demo(budget=budget, broker=broker)
+    trader.add_strategy(demo)
 
     trader.run_all()
 

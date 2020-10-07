@@ -7,8 +7,8 @@ class Diversication(Strategy):
     # =====Overloading lifecycle methods=============
 
     def initialize(self):
-        # canceling open orders
-        self.api.cancel_open_orders()
+        # sell all previous orders
+        self.api.sell_all()
 
         # setting the waiting period (in days) and the counter
         self.period = 1
@@ -22,19 +22,19 @@ class Diversication(Strategy):
         self.initialized = False
         self.portfolio = [
             {
-                'symbol': 'SPY',  # Stocks
+                'symbol': 'SPY',  # Equity
                 'weight': 0.3
             },
             {
-                'symbol': 'SPY',  # Long Term Bond
+                'symbol': 'TLT',  # Long Term Bond
                 'weight': 0.4
             },
             {
-                'symbol': 'SPY',  # Intermediate Term Bond
+                'symbol': 'IEF',  # Intermediate Term Bond
                 'weight': 0.15
             },
             {
-                'symbol': 'SPY',  # Gold
+                'symbol': 'GLD',  # Gold
                 'weight': 0.075
             },
             {
@@ -87,15 +87,17 @@ class Diversication(Strategy):
             last_price = asset.get('last_price')
             if not last_price: last_price = self.api.get_last_price(symbol)
             shares_value = portfolio_value * weight
-            logging.info(
-                "Asset %s shares value: %.2f$. %.2f$ per %d shares." %
-                (symbol, quantity * last_price, last_price, quantity)
-            )
+            if quantity:
+                logging.info(
+                    "Asset %s shares value: %.2f$. %.2f$ per %d shares." %
+                    (symbol, quantity * last_price, last_price, quantity)
+                )
+
             new_quantity = shares_value // last_price
             quantity_difference = new_quantity - quantity
             logging.info(
                 "Weighted %s shares value with %.2f%% weight: %.2f$. %.2f$ per %d shares." %
-                (symbol, shares_value, weight * 100, last_price, new_quantity)
+                (symbol, weight * 100, shares_value, last_price, new_quantity)
             )
 
             if quantity_difference > 0:

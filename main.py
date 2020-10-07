@@ -4,7 +4,7 @@ import sys, os, time
 import alpaca_trade_api as tradeapi
 from alpaca_trade_api.common import URL
 
-from strategies import QuickMomentum
+from strategies import QuickMomentum, Momentum, Diversication
 from brokers import Alpaca
 from traders import Trader
 
@@ -13,9 +13,17 @@ from credentials import AlpacaConfig
 if __name__ == '__main__':
     budget = 40000
     broker = Alpaca(AlpacaConfig.API_KEY, AlpacaConfig.API_SECRET)
-    trader = Trader(logfile='logs/test.log', debug=True)
-    quick_momentum = QuickMomentum(budget=budget, broker=broker)
-    trader.add_strategy(quick_momentum)
+    trader = Trader(logfile='logs/test.log', debug=False)
+
+    #quick_momentum = QuickMomentum(budget=budget, broker=broker)
+    #trader.add_strategy(quick_momentum)
+
+    #momentum = Momentum(budget=budget, broker=broker)
+    #trader.add_strategy(momentum)
+
+    diversication = Diversication(budget=budget, broker=broker)
+    trader.add_strategy(diversication)
+
     trader.run_all()
 
     print("The end")

@@ -28,15 +28,18 @@ class Momentum(Strategy):
             self.counter = 0
             best_asset = self.get_best_asset()
             if best_asset != self.asset:
-                logging.info("Swapping %s for %s." % (self.asset, best_asset))
-                self.api.submit_order(self.asset, self.quantity, 'sell')
+                if self.asset:
+                    logging.info("Swapping %s for %s." % (self.asset, best_asset))
+                    self.api.submit_order(self.asset, self.quantity, 'sell')
+
                 self.asset = best_asset
                 best_asset_price = self.api.get_last_price(best_asset)
-                self.quantity = best_asset_price // self.budget
+                self.quantity = self.budget // best_asset_price
                 self.api.submit_order(self.asset, self.quantity, 'buy')
             else:
                 logging.info("Keeping %d shares of %s" % (self.quantity, self.asset))
 
+        logging.info("Sleeping till the market closes.")
         self.counter += 1
         self.api.await_market_to_close()
 
@@ -48,7 +51,7 @@ class Momentum(Strategy):
             df = Yahoo.get_returns_for_asset(symbol, self.period, period=self.period + 1)
             symbol_return = df['return'][-1]
             logging.info(
-                "%s has a return value of %.2f%% over the last %d days." %
+                "%s has a return value of %.2f%% over the last %d day(s)." %
                 (symbol, 100*symbol_return, self.period)
             )
             momentums.append({

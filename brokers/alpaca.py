@@ -301,7 +301,7 @@ class Alpaca(Broker):
                     "Initial %s order of | %s %s %s | completed." %
                     (order_type, order_quantity, symbol, side)
                 )
-            self.filled_orders.add(representation)
+            self.filled_orders.append(representation)
 
         elif type_event == 'partial_fill':
             price = data.price
@@ -315,21 +315,21 @@ class Alpaca(Broker):
                 (order_type, filled_quantity, symbol, side, price)
             )
             representation['filled_quantity'] = filled_quantity
-            self.partially_filled_orders.add(representation)
+            self.partially_filled_orders.append(representation)
 
         elif type_event == 'new':
             logging.info(
                 "New %s order of | %s %s %s | submited." %
                 (order_type, order_quantity, symbol, side)
             )
-            self.new_orders.add(representation)
+            self.new_orders.append(representation)
 
         elif type_event == 'canceled':
             logging.info(
                 "%s order of | %s %s %s | canceled." %
                 (order_type, order_quantity, symbol, side)
             )
-            self.canceled_orders.add(representation)
+            self.canceled_orders.append(representation)
 
         else:
             logging.debug(

@@ -8,14 +8,16 @@ import alpaca_trade_api as tradeapi
 from alpaca_trade_api.common import URL
 
 from .broker import Broker
-from sources.yahoo import Yahoo
+from data_sources import Yahoo
 
 class Alpaca(Broker):
     def __init__(
-            self, api_key, api_secret,
+            self, api_key, api_secret, connect_stream=True,
             api_base_url="https://paper-api.alpaca.markets",
             version='v2', max_workers=200, chunk_size=100
     ):
+        # Calling the Broker init method
+        super().__init__()
 
         # Alpaca authorize 200 requests per minute and per API key
         # Setting the max_workers for multithreading to 200
@@ -32,7 +34,8 @@ class Alpaca(Broker):
 
         # Connection to alpaca socket stream
         self.stream = tradeapi.StreamConn(api_key, api_secret, URL(api_base_url))
-        self.set_streams()
+        if connect_stream:
+            self.set_streams()
 
     #=======API functions=========
 
@@ -50,7 +53,9 @@ class Alpaca(Broker):
         """Cancel all the buying orders with status still open"""
         orders = self.api.list_orders(status="open")
         for order in orders:
-            logging.info("Market order of | %d %s %s | canceled." % (int(order.qty), order.symbol, order.side))
+            logging.info("%s order of | %d %s %s | canceled." %
+                 (order.type, int(order.qty), order.symbol, order.side)
+            )
             self.api.cancel_order(order.id)
 
     def get_ongoing_assets(self):
@@ -261,22 +266,26 @@ class Alpaca(Broker):
     def set_streams(self):
         """Set the asynchronous actions to be executed after
         when events are sent via socket streams"""
-
         @self.stream.on(r'^trade_updates$')
         async def default_on_trade_event(conn, channel, data):
-            Alpaca.log_trade_event(data)
+            self.log_trade_event(data)
 
-        t = Thread(target=self.stream.run, args=[['trade_updates']])
+        t = Thread(target=self.stream.run, args=[['trade_updates']], daemon=True)
         t.start()
 
-    @staticmethod
-    def log_trade_event(data):
+    def log_trade_event(self, data):
         order = data.order
         type_event = data.event
         symbol = order.get('symbol')
         side = order.get('side')
         order_quantity = order.get('qty')
         order_type = order.get('order_type').capitalize()
+        representation = {
+            'type': order_type,
+            'symbol': symbol,
+            'side': side,
+            'quantity': order_quantity
+        }
 
         # if statement on event type
         if type_event == 'fill':
@@ -287,10 +296,12 @@ class Alpaca(Broker):
                 (order_type, filled_quantity, symbol, side, price)
             )
             if order_quantity != filled_quantity:
+                representation['filled_quantity'] = filled_quantity
                 logging.info(
                     "Initial %s order of | %s %s %s | completed." %
                     (order_type, order_quantity, symbol, side)
                 )
+            self.filled_orders.add(representation)
 
         elif type_event == 'partial_fill':
             price = data.price
@@ -303,18 +314,22 @@ class Alpaca(Broker):
                 "%s order of | %s %s %s | completed. %s$ per share" %
                 (order_type, filled_quantity, symbol, side, price)
             )
+            representation['filled_quantity'] = filled_quantity
+            self.partially_filled_orders.add(representation)
 
         elif type_event == 'new':
             logging.info(
                 "New %s order of | %s %s %s | submited." %
                 (order_type, order_quantity, symbol, side)
             )
+            self.new_orders.add(representation)
 
         elif type_event == 'canceled':
             logging.info(
                 "%s order of | %s %s %s | canceled." %
                 (order_type, order_quantity, symbol, side)
             )
+            self.canceled_orders.add(representation)
 
         else:
             logging.debug(

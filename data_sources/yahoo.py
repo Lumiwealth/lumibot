@@ -2,9 +2,15 @@ import yfinance as yf
 
 class Yahoo:
     @staticmethod
-    def get_returns_for_asset(symbol, momentum_length):
+    def get_returns_for_asset(symbol, momentum_length, period=None):
+
+        if period:
+            period_str = "%dd" % period
+        else:
+            period_str = "max"
+
         ticker = yf.Ticker(symbol)
-        daily = ticker.history(period="max")
+        daily = ticker.history(period=period_str)
         df = daily[['Close', 'Dividends']].rename(
             columns={'Close': 'price', 'Dividends': 'dividend'}
         )

@@ -6,3 +6,5 @@ todos.txt
 **/*.ipynb
 .ipynb_checkpoints
 draft.py
+test.py
+credentials.py

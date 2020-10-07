@@ -1,7 +1,7 @@
 import logging
 
 from .strategy import Strategy
-from sources.yahoo import Yahoo
+from data_sources import Yahoo
 
 class QuickMomentum(Strategy):
 
@@ -34,7 +34,7 @@ class QuickMomentum(Strategy):
         """Resetting the list of blacklisted assets"""
         self.blacklist = []
 
-    def on_market_open(self):
+    def on_trading_iteration(self):
         ongoing_assets = self.api.get_ongoing_assets()
         if len(ongoing_assets) < self.max_positions:
             self.buy_winning_stocks(self.increase_target, self.stop_loss_target, self.limit_increase_target)

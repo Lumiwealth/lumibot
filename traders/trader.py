@@ -1,6 +1,6 @@
 from threading import Thread
 
-import logging
+import logging, os
 
 class Trader:
     def __init__(
@@ -12,15 +12,19 @@ class Trader:
         self.logfile = logfile
         logger = logging.getLogger()
         if debug:
-            logger.setLevel(logging.INFO)
-        else:
             logger.setLevel(logging.DEBUG)
+        else:
+            logger.setLevel(logging.INFO)
 
         logFormater = logging.Formatter("%(asctime)s: %(levelname)s: %(message)s")
         consoleHandler = logging.StreamHandler()
         consoleHandler.setFormatter(logFormater)
         logger.addHandler(consoleHandler)
         if logfile:
+            dir = os.path.dirname(os.path.abspath(logfile))
+            if not os.path.exists(dir):
+                os.mkdir(dir)
+
             fileHandler = logging.FileHandler(logfile, mode='w')
             fileHandler.setFormatter(logFormater)
             logger.addHandler(fileHandler)
@@ -35,12 +39,17 @@ class Trader:
     def run_all(self):
         """run all strategies"""
         threads = []
-        for strategy in self.strategies:
-            t = Thread(target=strategy.run)
-            t.start()
-            threads.append(t)
+        try:
+            for strategy in self.strategies:
+                t = Thread(target=strategy.run, daemon=True)
+                t.start()
+                threads.append(t)
 
-        for t in threads:
-            t.join()
+            for t in threads:
+                t.join()
+        except KeyboardInterrupt:
+            logging.info("Trading stopped")
+            return
 
+        logging.info("Trading finished")
         return

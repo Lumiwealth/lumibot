@@ -19,7 +19,7 @@ actions then call the ```run()``` method.
 from BlueprintBot import BlueprintBot
 
 class CustomBot(BlueprintBot):
-    def on_market_open(self):
+    def on_trading_iteration(self):
         """Perform some trading logic"""
         pass
 
@@ -43,9 +43,9 @@ and sending requests item per item would be too slow and and requesting all bars
 won't always work as alpaca sets a maximum 100 symbols per request. Thus, inputs should be split 
 into chunks with size ```chunk_size``` and data would be requested chunk by chunk before being merged.
 By default equals to 100 which is maximum number of symbols by request allowed by alpaca.
-- ```minutes_before_closing```: The lifecycle method on_market_open is executed inside a loop that stops only when there is only ```minutes_before_closing``` minutes remaining before market closes.
+- ```minutes_before_closing```: The lifecycle method on_trading_iteration is executed inside a loop that stops only when there is only ```minutes_before_closing``` minutes remaining before market closes.
 By default equals to 15 minutes
-- ```sleeptime```: Sleeptime in minute after executing the lifecycle method on_market_open. By default equals to 1 minute
+- ```sleeptime```: Sleeptime in minute after executing the lifecycle method on_trading_iteration. By default equals to 1 minute
 - ```debug```: Set to True to log ```logging.DEBUG``` level messages else log ```logging.INFO``` level messages. 
 
 #### initialize
@@ -57,10 +57,10 @@ This is the first lifecycle method that the not would execute. Use this to set p
 This lifecycle method is executed before the market opens. 
 If the bot starts when the market is already open, this method won't be executed.
 
-#### on_market_open
+#### on_trading_iteration
 
 This lifecycle is executed inside an infinite loop when the market is open and is not within ```minutes_before_closing``` minutes of closing.
-After each execution, the bot would sleep ```sleeptime```  minutes before executing the ```on_market_open``` again.
+After each execution, the bot would sleep ```sleeptime```  minutes before executing the ```on_trading_iteration``` again.
 Use this lifecycle method for building trading iterations.
 
 #### before_market_closes

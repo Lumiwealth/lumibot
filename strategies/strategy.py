@@ -13,7 +13,8 @@ class Strategy:
         #The bot should stop
         self.minutes_before_closing = minutes_before_closing
 
-        #Timesleep after each on_market_open execution
+        #Timesleep after each on_trading_iteration execution
+        #unity is minutes
         self.sleeptime = sleeptime
 
     #=======Helper methods=======================
@@ -38,7 +39,7 @@ class Strategy:
         for daily resetting variables"""
         pass
 
-    def on_market_open(self):
+    def on_trading_iteration(self):
         """Use this lifecycle method for trading.
         Will be executed indefinetly until there
         will be only self.minutes_before_closing
@@ -74,16 +75,17 @@ class Strategy:
         time_to_close = self.api.get_time_to_close()
         while time_to_close > self.minutes_before_closing * 60:
             logging.info(self.format_log_message(
-                "Executing the on_market_open lifecycle method"
+                "Executing the on_trading_iteration lifecycle method"
             ))
-            self.on_market_open()
+            self.on_trading_iteration()
             time_to_close = self.api.get_time_to_close()
             sleeptime = time_to_close - 15 * 60
             sleeptime = max(min(sleeptime, 60 * self.sleeptime), 0)
-            logging.info(self.format_log_message(
-                "Sleeping for %d seconds" % sleeptime
-            ))
-            time.sleep(sleeptime)
+            if sleeptime:
+                logging.info(self.format_log_message(
+                    "Sleeping for %d seconds" % sleeptime
+                ))
+                time.sleep(sleeptime)
 
         if self.api.is_market_open():
             logging.info(self.format_log_message(
@@ -105,11 +107,10 @@ class Strategy:
         ))
         self.initialize()
         while True:
-            self.run_trading_session()
-            # try:
-            #     self.run_trading_session()
-            # except Exception as e:
-            #     logging.error(e)
-            #     logging.debug(traceback.format_exc())
-            #     self.on_bot_crash(e)
-            #     break
+            try:
+                self.run_trading_session()
+            except Exception as e:
+                logging.error(e)
+                logging.debug(traceback.format_exc())
+                self.on_bot_crash(e)
+                break

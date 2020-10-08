@@ -6,7 +6,10 @@ import pandas as pd
 class Alpaca:
     @staticmethod
     def get_recent_minute_momentum_for_asset(api, symbol, momentum_length=1):
-        start=(pd.Timestamp.now() - pd.DateOffset(hours=2)).isoformat()
+        if momentum_length > 100:
+            logging.error(f"You cannot get more than 100 timestamps from Alpaca, but you set a momentum_length of {momentum_length}")
+        
+        start=(pd.Timestamp.now() - pd.DateOffset(minutes=momentum_length)).isoformat()
         end=pd.Timestamp.now().isoformat()
         df = api.get_minute_barset_df_for_symbol(symbol, start, end)
 

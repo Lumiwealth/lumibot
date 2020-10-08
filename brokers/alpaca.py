@@ -167,6 +167,10 @@ class Alpaca(Broker):
 
         return bar_sets
 
+    def get_minute_barset_df_for_symbol(self, symbol, start, end):
+        return self.api.get_barset([symbol], 'minute', start=start, end=end).df[symbol]
+
+
     def get_momentums(self, symbols, time_unity, length):
         """Helper function to get momentums from list of symbols"""
         result = {}

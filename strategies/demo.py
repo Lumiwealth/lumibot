@@ -10,13 +10,13 @@ class Demo(Strategy):
         # canceling open orders
         self.api.cancel_open_orders()
 
-        #setting the waiting period (in minutes) and the counter
-        self.period = 2
+        #setting the momentum period (in minutes) and the counter
+        self.momentum_length = 2
         self.counter = 0
 
         #there is only one trading operation per day
         #no need to sleep betwwen iterations
-        self.sleeptime = 1.1
+        self.sleeptime = 1
         # set the symbols variable and initialize the asset_symbol variable
         self.symbols = ['SPY', 'GLD', 'TLT', 'MSFT', 'TSLA']
         self.asset = ''
@@ -38,16 +38,21 @@ class Demo(Strategy):
 
         self.counter += 1
 
+    def before_market_closes(self):
+        # Sell the asset you hold before the market closes, and wait until tomorrow
+        self.api.submit_order(self.asset, self.quantity, 'sell')
+        self.api.await_market_to_close()
+
     # =============Helper methods====================
 
     def get_best_asset(self):
         momentums = []
         for symbol in self.symbols:
-            df = Alpaca.get_intraday_returns_for_asset(self.api, symbol, self.period)
+            df = Alpaca.get_recent_minute_momentum_for_asset(self.api, symbol, self.momentum_length)
             symbol_return = df['momentum'][-1]
             logging.info(
                 "%s has a return value of %.2f%% over the last %d minutes(s)." %
-                (symbol, 100*symbol_return, self.period)
+                (symbol, 100*symbol_return, self.momentum_length)
             )
             momentums.append({
                 'symbol': symbol,

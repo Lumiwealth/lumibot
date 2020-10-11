@@ -9,7 +9,7 @@ class QuickMomentum(Strategy):
 
     def initialize(self):
         # canceling open orders
-        self.api.cancel_open_orders()
+        self.broker.cancel_open_orders()
 
         # creating an asset blacklist
         self.blacklist = []
@@ -28,14 +28,14 @@ class QuickMomentum(Strategy):
 
     def before_market_opens(self):
         # sell all positions
-        self.api.sell_all()
+        self.broker.sell_all()
 
     def before_starting_trading(self):
         """Resetting the list of blacklisted assets"""
         self.blacklist = []
 
     def on_trading_iteration(self):
-        ongoing_assets = self.api.get_ongoing_assets()
+        ongoing_assets = self.broker.get_ongoing_assets()
         if len(ongoing_assets) < self.max_positions:
             self.buy_winning_stocks(self.increase_target, self.stop_loss_target, self.limit_increase_target)
         else:
@@ -43,7 +43,7 @@ class QuickMomentum(Strategy):
 
     def before_market_closes(self):
         # sell all positions
-        self.api.sell_all()
+        self.broker.sell_all()
 
     #=============Helper methods====================
 
@@ -57,10 +57,11 @@ class QuickMomentum(Strategy):
 
     def get_data(self):
         """extract the data"""
-        ongoing_assets = self.api.get_ongoing_assets()
-        assets = self.api.get_tradable_assets(easy_to_borrow=True)
+        ongoing_assets = self.broker.get_ongoing_assets()
+        assets = self.broker.get_tradable_assets(easy_to_borrow=True)
         symbols = [a for a in assets if a not in (ongoing_assets + self.blacklist)]
-        momentums = self.api.get_momentums(symbols, '15Min', 4 * 24)
+        length = 4 * 24
+        momentums = self.broker.get_assets_momentum(symbols, time_unit='15Min', length=length, momentum_length=length)
         return momentums
 
     def select_assets(self, data, increase_target):
@@ -77,7 +78,7 @@ class QuickMomentum(Strategy):
                 potential_positions.append(record)
         potential_positions.sort(key=lambda x: x.get('momentum'), reverse=True)
 
-        ongoing_assets = self.api.get_ongoing_assets()
+        ongoing_assets = self.broker.get_ongoing_assets()
         positions_count = len(ongoing_assets)
         n_empty_positions = self.max_positions - positions_count
         logging.info(
@@ -113,7 +114,7 @@ class QuickMomentum(Strategy):
         """Placing the orders"""
         orders = []
         symbols = [p.get('symbol') for p in new_positions]
-        last_prices = self.api.get_last_prices(symbols)
+        last_prices = self.broker.get_last_prices(symbols)
         logging.info("Last prices for selected assets: %s" % str(last_prices))
         for position in new_positions:
             symbol = position.get('symbol')
@@ -137,4 +138,4 @@ class QuickMomentum(Strategy):
                     % symbol
                 )
 
-        self.api.submit_orders(orders)
+        self.broker.submit_orders(orders)

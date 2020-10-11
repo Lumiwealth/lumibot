@@ -1,7 +1,7 @@
 import logging
 
 from .strategy import Strategy
-from data_sources import Alpaca
+from data_sources import AlpacaData
 
 class Demo(Strategy):
     # =====Overloading lifecycle methods=============
@@ -43,7 +43,7 @@ class Demo(Strategy):
     def get_best_asset(self):
         momentums = []
         for symbol in self.symbols:
-            df = Alpaca.get_intraday_returns_for_asset(self.api, symbol, self.period)
+            df = AlpacaData.get_intraday_returns_for_asset(self.api, symbol, self.period)
             symbol_return = df['momentum'][-1]
             logging.info(
                 "%s has a return value of %.2f%% over the last %d minutes(s)." %

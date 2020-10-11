@@ -2,8 +2,7 @@ import yfinance as yf
 
 class Yahoo:
     @staticmethod
-    def get_returns_for_asset(symbol, momentum_length, period=None):
-
+    def get_interday_returns_for_asset(symbol, momentum_length=1, period=None):
         if period:
             period_str = "%dd" % period
         else:

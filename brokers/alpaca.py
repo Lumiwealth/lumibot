@@ -1,6 +1,9 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from threading import Thread
 from functools import wraps
+import datetime as dt
+from datetime import timezone
+import pandas as pd
 
 import time, logging
 
@@ -44,21 +47,43 @@ class Alpaca(Broker):
         if connect_stream:
             self.set_streams()
 
-    def __getattr__(self, name):
-        try:
-            method = getattr(AlpacaData, name)
-            api = self.api
-            @wraps(method)
-            def func(*arg, **kwargs):
-                return method(api, *arg, **kwargs)
-
-            return func
-        except AttributeError:
-            raise AttributeError(
-                "type object %s has no attribute %s" % (self.__class__.__name__, name)
-            )
-
     # =======API functions=========
+
+    def is_market_open(self):
+        """return True if market is open else false"""
+        return self.api.get_clock().is_open
+
+    def get_time_to_open(self):
+        """Return the remaining time for the market to open in seconds"""
+        clock = self.api.get_clock()
+        opening_time = clock.next_open.replace(tzinfo=timezone.utc).timestamp()
+        curr_time = clock.timestamp.replace(tzinfo=timezone.utc).timestamp()
+        time_to_open = opening_time - curr_time
+        return time_to_open
+
+    def get_last_price(self, symbol):
+        """Takes an asset symbol and returns the last known price"""
+        df = self.api.get_barset([symbol], "minute", 1).df[symbol]
+        return df.iloc[0].close
+
+    def get_last_prices(self, symbols):
+        """Takes a list of symbols and returns the last known prices"""
+        result = {}
+        bars = self.get_symbol_bars(self.api, symbols, "minute", 1)
+        for symbol, symbol_bars in bars.items():
+            if symbol_bars:
+                last_value = symbol_bars.df["close"][-1]
+                result[symbol] = last_value
+
+        return result
+
+    def get_time_to_close(self):
+        """Return the remaining time for the market to close in seconds"""
+        clock = self.api.get_clock()
+        closing_time = clock.next_close.replace(tzinfo=dt.timezone.utc).timestamp()
+        curr_time = clock.timestamp.replace(tzinfo=dt.timezone.utc).timestamp()
+        time_to_close = closing_time - curr_time
+        return time_to_close
 
     def get_positions(self):
         """Get the account positions"""

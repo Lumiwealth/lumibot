@@ -55,7 +55,7 @@ class Demo(Strategy):
         for symbol in self.symbols:
             # df = Alpaca.get_recent_minute_momentum_for_asset(self.broker, symbol, self.momentum_length)
             # df = AlpacaData.get_intraday_returns_for_asset(self.broker, symbol, self.period)
-            df = AlpacaData.get_asset_momentum(self.broker, symbol, momentum_length=self.momentum_length)
+            df = self.pricing_data.get_asset_momentum(symbol, momentum_length=self.momentum_length)
 
             symbol_return = df['momentum'][-1]
             logging.info(

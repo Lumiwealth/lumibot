@@ -49,14 +49,13 @@ class Demo(Strategy):
     def exit_all_positions(self):
         # Sell the asset you hold before the market closes, and wait until tomorrow
         self.broker.submit_order(self.asset, self.quantity, 'sell')
-        self.broker.await_market_to_close()
 
     def get_best_asset(self):
         momentums = []
         for symbol in self.symbols:
             # df = Alpaca.get_recent_minute_momentum_for_asset(self.broker, symbol, self.momentum_length)
             # df = AlpacaData.get_intraday_returns_for_asset(self.broker, symbol, self.period)
-            df = AlpacaData.get_recent_minute_momentum_for_asset(self.broker, symbol, self.momentum_length)
+            df = AlpacaData.get_asset_momentum(self.broker, symbol, momentum_length=self.momentum_length)
 
             symbol_return = df['momentum'][-1]
             logging.info(

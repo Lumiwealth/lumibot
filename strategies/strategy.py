@@ -1,7 +1,7 @@
 import time, logging, traceback
 
 class Strategy:
-    def __init__(self, budget, broker, minutes_before_closing=15, sleeptime=1):
+    def __init__(self, budget, broker, pricing_data, minutes_before_closing=15, sleeptime=1):
         #Setting the strategy name and the budget allocated
         self.name = self.__class__.__name__
         self.budget = budget
@@ -16,6 +16,9 @@ class Strategy:
         #Timesleep after each on_trading_iteration execution
         #unity is minutes
         self.sleeptime = sleeptime
+
+        # Setting the data provider
+        self.pricing_data = pricing_data
 
     #=======Helper methods=======================
     def format_log_message(self, message):

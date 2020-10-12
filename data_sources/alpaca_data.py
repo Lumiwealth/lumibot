@@ -4,37 +4,63 @@ from alpaca_trade_api.entity import BarSet
 import datetime as dt
 import pandas as pd
 
+import alpaca_trade_api as tradeapi
+from alpaca_trade_api.common import URL
+
 from tools import get_chunks
 
 
 class AlpacaData:
-    @staticmethod
-    def is_market_open(api):
-        """return True if market is open else false"""
-        return api.get_clock().is_open
+    def __init__(self, config, connect_stream=True, max_workers=200, chunk_size=100):
+        # Calling the Broker init method
+        super().__init__()
 
-    @staticmethod
-    def get_time_to_open(api):
+        # Alpaca authorize 200 requests per minute and per API key
+        # Setting the max_workers for multithreading to 200
+        # to go full speed if needed
+        self.max_workers = min(max_workers, 200)
+
+        # When requesting data for assets for example,
+        # if there is too many assets, the best thing to do would
+        # be to split it into chunks and request data for each chunk
+        self.chunk_size = min(chunk_size, 100)
+
+        # Connection to alpaca REST API
+        api_key = config.API_KEY
+        api_secret = config.API_SECRET
+        if hasattr(config, "ENDPOINT"):
+            endpoint = config.ENDPOINT
+        else:
+            endpoint = "https://paper-api.alpaca.markets"
+        if hasattr(config, 'VERSION'):
+            version = config.VERSION
+        else:
+            version = "v2"
+        self.api = tradeapi.REST(api_key, api_secret, URL(endpoint), version)
+
+    def is_market_open(self):
+        """return True if market is open else false"""
+        return self.api.get_clock().is_open
+
+    def get_time_to_open(self):
         """Return the remaining time for the market to open in seconds"""
-        clock = api.get_clock()
+        clock = self.api.get_clock()
         opening_time = clock.next_open.replace(tzinfo=timezone.utc).timestamp()
         curr_time = clock.timestamp.replace(tzinfo=timezone.utc).timestamp()
         time_to_open = opening_time - curr_time
         return time_to_open
 
-    @staticmethod
-    def get_time_to_close(api):
+    def get_time_to_close(self):
         """Return the remaining time for the market to close in seconds"""
-        clock = api.get_clock()
+        clock = self.api.get_clock()
         closing_time = clock.next_close.replace(tzinfo=dt.timezone.utc).timestamp()
         curr_time = clock.timestamp.replace(tzinfo=dt.timezone.utc).timestamp()
         time_to_close = closing_time - curr_time
         return time_to_close
 
-    @staticmethod
-    def get_tradable_assets(api, easy_to_borrow=None, filter_func=None):
+    def get_tradable_assets(self, easy_to_borrow=None, filter_func=None):
         """Get the list of all tradable assets from the market"""
-        assets = api.list_assets()
+        assets = self.api.list_assets()
         result = []
         for asset in assets:
             is_valid = asset.tradable
@@ -49,17 +75,15 @@ class AlpacaData:
 
         return result
 
-    @staticmethod
-    def get_symbol_bars(api, symbol, time_unit, length=None, start=None, end=None):
-        """Get bars for a give symbol"""
+    def get_symbol_bars(self, symbol, time_unit, length=None, start=None, end=None):
+        """Get bars for a given symbol"""
         kwargs = dict(limit=length, start=start, end=end)
         kwargs = {k: v for k, v in kwargs.items() if v is not None}
-        df = api.get_barset(symbol, time_unit, **kwargs).df[symbol]
+        df = self.api.get_barset(symbol, time_unit, **kwargs).df[symbol]
         return df
 
-    @staticmethod
     def get_symbols_bars(
-        api,
+        self,
         symbols,
         time_unit,
         length=None,
@@ -73,7 +97,7 @@ class AlpacaData:
         chunks = get_chunks(symbols, chunk_size)
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             tasks = []
-            func = lambda args, kwargs: api.get_barset(*args, **kwargs)
+            func = lambda args, kwargs: self.api.get_barset(*args, **kwargs)
             kwargs = dict(limit=length, start=start, end=end)
             kwargs = {k: v for k, v in kwargs.items() if v is not None}
             for chunk in chunks:
@@ -86,17 +110,15 @@ class AlpacaData:
 
         return BarSet(raw)
 
-    @staticmethod
-    def get_last_price(api, symbol):
+    def get_last_price(self, symbol):
         """Takes an asset symbol and returns the last known price"""
-        df = api.get_barset([symbol], "minute", 1).df[symbol]
+        df = self.api.get_barset([symbol], "minute", 1).df[symbol]
         return df.iloc[0].close
 
-    @staticmethod
-    def get_last_prices(api, symbols):
+    def get_last_prices(self, symbols):
         """Takes a list of symbols and returns the last known prices"""
         result = {}
-        bars = AlpacaData.get_symbol_bars(api, symbols, "minute", 1)
+        bars = self.get_symbol_bars(self.api, symbols, "minute", 1)
         for symbol, symbol_bars in bars.items():
             if symbol_bars:
                 last_value = symbol_bars.df["close"][-1]
@@ -104,9 +126,8 @@ class AlpacaData:
 
         return result
 
-    @staticmethod
     def get_asset_momentum(
-        api,
+        self,
         symbol,
         time_unit="minute",
         momentum_length=1,
@@ -115,8 +136,8 @@ class AlpacaData:
         end=None,
     ):
         """Calculates an asset momentum over a period and returns a dataframe"""
-        df = AlpacaData.get_symbol_bars(
-            api, symbol, time_unit, length=length, start=start, end=end
+        df = self.get_symbol_bars(
+            symbol, time_unit, length=length, start=start, end=end
         )
         n_rows = len(df.index)
         if n_rows <= momentum_length:
@@ -130,9 +151,8 @@ class AlpacaData:
         df["momentum"] = df["close"].pct_change(periods=momentum_length)
         return df[df['momentum'].notna()]
 
-    @staticmethod
     def get_assets_momentum(
-        api,
+        self,
         symbols,
         time_unit="minute",
         momentum_length=1,
@@ -146,7 +166,7 @@ class AlpacaData:
         over a period and returns a dataframe"""
         result = {}
         barsets = AlpacaData.get_symbols_bars(
-            api,
+            self.api,
             symbols,
             time_unit,
             length=length,

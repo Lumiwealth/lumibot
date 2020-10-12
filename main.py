@@ -12,20 +12,20 @@ from credentials import AlpacaConfig
 
 if __name__ == '__main__':
     budget = 40000
-    broker = Alpaca(AlpacaConfig.API_KEY, AlpacaConfig.API_SECRET)
+    broker = Alpaca(AlpacaConfig)
     trader = Trader(logfile='logs/test.log', debug=False)
 
-    #quick_momentum = QuickMomentum(budget=budget, broker=broker)
-    #trader.add_strategy(quick_momentum)
+    quick_momentum = QuickMomentum(budget=budget, broker=broker)
+    trader.add_strategy(quick_momentum)
 
-    #momentum = Momentum(budget=budget, broker=broker)
-    #trader.add_strategy(momentum)
+    # momentum = Momentum(budget=budget, broker=broker)
+    # trader.add_strategy(momentum)
 
     # diversication = Diversication(budget=budget, broker=broker)
     # trader.add_strategy(diversication)
 
-    demo = Demo(budget=budget, broker=broker)
-    trader.add_strategy(demo)
+    # demo = Demo(budget=budget, broker=broker)
+    # trader.add_strategy(demo)
 
     trader.run_all()
 

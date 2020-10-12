@@ -7,7 +7,7 @@ class Strategy:
         self.budget = budget
 
         # Setting the API object
-        self.api = broker
+        self.broker = broker
 
         #Setting how many minutes before market closes
         #The bot should stop
@@ -30,7 +30,7 @@ class Strategy:
 
     def before_market_opens(self):
         """Lifecycle method executed before market opens
-        Example: self.api.cancel_open_orders()"""
+        Example: self.broker.cancel_open_orders()"""
         pass
 
     def before_starting_trading(self):
@@ -49,7 +49,7 @@ class Strategy:
     def before_market_closes(self):
         """Use this lifecycle method to execude code
         self.minutes_before_closing minutes before closing.
-        Example: self.api.sell_all()"""
+        Example: self.broker.sell_all()"""
         pass
 
     def after_market_closes(self):
@@ -63,22 +63,22 @@ class Strategy:
         pass
 
     def run_trading_session(self):
-        if not self.api.is_market_open():
+        if not self.broker.is_market_open():
             logging.info(self.format_log_message(
                 "Executing the before_market_opens lifecycle method"
             ))
             self.before_market_opens()
 
-        self.api.await_market_to_open()
+        self.broker.await_market_to_open()
         self.before_starting_trading()
 
-        time_to_close = self.api.get_time_to_close()
+        time_to_close = self.broker.get_time_to_close()
         while time_to_close > self.minutes_before_closing * 60:
             logging.info(self.format_log_message(
                 "Executing the on_trading_iteration lifecycle method"
             ))
             self.on_trading_iteration()
-            time_to_close = self.api.get_time_to_close()
+            time_to_close = self.broker.get_time_to_close()
             sleeptime = time_to_close - 15 * 60
             sleeptime = max(min(sleeptime, 60 * self.sleeptime), 0)
             if sleeptime:
@@ -87,13 +87,13 @@ class Strategy:
                 ))
                 time.sleep(sleeptime)
 
-        if self.api.is_market_open():
+        if self.broker.is_market_open():
             logging.info(self.format_log_message(
                 "Executing the before_market_closes lifecycle method"
             ))
             self.before_market_closes()
 
-        self.api.await_market_to_close()
+        self.broker.await_market_to_close()
         logging.info(self.format_log_message(
             "Executing the after_market_closes lifecycle method"
         ))

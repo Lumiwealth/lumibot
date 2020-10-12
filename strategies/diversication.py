@@ -8,7 +8,7 @@ class Diversication(Strategy):
 
     def initialize(self):
         # sell all previous orders
-        self.api.sell_all()
+        self.broker.sell_all()
 
         # setting the waiting period (in days) and the counter
         self.period = 1
@@ -50,7 +50,7 @@ class Diversication(Strategy):
             logging.info("Next portfolio rebalancing will be on %d day(s)" % self.period)
 
         self.counter += 1
-        self.api.await_market_to_close()
+        self.broker.await_market_to_close()
 
     # =============Helper methods====================
 
@@ -60,7 +60,7 @@ class Diversication(Strategy):
 
         value = 0
         symbols = [a.get('symbol') for a in self.portfolio]
-        prices = self.api.get_last_prices(symbols)
+        prices = self.broker.get_last_prices(symbols)
         for asset in self.portfolio:
             symbol = asset.get('symbol')
             quantity = asset.get('quantity') if asset.get('quantity') else 0
@@ -85,7 +85,7 @@ class Diversication(Strategy):
             weight = asset.get('weight')
             quantity = asset.get('quantity') if asset.get('quantity') else 0
             last_price = asset.get('last_price')
-            if not last_price: last_price = self.api.get_last_price(symbol)
+            if not last_price: last_price = self.broker.get_last_price(symbol)
             shares_value = portfolio_value * weight
             if quantity:
                 logging.info(
@@ -119,4 +119,4 @@ class Diversication(Strategy):
                 orders.append(order)
                 asset['quantity'] = new_quantity
 
-        self.api.submit_orders(orders)
+        self.broker.submit_orders(orders)

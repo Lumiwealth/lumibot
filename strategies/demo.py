@@ -8,7 +8,7 @@ class Demo(Strategy):
 
     def initialize(self):
         # canceling open orders
-        self.api.cancel_open_orders()
+        self.broker.cancel_open_orders()
 
         #setting the momentum period (in minutes) and the counter
         self.momentum_length = 2
@@ -27,12 +27,12 @@ class Demo(Strategy):
         if best_asset != self.asset:
             if self.asset:
                 logging.info("Swapping %s for %s." % (self.asset, best_asset))
-                self.api.submit_order(self.asset, self.quantity, 'sell')
+                self.broker.submit_order(self.asset, self.quantity, 'sell')
 
             self.asset = best_asset
-            best_asset_price = self.api.get_last_price(best_asset)
+            best_asset_price = self.broker.get_last_price(best_asset)
             self.quantity = self.budget // best_asset_price
-            self.api.submit_order(self.asset, self.quantity, 'buy')
+            self.broker.submit_order(self.asset, self.quantity, 'buy')
         else:
             logging.info("Keeping %d shares of %s" % (self.quantity, self.asset))
 
@@ -48,15 +48,15 @@ class Demo(Strategy):
 
     def exit_all_positions(self):
         # Sell the asset you hold before the market closes, and wait until tomorrow
-        self.api.submit_order(self.asset, self.quantity, 'sell')
-        self.api.await_market_to_close()
+        self.broker.submit_order(self.asset, self.quantity, 'sell')
+        self.broker.await_market_to_close()
 
     def get_best_asset(self):
         momentums = []
         for symbol in self.symbols:
-            # df = Alpaca.get_recent_minute_momentum_for_asset(self.api, symbol, self.momentum_length)
-            # df = AlpacaData.get_intraday_returns_for_asset(self.api, symbol, self.period)
-            df = AlpacaData.get_assets_momentum(self.api, symbol, self.period)
+            # df = Alpaca.get_recent_minute_momentum_for_asset(self.broker, symbol, self.momentum_length)
+            # df = AlpacaData.get_intraday_returns_for_asset(self.broker, symbol, self.period)
+            df = AlpacaData.get_recent_minute_momentum_for_asset(self.broker, symbol, self.momentum_length)
 
             symbol_return = df['momentum'][-1]
             logging.info(

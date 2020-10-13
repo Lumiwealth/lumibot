@@ -44,11 +44,15 @@ class Demo(Strategy):
     def on_bot_crash(self):
         self.exit_all_positions()
 
+    def on_abrupt_closing(self):
+        self.exit_all_positions()
+
     # =============Helper methods====================
 
     def exit_all_positions(self):
         # Sell the asset you hold before the market closes, and wait until tomorrow
-        self.broker.submit_order(self.asset, self.quantity, 'sell')
+        # self.broker.submit_order(self.asset, self.quantity, 'sell')
+        self.broker.sell_all()
 
     def get_best_asset(self):
         momentums = []

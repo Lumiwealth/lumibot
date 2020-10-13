@@ -43,6 +43,10 @@ class Momentum(Strategy):
         self.counter += 1
         self.broker.await_market_to_close()
 
+    def on_abrupt_closing(self):
+        # sell all positions
+        self.broker.sell_all()
+
     # =============Helper methods====================
 
     def get_best_asset(self):

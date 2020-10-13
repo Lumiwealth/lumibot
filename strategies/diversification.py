@@ -3,7 +3,7 @@ import logging
 from .strategy import Strategy
 from data_sources import Yahoo
 
-class Diversication(Strategy):
+class Diversification(Strategy):
     # =====Overloading lifecycle methods=============
 
     def initialize(self):

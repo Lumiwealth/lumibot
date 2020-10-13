@@ -137,7 +137,7 @@ class AlpacaData:
     ):
         """Calculates an asset momentum over a period and returns a dataframe"""
         df = self.get_symbol_bars(
-            symbol, time_unit, length=(length+1), start=start, end=end
+            symbol, time_unit, length=length, start=start, end=end
         )
         n_rows = len(df.index)
         if n_rows <= momentum_length:
@@ -169,7 +169,7 @@ class AlpacaData:
             self.api,
             symbols,
             time_unit,
-            length=(length+1),
+            length=length,
             start=start,
             end=end,
             chunk_size=chunk_size,

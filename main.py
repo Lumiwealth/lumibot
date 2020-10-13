@@ -17,8 +17,8 @@ if __name__ == '__main__':
     pricing_data = AlpacaData(AlpacaConfig)
     trader = Trader(logfile='logs/test.log', debug=False)
 
-    quick_momentum = QuickMomentum(budget=budget, broker=broker, pricing_data=pricing_data)
-    trader.add_strategy(quick_momentum)
+    # quick_momentum = QuickMomentum(budget=budget, broker=broker, pricing_data=pricing_data)
+    # trader.add_strategy(quick_momentum)
 
     # momentum = Momentum(budget=budget, broker=broker, pricing_data=pricing_data)
     # trader.add_strategy(momentum)
@@ -26,8 +26,8 @@ if __name__ == '__main__':
     # diversification = Diversification(budget=budget, broker=broker, pricing_data=pricing_data)
     # trader.add_strategy(diversification)
 
-    # demo = Demo(budget=budget, broker=broker, pricing_data=pricing_data)
-    # trader.add_strategy(demo)
+    demo = Demo(budget=budget, broker=broker, pricing_data=pricing_data)
+    trader.add_strategy(demo)
 
     trader.run_all()
 

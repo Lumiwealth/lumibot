@@ -45,6 +45,10 @@ class QuickMomentum(Strategy):
         # sell all positions
         self.broker.sell_all()
 
+    def on_abrupt_closing(self):
+        # sell all positions
+        self.broker.sell_all()
+
     #=============Helper methods====================
 
     def buy_winning_stocks(self, increase_target, stop_loss_target, limit_increase_target):
@@ -58,18 +62,19 @@ class QuickMomentum(Strategy):
     def get_data(self):
         """extract the data"""
         ongoing_assets = self.broker.get_ongoing_assets()
-        assets = self.pricing_data.get_tradable_assets(easy_to_borrow=True)
+        assets = self.broker.get_tradable_assets()
         symbols = [a for a in assets if a not in (ongoing_assets + self.blacklist)]
-        length = 4 * 24
-        momentums = self.pricing_data.get_assets_momentum(symbols, time_unit='15Min', length=length, momentum_length=length)
-        return momentums
+        length = 4 * 24 + 1
+        symbols_df = self.pricing_data.get_assets_momentum(symbols, time_unit='15Min', length=length, momentum_length=length-1)
+        return symbols_df
 
     def select_assets(self, data, increase_target):
         """Select the assets for which orders are going to be placed"""
 
         #filtering and sorting assets on momentum
         potential_positions = []
-        for symbol, momentum in data.items():
+        for symbol, df in data.items():
+            momentum = df['momentum'][-1]
             if momentum >= increase_target:
                 record = {
                     'symbol': symbol,
@@ -114,7 +119,7 @@ class QuickMomentum(Strategy):
         """Placing the orders"""
         orders = []
         symbols = [p.get('symbol') for p in new_positions]
-        last_prices = self.broker.get_last_prices(symbols)
+        last_prices = self.pricing_data.get_last_prices(symbols)
         logging.info("Last prices for selected assets: %s" % str(last_prices))
         for position in new_positions:
             symbol = position.get('symbol')

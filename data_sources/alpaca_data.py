@@ -1,3 +1,4 @@
+import logging
 from datetime import timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from alpaca_trade_api.entity import BarSet
@@ -11,10 +12,7 @@ from tools import get_chunks
 
 
 class AlpacaData:
-    def __init__(self, config, connect_stream=True, max_workers=200, chunk_size=100):
-        # Calling the Broker init method
-        super().__init__()
-
+    def __init__(self, config, max_workers=200, chunk_size=100):
         # Alpaca authorize 200 requests per minute and per API key
         # Setting the max_workers for multithreading to 200
         # to go full speed if needed
@@ -97,7 +95,7 @@ class AlpacaData:
         chunks = get_chunks(symbols, chunk_size)
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             tasks = []
-            func = lambda args, kwargs: self.get_barset(*args, **kwargs)
+            func = lambda args, kwargs: self.api.get_barset(*args, **kwargs)
             kwargs = dict(limit=length, start=start, end=end)
             kwargs = {k: v for k, v in kwargs.items() if v is not None}
             for chunk in chunks:
@@ -118,9 +116,9 @@ class AlpacaData:
     def get_last_prices(self, symbols):
         """Takes a list of symbols and returns the last known prices"""
         result = {}
-        bars = self.get_symbol_bars(self.api, symbols, "minute", 1)
+        bars = self.get_symbols_bars(symbols, "minute", 1)
         for symbol, symbol_bars in bars.items():
-            if symbol_bars:
+            if symbol_bars is not None:
                 last_value = symbol_bars.df["close"][-1]
                 result[symbol] = last_value
 
@@ -139,14 +137,6 @@ class AlpacaData:
         df = self.get_symbol_bars(
             symbol, time_unit, length=length, start=start, end=end
         )
-        n_rows = len(df.index)
-        if n_rows <= momentum_length:
-            raise Exception(
-                'Number of timestamps must be larger than the momentum_length. '
-                'Received %d timestamps with a momentum_length set to %d.' %
-                (n_rows, momentum_length)
-            )
-
         df["price_change"] = df["close"].pct_change()
         df["momentum"] = df["close"].pct_change(periods=momentum_length)
         return df[df['momentum'].notna()]
@@ -162,11 +152,11 @@ class AlpacaData:
         chunk_size=100,
         max_workers=200,
     ):
-        """Calculates a list of asset momentums
-        over a period and returns a dataframe"""
+        """Calculates a list of asset momentums over a period
+        and returns a dataframe. WARNING: if alpaca does not
+        provide enough timestamps, symbol would be skipped"""
         result = {}
-        barsets = AlpacaData.get_symbols_bars(
-            self.api,
+        barsets = self.get_symbols_bars(
             symbols,
             time_unit,
             length=length,
@@ -178,20 +168,15 @@ class AlpacaData:
         if not barsets:
             return result
 
-        test = list(barsets.values())[0]
-        n_rows = len(test)
-        if n_rows <= momentum_length:
-            raise Exception(
-                'Number of timestamps must be larger than the momentum_length. '
-                'Received %d timestamps with a momentum_length set to %d.' %
-                (n_rows, momentum_length)
-            )
-
         for k, v in barsets.items():
             df = v.df
             df["price_change"] = df["close"].pct_change()
             df["momentum"] = df["close"].pct_change(periods=momentum_length)
-            result[k] = df[df['momentum'].notna()]
+            df = df[df['momentum'].notna()]
+            n_rows = len(df.index)
+
+            #keeping only dataframes with at least one notna momentum
+            if n_rows:
+                result[k] = df
 
         return result
-

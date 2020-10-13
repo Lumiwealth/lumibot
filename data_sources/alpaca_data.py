@@ -97,7 +97,7 @@ class AlpacaData:
         chunks = get_chunks(symbols, chunk_size)
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             tasks = []
-            func = lambda args, kwargs: self.api.get_barset(*args, **kwargs)
+            func = lambda args, kwargs: self.get_barset(*args, **kwargs)
             kwargs = dict(limit=length, start=start, end=end)
             kwargs = {k: v for k, v in kwargs.items() if v is not None}
             for chunk in chunks:
@@ -137,13 +137,13 @@ class AlpacaData:
     ):
         """Calculates an asset momentum over a period and returns a dataframe"""
         df = self.get_symbol_bars(
-            symbol, time_unit, length=length, start=start, end=end
+            symbol, time_unit, length=(length+1), start=start, end=end
         )
         n_rows = len(df.index)
         if n_rows <= momentum_length:
             raise Exception(
-                'Number of timestamps must be superior to the momentum_length.'
-                'received %d timestamps with a momentum_length set to %d.' %
+                'Number of timestamps must be larger than the momentum_length. '
+                'Received %d timestamps with a momentum_length set to %d.' %
                 (n_rows, momentum_length)
             )
 
@@ -169,7 +169,7 @@ class AlpacaData:
             self.api,
             symbols,
             time_unit,
-            length=length,
+            length=(length+1),
             start=start,
             end=end,
             chunk_size=chunk_size,
@@ -182,8 +182,8 @@ class AlpacaData:
         n_rows = len(test)
         if n_rows <= momentum_length:
             raise Exception(
-                'Number of timestamps must be superior to the momentum_length.'
-                'received %d timestamps with a momentum_length set to %d.' %
+                'Number of timestamps must be larger than the momentum_length. '
+                'Received %d timestamps with a momentum_length set to %d.' %
                 (n_rows, momentum_length)
             )
 

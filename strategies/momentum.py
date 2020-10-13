@@ -8,7 +8,7 @@ class Momentum(Strategy):
 
     def initialize(self):
         # canceling open orders
-        self.api.cancel_open_orders()
+        self.broker.cancel_open_orders()
 
         #setting the waiting period (in days) and the counter
         self.period = 1
@@ -30,18 +30,18 @@ class Momentum(Strategy):
             if best_asset != self.asset:
                 if self.asset:
                     logging.info("Swapping %s for %s." % (self.asset, best_asset))
-                    self.api.submit_order(self.asset, self.quantity, 'sell')
+                    self.broker.submit_order(self.asset, self.quantity, 'sell')
 
                 self.asset = best_asset
-                best_asset_price = self.api.get_last_price(best_asset)
+                best_asset_price = self.broker.get_last_price(best_asset)
                 self.quantity = self.budget // best_asset_price
-                self.api.submit_order(self.asset, self.quantity, 'buy')
+                self.broker.submit_order(self.asset, self.quantity, 'buy')
             else:
                 logging.info("Keeping %d shares of %s" % (self.quantity, self.asset))
 
         logging.info("Sleeping till the market closes.")
         self.counter += 1
-        self.api.await_market_to_close()
+        self.broker.await_market_to_close()
 
     # =============Helper methods====================
 

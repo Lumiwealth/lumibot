@@ -58,10 +58,10 @@ class QuickMomentum(Strategy):
     def get_data(self):
         """extract the data"""
         ongoing_assets = self.broker.get_ongoing_assets()
-        assets = self.broker.get_tradable_assets(easy_to_borrow=True)
+        assets = self.pricing_data.get_tradable_assets(easy_to_borrow=True)
         symbols = [a for a in assets if a not in (ongoing_assets + self.blacklist)]
         length = 4 * 24
-        momentums = self.broker.get_assets_momentum(symbols, time_unit='15Min', length=length, momentum_length=length)
+        momentums = self.pricing_data.get_assets_momentum(symbols, time_unit='15Min', length=length, momentum_length=length)
         return momentums
 
     def select_assets(self, data, increase_target):

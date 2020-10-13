@@ -48,6 +48,11 @@ class Trader:
             for t in threads:
                 t.join()
         except KeyboardInterrupt:
+            for strategy in self.strategies:
+                logging.info(strategy.format_log_message(
+                    "Executing the on_abrupt_closing lifecycle method"
+                ))
+                strategy.on_abrupt_closing()
             logging.info("Trading stopped")
             return
 

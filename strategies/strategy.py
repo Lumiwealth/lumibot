@@ -65,6 +65,12 @@ class Strategy:
         when an exception is raised and the bot crashes"""
         pass
 
+    def on_abrupt_closing(self):
+        """Use this lifecycle method to execute code
+        when the main trader was shut down (Keybord Interuption, ...)
+        Example: self.broker.sell_all()"""
+        pass
+
     def run_trading_session(self):
         if not self.broker.is_market_open():
             logging.info(self.format_log_message(
@@ -114,6 +120,6 @@ class Strategy:
                 self.run_trading_session()
             except Exception as e:
                 logging.error(e)
-                logging.debug(traceback.format_exc())
+                logging.error(traceback.format_exc())
                 self.on_bot_crash(e)
                 break

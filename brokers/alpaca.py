@@ -219,6 +219,23 @@ class Alpaca(Broker):
             sleeptime = max(0, time_to_close)
             time.sleep(sleeptime)
 
+    def get_tradable_assets(self, easy_to_borrow=None, filter_func=None):
+        """Get the list of all tradable assets from the market"""
+        assets = self.api.list_assets()
+        result = []
+        for asset in assets:
+            is_valid = asset.tradable
+            if easy_to_borrow is not None and isinstance(easy_to_borrow, bool):
+                is_valid = is_valid & (easy_to_borrow == asset.easy_to_borrow)
+            if filter_func is not None:
+                filter_test = filter_func(asset.symbol)
+                is_valid = is_valid & filter_test
+
+            if is_valid:
+                result.append(asset.symbol)
+
+        return result
+
     # =======Stream functions=========
 
     def set_streams(self):

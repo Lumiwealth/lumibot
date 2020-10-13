@@ -23,11 +23,11 @@ if __name__ == '__main__':
     # momentum = Momentum(budget=budget, broker=broker, pricing_data=pricing_data)
     # trader.add_strategy(momentum)
 
-    # diversification = Diversification(budget=budget, broker=broker, pricing_data=pricing_data)
-    # trader.add_strategy(diversification)
+    diversification = Diversification(budget=budget, broker=broker, pricing_data=pricing_data)
+    trader.add_strategy(diversification)
 
-    demo = Demo(budget=budget, broker=broker, pricing_data=pricing_data)
-    trader.add_strategy(demo)
+    # demo = Demo(budget=budget, broker=broker, pricing_data=pricing_data)
+    # trader.add_strategy(demo)
 
     trader.run_all()
 

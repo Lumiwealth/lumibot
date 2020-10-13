@@ -1,7 +1,7 @@
 import time, logging, traceback
 
 class Strategy:
-    def __init__(self, budget, broker, pricing_data, minutes_before_closing=15, sleeptime=1):
+    def __init__(self, budget, broker, pricing_data, minutes_before_closing=5, sleeptime=1):
         #Setting the strategy name and the budget allocated
         self.name = self.__class__.__name__
         self.budget = budget

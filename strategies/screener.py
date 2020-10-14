@@ -3,7 +3,7 @@ import logging
 from .strategy import Strategy
 from data_sources import Yahoo
 
-class QuickMomentum(Strategy):
+class Screener(Strategy):
 
     #=====Overloading lifecycle methods=============
 

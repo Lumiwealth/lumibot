@@ -3,7 +3,7 @@ import logging
 from .strategy import Strategy
 from data_sources import AlpacaData
 
-class Demo(Strategy):
+class IntradayMomentum(Strategy):
     # =====Overloading lifecycle methods=============
 
     def initialize(self):

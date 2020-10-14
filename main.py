@@ -4,7 +4,7 @@ import sys, os, time
 import alpaca_trade_api as tradeapi
 from alpaca_trade_api.common import URL
 
-from strategies import QuickMomentum, Momentum, Diversification, Demo
+from strategies import Screener, Momentum, Diversification, IntradayMomentum
 from brokers import Alpaca
 from data_sources import AlpacaData
 from traders import Trader
@@ -17,17 +17,17 @@ if __name__ == '__main__':
     pricing_data = AlpacaData(AlpacaConfig)
     trader = Trader(logfile='logs/test.log', debug=False)
 
-    # quick_momentum = QuickMomentum(budget=budget, broker=broker, pricing_data=pricing_data)
-    # trader.add_strategy(quick_momentum)
+    screener = Screener(budget=budget, broker=broker, pricing_data=pricing_data)
+    trader.add_strategy(screener)
 
     # momentum = Momentum(budget=budget, broker=broker, pricing_data=pricing_data)
     # trader.add_strategy(momentum)
 
-    diversification = Diversification(budget=budget, broker=broker, pricing_data=pricing_data)
-    trader.add_strategy(diversification)
+    # diversification = Diversification(budget=budget, broker=broker, pricing_data=pricing_data)
+    # trader.add_strategy(diversification)
 
-    # demo = Demo(budget=budget, broker=broker, pricing_data=pricing_data)
-    # trader.add_strategy(demo)
+    # intraday_momentum = IntradayMomentum(budget=budget, broker=broker, pricing_data=pricing_data)
+    # trader.add_strategy(intraday_momentum)
 
     trader.run_all()
 

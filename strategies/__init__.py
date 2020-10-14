@@ -1,5 +1,5 @@
 from .strategy import Strategy
 from .momentum import Momentum
-from .quick_momentum import QuickMomentum
+from .screener import Screener
 from .diversification import Diversification
-from .demo import Demo
+from .intraday_momentum import IntradayMomentum

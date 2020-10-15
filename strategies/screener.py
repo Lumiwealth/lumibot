@@ -1,11 +1,13 @@
 import logging
 
-from .strategy import Strategy
 from data_sources import Yahoo
+
+from .strategy import Strategy
+
 
 class Screener(Strategy):
 
-    #=====Overloading lifecycle methods=============
+    # =====Overloading lifecycle methods=============
 
     def initialize(self):
         # canceling open orders
@@ -37,7 +39,9 @@ class Screener(Strategy):
     def on_trading_iteration(self):
         ongoing_assets = self.broker.get_ongoing_assets()
         if len(ongoing_assets) < self.max_positions:
-            self.buy_winning_stocks(self.increase_target, self.stop_loss_target, self.limit_increase_target)
+            self.buy_winning_stocks(
+                self.increase_target, self.stop_loss_target, self.limit_increase_target
+            )
         else:
             logging.info("Max positions %d reached" % self.max_positions)
 
@@ -49,14 +53,19 @@ class Screener(Strategy):
         # sell all positions
         self.broker.sell_all()
 
-    #=============Helper methods====================
+    # =============Helper methods====================
 
-    def buy_winning_stocks(self, increase_target, stop_loss_target, limit_increase_target):
+    def buy_winning_stocks(
+        self, increase_target, stop_loss_target, limit_increase_target
+    ):
         logging.info("Requesting asset bars from alpaca API")
         data = self.get_data()
         logging.info("Selecting best positions")
         new_positions = self.select_assets(data, increase_target)
-        logging.info("Placing orders for top assets %s." % [p.get('symbol') for p in new_positions])
+        logging.info(
+            "Placing orders for top assets %s."
+            % [p.get("symbol") for p in new_positions]
+        )
         self.place_orders(new_positions, stop_loss_target, limit_increase_target)
 
     def get_data(self):
@@ -65,52 +74,61 @@ class Screener(Strategy):
         assets = self.broker.get_tradable_assets()
         symbols = [a for a in assets if a not in (ongoing_assets + self.blacklist)]
         length = 4 * 24 + 1
-        symbols_df = self.pricing_data.get_assets_momentum(symbols, time_unit='15Min', length=length, momentum_length=length-1)
+        symbols_df = self.pricing_data.get_assets_momentum(
+            symbols, time_unit="15Min", length=length, momentum_length=length - 1
+        )
         return symbols_df
 
     def select_assets(self, data, increase_target):
         """Select the assets for which orders are going to be placed"""
 
-        #filtering and sorting assets on momentum
+        # filtering and sorting assets on momentum
         potential_positions = []
         for symbol, df in data.items():
-            momentum = df['momentum'][-1]
+            momentum = df["momentum"][-1]
             if momentum >= increase_target:
-                record = {
-                    'symbol': symbol,
-                    'momentum': momentum
-                }
+                record = {"symbol": symbol, "momentum": momentum}
                 potential_positions.append(record)
-        potential_positions.sort(key=lambda x: x.get('momentum'), reverse=True)
+        potential_positions.sort(key=lambda x: x.get("momentum"), reverse=True)
 
         ongoing_assets = self.broker.get_ongoing_assets()
         positions_count = len(ongoing_assets)
         n_empty_positions = self.max_positions - positions_count
         logging.info(
-            "Account has %d postion(s) %s. Looking for %d additional position(s). Max allowed %d." %
-            (positions_count, str(ongoing_assets), n_empty_positions, self.max_positions)
+            "Account has %d postion(s) %s. Looking for %d additional position(s). Max allowed %d."
+            % (
+                positions_count,
+                str(ongoing_assets),
+                n_empty_positions,
+                self.max_positions,
+            )
         )
 
         logging.info(
-            "Selecting %d assets with increase over %d %% (Ranked by increase)" %
-            (n_empty_positions, 100 * increase_target)
+            "Selecting %d assets with increase over %d %% (Ranked by increase)"
+            % (n_empty_positions, 100 * increase_target)
         )
         selected_assets = []
         for potential_position in potential_positions:
-            symbol = potential_position.get('symbol')
-            momentum = potential_position.get('momentum')
-            logging.info("Asset %s recorded %.2f%% increase over 24h" % (symbol, 100 * momentum))
-            atv = Yahoo.get_average_trading_volume(symbol, self.period_trading_daily_average)
+            symbol = potential_position.get("symbol")
+            momentum = potential_position.get("momentum")
+            logging.info(
+                "Asset %s recorded %.2f%% increase over 24h" % (symbol, 100 * momentum)
+            )
+            atv = Yahoo.get_average_trading_volume(
+                symbol, self.period_trading_daily_average
+            )
             test = atv >= self.minimum_trading_daily_average
             if test:
                 selected_assets.append(potential_position)
                 logging.info("Asset %s added to order queue." % symbol)
-                if len(selected_assets) == n_empty_positions: break
+                if len(selected_assets) == n_empty_positions:
+                    break
             else:
                 self.blacklist.append(symbol)
                 logging.info(
-                    "Asset %s blacklisted. Trading Daily Average %d inferior to %d." %
-                    (symbol, int(atv), self.minimum_trading_daily_average)
+                    "Asset %s blacklisted. Trading Daily Average %d inferior to %d."
+                    % (symbol, int(atv), self.minimum_trading_daily_average)
                 )
 
         return selected_assets
@@ -118,28 +136,28 @@ class Screener(Strategy):
     def place_orders(self, new_positions, stop_loss_target, limit_increase_target):
         """Placing the orders"""
         orders = []
-        symbols = [p.get('symbol') for p in new_positions]
+        symbols = [p.get("symbol") for p in new_positions]
         last_prices = self.pricing_data.get_last_prices(symbols)
         logging.info("Last prices for selected assets: %s" % str(last_prices))
         for position in new_positions:
-            symbol = position.get('symbol')
+            symbol = position.get("symbol")
             price = last_prices.get(symbol)
             if price:
                 stop_price = price * (1 - stop_loss_target)
                 limit_price = price * (1 + limit_increase_target)
                 quantity = int(self.capital_per_asset / price)
                 order = {
-                    'symbol': symbol,
-                    'quantity': quantity,
-                    'side': 'buy',
-                    'price': price,
-                    'stop_price': stop_price,
-                    'limit_price': limit_price
+                    "symbol": symbol,
+                    "quantity": quantity,
+                    "side": "buy",
+                    "price": price,
+                    "stop_price": stop_price,
+                    "limit_price": limit_price,
                 }
                 orders.append(order)
             else:
                 logging.error(
-                    'Could not submit order for asset %s. Something went wrong when requesting last price'
+                    "Could not submit order for asset %s. Something went wrong when requesting last price"
                     % symbol
                 )
 

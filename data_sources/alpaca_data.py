@@ -1,12 +1,12 @@
-import logging
-from datetime import timezone
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from alpaca_trade_api.entity import BarSet
 import datetime as dt
-import pandas as pd
+import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import timezone
 
 import alpaca_trade_api as tradeapi
+import pandas as pd
 from alpaca_trade_api.common import URL
+from alpaca_trade_api.entity import BarSet
 
 from tools import get_chunks
 
@@ -30,7 +30,7 @@ class AlpacaData:
             endpoint = config.ENDPOINT
         else:
             endpoint = "https://paper-api.alpaca.markets"
-        if hasattr(config, 'VERSION'):
+        if hasattr(config, "VERSION"):
             version = config.VERSION
         else:
             version = "v2"
@@ -139,7 +139,7 @@ class AlpacaData:
         )
         df["price_change"] = df["close"].pct_change()
         df["momentum"] = df["close"].pct_change(periods=momentum_length)
-        return df[df['momentum'].notna()]
+        return df[df["momentum"].notna()]
 
     def get_assets_momentum(
         self,
@@ -172,10 +172,10 @@ class AlpacaData:
             df = v.df
             df["price_change"] = df["close"].pct_change()
             df["momentum"] = df["close"].pct_change(periods=momentum_length)
-            df = df[df['momentum'].notna()]
+            df = df[df["momentum"].notna()]
             n_rows = len(df.index)
 
-            #keeping only dataframes with at least one notna momentum
+            # keeping only dataframes with at least one notna momentum
             if n_rows:
                 result[k] = df
 

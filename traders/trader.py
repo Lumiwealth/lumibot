@@ -1,12 +1,11 @@
+import logging
+import os
 from threading import Thread
 
-import logging, os
 
 class Trader:
-    def __init__(
-        self, logfile=None, debug=False, strategies=None
-    ):
-        #Setting Logging to both console and a file if logfile is specified
+    def __init__(self, logfile=None, debug=False, strategies=None):
+        # Setting Logging to both console and a file if logfile is specified
         logging.getLogger("urllib3").setLevel(logging.ERROR)
         logging.getLogger("requests").setLevel(logging.ERROR)
         self.logfile = logfile
@@ -25,11 +24,11 @@ class Trader:
             if not os.path.exists(dir):
                 os.mkdir(dir)
 
-            fileHandler = logging.FileHandler(logfile, mode='w')
+            fileHandler = logging.FileHandler(logfile, mode="w")
             fileHandler.setFormatter(logFormater)
             logger.addHandler(fileHandler)
 
-        #Setting the list of strategies if defined
+        # Setting the list of strategies if defined
         self.strategies = strategies if strategies else []
 
     def add_strategy(self, strategy):
@@ -49,9 +48,11 @@ class Trader:
                 t.join()
         except KeyboardInterrupt:
             for strategy in self.strategies:
-                logging.info(strategy.format_log_message(
-                    "Executing the on_abrupt_closing lifecycle method"
-                ))
+                logging.info(
+                    strategy.format_log_message(
+                        "Executing the on_abrupt_closing lifecycle method"
+                    )
+                )
                 strategy.on_abrupt_closing()
             logging.info("Trading stopped")
             return

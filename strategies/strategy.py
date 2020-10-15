@@ -1,31 +1,36 @@
-import time, logging, traceback
+import logging
+import time
+import traceback
+
 
 class Strategy:
-    def __init__(self, budget, broker, pricing_data, minutes_before_closing=5, sleeptime=1):
-        #Setting the strategy name and the budget allocated
+    def __init__(
+        self, budget, broker, pricing_data, minutes_before_closing=5, sleeptime=1
+    ):
+        # Setting the strategy name and the budget allocated
         self.name = self.__class__.__name__
         self.budget = budget
 
         # Setting the API object
         self.broker = broker
 
-        #Setting how many minutes before market closes
-        #The bot should stop
+        # Setting how many minutes before market closes
+        # The bot should stop
         self.minutes_before_closing = minutes_before_closing
 
-        #Timesleep after each on_trading_iteration execution
-        #unity is minutes
+        # Timesleep after each on_trading_iteration execution
+        # unity is minutes
         self.sleeptime = sleeptime
 
         # Setting the data provider
         self.pricing_data = pricing_data
 
-    #=======Helper methods=======================
+    # =======Helper methods=======================
     def format_log_message(self, message):
         message = "Strategy %s: %s" % (self.name, message)
         return message
 
-    #=======Lifecycle methods====================
+    # =======Lifecycle methods====================
 
     def initialize(self):
         """Use this lifecycle method to initialize parameters"""
@@ -73,9 +78,11 @@ class Strategy:
 
     def run_trading_session(self):
         if not self.broker.is_market_open():
-            logging.info(self.format_log_message(
-                "Executing the before_market_opens lifecycle method"
-            ))
+            logging.info(
+                self.format_log_message(
+                    "Executing the before_market_opens lifecycle method"
+                )
+            )
             self.before_market_opens()
 
         self.broker.await_market_to_open()
@@ -83,37 +90,43 @@ class Strategy:
 
         time_to_close = self.broker.get_time_to_close()
         while time_to_close > self.minutes_before_closing * 60:
-            logging.info(self.format_log_message(
-                "Executing the on_trading_iteration lifecycle method"
-            ))
+            logging.info(
+                self.format_log_message(
+                    "Executing the on_trading_iteration lifecycle method"
+                )
+            )
             self.on_trading_iteration()
             time_to_close = self.broker.get_time_to_close()
             sleeptime = time_to_close - 15 * 60
             sleeptime = max(min(sleeptime, 60 * self.sleeptime), 0)
             if sleeptime:
-                logging.info(self.format_log_message(
-                    "Sleeping for %d seconds" % sleeptime
-                ))
+                logging.info(
+                    self.format_log_message("Sleeping for %d seconds" % sleeptime)
+                )
                 time.sleep(sleeptime)
 
         if self.broker.is_market_open():
-            logging.info(self.format_log_message(
-                "Executing the before_market_closes lifecycle method"
-            ))
+            logging.info(
+                self.format_log_message(
+                    "Executing the before_market_closes lifecycle method"
+                )
+            )
             self.before_market_closes()
 
         self.broker.await_market_to_close()
-        logging.info(self.format_log_message(
-            "Executing the after_market_closes lifecycle method"
-        ))
+        logging.info(
+            self.format_log_message(
+                "Executing the after_market_closes lifecycle method"
+            )
+        )
         self.after_market_closes()
 
     def run(self):
         """The main execution point.
         Execute the lifecycle methods"""
-        logging.info(self.format_log_message(
-            "Executing the initialize lifecycle method"
-        ))
+        logging.info(
+            self.format_log_message("Executing the initialize lifecycle method")
+        )
         self.initialize()
         while True:
             try:

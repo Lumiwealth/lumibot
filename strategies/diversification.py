@@ -1,7 +1,9 @@
 import logging
 
-from .strategy import Strategy
 from data_sources import Yahoo
+
+from .strategy import Strategy
+
 
 class Diversification(Strategy):
     # =====Overloading lifecycle methods=============
@@ -21,33 +23,20 @@ class Diversification(Strategy):
         # initializing the portfolio variable
         self.initialized = False
         self.portfolio = [
-            {
-                'symbol': 'SPY',  # Equity
-                'weight': 0.3
-            },
-            {
-                'symbol': 'TLT',  # Long Term Bond
-                'weight': 0.4
-            },
-            {
-                'symbol': 'IEF',  # Intermediate Term Bond
-                'weight': 0.15
-            },
-            {
-                'symbol': 'GLD',  # Gold
-                'weight': 0.075
-            },
-            {
-                'symbol': 'DJP',  # Commidities
-                'weight': 0.075
-            }
+            {"symbol": "SPY", "weight": 0.3},  # Equity
+            {"symbol": "TLT", "weight": 0.4},  # Long Term Bond
+            {"symbol": "IEF", "weight": 0.15},  # Intermediate Term Bond
+            {"symbol": "GLD", "weight": 0.075},  # Gold
+            {"symbol": "DJP", "weight": 0.075},  # Commidities
         ]
 
     def on_trading_iteration(self):
         if self.counter == self.period or self.counter == 0:
             self.counter = 0
             self.rebalance_portfolio()
-            logging.info("Next portfolio rebalancing will be on %d day(s)" % self.period)
+            logging.info(
+                "Next portfolio rebalancing will be on %d day(s)" % self.period
+            )
 
         self.counter += 1
         self.broker.await_market_to_close()
@@ -60,16 +49,17 @@ class Diversification(Strategy):
 
     def get_portfolio_value(self):
         """Update the shares prices and recalculate the current portfolio value"""
-        if not self.initialized: return self.budget
+        if not self.initialized:
+            return self.budget
 
         value = 0
-        symbols = [a.get('symbol') for a in self.portfolio]
+        symbols = [a.get("symbol") for a in self.portfolio]
         prices = self.broker.get_last_prices(symbols)
         for asset in self.portfolio:
-            symbol = asset.get('symbol')
-            quantity = asset.get('quantity') if asset.get('quantity') else 0
+            symbol = asset.get("symbol")
+            quantity = asset.get("quantity") if asset.get("quantity") else 0
             price = prices.get(symbol)
-            asset['last_price'] = price
+            asset["last_price"] = price
             value += quantity * price
 
         return value
@@ -85,42 +75,43 @@ class Diversification(Strategy):
 
         orders = []
         for asset in self.portfolio:
-            symbol = asset.get('symbol')
-            weight = asset.get('weight')
-            quantity = asset.get('quantity') if asset.get('quantity') else 0
-            last_price = asset.get('last_price')
-            if not last_price: last_price = self.broker.get_last_price(symbol)
+            symbol = asset.get("symbol")
+            weight = asset.get("weight")
+            quantity = asset.get("quantity") if asset.get("quantity") else 0
+            last_price = asset.get("last_price")
+            if not last_price:
+                last_price = self.broker.get_last_price(symbol)
             shares_value = portfolio_value * weight
             if quantity:
                 logging.info(
-                    "Asset %s shares value: %.2f$. %.2f$ per %d shares." %
-                    (symbol, quantity * last_price, last_price, quantity)
+                    "Asset %s shares value: %.2f$. %.2f$ per %d shares."
+                    % (symbol, quantity * last_price, last_price, quantity)
                 )
 
             new_quantity = shares_value // last_price
             quantity_difference = new_quantity - quantity
             logging.info(
-                "Weighted %s shares value with %.2f%% weight: %.2f$. %.2f$ per %d shares." %
-                (symbol, weight * 100, shares_value, last_price, new_quantity)
+                "Weighted %s shares value with %.2f%% weight: %.2f$. %.2f$ per %d shares."
+                % (symbol, weight * 100, shares_value, last_price, new_quantity)
             )
 
             if quantity_difference > 0:
                 order = {
-                    'symbol': symbol,
-                    'quantity': quantity_difference,
-                    'side': 'buy',
-                    'price': last_price,
+                    "symbol": symbol,
+                    "quantity": quantity_difference,
+                    "side": "buy",
+                    "price": last_price,
                 }
                 orders.append(order)
-                asset['quantity'] = new_quantity
+                asset["quantity"] = new_quantity
             elif quantity_difference < 0:
                 order = {
-                    'symbol': symbol,
-                    'quantity': abs(quantity_difference),
-                    'side': 'sell',
-                    'price': last_price,
+                    "symbol": symbol,
+                    "quantity": abs(quantity_difference),
+                    "side": "sell",
+                    "price": last_price,
                 }
                 orders.append(order)
-                asset['quantity'] = new_quantity
+                asset["quantity"] = new_quantity
 
         self.broker.submit_orders(orders)

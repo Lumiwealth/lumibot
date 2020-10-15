@@ -1,17 +1,18 @@
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from threading import Thread
-from functools import wraps
 import datetime as dt
+import logging
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import timezone
-import pandas as pd
-
-import time, logging
+from functools import wraps
+from threading import Thread
 
 import alpaca_trade_api as tradeapi
+import pandas as pd
 from alpaca_trade_api.common import URL
 
-from .broker import Broker
 from data_sources import AlpacaData
+
+from .broker import Broker
 
 
 class Alpaca(Broker):
@@ -36,7 +37,7 @@ class Alpaca(Broker):
             endpoint = config.ENDPOINT
         else:
             endpoint = "https://paper-api.alpaca.markets"
-        if hasattr(config, 'VERSION'):
+        if hasattr(config, "VERSION"):
             version = config.VERSION
         else:
             version = "v2"

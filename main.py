@@ -1,21 +1,22 @@
+import os
+import sys
+import time
 from threading import Thread
-import sys, os, time
 
 import alpaca_trade_api as tradeapi
 from alpaca_trade_api.common import URL
 
-from strategies import Screener, Momentum, Diversification, IntradayMomentum
 from brokers import Alpaca
+from credentials import AlpacaConfig
 from data_sources import AlpacaData
+from strategies import Diversification, IntradayMomentum, Momentum, Screener
 from traders import Trader
 
-from credentials import AlpacaConfig
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     budget = 40000
     broker = Alpaca(AlpacaConfig)
     pricing_data = AlpacaData(AlpacaConfig)
-    trader = Trader(logfile='logs/test.log', debug=False)
+    trader = Trader(logfile="logs/test.log", debug=False)
 
     screener = Screener(budget=budget, broker=broker, pricing_data=pricing_data)
     trader.add_strategy(screener)

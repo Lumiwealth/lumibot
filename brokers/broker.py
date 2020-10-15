@@ -1,5 +1,4 @@
 class Broker:
-
     def __init__(self):
         self.new_orders = []
         self.partially_filled_orders = []

@@ -41,26 +41,19 @@ class IntradayMomentum(Strategy):
         self.counter += 1
 
     def before_market_closes(self):
-        self.exit_all_positions()
+        self.broker.sell_all()
 
-    def on_bot_crash(self):
-        self.exit_all_positions()
+    def on_bot_crash(self, error):
+        self.broker.sell_all()
 
     def on_abrupt_closing(self):
-        self.exit_all_positions()
+        self.broker.sell_all()
 
     # =============Helper methods====================
-
-    def exit_all_positions(self):
-        # Sell the asset you hold before the market closes, and wait until tomorrow
-        # self.broker.submit_order(self.asset, self.quantity, 'sell')
-        self.broker.sell_all()
 
     def get_best_asset(self):
         momentums = []
         for symbol in self.symbols:
-            # df = Alpaca.get_recent_minute_momentum_for_asset(self.broker, symbol, self.momentum_length)
-            # df = AlpacaData.get_intraday_returns_for_asset(self.broker, symbol, self.period)
             df = self.pricing_data.get_asset_momentum(
                 symbol, momentum_length=self.momentum_length
             )

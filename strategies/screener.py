@@ -137,7 +137,7 @@ class Screener(Strategy):
         """Placing the orders"""
         orders = []
         symbols = [p.get("symbol") for p in new_positions]
-        last_prices = self.pricing_data.get_last_prices(symbols)
+        last_prices = self.broker.get_last_prices(symbols)
         logging.info("Last prices for selected assets: %s" % str(last_prices))
         for position in new_positions:
             symbol = position.get("symbol")

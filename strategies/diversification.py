@@ -1,7 +1,5 @@
 import logging
 
-from data_sources import Yahoo
-
 from .strategy import Strategy
 
 
@@ -35,9 +33,10 @@ class Diversification(Strategy):
             self.counter = 0
             self.rebalance_portfolio()
             logging.info(
-                "Next portfolio rebalancing will be on %d day(s)" % self.period
+                "Next portfolio rebalancing will be in %d day(s)" % self.period
             )
 
+        logging.info("Sleeping untill next trading day")
         self.counter += 1
         self.broker.await_market_to_close()
 
@@ -95,20 +94,17 @@ class Diversification(Strategy):
                 % (symbol, weight * 100, shares_value, last_price, new_quantity)
             )
 
+            side = ""
             if quantity_difference > 0:
-                order = {
-                    "symbol": symbol,
-                    "quantity": quantity_difference,
-                    "side": "buy",
-                    "price": last_price,
-                }
-                orders.append(order)
-                asset["quantity"] = new_quantity
+                side = "buy"
             elif quantity_difference < 0:
+                side = "sell"
+
+            if side:
                 order = {
                     "symbol": symbol,
                     "quantity": abs(quantity_difference),
-                    "side": "sell",
+                    "side": side,
                     "price": last_price,
                 }
                 orders.append(order)

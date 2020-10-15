@@ -1,5 +1,7 @@
 import logging
 import os
+import signal
+import sys
 from threading import Thread
 
 
@@ -31,31 +33,49 @@ class Trader:
         # Setting the list of strategies if defined
         self.strategies = strategies if strategies else []
 
+        # Initializing the list of threads
+        self.threads = []
+
     def add_strategy(self, strategy):
         """Adds a strategy to the trader"""
         self.strategies.append(strategy)
 
+    def join_threads(self):
+        """Joining all the threads"""
+        for t in self.threads:
+            if t.is_alive():
+                t.join()
+
+        return
+
+    def abrupt_closing(self, sig, frame):
+        """Run all strategies on_abrupt_closing
+        lifecycle method. python signal handlers
+        needs two positional arguments, the signal
+        and the frame"""
+
+        logging.debug("Received signal number %d." % sig)
+        logging.debug("Executing Trader.abrupt_closing in %s frame." % frame)
+
+        for strategy in self.strategies:
+            logging.info(
+                strategy.format_log_message(
+                    "Executing the on_abrupt_closing lifecycle method"
+                )
+            )
+            strategy.on_abrupt_closing()
+
+        # self.join_threads()
+        logging.info("Trading finished")
+        sys.exit(0)
+
     def run_all(self):
         """run all strategies"""
-        threads = []
-        try:
-            for strategy in self.strategies:
-                t = Thread(target=strategy.run, daemon=True)
-                t.start()
-                threads.append(t)
+        self.threads = []
+        signal.signal(signal.SIGINT, self.abrupt_closing)
+        for strategy in self.strategies:
+            t = Thread(target=strategy.run, daemon=True)
+            t.start()
+            self.threads.append(t)
 
-            for t in threads:
-                t.join()
-        except KeyboardInterrupt:
-            for strategy in self.strategies:
-                logging.info(
-                    strategy.format_log_message(
-                        "Executing the on_abrupt_closing lifecycle method"
-                    )
-                )
-                strategy.on_abrupt_closing()
-            logging.info("Trading stopped")
-            return
-
-        logging.info("Trading finished")
-        return
+        self.join_threads()

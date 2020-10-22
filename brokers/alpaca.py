@@ -6,15 +6,15 @@ from threading import Thread
 
 import alpaca_trade_api as tradeapi
 
-from services import AlpacaService
+from data_sources import AlpacaData
 
 from .broker import Broker
 
 
-class Alpaca(Broker, AlpacaService):
+class Alpaca(Broker, AlpacaData):
     def __init__(self, config, connect_stream=True, max_workers=20, chunk_size=100):
-        # Calling the Broker and AlpacaService init method
-        AlpacaService.__init__(
+        # Calling the Broker and AlpacaData init method
+        AlpacaData.__init__(
             self, config, max_workers=max_workers, chunk_size=chunk_size
         )
         Broker.__init__(self)

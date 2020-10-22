@@ -5,7 +5,7 @@ import traceback
 
 class Strategy:
     def __init__(
-        self, budget, broker, pricing_data, minutes_before_closing=5, sleeptime=1
+        self, budget, broker, pricing_data=None, minutes_before_closing=5, sleeptime=1
     ):
         # Setting the strategy name and the budget allocated
         self.name = self.__class__.__name__
@@ -23,7 +23,19 @@ class Strategy:
         self.sleeptime = sleeptime
 
         # Setting the data provider
-        self.pricing_data = pricing_data
+        if pricing_data is None:
+            self.pricing_data = self.broker
+        else:
+            self.pricing_data = pricing_data
+
+        # Ready to close
+        self._ready_to_close = False
+
+    def get_ready_to_close(self):
+        return self._ready_to_close
+
+    def set_ready_to_close(self, value=True):
+        self._ready_to_close = value
 
     # =======Helper methods=======================
     def format_log_message(self, message):

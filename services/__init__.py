@@ -1,1 +1,1 @@
-from .alpaca_service import AlpacaService
+from .twitter import TwitterData

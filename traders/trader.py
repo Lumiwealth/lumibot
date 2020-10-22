@@ -43,10 +43,16 @@ class Trader:
     def join_threads(self):
         """Joining all the threads"""
         for t in self.threads:
-            if t.is_alive():
-                t.join()
-
+            t.join()
         return
+
+    def wait_for_strategies_to_close(self):
+        """Wait for all strategies to finish executing.
+        keeping the instance open until daemon threads
+        finish executing"""
+        while True:
+            if all([s.get_ready_to_close() for s in self.strategies]):
+                break
 
     def abrupt_closing(self, sig, frame):
         """Run all strategies on_abrupt_closing
@@ -64,8 +70,9 @@ class Trader:
                 )
             )
             strategy.on_abrupt_closing()
+            strategy.set_ready_to_close()
 
-        # self.join_threads()
+        self.wait_for_strategies_to_close()
         logging.info("Trading finished")
         sys.exit(0)
 

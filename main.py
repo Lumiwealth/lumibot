@@ -10,11 +10,11 @@ if __name__ == "__main__":
     pricing_data = AlpacaData(AlpacaConfig)
     trader = Trader(logfile="logs/test.log", debug=False)
 
-    # screener = Screener(budget=budget, broker=broker, pricing_data=pricing_data)
-    # trader.add_strategy(screener)
+    screener = Screener(budget=budget, broker=broker, pricing_data=pricing_data)
+    trader.add_strategy(screener)
 
-    momentum = Momentum(budget=budget, broker=broker, pricing_data=pricing_data)
-    trader.add_strategy(momentum)
+    # momentum = Momentum(budget=budget, broker=broker, pricing_data=pricing_data)
+    # trader.add_strategy(momentum)
 
     # diversification = Diversification(budget=budget, broker=broker, pricing_data=pricing_data)
     # trader.add_strategy(diversification)

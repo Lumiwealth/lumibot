@@ -1,0 +1,2 @@
+class TwitterData:
+    pass

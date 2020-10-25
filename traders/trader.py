@@ -18,9 +18,8 @@ class Trader:
             logger.setLevel(logging.INFO)
 
         logFormater = logging.Formatter("%(asctime)s: %(levelname)s: %(message)s")
-        consoleHandler = logging.StreamHandler()
-        consoleHandler.setFormatter(logFormater)
-        logger.addHandler(consoleHandler)
+
+        # Setting file logging
         if logfile:
             dir = os.path.dirname(os.path.abspath(logfile))
             if not os.path.exists(dir):
@@ -29,6 +28,11 @@ class Trader:
             fileHandler = logging.FileHandler(logfile, mode="w")
             fileHandler.setFormatter(logFormater)
             logger.addHandler(fileHandler)
+
+        # Setting console logger
+        consoleHandler = logging.StreamHandler()
+        consoleHandler.setFormatter(logFormater)
+        logger.addHandler(consoleHandler)
 
         # Setting the list of strategies if defined
         self.strategies = strategies if strategies else []

@@ -1,5 +1,8 @@
+import asyncio
 import logging
 import time
+import traceback
+from asyncio import CancelledError
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from threading import Thread
@@ -12,15 +15,19 @@ from .broker import Broker
 
 
 class Alpaca(Broker, AlpacaData):
-    def __init__(self, config, connect_stream=True, max_workers=20, chunk_size=100):
+    def __init__(
+        self, config, connect_stream=True, max_workers=20, chunk_size=100, debug=False
+    ):
         # Calling the Broker and AlpacaData init method
+        Broker.__init__(self, debug=debug)
         AlpacaData.__init__(
             self, config, max_workers=max_workers, chunk_size=chunk_size
         )
-        Broker.__init__(self)
 
         # Connection to alpaca socket stream
-        self.stream = tradeapi.StreamConn(self.api_key, self.api_secret, self.endpoint)
+        self.stream = tradeapi.StreamConn(
+            self.api_key, self.api_secret, self.endpoint, debug=self.debug
+        )
         if connect_stream:
             self.set_streams()
 
@@ -34,16 +41,12 @@ class Alpaca(Broker, AlpacaData):
     def get_open_orders(self):
         """Get the account open orders"""
         orders = self.api.list_orders(status="open")
-        return orders
+        return orderslogging
 
     def cancel_open_orders(self):
         """Cancel all the buying orders with status still open"""
         orders = self.api.list_orders(status="open")
         for order in orders:
-            logging.info(
-                "%s order of | %d %s %s | canceled."
-                % (order.type, int(order.qty), order.symbol, order.side)
-            )
             self.api.cancel_order(order.id)
 
     def get_ongoing_assets(self):
@@ -59,64 +62,47 @@ class Alpaca(Broker, AlpacaData):
         account = self.api.get_account()
         return account
 
-    def submit_order(self, symbol, quantity, side, limit_price=None, stop_price=None):
+    def submit_order(self, order):
         """Submit an order for an asset"""
-        if quantity > 0:
-            try:
-                order_type = "limit" if limit_price else "market"
-                order_class = "oto" if stop_price else None
-                time_in_force = "day"
-                kwargs = {
-                    "type": order_type,
-                    "order_class": order_class,
-                    "time_in_force": time_in_force,
-                    "limit_price": limit_price,
-                }
-                if stop_price:
-                    kwargs["stop_loss"] = {"stop_price": stop_price}
+        kwargs = {
+            "type": order.type,
+            "order_class": order.order_class,
+            "time_in_force": order.time_in_force,
+            "limit_price": order.limit_price,
+        }
+        if order.stop_price:
+            kwargs["stop_loss"] = {"stop_price": order.stop_price}
 
-                # Remove items with None values
-                kwargs = {k: v for k, v in kwargs.items() if v}
-                self.api.submit_order(symbol, quantity, side, **kwargs)
-                return True
-            except Exception as e:
-                message = str(e)
-                if "stop price must not be greater than base price / 1.001" in message:
-                    logging.info(
-                        "Order of | %d %s %s | did not go through because the share base price became lesser than the stop loss price."
-                        % (quantity, symbol, side)
-                    )
-                    return False
-                else:
-                    logging.info(
-                        "Order of | %d %s %s | did not go through. The following error occured: %s"
-                        % (quantity, symbol, side, e)
-                    )
-                    return False
-        else:
-            logging.info(
-                "Order of | %d %s %s | not completed" % (quantity, symbol, side)
+        # Remove items with None values
+        kwargs = {k: v for k, v in kwargs.items() if v}
+        try:
+            raw = self.api.submit_order(
+                order.symbol, order.quantity, order.side, **kwargs
             )
-            return True
+            order.update_raw(raw)
+            order.set_identifier(raw.id)
+        except Exception as e:
+            order.set_error(e)
+            message = str(e)
+            if "stop price must not be greater than base price / 1.001" in message:
+                logging.info(
+                    "%r did not go through because the share base price became lesser than the stop loss price."
+                    % order
+                )
+            else:
+                logging.info(
+                    "%r did not go through. The following error occured: %s"
+                    % (order, e)
+                )
+
+        return order
 
     def submit_orders(self, orders):
         """submit orders"""
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             tasks = []
             for order in orders:
-                symbol = order.get("symbol")
-                quantity = order.get("quantity")
-                side = order.get("side")
-
-                func = lambda args, kwargs: self.submit_order(*args, **kwargs)
-                args = (symbol, quantity, side)
-                kwargs = {}
-                if order.get("stop_price"):
-                    kwargs["stop_price"] = order.get("stop_price")
-                if order.get("limit_price"):
-                    kwargs["limit_price"] = order.get("limit_price")
-
-                tasks.append(executor.submit(func, args, kwargs))
+                tasks.append(executor.submit(self.submit_order, order))
 
     def sell_all(self, cancel_open_orders=True):
         """sell all positions"""
@@ -162,77 +148,72 @@ class Alpaca(Broker, AlpacaData):
 
     # =======Stream functions=========
 
+    def run_stream(self):
+        """Overloading default alpaca_trade_api.STreamCOnnect().run()
+        Run forever and block until exception is raised.
+        initial_channels is the channels to start with.
+        """
+        loop = self.stream.loop
+        should_renew = True  # should renew connection if it disconnects
+        while should_renew:
+            try:
+                if loop.is_closed():
+                    self.stream.loop = asyncio.new_event_loop()
+                    loop = self.stream.loop
+                loop.run_until_complete(self.stream.subscribe(["trade_updates"]))
+                self._is_stream_subscribed = True
+                loop.run_until_complete(self.stream.consume())
+            except KeyboardInterrupt:
+                logging.info("Exiting on Interrupt")
+                should_renew = False
+            except Exception as e:
+                m = "consume cancelled" if isinstance(e, CancelledError) else e
+                logging.error(f"error while consuming ws messages: {m}")
+                if self.stream._debug:
+                    traceback.print_exc()
+                loop.run_until_complete(self.stream.close(should_renew))
+                if loop.is_running():
+                    loop.close()
+
     def set_streams(self):
         """Set the asynchronous actions to be executed after
         when events are sent via socket streams"""
-
         @self.stream.on(r"^trade_updates$")
         async def default_on_trade_event(conn, channel, data):
             self.log_trade_event(data)
 
-        t = Thread(target=self.stream.run, args=[["trade_updates"]], daemon=True)
+        t = Thread(target=self.run_stream, daemon=True)
         t.start()
+        self._is_stream_subscribed = False
+        while True:
+            if self._is_stream_subscribed is True:
+                break
 
     def log_trade_event(self, data):
-        order = data.order
+        logged_order = data.order
         type_event = data.event
-        symbol = order.get("symbol")
-        side = order.get("side")
-        order_quantity = order.get("qty")
-        order_type = order.get("order_type").capitalize()
-        representation = {
-            "type": order_type,
-            "symbol": symbol,
-            "side": side,
-            "quantity": order_quantity,
-        }
+        identifier = logged_order.get("id")
+        stored_order = self.get_order(identifier)
+        if stored_order is None:
+            logging.info(
+                "Untracker order %s was logged by broker %s" % (identifier, self.name)
+            )
+            return None
 
         # if statement on event type
-        if type_event == "fill":
+        if type_event == "new":
+            self.move_order_to_new(stored_order)
+        elif type_event == "canceled":
+            self.move_order_to_canceled(stored_order)
+        elif type_event == "fill":
             price = data.price
             filled_quantity = data.qty
-            logging.info(
-                "%s order of | %s %s %s | filled. %s$ per share"
-                % (order_type, filled_quantity, symbol, side, price)
-            )
-            if order_quantity != filled_quantity:
-                representation["filled_quantity"] = filled_quantity
-                logging.info(
-                    "Initial %s order of | %s %s %s | completed."
-                    % (order_type, order_quantity, symbol, side)
-                )
-            self.filled_orders.append(representation)
-
+            self.move_order_to_filled(stored_order, price, filled_quantity)
         elif type_event == "partial_fill":
             price = data.price
             filled_quantity = data.qty
-            logging.info(
-                "Executing Initial %s order of | %s %s %s |. Order partially filled"
-                % (order_type, order_quantity, symbol, side)
-            )
-            logging.info(
-                "%s order of | %s %s %s | completed. %s$ per share"
-                % (order_type, filled_quantity, symbol, side, price)
-            )
-            representation["filled_quantity"] = filled_quantity
-            self.partially_filled_orders.append(representation)
-
-        elif type_event == "new":
-            logging.info(
-                "New %s order of | %s %s %s | submited."
-                % (order_type, order_quantity, symbol, side)
-            )
-            self.new_orders.append(representation)
-
-        elif type_event == "canceled":
-            logging.info(
-                "%s order of | %s %s %s | canceled."
-                % (order_type, order_quantity, symbol, side)
-            )
-            self.canceled_orders.append(representation)
-
+            self.move_order_to_partially_filled(stored_order, price, filled_quantity)
         else:
-            logging.debug(
-                "Unhandled type event %s for %s order of | %s %s %s |"
-                % (type_event, order_type, order_quantity, symbol, side)
-            )
+            logging.debug("Unhandled type event %s for %r" % (type_event, stored_order))
+
+        return None

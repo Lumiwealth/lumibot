@@ -146,14 +146,13 @@ class Screener(Strategy):
                 stop_price = price * (1 - stop_loss_target)
                 limit_price = price * (1 + limit_increase_target)
                 quantity = int(self.capital_per_asset / price)
-                order = {
-                    "symbol": symbol,
-                    "quantity": quantity,
-                    "side": "buy",
-                    "price": price,
-                    "stop_price": stop_price,
-                    "limit_price": limit_price,
-                }
+                order = self.create_order(
+                    symbol,
+                    quantity,
+                    "buy",
+                    limit_price=limit_price,
+                    stop_price=stop_price,
+                )
                 orders.append(order)
             else:
                 logging.error(

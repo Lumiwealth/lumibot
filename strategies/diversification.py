@@ -101,12 +101,7 @@ class Diversification(Strategy):
                 side = "sell"
 
             if side:
-                order = {
-                    "symbol": symbol,
-                    "quantity": abs(quantity_difference),
-                    "side": side,
-                    "price": last_price,
-                }
+                order = self.create_order(symbol, abs(quantity_difference), side)
                 orders.append(order)
                 asset["quantity"] = new_quantity
 

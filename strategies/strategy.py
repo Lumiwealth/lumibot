@@ -2,6 +2,8 @@ import logging
 import time
 import traceback
 
+from entities import Order
+
 
 class Strategy:
     def __init__(
@@ -36,6 +38,26 @@ class Strategy:
 
     def set_ready_to_close(self, value=True):
         self._ready_to_close = value
+
+    def create_order(
+        self,
+        symbol,
+        quantity,
+        side,
+        limit_price=None,
+        stop_price=None,
+        time_in_force="day",
+    ):
+        order = Order(
+            self.name,
+            symbol,
+            quantity,
+            side,
+            limit_price=limit_price,
+            stop_price=stop_price,
+            time_in_force=time_in_force,
+        )
+        return order
 
     # =======Helper methods=======================
     def format_log_message(self, message):

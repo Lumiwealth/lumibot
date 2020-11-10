@@ -9,9 +9,6 @@ class Momentum(Strategy):
     # =====Overloading lifecycle methods=============
 
     def initialize(self):
-        # canceling open orders
-        self.broker.cancel_open_orders()
-
         # setting the waiting period (in days) and the counter
         self.period = 1
         self.counter = 0
@@ -33,23 +30,23 @@ class Momentum(Strategy):
                 if self.asset:
                     logging.info("Swapping %s for %s." % (self.asset, best_asset))
                     order = self.create_order(self.asset, self.quantity, "sell")
-                    self.broker.submit_order(order)
+                    self.submit_order(order)
 
                 self.asset = best_asset
-                best_asset_price = self.broker.get_last_price(best_asset)
+                best_asset_price = self.get_last_price(best_asset)
                 self.quantity = self.budget // best_asset_price
                 order = self.create_order(self.asset, self.quantity, "buy")
-                self.broker.submit_order(order)
+                self.submit_order(order)
             else:
                 logging.info("Keeping %d shares of %s" % (self.quantity, self.asset))
 
         logging.info("Sleeping till the market closes.")
         self.counter += 1
-        self.broker.await_market_to_close()
+        self.await_market_to_close()
 
     def on_abrupt_closing(self):
         # sell all positions
-        self.broker.sell_all()
+        self.sell_all()
 
     # =============Helper methods====================
 

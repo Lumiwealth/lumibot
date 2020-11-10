@@ -9,9 +9,6 @@ class IntradayMomentum(Strategy):
     # =====Overloading lifecycle methods=============
 
     def initialize(self):
-        # canceling open orders
-        self.broker.cancel_open_orders()
-
         # setting the momentum period (in minutes) and the counter
         self.momentum_length = 2
         self.counter = 0
@@ -30,26 +27,23 @@ class IntradayMomentum(Strategy):
             if self.asset:
                 logging.info("Swapping %s for %s." % (self.asset, best_asset))
                 order = self.create_order(self.asset, self.quantity, "sell")
-                self.broker.submit_order(order)
+                self.submit_order(order)
 
             self.asset = best_asset
-            best_asset_price = self.broker.get_last_price(best_asset)
+            best_asset_price = self.get_last_price(best_asset)
             self.quantity = self.budget // best_asset_price
             order = self.create_order(self.asset, self.quantity, "buy")
-            self.broker.submit_order(order)
+            self.submit_order(order)
         else:
             logging.info("Keeping %d shares of %s" % (self.quantity, self.asset))
 
         self.counter += 1
 
     def before_market_closes(self):
-        self.broker.sell_all()
-
-    def on_bot_crash(self, error):
-        self.broker.sell_all()
+        self.sell_all()
 
     def on_abrupt_closing(self):
-        self.broker.sell_all()
+        self.sell_all()
 
     # =============Helper methods====================
 

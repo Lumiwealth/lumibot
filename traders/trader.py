@@ -10,7 +10,7 @@ class Trader:
         # Setting Logging to both console and a file if logfile is specified
         logging.getLogger("urllib3").setLevel(logging.ERROR)
         logging.getLogger("requests").setLevel(logging.ERROR)
-        self.logfile = logfile
+        self._logfile = logfile
         logger = logging.getLogger()
         if debug:
             logger.setLevel(logging.DEBUG)
@@ -35,30 +35,18 @@ class Trader:
         logger.addHandler(consoleHandler)
 
         # Setting the list of strategies if defined
-        self.strategies = strategies if strategies else []
+        self._strategies = strategies if strategies else []
 
         # Initializing the list of threads
-        self.threads = []
+        self._threads = []
 
-    def add_strategy(self, strategy):
-        """Adds a strategy to the trader"""
-        self.strategies.append(strategy)
-
-    def join_threads(self):
+    def _join_threads(self):
         """Joining all the threads"""
-        for t in self.threads:
+        for t in self._threads:
             t.join()
         return
 
-    def wait_for_strategies_to_close(self):
-        """Wait for all strategies to finish executing.
-        keeping the instance open until daemon threads
-        finish executing"""
-        while True:
-            if all([s.get_ready_to_close() for s in self.strategies]):
-                break
-
-    def abrupt_closing(self, sig, frame):
+    def _abrupt_closing(self, sig, frame):
         """Run all strategies on_abrupt_closing
         lifecycle method. python signal handlers
         needs two positional arguments, the signal
@@ -67,7 +55,7 @@ class Trader:
         logging.debug("Received signal number %d." % sig)
         logging.debug("Executing Trader.abrupt_closing in %s frame." % frame)
 
-        for strategy in self.strategies:
+        for strategy in self._strategies:
             logging.info(
                 strategy.format_log_message(
                     "Executing the on_abrupt_closing lifecycle method"
@@ -80,13 +68,24 @@ class Trader:
         logging.info("Trading finished")
         sys.exit(0)
 
+    def add_strategy(self, strategy):
+        """Adds a strategy to the trader"""
+        self._strategies.append(strategy)
+
+    def wait_for_strategies_to_close(self):
+        """Wait for all strategies to finish executing.
+        keeping the instance open until daemon threads
+        finish executing"""
+        while True:
+            if all([s.get_ready_to_close() for s in self._strategies]):
+                break
+
     def run_all(self):
         """run all strategies"""
-        self.threads = []
-        signal.signal(signal.SIGINT, self.abrupt_closing)
-        for strategy in self.strategies:
+        signal.signal(signal.SIGINT, self._abrupt_closing)
+        for strategy in self._strategies:
             t = Thread(target=strategy.run, daemon=True)
             t.start()
-            self.threads.append(t)
+            self._threads.append(t)
 
-        self.join_threads()
+        self._join_threads()

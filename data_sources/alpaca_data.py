@@ -25,6 +25,7 @@ class AlpacaData:
         self.chunk_size = min(chunk_size, 100)
 
         # Connection to alpaca REST API
+        self.config = config
         self.api_key = config.API_KEY
         self.api_secret = config.API_SECRET
         if hasattr(config, "ENDPOINT"):

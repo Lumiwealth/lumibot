@@ -7,9 +7,6 @@ class Diversification(Strategy):
     # =====Overloading lifecycle methods=============
 
     def initialize(self):
-        # sell all previous orders
-        self.broker.sell_all()
-
         # setting the waiting period (in days) and the counter
         self.period = 1
         self.counter = 0
@@ -21,16 +18,37 @@ class Diversification(Strategy):
         # initializing the portfolio variable
         self.initialized = False
         self.portfolio = [
-            {"symbol": "SPY", "weight": 0.3},  # Equity
-            {"symbol": "TLT", "weight": 0.4},  # Long Term Bond
-            {"symbol": "IEF", "weight": 0.15},  # Intermediate Term Bond
-            {"symbol": "GLD", "weight": 0.075},  # Gold
-            {"symbol": "DJP", "weight": 0.075},  # Commidities
+            {
+                "symbol": "SPY",  # Long Term Bond
+                "weight": 0.3,
+                "last_price": None,
+            },
+            {
+                "symbol": "TLT",  # Equity
+                "weight": 0.4,
+                "last_price": None,
+            },
+            {
+                "symbol": "IEF",  # Intermediate Term Bond
+                "weight": 0.15,
+                "last_price": None,
+            },
+            {
+                "symbol": "GLD",  # Gold
+                "weight": 0.075,
+                "last_price": None,
+            },
+            {
+                "symbol": "DJP",  # Commidities
+                "weight": 0.075,
+                "last_price": None,
+            },
         ]
 
     def on_trading_iteration(self):
         if self.counter == self.period or self.counter == 0:
             self.counter = 0
+            self.update_prices()
             self.rebalance_portfolio()
             logging.info(
                 "Next portfolio rebalancing will be in %d day(s)" % self.period
@@ -38,48 +56,47 @@ class Diversification(Strategy):
 
         logging.info("Sleeping untill next trading day")
         self.counter += 1
-        self.broker.await_market_to_close()
+        self.await_market_to_close()
 
     def on_abrupt_closing(self):
         # sell all positions
-        self.broker.sell_all()
+        self.sell_all()
 
     # =============Helper methods====================
 
+    def update_prices(self):
+        """Update portfolio assets price"""
+        symbols = [a.get("symbol") for a in self.portfolio]
+        prices = self.get_last_prices(symbols)
+        for asset in self.portfolio:
+            asset["last_price"] = prices.get(asset["symbol"])
+
     def get_portfolio_value(self):
         """Update the shares prices and recalculate the current portfolio value"""
-        if not self.initialized:
-            return self.budget
-
         value = 0
-        symbols = [a.get("symbol") for a in self.portfolio]
-        prices = self.broker.get_last_prices(symbols)
         for asset in self.portfolio:
-            symbol = asset.get("symbol")
-            quantity = asset.get("quantity") if asset.get("quantity") else 0
-            price = prices.get(symbol)
-            asset["last_price"] = price
+            quantity = asset.get("quantity")
+            price = asset.get("last_price")
             value += quantity * price
 
         return value
 
     def rebalance_portfolio(self):
         """Rebalance the portfolio and cretae orders"""
-        portfolio_value = self.get_portfolio_value()
         if not self.initialized:
             self.initialized = True
+            portfolio_value = self.budget
             logging.info("Total initial budget: %.2f$" % self.budget)
         else:
+            portfolio_value = self.get_portfolio_value()
             logging.info("Total portfolio value: %.2f$" % portfolio_value)
 
         orders = []
         for asset in self.portfolio:
             symbol = asset.get("symbol")
             weight = asset.get("weight")
-            quantity = asset.get("quantity") if asset.get("quantity") else 0
             last_price = asset.get("last_price")
-            if not last_price:
-                last_price = self.broker.get_last_price(symbol)
+            quantity = self.get_asset_potential_total(symbol)
             shares_value = portfolio_value * weight
             if quantity:
                 logging.info(
@@ -105,4 +122,4 @@ class Diversification(Strategy):
                 orders.append(order)
                 asset["quantity"] = new_quantity
 
-        self.broker.submit_orders(orders)
+        self.submit_orders(orders)

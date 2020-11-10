@@ -5,6 +5,7 @@ from strategies import Diversification, IntradayMomentum, Momentum, Screener
 from traders import Trader
 
 if __name__ == "__main__":
+    debug = False
     budget = 40000
     broker = Alpaca(AlpacaConfig)
     pricing_data = AlpacaData(AlpacaConfig)

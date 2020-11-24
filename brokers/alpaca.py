@@ -3,7 +3,7 @@ import logging
 import time
 import traceback
 from asyncio import CancelledError
-from datetime import timedelta
+from datetime import timedelta, timezone
 from threading import Thread
 
 import alpaca_trade_api as tradeapi
@@ -17,12 +17,35 @@ from .broker import Broker
 class Alpaca(AlpacaData, Broker):
     """Inherit AlpacaData first and all the price market
     methods than inherits broker"""
+
     def __init__(self, config, max_workers=20, chunk_size=100, connect_stream=True):
         # Calling init methods
         AlpacaData.__init__(
             self, config, max_workers=max_workers, chunk_size=chunk_size
         )
         Broker.__init__(self, connect_stream=connect_stream)
+
+    # =========Clock functions=====================
+
+    def is_market_open(self):
+        """return True if market is open else false"""
+        return self.api.get_clock().is_open
+
+    def get_time_to_open(self):
+        """Return the remaining time for the market to open in seconds"""
+        clock = self.api.get_clock()
+        opening_time = clock.next_open.replace(tzinfo=timezone.utc).timestamp()
+        curr_time = clock.timestamp.replace(tzinfo=timezone.utc).timestamp()
+        time_to_open = opening_time - curr_time
+        return time_to_open
+
+    def get_time_to_close(self):
+        """Return the remaining time for the market to close in seconds"""
+        clock = self.api.get_clock()
+        closing_time = clock.next_close.replace(tzinfo=timezone.utc).timestamp()
+        curr_time = clock.timestamp.replace(tzinfo=timezone.utc).timestamp()
+        time_to_close = closing_time - curr_time
+        return time_to_close
 
     # =========Positions functions==================
 
@@ -125,6 +148,25 @@ class Alpaca(AlpacaData, Broker):
         """Cancel an order"""
         self.api.cancel_order(order.identifier)
 
+    # =========Market functions=======================
+
+    def get_tradable_assets(self, easy_to_borrow=None, filter_func=None):
+        """Get the list of all tradable assets from the market"""
+        assets = self.api.list_assets()
+        result = []
+        for asset in assets:
+            is_valid = asset.tradable
+            if easy_to_borrow is not None and isinstance(easy_to_borrow, bool):
+                is_valid = is_valid & (easy_to_borrow == asset.easy_to_borrow)
+            if filter_func is not None:
+                filter_test = filter_func(asset.symbol)
+                is_valid = is_valid & filter_test
+
+            if is_valid:
+                result.append(asset.symbol)
+
+        return result
+
     # =======Stream functions=========
 
     def _get_stream_object(self):
@@ -136,13 +178,14 @@ class Alpaca(AlpacaData, Broker):
         """Register the function on_trade_event
         to be executed on each trade_update event"""
         broker = self
+
         @self.stream.on(r"^trade_updates$")
         async def on_trade_event(conn, channel, data):
             try:
                 logged_order = data.order
                 type_event = data.event
                 identifier = logged_order.get("id")
-                stored_order = self.get_tracked_order(identifier)
+                stored_order = broker.get_tracked_order(identifier)
                 if stored_order is None:
                     logging.info(
                         "Untracker order %s was logged by broker %s"
@@ -153,7 +196,10 @@ class Alpaca(AlpacaData, Broker):
                 price = data.price if hasattr(data, "price") else None
                 filled_quantity = data.qty if hasattr(data, "qty") else None
                 broker._process_trade_event(
-                    stored_order, type_event, price=price, filled_quantity=filled_quantity
+                    stored_order,
+                    type_event,
+                    price=price,
+                    filled_quantity=filled_quantity,
                 )
 
                 return True

@@ -2,6 +2,7 @@ from collections import namedtuple
 
 import entities
 
+
 class Order:
     Transaction = namedtuple("Transaction", ["quantity", "price"])
 
@@ -121,7 +122,9 @@ class Order:
             self._raw = raw
 
     def to_position(self):
-        position = entities.Position(self.strategy, self.symbol, self.quantity, orders=[self])
+        position = entities.Position(
+            self.strategy, self.symbol, self.quantity, orders=[self]
+        )
         return position
 
     def get_increment(self):

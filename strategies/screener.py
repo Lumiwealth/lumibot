@@ -1,6 +1,7 @@
 import logging
+from datetime import timedelta
 
-from data_sources import Yahoo
+from data_sources import YahooData
 
 from .strategy import Strategy
 
@@ -18,8 +19,7 @@ class Screener(Strategy):
 
         # setting risk management variables
         self.capital_per_asset = 4000
-        self.period_trading_daily_average = 10
-        self.minimum_trading_daily_average = 500000
+        self.minimum_trading_volume = 500000
         self.max_positions = self.budget // self.capital_per_asset
         self.min_increase_target = 0.02
         self.limit_price_increase = 0.02
@@ -34,7 +34,9 @@ class Screener(Strategy):
         ongoing_assets = self.get_tracked_assets()
         if len(ongoing_assets) < self.max_positions:
             self.buy_winning_stocks(
-                self.min_increase_target, self.stop_loss_target, self.limit_price_increase
+                self.min_increase_target,
+                self.stop_loss_target,
+                self.limit_price_increase,
             )
         else:
             logging.info("Max positions %d reached" % self.max_positions)
@@ -68,18 +70,16 @@ class Screener(Strategy):
         assets = self.get_tradable_assets()
         symbols = [a for a in assets if a not in (ongoing_assets + self.blacklist)]
         length = 4 * 24 + 1
-        symbols_df = self.pricing_data.get_assets_momentum(
-            symbols, time_unit="15Min", length=length, momentum_length=length - 1
-        )
-        return symbols_df
+        bars_list = self.get_bars(symbols, length, timedelta(minutes=15))
+        return bars_list
 
     def select_assets(self, data, min_increase_target):
         """Select the assets for which orders are going to be placed"""
 
         # filtering and sorting assets on momentum
         potential_positions = []
-        for symbol, df in data.items():
-            momentum = df["momentum"][-1]
+        for symbol, bars in data.items():
+            momentum = bars.get_momentum()
             if momentum >= min_increase_target:
                 record = {"symbol": symbol, "momentum": momentum}
                 potential_positions.append(record)
@@ -109,11 +109,11 @@ class Screener(Strategy):
             logging.info(
                 "Asset %s recorded %.2f%% increase over 24h" % (symbol, 100 * momentum)
             )
-            atv = Yahoo.get_average_trading_volume(
-                symbol, self.period_trading_daily_average
-            )
-            test = atv >= self.minimum_trading_daily_average
-            if test:
+
+            # Get last 24h total trading volume
+            trading_volume = data[symbol].get_total_volume(period=24 * 4)
+            has_minimum_trading_volume = trading_volume >= self.minimum_trading_volume
+            if has_minimum_trading_volume:
                 selected_assets.append(potential_position)
                 logging.info("Asset %s added to order queue." % symbol)
                 if len(selected_assets) == n_empty_positions:
@@ -122,7 +122,7 @@ class Screener(Strategy):
                 self.blacklist.append(symbol)
                 logging.info(
                     "Asset %s blacklisted. Trading Daily Average %d inferior to %d."
-                    % (symbol, int(atv), self.minimum_trading_daily_average)
+                    % (symbol, int(atv), self.minimum_trading_volume)
                 )
 
         return selected_assets

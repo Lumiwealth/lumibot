@@ -1,2 +1,3 @@
 from .alpaca_data import AlpacaData
-from .yahoo import Yahoo
+from .data_source import DataSource
+from .yahoo import YahooData

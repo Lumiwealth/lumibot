@@ -1,4 +1,5 @@
 import logging
+from datetime import timedelta
 
 from data_sources import AlpacaData
 
@@ -50,16 +51,15 @@ class IntradayMomentum(Strategy):
     def get_best_asset(self):
         momentums = []
         for symbol in self.symbols:
-            df = self.pricing_data.get_asset_momentum(
-                symbol, momentum_length=self.momentum_length
+            bars_set = self.get_symbol_bars(
+                symbol, self.momentum_length + 1, timedelta(minutes=1)
             )
-
-            symbol_return = df["momentum"][-1]
+            symbol_momentum = bars_set.get_momentum()
             logging.info(
                 "%s has a return value of %.2f%% over the last %d minutes(s)."
-                % (symbol, 100 * symbol_return, self.momentum_length)
+                % (symbol, 100 * symbol_momentum, self.momentum_length)
             )
-            momentums.append({"symbol": symbol, "return": symbol_return})
+            momentums.append({"symbol": symbol, "return": symbol_momentum})
 
         momentums.sort(key=lambda x: x.get("return"))
         best_asset = momentums[-1].get("symbol")

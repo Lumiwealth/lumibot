@@ -9,6 +9,9 @@ from trading_builtins import SafeList
 
 class Broker:
 
+    # Metainfo
+    IS_BACKTESTING_BROKER = False
+
     # Trading events flags
     NEW_ORDER = "new"
     CANCELED_ORDER = "canceled"
@@ -115,6 +118,18 @@ class Broker:
 
     # =========Clock functions=====================
 
+    def is_market_open(self):
+        """return True if market is open else false"""
+        pass
+
+    def get_time_to_open(self):
+        """Return the remaining time for the market to open in seconds"""
+        pass
+
+    def get_time_to_close(self):
+        """Return the remaining time for the market to close in seconds"""
+        pass
+
     def await_market_to_open(self):
         """Executes infinite loop until market opens"""
         isOpen = self.is_market_open()
@@ -198,7 +213,7 @@ class Broker:
         result = self._parse_broker_position(self, response, strategy)
         return result
 
-    # =========Orders functions====================
+    # =========Orders and assets functions=================
 
     def get_tracked_order(self, identifier):
         """get a tracked order given an identifier"""
@@ -211,7 +226,9 @@ class Broker:
         """get all tracked orders for a given strategy"""
         result = []
         for order in self._tracked_orders:
-            if order.strategy == strategy and (symbol is None or order.symbol == symbol):
+            if order.strategy == strategy and (
+                symbol is None or order.symbol == symbol
+            ):
                 result.append(order)
 
         return result
@@ -426,7 +443,9 @@ class Broker:
             )
             self._on_partially_filled_order(stored_order)
         elif type_event == self.FILLED_ORDER:
-            position = self._move_order_to_filled_position(stored_order, price, filled_quantity)
+            position = self._move_order_to_filled_position(
+                stored_order, price, filled_quantity
+            )
             self._on_filled_order(position, stored_order)
         else:
             logging.info("Unhandled type event %s for %r" % (type_event, stored_order))

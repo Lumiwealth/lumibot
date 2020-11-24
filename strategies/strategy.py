@@ -7,7 +7,7 @@ from entities import Order
 
 class Strategy:
     def __init__(
-        self, budget, broker, pricing_data=None, minutes_before_closing=5, sleeptime=1
+        self, budget, broker, data_source=None, minutes_before_closing=5, sleeptime=1
     ):
         # Setting the strategy name and the budget allocated
         self._name = self.__class__.__name__
@@ -15,6 +15,7 @@ class Strategy:
 
         # Setting the broker object
         self.broker = broker
+        self._is_backtesting = self.broker.IS_BACKTESTING_BROKER
         broker._add_subscriber(self)
 
         # Setting how many minutes before market closes
@@ -26,13 +27,18 @@ class Strategy:
         self.sleeptime = sleeptime
 
         # Setting the data provider
-        if pricing_data is None:
-            self.pricing_data = self.broker
+        if self._is_backtesting or data_source is None:
+            self.data_source = self.broker
         else:
-            self.pricing_data = pricing_data
+            self.data_source = data_source
 
         # Ready to close
         self._ready_to_close = False
+
+    def _safe_sleep_(self, sleeptime):
+        """internal function for sleeping"""
+        if not self._is_backtesting:
+            time.sleep(sleeptime)
 
     # ======Order methods shortcuts===============
 
@@ -135,6 +141,33 @@ class Strategy:
         within the current broker from the market"""
         return self.broker.get_tradable_assets(
             easy_to_borrow=easy_to_borrow, filter_func=filter_func
+        )
+
+    # =======Data source methods=================
+
+    def get_symbol_bars(self, symbol, length, time_unit, time_delta=None):
+        """Get bars for a given symbol"""
+        return self.data_source.get_symbol_bars(
+            symbol, length, time_unit, time_delta=time_delta
+        )
+
+    def get_bars(
+        self,
+        symbols,
+        length,
+        time_unit,
+        time_delta=None,
+        chunk_size=100,
+        max_workers=200,
+    ):
+        """Get bars for the list of symbols"""
+        return self.data_source.get_bars(
+            symbols,
+            length,
+            time_unit,
+            time_delta=time_delta,
+            chunk_size=chunk_size,
+            max_workers=max_workers,
         )
 
     # =======Helper methods=======================
@@ -251,7 +284,7 @@ class Strategy:
                 logging.info(
                     self.format_log_message("Sleeping for %d seconds" % sleeptime)
                 )
-                time.sleep(sleeptime)
+                self._safe_sleep_(sleeptime)
 
         if self.broker.is_market_open():
             logging.info(

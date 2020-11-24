@@ -1,6 +1,5 @@
 import logging
-
-from data_sources import Yahoo
+from datetime import timedelta
 
 from .strategy import Strategy
 
@@ -53,15 +52,13 @@ class Momentum(Strategy):
     def get_best_asset(self):
         momentums = []
         for symbol in self.symbols:
-            df = Yahoo.get_interday_returns_for_asset(
-                symbol, self.period, period=self.period + 1
-            )
-            symbol_return = df["momentum"][-1]
+            bars_set = self.get_symbol_bars(symbol, self.period + 1, timedelta(days=1))
+            symbol_momentum = bars_set.get_momentum()
             logging.info(
                 "%s has a return value of %.2f%% over the last %d day(s)."
-                % (symbol, 100 * symbol_return, self.period)
+                % (symbol, 100 * symbol_momentum, self.period)
             )
-            momentums.append({"symbol": symbol, "return": symbol_return})
+            momentums.append({"symbol": symbol, "return": symbol_momentum})
 
         momentums.sort(key=lambda x: x.get("return"))
         best_asset = momentums[-1].get("symbol")

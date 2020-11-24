@@ -1,38 +1,79 @@
 import logging
+from datetime import datetime, timedelta
 
 import pandas as pd
 import yfinance as yf
 
+from entities import Bars
 
-class Yahoo:
-    @staticmethod
-    def get_interday_returns_for_asset(symbol, momentum_length=1, period=None):
-        if period:
-            period_str = "%dd" % period
+from .data_source import DataSource
+
+
+class YahooData(DataSource):
+    MIN_TIME_STEP = timedelta(days=1)
+
+    def __init__(self):
+        self.name = "yahoo"
+        self._data_store = {}
+
+    def _parse_source_time_unit(self, time_unit, reverse=False):
+        """parse the data source time_unit variable
+        into a datetime.timedelta. set reverse to True to parse
+        timedelta to data_source time_unit representation"""
+        mapping = [
+            {"timedelta": timedelta(days=1), "represntations": ["1D", "day"]},
+        ]
+        for item in mapping:
+            if reverse:
+                if time_unit == item["timedelta"]:
+                    return item["represntations"][0]
+            else:
+                if time_unit in item["represntations"]:
+                    return item["timedelta"]
+
+        raise ValueError("time_unit %r did not match" % time_unit)
+
+    def _pull_source_symbol_bars(self, symbol, length, time_unit, time_delta=None):
+        self._parse_source_time_unit(time_unit, reverse=True)
+        if symbol in self._data_store:
+            data = self._data_store[symbol]
         else:
-            period_str = "max"
+            data = yf.Ticker(symbol).history(period="max")
+            self._data_store[symbol] = data
 
-        ticker = yf.Ticker(symbol)
-        daily = ticker.history(period=period_str)
-        df = daily[["Close", "Dividends"]].rename(
-            columns={"Close": "price", "Dividends": "dividend"}
-        )
-        # Added shift to prevent "seeing into the future"
-        df["dividend_yield"] = df["dividend"] / df["price"]
-        df["price_change"] = df["price"].pct_change()
-        df["return"] = df["dividend_yield"] + df["price_change"]
-        df["momentum"] = df["price"].pct_change(periods=momentum_length)
-        return df
+        if time_delta:
+            end = datetime.now() - time_delta
+            data = data[data.index <= end]
 
-    @staticmethod
-    def get_average_trading_volume(symbol, length):
-        ticker = yf.Ticker(symbol)
-        history = ticker.history(period=f"{length}d")
-        average_trading_volume = history["Volume"].mean()
-        if pd.isna(average_trading_volume):
-            logging.info(
-                "Yahoo finance: Average trading volume over %d days not available for symbol %s"
-                % (length, symbol)
+        result = data.tail(length)
+        return result
+
+    def _pull_source_bars(self, symbols, length, time_unit, time_delta=None):
+        """pull broker bars for a list symbols"""
+        self._parse_source_time_unit(time_unit, reverse=True)
+        missing_symbols = [
+            symbol for symbol in symbols if symbol not in self._data_store
+        ]
+        tickers = yf.Tickers(" ".join(missing_symbols))
+        for ticker in tickers.tickers:
+            self._data_store[ticker.ticker] = ticker.history(period="max")
+
+        result = {}
+        for symbol in symbols:
+            result[symbol] = self._pull_source_symbol_bars(
+                symbol, length, time_unit, time_delta=time_delta
             )
-            return 0
-        return average_trading_volume
+        return result
+
+    def _parse_source_symbol_bars(self, response):
+        df = response.drop(["Dividends", "Stock Splits"], axis=1)
+        df.columns = ["open", "high", "low", "close", "volume"]
+        df["price_change"] = df["close"].pct_change()
+        bars = Bars(df, raw=response)
+        return bars
+
+    def _parse_source_bars(self, response):
+        result = {}
+        for symbol, bars in response.items():
+            result[symbol] = self._parse_source_symbol_bars(bars)
+        return result

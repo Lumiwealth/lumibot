@@ -28,7 +28,7 @@ class Strategy:
 
         # Setting the data provider
         if self._is_backtesting or data_source is None:
-            self.data_source = self.broker
+            self.data_source = self.broker._data_source
         else:
             self.data_source = data_source
 

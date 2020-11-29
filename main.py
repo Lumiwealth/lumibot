@@ -15,20 +15,21 @@ if __name__ == "__main__":
     backtesting_broker = BacktestingBroker(yahoo_backtesting_source)
     trader = Trader(logfile="logs/test.log", debug=debug)
 
-    diversification = Diversification(budget=budget, broker=backtesting_broker)
-    trader.add_strategy(diversification)
-
-    # screener = Screener(budget=budget, broker=broker)
-    # trader.add_strategy(screener)
-
+    momentum = Momentum(budget=budget, broker=backtesting_broker)
     # momentum = Momentum(budget=budget, broker=broker)
-    # trader.add_strategy(momentum)
+    trader.add_strategy(momentum)
 
+    # diversification = Diversification(budget=budget, broker=backtesting_broker)
     # diversification = Diversification(budget=budget, broker=broker)
     # trader.add_strategy(diversification)
 
+    # intraday_momentum = IntradayMomentum(budget=budget, broker=backtesting_broker)
     # intraday_momentum = IntradayMomentum(budget=budget, broker=broker)
     # trader.add_strategy(intraday_momentum)
+
+    # screener = Screener(budget=budget, broker=backtesting_broker)
+    # screener = Screener(budget=budget, broker=broker)
+    # trader.add_strategy(screener)
 
     trader.run_all()
 

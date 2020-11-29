@@ -40,7 +40,7 @@ class BacktestingBroker(Broker):
                 orders = broker._flatten_order(result)
                 for order in orders:
                     logging.info("%r was sent to broker %s" % (order, self.name))
-                    broker._unprocessed_orders.append(order)
+                    broker._new_orders.append(order)
 
                 broker.stream.dispatch(broker.FILLED_ORDER, order=order)
             return result

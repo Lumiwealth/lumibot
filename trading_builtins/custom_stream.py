@@ -4,7 +4,7 @@ import logging
 
 class CustomStream:
     def __init__(self):
-        self._queue = Queue()
+        self._queue = Queue(1)
         self._actions_mapping = {}
 
     def dispatch(self, event, **payload):

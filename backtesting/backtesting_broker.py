@@ -1,12 +1,14 @@
-from brokers import Broker
-from tools import get_trading_days
-from datetime import datetime, time, date, timedelta
-from entities import Position, Order
-from secrets import token_hex
-from trading_builtins import CustomStream
-import traceback
-from functools import wraps
 import logging
+import traceback
+from datetime import date, datetime, time, timedelta
+from functools import wraps
+from secrets import token_hex
+
+from brokers import Broker
+from entities import Order, Position
+from tools import get_trading_days
+from trading_builtins import CustomStream
+
 
 class BacktestingBroker(Broker):
     # Metainfo
@@ -19,7 +21,9 @@ class BacktestingBroker(Broker):
         # Calling init methods
         self.max_workers = max_workers
         if not data_source.IS_BACKTESTING_DATA_SOURCE:
-            raise ValueError("object %r is not a backteesting data_source" % data_source)
+            raise ValueError(
+                "object %r is not a backteesting data_source" % data_source
+            )
         self._data_source = data_source
         self._timestamp = self._data_source._timestamp
 
@@ -33,6 +37,7 @@ class BacktestingBroker(Broker):
             return attr
 
         broker = self
+
         @wraps(attr)
         def new_func(order, *args, **kwargs):
             result = attr(order, *args, **kwargs)
@@ -168,11 +173,7 @@ class BacktestingBroker(Broker):
         orders = [order]
         if order.stop_price:
             stop_loss_order = Order(
-                order.strategy,
-                symbol,
-                quantity,
-                "sell",
-                stop_price=order.stop_price
+                order.strategy, symbol, quantity, "sell", stop_price=order.stop_price
             )
             stop_loss_order = self._parse_broker_order(stop_loss_order, order.strategy)
             orders.append(stop_loss_order)

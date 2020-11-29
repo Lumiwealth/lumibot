@@ -1,10 +1,11 @@
-from brokers import Alpaca
+from datetime import datetime
+
 from backtesting import BacktestingBroker, YahooDataBacktesting
+from brokers import Alpaca
 from credentials import AlpacaConfig
 from data_sources import AlpacaData
 from strategies import Diversification, IntradayMomentum, Momentum, Screener
 from traders import Trader
-from datetime import datetime
 
 if __name__ == "__main__":
     debug = False

@@ -1,6 +1,7 @@
+import logging
 from queue import Queue
 from threading import Thread
-import logging
+
 
 class CustomStream:
     def __init__(self):
@@ -20,7 +21,8 @@ class CustomStream:
     def _run(self):
         while True:
             event, payload = self._queue.get()
-            if payload is None: payload = {}
+            if payload is None:
+                payload = {}
             if event in self._actions_mapping:
                 action = self._actions_mapping[event]
                 action(**payload)

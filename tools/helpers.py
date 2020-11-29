@@ -1,5 +1,7 @@
-import yfinance as yf
 import logging
+
+import yfinance as yf
+
 
 def get_chunks(l, chunk_size):
     chunks = []

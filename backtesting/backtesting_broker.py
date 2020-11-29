@@ -69,6 +69,14 @@ class BacktestingBroker(Broker):
 
     # =========Clock functions=====================
 
+    def should_continue(self):
+        """In production mode always returns True.
+        Needs to be overloaded for backtesting to
+        check if the limit timestamp was reached"""
+        if self._data_source._timestamp >= self._data_source.timestamp_end:
+            return False
+        return True
+
     def is_market_open(self):
         """return True if market is open else false"""
         current_date = self._timestamp.date()

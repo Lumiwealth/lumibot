@@ -309,7 +309,7 @@ class Strategy:
             self.format_log_message("Executing the initialize lifecycle method")
         )
         self.initialize()
-        while True:
+        while self.broker.should_continue():
             try:
                 self._run_trading_session()
             except Exception as e:

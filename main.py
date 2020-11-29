@@ -10,11 +10,14 @@ from traders import Trader
 if __name__ == "__main__":
     debug = False
     budget = 40000
+    trader = Trader(logfile="logs/test.log", debug=debug)
     broker = Alpaca(AlpacaConfig)
     pricing_data = AlpacaData(AlpacaConfig)
-    yahoo_backtesting_source = YahooDataBacktesting(datetime(2010, 6, 1))
+
+    backtesting_start = datetime(2010, 6, 1)
+    backtesting_end = datetime(2011, 6, 1)
+    yahoo_backtesting_source = YahooDataBacktesting(backtesting_start, backtesting_end)
     backtesting_broker = BacktestingBroker(yahoo_backtesting_source)
-    trader = Trader(logfile="logs/test.log", debug=debug)
 
     momentum = Momentum(budget=budget, broker=backtesting_broker)
     # momentum = Momentum(budget=budget, broker=broker)

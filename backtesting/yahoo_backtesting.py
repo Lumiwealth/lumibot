@@ -6,9 +6,10 @@ from data_sources import YahooData
 class YahooDataBacktesting(YahooData):
     IS_BACKTESTING_DATA_SOURCE = True
 
-    def __init__(self, timestamp_start):
+    def __init__(self, timestamp_start, timestamp_end):
         YahooData.__init__(self)
         self.timestamp_start = timestamp_start
+        self.timestamp_end = timestamp_end
         self._timestamp = timestamp_start
 
     def _pull_source_symbol_bars(self, symbol, length, time_unit, time_delta=None):

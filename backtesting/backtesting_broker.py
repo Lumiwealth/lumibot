@@ -74,10 +74,7 @@ class BacktestingBroker(Broker):
         current_date = self._timestamp.date()
         if current_date in self._trading_days:
             current_time = self._timestamp.time()
-            if (
-                current_time >= self.MARKET_OPEN_TIME
-                and current_time <= self.MARKET_CLOSE_TIME
-            ):
+            if self.MARKET_OPEN_TIME <= current_time <= self.MARKET_CLOSE_TIME:
                 return True
 
         return False

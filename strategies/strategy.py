@@ -2,9 +2,12 @@ import logging
 import time
 import traceback
 from copy import deepcopy
+from datetime import datetime
 
+from backtesting import BacktestingBroker
 from entities import Order
 from tools import snatch_method_locals
+from traders import Trader
 
 
 class Strategy:
@@ -362,3 +365,14 @@ class Strategy:
                 logging.error(traceback.format_exc())
                 self.on_bot_crash(e)
                 break
+
+    @classmethod
+    def backtest(
+        cls, datasource_class, budget, backtesting_start, backtesting_end, logfile=None
+    ):
+        trader = Trader(logfile=logfile)
+        data_source = datasource_class(backtesting_start, backtesting_end)
+        backtesting_broker = BacktestingBroker(data_source)
+        strategy = cls(budget=budget, broker=backtesting_broker)
+        trader.add_strategy(strategy)
+        trader.run_all()

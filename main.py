@@ -53,7 +53,9 @@ if __name__ == "__main__":
             strategy = strategy_class(budget=budget, broker=alpaca_broker)
             trader.add_strategy(strategy)
         else:
-            strategy_class.backtest(YahooDataBacktesting, budget, backtesting_start, backtesting_end)
+            strategy_class.backtest(
+                YahooDataBacktesting, budget, backtesting_start, backtesting_end
+            )
 
     if live_trading:
         trader.run_all()

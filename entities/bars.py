@@ -9,6 +9,9 @@ class Bars:
     def _repr_html_(self):
         return self.df._repr_html_()
 
+    def get_last_price(self):
+        return self.df["close"][-1]
+
     def get_momentum_df(self, momentum_length):
         df = self.df.copy()
         df["momentum"] = df["close"].pct_change(periods=momentum_length)

@@ -66,6 +66,61 @@ class Momentum(Strategy):
         # sell all positions
         self.sell_all()
 
+    def trace_stats(self, context, snapshot_before):
+        timestamp = self.get_datetime()
+        portfolio_value = context.get("portfolio_value")
+
+        current_best_asset = None
+        current_asset_quantity = None
+        current_unspent_money = None
+        if snapshot_before:
+            current_best_asset = snapshot_before.get("asset")
+            current_asset_quantity = snapshot_before.get("quantity")
+            current_unspent_money = snapshot_before.get("unspent_money")
+
+        momentums = context.get("momentums")
+        VEU_price = None
+        VEU_momentum = None
+        SPY_price = None
+        SPY_momentum = None
+        AGG_price = None
+        AGG_momentum = None
+        if momentums:
+            for momentum in momentums:
+                symbol = momentum.get("symbol")
+                if symbol == "VEU":
+                    VEU_price = momentum.get("price")
+                    VEU_momentum = momentum.get("return")
+                elif symbol == "SPY":
+                    SPY_price = momentum.get("price")
+                    SPY_momentum = momentum.get("return")
+                elif symbol == "AGG":
+                    AGG_price = momentum.get("price")
+                    AGG_momentum = momentum.get("return")
+
+        new_best_asset = self.asset
+        new_asset_quantity = self.quantity
+        new_unspent_monet = self.unspent_money
+
+        row = {
+            "timestamp": timestamp,
+            "portfolio_value": portfolio_value,
+            "current_best_asset": current_best_asset,
+            "current_asset_quantity": current_asset_quantity,
+            "current_unspent_money": current_unspent_money,
+            "VEU_price": VEU_price,
+            "VEU_momentum": VEU_momentum,
+            "SPY_price": SPY_price,
+            "SPY_momentum": SPY_momentum,
+            "AGG_price": AGG_price,
+            "AGG_momentum": AGG_momentum,
+            "new_best_asset": new_best_asset,
+            "new_asset_quantity": new_asset_quantity,
+            "new_unspent_monet": new_unspent_monet,
+        }
+
+        return row
+
     # =============Helper methods====================
 
     def get_assets_momentums(self):

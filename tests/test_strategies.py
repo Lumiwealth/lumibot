@@ -1,20 +1,26 @@
-import pytest
 from datetime import datetime
+
+import pytest
+
 from backtesting import BacktestingBroker, YahooDataBacktesting
 from strategies import Diversification, Momentum
 from tests import trader
+
 
 @pytest.fixture(scope="session")
 def backtesting():
     def func_result(datasource, backtesting_start, backtesting_end):
         if datasource == "yahoo":
-            backtesting_source = YahooDataBacktesting(backtesting_start, backtesting_end)
+            backtesting_source = YahooDataBacktesting(
+                backtesting_start, backtesting_end
+            )
         else:
             raise ValueError("Unknown datasource %s" % datasource)
 
         return BacktestingBroker(backtesting_source)
 
     return func_result
+
 
 def test_momentum_strategy(trader, backtesting):
     try:
@@ -28,6 +34,7 @@ def test_momentum_strategy(trader, backtesting):
         assert True
     except:
         assert False
+
 
 def test_diversification_strategy(trader, backtesting):
     try:

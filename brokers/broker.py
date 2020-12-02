@@ -1,7 +1,7 @@
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import timedelta
+from datetime import datetime, timedelta
 from functools import wraps
 from threading import RLock, Thread
 
@@ -124,6 +124,15 @@ class Broker:
         Needs to be overloaded for backtesting to
         check if the limit timestamp was reached"""
         return True
+
+    def get_timestamp(self):
+        """return current timestamp"""
+        pass
+
+    def get_datetime(self):
+        """return current datetime"""
+        timestamp = self.get_timestamp()
+        return datetime.fromtimestamp(timestamp)
 
     def is_market_open(self):
         """return True if market is open else false"""

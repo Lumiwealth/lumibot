@@ -98,6 +98,14 @@ class Strategy:
 
     # =======Broker methods shortcuts============
 
+    def get_timestamp(self):
+        """return current timestamp"""
+        return self.broker.get_timestamp()
+
+    def get_datetime(self):
+        """return current datetime"""
+        return self.broker.get_datetime()
+
     def await_market_to_open(self):
         """Executes infinite loop until market opens"""
         self.broker.await_market_to_open()

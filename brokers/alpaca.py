@@ -27,6 +27,12 @@ class Alpaca(AlpacaData, Broker):
 
     # =========Clock functions=====================
 
+    def get_timestamp(self):
+        """return current timestamp"""
+        clock = self.api.get_clock()
+        curr_time = clock.timestamp.replace(tzinfo=timezone.utc).timestamp()
+        return curr_time
+
     def is_market_open(self):
         """return True if market is open else false"""
         return self.api.get_clock().is_open

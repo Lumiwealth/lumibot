@@ -1,8 +1,10 @@
 import logging
 import time
 import traceback
+from copy import deepcopy
 
 from entities import Order
+from tools import snatch_method_locals
 
 
 class Strategy:
@@ -17,6 +19,10 @@ class Strategy:
         self.broker = broker
         self._is_backtesting = self.broker.IS_BACKTESTING_BROKER
         broker._add_subscriber(self)
+
+        # Initializing the context variables
+        # containing on_trading_iteration local variables
+        self._trading_context = None
 
         # Setting how many minutes before market closes
         # The bot should stop
@@ -34,6 +40,29 @@ class Strategy:
 
         # Ready to close
         self._ready_to_close = False
+
+    def __getattribute__(self, name):
+        attr = object.__getattribute__(self, name)
+        if name == "on_trading_iteration":
+            decorator = snatch_method_locals("_trading_context")
+            return decorator(attr)
+
+        return attr
+
+    @staticmethod
+    def _copy_instance_dict(instance_dict):
+        result = {}
+        ignored_fields = ["broker", "data_source"]
+        for key in instance_dict:
+            if key[0] != "_" and key not in ignored_fields:
+                try:
+                    result[key] = deepcopy(instance_dict[key])
+                except:
+                    logging.warning(
+                        "Cannot perform deepcopy on %r" % instance_dict[key]
+                    )
+
+        return result
 
     def _safe_sleep_(self, sleeptime):
         """internal function for sleeping"""
@@ -200,6 +229,13 @@ class Strategy:
         minutes before market closes"""
         pass
 
+    def trace_stats(self, context, snapshot_before):
+        """Lifecycle method that will be executed after
+        on_trading_iteration. context is a dictionary containing
+        on_trading_iteration locals() in last call. Use this
+        method to dump stats"""
+        pass
+
     def before_market_closes(self):
         """Use this lifecycle method to execude code
         self.minutes_before_closing minutes before closing.
@@ -276,7 +312,14 @@ class Strategy:
                     "Executing the on_trading_iteration lifecycle method"
                 )
             )
+
+            # Executing the on_trading_iteration lifecycle method
+            # and tracking stats
+            snapshot_before = self._copy_instance_dict(self.__dict__)
             self.on_trading_iteration()
+            self.trace_stats(self._trading_context, snapshot_before)
+            self._trading_context = None
+
             time_to_close = self.broker.get_time_to_close()
             sleeptime = time_to_close - 15 * 60
             sleeptime = max(min(sleeptime, 60 * self.sleeptime), 0)

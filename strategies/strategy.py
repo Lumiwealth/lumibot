@@ -33,8 +33,10 @@ class Strategy:
         self.sleeptime = sleeptime
 
         # Setting the data provider
-        if self._is_backtesting or data_source is None:
+        if self._is_backtesting:
             self.data_source = self.broker._data_source
+        elif data_source is None:
+            self.data_source = self.broker
         else:
             self.data_source = data_source
 

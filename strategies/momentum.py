@@ -16,24 +16,43 @@ class Momentum(Strategy):
         # no need to sleep betwwen iterations
         self.sleeptime = 0
 
-        # set the symbols variable and initialize the asset_symbol variable
+        # set the symbols variable and initialize
+        # the asset_symbol variable and the unspent_money variable
         self.symbols = ["SPY", "VEU", "AGG"]
         self.asset = ""
         self.quantity = 0
+        self.unspent_money = self.budget
 
     def on_trading_iteration(self):
         if self.counter == self.period or self.counter == 0:
+            if self.asset:
+                current_asset_price = self.get_last_price(self.asset)
+                portfolio_value = round(
+                    self.unspent_money + current_asset_price * self.quantity, 2
+                )
+            else:
+                portfolio_value = self.budget
+            logging.info(f"Current portfolio value is {portfolio_value}$")
+
             self.counter = 0
-            best_asset = self.get_best_asset()
+            momentums = self.get_assets_momentums()
+            momentums.sort(key=lambda x: x.get("return"))
+            best_asset = momentums[-1].get("symbol")
+            logging.info("%s best symbol." % best_asset)
+
             if best_asset != self.asset:
                 if self.asset:
                     logging.info("Swapping %s for %s." % (self.asset, best_asset))
                     order = self.create_order(self.asset, self.quantity, "sell")
                     self.submit_order(order)
+                    self.unspent_money = portfolio_value
 
                 self.asset = best_asset
                 best_asset_price = self.get_last_price(best_asset)
-                self.quantity = self.budget // best_asset_price
+                self.quantity = self.unspent_money // best_asset_price
+                self.unspent_money = round(
+                    self.unspent_money - self.quantity * best_asset_price, 2
+                )
                 order = self.create_order(self.asset, self.quantity, "buy")
                 self.submit_order(order)
             else:
@@ -49,7 +68,7 @@ class Momentum(Strategy):
 
     # =============Helper methods====================
 
-    def get_best_asset(self):
+    def get_assets_momentums(self):
         momentums = []
         for symbol in self.symbols:
             bars_set = self.get_symbol_bars(symbol, self.period + 1, timedelta(days=1))
@@ -58,9 +77,11 @@ class Momentum(Strategy):
                 "%s has a return value of %.2f%% over the last %d day(s)."
                 % (symbol, 100 * symbol_momentum, self.period)
             )
-            momentums.append({"symbol": symbol, "return": symbol_momentum})
-
-        momentums.sort(key=lambda x: x.get("return"))
-        best_asset = momentums[-1].get("symbol")
-        logging.info("%s best symbol." % best_asset)
-        return best_asset
+            momentums.append(
+                {
+                    "symbol": symbol,
+                    "price": bars_set.get_last_price(),
+                    "return": symbol_momentum,
+                }
+            )
+        return momentums

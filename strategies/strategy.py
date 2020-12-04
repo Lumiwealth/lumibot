@@ -376,7 +376,12 @@ class Strategy:
 
     @classmethod
     def backtest(
-        cls, datasource_class, budget, backtesting_start, backtesting_end, logfile=None
+        cls,
+        datasource_class,
+        budget,
+        backtesting_start,
+        backtesting_end,
+        logfile="logs/test.log",
     ):
         trader = Trader(logfile=logfile)
         data_source = datasource_class(backtesting_start, backtesting_end)

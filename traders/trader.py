@@ -6,39 +6,41 @@ from threading import Thread
 
 
 class Trader:
-    def __init__(self, logfile=None, debug=False, strategies=None):
-        # Setting Logging to both console and a file if logfile is specified
-        logging.getLogger("urllib3").setLevel(logging.ERROR)
-        logging.getLogger("requests").setLevel(logging.ERROR)
+    def __init__(self, logfile="logs/test.log", debug=False, strategies=None):
+        # Setting debug and _logfile parameters and setting global log format
         self._logfile = logfile
-        logger = logging.getLogger()
-        if debug:
-            logger.setLevel(logging.DEBUG)
-        else:
-            logger.setLevel(logging.INFO)
-
-        logFormater = logging.Formatter("%(asctime)s: %(levelname)s: %(message)s")
-
-        # Setting file logging
-        if logfile:
-            dir = os.path.dirname(os.path.abspath(logfile))
-            if not os.path.exists(dir):
-                os.mkdir(dir)
-
-            fileHandler = logging.FileHandler(logfile, mode="w")
-            fileHandler.setFormatter(logFormater)
-            logger.addHandler(fileHandler)
-
-        # Setting console logger
-        consoleHandler = logging.StreamHandler()
-        consoleHandler.setFormatter(logFormater)
-        logger.addHandler(consoleHandler)
+        self.debug = debug
+        self.log_format = logging.Formatter("%(asctime)s: %(levelname)s: %(message)s")
 
         # Setting the list of strategies if defined
         self._strategies = strategies if strategies else []
 
         # Initializing the list of threads
         self._threads = []
+
+    def _set_logger(self):
+        """Setting Logging to both console and a file if logfile is specified"""
+        logging.getLogger("urllib3").setLevel(logging.ERROR)
+        logging.getLogger("requests").setLevel(logging.ERROR)
+
+        logger = logging.getLogger()
+        if self.debug:
+            logger.setLevel(logging.DEBUG)
+        else:
+            logger.setLevel(logging.INFO)
+
+        # Setting file logging
+        if self._logfile:
+            dir = os.path.dirname(os.path.abspath(self._logfile))
+            if not os.path.exists(dir):
+                os.mkdir(dir)
+            fileHandler = logging.FileHandler(self._logfile, mode="w")
+            logger.addHandler(fileHandler)
+
+        for handler in logger.handlers:
+            handler.setFormatter(self.log_format)
+
+        logger.propagate = True
 
     def _join_threads(self):
         """Joining all the threads"""
@@ -82,6 +84,7 @@ class Trader:
 
     def run_all(self):
         """run all strategies"""
+        self._set_logger()
         signal.signal(signal.SIGINT, self._abrupt_closing)
         for strategy in self._strategies:
             t = Thread(target=strategy.run, daemon=True)

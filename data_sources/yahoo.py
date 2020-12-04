@@ -67,7 +67,15 @@ class YahooData(DataSource):
 
     def _parse_source_symbol_bars(self, response):
         df = response.copy()
-        df.columns = ["open", "high", "low", "close", "volume", "dividend", "stock_splits"]
+        df.columns = [
+            "open",
+            "high",
+            "low",
+            "close",
+            "volume",
+            "dividend",
+            "stock_splits",
+        ]
         df["price_change"] = df["close"].pct_change()
         df["dividend_yield"] = df["dividend"] / df["close"]
         df["return"] = df["dividend_yield"] + df["price_change"]

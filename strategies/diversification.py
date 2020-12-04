@@ -85,8 +85,8 @@ class Diversification(Strategy):
         """Rebalance the portfolio and cretae orders"""
         if not self.initialized:
             self.initialized = True
-            portfolio_value = self.budget
-            logging.info("Total initial budget: %.2f$" % self.budget)
+            portfolio_value = self.unspent_money
+            logging.info("Total initial budget: %.2f$" % self.unspent_money)
         else:
             portfolio_value = self.get_portfolio_value()
             logging.info("Total portfolio value: %.2f$" % portfolio_value)

@@ -32,7 +32,7 @@ class IntradayMomentum(Strategy):
 
             self.asset = best_asset
             best_asset_price = self.get_last_price(best_asset)
-            self.quantity = self.budget // best_asset_price
+            self.quantity = self.unspent_money // best_asset_price
             order = self.create_order(self.asset, self.quantity, "buy")
             self.submit_order(order)
         else:

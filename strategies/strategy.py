@@ -16,7 +16,7 @@ class Strategy:
     ):
         # Setting the strategy name and the budget allocated
         self._name = self.__class__.__name__
-        self.budget = budget
+        self.unspent_money = budget
 
         # Setting the broker object
         self.broker = broker

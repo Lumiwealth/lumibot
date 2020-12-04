@@ -21,7 +21,6 @@ class Momentum(Strategy):
         self.symbols = ["SPY", "VEU", "AGG"]
         self.asset = ""
         self.quantity = 0
-        self.unspent_money = self.budget
 
     def on_trading_iteration(self):
         if self.counter == self.period or self.counter == 0:
@@ -31,7 +30,7 @@ class Momentum(Strategy):
                     self.unspent_money + current_asset_price * self.quantity, 2
                 )
             else:
-                portfolio_value = self.budget
+                portfolio_value = self.unspent_money
             logging.info(f"Current portfolio value is {portfolio_value}$")
 
             self.counter = 0

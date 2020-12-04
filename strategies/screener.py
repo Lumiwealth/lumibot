@@ -20,7 +20,7 @@ class Screener(Strategy):
         # setting risk management variables
         self.capital_per_asset = 4000
         self.minimum_trading_volume = 500000
-        self.max_positions = self.budget // self.capital_per_asset
+        self.max_positions = self.unspent_money // self.capital_per_asset
         self.min_increase_target = 0.02
         self.limit_price_increase = 0.02
         self.stop_loss_target = 0.04

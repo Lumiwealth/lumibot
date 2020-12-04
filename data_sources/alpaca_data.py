@@ -70,8 +70,11 @@ class AlpacaData(DataSource):
         return response.df[symbol]
 
     def _parse_source_symbol_bars(self, response):
-        df = response
+        df = response.copy()
         df["price_change"] = df["close"].pct_change()
+        df["dividend"] = 0
+        df["dividend_yield"] = df["dividend"] / df["close"]
+        df["return"] = df["dividend_yield"] + df["price_change"]
         bars = Bars(df, raw=response)
         return bars
 

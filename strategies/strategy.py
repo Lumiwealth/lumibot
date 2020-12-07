@@ -17,8 +17,9 @@ class Strategy:
     ):
         # Setting the strategy name and the budget allocated
         self._name = self.__class__.__name__
-        self.unspent_money = budget
         self._lock = Lock()
+        self._unspent_money = budget
+        self._portfolio_value = budget
 
         # Setting the broker object
         self.broker = broker
@@ -60,6 +61,18 @@ class Strategy:
     def name(self):
         return self._name
 
+    @property
+    def portfolio_value(self):
+        return self._portfolio_value
+
+    @property
+    def unspent_money(self):
+        return self._unspent_money
+
+    @property
+    def positions(self):
+        return self.get_tracked_positions()
+
     @staticmethod
     def _copy_instance_dict(instance_dict):
         result = {}
@@ -79,6 +92,34 @@ class Strategy:
         """internal function for sleeping"""
         if not self._is_backtesting:
             time.sleep(sleeptime)
+
+    def _update_portfolio_value(self):
+        """updates self.portfolio_value"""
+        with self._lock:
+            portfolio_value = self.unspent_money
+            symbols = [position.symbol for position in self.positions]
+            prices = self.get_last_prices(symbols)
+
+            for position in self.positions:
+                symbol = position.symbol
+                quantity = position.quantity
+                price = prices.get(symbol, 0)
+                portfolio_value += quantity * price
+
+            message = self.format_log_message(
+                f"Porfolio value of {self.portfolio_value}"
+            )
+            logging.info(message)
+            self._portfolio_value = round(portfolio_value, 2)
+
+        return portfolio_value
+
+    def _update_unspent_money(self, side, quantity, price):
+        """update the self.unspent_money"""
+        if side == "buy":
+            self._unspent_money -= round(quantity * price, 2)
+        if side == "sell":
+            self._unspent_money += round(quantity * price, 2)
 
     # ======Order methods shortcuts===============
 
@@ -335,7 +376,9 @@ class Strategy:
             # Executing the on_trading_iteration lifecycle method
             # and tracking stats
             snapshot_before = self._copy_instance_dict(self.__dict__)
+            self._update_portfolio_value()
             self.on_trading_iteration()
+            self._update_portfolio_value()
             self.trace_stats(self._trading_context, snapshot_before)
             self._trading_context = None
 

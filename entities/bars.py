@@ -12,6 +12,9 @@ class Bars:
     def get_last_price(self):
         return self.df["close"][-1]
 
+    def get_last_dividend(self):
+        return self.df["dividend"][-1]
+
     def get_momentum_df(self, momentum_length):
         df = self.df.copy()
         df["momentum"] = df["close"].pct_change(periods=momentum_length)

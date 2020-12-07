@@ -79,3 +79,20 @@ class DataSource:
                 result[symbol] = last_value
 
         return result
+
+    def get_yesterday_dividend(self, symbol):
+        """Return dividend per share for a given
+        symbol for the day before"""
+        bars = self.get_symbol_bars(symbol, 1, timedelta(days=1))
+        return bars.get_last_dividend()
+
+    def get_yesterday_dividends(self, symbols):
+        """Return dividend per share for a list of
+        symbols for the day before"""
+        result = {}
+        symbols_bars = self.get_bars(symbols, 1, timedelta(days=1))
+        for symbol, bars in symbols_bars.items():
+            if bars is not None:
+                result[symbol] = bars.get_last_dividend()
+
+        return result

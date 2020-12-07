@@ -3,6 +3,7 @@ import time
 import traceback
 from copy import deepcopy
 from datetime import datetime
+from threading import Lock
 
 from backtesting import BacktestingBroker
 from entities import Order
@@ -17,6 +18,7 @@ class Strategy:
         # Setting the strategy name and the budget allocated
         self._name = self.__class__.__name__
         self.unspent_money = budget
+        self._lock = Lock()
 
         # Setting the broker object
         self.broker = broker

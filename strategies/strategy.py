@@ -133,6 +133,16 @@ class Strategy:
         if side == "sell":
             self._unspent_money += round(quantity * price, 2)
 
+    def _update_unspent_money_with_dividends(self):
+        with self._lock:
+            symbols = [position.symbol for position in self.positions]
+            dividends_per_share = self.get_yesterday_dividends(symbols)
+            for position in self.positions:
+                symbol = position.symbol
+                quantity = position.quantity
+                dividend_per_share = dividends_per_share.get(symbol, 0)
+                self._unspent_money += dividend_per_share * quantity
+
     # ======Order methods shortcuts===============
 
     def create_order(
@@ -376,6 +386,8 @@ class Strategy:
             self.before_market_opens()
 
         self.broker.await_market_to_open()
+        self._update_unspent_money_with_dividends()
+
         logging.info(
             self.format_log_message(
                 "Executing the before_starting_trading lifecycle method"

@@ -24,15 +24,6 @@ class Momentum(Strategy):
 
     def on_trading_iteration(self):
         if self.counter == self.period or self.counter == 0:
-            if self.asset:
-                current_asset_price = self.get_last_price(self.asset)
-                portfolio_value = round(
-                    self.unspent_money + current_asset_price * self.quantity, 2
-                )
-            else:
-                portfolio_value = self.unspent_money
-            logging.info(f"Current portfolio value is {portfolio_value}$")
-
             self.counter = 0
             momentums = self.get_assets_momentums()
             momentums.sort(key=lambda x: x.get("return"))
@@ -44,14 +35,10 @@ class Momentum(Strategy):
                     logging.info("Swapping %s for %s." % (self.asset, best_asset))
                     order = self.create_order(self.asset, self.quantity, "sell")
                     self.submit_order(order)
-                    self.unspent_money = portfolio_value
 
                 self.asset = best_asset
                 best_asset_price = self.get_last_price(best_asset)
-                self.quantity = self.unspent_money // best_asset_price
-                self.unspent_money = round(
-                    self.unspent_money - self.quantity * best_asset_price, 2
-                )
+                self.quantity = self.portfolio_value // best_asset_price
                 order = self.create_order(self.asset, self.quantity, "buy")
                 self.submit_order(order)
             else:
@@ -67,7 +54,7 @@ class Momentum(Strategy):
 
     def trace_stats(self, context, snapshot_before):
         timestamp = self.get_datetime()
-        portfolio_value = context.get("portfolio_value")
+        portfolio_value = self.portfolio_value
 
         current_best_asset = None
         current_asset_quantity = None

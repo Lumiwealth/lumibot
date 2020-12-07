@@ -27,6 +27,6 @@ class CustomStream:
                 action = self._actions_mapping[event]
                 action(**payload)
 
-    def run(self):
-        thread = Thread(target=self._run, daemon=True)
+    def run(self, name):
+        thread = Thread(target=self._run, daemon=True, name=name)
         thread.start()

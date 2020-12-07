@@ -480,7 +480,9 @@ class Broker:
         """Set the asynchronous actions to be executed after
         when events are sent via socket streams"""
         self._register_stream_events()
-        t = Thread(target=self._run_stream, daemon=True)
+        t = Thread(
+            target=self._run_stream, daemon=True, name=f"broker_{self.name}_thread"
+        )
         t.start()
         logging.info(
             """Waiting for the socket stream connection to be established, 

@@ -87,7 +87,11 @@ class Trader:
         self._set_logger()
         signal.signal(signal.SIGINT, self._abrupt_closing)
         for strategy in self._strategies:
-            t = Thread(target=strategy.run, daemon=True)
+            t = Thread(
+                target=strategy.run,
+                daemon=True,
+                name=f"strategy_{strategy.name}_thread",
+            )
             t.start()
             self._threads.append(t)
 

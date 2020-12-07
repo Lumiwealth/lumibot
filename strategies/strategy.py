@@ -54,6 +54,10 @@ class Strategy:
 
         return attr
 
+    @property
+    def name(self):
+        return self._name
+
     @staticmethod
     def _copy_instance_dict(instance_dict):
         result = {}

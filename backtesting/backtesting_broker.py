@@ -19,6 +19,7 @@ class BacktestingBroker(Broker):
 
     def __init__(self, data_source, connect_stream=True, max_workers=20):
         # Calling init methods
+        self.name = "backtesting"
         self.max_workers = max_workers
         if not data_source.IS_BACKTESTING_DATA_SOURCE:
             raise ValueError(

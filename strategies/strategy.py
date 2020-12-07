@@ -3,6 +3,7 @@ import time
 import traceback
 from copy import deepcopy
 from datetime import datetime
+from functools import wraps
 from threading import Lock
 
 from backtesting import BacktestingBroker
@@ -54,6 +55,17 @@ class Strategy:
         if name == "on_trading_iteration":
             decorator = snatch_method_locals("_trading_context")
             return decorator(attr)
+        elif name == "trace_stats":
+            strategy = self
+
+            @wraps(attr)
+            def output_func(*args, **kwargs):
+                row = attr(*args, **kwargs)
+                row["timestamp"] = strategy.get_datetime()
+                row["portfolio_value"] = strategy.portfolio_value
+                return row
+
+            return output_func
 
         return attr
 

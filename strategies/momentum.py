@@ -53,9 +53,6 @@ class Momentum(Strategy):
         self.sell_all()
 
     def trace_stats(self, context, snapshot_before):
-        timestamp = self.get_datetime()
-        portfolio_value = self.portfolio_value
-
         current_best_asset = None
         current_asset_quantity = None
         current_unspent_money = None
@@ -89,8 +86,6 @@ class Momentum(Strategy):
         new_unspent_monet = self.unspent_money
 
         row = {
-            "timestamp": timestamp,
-            "portfolio_value": portfolio_value,
             "current_best_asset": current_best_asset,
             "current_asset_quantity": current_asset_quantity,
             "current_unspent_money": current_unspent_money,

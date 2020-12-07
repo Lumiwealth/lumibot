@@ -48,14 +48,16 @@ class Broker:
         if name != "submit_order":
             return attr
 
+        broker = self
+
         @wraps(attr)
         def new_func(order, *args, **kwargs):
             result = attr(order, *args, **kwargs)
             if result.was_transmitted():
-                orders = self._flatten_order(result)
+                orders = broker._flatten_order(result)
                 for order in orders:
-                    logging.info("%r was sent to broker %s" % (order, self.name))
-                    self._unprocessed_orders.append(order)
+                    logging.info("%r was sent to broker %s" % (order, broker.name))
+                    broker._unprocessed_orders.append(order)
 
             return result
 

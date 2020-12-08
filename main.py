@@ -1,6 +1,7 @@
 import argparse
 import sys
 from datetime import datetime
+from time import time
 
 from backtesting import YahooDataBacktesting
 from brokers import Alpaca
@@ -49,12 +50,19 @@ if __name__ == "__main__":
         if strategy_class is None:
             raise ValueError("Strategy %s does not exist" % strategy_name)
 
+        stat_file = f"logs/strategy_{strategy_class.__name__}_{int(time())}.csv"
         if live_trading:
-            strategy = strategy_class(budget=budget, broker=alpaca_broker)
+            strategy = strategy_class(
+                budget=budget, broker=alpaca_broker, stat_file=stat_file
+            )
             trader.add_strategy(strategy)
         else:
             strategy_class.backtest(
-                YahooDataBacktesting, budget, backtesting_start, backtesting_end
+                YahooDataBacktesting,
+                budget,
+                backtesting_start,
+                backtesting_end,
+                stat_file=stat_file,
             )
 
     if live_trading:

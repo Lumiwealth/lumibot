@@ -6,21 +6,31 @@ from datetime import datetime
 from functools import wraps
 from threading import Lock
 
+import pandas as pd
+
 from backtesting import BacktestingBroker
 from entities import Order
-from tools import snatch_method_locals
+from tools import execute_after, snatch_method_locals
 from traders import Trader
 
 
 class Strategy:
     def __init__(
-        self, budget, broker, data_source=None, minutes_before_closing=5, sleeptime=1
+        self,
+        budget,
+        broker,
+        data_source=None,
+        minutes_before_closing=5,
+        sleeptime=1,
+        stat_file=None,
     ):
         # Setting the strategy name and the budget allocated
         self._name = self.__class__.__name__
         self._lock = Lock()
         self._unspent_money = budget
         self._portfolio_value = budget
+        self.stats_df = pd.DataFrame()
+        self.stat_file = stat_file
 
         # Setting the broker object
         self.broker = broker
@@ -55,6 +65,7 @@ class Strategy:
         if name == "on_trading_iteration":
             decorator = snatch_method_locals("_trading_context")
             return decorator(attr)
+
         elif name == "trace_stats":
             strategy = self
 
@@ -63,9 +74,13 @@ class Strategy:
                 row = attr(*args, **kwargs)
                 row["timestamp"] = strategy.get_datetime()
                 row["portfolio_value"] = strategy.portfolio_value
+                strategy.stats_df = strategy.stats_df.append(row, ignore_index=True)
                 return row
 
             return output_func
+
+        elif name in ["on_bot_crash", "on_abrupt_closing", "on_strategy_end"]:
+            return execute_after([self._dump_stats])(attr)
 
         return attr
 
@@ -142,6 +157,11 @@ class Strategy:
                 quantity = position.quantity
                 dividend_per_share = dividends_per_share.get(symbol, 0)
                 self._unspent_money += dividend_per_share * quantity
+
+    def _dump_stats(self):
+        if self.stat_file:
+            self.stats_df = self.stats_df.set_index("timestamp")
+            self.stats_df.to_csv(self.stat_file)
 
     # ======Order methods shortcuts===============
 
@@ -335,6 +355,12 @@ class Strategy:
         after market closes. Exampling: dumping stats/reports"""
         pass
 
+    def on_strategy_end(self):
+        """Use this lifecycle method to execute code
+        when strategy reached its end. Used to dump
+        statistics when backtesting finishes"""
+        pass
+
     # ======Events methods========================
 
     def on_bot_crash(self, error):
@@ -452,6 +478,10 @@ class Strategy:
                 logging.error(traceback.format_exc())
                 self.on_bot_crash(e)
                 break
+        logging.info(
+            self.format_log_message("Executing the on_strategy_end lifecycle method")
+        )
+        self.on_strategy_end()
 
     @classmethod
     def backtest(
@@ -461,10 +491,11 @@ class Strategy:
         backtesting_start,
         backtesting_end,
         logfile="logs/test.log",
+        stat_file=None,
     ):
         trader = Trader(logfile=logfile)
         data_source = datasource_class(backtesting_start, backtesting_end)
         backtesting_broker = BacktestingBroker(data_source)
-        strategy = cls(budget=budget, broker=backtesting_broker)
+        strategy = cls(budget=budget, broker=backtesting_broker, stat_file=stat_file)
         trader.add_strategy(strategy)
         trader.run_all()

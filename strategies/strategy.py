@@ -112,6 +112,8 @@ class Strategy:
                     logging.warning(
                         "Cannot perform deepcopy on %r" % instance_dict[key]
                     )
+            elif key in ["_unspent_money"]:
+                result[key[1:]] = deepcopy(instance_dict[key])
 
         return result
 

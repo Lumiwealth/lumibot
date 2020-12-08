@@ -10,7 +10,8 @@ import pandas as pd
 
 from backtesting import BacktestingBroker
 from entities import Order
-from tools import execute_after, snatch_method_locals
+from tools import (cagr, execute_after, max_drawdown, romad, sharpe,
+                   snatch_method_locals, volatility)
 from traders import Trader
 
 
@@ -23,6 +24,7 @@ class Strategy:
         minutes_before_closing=5,
         sleeptime=1,
         stat_file=None,
+        risk_free_rate=0.02,
     ):
         # Setting the strategy name and the budget allocated
         self._name = self.__class__.__name__
@@ -31,6 +33,7 @@ class Strategy:
         self._portfolio_value = budget
         self.stats_df = pd.DataFrame()
         self.stat_file = stat_file
+        self.risk_free_rate = risk_free_rate
 
         # Setting the broker object
         self.broker = broker
@@ -161,9 +164,31 @@ class Strategy:
                 self._unspent_money += dividend_per_share * quantity
 
     def _dump_stats(self):
+        self.stats_df = self.stats_df.set_index("timestamp")
+        self.stats_df["return"] = self.stats_df["portfolio_value"].pct_change()
         if self.stat_file:
-            self.stats_df = self.stats_df.set_index("timestamp")
             self.stats_df.to_csv(self.stat_file)
+
+        cagr_value = cagr(self.stats_df)
+        logging.info(self.format_log_message(f"CAGR {round(100 * cagr_value, 2)}%"))
+
+        volatility_value = volatility(self.stats_df)
+        logging.info(
+            self.format_log_message(f"Volatility {round(100 * volatility_value, 2)}%")
+        )
+
+        sharpe_value = sharpe(self.stats_df, self.risk_free_rate)
+        logging.info(self.format_log_message(f"Sharpe {round(100 * sharpe_value, 2)}%"))
+
+        max_drawdown_value = max_drawdown(self.stats_df)
+        logging.info(
+            self.format_log_message(
+                f"Max Drawdown {round(100 * max_drawdown_value, 2)}%"
+            )
+        )
+
+        romad_value = romad(self.stats_df)
+        logging.info(self.format_log_message(f"RoMaD {round(100 * romad_value, 2)}%"))
 
     # ======Order methods shortcuts===============
 

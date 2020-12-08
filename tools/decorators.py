@@ -72,3 +72,16 @@ def snatch_method_locals(name, snapshot_before=False, copy_method=deepcopy):
         return func_output
 
     return wrapper
+
+
+def execute_after(actions):
+    def decorator_func(input_func):
+        @wraps(input_func)
+        def output_func(*args, **kwargs):
+            input_func(*args, **kwargs)
+            for action in actions:
+                action()
+
+        return output_func
+
+    return decorator_func

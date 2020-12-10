@@ -48,7 +48,7 @@ if __name__ == "__main__":
     for strategy_name in strategies:
         strategy_class = mapping.get(strategy_name)
         if strategy_class is None:
-            raise ValueError("Strategy %s does not exist" % strategy_name)
+            raise ValueError(f"Strategy {strategy_name} does not exist")
 
         stat_file = f"logs/strategy_{strategy_class.__name__}_{int(time())}.csv"
         if live_trading:

@@ -149,9 +149,10 @@ class Strategy:
     def _update_unspent_money(self, side, quantity, price):
         """update the self.unspent_money"""
         if side == "buy":
-            self._unspent_money -= round(quantity * price, 2)
+            self._unspent_money -= quantity * price
         if side == "sell":
-            self._unspent_money += round(quantity * price, 2)
+            self._unspent_money += quantity * price
+        self._unspent_money = round(self._unspent_money, 2)
 
     def _update_unspent_money_with_dividends(self):
         with self._lock:
@@ -458,8 +459,8 @@ class Strategy:
 
             # Executing the on_trading_iteration lifecycle method
             # and tracking stats
-            snapshot_before = self._copy_instance_dict(self.__dict__)
             self._update_portfolio_value()
+            snapshot_before = self._copy_instance_dict(self.__dict__)
             self.on_trading_iteration()
             self._update_portfolio_value()
             self.trace_stats(self._trading_context, snapshot_before)

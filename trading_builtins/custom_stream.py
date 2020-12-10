@@ -10,6 +10,7 @@ class CustomStream:
 
     def dispatch(self, event, **payload):
         self._queue.put((event, payload))
+        self._queue.join()
 
     def add_action(self, event_name):
         def add_event_action(f):
@@ -26,6 +27,7 @@ class CustomStream:
             if event in self._actions_mapping:
                 action = self._actions_mapping[event]
                 action(**payload)
+            self._queue.task_done()
 
     def run(self, name):
         thread = Thread(target=self._run, daemon=True, name=name)

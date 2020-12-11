@@ -83,7 +83,6 @@ class Momentum(Strategy):
 
         new_best_asset = self.asset
         new_asset_quantity = self.quantity
-        new_unspent_monet = self.unspent_money
 
         row = {
             "old_best_asset": old_best_asset,
@@ -97,7 +96,6 @@ class Momentum(Strategy):
             "AGG_momentum": AGG_momentum,
             "new_best_asset": new_best_asset,
             "new_asset_quantity": new_asset_quantity,
-            "new_unspent_monet": new_unspent_monet,
         }
 
         return row

@@ -77,6 +77,7 @@ class Strategy:
                 row = attr(*args, **kwargs)
                 row["timestamp"] = strategy.get_datetime()
                 row["portfolio_value"] = strategy.portfolio_value
+                row["unspent_money"] = strategy.unspent_money
                 strategy.stats_df = strategy.stats_df.append(row, ignore_index=True)
                 return row
 

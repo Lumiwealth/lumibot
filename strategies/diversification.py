@@ -71,33 +71,15 @@ class Diversification(Strategy):
         for asset in self.portfolio:
             asset["last_price"] = prices.get(asset["symbol"])
 
-    def get_portfolio_value(self):
-        """Update the shares prices and recalculate the current portfolio value"""
-        value = 0
-        for asset in self.portfolio:
-            quantity = asset.get("quantity")
-            price = asset.get("last_price")
-            value += quantity * price
-
-        return value
-
     def rebalance_portfolio(self):
         """Rebalance the portfolio and cretae orders"""
-        if not self.initialized:
-            self.initialized = True
-            portfolio_value = self.unspent_money
-            logging.info("Total initial budget: %.2f$" % self.unspent_money)
-        else:
-            portfolio_value = self.get_portfolio_value()
-            logging.info("Total portfolio value: %.2f$" % portfolio_value)
-
         orders = []
         for asset in self.portfolio:
             symbol = asset.get("symbol")
             weight = asset.get("weight")
             last_price = asset.get("last_price")
             quantity = self.get_asset_potential_total(symbol)
-            shares_value = portfolio_value * weight
+            shares_value = self.portfolio_value * weight
             if quantity:
                 logging.info(
                     "Asset %s shares value: %.2f$. %.2f$ per %d shares."

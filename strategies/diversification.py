@@ -58,6 +58,15 @@ class Diversification(Strategy):
         self.counter += 1
         self.await_market_to_close()
 
+    def trace_stats(self, context, snapshot_before):
+        row = {}
+        for item in self.portfolio:
+            symbol = item.get("symbol")
+            for key in item:
+                if key != "symbol":
+                    row[f"{symbol}_{key}"] = item[key]
+        return row
+
     def on_abrupt_closing(self):
         # sell all positions
         self.sell_all()

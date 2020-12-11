@@ -10,8 +10,8 @@ import pandas as pd
 
 from backtesting import BacktestingBroker
 from entities import Order
-from tools import (cagr, execute_after, max_drawdown, romad, sharpe,
-                   snatch_method_locals, volatility)
+from tools import (cagr, df_day_deduplicate, execute_after, max_drawdown,
+                   romad, sharpe, snatch_method_locals, volatility)
 from traders import Trader
 
 
@@ -171,25 +171,27 @@ class Strategy:
         if self.stat_file:
             self.stats_df.to_csv(self.stat_file)
 
-        cagr_value = cagr(self.stats_df)
+        df_ = df_day_deduplicate(self.stats_df)
+
+        cagr_value = cagr(df_)
         logging.info(self.format_log_message(f"CAGR {round(100 * cagr_value, 2)}%"))
 
-        volatility_value = volatility(self.stats_df)
+        volatility_value = volatility(df_)
         logging.info(
             self.format_log_message(f"Volatility {round(100 * volatility_value, 2)}%")
         )
 
-        sharpe_value = sharpe(self.stats_df, self.risk_free_rate)
+        sharpe_value = sharpe(df_, self.risk_free_rate)
         logging.info(self.format_log_message(f"Sharpe {round(100 * sharpe_value, 2)}%"))
 
-        max_drawdown_value = max_drawdown(self.stats_df)
+        max_drawdown_value = max_drawdown(df_)
         logging.info(
             self.format_log_message(
                 f"Max Drawdown {round(100 * max_drawdown_value, 2)}%"
             )
         )
 
-        romad_value = romad(self.stats_df)
+        romad_value = romad(df_)
         logging.info(self.format_log_message(f"RoMaD {round(100 * romad_value, 2)}%"))
 
     # ======Order methods shortcuts===============

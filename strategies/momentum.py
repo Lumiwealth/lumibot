@@ -53,13 +53,13 @@ class Momentum(Strategy):
         self.sell_all()
 
     def trace_stats(self, context, snapshot_before):
-        current_best_asset = None
-        current_asset_quantity = None
-        current_unspent_money = None
+        old_best_asset = None
+        old_asset_quantity = None
+        old_unspent_money = None
         if snapshot_before:
-            current_best_asset = snapshot_before.get("asset")
-            current_asset_quantity = snapshot_before.get("quantity")
-            current_unspent_money = snapshot_before.get("unspent_money")
+            old_best_asset = snapshot_before.get("asset")
+            old_asset_quantity = snapshot_before.get("quantity")
+            old_unspent_money = snapshot_before.get("unspent_money")
 
         momentums = context.get("momentums")
         VEU_price = None
@@ -86,9 +86,9 @@ class Momentum(Strategy):
         new_unspent_monet = self.unspent_money
 
         row = {
-            "current_best_asset": current_best_asset,
-            "current_asset_quantity": current_asset_quantity,
-            "current_unspent_money": current_unspent_money,
+            "old_best_asset": old_best_asset,
+            "old_asset_quantity": old_asset_quantity,
+            "old_unspent_money": old_unspent_money,
             "VEU_price": VEU_price,
             "VEU_momentum": VEU_momentum,
             "SPY_price": SPY_price,

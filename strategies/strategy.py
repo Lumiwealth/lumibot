@@ -370,7 +370,7 @@ class Strategy:
         on_trading_iteration. context is a dictionary containing
         on_trading_iteration locals() in last call. Use this
         method to dump stats"""
-        pass
+        return {}
 
     def before_market_closes(self):
         """Use this lifecycle method to execude code

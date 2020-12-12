@@ -124,8 +124,8 @@ def calculate_returns(symbol, start=datetime(1900, 1, 1), end=datetime.now()):
 
     # 13 Week Treasury Rate (^IRX)
     risk_free_rate_ticker = yf.Ticker("^IRX")
-    risk_free_rate = risk_free_rate_ticker.info["regularMarketPrice"]
-    print("risk_free_rate: ", risk_free_rate)
+    risk_free_rate = risk_free_rate_ticker.info["regularMarketPrice"] / 100
+    print(f"Risk Free Rate {risk_free_rate*100:0.2f}%")
 
     performance(benchmark_df, risk_free_rate)
 

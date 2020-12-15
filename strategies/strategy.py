@@ -10,8 +10,16 @@ import pandas as pd
 
 from backtesting import BacktestingBroker
 from entities import Order
-from tools import (cagr, df_day_deduplicate, execute_after, max_drawdown,
-                   romad, sharpe, snatch_method_locals, volatility)
+from tools import (
+    cagr,
+    df_day_deduplicate,
+    execute_after,
+    max_drawdown,
+    romad,
+    sharpe,
+    snatch_method_locals,
+    volatility,
+)
 from traders import Trader
 
 

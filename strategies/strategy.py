@@ -83,7 +83,7 @@ class Strategy:
             @wraps(attr)
             def output_func(*args, **kwargs):
                 row = attr(*args, **kwargs)
-                row["timestamp"] = strategy.get_datetime()
+                row["datetime"] = strategy.get_datetime()
                 row["portfolio_value"] = strategy.portfolio_value
                 row["unspent_money"] = strategy.unspent_money
                 strategy.stats_df = strategy.stats_df.append(row, ignore_index=True)
@@ -174,7 +174,7 @@ class Strategy:
                 self._unspent_money += dividend_per_share * quantity
 
     def _dump_stats(self):
-        self.stats_df = self.stats_df.set_index("timestamp")
+        self.stats_df = self.stats_df.set_index("datetime")
         self.stats_df["return"] = self.stats_df["portfolio_value"].pct_change()
         if self.stat_file:
             self.stats_df.to_csv(self.stat_file)

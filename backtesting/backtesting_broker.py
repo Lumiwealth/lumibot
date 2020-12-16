@@ -26,7 +26,7 @@ class BacktestingBroker(Broker):
                 "object %r is not a backteesting data_source" % data_source
             )
         self._data_source = data_source
-        self._timestamp = self._data_source._timestamp
+        self._datetime = self._data_source._datetime
 
         self._trading_days = get_trading_days()
 
@@ -55,84 +55,84 @@ class BacktestingBroker(Broker):
 
     # =========Internal functions==================
 
-    def _update_timestamp(self, input):
+    def _update_datetime(self, input):
         """Works with either timedelta or datetime input"""
         if isinstance(input, timedelta):
-            timestamp = self._timestamp + input
+            new_datetime = self._datetime + input
         elif isinstance(input, int) or isinstance(input, float):
-            timestamp = self._timestamp + timedelta(seconds=input)
+            new_datetime = self._datetime + timedelta(seconds=input)
         else:
-            timestamp = input
+            new_datetime = input
 
-        self._timestamp = timestamp
-        self._data_source._update_timestamp(timestamp)
-        logging.info(f"Current backtesting timestamp {self._timestamp}")
+        self._datetime = new_datetime
+        self._data_source._update_datetime(new_datetime)
+        logging.info(f"Current backtesting datetime {self._datetime}")
 
     # =========Clock functions=====================
 
     def should_continue(self):
         """In production mode always returns True.
         Needs to be overloaded for backtesting to
-        check if the limit timestamp was reached"""
-        if self._data_source._timestamp >= self._data_source.timestamp_end:
+        check if the limit datetime was reached"""
+        if self._data_source._datetime >= self._data_source.datetime_end:
             return False
         return True
 
     def get_timestamp(self):
         """return current timestamp"""
-        return self._timestamp.timestamp()
+        return self._datetime.timestamp()
 
     def get_datetime(self):
         """return current datetime"""
-        return self._timestamp
+        return self._datetime
 
     def is_market_open(self):
         """return True if market is open else false"""
-        current_date = self._timestamp.date()
+        current_date = self._datetime.date()
         if current_date in self._trading_days:
-            current_time = self._timestamp.time()
+            current_time = self._datetime.time()
             if self.MARKET_OPEN_TIME <= current_time <= self.MARKET_CLOSE_TIME:
                 return True
 
         return False
 
     def _get_next_trading_day(self):
-        current_date = self._timestamp.date()
+        current_date = self._datetime.date()
         for date_ in self._trading_days:
             if date_ > current_date:
                 return date_
 
         raise ValueError(
-            "Cannot predict the future. Backtesting timestamp already in the present"
+            "Cannot predict the future. Backtesting datetime already in the present"
         )
 
     def get_time_to_open(self):
         """Return the remaining time for the market to open in seconds"""
         next_trading_date = self._get_next_trading_day()
         next_open_datetime = datetime.combine(next_trading_date, self.MARKET_OPEN_TIME)
-        delta = next_open_datetime - self._timestamp
+        delta = next_open_datetime - self._datetime
         return delta.total_seconds()
 
     def get_time_to_close(self):
         """Return the remaining time for the market to close in seconds"""
         if self.is_market_open():
-            current_date = self._timestamp.date()
+            current_date = self._datetime.date()
             next_close_datetime = datetime.combine(current_date, self.MARKET_CLOSE_TIME)
         else:
             next_trading_date = self._get_next_trading_day()
             next_close_datetime = datetime.combine(
                 next_trading_date, self.MARKET_CLOSE_TIME
             )
-        delta = next_close_datetime - self._timestamp
+        delta = next_close_datetime - self._datetime
         return delta.total_seconds()
 
     def await_market_to_open(self):
         time_to_open = self.get_time_to_open()
-        self._update_timestamp(time_to_open)
+        self._update_datetime(time_to_open)
 
     def await_market_to_close(self):
         time_to_close = self.get_time_to_close()
-        self._update_timestamp(time_to_close)
+        self._update_datetime(time_to_close)
 
     # =========Positions functions==================
 

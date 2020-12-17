@@ -133,6 +133,8 @@ class Strategy:
         """internal function for sleeping"""
         if not self._is_backtesting:
             time.sleep(sleeptime)
+        else:
+            self.broker._update_datetime(sleeptime)
 
     def _update_portfolio_value(self):
         """updates self.portfolio_value"""

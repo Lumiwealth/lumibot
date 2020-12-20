@@ -3,7 +3,6 @@ import entities
 
 class Position:
     def __init__(self, strategy, symbol, quantity, orders=None):
-        self.identifier = None
         self.strategy = strategy
         self.symbol = symbol
         self.quantity = None
@@ -43,9 +42,6 @@ class Position:
     def __repr__(self):
         repr = "%d shares of %s" % (self.quantity, self.symbol)
         return repr
-
-    def set_identifier(self, identifier):
-        self.identifier = identifier
 
     def update_raw(self, raw):
         self._raw = raw

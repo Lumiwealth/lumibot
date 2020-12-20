@@ -10,16 +10,8 @@ import pandas as pd
 
 from backtesting import BacktestingBroker
 from entities import Order
-from tools import (
-    cagr,
-    df_day_deduplicate,
-    execute_after,
-    max_drawdown,
-    romad,
-    sharpe,
-    snatch_method_locals,
-    volatility,
-)
+from tools import (cagr, df_day_deduplicate, execute_after, max_drawdown,
+                   romad, sharpe, snatch_method_locals, volatility)
 from traders import Trader
 
 
@@ -518,11 +510,18 @@ class Strategy:
                 logging.error(e)
                 logging.error(traceback.format_exc())
                 self.on_bot_crash(e)
-                break
+                return False
         logging.info(
             self.format_log_message("Executing the on_strategy_end lifecycle method")
         )
-        self.on_strategy_end()
+        try:
+            self.on_strategy_end()
+        except Exception as e:
+            logging.error(e)
+            logging.error(traceback.format_exc())
+            self.on_bot_crash(e)
+            return False
+        return True
 
     @classmethod
     def backtest(
@@ -539,4 +538,5 @@ class Strategy:
         backtesting_broker = BacktestingBroker(data_source)
         strategy = cls(budget=budget, broker=backtesting_broker, stat_file=stat_file)
         trader.add_strategy(strategy)
-        trader.run_all()
+        result = trader.run_all()
+        return result

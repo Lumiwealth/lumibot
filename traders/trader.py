@@ -2,7 +2,7 @@ import logging
 import os
 import signal
 import sys
-from threading import Thread
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 class Trader:
@@ -86,13 +86,13 @@ class Trader:
         """run all strategies"""
         self._set_logger()
         signal.signal(signal.SIGINT, self._abrupt_closing)
-        for strategy in self._strategies:
-            t = Thread(
-                target=strategy.run,
-                daemon=True,
-                name=f"strategy_{strategy.name}_thread",
-            )
-            t.start()
-            self._threads.append(t)
+        with ThreadPoolExecutor(thread_name_prefix="strategy") as executor:
+            tasks = []
+            for strategy in self._strategies:
+                tasks.append(executor.submit(strategy.run))
 
-        self._join_threads()
+            results = []
+            for task in as_completed(tasks):
+                results.append(task.result())
+
+        return all(results)

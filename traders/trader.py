@@ -15,9 +15,6 @@ class Trader:
         # Setting the list of strategies if defined
         self._strategies = strategies if strategies else []
 
-        # Initializing the list of threads
-        self._threads = []
-
     def _set_logger(self):
         """Setting Logging to both console and a file if logfile is specified"""
         logging.getLogger("urllib3").setLevel(logging.ERROR)
@@ -41,12 +38,6 @@ class Trader:
             handler.setFormatter(self.log_format)
 
         logger.propagate = True
-
-    def _join_threads(self):
-        """Joining all the threads"""
-        for t in self._threads:
-            t.join()
-        return
 
     def _abrupt_closing(self, sig, frame):
         """Run all strategies on_abrupt_closing

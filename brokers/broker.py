@@ -65,14 +65,14 @@ class Broker:
 
     # =========Internal functions==============
 
-    def _move_order_to_new(self, order):
+    def _process_new_order(self, order):
         logging.info("New %r was submited." % order)
         self._unprocessed_orders.remove(order.identifier, key="identifier")
         order.update_status(self.NEW_ORDER)
         self._new_orders.append(order)
         return order
 
-    def _move_order_to_canceled(self, order):
+    def _process_canceled_order(self, order):
         logging.info("%r was canceled." % order)
         self._new_orders.remove(order.identifier, key="identifier")
         self._partially_filled_orders.remove(order.identifier, key="identifier")
@@ -80,7 +80,7 @@ class Broker:
         self._canceled_orders.append(order)
         return order
 
-    def _move_order_to_partially_filled(self, order, price, quantity):
+    def _process_partially_filled_order(self, order, price, quantity):
         logging.info(
             "New transaction: %s %d of %s at %s$ per share"
             % (order.side, quantity, order.symbol, price)
@@ -93,7 +93,7 @@ class Broker:
         self._partially_filled_orders.append(order)
         return order
 
-    def _move_order_to_filled_position(self, order, price, quantity):
+    def _process_filled_order(self, order, price, quantity):
         logging.info(
             "New transaction: %s %d of %s at %s$ per share"
             % (order.side, quantity, order.symbol, price)
@@ -458,16 +458,16 @@ class Broker:
                     raise error
 
             if type_event == self.NEW_ORDER:
-                stored_order = self._move_order_to_new(stored_order)
+                stored_order = self._process_new_order(stored_order)
                 self._on_new_order(stored_order)
             elif type_event == self.CANCELED_ORDER:
-                stored_order = self._move_order_to_canceled(stored_order)
+                stored_order = self._process_canceled_order(stored_order)
                 self._on_canceled_order(stored_order)
             elif type_event == self.PARTIALLY_FILLED_ORDER:
                 self._update_subscriber_unspent_money(
                     stored_order.strategy, stored_order.side, filled_quantity, price
                 )
-                stored_order = self._move_order_to_partially_filled(
+                stored_order = self._process_partially_filled_order(
                     stored_order, price, filled_quantity
                 )
                 self._on_partially_filled_order(stored_order)
@@ -475,7 +475,7 @@ class Broker:
                 self._update_subscriber_unspent_money(
                     stored_order.strategy, stored_order.side, filled_quantity, price
                 )
-                position = self._move_order_to_filled_position(
+                position = self._process_filled_order(
                     stored_order, price, filled_quantity
                 )
                 self._on_filled_order(position, stored_order)

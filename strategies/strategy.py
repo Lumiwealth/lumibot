@@ -300,12 +300,6 @@ class Strategy:
         """Takes a list of symbols and returns the last known prices"""
         return self.broker.get_last_prices(symbols)
 
-    def get_yesterday_dividend(self, symbol):
-        return self.data_source.get_yesterday_dividend(symbol)
-
-    def get_yesterday_dividends(self, symbols):
-        return self.data_source.get_yesterday_dividends(symbols)
-
     def get_tradable_assets(self, easy_to_borrow=None, filter_func=None):
         """Get the list of all tradable assets
         within the current broker from the market"""
@@ -339,6 +333,12 @@ class Strategy:
             chunk_size=chunk_size,
             max_workers=max_workers,
         )
+
+    def get_yesterday_dividend(self, symbol):
+        return self.data_source.get_yesterday_dividend(symbol)
+
+    def get_yesterday_dividends(self, symbols):
+        return self.data_source.get_yesterday_dividends(symbols)
 
     # =======Helper methods=======================
 

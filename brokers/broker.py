@@ -227,8 +227,8 @@ class Broker:
     def _pull_position(self, strategy, symbol):
         """Get the account position for a given symbol.
         return a position object"""
-        response = self._pull_broker_position(self, symbol)
-        result = self._parse_broker_position(self, response, strategy)
+        response = self._pull_broker_position(symbol)
+        result = self._parse_broker_position(response, strategy)
         return result
 
     # =========Orders and assets functions=================

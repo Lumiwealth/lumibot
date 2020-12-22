@@ -16,8 +16,7 @@ class Momentum(Strategy):
         # no need to sleep betwwen iterations
         self.sleeptime = 0
 
-        # set the symbols variable and initialize
-        # the asset_symbol variable and the unspent_money variable
+        # set the symbols variable and initialize the asset_symbol variable
         self.symbols = ["SPY", "VEU", "AGG"]
         self.asset = ""
         self.quantity = 0
@@ -37,7 +36,7 @@ class Momentum(Strategy):
                     self.submit_order(order)
 
                 self.asset = best_asset
-                best_asset_price = self.get_last_price(best_asset)
+                best_asset_price = [m["price"] for m in momentums if m["symbol"] == best_asset][0]
                 self.quantity = self.portfolio_value // best_asset_price
                 order = self.create_order(self.asset, self.quantity, "buy")
                 self.submit_order(order)

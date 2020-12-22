@@ -36,7 +36,9 @@ class Momentum(Strategy):
                     self.submit_order(order)
 
                 self.asset = best_asset
-                best_asset_price = [m["price"] for m in momentums if m["symbol"] == best_asset][0]
+                best_asset_price = [
+                    m["price"] for m in momentums if m["symbol"] == best_asset
+                ][0]
                 self.quantity = self.portfolio_value // best_asset_price
                 order = self.create_order(self.asset, self.quantity, "buy")
                 self.submit_order(order)

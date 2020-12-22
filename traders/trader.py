@@ -1,7 +1,6 @@
 import logging
 import os
 import signal
-import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
@@ -59,7 +58,7 @@ class Trader:
 
         self.wait_for_strategies_to_close()
         logging.info("Trading finished")
-        sys.exit(0)
+        os._exit(0)
 
     def add_strategy(self, strategy):
         """Adds a strategy to the trader"""

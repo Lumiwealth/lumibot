@@ -20,6 +20,8 @@ class Trader:
         logging.getLogger("requests").setLevel(logging.ERROR)
 
         logger = logging.getLogger()
+        if not logger.handlers:
+            logger.addHandler(logging.StreamHandler())
         if self.debug:
             logger.setLevel(logging.DEBUG)
         else:

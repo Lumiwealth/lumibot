@@ -61,12 +61,9 @@ class AlpacaData(DataSource):
 
     def _pull_source_symbol_bars(self, symbol, length, time_unit, time_delta=None):
         """pull broker bars for a given symbol"""
-        parsed_time_unit = self._parse_source_time_unit(time_unit, reverse=True)
-        kwargs = dict(limit=length)
-        if time_delta:
-            end = datetime.now() - time_delta
-            kwargs["end"] = end
-        response = self.api.get_barset(symbol, parsed_time_unit, **kwargs)
+        response = self._pull_source_bars(
+            [symbol], length, time_unit, time_delta=time_delta
+        )
         return response.df[symbol]
 
     def _parse_source_symbol_bars(self, response):

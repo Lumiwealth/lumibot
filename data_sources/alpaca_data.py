@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
 import alpaca_trade_api as tradeapi
+import pandas as pd
 from alpaca_trade_api.common import URL
 
 from entities import Bars
@@ -9,6 +10,8 @@ from .data_source import DataSource
 
 
 class AlpacaData(DataSource):
+    NY_TIMEZONE = "America/New_York"
+
     """Common base class for data_sources/alpaca and brokers/alpaca"""
 
     def __init__(self, config, max_workers=20, chunk_size=100):
@@ -87,6 +90,6 @@ class AlpacaData(DataSource):
         kwargs = dict(limit=length)
         if time_delta:
             end = datetime.now() - time_delta
-            kwargs["end"] = end
+            kwargs["end"] = pd.Timestamp(end, tz=self.NY_TIMEZONE).isoformat()
         response = self.api.get_barset(symbols, parsed_time_unit, **kwargs)
         return response

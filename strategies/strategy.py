@@ -197,10 +197,10 @@ class Strategy:
             sharpe_value = sharpe(df_, self.risk_free_rate)
             logging.info(self.format_log_message(f"Sharpe {round(sharpe_value, 2)}"))
 
-            max_drawdown_value = max_drawdown(df_)
+            max_drawdown_result = max_drawdown(df_)
             logging.info(
                 self.format_log_message(
-                    f"Max Drawdown {round(100 * max_drawdown_value, 2)}%"
+                    f"Max Drawdown {round(100 * max_drawdown_result['drawdown'], 2)}% on {max_drawdown_result['date']:%Y-%m-%d}"
                 )
             )
 

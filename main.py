@@ -8,13 +8,14 @@ from brokers import Alpaca
 from credentials import AlpacaConfig
 from data_sources import AlpacaData
 from strategies import Diversification, IntradayMomentum, Momentum, Screener
+from tools import indicators
 from traders import Trader
 
 # Global parameters
 debug = False
 budget = 40000
-backtesting_start = datetime(2010, 6, 1)
-backtesting_end = datetime(2011, 6, 1)
+backtesting_start = datetime(2018, 1, 1)
+backtesting_end = datetime(2019, 1, 1)  # datetime.now()
 logfile = "logs/test.log"
 
 # Trading objects
@@ -31,6 +32,9 @@ mapping = {
 }
 
 if __name__ == "__main__":
+    # Set the benchmark asset for backtesting to be "SPY" by default
+    benchmark_asset = "SPY"
+
     parser = argparse.ArgumentParser("Running AlgoTrader")
     parser.add_argument("strategies", nargs="+", help="list of strategies")
     parser.add_argument(
@@ -63,6 +67,11 @@ if __name__ == "__main__":
                 backtesting_start,
                 backtesting_end,
                 stat_file=stat_file,
+            )
+
+            print(f"*** Benchmark Performance for {benchmark_asset} ***")
+            indicators.calculate_returns(
+                benchmark_asset, backtesting_start, backtesting_end
             )
 
     if live_trading:

@@ -72,8 +72,10 @@ def max_drawdown(_df):
     df["cum_return_max"] = df["cum_return"].cummax()
     df["drawdown"] = df["cum_return_max"] - df["cum_return"]
     df["drawdown_pct"] = df["drawdown"] / df["cum_return_max"]
+
     max_dd = df.loc[df["drawdown_pct"].idxmax()]
-    return max_dd["drawdown_pct"]
+
+    return {"drawdown": max_dd["drawdown_pct"], "date": max_dd.name}
 
 
 def romad(_df):
@@ -83,7 +85,7 @@ def romad(_df):
     """
     ret = cagr(_df)
     mdd = max_drawdown(_df)
-    romad = ret / mdd
+    romad = ret / mdd["drawdown"]
     return romad
 
 
@@ -101,7 +103,9 @@ def performance(_df, risk_free):
     print(f"CAGR {cagr_adj*100:0.2f}%")
     print(f"Volatility {vol_adj*100:0.2f}%")
     print(f"Sharpe {sharpe_adj:0.2f}")
-    print(f"Max Drawdown {maxdown_adj['drawdown']*100:0.2f}% on {maxdown_adj['date']}")
+    print(
+        f"Max Drawdown {maxdown_adj['drawdown']*100:0.2f}% on {maxdown_adj['date']:%Y-%m-%d}"
+    )
     print(f"RoMaD {romad_adj*100:0.2f}%")
 
 

@@ -14,6 +14,7 @@ from tools import (
     cagr,
     df_day_deduplicate,
     execute_after,
+    get_risk_free_rate,
     max_drawdown,
     romad,
     sharpe,
@@ -32,7 +33,7 @@ class Strategy:
         minutes_before_closing=5,
         sleeptime=1,
         stat_file=None,
-        risk_free_rate=0.02,
+        risk_free_rate=None,
     ):
         # Setting the strategy name and the budget allocated
         self._name = self.__class__.__name__
@@ -41,7 +42,12 @@ class Strategy:
         self._portfolio_value = budget
         self.stats_df = pd.DataFrame()
         self.stat_file = stat_file
-        self.risk_free_rate = risk_free_rate
+
+        # Get risk free rate from US Treasuries by default
+        if risk_free_rate is None:
+            self.risk_free_rate = get_risk_free_rate()
+        else:
+            self.risk_free_rate = risk_free_rate
 
         # Setting the broker object
         self.broker = broker

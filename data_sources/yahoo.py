@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 import yfinance as yf
 
-from entities import Bars
+from lumibot.entities import Bars
 
 from .data_source import DataSource
 

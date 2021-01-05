@@ -4,7 +4,7 @@ import alpaca_trade_api as tradeapi
 import pandas as pd
 from alpaca_trade_api.common import URL
 
-from entities import Bars
+from lumibot.entities import Bars
 
 from .data_source import DataSource
 

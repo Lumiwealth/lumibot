@@ -1,7 +1,7 @@
 import logging
 from datetime import timedelta
 
-from data_sources import YahooData
+from lumibot.data_sources import YahooData
 
 from .strategy import Strategy
 

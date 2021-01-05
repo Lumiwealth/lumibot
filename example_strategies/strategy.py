@@ -8,9 +8,9 @@ from threading import Lock
 
 import pandas as pd
 
-from backtesting import BacktestingBroker
-from entities import Order
-from tools import (
+from lumibot.backtesting import BacktestingBroker
+from lumibot.entities import Order
+from lumibot.tools import (
     cagr,
     df_day_deduplicate,
     execute_after,
@@ -21,7 +21,7 @@ from tools import (
     snatch_method_locals,
     volatility,
 )
-from traders import Trader
+from lumibot.traders import Trader
 
 
 class Strategy:

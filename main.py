@@ -4,19 +4,19 @@ import sys
 from datetime import datetime
 from time import time
 
-from backtesting import YahooDataBacktesting
-from brokers import Alpaca
 from credentials import AlpacaConfig
-from data_sources import AlpacaData
-from example_strategies import (
-    Day10,
+
+from lumibot.backtesting import YahooDataBacktesting
+from lumibot.brokers import Alpaca
+from lumibot.data_sources import AlpacaData
+from lumibot.example_strategies import (
     Diversification,
     IntradayMomentum,
     Momentum,
     Screener,
 )
-from tools import indicators
-from traders import Trader
+from lumibot.tools import indicators
+from lumibot.traders import Trader
 
 # Global parameters
 debug = False
@@ -36,7 +36,6 @@ mapping = {
     "diversification": Diversification,
     "intraday_momentum": IntradayMomentum,
     "screener": Screener,
-    "day10": Day10,
 }
 
 if __name__ == "__main__":

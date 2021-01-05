@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from data_sources import YahooData
+from lumibot.data_sources import YahooData
 
 
 class YahooDataBacktesting(YahooData):

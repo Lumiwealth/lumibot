@@ -1,7 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import timedelta
 
-from tools import get_chunks
+from lumibot.tools import get_chunks
 
 
 class DataSource:

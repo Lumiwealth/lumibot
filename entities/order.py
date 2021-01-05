@@ -1,6 +1,6 @@
 from collections import namedtuple
 
-import entities
+import lumibot.entities as entities
 
 
 class Order:

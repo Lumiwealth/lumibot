@@ -1,4 +1,4 @@
-import entities
+import lumibot.entities as entities
 
 
 class Position:

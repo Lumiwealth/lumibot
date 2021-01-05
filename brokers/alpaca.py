@@ -8,8 +8,8 @@ from threading import Thread
 
 import alpaca_trade_api as tradeapi
 
-from data_sources import AlpacaData
-from entities import Order, Position
+from lumibot.data_sources import AlpacaData
+from lumibot.entities import Order, Position
 
 from .broker import Broker
 

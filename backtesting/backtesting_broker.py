@@ -4,10 +4,10 @@ from datetime import date, datetime, time, timedelta
 from functools import wraps
 from secrets import token_hex
 
-from brokers import Broker
-from entities import Order, Position
-from tools import get_trading_days
-from trading_builtins import CustomStream
+from lumibot.brokers import Broker
+from lumibot.entities import Order, Position
+from lumibot.tools import get_trading_days
+from lumibot.trading_builtins import CustomStream
 
 
 class BacktestingBroker(Broker):

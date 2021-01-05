@@ -1,3 +1,4 @@
+import logging
 import math
 from datetime import datetime
 
@@ -100,13 +101,13 @@ def performance(_df, risk_free):
     maxdown_adj = max_drawdown(_df)
     romad_adj = romad(_df)
 
-    print(f"CAGR {cagr_adj*100:0.2f}%")
-    print(f"Volatility {vol_adj*100:0.2f}%")
-    print(f"Sharpe {sharpe_adj:0.2f}")
-    print(
+    logging.info(f"CAGR {cagr_adj*100:0.2f}%")
+    logging.info(f"Volatility {vol_adj*100:0.2f}%")
+    logging.info(f"Sharpe {sharpe_adj:0.2f}")
+    logging.info(
         f"Max Drawdown {maxdown_adj['drawdown']*100:0.2f}% on {maxdown_adj['date']:%Y-%m-%d}"
     )
-    print(f"RoMaD {romad_adj*100:0.2f}%")
+    logging.info(f"RoMaD {romad_adj*100:0.2f}%")
 
 
 def calculate_returns(symbol, start=datetime(1900, 1, 1), end=datetime.now()):

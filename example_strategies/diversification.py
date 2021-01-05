@@ -81,7 +81,7 @@ class Diversification(Strategy):
             asset["last_price"] = prices.get(asset["symbol"])
 
     def rebalance_portfolio(self):
-        """Rebalance the portfolio and cretae orders"""
+        """Rebalance the portfolio and create orders"""
         orders = []
         for asset in self.portfolio:
             symbol = asset.get("symbol")

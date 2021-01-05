@@ -1,4 +1,5 @@
 import argparse
+import logging
 import sys
 from datetime import datetime
 from time import time
@@ -7,7 +8,13 @@ from backtesting import YahooDataBacktesting
 from brokers import Alpaca
 from credentials import AlpacaConfig
 from data_sources import AlpacaData
-from strategies import Day10, Diversification, IntradayMomentum, Momentum, Screener
+from example_strategies import (
+    Day10,
+    Diversification,
+    IntradayMomentum,
+    Momentum,
+    Screener,
+)
 from tools import indicators
 from traders import Trader
 
@@ -70,7 +77,7 @@ if __name__ == "__main__":
                 stat_file=stat_file,
             )
 
-            print(f"*** Benchmark Performance for {benchmark_asset} ***")
+            logging.info(f"*** Benchmark Performance for {benchmark_asset} ***")
             indicators.calculate_returns(
                 benchmark_asset, backtesting_start, backtesting_end
             )
@@ -78,4 +85,4 @@ if __name__ == "__main__":
     if live_trading:
         trader.run_all()
 
-    print("The end")
+    logging.info("The end")

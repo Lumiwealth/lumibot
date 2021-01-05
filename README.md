@@ -36,7 +36,7 @@ logfile = "logs/test.log"
 7) Instantiate the ```Trader``` class and the ```Alpaca``` class like so:
 ```python
 trader = Trader(logfile=logfile)
-broker = Alpaca(AlpacoConfig)
+broker = Alpaca(AlpacaConfig)
 ```
 The ```Alpaca``` broker class needs your credentials created in step 2 to loging to your paper trading account.
 8) Instantiate your strategy class like so:
@@ -64,7 +64,7 @@ budget = 40000
 logfile = "logs/test.log"
 
 trader = Trader(logfile=logfile)
-broker = Alpaca(AlpacoConfig)
+broker = Alpaca(AlpacaConfig)
 
 strategy = MyStrategy(budget=budget, broker=broker)
 trader.add_strategy(strategy)

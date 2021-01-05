@@ -492,6 +492,8 @@ class Strategy:
                     self.format_log_message("Sleeping for %d seconds" % sleeptime)
                 )
                 self._safe_sleep_(sleeptime)
+            elif self.broker.IS_BACKTESTING_BROKER:
+                break
 
         if self.broker.is_market_open():
             logging.info(

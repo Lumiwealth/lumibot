@@ -7,7 +7,7 @@ from backtesting import YahooDataBacktesting
 from brokers import Alpaca
 from credentials import AlpacaConfig
 from data_sources import AlpacaData
-from strategies import Diversification, IntradayMomentum, Momentum, Screener
+from strategies import Day10, Diversification, IntradayMomentum, Momentum, Screener
 from tools import indicators
 from traders import Trader
 
@@ -29,6 +29,7 @@ mapping = {
     "diversification": Diversification,
     "intraday_momentum": IntradayMomentum,
     "screener": Screener,
+    "day10": Day10,
 }
 
 if __name__ == "__main__":

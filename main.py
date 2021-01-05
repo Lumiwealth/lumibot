@@ -9,12 +9,7 @@ from credentials import AlpacaConfig
 from lumibot.backtesting import YahooDataBacktesting
 from lumibot.brokers import Alpaca
 from lumibot.data_sources import AlpacaData
-from lumibot.example_strategies import (
-    Diversification,
-    IntradayMomentum,
-    Momentum,
-    Screener,
-)
+from lumibot.strategies import Diversification, IntradayMomentum, Momentum, Screener
 from lumibot.tools import indicators
 from lumibot.traders import Trader
 

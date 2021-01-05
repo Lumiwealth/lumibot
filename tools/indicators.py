@@ -119,10 +119,15 @@ def calculate_returns(symbol, start=datetime(1900, 1, 1), end=datetime.now()):
     benchmark_df["pct_change"] = benchmark_df["Close"].pct_change()
     benchmark_df["div_yield"] = benchmark_df["Dividends"] / benchmark_df["Close"]
     benchmark_df["return"] = benchmark_df["pct_change"] + benchmark_df["div_yield"]
+    
+    risk_free_rate = get_risk_free_rate()
 
+    performance(benchmark_df, risk_free_rate)
+
+def get_risk_free_rate():
     # 13 Week Treasury Rate (^IRX)
     risk_free_rate_ticker = yf.Ticker("^IRX")
     risk_free_rate = risk_free_rate_ticker.info["regularMarketPrice"] / 100
-    print(f"Risk Free Rate {risk_free_rate*100:0.2f}%")
+    logging.info(f"Risk Free Rate {risk_free_rate*100:0.2f}%")
 
-    performance(benchmark_df, risk_free_rate)
+    return risk_free_rate

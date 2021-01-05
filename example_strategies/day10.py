@@ -14,7 +14,6 @@ class Day10(Strategy):
 
         # Built in Variables
         self.sleeptime = 1
-        self.risk_free_rate = 0.02
 
         # Our Own Variables
         self.counter = 0

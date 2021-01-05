@@ -1,203 +1,285 @@
 README
 -------
 
-# Bots
+# Quickstart
 
-## BlueprintBot
+Currently only alpaca is available as a brokerage service. This quickstart is about using Alpaca services.
 
-All bots should inherit from the BlueprintBot class. The methods of this class can be split into several categories:
+1) Create an alpaca paper trading account: https://app.alpaca.markets/paper/dashboard/overview
+2) Copy your API_KEY and API_SECRET from alpaca dashboard 
+   and create a credentials.py file in the root directory of this project with the following class:
+```python
+class AlpacaConfig:
+    API_KEY = "YOUR ALPACA API KEY"
+    API_SECRET = "YOUR ALPACA API SECRET"
+```
+```API_KEY``` and ```API_SECRET``` are obtained from alpaca paper trading dashboard: https://app.alpaca.markets/paper/dashboard/overview
+
+3) Create your own strategy class (See strategy section) e.g. ```class MyStrategy(Startegy)```
+4) Create another file meant to be the entrypoint of your code e.g. main.py
+5) import the following modules in your main.py:
+```python
+# importing the trader class
+from traders import Trader
+# importing the alpaca broker class
+from brokers import Alpaca
+# importing the credential class created in step 2
+from credentials import AlpacaConfig
+# importing the strategy class created in step 3
+from strategies import MyStrategy
+```
+6) In your main.py, define variables for the budget allocated to your strategy
+```python
+budget = 40000
+logfile = "logs/test.log"
+```
+7) Instantiate the ```Trader``` class and the ```Alpaca``` class like so:
+```python
+trader = Trader(logfile=logfile)
+broker = Alpaca(AlpacoConfig)
+```
+The ```Alpaca``` broker class needs your credentials created in step 2 to loging to your paper trading account.
+8) Instantiate your strategy class like so:
+```python
+strategy = MyStrategy(budget=budget, broker=broker)
+```
+9) Register the strategy within the trader
+```python
+trader.add_strategy(strategy)
+```
+10) Run the trader
+```python
+trader.run_all()
+```
+
+Below an example of main.py:
+```python
+# main.py
+from traders import Trader
+from brokers import Alpaca
+from credentials import AlpacaConfig
+from strategies import MyStrategy
+
+budget = 40000
+logfile = "logs/test.log"
+
+trader = Trader(logfile=logfile)
+broker = Alpaca(AlpacoConfig)
+
+strategy = MyStrategy(budget=budget, broker=broker)
+trader.add_strategy(strategy)
+trader.run_all()
+```
+
+# Strategies
+
+## Strategy
+
+All user defined strategies should inherit from the Strategy class.
+```python
+from strategies import Strategy
+
+class MyStrategy(Strategy):
+    pass
+```
+
+The abstract class Strategy define a design pattern that needs to be followed by user-defined strategies.
+The design pattern was greatly influenced by React.js components and their lifecycle methods.
+
+### Lifecycle methods
+
+When building strategies, lifecycle methods needs to be overloaded.
+Trading logics should be implemented in these methods.
+
+#### initialize
+
+This lifecycle methods is executed only once, when the strategy execution starts.
+Use this lifecycle method to initialize parameters like:
+- ```self.sleeptime```: the sleeptime duration between each trading iteration in minutes
+- ```self.minutes_before_closing```: number of minutes before the market closes to stop trading
+
+```python
+class MyStrategy(Strategy):
+    def initialize(self):
+        self.sleeptime = 5
+        self.minutes_before_closing = 15
+```
+
+#### before_market_opens
+
+This lifecycle method is executed each day before market opens. 
+If the strategy is first run when the market is already open, this method will be skipped the first day.
+Use this lifecycle methods to execute business logic before starting trading like canceling all open orders.
+
+```python
+class MyStrategy(Strategy):
+    def before_market_opens(self):
+        self.cancel_open_orders()
+```
+
+#### before_starting_trading
+
+This lifecycle method is similar to before_market_opens.
+However, unlike before_market_opens, this method will always be executed before starting 
+trading even if the market is already open when the strategy was first launched.
+After the first execution, both methods will be executed in the following order
+1) before_market_opens
+2) before_starting_trading.
+
+Use this lifecycle method to reinitialize variables for day trading like resetting the list of
+blacklisted shares.
+
+```python
+class MyStrategy(Strategy):
+    def before_starting_trading(self):
+        self.blacklist = []
+```
+
+#### on_trading_iteration
+
+This lifecycle method contains the main trading logic.
+When the market opens, it will be executed in a loop.
+After each iteration, the strategy will sleep for ```self.sleeptime``` minutes.
+If no crash or interuption, the loop will be stopped
+```self.minutes_before_closing``` minutes before market closes and will restart 
+on the next day when market opens again.
+
+```python
+class MyStrategy(Strategy):
+    def on_trading_iteration(self):
+        # pull data
+        # check if should buy an asset based on data
+        # if condition, buy/sell asset
+        pass
+```
+
+#### before_market_closes
+
+This lifecycle method is executed ```self.minutes_before_closing``` minutes before the market closes.
+Use this lifecycle method to execute business logic like selling shares and closing open orders.
+
+```python
+class MyStrategy(Strategy):
+    def before_market_closes(self):
+        self.sell_all()
+```
+
+#### after_market_closes
+
+This lifecycle method is executed right after the market closes.
+
+```python
+class MyStrategy(Strategy):
+    def after_market_closes(self):
+        pass
+```
+
+### Events methods
+
+Events methods are similar to lifecycle methods. They are executed on particular conditions.
+
+#### on_abrupt_closing
+
+This event method is called when the strategy execution was interrupted.
+Use this event method to execute code to stop trading gracefully like selling all assets
+
+```python
+class MyStrategy(Strategy):
+    def on_abrupt_closing(self):
+        self.sell_all()
+```
+
+#### on_bot_crash
+
+This event method is called when the strategy crashes.
+By default, if not overloaded,  it calls on_abrupt_closing.
+
+```python
+class MyStrategy(Strategy):
+    def on_bot_crash(self):
+        self.on_abrupt_closing()
+```
+
+### broker methods
+
+When a strategy is instantiated, a broker object is passed to it (Check Quickstart).
+The strategy is run with the passed broker object.
+The following shortcuts executes broker methods within the strategy.
+
+#### get_timestamp
+
+#### get_datetime
+
+#### await_market_to_open
+
+#### await_market_to_close
+
+#### get_tracked_position
+=> symbol
+
+#### get_tracked_positions
+
+#### get_tracked_order
+=> identifier
+
+#### get_tracked_orders
+
+#### get_tracked_assets
+
+#### get_asset_potential_total
+=> symbol
+
+#### submit_order
+=> order
+
+#### submit_orders
+=> orders
+
+#### cancel_order
+=> order
+
+#### cancel_orders
+=> orders
+
+#### cancel_open_orders
+
+#### sell_all
+=> cancel_open_orders=True
+
+#### get_last_price
+=> symbol
+
+#### get_last_prices
+=> symbols
+
+#### get_tradable_assets
+=> easy_to_borrow=None, filter_func=None
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+The methods of this class can be split into several categories:
 - Helper methods for interacting with alpaca REST API
 - Events handling methods. These methods are executed when an event is trigered (Example: trade update)
 - Lifecycle methods that are executed at different times during the execution of the bot.
 
-### Lifecycle Methods
-
-Custom bots should inherit from BlueprintBot and redefine lifecycle methods to perform trading 
-actions then call the ```run()``` method.
-
-```python
-from BlueprintBot import BlueprintBot
-
-class CustomBot(BlueprintBot):
-    def on_trading_iteration(self):
-        """Perform some trading logic"""
-        pass
-
-myBot = CustomBot(API_KEY, API_SECRET, logfile='test.log')
-myBot.run()
-```
-
-#### \_\_init\_\_
-
-This is the constructor. It sets the logging and several other parameters and also connect to alpaca REST API.
-Below a list of its parameters:
-
-- ```api_key```: alpaca api_key
-- ```api_secret```: alpaca secret variable
-- ```api_base_url```. By default equal to "https://paper-api.alpaca.markets" for papertrading
-- ```version```: Alpaca api version. By default 'v2'.
-- ```logfile```: If defined, logging will be stored in that path. By default None.
-- ```max_workers```: Number of max_workers used for multithreading tasks. By default set to 200 which is alpaca maximum requests per minute and per API key.
-- ```chunk_size```: When requesting too many data from Alpaca REST API, Iterating over each item 
-and sending requests item per item would be too slow and and requesting all bars at the same time 
-won't always work as alpaca sets a maximum 100 symbols per request. Thus, inputs should be split 
-into chunks with size ```chunk_size``` and data would be requested chunk by chunk before being merged.
-By default equals to 100 which is maximum number of symbols by request allowed by alpaca.
 - ```minutes_before_closing```: The lifecycle method on_trading_iteration is executed inside a loop that stops only when there is only ```minutes_before_closing``` minutes remaining before market closes.
 By default equals to 15 minutes
 - ```sleeptime```: Sleeptime in minute after executing the lifecycle method on_trading_iteration. By default equals to 1 minute
-- ```debug```: Set to True to log ```logging.DEBUG``` level messages else log ```logging.INFO``` level messages. 
 
-#### initialize
 
-This is the first lifecycle method that the not would execute. Use this to set parameters for example or cancel orders from previous trading sessions.
 
-#### before_market_opens
 
-This lifecycle method is executed before the market opens. 
-If the bot starts when the market is already open, this method won't be executed.
-
-#### on_trading_iteration
-
-This lifecycle is executed inside an infinite loop when the market is open and is not within ```minutes_before_closing``` minutes of closing.
-After each execution, the bot would sleep ```sleeptime```  minutes before executing the ```on_trading_iteration``` again.
-Use this lifecycle method for building trading iterations.
-
-#### before_market_closes
-
-This lifecycle method is executed when the market is still open and there is only ```minutes_before_closing``` before closing.
-
-#### after_market_closes
-
-This lifecycle method is executed after the market close. 
-It can be used for generating statistics for example.
-
-#### on_bot_crash
-
-This lifecycle method is executed when an unhandled error occurs.
-
-#### run
-
-After instantiating the Bot class, call this method to execute the lifcycle methods.
-
-### Helper methods
-
-This methods are meant essentially for interacting with Alpaca REST API and are used by the lifecycle methods and events to extract data and perform trading actions
-
-#### get_positions
-
-List the account current positions
-
-#### get_open_orders
-
-Get a list of the account open orders
-
-#### cancel_buying_orders
-
-Cancel all open orders
-
-#### get_ongoing_assets
-
-Get a list of symbols of the open orders and current positions
-
-#### is_market_open
-
-return True if the market is open else False
-
-#### get_time_to_open
-
-Get the time (in seconds) till the start of the next trading session
-
-#### get_time_to_close
-
-Get the time (in seconds) till the closing of the next trading session
-
-#### await_market_to_close
-
-Sleeps until the current market closes
-
-#### await_market_to_open
-
-Sleeps until the next trading sessions starts
-
-#### get_account
-
-Get the current account properties
-
-#### get_tradable_assets
-
-Get a list of all tradable assets from alpaca
-
-#### get_last_price
-
-Takes a symbol as input and returns the last known price.
-
-#### get_chunks
-
-Takes a list (of symbols) and splits it into a list of chunks. The chunk size is by default the ```chunk_size``` parameter passed in the constructor 
-but can also be manually set in the function call.
-
-#### get_bars
-
-Takes as input a list of symbols, a time_unity parameter and a length parameter and returns a list of barset
-with the corresponding symbols, timeunity and length. 
-
-#### submit_order
-
-Takes as argument a symbol, a quantity and an operation side (buy/sell) and submit an order.
-
-By default submit a "market" order unless a ```limit_price``` parameter was set. 
-In this case a limit order is submited with the given ```limit_price```.
-
-If a ```stop_price``` parameter is defined then submit a "Stop Order" with that price. 
-
-#### submit_orders
-
-Takes as input a list of orders and call the ```submit_order``` method for each one using a Thread pool.
-
-#### sell_all
-
-sell all the account positions and by default cancel all open orders unless ```cancel_open_orders```
-parameter was set to ```False```.
-
-### Events
-
-Events are asynchronous functions triggered after receiving data from Alpaca socket streams. 
-These events will be primarily used for updating the bot internal values like:
-- open orders
-- positons
-- last know prices
-
-but can be used to build chain actions.
-
-#### set_streams
-
-This method defines asynchronous functions that will be executed each time an event is trigered by 
-alpaca socket stream before connecting to the stream in a different thread.
-
-```set_streams()``` defines the following asynchronous methods
-
--  ```default_on_trade_event```: is executed when a trade event is trigered. This functions calls two
-static methods ```@static```:
-    - ```log_trade_event```: This method handles logging the trading event and should not be overloaded
-    - ```on_trade_event```: This method is executed after the logging method and is meant to be overloaded
-    in order to execute trading logic after a trade event is trigered
-    
-#### log_trade_event (static method)
-
-Takes a data object as parameter corresponding to the object sent by alpaca socket stream.
-In this case, data corresponds to a trading event. ```log_trade_event``` will log that event
-
-#### on_trade_event (static method)
-
-Takes a data object as parameter corresponding to the object sent by alpaca socket stream.
-In this case, data corresponds to a trading event. Chain actions to be defined after an event is trigered
-should be based on that data object.
-
-## MomentumBot
-
-There isn't a clearly defined risk management component yet. 
-This current bot uses a maximum budget of 40.000$ and spend at maximum 4.000$ per asset so in maximum, there would be 10 positions (40000/4000 = 10).
-The bot iterates over all assets and buy if an asset did have a 2% increase over the last 24h at that moment.
-The quantity is the budget per asset (4000$) divided by the last price (obtained via the API barsets).
-The order is a stop loss order with a maximum 4% decrease in value.

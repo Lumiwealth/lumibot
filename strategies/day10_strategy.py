@@ -39,7 +39,7 @@ class Day10(Strategy):
         else:
             logging.info(f"We have no open positions")
 
-        # We can also do this to sell all out positions:
+        # We can also do this to sell all our positions:
         # self.sell_all()
 
         if self.iteration % 2 == 0:

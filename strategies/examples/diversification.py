@@ -1,6 +1,6 @@
 import logging
 
-from .strategy import Strategy
+from lumibot.strategies.strategy import Strategy
 
 
 class Diversification(Strategy):

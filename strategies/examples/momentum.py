@@ -1,7 +1,7 @@
 import logging
 from datetime import timedelta
 
-from .strategy import Strategy
+from lumibot.strategies.strategy import Strategy
 
 
 class Momentum(Strategy):

@@ -1,7 +1,7 @@
 from datetime import datetime
 
-from backtesting import YahooDataBacktesting
-from strategies import Diversification, Momentum
+from lumibot.backtesting import YahooDataBacktesting
+from lumibot.strategies.examples import Diversification, Momentum
 
 
 def test_momentum_strategy():

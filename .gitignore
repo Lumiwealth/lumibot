@@ -1,5 +1,6 @@
 # IDE files and default extensions
 .idea
+.DS_Store
 **/*.ipynb
 **/.ipynb_checkpoints
 **/__pycache__
@@ -10,3 +11,8 @@ credentials.py
 debug.py
 todos.txt
 
+# Pypi deployment
+build
+dist
+lumibot.egg-info
+setup.py

@@ -1,10 +1,12 @@
+# IDE files and default extensions
 .idea
-logs
-todos.txt
-**.log
-**/__pycache__
 **/*.ipynb
-.ipynb_checkpoints
-draft.py
-test.py
+**/.ipynb_checkpoints
+**/__pycache__
+
+# Development files
+logs
 credentials.py
+debug.py
+todos.txt
+

@@ -83,10 +83,19 @@ class MyStrategy(Strategy):
     pass
 ```
 
+The abstract class ```Strategy``` has global parameters with default values, and some 
+properties that can be used as helpers to build trading logic.
+
+The methods of this class can be split into several categories:
+- Lifecycle methods that are executed at different times during the execution of the bot.
+- Events handling methods. These methods are executed when an event is trigered
+- Helper methods for interacting with the broker passed as parameter
+- Helper methods for interacting with the data source object passed as parameter
+  
+### Lifecycle methods
+
 The abstract class Strategy define a design pattern that needs to be followed by user-defined strategies.
 The design pattern was greatly influenced by React.js components and their lifecycle methods.
-
-### Lifecycle methods
 
 When building strategies, lifecycle methods needs to be overloaded.
 Trading logics should be implemented in these methods.
@@ -208,78 +217,237 @@ The following shortcuts executes broker methods within the strategy.
 
 #### get_timestamp
 
+Return the current timestamp according to the broker API.
+
+Return type: float
+
 #### get_datetime
+
+Return the current datetime according to the broker API.
+
+Return type: datetime
 
 #### await_market_to_open
 
+If the market is closed, pauses code execution until market opens again.
+
+Return type: ```None```
+
 #### await_market_to_close
 
+If the market is open, pauses code execution until market closes.
+
+Return type: ```None```
+
 #### get_tracked_position
-=> symbol
+
+Return the strategy tracked position for a given symbol if found else ```None``.
+
+Parameters:
+- symbol (str): The share/asset string representation (e.g AAPL, GOOG, ...) 
+
+Return type: position
 
 #### get_tracked_positions
 
+Return all the strategy tracked positions.
+
+Return type: list(position)
+
 #### get_tracked_order
-=> identifier
+
+Return the strategy tracked order with the specified identifier if found else ```None``.
+
+Parameters:
+- identifier (str): The broker order identifier 
+
+Return type: order
 
 #### get_tracked_orders
 
+Return all the strategy tracked orders.
+
+Return type: list(order)
+
 #### get_tracked_assets
 
+Return the strategy list of symbols for all tracked positions and orders.
+
+Return type: list(str) 
+
 #### get_asset_potential_total
-=> symbol
+
+Check the ongoing positions and the tracked orders of the strategy
+and returns the total number of shares provided all orders went through 
+
+Parameters:
+- symbol (str): the string representation of the asset/share
+
+Return type: int
+
+#### create_order
+
+Create an order object
+
+Parameters:
+- symbol (str): representation of the asset to buy
+- quantity (int): the quantity of the asset to buy
+- side (str): either ```"buy"``` or ```"sell"```
+
+Return type: order
 
 #### submit_order
-=> order
+
+Submit an order
+
+Parameters:
+- order (order): the order object
+
+Return type: order
 
 #### submit_orders
-=> orders
+
+Submit a list of orders
+
+Parameters:
+- orders (list(order)): the list of orders
+
+Return type: ```None```
 
 #### cancel_order
-=> order
+
+Cancel an order
+
+Parameters:
+- order (order): the order to cancel
+
+Return type: ```None```
 
 #### cancel_orders
-=> orders
+
+Cancel a list of orders
+
+Parameters:
+- orders (list(order)): the list of orders to cancel
+
+Return type: ```None```
 
 #### cancel_open_orders
 
+Cancel all the strategy open orders
+
+Return type: ```None```
+
 #### sell_all
-=> cancel_open_orders=True
+
+Sell all strategy current positions
+
+Return type: ```None```
 
 #### get_last_price
-=> symbol
+
+Return the last known price for a given symbol
+
+Parameters:
+- symbol (str): the string representation of the asset/share
+
+Return type: float
 
 #### get_last_prices
-=> symbols
+
+Return the last known prices for a list symbols
+
+Parameters:
+- symbols (list(str)): list of asset/share representations
+
+Return type: dict of str:float
 
 #### get_tradable_assets
-=> easy_to_borrow=None, filter_func=None
+
+Return the list of tradable assets for the used broker
+
+Return type: list(str)
+
+### data sources methods
+
+When a strategy is instantiated, a broker object is passed to it (Check Quickstart).
+A data_source object can also be passed. When passed, the data_source will be used for
+extracting bars and data. If not specified, the strategy will use the broker passed
+as the default data source.
+
+The following shortcuts executes data sources methods within the strategy.
+
+#### get_symbol_bars
+
+Return bars for a given symbol.
+
+Parameters:
+- symbol (str): The share/asset string representation (e.g AAPL, GOOG, ...) 
+- length (int): The number of rows (number of timestamps)
+- time_unit (timedelta): The timestep between each timestamp
+- time_delta (timedelta): ```None``` by default. If specified indicates the time shift.
+
+Example:
+```python
+import timedelta
+#...
+
+# Extract 10 rows of SPY data with one minute timestep between each row
+# with the latest data being 24h ago (timedelta(days=1))
+bars =  self.get_symbol_bars("SPY",10,timedelta(minutes=1),timedelta(days=1))
+```
+
+Return type: bars
+
+#### get_bars
+
+Return a dictionary of bars for a given list of symbols. Works the same as get_symbol_bars
+but take as first parameter a list of symbols.
+
+Parameters:
+- symbol (list(str)): A list of share/asset string representations (e.g AAPL, GOOG, ...) 
+- length (int): The number of rows (number of timestamps)
+- time_unit (timedelta): The timestep between each timestamp
+- time_delta (timedelta): ```None``` by default. If specified indicates the time shift.
+
+Return type: dict of str:bars
+
+#### get_yesterday_dividend
+
+Return dividend per share for the day before for a given symbol
+
+Parameters:
+- symbol (str): The share/asset string representation (e.g AAPL, GOOG, ...) 
+
+Return type: float
+
+#### get_yesterday_dividends
+
+Return dividend per share for the day before for a given list of symbols. 
+Works the same as get_yesterday_dividend but take as parameter a list of symbols.
+
+Parameters:
+- symbol (list(str)): A list of share/asset string representations (e.g AAPL, GOOG, ...) 
+
+Return type: dict of str:float
 
 
+### properties and parameters
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-The methods of this class can be split into several categories:
-- Helper methods for interacting with alpaca REST API
-- Events handling methods. These methods are executed when an event is trigered (Example: trade update)
-- Lifecycle methods that are executed at different times during the execution of the bot.
-
-- ```minutes_before_closing```: The lifecycle method on_trading_iteration is executed inside a loop that stops only when there is only ```minutes_before_closing``` minutes remaining before market closes.
-By default equals to 15 minutes
-- ```sleeptime```: Sleeptime in minute after executing the lifecycle method on_trading_iteration. By default equals to 1 minute
-
-
-
-
+- name (property): indicates the name of the strategy. By default equals to the class name.
+```MyStrategy(Strategy)``` will have a name ```"MyStrategy"```
+- unspent_money (property): indicates the amount of unspent money from the initial
+budget allocated to the strategy. This property is updated whenever a transaction was filled 
+by the broker or when dividends are paid.
+- portfolio_value (property): indicates the actual values of shares held by 
+  the current strategy plus the total unspent money.
+- minutes_before_closing (parameter). The lifecycle method on_trading_iteration is 
+  executed inside a loop that stops only when there is only ```minutes_before_closing``` 
+  minutes remaining before market closes. By default equals to 5 minutes.
+  This value can be overloaded when creating a strategy class in order to change the 
+  default behaviour
+- sleeptime (parameter): Sleeptime in minute after executing the lifecycle method 
+  on_trading_iteration. By default equals to 1 minute. 
+  This value can be overloaded when creating a strategy class in order to change the 
+  default behaviour
+  

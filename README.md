@@ -5,8 +5,12 @@ README
 
 Currently only alpaca is available as a brokerage service. This quickstart is about using Alpaca services.
 
-1) Create an alpaca paper trading account: https://app.alpaca.markets/paper/dashboard/overview
-2) Copy your API_KEY and API_SECRET from alpaca dashboard 
+1) Install the package on your computer
+```
+pip install lumibot
+```
+2) Create an alpaca paper trading account: https://app.alpaca.markets/paper/dashboard/overview
+3) Copy your API_KEY and API_SECRET from alpaca dashboard 
    and create a credentials.py file in the root directory of this project with the following class:
 ```python
 class AlpacaConfig:
@@ -15,39 +19,39 @@ class AlpacaConfig:
 ```
 ```API_KEY``` and ```API_SECRET``` are obtained from alpaca paper trading dashboard: https://app.alpaca.markets/paper/dashboard/overview
 
-3) Create your own strategy class (See strategy section) e.g. ```class MyStrategy(Startegy)```
-4) Create another file meant to be the entrypoint of your code e.g. main.py
-5) import the following modules in your main.py:
+4) Create your own strategy class (See strategy section) e.g. ```class MyStrategy(Startegy)```
+5) Create another file meant to be the entrypoint of your code e.g. main.py
+6) import the following modules in your main.py:
 ```python
 # importing the trader class
-from traders import Trader
+from lumibot.traders import Trader
 # importing the alpaca broker class
-from brokers import Alpaca
+from lumibot.brokers import Alpaca
 # importing the credential class created in step 2
 from credentials import AlpacaConfig
 # importing the strategy class created in step 3
-from strategies import MyStrategy
+from lumibot.strategies.examples import IntradayMomentum
 ```
-6) In your main.py, define variables for the budget allocated to your strategy
+7) In your main.py, define variables for the budget allocated to your strategy
 ```python
 budget = 40000
 logfile = "logs/test.log"
 ```
-7) Instantiate the ```Trader``` class and the ```Alpaca``` class like so:
+8) Instantiate the ```Trader``` class and the ```Alpaca``` class like so:
 ```python
 trader = Trader(logfile=logfile)
 broker = Alpaca(AlpacaConfig)
 ```
 The ```Alpaca``` broker class needs your credentials created in step 2 to loging to your paper trading account.
-8) Instantiate your strategy class like so:
+9) Instantiate your strategy class like so:
 ```python
-strategy = MyStrategy(budget=budget, broker=broker)
+strategy = IntradayMomentum(budget=budget, broker=broker)
 ```
-9) Register the strategy within the trader
+10) Register the strategy within the trader
 ```python
 trader.add_strategy(strategy)
 ```
-10) Run the trader
+11) Run the trader
 ```python
 trader.run_all()
 ```
@@ -55,10 +59,10 @@ trader.run_all()
 Below an example of main.py:
 ```python
 # main.py
-from traders import Trader
-from brokers import Alpaca
-from credentials import AlpacaConfig
-from strategies import MyStrategy
+from lumibot.traders import Trader
+from lumibot.brokers import Alpaca
+from lumibot.credentials import AlpacaConfig
+from lumibot.strategies.examples import IntradayMomentum
 
 budget = 40000
 logfile = "logs/test.log"
@@ -66,7 +70,7 @@ logfile = "logs/test.log"
 trader = Trader(logfile=logfile)
 broker = Alpaca(AlpacaConfig)
 
-strategy = MyStrategy(budget=budget, broker=broker)
+strategy = IntradayMomentum(budget=budget, broker=broker)
 trader.add_strategy(strategy)
 trader.run_all()
 ```

@@ -92,7 +92,7 @@ The methods of this class can be split into several categories:
 - Helper methods for interacting with the broker passed as parameter
 - Helper methods for interacting with the data source object passed as parameter
   
-### Lifecycle methods
+## Lifecycle Methods
 
 The abstract class Strategy define a design pattern that needs to be followed by user-defined strategies.
 The design pattern was greatly influenced by React.js components and their lifecycle methods.
@@ -183,7 +183,7 @@ class MyStrategy(Strategy):
         pass
 ```
 
-### Events methods
+## Event Methods
 
 Events methods are similar to lifecycle methods. They are executed on particular conditions.
 
@@ -368,7 +368,7 @@ Return the list of tradable assets for the used broker
 
 Return type: list(str)
 
-### data sources methods
+## Data Source Methods
 
 When a strategy is instantiated, a broker object is passed to it (Check Quickstart).
 A data_source object can also be passed. When passed, the data_source will be used for

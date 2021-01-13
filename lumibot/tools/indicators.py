@@ -90,7 +90,7 @@ def romad(_df):
     return romad
 
 
-def performance(_df, risk_free):
+def performance(_df, risk_free, prefix=""):
     """Calculate and print out all of our performance indicators
     The dataframe _df must include a column "return" that
     has the return for that time period (eg. daily)
@@ -101,13 +101,13 @@ def performance(_df, risk_free):
     maxdown_adj = max_drawdown(_df)
     romad_adj = romad(_df)
 
-    logging.info(f"CAGR {cagr_adj*100:0.2f}%")
-    logging.info(f"Volatility {vol_adj*100:0.2f}%")
-    logging.info(f"Sharpe {sharpe_adj:0.2f}")
+    logging.info(f"{prefix}CAGR {cagr_adj*100:0.2f}%")
+    logging.info(f"{prefix}Volatility {vol_adj*100:0.2f}%")
+    logging.info(f"{prefix}Sharpe {sharpe_adj:0.2f}")
     logging.info(
-        f"Max Drawdown {maxdown_adj['drawdown']*100:0.2f}% on {maxdown_adj['date']:%Y-%m-%d}"
+        f"{prefix}Max Drawdown {maxdown_adj['drawdown']*100:0.2f}% on {maxdown_adj['date']:%Y-%m-%d}"
     )
-    logging.info(f"RoMaD {romad_adj*100:0.2f}%")
+    logging.info(f"{prefix}RoMaD {romad_adj*100:0.2f}%")
 
 
 def calculate_returns(symbol, start=datetime(1900, 1, 1), end=datetime.now()):

@@ -6,7 +6,7 @@ README
 Currently only alpaca is available as a brokerage service. This quickstart is about using Alpaca services.
 
 1) Install the package on your computer
-```
+```python
 pip install lumibot
 ```
 2) Create an alpaca paper trading account: https://app.alpaca.markets/paper/dashboard/overview

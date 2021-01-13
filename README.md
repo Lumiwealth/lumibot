@@ -183,6 +183,22 @@ class MyStrategy(Strategy):
         pass
 ```
 
+#### trace_stats
+
+Lifecycle method that will be executed after on_trading_iteration. context is a dictionary containing on_trading_iteration locals() in last call. Use this method to dump stats
+
+```python
+class MyStrategy(Strategy):
+   def trace_stats(self, context, snapshot_before):
+        row = {}
+        for item in self.portfolio:
+            symbol = item.get("symbol")
+            for key in item:
+                if key != "symbol":
+                    row[f"{symbol}_{key}"] = item[key]
+        return row
+```
+
 ## Event Methods
 
 Events methods are similar to lifecycle methods. They are executed on particular conditions.

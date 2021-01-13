@@ -209,7 +209,7 @@ class MyStrategy(Strategy):
         self.on_abrupt_closing()
 ```
 
-### broker methods
+## Broker Methods
 
 When a strategy is instantiated, a broker object is passed to it (Check Quickstart).
 The strategy is run with the passed broker object.

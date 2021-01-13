@@ -188,14 +188,12 @@ class MyStrategy(Strategy):
 Lifecycle method that will be executed after on_trading_iteration. context is a dictionary containing on_trading_iteration locals() in last call. Use this method to dump stats
 
 ```python
+import random
 class MyStrategy(Strategy):
    def trace_stats(self, context, snapshot_before):
-        row = {}
-        for item in self.portfolio:
-            symbol = item.get("symbol")
-            for key in item:
-                if key != "symbol":
-                    row[f"{symbol}_{key}"] = item[key]
+        random_number = random.randint(0, 100)
+        row = {"my_custom_stat": random_number}
+
         return row
 ```
 

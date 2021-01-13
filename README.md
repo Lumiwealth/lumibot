@@ -42,7 +42,8 @@ logfile = "logs/test.log"
 trader = Trader(logfile=logfile)
 broker = Alpaca(AlpacaConfig)
 ```
-The ```Alpaca``` broker class needs your credentials created in step 2 to loging to your paper trading account.
+The ```Alpaca``` broker class needs your credentials created in step 3 to loging to your paper trading account.
+
 9) Instantiate your strategy class like so:
 ```python
 strategy = IntradayMomentum(budget=budget, broker=broker)

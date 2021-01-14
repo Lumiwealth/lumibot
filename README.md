@@ -96,7 +96,7 @@ backtesting_start = datetime(2018, 1, 1)
 backtesting_end = datetime(2019, 1, 1)
 
 # Run the backtest
-stat_file = f"logs/my_strategy_backtest.csv"
+stat_file = "logs/my_strategy_backtest.csv"
 strategy.backtest(
     YahooDataBacktesting,
     budget,

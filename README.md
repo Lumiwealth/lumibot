@@ -266,25 +266,33 @@ The following shortcuts executes broker methods within the strategy.
 
 #### get_timestamp
 
-Return the current timestamp according to the broker API.
+Return the current timestamp according to the broker API. During backtesting this will be the time that the strategy thinks that it is.
 
 Return type: float
 
+```python
+print(f"The current time is {self.get_timestamp()}")
+```
+
 #### get_datetime
 
-Return the current datetime according to the broker API.
+Return the current datetime according to the broker API. During backtesting this will be the time that the strategy thinks that it is.
 
 Return type: datetime
 
+```python
+print(f"The current time is {self.get_datetime()}")
+```
+
 #### await_market_to_open
 
-If the market is closed, pauses code execution until market opens again.
+If the market is closed, pauses code execution until market opens again. This means that `on_trading_iteration` will stop being called until the market opens again.
 
 Return type: ```None```
 
 #### await_market_to_close
 
-If the market is open, pauses code execution until market closes.
+If the market is open, pauses code execution until market closes. This means that `on_trading_iteration` will stop being called until the market closes.
 
 Return type: ```None```
 
@@ -326,8 +334,9 @@ Return type: list(str)
 
 #### get_asset_potential_total
 
-Check the ongoing positions and the tracked orders of the strategy
-and returns the total number of shares provided all orders went through 
+Check the ongoing positions and the tracked orders of the strategy and returns the total number of shares provided all orders went through. In other words, add all outstanding orders and the total value of the position for an asset.
+
+For example, if you own 100 SPY and have an outstanding limit order of 10 shares, we will count all 110 shares.
 
 Parameters:
 - symbol (str): the string representation of the asset/share
@@ -386,7 +395,7 @@ Return type: ```None```
 
 #### cancel_order
 
-Cancel an order
+Cancel an order.
 
 Parameters:
 - order (order): the order to cancel
@@ -414,6 +423,13 @@ Sell all strategy current positions
 
 Return type: ```None```
 
+```python
+class MyStrategy(Strategy):
+   # Will sell all shares that the strategy is tracking on Ctrl + C
+   def on_abrupt_closing(self):
+        self.sell_all()
+```
+
 #### get_last_price
 
 Return the last known price for a given symbol
@@ -422,6 +438,12 @@ Parameters:
 - symbol (str): the string representation of the asset/share
 
 Return type: float
+
+```python
+symbol = "SPY"
+current_price = self.get_last_price(symbol)
+logging.info(f"The current price of {symbol} is {current_price}")
+```
 
 #### get_last_prices
 

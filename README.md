@@ -133,23 +133,23 @@ All the methods in each of these categories are described below.
 
 We have provided a set of several example strategies that you can copy to create your own, they are located in `lumibot->strategies->examples`. Here is a breakdown of each example strategy:
 
-### Diversification
+#### Diversification
 Allocates the budget between self.portfolio and rebalances every self.period days.
 For example, if there is a budget of $100,000 then we will buy $30,000 SPY, $40,000 TLT, etc.
 We will then buy/sell assets every day depending on self.portfolio_value (the amount of money
 we have in this strategy) so that we match the percentages laid out in self.portfolio.
 
-### Intraday Momentum
+#### Intraday Momentum
 Buys the best performing asset from self.symbols over self.momentum_length number of minutes.
 For example, if TSLA increased 0.03% in the past two minutes, but SPY, GLD, TLT and MSFT only 
 increased 0.01% in the past two minutes, then we will buy TSLA.
 
-### Momentum
+#### Momentum
 Buys the best performing asset from self.symbols over self.period number of days.
 For example, if SPY increased 2% yesterday, but VEU and AGG only increased 1% yesterday,
 then we will buy SPY.
 
-### Simple
+#### Simple
 Buys and sells 10 of self.buy_symbol every day (not meant to make money, just an example).
 For example, Day 1 it will buy 10 shares, Day 2 it will sell all of them, Day 3 it will 
 buy 10 shares again, etc.

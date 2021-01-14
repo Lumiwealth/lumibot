@@ -123,9 +123,13 @@ The abstract class ```Strategy``` has global parameters with default values, and
 properties that can be used as helpers to build trading logic.
 
 The methods of this class can be split into several categories:
+
 **Lifecycle Methods** These are executed at different times during the execution of the bot. These represent the main flow of a strategy, some are mandatory.
+
 **Event Methods** These methods are executed when an event is trigered. Similar to lifecycle methods, but only *might* happen.
+
 **Broker Methods** How to interact with the broker (buy, sell, get positions, etc)
+
 **Data Methods** How to get price data easily
 
 All the methods in each of these categories are described below.
@@ -162,6 +166,8 @@ The design pattern was greatly influenced by React.js components and their lifec
 
 When building strategies, lifecycle methods needs to be overloaded.
 Trading logics should be implemented in these methods.
+
+![lifecycle methods](lifecycle_methods.png)
 
 #### initialize
 

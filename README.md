@@ -78,7 +78,7 @@ trader.run_all()
 
 # Backtesting
 
-You can also run backtests very easily on any of your strategies, you do not have to modify anything in your strategies. Simply call the backtest() function on your strategy. You will also have the details of your backtest (the portfolio value each day, unspent money, etc) put into a CSV file in the location of `stat_file`.
+You can also run backtests very easily on any of your strategies, you do not have to modify anything in your strategies. Simply call the `backtest()` function on your strategy. You will also have the details of your backtest (the portfolio value each day, unspent money, etc) put into a CSV file in the location of `stat_file`.
 
 ```python
 from lumibot.backtesting import YahooDataBacktesting

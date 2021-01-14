@@ -502,7 +502,7 @@ Parameters:
 Return type: dict of str:float
 
 
-### properties and parameters
+## Properties and Parameters
 
 - name (property): indicates the name of the strategy. By default equals to the class name.
 ```MyStrategy(Strategy)``` will have a name ```"MyStrategy"```

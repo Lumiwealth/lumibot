@@ -85,6 +85,8 @@ You can also run backtests very easily on any of your strategies, you do not hav
 from lumibot.backtesting import YahooDataBacktesting
 from lumibot.brokers import Alpaca
 
+from my_strategy import MyStrategy
+
 from credentials import AlpacaConfig
 
 # Initialize your strategy
@@ -106,6 +108,60 @@ strategy.backtest(
     stat_file=stat_file,
 )
 ```
+
+# Entities
+
+## bars
+
+This object is a wrapper around pandas dataframe and contains bars data. The raw pandas dataframe
+object corresponds to ```bars.df```. The dataframe has the following columns
+- open
+- high
+- low
+- close
+- dividend
+- volume
+
+Bars objects has the following helper methods:
+- ```get_last_price()```: returns the closing price of the last dataframe row
+- ```get_last_dividend()```: returns the dividend per share value of the last dataframe row
+- ```get_total_volume()```: returns the sum of the volume column
+- ```get_momentum_df(momentum_length)```: calculates the price change (momentum) 
+  after ```momentum_length``` number of rows for each row and filters rows without momentum.
+  Returns a dataframe.
+- ```get_momentum()```: calculates the global price momentum of the dataframe
+
+## order
+
+This object represents an order. Each order belongs to a specific strategy. 
+Order object has the following properties
+- strategy (str): the strategy name that this order belongs to
+- symbol (str): the string representation of the asset e.g. "GOOG" for Google
+- quantity (int): the number of shares to buy/sell
+- side (str): must be either ```"buy""``` for buying order or ```"sell""``` for selling order
+- limit_price (float): The limit price of the transaction. If the price becomes greater
+  than the limit_ price after submitting the order and before being filled, the order is canceled.
+- stop_price (float): This option is for buying orders. Triggers a selling order when
+  the asset price becomes lower and reach this value. 
+- time_in_force (str): ```"day"``` by default. For more information, check this link: https://alpaca.markets/docs/trading-on-alpaca/orders/#time-in-force
+
+Order objects have also the following helper methods
+- ```to_position()```: convert an order to a position belonging to the same strategy with 
+```order.quantity``` amount of shares.
+- ```get_increment()```: for selling orders returns ```- order.quantity```, for buying orders returns ```order.quantity```
+- ```get_momentum```
+
+## position
+
+This object represents a position. Each position belongs to a specific strategy.
+Position object has the following properties
+- strategy (str): the strategy name that this order belongs to
+- symbol (str): the string representation of the asset e.g. "GOOG" for Google
+- quantity (int): the number of shares held
+- orders (list(order)): a list of orders objects that leds to the current state of the position
+
+Position objects have also the following helper methods
+- ```get_selling_order()```: returns an order for selling all the shares attached to this position.
 
 # Strategies
 
@@ -158,7 +214,7 @@ then we will buy SPY.
 Buys and sells 10 of self.buy_symbol every day (not meant to make money, just an example).
 For example, Day 1 it will buy 10 shares, Day 2 it will sell all of them, Day 3 it will 
 buy 10 shares again, etc.
-  
+
 ## Lifecycle Methods
 
 The abstract class Strategy define a design pattern that needs to be followed by user-defined strategies.
@@ -345,7 +401,7 @@ Return type: ```None```
 
 #### get_tracked_position
 
-Return the strategy tracked position for a given symbol if found else ```None``.
+Return the strategy tracked position for a given symbol if found else ```None```.
 
 Parameters:
 - symbol (str): The share/asset string representation (e.g AAPL, GOOG, ...) 
@@ -360,7 +416,7 @@ Return type: list(position)
 
 #### get_tracked_order
 
-Return the strategy tracked order with the specified identifier if found else ```None``.
+Return the strategy tracked order with the specified identifier if found else ```None```.
 
 Parameters:
 - identifier (str): The broker order identifier 
@@ -392,7 +448,7 @@ Return type: int
 
 #### create_order
 
-Create an order object
+Create an order object attached to this strategy (Check the Entities, order section)
 
 Required Parameters:
 - symbol (str): representation of the asset to buy
@@ -569,7 +625,6 @@ Parameters:
 - symbol (list(str)): A list of share/asset string representations (e.g AAPL, GOOG, ...) 
 
 Return type: dict of str:float
-
 
 ## Properties and Parameters
 

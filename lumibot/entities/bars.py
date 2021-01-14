@@ -1,7 +1,7 @@
 class Bars:
     def __init__(self, df, raw=None):
         """
-        df columns: close, dividend, volume, momentum
+        df columns: open, high, low, close, dividend, volume
         df index: pd.Timestamp
         """
         self.df = df

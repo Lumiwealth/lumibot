@@ -77,6 +77,36 @@ trader.add_strategy(strategy)
 trader.run_all()
 ```
 
+# Backtesting
+
+You can also run backtests very easily on any of your strategies, you do not have to modify anything in your strategies. Simply call the `backtest()` function on your strategy. You will also have the details of your backtest (the portfolio value each day, unspent money, etc) put into a CSV file in the location of `stat_file`.
+
+```python
+from lumibot.backtesting import YahooDataBacktesting
+from lumibot.brokers import Alpaca
+
+from credentials import AlpacaConfig
+
+# Initialize your strategy
+broker = Alpaca(AlpacaConfig)
+budget = 100000
+strategy = MyStrategy(budget=budget, broker=broker)
+
+# Pick the dates that you want to start and end your backtest
+backtesting_start = datetime(2018, 1, 1)
+backtesting_end = datetime(2019, 1, 1)
+
+# Run the backtest
+stat_file = "logs/my_strategy_backtest.csv"
+strategy.backtest(
+    YahooDataBacktesting,
+    budget,
+    backtesting_start,
+    backtesting_end,
+    stat_file=stat_file,
+)
+```
+
 # Strategies
 
 ## Strategy
@@ -93,10 +123,37 @@ The abstract class ```Strategy``` has global parameters with default values, and
 properties that can be used as helpers to build trading logic.
 
 The methods of this class can be split into several categories:
-- Lifecycle methods that are executed at different times during the execution of the bot.
-- Events handling methods. These methods are executed when an event is trigered
-- Helper methods for interacting with the broker passed as parameter
-- Helper methods for interacting with the data source object passed as parameter
+**Lifecycle Methods** These are executed at different times during the execution of the bot. These represent the main flow of a strategy, some are mandatory.
+**Event Methods** These methods are executed when an event is trigered. Similar to lifecycle methods, but only *might* happen.
+**Broker Methods** How to interact with the broker (buy, sell, get positions, etc)
+**Data Methods** How to get price data easily
+
+All the methods in each of these categories are described below.
+
+## Example Strategies
+
+We have provided a set of several example strategies that you can copy to create your own, they are located in `lumibot->strategies->examples`. Here is a breakdown of each example strategy:
+
+#### Diversification
+Allocates the budget between self.portfolio and rebalances every self.period days.
+For example, if there is a budget of $100,000 then we will buy $30,000 SPY, $40,000 TLT, etc.
+We will then buy/sell assets every day depending on self.portfolio_value (the amount of money
+we have in this strategy) so that we match the percentages laid out in self.portfolio.
+
+#### Intraday Momentum
+Buys the best performing asset from self.symbols over self.momentum_length number of minutes.
+For example, if TSLA increased 0.03% in the past two minutes, but SPY, GLD, TLT and MSFT only 
+increased 0.01% in the past two minutes, then we will buy TSLA.
+
+#### Momentum
+Buys the best performing asset from self.symbols over self.period number of days.
+For example, if SPY increased 2% yesterday, but VEU and AGG only increased 1% yesterday,
+then we will buy SPY.
+
+#### Simple
+Buys and sells 10 of self.buy_symbol every day (not meant to make money, just an example).
+For example, Day 1 it will buy 10 shares, Day 2 it will sell all of them, Day 3 it will 
+buy 10 shares again, etc.
   
 ## Lifecycle Methods
 
@@ -250,25 +307,33 @@ The following shortcuts executes broker methods within the strategy.
 
 #### get_timestamp
 
-Return the current timestamp according to the broker API.
+Return the current timestamp according to the broker API. During backtesting this will be the time that the strategy thinks that it is.
 
 Return type: float
 
+```python
+print(f"The current time is {self.get_timestamp()}")
+```
+
 #### get_datetime
 
-Return the current datetime according to the broker API.
+Return the current datetime according to the broker API. During backtesting this will be the time that the strategy thinks that it is.
 
 Return type: datetime
 
+```python
+print(f"The current time is {self.get_datetime()}")
+```
+
 #### await_market_to_open
 
-If the market is closed, pauses code execution until market opens again.
+If the market is closed, pauses code execution until market opens again. This means that `on_trading_iteration` will stop being called until the market opens again.
 
 Return type: ```None```
 
 #### await_market_to_close
 
-If the market is open, pauses code execution until market closes.
+If the market is open, pauses code execution until market closes. This means that `on_trading_iteration` will stop being called until the market closes.
 
 Return type: ```None```
 
@@ -310,8 +375,9 @@ Return type: list(str)
 
 #### get_asset_potential_total
 
-Check the ongoing positions and the tracked orders of the strategy
-and returns the total number of shares provided all orders went through 
+Check the ongoing positions and the tracked orders of the strategy and returns the total number of shares provided all orders went through. In other words, add all outstanding orders and the total value of the position for an asset.
+
+For example, if you own 100 SPY and have an outstanding limit order of 10 shares, we will count all 110 shares.
 
 Parameters:
 - symbol (str): the string representation of the asset/share
@@ -322,12 +388,25 @@ Return type: int
 
 Create an order object
 
-Parameters:
+Required Parameters:
 - symbol (str): representation of the asset to buy
 - quantity (int): the quantity of the asset to buy
 - side (str): either ```"buy"``` or ```"sell"```
 
+Optional Parameters:
+- limit_price (default = None)
+- stop_price (default = None)
+- time_in_force (default = "day")
+
 Return type: order
+
+```python
+class MyStrategy(Strategy):
+    def on_trading_iteration(self):
+      # Buy 100 shares of SPY
+      order = self.create_order("SPY", 100, "buy")
+      self.submit_order(order)
+```
 
 #### submit_order
 
@@ -337,6 +416,14 @@ Parameters:
 - order (order): the order object
 
 Return type: order
+
+```python
+class MyStrategy(Strategy):
+    def my_function(self):
+      # Sell 100 shares of TLT
+      order = self.create_order("TLT", 100, "sell")
+      self.submit_order(order)
+```
 
 #### submit_orders
 
@@ -349,7 +436,7 @@ Return type: ```None```
 
 #### cancel_order
 
-Cancel an order
+Cancel an order.
 
 Parameters:
 - order (order): the order to cancel
@@ -377,6 +464,13 @@ Sell all strategy current positions
 
 Return type: ```None```
 
+```python
+class MyStrategy(Strategy):
+   # Will sell all shares that the strategy is tracking on Ctrl + C
+   def on_abrupt_closing(self):
+        self.sell_all()
+```
+
 #### get_last_price
 
 Return the last known price for a given symbol
@@ -385,6 +479,12 @@ Parameters:
 - symbol (str): the string representation of the asset/share
 
 Return type: float
+
+```python
+symbol = "SPY"
+current_price = self.get_last_price(symbol)
+logging.info(f"The current price of {symbol} is {current_price}")
+```
 
 #### get_last_prices
 
@@ -465,7 +565,7 @@ Parameters:
 Return type: dict of str:float
 
 
-### properties and parameters
+## Properties and Parameters
 
 - name (property): indicates the name of the strategy. By default equals to the class name.
 ```MyStrategy(Strategy)``` will have a name ```"MyStrategy"```

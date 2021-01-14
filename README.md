@@ -76,6 +76,36 @@ trader.add_strategy(strategy)
 trader.run_all()
 ```
 
+# Backtesting
+
+You can also run backtests very easily on any of your strategies, you do not have to modify anything in your strategies. Simply call the backtest() function on your strategy. You will also have the details of your backtest (the portfolio value each day, unspent money, etc) put into a CSV file in the location of `stat_file`.
+
+```python
+from lumibot.backtesting import YahooDataBacktesting
+from lumibot.brokers import Alpaca
+
+from credentials import AlpacaConfig
+
+# Initialize your strategy
+broker = Alpaca(AlpacaConfig)
+budget = 100000
+strategy = MyStrategy(budget=budget, broker=broker)
+
+# Pick the dates that you want to start and end your backtest
+backtesting_start = datetime(2018, 1, 1)
+backtesting_end = datetime(2019, 1, 1)
+
+# Run the backtest
+stat_file = f"logs/my_strategy_backtest.csv"
+strategy.backtest(
+    YahooDataBacktesting,
+    budget,
+    backtesting_start,
+    backtesting_end,
+    stat_file=stat_file,
+)
+```
+
 # Strategies
 
 ## Strategy
@@ -308,12 +338,25 @@ Return type: int
 
 Create an order object
 
-Parameters:
+Required Parameters:
 - symbol (str): representation of the asset to buy
 - quantity (int): the quantity of the asset to buy
 - side (str): either ```"buy"``` or ```"sell"```
 
+Optional Parameters:
+- limit_price (default = None)
+- stop_price (default = None)
+- time_in_force (default = "day")
+
 Return type: order
+
+```python
+class MyStrategy(Strategy):
+    def on_trading_iteration(self):
+      # Buy 100 shares of SPY
+      order = self.create_order("SPY", 100, "buy")
+      self.submit_order(order)
+```
 
 #### submit_order
 
@@ -323,6 +366,14 @@ Parameters:
 - order (order): the order object
 
 Return type: order
+
+```python
+class MyStrategy(Strategy):
+    def my_function(self):
+      # Sell 100 shares of TLT
+      order = self.create_order("TLT", 100, "sell")
+      self.submit_order(order)
+```
 
 #### submit_orders
 

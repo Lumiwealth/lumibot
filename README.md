@@ -32,7 +32,8 @@ from credentials import AlpacaConfig
 # importing the strategy class created in step 3
 from lumibot.strategies.examples import IntradayMomentum
 ```
-7) In your main.py, define variables for the budget allocated to your strategy
+7) In your main.py, define variables for the budget allocated to your strategy. 
+   Additionally, define the destination of the logfile.
 ```python
 budget = 40000
 logfile = "logs/test.log"
@@ -190,16 +191,29 @@ class MyStrategy(Strategy):
 
 #### trace_stats
 
-Lifecycle method that will be executed after on_trading_iteration. context is a dictionary containing on_trading_iteration locals() in last call. Use this method to dump stats
+Lifecycle method that will be executed after on_trading_iteration. 
+context is a dictionary containing the result of ```locals()``` of ```on_trading_iteration()```
+at the end of its execution. 
+
+```locals()``` returns a dictionary of the variables defined in the
+scope where it is called.
+
+Use this method to dump stats
 
 ```python
 import random
 class MyStrategy(Strategy):
-   def trace_stats(self, context, snapshot_before):
-        random_number = random.randint(0, 100)
-        row = {"my_custom_stat": random_number}
+    def on_trading_iteration(self):
+        google_symbol = "GOOG"
+  
+def trace_stats(self, context, snapshot_before):
+    print(context)
+    # printing
+    # { "google_symbol":"GOOG"}
+    random_number = random.randint(0, 100)
+    row = {"my_custom_stat": random_number}
 
-        return row
+    return row
 ```
 
 ## Event Methods

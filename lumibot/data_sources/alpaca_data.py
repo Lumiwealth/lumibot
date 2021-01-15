@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 import alpaca_trade_api as tradeapi
 import pandas as pd
+import pytz
 from alpaca_trade_api.common import URL
 
 from lumibot.entities import Bars
@@ -11,6 +12,7 @@ from .data_source import DataSource
 
 class AlpacaData(DataSource):
     NY_TIMEZONE = "America/New_York"
+    NY_PYTZ = pytz.timezone(NY_TIMEZONE)
 
     """Common base class for data_sources/alpaca and brokers/alpaca"""
 
@@ -41,6 +43,13 @@ class AlpacaData(DataSource):
         self.api = tradeapi.REST(
             self.api_key, self.api_secret, self.endpoint, self.version
         )
+
+    def format_datetime(self, dt):
+        if dt.tzinfo:
+            result = pd.Timestamp(dt).isoformat()
+        else:
+            result = pd.Timestamp(dt, tz=self.NY_TIMEZONE).isoformat()
+        return result
 
     def _parse_source_time_unit(self, time_unit, reverse=False):
         """parse the data source time_unit variable
@@ -90,6 +99,6 @@ class AlpacaData(DataSource):
         kwargs = dict(limit=length)
         if time_delta:
             end = datetime.now() - time_delta
-            kwargs["end"] = pd.Timestamp(end, tz=self.NY_TIMEZONE).isoformat()
+            kwargs["end"] = self.format_datetime(end)
         response = self.api.get_barset(symbols, parsed_time_unit, **kwargs)
         return response

@@ -1,2 +1,3 @@
+from .alpaca_backtesting import AlpacaDataBacktesting
 from .backtesting_broker import BacktestingBroker
 from .yahoo_backtesting import YahooDataBacktesting

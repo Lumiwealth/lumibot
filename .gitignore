@@ -6,6 +6,7 @@
 **/__pycache__
 
 # Development files
+venv
 logs
 credentials.py
 debug.py

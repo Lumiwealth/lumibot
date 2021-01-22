@@ -646,4 +646,3 @@ by the broker or when dividends are paid.
   on_trading_iteration. By default equals to 1 minute. 
   This value can be overloaded when creating a strategy class in order to change the 
   default behaviour
-  

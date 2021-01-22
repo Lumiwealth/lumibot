@@ -36,9 +36,7 @@ class YahooData(DataSource):
         result = data.tail(length)
         return result
 
-    def _pull_source_bars(
-        self, symbols, length, timestep=MIN_TIMESTEP, timeshift=None
-    ):
+    def _pull_source_bars(self, symbols, length, timestep=MIN_TIMESTEP, timeshift=None):
         """pull broker bars for a list symbols"""
         self._parse_source_timestep(timestep, reverse=True)
         missing_symbols = [

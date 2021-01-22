@@ -1,13 +1,13 @@
+import bisect
 import logging
 import math
 from datetime import datetime, timedelta
 
 import pandas as pd
+from alpaca_trade_api.entity import Bar
+
 from lumibot.data_sources import AlpacaData
 from lumibot.entities import Bars
-
-import bisect
-from alpaca_trade_api.entity import Bar
 from lumibot.tools import deduplicate_sequence
 
 
@@ -27,7 +27,7 @@ class AlpacaDataBacktesting(AlpacaData):
             backtesting_timeshift += timeshift
 
         end_date = datetime.now() - backtesting_timeshift
-        if timestep=="minute":
+        if timestep == "minute":
             period_length = length * timedelta(minutes=1)
         else:
             period_length = length * timedelta(days=1)
@@ -112,7 +112,9 @@ class AlpacaDataBacktesting(AlpacaData):
 
         return result
 
-    def _pull_source_symbol_bars(self, symbol, length, timestep="minute", timeshift=None):
+    def _pull_source_symbol_bars(
+        self, symbol, length, timestep="minute", timeshift=None
+    ):
         start_date, end_date = self._get_start_end_dates(
             length, timestep=timestep, timeshift=timeshift
         )

@@ -29,9 +29,7 @@ class DataSource:
         """pull source bars for a given symbol"""
         pass
 
-    def _pull_source_bars(
-        self, symbols, length, timestep=MIN_TIMESTEP, timeshift=None
-    ):
+    def _pull_source_bars(self, symbols, length, timestep=MIN_TIMESTEP, timeshift=None):
         pass
 
     def _parse_source_symbol_bars(self, response):
@@ -40,9 +38,7 @@ class DataSource:
     def _parse_source_bars(self, response):
         pass
 
-    def get_symbol_bars(
-        self, symbol, length, timestep="", timeshift=None
-    ):
+    def get_symbol_bars(self, symbol, length, timestep="", timeshift=None):
         """Get bars for a given symbol"""
         if not timestep:
             timestep = self.MIN_TIMESTEP
@@ -104,7 +100,9 @@ class DataSource:
     def get_yesterday_dividend(self, symbol):
         """Return dividend per share for a given
         symbol for the day before"""
-        bars = self.get_symbol_bars(symbol, 1, timestep="day", timeshift=timedelta(days=1))
+        bars = self.get_symbol_bars(
+            symbol, 1, timestep="day", timeshift=timedelta(days=1)
+        )
         return bars.get_last_dividend()
 
     def get_yesterday_dividends(self, symbols):

@@ -14,7 +14,7 @@ class YahooDataBacktesting(YahooData):
         self._datetime = datetime_start
 
     def _pull_source_symbol_bars(
-            self, symbol, length, timestep=MIN_TIMESTEP, timeshift=None
+        self, symbol, length, timestep=MIN_TIMESTEP, timeshift=None
     ):
         backtesting_timeshift = datetime.now() - self._datetime
         if timeshift:

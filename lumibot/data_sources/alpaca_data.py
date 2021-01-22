@@ -4,11 +4,15 @@ import alpaca_trade_api as tradeapi
 import pandas as pd
 import pytz
 from alpaca_trade_api.common import URL
+from alpaca_trade_api.entity import Bar
 
 from lumibot.entities import Bars
 
+from lumibot.tools import add_comparaison_mixins
+
 from .data_source import DataSource
 
+add_comparaison_mixins(Bar, "t")
 
 class AlpacaData(DataSource):
     NY_TIMEZONE = "America/New_York"

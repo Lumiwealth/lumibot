@@ -38,3 +38,30 @@ def df_day_deduplicate(df_):
     df_copy = df_copy[df_copy["should_keep"]]
     df_copy = df_copy.drop(["should_keep"], axis=1)
     return df_copy
+
+
+def add_comparaison_mixins(class_obj, scalar_prop):
+    def __eq__(self, other):
+        return getattr(self, scalar_prop) == getattr(other, scalar_prop)
+
+    def __ne__(self, other):
+        return getattr(self, scalar_prop) != getattr(other, scalar_prop)
+
+    def __gt__(self, other):
+        return getattr(self, scalar_prop) > getattr(other, scalar_prop)
+
+    def __ge__(self, other):
+        return getattr(self, scalar_prop) >= getattr(other, scalar_prop)
+
+    def __lt__(self, other):
+        return getattr(self, scalar_prop) < getattr(other, scalar_prop)
+
+    def __le__(self, other):
+        return getattr(self, scalar_prop) >= getattr(other, scalar_prop)
+
+    class_obj.__eq__ = __eq__
+    class_obj.__ne__ = __ne__
+    class_obj.__gt__ = __gt__
+    class_obj.__ge__ = __ge__
+    class_obj.__lt__ = __lt__
+    class_obj.__le__ = __le__

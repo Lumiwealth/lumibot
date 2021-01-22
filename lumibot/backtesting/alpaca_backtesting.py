@@ -3,8 +3,11 @@ import math
 from datetime import datetime, timedelta
 
 import pandas as pd
-from data_sources import AlpacaData
-from entities import Bars
+from lumibot.data_sources import AlpacaData
+from lumibot.entities import Bars
+
+import bisect
+from alpaca_trade_api.entity import Bar
 from lumibot.tools import deduplicate_sequence
 
 
@@ -32,7 +35,7 @@ class AlpacaDataBacktesting(AlpacaData):
     def _deduplicate_store_row(self, symbol):
         self._data_store[symbol] = deduplicate_sequence(self._data_store[symbol])
 
-    def _update_store(self, symbol, start_date, end_date):
+    def _get_missing_range(self, symbol, start_date, end_date):
         start_date = self.NY_PYTZ.localize(start_date)
         end_date = self.NY_PYTZ.localize(end_date)
         query_ranges = []
@@ -63,6 +66,10 @@ class AlpacaDataBacktesting(AlpacaData):
                 )
             )
 
+        return query_ranges
+
+    def _update_store(self, symbol, start_date, end_date):
+        query_ranges = self._get_missing_range(symbol, start_date, end_date)
         if query_ranges:
             logging.info("Fetching new Data for %r" % symbol)
             for start_query_date, end_query_date in query_ranges:
@@ -82,19 +89,26 @@ class AlpacaDataBacktesting(AlpacaData):
             self._deduplicate_store_row(symbol)
 
     def _extract_data(self, symbol, length, end, interval=None):
+        result = []
         if interval is None:
             interval = timedelta(minutes=1)
         data = self._data_store[symbol]
-        filtered = [row for row in data if row.t.timestamp() <= end.timestamp()]
-        result = []
-        for item in filtered:
+        dummy_bar = Bar(None)
+        dummy_bar.t = self.NY_PYTZ.localize(end)
+        end_position = bisect.bisect_right(data, dummy_bar) - 1
+
+        for index in range(end_position, -1, -1):
+            item = data[index]
             if result:
-                last_timestamp = result[-1].t
-                if item.t - last_timestamp >= interval:
-                    result.append(item)
+                last_timestamp = result[0].t
+                if last_timestamp - item.t >= interval:
+                    result.insert(0, item)
             else:
                 result.append(item)
-        result = result[-length:]
+
+            if len(result) >= length:
+                return result
+
         return result
 
     def _pull_source_symbol_bars(self, symbol, length, time_unit, time_delta=None):

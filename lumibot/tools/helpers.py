@@ -10,6 +10,25 @@ def get_chunks(l, chunk_size):
     return chunks
 
 
+def deduplicate_sequence(seq, key=""):
+    seen = set()
+    pos = 0
+
+    if key:
+        get_ref = lambda item: getattr(item, key)
+    else:
+        get_ref = lambda item: item
+
+    for item in seq:
+        ref = get_ref(item)
+        if ref not in seen:
+            seen.add(ref)
+            seq[pos] = item
+            pos += 1
+    del seq[pos:]
+    return seq
+
+
 def get_trading_days():
     """Requesting data for the oldest company,
     Consolidated Edison from yahoo finance.

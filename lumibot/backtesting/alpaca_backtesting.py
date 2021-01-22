@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 from data_sources import AlpacaData
 from entities import Bars
+from lumibot.tools import deduplicate_sequence
 
 
 class AlpacaDataBacktesting(AlpacaData):
@@ -29,15 +30,7 @@ class AlpacaDataBacktesting(AlpacaData):
         return (start_date, end_date)
 
     def _deduplicate_store_row(self, symbol):
-        data = self._data_store[symbol]
-        result = []
-        list_timestamps = set()
-        for row in data:
-            timestamp = row.t
-            if timestamp not in list_timestamps:
-                list_timestamps.add(timestamp)
-                result.append(row)
-        self._data_store[symbol] = result
+        self._data_store[symbol] = deduplicate_sequence(self._data_store[symbol])
 
     def _update_store(self, symbol, start_date, end_date):
         start_date = self.NY_PYTZ.localize(start_date)

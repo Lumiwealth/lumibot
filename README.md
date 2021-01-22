@@ -579,8 +579,9 @@ Return bars for a given symbol.
 Parameters:
 - symbol (str): The share/asset string representation (e.g AAPL, GOOG, ...) 
 - length (int): The number of rows (number of timestamps)
-- time_unit (timedelta): The timestep between each timestamp
-- time_delta (timedelta): ```None``` by default. If specified indicates the time shift.
+- timestep (str): Either ```"minute""``` for minutes data or ```"day""``` for days data
+  default value depends on the data_source (minute for alpaca, day for yahoo, ...)
+- timeshift (timedelta): ```None``` by default. If specified indicates the time shift.
 
 Example:
 ```python
@@ -589,7 +590,7 @@ import timedelta
 
 # Extract 10 rows of SPY data with one minute timestep between each row
 # with the latest data being 24h ago (timedelta(days=1))
-bars =  self.get_symbol_bars("SPY",10,timedelta(minutes=1),timedelta(days=1))
+bars =  self.get_symbol_bars("SPY",10,"minute",timedelta(days=1))
 ```
 
 Return type: bars
@@ -602,8 +603,9 @@ but take as first parameter a list of symbols.
 Parameters:
 - symbol (list(str)): A list of share/asset string representations (e.g AAPL, GOOG, ...) 
 - length (int): The number of rows (number of timestamps)
-- time_unit (timedelta): The timestep between each timestamp
-- time_delta (timedelta): ```None``` by default. If specified indicates the time shift.
+- timestep (str): Either ```"minute""``` for minutes data or ```"day""``` for days data
+  default value depends on the data_source (minute for alpaca, day for yahoo, ...)
+- timeshift (timedelta): ```None``` by default. If specified indicates the time shift.
 
 Return type: dict of str:bars
 

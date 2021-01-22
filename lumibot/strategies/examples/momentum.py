@@ -1,5 +1,4 @@
 import logging
-from datetime import timedelta
 
 from lumibot.strategies.strategy import Strategy
 
@@ -143,7 +142,7 @@ class Momentum(Strategy):
         momentums = []
         for symbol in self.symbols:
             # Get the return for symbol over self.period days
-            bars_set = self.get_symbol_bars(symbol, self.period + 1, timedelta(days=1))
+            bars_set = self.get_symbol_bars(symbol, self.period + 1, timestep="day")
             symbol_momentum = bars_set.get_momentum()
 
             logging.info(

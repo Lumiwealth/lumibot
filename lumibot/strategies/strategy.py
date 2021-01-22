@@ -328,27 +328,37 @@ class Strategy:
 
     # =======Data source methods=================
 
-    def get_symbol_bars(self, symbol, length, time_unit, time_delta=None):
+    def get_symbol_bars(
+        self,
+        symbol,
+        length,
+        timestep="",
+        timeshift=None,
+    ):
         """Get bars for a given symbol"""
+        if not timestep:
+            timestep = self.data_source.MIN_TIMESTEP
         return self.data_source.get_symbol_bars(
-            symbol, length, time_unit, time_delta=time_delta
+            symbol, length, timestep=timestep, timeshift=timeshift
         )
 
     def get_bars(
         self,
         symbols,
         length,
-        time_unit,
-        time_delta=None,
+        timestep="",
+        timeshift=None,
         chunk_size=100,
         max_workers=200,
     ):
         """Get bars for the list of symbols"""
+        if not timestep:
+            timestep = self.data_source.MIN_TIMESTEP
         return self.data_source.get_bars(
             symbols,
             length,
-            time_unit,
-            time_delta=time_delta,
+            timestep=timestep,
+            timeshift=timeshift,
             chunk_size=chunk_size,
             max_workers=max_workers,
         )

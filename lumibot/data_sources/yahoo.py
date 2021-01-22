@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import pandas as pd
 import yfinance as yf
@@ -10,47 +10,37 @@ from .data_source import DataSource
 
 
 class YahooData(DataSource):
-    MIN_TIME_STEP = timedelta(days=1)
+    MIN_TIMESTEP = "day"
+    TIMESTEP_MAPPING = [
+        {"timestep": "day", "represntations": ["1D", "day"]},
+    ]
 
     def __init__(self):
         self.name = "yahoo"
         self._data_store = {}
 
-    def _parse_source_time_unit(self, time_unit, reverse=False):
-        """parse the data source time_unit variable
-        into a datetime.timedelta. set reverse to True to parse
-        timedelta to data_source time_unit representation"""
-        mapping = [
-            {"timedelta": timedelta(days=1), "represntations": ["1D", "day"]},
-        ]
-        for item in mapping:
-            if reverse:
-                if time_unit == item["timedelta"]:
-                    return item["represntations"][0]
-            else:
-                if time_unit in item["represntations"]:
-                    return item["timedelta"]
-
-        raise ValueError("time_unit %r did not match" % time_unit)
-
-    def _pull_source_symbol_bars(self, symbol, length, time_unit, time_delta=None):
-        self._parse_source_time_unit(time_unit, reverse=True)
+    def _pull_source_symbol_bars(
+        self, symbol, length, timestep=MIN_TIMESTEP, timeshift=None
+    ):
+        self._parse_source_timestep(timestep, reverse=True)
         if symbol in self._data_store:
             data = self._data_store[symbol]
         else:
             data = yf.Ticker(symbol).history(period="max")
             self._data_store[symbol] = data
 
-        if time_delta:
-            end = datetime.now() - time_delta
+        if timeshift:
+            end = datetime.now() - timeshift
             data = data[data.index <= end]
 
         result = data.tail(length)
         return result
 
-    def _pull_source_bars(self, symbols, length, time_unit, time_delta=None):
+    def _pull_source_bars(
+        self, symbols, length, timestep=MIN_TIMESTEP, timeshift=None
+    ):
         """pull broker bars for a list symbols"""
-        self._parse_source_time_unit(time_unit, reverse=True)
+        self._parse_source_timestep(timestep, reverse=True)
         missing_symbols = [
             symbol for symbol in symbols if symbol not in self._data_store
         ]
@@ -61,7 +51,7 @@ class YahooData(DataSource):
         result = {}
         for symbol in symbols:
             result[symbol] = self._pull_source_symbol_bars(
-                symbol, length, time_unit, time_delta=time_delta
+                symbol, length, timestep=timestep, timeshift=timeshift
             )
         return result
 

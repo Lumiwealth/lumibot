@@ -21,14 +21,16 @@ class AlpacaDataBacktesting(AlpacaData):
         self._datetime = datetime_start
         self._data_store = {}
 
-    def _get_start_end_dates(self, length, time_unit, time_delta=None):
-        time_shift = datetime.now() - self._datetime
-        if time_delta is None:
-            time_delta = time_shift
+    def _get_start_end_dates(self, length, timestep="minute", timeshift=None):
+        backtesting_timeshift = datetime.now() - self._datetime
+        if timeshift:
+            backtesting_timeshift += timeshift
+
+        end_date = datetime.now() - backtesting_timeshift
+        if timestep=="minute":
+            period_length = length * timedelta(minutes=1)
         else:
-            time_delta += time_shift
-        end_date = datetime.now() - time_delta
-        period_length = length * time_unit
+            period_length = length * timedelta(days=1)
         start_date = end_date - period_length
         return (start_date, end_date)
 
@@ -88,10 +90,9 @@ class AlpacaDataBacktesting(AlpacaData):
             self._data_store[symbol].sort(key=lambda x: x.t)
             self._deduplicate_store_row(symbol)
 
-    def _extract_data(self, symbol, length, end, interval=None):
+    def _extract_data(self, symbol, length, end, timestep="minute"):
         result = []
-        if interval is None:
-            interval = timedelta(minutes=1)
+        time_delta = timedelta(minutes=1)
         data = self._data_store[symbol]
         dummy_bar = Bar(None)
         dummy_bar.t = self.NY_PYTZ.localize(end)
@@ -101,7 +102,7 @@ class AlpacaDataBacktesting(AlpacaData):
             item = data[index]
             if result:
                 last_timestamp = result[0].t
-                if last_timestamp - item.t >= interval:
+                if last_timestamp - item.t >= time_delta:
                     result.insert(0, item)
             else:
                 result.append(item)
@@ -111,12 +112,12 @@ class AlpacaDataBacktesting(AlpacaData):
 
         return result
 
-    def _pull_source_symbol_bars(self, symbol, length, time_unit, time_delta=None):
+    def _pull_source_symbol_bars(self, symbol, length, timestep="minute", timeshift=None):
         start_date, end_date = self._get_start_end_dates(
-            length, time_unit, time_delta=time_delta
+            length, timestep=timestep, timeshift=timeshift
         )
         self._update_store(symbol, start_date, end_date)
-        data = self._extract_data(symbol, length, end_date, interval=time_unit)
+        data = self._extract_data(symbol, length, end_date, timestep=timestep)
         return data
 
     def _parse_source_symbol_bars(self, response):
@@ -145,11 +146,11 @@ class AlpacaDataBacktesting(AlpacaData):
         bars = Bars(df, raw=response)
         return bars
 
-    def _pull_source_bars(self, symbols, length, time_unit, time_delta=None):
+    def _pull_source_bars(self, symbols, length, timestep="minute", timeshift=None):
         result = {}
         for symbol in symbols:
             data = self._pull_source_symbol_bars(
-                symbol, length, time_unit, time_delta=time_delta
+                symbol, length, timestep=timestep, timeshift=timeshift
             )
             result[symbol] = data
         return result

@@ -1,5 +1,4 @@
 import logging
-from datetime import timedelta
 
 from lumibot.data_sources import YahooData
 from lumibot.strategies.strategy import Strategy
@@ -69,7 +68,7 @@ class Screener(Strategy):
         assets = self.get_tradable_assets()
         symbols = [a for a in assets if a not in (ongoing_assets + self.blacklist)]
         length = 4 * 24 + 1
-        bars_list = self.get_bars(symbols, length, timedelta(minutes=15))
+        bars_list = self.get_bars(symbols, length)
         return bars_list
 
     def select_assets(self, data, min_increase_target):

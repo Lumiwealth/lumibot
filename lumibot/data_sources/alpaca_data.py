@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 import alpaca_trade_api as tradeapi
 import pandas as pd
@@ -17,6 +17,11 @@ add_comparaison_mixins(Bar, "t")
 class AlpacaData(DataSource):
     NY_TIMEZONE = "America/New_York"
     NY_PYTZ = pytz.timezone(NY_TIMEZONE)
+    MIN_TIMESTEP = "minute"
+    TIMESTEP_MAPPING = [
+        {"timestep": "minute", "represntations": ["1Min", "minute"]},
+        {"timestep": "day", "represntations": ["1D", "day"]},
+    ]
 
     """Common base class for data_sources/alpaca and brokers/alpaca"""
 
@@ -55,30 +60,12 @@ class AlpacaData(DataSource):
             result = pd.Timestamp(dt, tz=self.NY_TIMEZONE).isoformat()
         return result
 
-    def _parse_source_time_unit(self, time_unit, reverse=False):
-        """parse the data source time_unit variable
-        into a datetime.timedelta. set reverse to True to parse
-        timedelta to data_source time_unit representation"""
-        mapping = [
-            {"timedelta": timedelta(minutes=1), "represntations": ["1Min", "minute"]},
-            {"timedelta": timedelta(minutes=5), "represntations": ["5Min"]},
-            {"timedelta": timedelta(minutes=15), "represntations": ["15Min"]},
-            {"timedelta": timedelta(days=1), "represntations": ["1D", "day"]},
-        ]
-        for item in mapping:
-            if reverse:
-                if time_unit == item["timedelta"]:
-                    return item["represntations"][0]
-            else:
-                if time_unit in item["represntations"]:
-                    return item["timedelta"]
-
-        raise ValueError("time_unit %r did not match" % time_unit)
-
-    def _pull_source_symbol_bars(self, symbol, length, time_unit, time_delta=None):
+    def _pull_source_symbol_bars(
+        self, symbol, length, timestep=MIN_TIMESTEP, timeshift=None
+    ):
         """pull broker bars for a given symbol"""
         response = self._pull_source_bars(
-            [symbol], length, time_unit, time_delta=time_delta
+            [symbol], length, timestep=timestep, timeshift=timeshift
         )
         return response.df[symbol]
 
@@ -97,12 +84,14 @@ class AlpacaData(DataSource):
             result[symbol] = self._parse_source_symbol_bars(bars.df)
         return result
 
-    def _pull_source_bars(self, symbols, length, time_unit, time_delta=None):
+    def _pull_source_bars(
+        self, symbols, length, timestep=MIN_TIMESTEP, timeshift=None
+    ):
         """pull broker bars for a list symbols"""
-        parsed_time_unit = self._parse_source_time_unit(time_unit, reverse=True)
+        parsed_timestep = self._parse_source_timestep(timestep, reverse=True)
         kwargs = dict(limit=length)
-        if time_delta:
-            end = datetime.now() - time_delta
+        if timeshift:
+            end = datetime.now() - timeshift
             kwargs["end"] = self.format_datetime(end)
-        response = self.api.get_barset(symbols, parsed_time_unit, **kwargs)
+        response = self.api.get_barset(symbols, parsed_timestep, **kwargs)
         return response

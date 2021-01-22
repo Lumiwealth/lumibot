@@ -502,13 +502,14 @@ class Broker:
             target=self._run_stream, daemon=True, name=f"broker_{self.name}_thread"
         )
         t.start()
-        logging.info(
-            """Waiting for the socket stream connection to be established, 
-            method _stream_established must be called"""
-        )
-        while True:
-            if self._is_stream_subscribed is True:
-                break
+        if not self.IS_BACKTESTING_BROKER:
+            logging.info(
+                """Waiting for the socket stream connection to be established, 
+                method _stream_established must be called"""
+            )
+            while True:
+                if self._is_stream_subscribed is True:
+                    break
         return
 
     def _poll(self):

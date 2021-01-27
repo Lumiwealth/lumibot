@@ -14,8 +14,8 @@ from lumibot.tools import deduplicate_sequence
 class AlpacaDataBacktesting(AlpacaData):
     IS_BACKTESTING_DATA_SOURCE = True
 
-    def __init__(self, config, datetime_start, datetime_end):
-        AlpacaData.__init__(self, config)
+    def __init__(self, datetime_start, datetime_end, auth=None):
+        AlpacaData.__init__(self, auth)
         self.datetime_start = datetime_start
         self.datetime_end = datetime_end
         self._datetime = datetime_start
@@ -108,7 +108,8 @@ class AlpacaDataBacktesting(AlpacaData):
             item = Bar(data[index]._raw)
             if result:
                 last_timestamp = result[0].t
-                if timestep == "minute" and last_timestamp - item.t >= timedelta(minutes=1):
+                interval = timedelta(minutes=1)
+                if timestep == "minute" and last_timestamp - item.t >= interval:
                     result.insert(0, item)
                 elif timestep == "day" and last_timestamp.date() != item.t.date():
                     new_date = datetime.combine(item.t.date(), datetime.min.time())
@@ -179,3 +180,6 @@ class AlpacaDataBacktesting(AlpacaData):
         for symbol, data in response.items():
             result[symbol] = self._parse_source_symbol_bars(data)
         return result
+
+    def _update_datetime(self, new_datetime):
+        self._datetime = new_datetime

@@ -563,9 +563,10 @@ class Strategy:
         backtesting_end,
         logfile="logs/test.log",
         stat_file=None,
+        auth=None,
     ):
         trader = Trader(logfile=logfile)
-        data_source = datasource_class(backtesting_start, backtesting_end)
+        data_source = datasource_class(backtesting_start, backtesting_end, auth=auth)
         backtesting_broker = BacktestingBroker(data_source)
         strategy = cls(budget=budget, broker=backtesting_broker, stat_file=stat_file)
         trader.add_strategy(strategy)

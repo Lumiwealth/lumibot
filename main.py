@@ -5,7 +5,7 @@ from datetime import datetime
 from time import time
 
 from credentials import AlpacaConfig
-from lumibot.backtesting import YahooDataBacktesting
+from lumibot.backtesting import YahooDataBacktesting, AlpacaDataBacktesting
 from lumibot.brokers import Alpaca
 from lumibot.data_sources import AlpacaData
 from lumibot.strategies.examples import (
@@ -21,7 +21,7 @@ from lumibot.traders import Trader
 debug = False
 budget = 40000
 backtesting_start = datetime(2018, 1, 1)
-backtesting_end = datetime(2019, 1, 1)  # datetime.now()
+backtesting_end = datetime(2018, 5, 1)  # datetime.now()
 logfile = "logs/test.log"
 
 # Trading objects
@@ -31,10 +31,22 @@ trader = Trader(logfile=logfile, debug=debug)
 
 # Strategies mapping
 mapping = {
-    "momentum": Momentum,
-    "diversification": Diversification,
-    "intraday_momentum": IntradayMomentum,
-    "screener": Screener,
+    "momentum": {
+        "class": Momentum,
+        "backtesting_datasource": YahooDataBacktesting,
+        "auth": None,
+    },
+    "diversification": {
+        "class": Diversification,
+        "backtesting_datasource": YahooDataBacktesting,
+        "auth": None,
+    },
+    "intraday_momentum": {
+        "class": IntradayMomentum,
+        "backtesting_datasource": AlpacaDataBacktesting,
+        "auth": AlpacaConfig,
+    },
+    "screener": {"class": Screener, "backtesting_datasource": None, "auth": None},
 }
 
 if __name__ == "__main__":
@@ -56,9 +68,13 @@ if __name__ == "__main__":
     live_trading = args.live_trading
 
     for strategy_name in strategies:
-        strategy_class = mapping.get(strategy_name)
-        if strategy_class is None:
+        strategy_params = mapping.get(strategy_name)
+        if strategy_params is None:
             raise ValueError(f"Strategy {strategy_name} does not exist")
+
+        strategy_class = strategy_params["class"]
+        backtesting_datasource = strategy_params["backtesting_datasource"]
+        auth = strategy_params["auth"]
 
         stat_file = f"logs/strategy_{strategy_class.__name__}_{int(time())}.csv"
         if live_trading:
@@ -67,12 +83,18 @@ if __name__ == "__main__":
             )
             trader.add_strategy(strategy)
         else:
+            if backtesting_datasource is None:
+                raise ValueError(
+                    f"Backtesting is not supported for strategy {strategy_name}"
+                )
+
             strategy_class.backtest(
-                YahooDataBacktesting,
+                backtesting_datasource,
                 budget,
                 backtesting_start,
                 backtesting_end,
                 stat_file=stat_file,
+                auth=auth,
             )
 
             logging.info(f"*** Benchmark Performance for {benchmark_asset} ***")

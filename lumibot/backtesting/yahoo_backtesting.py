@@ -7,7 +7,7 @@ class YahooDataBacktesting(YahooData):
     IS_BACKTESTING_DATA_SOURCE = True
     MIN_TIMESTEP = YahooData.MIN_TIMESTEP
 
-    def __init__(self, datetime_start, datetime_end):
+    def __init__(self, datetime_start, datetime_end, **kwargs):
         YahooData.__init__(self)
         self.datetime_start = datetime_start
         self.datetime_end = datetime_end

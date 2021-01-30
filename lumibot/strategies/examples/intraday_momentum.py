@@ -62,9 +62,13 @@ class IntradayMomentum(Strategy):
     def before_market_closes(self):
         # Make sure that we sell everything before the market closes
         self.sell_all()
+        self.quantity = 0
+        self.asset = ""
 
     def on_abrupt_closing(self):
         self.sell_all()
+        self.quantity = 0
+        self.asset = ""
 
     def trace_stats(self, context, snapshot_before):
         """

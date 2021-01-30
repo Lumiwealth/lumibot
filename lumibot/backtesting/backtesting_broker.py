@@ -237,7 +237,7 @@ class BacktestingBroker(Broker):
                 symbol = order.symbol
                 stored_order = broker.get_tracked_order(identifier)
                 filled_quantity = stored_order.quantity
-                price = self.get_last_price(symbol)
+                price = broker.get_last_price(symbol)
                 broker._process_trade_event(
                     stored_order,
                     broker.FILLED_ORDER,

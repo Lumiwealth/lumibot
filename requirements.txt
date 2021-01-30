@@ -5,3 +5,4 @@ pandas==1.2.0
 black==20.8b1
 isort==5.7.0
 pytest==6.2.1
+redis==3.5.3

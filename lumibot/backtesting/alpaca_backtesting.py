@@ -48,25 +48,28 @@ class AlpacaDataBacktesting(AlpacaData):
             if first_date > start_date:
                 period = first_date - start_date
                 n_years = math.ceil(period / timedelta(days=366))
-                query_ranges.append(
-                    (first_date - n_years * timedelta(days=366), first_date)
-                )
+                for i in range(-n_years, 0, -1):
+                    query_ranges.append((
+                        first_date - i * timedelta(days=366),
+                        first_date - (i + 1) * timedelta(days=366)
+                    ))
             if last_date < end_date:
                 period = end_date - last_date
                 n_years = math.ceil(period / timedelta(days=366))
-                query_ranges.append(
-                    (last_date, last_date + n_years * timedelta(days=366))
-                )
+                for i in range(n_years):
+                    query_ranges.append((
+                        last_date + i * timedelta(days=366),
+                        last_date + (i + 1) * timedelta(days=366),
+                    ))
         else:
             self._data_store[symbol] = []
             period = end_date - start_date
             n_years = math.ceil(period / timedelta(days=366))
-            query_ranges.append(
-                (
-                    start_date - timedelta(days=366),
-                    start_date + n_years * timedelta(days=366),
-                )
-            )
+            for i in range(-1, n_years):
+                query_ranges.append((
+                    start_date + i * timedelta(days=366),
+                    start_date + (i + 1) * timedelta(days=366),
+                ))
 
         return query_ranges
 
@@ -84,6 +87,8 @@ class AlpacaDataBacktesting(AlpacaData):
                     end = self.format_datetime(
                         start_query_date + (i + 1) * timedelta(days=366)
                     )
+                    logging.info(f"Fetching data from {start} to {end}")
+                    print(f"Fetching data from {start} to {end}")
                     response = self.api.get_barset(symbol, "1Min", start=start, end=end)
                     self._data_store[symbol].extend(response[symbol])
 
@@ -143,7 +148,7 @@ class AlpacaDataBacktesting(AlpacaData):
         if not response:
             return
 
-        df = pd.DataFrame()
+        raw = []
         for row in response:
             item = {
                 "time": row.t,
@@ -155,8 +160,9 @@ class AlpacaDataBacktesting(AlpacaData):
                 "dividend": 0,
                 "stock_splits": 0,
             }
-            df = df.append(item, ignore_index=True)
+            raw.append(item)
 
+        df = pd.DataFrame(raw)
         df = df.set_index("time")
         df["price_change"] = df["close"].pct_change()
         df["dividend"] = 0

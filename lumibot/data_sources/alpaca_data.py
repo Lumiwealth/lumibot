@@ -15,7 +15,7 @@ add_comparaison_mixins(Bar, "t")
 
 
 class AlpacaData(DataSource):
-    SOURCE = "alpaca"
+    SOURCE = "ALPACA"
     NY_TIMEZONE = "America/New_York"
     NY_PYTZ = pytz.timezone(NY_TIMEZONE)
     MIN_TIMESTEP = "minute"

@@ -10,7 +10,7 @@ from .data_source import DataSource
 
 
 class YahooData(DataSource):
-    SOURCE = "yahoo"
+    SOURCE = "YAHOO"
     MIN_TIMESTEP = "day"
     TIMESTEP_MAPPING = [
         {"timestep": "day", "represntations": ["1D", "day"]},

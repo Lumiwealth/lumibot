@@ -4,8 +4,8 @@ class Bars:
         df columns: open, high, low, close, dividend, volume
         df index: pd.Timestamp
         """
-        self.source = source
-        self.symbol = symbol
+        self.source = source.upper()
+        self.symbol = symbol.upper()
         self.df = df
         self._raw = raw
 

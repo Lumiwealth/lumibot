@@ -5,6 +5,7 @@ from lumibot.tools import get_chunks
 
 
 class DataSource:
+    SOURCE = ""
     IS_BACKTESTING_DATA_SOURCE = False
     MIN_TIMESTEP = "minute"
     TIMESTEP_MAPPING = []
@@ -32,7 +33,7 @@ class DataSource:
     def _pull_source_bars(self, symbols, length, timestep=MIN_TIMESTEP, timeshift=None):
         pass
 
-    def _parse_source_symbol_bars(self, response):
+    def _parse_source_symbol_bars(self, response, symbol):
         pass
 
     def _parse_source_bars(self, response):
@@ -48,7 +49,7 @@ class DataSource:
         response = self._pull_source_symbol_bars(
             symbol, length, timestep=timestep, timeshift=timeshift
         )
-        bars = self._parse_source_symbol_bars(response)
+        bars = self._parse_source_symbol_bars(response, symbol)
         return bars
 
     def get_bars(

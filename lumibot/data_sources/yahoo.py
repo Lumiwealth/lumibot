@@ -10,6 +10,7 @@ from .data_source import DataSource
 
 
 class YahooData(DataSource):
+    SOURCE = "yahoo"
     MIN_TIMESTEP = "day"
     TIMESTEP_MAPPING = [
         {"timestep": "day", "represntations": ["1D", "day"]},
@@ -53,7 +54,7 @@ class YahooData(DataSource):
             )
         return result
 
-    def _parse_source_symbol_bars(self, response):
+    def _parse_source_symbol_bars(self, response, symbol):
         df = response.copy()
         df.columns = [
             "open",
@@ -67,11 +68,11 @@ class YahooData(DataSource):
         df["price_change"] = df["close"].pct_change()
         df["dividend_yield"] = df["dividend"] / df["close"]
         df["return"] = df["dividend_yield"] + df["price_change"]
-        bars = Bars(df, raw=response)
+        bars = Bars(df, self.SOURCE, symbol, raw=response)
         return bars
 
     def _parse_source_bars(self, response):
         result = {}
         for symbol, bars in response.items():
-            result[symbol] = self._parse_source_symbol_bars(bars)
+            result[symbol] = self._parse_source_symbol_bars(bars, symbol)
         return result

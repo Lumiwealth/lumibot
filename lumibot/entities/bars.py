@@ -1,9 +1,11 @@
 class Bars:
-    def __init__(self, df, raw=None):
+    def __init__(self, df, source, symbol, raw=None):
         """
         df columns: open, high, low, close, dividend, volume
         df index: pd.Timestamp
         """
+        self.source = source
+        self.symbol = symbol
         self.df = df
         self._raw = raw
 

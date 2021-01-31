@@ -144,7 +144,7 @@ class AlpacaDataBacktesting(AlpacaData):
         data = self._extract_data(symbol, length, end_date, timestep=timestep)
         return data
 
-    def _parse_source_symbol_bars(self, response):
+    def _parse_source_symbol_bars(self, response, symbol):
         if not response:
             return
 
@@ -168,7 +168,7 @@ class AlpacaDataBacktesting(AlpacaData):
         df["dividend"] = 0
         df["dividend_yield"] = df["dividend"] / df["close"]
         df["return"] = df["dividend_yield"] + df["price_change"]
-        bars = Bars(df, raw=response)
+        bars = Bars(df, self.SOURCE, symbol, raw=response)
         return bars
 
     def _pull_source_bars(self, symbols, length, timestep="minute", timeshift=None):
@@ -184,7 +184,7 @@ class AlpacaDataBacktesting(AlpacaData):
     def _parse_source_bars(self, response):
         result = {}
         for symbol, data in response.items():
-            result[symbol] = self._parse_source_symbol_bars(data)
+            result[symbol] = self._parse_source_symbol_bars(data, symbol)
         return result
 
     def _update_datetime(self, new_datetime):

@@ -122,6 +122,10 @@ object corresponds to ```bars.df```. The dataframe has the following columns
 - dividend
 - volume
 
+Bars objects has the following fields:
+- source: the source of the data e.g. (yahoo, alpaca, ...)
+- symbol: the symbol of the bars
+
 Bars objects has the following helper methods:
 - ```get_last_price()```: returns the closing price of the last dataframe row
 - ```get_last_dividend()```: returns the dividend per share value of the last dataframe row

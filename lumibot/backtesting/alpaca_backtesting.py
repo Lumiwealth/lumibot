@@ -34,7 +34,7 @@ class AlpacaDataBacktesting(AlpacaData):
         }
         return Bar(item)
 
-    def _get_start_end_dates(self, length, timestep="minute", timeshift=None):
+    def _get_datetime_range(self, length, timestep="minute", timeshift=None):
         backtesting_timeshift = datetime.now() - self._datetime
         if timeshift:
             backtesting_timeshift += timeshift
@@ -51,6 +51,10 @@ class AlpacaDataBacktesting(AlpacaData):
         self._data_store[symbol] = deduplicate_sequence(self._data_store[symbol])
 
     def _get_missing_range(self, symbol, start_date, end_date):
+        """Return a list of tuple. Each tuple corresponds to a date range,
+        first value is a datetime that indicates the start of the daterange,
+        second is the end of the daterange. Both datetime objects are
+        tz-aware America/New_York Timezones"""
         start_date = self.localize_datetime(start_date)
         end_date = self.localize_datetime(end_date)
         query_ranges = []
@@ -61,13 +65,14 @@ class AlpacaDataBacktesting(AlpacaData):
             if first_date > start_date:
                 period = first_date - start_date
                 n_years = math.ceil(period / timedelta(days=366))
-                for i in range(-n_years, 0, -1):
+                for i in range(-n_years, 0):
                     query_ranges.append(
                         (
-                            first_date - i * timedelta(days=366),
-                            first_date - (i + 1) * timedelta(days=366),
+                            first_date + i * timedelta(days=366),
+                            first_date + (i + 1) * timedelta(days=366),
                         )
                     )
+
             if last_date < end_date:
                 period = end_date - last_date
                 n_years = math.ceil(period / timedelta(days=366))
@@ -104,23 +109,16 @@ class AlpacaDataBacktesting(AlpacaData):
         query_ranges = self._get_missing_range(symbol, start_date, end_date)
         if query_ranges:
             logging.info("Fetching new Data for %r" % symbol)
-            for start_query_date, end_query_date in query_ranges:
-                period = end_query_date - start_query_date
-                n_years = math.ceil(period / timedelta(days=366))
-                for i in range(n_years):
-                    start = self._format_datetime(
-                        start_query_date + i * timedelta(days=366)
-                    )
-                    end = self._format_datetime(
-                        start_query_date + (i + 1) * timedelta(days=366)
-                    )
-                    logging.info(f"Fetching data from {start} to {end}")
-                    print(f"Fetching data from {start} to {end}")
-                    response = self.api.get_barset(symbol, "1Min", start=start, end=end)
-                    if response and self._redis_cache:
-                        bars = self._parse_source_symbol_bars(response[symbol], symbol)
-                        self._redis_cache.store_bars(bars)
-                    self._data_store[symbol].extend(response[symbol])
+            for start, end in query_ranges:
+                logging.info(f"Fetching data from {start} to {end}")
+                start = self._format_datetime(start)
+                end = self._format_datetime(end)
+                response = self.api.get_barset(symbol, "1Min", start=start, end=end)
+                if response and self._redis_cache:
+                    bars = self._parse_source_symbol_bars(response[symbol], symbol)
+                    self._redis_cache.store_bars(bars)
+                    self._redis_cache.bgsave()
+                self._data_store[symbol].extend(response[symbol])
 
             self._data_store[symbol].sort(key=lambda x: x.t)
             self._deduplicate_store_row(symbol)
@@ -155,7 +153,7 @@ class AlpacaDataBacktesting(AlpacaData):
                     result.append(item)
                 elif timestep == "day":
                     new_date = datetime.combine(item.t.date(), datetime.min.time())
-                    item.t = self.localize_datetime.localize(new_date)
+                    item.t = self.localize_datetime(new_date)
                     result.append(item)
 
             if len(result) >= length:
@@ -167,7 +165,7 @@ class AlpacaDataBacktesting(AlpacaData):
         self, symbol, length, timestep="minute", timeshift=None
     ):
         self._parse_source_timestep(timestep, reverse=True)
-        start_date, end_date = self._get_start_end_dates(
+        start_date, end_date = self._get_datetime_range(
             length, timestep=timestep, timeshift=timeshift
         )
         self._update_store(symbol, start_date, end_date)

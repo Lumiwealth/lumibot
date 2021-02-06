@@ -132,3 +132,6 @@ class RedisCacheData:
                 result[symbol].append(val)
 
         return result
+
+    def bgsave(self):
+        self._redis.bgsave()

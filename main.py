@@ -16,6 +16,7 @@ from lumibot.strategies.examples import (
 )
 from lumibot.tools import indicators
 from lumibot.traders import Trader
+from lumibot.trading_builtins import set_redis_db
 
 # Global parameters
 debug = False
@@ -34,19 +35,27 @@ mapping = {
     "momentum": {
         "class": Momentum,
         "backtesting_datasource": YahooDataBacktesting,
+        "backtesting_cache": False,
         "auth": None,
     },
     "diversification": {
         "class": Diversification,
         "backtesting_datasource": YahooDataBacktesting,
+        "backtesting_cache": False,
         "auth": None,
     },
     "intraday_momentum": {
         "class": IntradayMomentum,
         "backtesting_datasource": AlpacaDataBacktesting,
+        "backtesting_cache": True,
         "auth": AlpacaConfig,
     },
-    "screener": {"class": Screener, "backtesting_datasource": None, "auth": None},
+    "screener": {
+        "class": Screener,
+        "backtesting_datasource": None,
+        "backtesting_cache": False,
+        "auth": None
+    },
 }
 
 if __name__ == "__main__":
@@ -74,6 +83,7 @@ if __name__ == "__main__":
 
         strategy_class = strategy_params["class"]
         backtesting_datasource = strategy_params["backtesting_datasource"]
+        backtesting_cache = strategy_params["backtesting_cache"]
         auth = strategy_params["auth"]
 
         stat_file = f"logs/strategy_{strategy_class.__name__}_{int(time())}.csv"
@@ -87,6 +97,9 @@ if __name__ == "__main__":
                 raise ValueError(
                     f"Backtesting is not supported for strategy {strategy_name}"
                 )
+
+            if backtesting_cache:
+                set_redis_db()
 
             strategy_class.backtest(
                 backtesting_datasource,

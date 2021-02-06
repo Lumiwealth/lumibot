@@ -24,6 +24,10 @@ class AlpacaData(DataSource):
 
     """Common base class for data_sources/alpaca and brokers/alpaca"""
 
+    @staticmethod
+    def _format_datetime(dt):
+        return pd.Timestamp(dt).isoformat()
+
     def __init__(self, config, max_workers=20, chunk_size=100):
         # Alpaca authorize 200 requests per minute and per API key
         # Setting the max_workers for multithreading with a maximum
@@ -52,13 +56,6 @@ class AlpacaData(DataSource):
             self.api_key, self.api_secret, self.endpoint, self.version
         )
 
-    def format_datetime(self, dt):
-        if dt.tzinfo:
-            result = pd.Timestamp(dt).isoformat()
-        else:
-            result = pd.Timestamp(dt, tz=self.DEFAULT_TIMEZONE).isoformat()
-        return result
-
     def _pull_source_symbol_bars(
         self, symbol, length, timestep=MIN_TIMESTEP, timeshift=None
     ):
@@ -68,10 +65,11 @@ class AlpacaData(DataSource):
         )
         return response.df[symbol]
 
-    def _parse_source_symbol_bars(self, response, source):
+    def _parse_source_symbol_bars(self, response, symbol):
         df = response.copy()
         df["price_change"] = df["close"].pct_change()
         df["dividend"] = 0
+        df["stock_splits"] = 0
         df["dividend_yield"] = df["dividend"] / df["close"]
         df["return"] = df["dividend_yield"] + df["price_change"]
         bars = Bars(df, self.SOURCE, symbol, raw=response)
@@ -89,6 +87,7 @@ class AlpacaData(DataSource):
         kwargs = dict(limit=length)
         if timeshift:
             end = datetime.now() - timeshift
-            kwargs["end"] = self.format_datetime(end)
+            end = self.to_default_timezone(end)
+            kwargs["end"] = self._format_datetime(end)
         response = self.api.get_barset(symbols, parsed_timestep, **kwargs)
         return response

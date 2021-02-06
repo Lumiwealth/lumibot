@@ -108,10 +108,10 @@ class AlpacaDataBacktesting(AlpacaData):
                 period = end_query_date - start_query_date
                 n_years = math.ceil(period / timedelta(days=366))
                 for i in range(n_years):
-                    start = self.format_datetime(
+                    start = self._format_datetime(
                         start_query_date + i * timedelta(days=366)
                     )
-                    end = self.format_datetime(
+                    end = self._format_datetime(
                         start_query_date + (i + 1) * timedelta(days=366)
                     )
                     logging.info(f"Fetching data from {start} to {end}")

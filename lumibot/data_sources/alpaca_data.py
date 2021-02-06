@@ -16,8 +16,6 @@ add_comparaison_mixins(Bar, "t")
 
 class AlpacaData(DataSource):
     SOURCE = "ALPACA"
-    NY_TIMEZONE = "America/New_York"
-    NY_PYTZ = pytz.timezone(NY_TIMEZONE)
     MIN_TIMESTEP = "minute"
     TIMESTEP_MAPPING = [
         {"timestep": "minute", "represntations": ["1Min", "minute"]},
@@ -58,7 +56,7 @@ class AlpacaData(DataSource):
         if dt.tzinfo:
             result = pd.Timestamp(dt).isoformat()
         else:
-            result = pd.Timestamp(dt, tz=self.NY_TIMEZONE).isoformat()
+            result = pd.Timestamp(dt, tz=self.DEFAULT_TIMEZONE).isoformat()
         return result
 
     def _pull_source_symbol_bars(

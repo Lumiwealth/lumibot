@@ -1,6 +1,8 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import timedelta
 
+import pytz
+
 from lumibot.tools import get_chunks
 
 
@@ -9,6 +11,16 @@ class DataSource:
     IS_BACKTESTING_DATA_SOURCE = False
     MIN_TIMESTEP = "minute"
     TIMESTEP_MAPPING = []
+    DEFAULT_TIMEZONE = "America/New_York"
+    DEFAULT_PYTZ = pytz.timezone(DEFAULT_TIMEZONE)
+
+    @classmethod
+    def localize_datetime(cls, dt):
+        return cls.DEFAULT_PYTZ.localize(dt)
+
+    @classmethod
+    def to_default_timezone(cls, dt):
+        return dt.astimezone(cls.DEFAULT_PYTZ)
 
     def _parse_source_timestep(self, timestep, reverse=False):
         """transform the data source timestep variable

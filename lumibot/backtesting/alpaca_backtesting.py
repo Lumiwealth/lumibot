@@ -51,8 +51,8 @@ class AlpacaDataBacktesting(AlpacaData):
         self._data_store[symbol] = deduplicate_sequence(self._data_store[symbol])
 
     def _get_missing_range(self, symbol, start_date, end_date):
-        start_date = self.NY_PYTZ.localize(start_date)
-        end_date = self.NY_PYTZ.localize(end_date)
+        start_date = self.localize_datetime(start_date)
+        end_date = self.localize_datetime(end_date)
         query_ranges = []
         if symbol in self._data_store and self._data_store[symbol]:
             data = self._data_store[symbol]
@@ -131,12 +131,12 @@ class AlpacaDataBacktesting(AlpacaData):
         dummy_bar = Bar(None)
 
         if timestep == "minute":
-            dummy_bar.t = self.NY_PYTZ.localize(end)
+            dummy_bar.t = self.localize_datetime(end)
             end_position = bisect.bisect_right(data, dummy_bar) - 1
         else:
             next_day_date = end.date() + timedelta(days=1)
             next_day_datetime = datetime.combine(next_day_date, datetime.min.time())
-            dummy_bar.t = self.NY_PYTZ.localize(next_day_datetime)
+            dummy_bar.t = self.localize_datetime(next_day_datetime)
             end_position = bisect.bisect_left(data, dummy_bar) - 1
 
         for index in range(end_position, -1, -1):
@@ -148,14 +148,14 @@ class AlpacaDataBacktesting(AlpacaData):
                     result.insert(0, item)
                 elif timestep == "day" and last_timestamp.date() != item.t.date():
                     new_date = datetime.combine(item.t.date(), datetime.min.time())
-                    item.t = self.NY_PYTZ.localize(new_date)
+                    item.t = self.localize_datetime(new_date)
                     result.insert(0, item)
             else:
                 if timestep == "minute":
                     result.append(item)
                 elif timestep == "day":
                     new_date = datetime.combine(item.t.date(), datetime.min.time())
-                    item.t = self.NY_PYTZ.localize(new_date)
+                    item.t = self.localize_datetime.localize(new_date)
                     result.append(item)
 
             if len(result) >= length:

@@ -23,7 +23,7 @@ class YahooDataBacktesting(YahooData):
         result = YahooData._pull_source_symbol_bars(
             self, symbol, length, timestep=timestep, timeshift=backtesting_timeshift
         )
-        filter_criteria = result.index <= self._datetime
+        filter_criteria = result.index <= self.localize_datetime(self._datetime)
         result = result[filter_criteria]
         return result
 

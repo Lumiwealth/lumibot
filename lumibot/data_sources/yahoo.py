@@ -20,6 +20,10 @@ class YahooData(DataSource):
         self.name = "yahoo"
         self._data_store = {}
 
+    def _append_data(self, symbol, data):
+        data.index = data.index.tz_localize(self.DEFAULT_TIMEZONE)
+        self._data_store[symbol] = data
+
     def _pull_source_symbol_bars(
         self, symbol, length, timestep=MIN_TIMESTEP, timeshift=None
     ):
@@ -28,10 +32,11 @@ class YahooData(DataSource):
             data = self._data_store[symbol]
         else:
             data = yf.Ticker(symbol).history(period="max")
-            self._data_store[symbol] = data
+            self._append_data(symbol, data)
 
         if timeshift:
             end = datetime.now() - timeshift
+            end = self.to_default_timezone(end)
             data = data[data.index <= end]
 
         result = data.tail(length)
@@ -45,7 +50,8 @@ class YahooData(DataSource):
         ]
         tickers = yf.Tickers(" ".join(missing_symbols))
         for ticker in tickers.tickers:
-            self._data_store[ticker.ticker] = ticker.history(period="max")
+            data = ticker.history(period="max")
+            self._append_data(ticker.ticker, data)
 
         result = {}
         for symbol in symbols:

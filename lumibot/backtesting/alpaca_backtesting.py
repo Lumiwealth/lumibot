@@ -9,6 +9,7 @@ from alpaca_trade_api.entity import Bar
 from lumibot.data_sources import AlpacaData
 from lumibot.entities import Bars
 from lumibot.tools import deduplicate_sequence
+from lumibot.trading_builtins import get_redis_db
 
 
 class AlpacaDataBacktesting(AlpacaData):
@@ -19,7 +20,19 @@ class AlpacaDataBacktesting(AlpacaData):
         self.datetime_start = datetime_start
         self.datetime_end = datetime_end
         self._datetime = datetime_start
+        self._redis_cache = get_redis_db()
         self._data_store = {}
+
+    def _redis_mapping_parser(self, data):
+        item = {
+            "c": data.get("close"),
+            "h": data.get("high"),
+            "l": data.get("low"),
+            "o": data.get("open"),
+            "t": int(data.get("timestamp")),
+            "v": data.get("volume"),
+        }
+        return Bar(item)
 
     def _get_start_end_dates(self, length, timestep="minute", timeshift=None):
         backtesting_timeshift = datetime.now() - self._datetime
@@ -41,7 +54,7 @@ class AlpacaDataBacktesting(AlpacaData):
         start_date = self.NY_PYTZ.localize(start_date)
         end_date = self.NY_PYTZ.localize(end_date)
         query_ranges = []
-        if symbol in self._data_store:
+        if symbol in self._data_store and self._data_store[symbol]:
             data = self._data_store[symbol]
             first_date = data[0].t.to_pydatetime()
             last_date = data[-1].t.to_pydatetime()
@@ -80,6 +93,14 @@ class AlpacaDataBacktesting(AlpacaData):
         return query_ranges
 
     def _update_store(self, symbol, start_date, end_date):
+        if self._redis_cache and symbol not in self._data_store:
+            logging.info(f"Checking {symbol} data in redis database")
+            redis_store = self._redis_cache.retrieve_store(
+                self.SOURCE, [symbol], parser=self._redis_mapping_parser
+            )
+            redis_store[symbol].sort(key=lambda b: b.t)
+            self._data_store[symbol] = redis_store[symbol]
+
         query_ranges = self._get_missing_range(symbol, start_date, end_date)
         if query_ranges:
             logging.info("Fetching new Data for %r" % symbol)
@@ -96,6 +117,9 @@ class AlpacaDataBacktesting(AlpacaData):
                     logging.info(f"Fetching data from {start} to {end}")
                     print(f"Fetching data from {start} to {end}")
                     response = self.api.get_barset(symbol, "1Min", start=start, end=end)
+                    if response and self._redis_cache:
+                        bars = self._parse_source_symbol_bars(response[symbol], symbol)
+                        self._redis_cache.store_bars(bars)
                     self._data_store[symbol].extend(response[symbol])
 
             self._data_store[symbol].sort(key=lambda x: x.t)

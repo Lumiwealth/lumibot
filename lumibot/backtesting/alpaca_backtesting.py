@@ -49,27 +49,33 @@ class AlpacaDataBacktesting(AlpacaData):
                 period = first_date - start_date
                 n_years = math.ceil(period / timedelta(days=366))
                 for i in range(-n_years, 0, -1):
-                    query_ranges.append((
-                        first_date - i * timedelta(days=366),
-                        first_date - (i + 1) * timedelta(days=366)
-                    ))
+                    query_ranges.append(
+                        (
+                            first_date - i * timedelta(days=366),
+                            first_date - (i + 1) * timedelta(days=366),
+                        )
+                    )
             if last_date < end_date:
                 period = end_date - last_date
                 n_years = math.ceil(period / timedelta(days=366))
                 for i in range(n_years):
-                    query_ranges.append((
-                        last_date + i * timedelta(days=366),
-                        last_date + (i + 1) * timedelta(days=366),
-                    ))
+                    query_ranges.append(
+                        (
+                            last_date + i * timedelta(days=366),
+                            last_date + (i + 1) * timedelta(days=366),
+                        )
+                    )
         else:
             self._data_store[symbol] = []
             period = end_date - start_date
             n_years = math.ceil(period / timedelta(days=366))
             for i in range(-1, n_years):
-                query_ranges.append((
-                    start_date + i * timedelta(days=366),
-                    start_date + (i + 1) * timedelta(days=366),
-                ))
+                query_ranges.append(
+                    (
+                        start_date + i * timedelta(days=366),
+                        start_date + (i + 1) * timedelta(days=366),
+                    )
+                )
 
         return query_ranges
 

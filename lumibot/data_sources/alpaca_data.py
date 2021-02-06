@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime
 
 import alpaca_trade_api as tradeapi
 import pandas as pd

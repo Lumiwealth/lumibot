@@ -5,7 +5,7 @@ from datetime import datetime
 from time import time
 
 from credentials import AlpacaConfig
-from lumibot.backtesting import YahooDataBacktesting, AlpacaDataBacktesting
+from lumibot.backtesting import AlpacaDataBacktesting, YahooDataBacktesting
 from lumibot.brokers import Alpaca
 from lumibot.data_sources import AlpacaData
 from lumibot.strategies.examples import (
@@ -22,7 +22,7 @@ from lumibot.trading_builtins import set_redis_db
 debug = False
 budget = 40000
 backtesting_start = datetime(2018, 1, 1)
-backtesting_end = datetime(2018, 5, 1)  # datetime.now()
+backtesting_end = datetime(2018, 1, 3)
 logfile = "logs/test.log"
 
 # Trading objects
@@ -54,7 +54,7 @@ mapping = {
         "class": Screener,
         "backtesting_datasource": None,
         "backtesting_cache": False,
-        "auth": None
+        "auth": None,
     },
 }
 

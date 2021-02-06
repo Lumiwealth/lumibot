@@ -1,6 +1,8 @@
-import os
-from redis import Redis
 import logging
+import os
+
+from redis import Redis
+
 
 def set_redis_db(host="localhost", port=6379, db_number=0):
     os.environ["LUMIBOT_USE_REDIS"] = "TRUE"
@@ -9,8 +11,10 @@ def set_redis_db(host="localhost", port=6379, db_number=0):
     os.environ["LUMIBOT_REDIS_DB"] = str(db_number)
     logging.info(f"setting redis db at redis://{host}:{port}/{db_number}")
 
+
 def get_redis_db():
     return RedisCacheData.check_redis_db()
+
 
 class RedisCacheData:
     @classmethod

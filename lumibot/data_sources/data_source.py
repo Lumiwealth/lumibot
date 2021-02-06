@@ -16,7 +16,7 @@ class DataSource:
 
     @classmethod
     def localize_datetime(cls, dt):
-        return cls.DEFAULT_PYTZ.localize(dt)
+        return cls.DEFAULT_PYTZ.localize(dt, is_dst=None)
 
     @classmethod
     def to_default_timezone(cls, dt):

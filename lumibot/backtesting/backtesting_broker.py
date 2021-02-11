@@ -1,6 +1,6 @@
 import logging
 import traceback
-from datetime import date, datetime, time, timedelta
+from datetime import datetime, time, timedelta
 from functools import wraps
 from secrets import token_hex
 
@@ -26,8 +26,6 @@ class BacktestingBroker(Broker):
                 "object %r is not a backteesting data_source" % data_source
             )
         self._data_source = data_source
-        self._datetime = self._data_source._datetime
-
         self._trading_days = get_trading_days()
 
         Broker.__init__(self, connect_stream=connect_stream)
@@ -53,20 +51,23 @@ class BacktestingBroker(Broker):
 
         return new_func
 
+    @property
+    def datetime(self):
+        return self._data_source._datetime
+
     # =========Internal functions==================
 
     def _update_datetime(self, input):
         """Works with either timedelta or datetime input"""
         if isinstance(input, timedelta):
-            new_datetime = self._datetime + input
+            new_datetime = self.datetime + input
         elif isinstance(input, int) or isinstance(input, float):
-            new_datetime = self._datetime + timedelta(seconds=input)
+            new_datetime = self.datetime + timedelta(seconds=input)
         else:
             new_datetime = input
 
-        self._datetime = new_datetime
         self._data_source._update_datetime(new_datetime)
-        logging.info(f"Current backtesting datetime {self._datetime}")
+        logging.info(f"Current backtesting datetime {self.datetime}")
 
     # =========Clock functions=====================
 
@@ -74,30 +75,30 @@ class BacktestingBroker(Broker):
         """In production mode always returns True.
         Needs to be overloaded for backtesting to
         check if the limit datetime was reached"""
-        if self._data_source._datetime >= self._data_source.datetime_end:
+        if self.datetime >= self._data_source.datetime_end:
             return False
         return True
 
     def get_timestamp(self):
         """return current timestamp"""
-        return self._datetime.timestamp()
+        return self.datetime.timestamp()
 
     def get_datetime(self):
         """return current datetime"""
-        return self._datetime
+        return self.datetime
 
     def is_market_open(self):
         """return True if market is open else false"""
-        current_date = self._datetime.date()
+        current_date = self.datetime.date()
         if current_date in self._trading_days:
-            current_time = self._datetime.time()
+            current_time = self.datetime.time()
             if self.MARKET_OPEN_TIME <= current_time <= self.MARKET_CLOSE_TIME:
                 return True
 
         return False
 
     def _get_next_trading_day(self):
-        current_date = self._datetime.date()
+        current_date = self.datetime.date()
         for date_ in self._trading_days:
             if date_ > current_date:
                 return date_
@@ -110,20 +111,20 @@ class BacktestingBroker(Broker):
         """Return the remaining time for the market to open in seconds"""
         next_trading_date = self._get_next_trading_day()
         next_open_datetime = datetime.combine(next_trading_date, self.MARKET_OPEN_TIME)
-        delta = next_open_datetime - self._datetime
+        delta = next_open_datetime - self.datetime
         return delta.total_seconds()
 
     def get_time_to_close(self):
         """Return the remaining time for the market to close in seconds"""
         if self.is_market_open():
-            current_date = self._datetime.date()
+            current_date = self.datetime.date()
             next_close_datetime = datetime.combine(current_date, self.MARKET_CLOSE_TIME)
         else:
             next_trading_date = self._get_next_trading_day()
             next_close_datetime = datetime.combine(
                 next_trading_date, self.MARKET_CLOSE_TIME
             )
-        delta = next_close_datetime - self._datetime
+        delta = next_close_datetime - self.datetime
         return delta.total_seconds()
 
     def await_market_to_open(self):

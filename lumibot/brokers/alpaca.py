@@ -38,16 +38,16 @@ class Alpaca(AlpacaData, Broker):
     def get_time_to_open(self):
         """Return the remaining time for the market to open in seconds"""
         clock = self.api.get_clock()
-        opening_time = clock.next_open.replace(tzinfo=timezone.utc).timestamp()
-        curr_time = clock.timestamp.replace(tzinfo=timezone.utc).timestamp()
+        opening_time = clock.next_open.timestamp()
+        curr_time = clock.timestamp.timestamp()
         time_to_open = opening_time - curr_time
         return time_to_open
 
     def get_time_to_close(self):
         """Return the remaining time for the market to close in seconds"""
         clock = self.api.get_clock()
-        closing_time = clock.next_close.replace(tzinfo=timezone.utc).timestamp()
-        curr_time = clock.timestamp.replace(tzinfo=timezone.utc).timestamp()
+        closing_time = clock.next_close.timestamp()
+        curr_time = clock.timestamp.timestamp()
         time_to_close = closing_time - curr_time
         return time_to_close
 

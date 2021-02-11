@@ -2,7 +2,6 @@ from datetime import datetime
 
 import alpaca_trade_api as tradeapi
 import pandas as pd
-import pytz
 from alpaca_trade_api.common import URL
 from alpaca_trade_api.entity import Bar
 

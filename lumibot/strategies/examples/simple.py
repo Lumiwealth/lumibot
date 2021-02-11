@@ -1,8 +1,6 @@
 import logging
 import random
-from datetime import timedelta
 
-from lumibot.data_sources import AlpacaData
 from lumibot.strategies.strategy import Strategy
 
 """

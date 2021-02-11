@@ -1,6 +1,5 @@
 import logging
 
-from lumibot.data_sources import YahooData
 from lumibot.strategies.strategy import Strategy
 
 

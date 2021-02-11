@@ -1,7 +1,5 @@
-import logging
 from datetime import datetime
 
-import pandas as pd
 import yfinance as yf
 
 from lumibot.entities import Bars

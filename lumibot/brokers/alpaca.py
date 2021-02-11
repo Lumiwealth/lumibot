@@ -1,10 +1,8 @@
 import asyncio
 import logging
-import time
 import traceback
 from asyncio import CancelledError
-from datetime import timedelta, timezone
-from threading import Thread
+from datetime import timezone
 
 import alpaca_trade_api as tradeapi
 

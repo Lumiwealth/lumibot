@@ -1,6 +1,5 @@
 import logging
 
-from lumibot.data_sources import AlpacaData
 from lumibot.strategies.strategy import Strategy
 
 """

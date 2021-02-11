@@ -30,7 +30,7 @@ from lumibot.brokers import Alpaca
 # importing the credential class created in step 2
 from credentials import AlpacaConfig
 # importing the strategy class created in step 3
-from lumibot.strategies.examples import IntradayMomentum
+from lumibot.strategies.examples import Momentum
 ```
 7) In your main.py, define variables for the budget allocated to your strategy. 
    Additionally, define the destination of the logfile.
@@ -47,7 +47,7 @@ The ```Alpaca``` broker class needs your credentials created in step 3 to loging
 
 9) Instantiate your strategy class like so:
 ```python
-strategy = IntradayMomentum(budget=budget, broker=broker)
+strategy = Momentum(budget=budget, broker=broker)
 ```
 10) Register the strategy within the trader
 ```python
@@ -64,7 +64,7 @@ Below an example of main.py:
 from lumibot.traders import Trader
 from lumibot.brokers import Alpaca
 from lumibot.credentials import AlpacaConfig
-from lumibot.strategies.examples import IntradayMomentum
+from lumibot.strategies.examples import Momentum
 
 budget = 40000
 logfile = "logs/test.log"
@@ -72,7 +72,7 @@ logfile = "logs/test.log"
 trader = Trader(logfile=logfile)
 broker = Alpaca(AlpacaConfig)
 
-strategy = IntradayMomentum(budget=budget, broker=broker)
+strategy = Momentum(budget=budget, broker=broker)
 trader.add_strategy(strategy)
 trader.run_all()
 ```

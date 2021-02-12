@@ -19,11 +19,18 @@ class Trader:
         logging.getLogger("urllib3").setLevel(logging.ERROR)
         logging.getLogger("requests").setLevel(logging.ERROR)
 
+        # Checking if executing backtests
+        is_backtest = False
+        if any([s.broker.IS_BACKTESTING_BROKER for s in self._strategies]):
+            is_backtest = True
+
         logger = logging.getLogger()
         if not logger.handlers:
             logger.addHandler(logging.StreamHandler())
         if self.debug:
             logger.setLevel(logging.DEBUG)
+        elif is_backtest:
+            logger.setLevel(logging.ERROR)
         else:
             logger.setLevel(logging.INFO)
 

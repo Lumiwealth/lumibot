@@ -74,9 +74,3 @@ class YahooData(DataSource):
         df["return"] = df["dividend_yield"] + df["price_change"]
         bars = Bars(df, self.SOURCE, symbol, raw=response)
         return bars
-
-    def _parse_source_bars(self, response):
-        result = {}
-        for symbol, bars in response.items():
-            result[symbol] = self._parse_source_symbol_bars(bars, symbol)
-        return result

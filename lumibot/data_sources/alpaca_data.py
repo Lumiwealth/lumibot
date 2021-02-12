@@ -64,22 +64,6 @@ class AlpacaData(DataSource):
         )
         return response.df[symbol]
 
-    def _parse_source_symbol_bars(self, response, symbol):
-        df = response.copy()
-        df["price_change"] = df["close"].pct_change()
-        df["dividend"] = 0
-        df["stock_splits"] = 0
-        df["dividend_yield"] = df["dividend"] / df["close"]
-        df["return"] = df["dividend_yield"] + df["price_change"]
-        bars = Bars(df, self.SOURCE, symbol, raw=response)
-        return bars
-
-    def _parse_source_bars(self, response):
-        result = {}
-        for symbol, bars in response.items():
-            result[symbol] = self._parse_source_symbol_bars(bars.df, symbol)
-        return result
-
     def _pull_source_bars(self, symbols, length, timestep=MIN_TIMESTEP, timeshift=None):
         """pull broker bars for a list symbols"""
         parsed_timestep = self._parse_source_timestep(timestep, reverse=True)
@@ -90,3 +74,13 @@ class AlpacaData(DataSource):
             kwargs["end"] = self._format_datetime(end)
         response = self.api.get_barset(symbols, parsed_timestep, **kwargs)
         return response
+
+    def _parse_source_symbol_bars(self, response, symbol):
+        df = response.copy()
+        df["price_change"] = df["close"].pct_change()
+        df["dividend"] = 0
+        df["stock_splits"] = 0
+        df["dividend_yield"] = df["dividend"] / df["close"]
+        df["return"] = df["dividend_yield"] + df["price_change"]
+        bars = Bars(df, self.SOURCE, symbol, raw=response)
+        return bars

@@ -49,7 +49,10 @@ class DataSource:
         pass
 
     def _parse_source_bars(self, response):
-        pass
+        result = {}
+        for symbol, data in response.items():
+            result[symbol] = self._parse_source_symbol_bars(data, symbol)
+        return result
 
     def get_symbol_bars(self, symbol, length, timestep="", timeshift=None):
         """Get bars for a given symbol"""

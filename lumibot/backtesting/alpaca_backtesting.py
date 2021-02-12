@@ -11,15 +11,15 @@ from lumibot.entities import Bars
 from lumibot.tools import deduplicate_sequence
 from lumibot.trading_builtins import get_redis_db
 
+from .data_source_backtesting import DataSourceBacktesting
 
-class AlpacaDataBacktesting(AlpacaData):
+
+class AlpacaDataBacktesting(AlpacaData, DataSourceBacktesting):
     IS_BACKTESTING_DATA_SOURCE = True
 
     def __init__(self, datetime_start, datetime_end, auth=None):
         AlpacaData.__init__(self, auth)
-        self.datetime_start = datetime_start
-        self.datetime_end = datetime_end
-        self._datetime = datetime_start
+        DataSourceBacktesting.__init__(self, datetime_start, datetime_end)
         self._redis_cache = get_redis_db()
         self._data_store = {}
 
@@ -214,6 +214,3 @@ class AlpacaDataBacktesting(AlpacaData):
         for symbol, data in response.items():
             result[symbol] = self._parse_source_symbol_bars(data, symbol)
         return result
-
-    def _update_datetime(self, new_datetime):
-        self._datetime = new_datetime

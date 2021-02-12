@@ -1,4 +1,6 @@
 import logging
+import os
+import sys
 
 import yfinance as yf
 
@@ -84,3 +86,33 @@ def add_comparaison_mixins(class_obj, scalar_prop):
     class_obj.__ge__ = __ge__
     class_obj.__lt__ = __lt__
     class_obj.__le__ = __le__
+
+
+def print_progress_bar(
+    value,
+    start_value,
+    end_value,
+    file=sys.stdout,
+    length=None,
+    prefix="Progress",
+    suffix="Complete",
+    decimals=2,
+    fill=chr(9608),
+):
+    total_length = end_value - start_value
+    current_length = value - start_value
+    percent = min((current_length / total_length) * 100, 100)
+    percent_str = ("  {:.%df}" % decimals).format(percent)
+    percent_str = percent_str[-decimals - 4 :]
+    if not isinstance(length, int):
+        try:
+            terminal_length, _ = os.get_terminal_size()
+            length = max(0, terminal_length - len(prefix) - len(suffix) - decimals - 10)
+        except:
+            length = 0
+
+    filled_length = int(length * percent / 100)
+    bar = fill * filled_length + "-" * (length - filled_length)
+    line = f"\r{prefix} |{bar}| {percent_str}% {suffix}"
+    file.write(line)
+    file.flush()

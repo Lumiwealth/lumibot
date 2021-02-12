@@ -181,6 +181,9 @@ class Strategy:
                 self._unspent_money += dividend_per_share * quantity
 
     def _dump_stats(self):
+        logger = logging.getLogger()
+        current_level = logging.getLevelName(logger.level)
+        logger.setLevel(logging.INFO)
         if not self.stats_df.empty:
             self.stats_df = self.stats_df.set_index("datetime")
             self.stats_df["return"] = self.stats_df["portfolio_value"].pct_change()
@@ -213,6 +216,8 @@ class Strategy:
             logging.info(
                 self.format_log_message(f"RoMaD {round(100 * romad_value, 2)}%")
             )
+
+        logger.setLevel(current_level)
 
     # ======Order methods shortcuts===============
 

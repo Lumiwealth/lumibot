@@ -62,7 +62,7 @@ class AlpacaData(DataSource):
         response = self._pull_source_bars(
             [symbol], length, timestep=timestep, timeshift=timeshift
         )
-        return response.df[symbol]
+        return response[symbol]
 
     def _pull_source_bars(self, symbols, length, timestep=MIN_TIMESTEP, timeshift=None):
         """pull broker bars for a list symbols"""
@@ -73,7 +73,8 @@ class AlpacaData(DataSource):
             end = self.to_default_timezone(end)
             kwargs["end"] = self._format_datetime(end)
         response = self.api.get_barset(symbols, parsed_timestep, **kwargs)
-        return response
+        result = {k: v.df for k, v in response.items()}
+        return result
 
     def _parse_source_symbol_bars(self, response, symbol):
         df = response.copy()

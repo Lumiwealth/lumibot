@@ -1,7 +1,10 @@
+from lumibot.data_sources import DataSource
 from lumibot.tools import print_progress_bar
 
 
-class DataSourceBacktesting:
+class DataSourceBacktesting(DataSource):
+    IS_BACKTESTING_DATA_SOURCE = True
+
     def __init__(self, datetime_start, datetime_end):
         self.datetime_start = datetime_start
         self.datetime_end = datetime_end

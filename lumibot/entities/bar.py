@@ -1,7 +1,36 @@
-class Bar:
+from datetime import datetime
+
+import pytz
+
+from lumibot.tools import ComparaisonMixin
+
+
+class Bar(ComparaisonMixin):
+    COMPARAISON_PROP = "timestamp"
+    DEFAULT_TIMEZONE = "America/New_York"
+    DEFAULT_PYTZ = pytz.timezone(DEFAULT_TIMEZONE)
+
     def __init__(self, raw):
         self._raw = raw
         self.update(raw)
+
+    @classmethod
+    def get_empty_bar(cls):
+        item = {
+            "timestamp": 0,
+            "open": 0,
+            "high": 0,
+            "low": 0,
+            "close": 0,
+            "volume": 0,
+            "dividend": 0,
+            "stock_splits": 0,
+        }
+        return cls(item)
+
+    @property
+    def raw(self):
+        return self._raw
 
     @property
     def timestamp(self):
@@ -15,6 +44,24 @@ class Bar:
             self._timestamp = value
         except:
             raise ValueError("Timestamp property must be convertible to integer")
+
+    @property
+    def datetime(self):
+        result = datetime.fromtimestamp(self._timestamp)
+        result = self.DEFAULT_PYTZ.localize(result, is_dst=None)
+        return result
+
+    @datetime.setter
+    def datetime(self, input):
+        if not isinstance(input, datetime):
+            raise ValueError("Datetime property must be a datetime object.")
+
+        if self.datetime.tzinfo != input.tzinfo:
+            raise ValueError("Datetime must be localized in %r" % self.DEFAULT_TIMEZONE)
+
+        value = int(input.timestamp())
+        self._raw["timestamp"] = value
+        self._timestamp = value
 
     @property
     def open(self):
@@ -115,7 +162,7 @@ class Bar:
         self._high = self._parse_property(data, "high", required=True, type=float)
         self._low = self._parse_property(data, "low", required=True, type=float)
         self._close = self._parse_property(data, "close", required=True, type=float)
-        self._volume = self._parse_property(data, "volume", required=False, type=float)
+        self._volume = self._parse_property(data, "volume", required=True, type=float)
         self._dividend = self._parse_property(
             data, "dividend", required=False, type=float
         )

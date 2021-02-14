@@ -61,31 +61,38 @@ def df_day_deduplicate(df_):
     return df_copy
 
 
-def add_comparaison_mixins(class_obj, scalar_prop):
+class ComparaisonMixin:
+    COMPARAISON_PROP = "timestamp"
+
     def __eq__(self, other):
-        return getattr(self, scalar_prop) == getattr(other, scalar_prop)
+        return getattr(self, self.COMPARAISON_PROP) == getattr(
+            other, self.COMPARAISON_PROP
+        )
 
     def __ne__(self, other):
-        return getattr(self, scalar_prop) != getattr(other, scalar_prop)
+        return getattr(self, self.COMPARAISON_PROP) != getattr(
+            other, self.COMPARAISON_PROP
+        )
 
     def __gt__(self, other):
-        return getattr(self, scalar_prop) > getattr(other, scalar_prop)
+        return getattr(self, self.COMPARAISON_PROP) > getattr(
+            other, self.COMPARAISON_PROP
+        )
 
     def __ge__(self, other):
-        return getattr(self, scalar_prop) >= getattr(other, scalar_prop)
+        return getattr(self, self.COMPARAISON_PROP) >= getattr(
+            other, self.COMPARAISON_PROP
+        )
 
     def __lt__(self, other):
-        return getattr(self, scalar_prop) < getattr(other, scalar_prop)
+        return getattr(self, self.COMPARAISON_PROP) < getattr(
+            other, self.COMPARAISON_PROP
+        )
 
     def __le__(self, other):
-        return getattr(self, scalar_prop) >= getattr(other, scalar_prop)
-
-    class_obj.__eq__ = __eq__
-    class_obj.__ne__ = __ne__
-    class_obj.__gt__ = __gt__
-    class_obj.__ge__ = __ge__
-    class_obj.__lt__ = __lt__
-    class_obj.__le__ = __le__
+        return getattr(self, self.COMPARAISON_PROP) >= getattr(
+            other, self.COMPARAISON_PROP
+        )
 
 
 def print_progress_bar(

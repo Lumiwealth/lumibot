@@ -1,3 +1,8 @@
+import pandas as pd
+
+from .bar import Bar
+
+
 class Bars:
     def __init__(self, df, source, symbol, raw=None):
         """
@@ -14,6 +19,38 @@ class Bars:
 
     def _repr_html_(self):
         return self.df._repr_html_()
+
+    @classmethod
+    def parse_bar_list(cls, bar_list, source, symbol):
+        raw = []
+        for bar in bar_list:
+            raw.append(bar)
+
+        df = pd.DataFrame(raw)
+        df = df.set_index("timestamp")
+        df["price_change"] = df["close"].pct_change()
+        df["dividend_yield"] = df["dividend"] / df["close"]
+        df["return"] = df["dividend_yield"] + df["price_change"]
+        bars = cls(df, source, symbol, raw=bar_list)
+        return bars
+
+    def split(self):
+        result = []
+        for index, row in self.df.iterrows():
+            item = {
+                "timestamp": int(index.timestamp()),
+                "open": row.get("open"),
+                "high": row.get("high"),
+                "low": row.get("low"),
+                "close": row.get("close"),
+                "volume": row.get("volume"),
+                "dividend": row.get("dividend", 0),
+                "stock_splits": row.get("stock_splits", 0),
+            }
+            bar = Bar(item)
+            result.append(bar)
+
+        return result
 
     def get_last_price(self):
         return self.df["close"][-1]

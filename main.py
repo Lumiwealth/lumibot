@@ -4,7 +4,7 @@ from datetime import datetime
 from time import time
 
 from credentials import AlpacaConfig
-from lumibot.backtesting import AlpacaDataBacktesting, YahooDataBacktesting
+from lumibot.backtesting import YahooDataBacktesting
 from lumibot.brokers import Alpaca
 from lumibot.data_sources import AlpacaData
 from lumibot.strategies.examples import (
@@ -45,7 +45,7 @@ mapping = {
     },
     "intraday_momentum": {
         "class": IntradayMomentum,
-        "backtesting_datasource": AlpacaDataBacktesting,
+        "backtesting_datasource": None,
         "backtesting_cache": True,
         "auth": AlpacaConfig,
     },

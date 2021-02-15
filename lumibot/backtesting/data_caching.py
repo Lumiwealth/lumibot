@@ -30,19 +30,6 @@ class DataCaching(DataSourceBacktesting):
         }
         return Bar(item)
 
-    def _get_datetime_range(self, length, timestep="minute", timeshift=None):
-        backtesting_timeshift = datetime.now() - self._datetime
-        if timeshift:
-            backtesting_timeshift += timeshift
-
-        end_date = datetime.now() - backtesting_timeshift
-        if timestep == "minute":
-            period_length = length * timedelta(minutes=1)
-        else:
-            period_length = length * timedelta(days=1)
-        start_date = end_date - period_length
-        return (start_date, end_date)
-
     def _deduplicate_store_row(self, symbol):
         self._data_store[symbol] = deduplicate_sequence(self._data_store[symbol])
 
@@ -171,7 +158,7 @@ class DataCaching(DataSourceBacktesting):
         self, symbol, length, timestep="minute", timeshift=None
     ):
         self._parse_source_timestep(timestep, reverse=True)
-        start_date, end_date = self._get_datetime_range(
+        start_date, end_date = self.get_datetime_range(
             length, timestep=timestep, timeshift=timeshift
         )
         self._update_store(symbol, start_date, end_date)

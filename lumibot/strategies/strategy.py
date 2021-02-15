@@ -11,7 +11,7 @@ from lumibot.backtesting import BacktestingBroker
 from lumibot.entities import Order
 from lumibot.tools import (
     cagr,
-    df_day_deduplicate,
+    day_deduplicate,
     execute_after,
     get_risk_free_rate,
     max_drawdown,
@@ -190,7 +190,7 @@ class Strategy:
             if self.stat_file:
                 self.stats_df.to_csv(self.stat_file)
 
-            df_ = df_day_deduplicate(self.stats_df)
+            df_ = day_deduplicate(self.stats_df)
 
             cagr_value = cagr(df_)
             logging.info(self.format_log_message(f"CAGR {round(100 * cagr_value, 2)}%"))

@@ -1,5 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import pytz
 
@@ -13,6 +13,31 @@ class DataSource:
     TIMESTEP_MAPPING = []
     DEFAULT_TIMEZONE = "America/New_York"
     DEFAULT_PYTZ = pytz.timezone(DEFAULT_TIMEZONE)
+
+    def get_datetime(self):
+        return self.to_default_timezone(datetime.now())
+
+    def get_last_minute(self):
+        current = self.get_datetime().replace(second=0, microsecond=0)
+        return current - timedelta(minutes=1)
+
+    def get_last_day(self):
+        current = self.get_datetime().replace(hour=0, minute=0, second=0, microsecond=0)
+        return current - timedelta(days=1)
+
+    def get_datetime_range(self, length, timestep="minute", timeshift=None):
+        if timestep == "minute":
+            period_length = length * timedelta(minutes=1)
+            end_date = self.get_last_minute()
+        else:
+            period_length = length * timedelta(days=1)
+            end_date = self.get_last_day()
+
+        if timeshift:
+            end_date -= timeshift
+
+        start_date = end_date - period_length
+        return (start_date, end_date)
 
     @classmethod
     def localize_datetime(cls, dt):

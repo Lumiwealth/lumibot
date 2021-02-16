@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import pandas as pd
 
 from .bar import Bar
@@ -63,9 +65,18 @@ class Bars:
         df["momentum"] = df["close"].pct_change(periods=momentum_length)
         return df[df["momentum"].notna()]
 
-    def get_momentum(self):
-        n_rows = self.df.shape[0]
-        momentum = self.df["close"].pct_change(n_rows - 1)[-1]
+    def get_momentum(self, start=None, end=None):
+        df_copy = self.df.copy()
+        if isinstance(start, datetime):
+            df_copy = df_copy[df_copy.index >= start]
+        if isinstance(end, datetime):
+            df_copy = df_copy[df_copy.index <= end]
+
+        n_rows = df_copy.shape[0]
+        if n_rows <= 1:
+            return 0
+
+        momentum = df_copy["close"].pct_change(n_rows - 1)[-1]
         return momentum
 
     def get_total_volume(self, period=None):

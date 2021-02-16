@@ -243,14 +243,6 @@ class Strategy:
 
     # =======Broker methods shortcuts============
 
-    def get_timestamp(self):
-        """return current timestamp"""
-        return self.broker.get_timestamp()
-
-    def get_datetime(self):
-        """return current datetime"""
-        return self.broker.get_datetime()
-
     def await_market_to_open(self):
         """Executes infinite loop until market opens"""
         self.broker.await_market_to_open()
@@ -331,6 +323,35 @@ class Strategy:
         )
 
     # =======Data source methods=================
+
+    def get_datetime(self):
+        return self.data_source.get_datetime()
+
+    def get_timestamp(self):
+        return self.data_source.get_timestamp()
+
+    def get_round_minute(self, timeshift=0):
+        return self.data_source.get_round_minute(timeshift=timeshift)
+
+    def get_last_minute(self):
+        return self.data_source.get_last_minute()
+
+    def get_round_day(self, timeshift=0):
+        return self.data_source.get_round_day(timeshift=timeshift)
+
+    def get_last_day(self):
+        return self.data_source.get_last_day()
+
+    def get_datetime_range(self, length, timestep="minute", timeshift=None):
+        return self.data_source.get_datetime_range(
+            length, timestep=timestep, timeshift=timeshift
+        )
+
+    def localize_datetime(self, dt):
+        return self.data_source.localize_datetime(dt)
+
+    def to_default_timezone(self, dt):
+        return self.data_source.to_default_timezone(dt)
 
     def get_symbol_bars(
         self,

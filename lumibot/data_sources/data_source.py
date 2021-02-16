@@ -17,13 +17,22 @@ class DataSource:
     def get_datetime(self):
         return self.to_default_timezone(datetime.now())
 
-    def get_last_minute(self):
+    def get_timestamp(self):
+        return self.get_datetime().timestamp()
+
+    def get_round_minute(self, timeshift=0):
         current = self.get_datetime().replace(second=0, microsecond=0)
-        return current - timedelta(minutes=1)
+        return current - timedelta(minutes=timeshift)
+
+    def get_last_minute(self):
+        return self.get_round_minute(timeshift=1)
+
+    def get_round_day(self, timeshift=0):
+        current = self.get_datetime().replace(hour=0, minute=0, second=0, microsecond=0)
+        return current - timedelta(days=timeshift)
 
     def get_last_day(self):
-        current = self.get_datetime().replace(hour=0, minute=0, second=0, microsecond=0)
-        return current - timedelta(days=1)
+        return self.get_round_day(timeshift=1)
 
     def get_datetime_range(self, length, timestep="minute", timeshift=None):
         if timestep == "minute":

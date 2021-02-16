@@ -14,6 +14,8 @@ class DataSource:
     DEFAULT_TIMEZONE = "America/New_York"
     DEFAULT_PYTZ = pytz.timezone(DEFAULT_TIMEZONE)
 
+    # ========Python datetime helpers======================
+
     def get_datetime(self):
         return self.to_default_timezone(datetime.now())
 
@@ -56,6 +58,8 @@ class DataSource:
     def to_default_timezone(cls, dt):
         return dt.astimezone(cls.DEFAULT_PYTZ)
 
+    # ========Internal Market Data Methods===================
+
     def _parse_source_timestep(self, timestep, reverse=False):
         """transform the data source timestep variable
         into lumibot representation. set reverse to True
@@ -87,6 +91,8 @@ class DataSource:
         for symbol, data in response.items():
             result[symbol] = self._parse_source_symbol_bars(data, symbol)
         return result
+
+    # =================Public Market Data Methods==================
 
     def get_symbol_bars(self, symbol, length, timestep="", timeshift=None):
         """Get bars for a given symbol"""

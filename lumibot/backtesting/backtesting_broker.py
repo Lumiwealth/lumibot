@@ -79,14 +79,6 @@ class BacktestingBroker(Broker):
             return False
         return True
 
-    def get_timestamp(self):
-        """return current timestamp"""
-        return self.datetime.timestamp()
-
-    def get_datetime(self):
-        """return current datetime"""
-        return self.datetime
-
     def is_market_open(self):
         """return True if market is open else false"""
         current_date = self.datetime.date()

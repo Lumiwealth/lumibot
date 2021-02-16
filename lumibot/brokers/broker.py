@@ -127,15 +127,6 @@ class Broker:
         check if the limit timestamp was reached"""
         return True
 
-    def get_timestamp(self):
-        """return current timestamp"""
-        pass
-
-    def get_datetime(self):
-        """return current datetime"""
-        timestamp = self.get_timestamp()
-        return datetime.fromtimestamp(timestamp)
-
     def is_market_open(self):
         """return True if market is open else false"""
         pass

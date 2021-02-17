@@ -41,7 +41,22 @@ class Momentum(Strategy):
 
             # Get the asset with the highest return in our period (aka the highest momentum)
             momentums.sort(key=lambda x: x.get("return"))
-            best_asset = momentums[-1].get("symbol")
+            best_asset_data = momentums[-1]
+            best_asset = best_asset_data["symbol"]
+            best_asset_return = best_asset_data["return"]
+
+            # Get the data for the currently held asset
+            if self.asset:
+                current_asset_data = [
+                    m for m in momentums if m["symbol"] == self.asset
+                ][0]
+                current_asset_return = current_asset_data["return"]
+
+                # If the returns are equals, keep the current asset
+                if current_asset_return >= best_asset_return:
+                    best_asset = self.asset
+                    best_asset_data = current_asset_data
+
             logging.info("%s best symbol." % best_asset)
 
             # If the asset with the highest momentum has changed, buy the new asset
@@ -54,9 +69,7 @@ class Momentum(Strategy):
 
                 # Calculate the quantity and send the buy order for the new asset
                 self.asset = best_asset
-                best_asset_price = [
-                    m["price"] for m in momentums if m["symbol"] == best_asset
-                ][0]
+                best_asset_price = best_asset_data["price"]
                 self.quantity = self.portfolio_value // best_asset_price
                 order = self.create_order(self.asset, self.quantity, "buy")
                 self.submit_order(order)

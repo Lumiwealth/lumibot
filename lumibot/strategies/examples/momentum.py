@@ -77,58 +77,27 @@ class Momentum(Strategy):
         """
         Add additional stats to the CSV logfile
         """
-        old_best_asset = None
-        old_asset_quantity = None
-        old_unspent_money = None
-
         # Get the values of all our variables from the last iteration
-        if snapshot_before:
-            old_best_asset = snapshot_before.get("asset")
-            old_asset_quantity = snapshot_before.get("quantity")
-            old_unspent_money = snapshot_before.get("unspent_money")
+        row = {
+            "old_best_asset": snapshot_before.get("asset"),
+            "old_asset_quantity": snapshot_before.get("quantity"),
+            "old_unspent_money": snapshot_before.get("unspent_money"),
+            "new_best_asset": self.asset,
+            "new_asset_quantity": self.quantity,
+        }
 
         # Get the momentums of all the assets from the context of on_trading_iteration
         # (notice that on_trading_iteration has a variable called momentums, this is what
         # we are reading here)
         momentums = context.get("momentums")
-        VEU_price = None
-        VEU_momentum = None
-        SPY_price = None
-        SPY_momentum = None
-        AGG_price = None
-        AGG_momentum = None
-        if momentums:
-            for momentum in momentums:
-                symbol = momentum.get("symbol")
-                if symbol == "VEU":
-                    VEU_price = momentum.get("price")
-                    VEU_momentum = momentum.get("return")
-                elif symbol == "SPY":
-                    SPY_price = momentum.get("price")
-                    SPY_momentum = momentum.get("return")
-                elif symbol == "AGG":
-                    AGG_price = momentum.get("price")
-                    AGG_momentum = momentum.get("return")
-
-        new_best_asset = self.asset
-        new_asset_quantity = self.quantity
+        for item in momentums:
+            symbol = item.get("symbol")
+            for key in item:
+                if key != "symbol":
+                    row[f"{symbol}_{key}"] = item[key]
 
         # Add all of our values to the row in the CSV file. These automatically get
         # added to portfolio_value, unspent_money and return
-        row = {
-            "old_best_asset": old_best_asset,
-            "old_asset_quantity": old_asset_quantity,
-            "old_unspent_money": old_unspent_money,
-            "VEU_price": VEU_price,
-            "VEU_momentum": VEU_momentum,
-            "SPY_price": SPY_price,
-            "SPY_momentum": SPY_momentum,
-            "AGG_price": AGG_price,
-            "AGG_momentum": AGG_momentum,
-            "new_best_asset": new_best_asset,
-            "new_asset_quantity": new_asset_quantity,
-        }
-
         return row
 
     # =============Helper methods====================

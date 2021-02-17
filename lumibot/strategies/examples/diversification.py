@@ -104,7 +104,8 @@ class Diversification(Strategy):
             weight = asset.get("weight")
             last_price = asset.get("last_price")
 
-            # Get how many shares we already own (including orders that haven't been executed yet)
+            # Get how many shares we already own
+            # (including orders that haven't been executed yet)
             quantity = self.get_asset_potential_total(symbol)
             if quantity:
                 logging.info(

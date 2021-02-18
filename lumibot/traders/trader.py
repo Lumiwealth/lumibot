@@ -85,6 +85,9 @@ class Trader:
 
     def run_all(self):
         """run all strategies"""
+        if self.is_backtest:
+            logging.info("Backtesting starting...")
+
         self._set_logger()
         signal.signal(signal.SIGINT, self._abrupt_closing)
         with ThreadPoolExecutor(thread_name_prefix="strategy") as executor:

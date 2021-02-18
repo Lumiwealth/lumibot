@@ -101,13 +101,13 @@ def performance(_df, risk_free, prefix=""):
     maxdown_adj = max_drawdown(_df)
     romad_adj = romad(_df)
 
-    logging.info(f"{prefix}CAGR {cagr_adj*100:0.2f}%")
-    logging.info(f"{prefix}Volatility {vol_adj*100:0.2f}%")
-    logging.info(f"{prefix}Sharpe {sharpe_adj:0.2f}")
-    logging.info(
-        f"{prefix}Max Drawdown {maxdown_adj['drawdown']*100:0.2f}% on {maxdown_adj['date']:%Y-%m-%d}"
+    print(f"{prefix} CAGR {cagr_adj*100:0.2f}%")
+    print(f"{prefix} Volatility {vol_adj*100:0.2f}%")
+    print(f"{prefix} Sharpe {sharpe_adj:0.2f}")
+    print(
+        f"{prefix} Max Drawdown {maxdown_adj['drawdown']*100:0.2f}% on {maxdown_adj['date']:%Y-%m-%d}"
     )
-    logging.info(f"{prefix}RoMaD {romad_adj*100:0.2f}%")
+    print(f"{prefix} RoMaD {romad_adj*100:0.2f}%")
 
 
 def calculate_returns(symbol, start=datetime(1900, 1, 1), end=datetime.now()):
@@ -122,7 +122,7 @@ def calculate_returns(symbol, start=datetime(1900, 1, 1), end=datetime.now()):
 
     risk_free_rate = get_risk_free_rate()
 
-    performance(benchmark_df, risk_free_rate)
+    performance(benchmark_df, risk_free_rate, symbol)
 
 
 def get_risk_free_rate():

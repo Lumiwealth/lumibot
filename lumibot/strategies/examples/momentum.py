@@ -39,7 +39,8 @@ class Momentum(Strategy):
             self.counter = 0
             momentums = self.get_assets_momentums()
 
-            # Get the asset with the highest return in our period (aka the highest momentum)
+            # Get the asset with the highest return in our period
+            # (aka the highest momentum)
             momentums.sort(key=lambda x: x.get("return"))
             best_asset_data = momentums[-1]
             best_asset = best_asset_data["symbol"]

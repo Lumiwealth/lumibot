@@ -73,75 +73,28 @@ class IntradayMomentum(Strategy):
         """
         Add additional stats to the CSV logfile
         """
-        old_best_asset = None
-        old_asset_quantity = None
-        old_unspent_money = None
-        old_portfolio_value = None
-
         # Get the values of all our variables from the last iteration
-        if snapshot_before:
-            old_best_asset = snapshot_before.get("asset")
-            old_asset_quantity = snapshot_before.get("quantity")
-            old_unspent_money = snapshot_before.get("unspent_money")
-            old_portfolio_value = snapshot_before.get("portfolio_value")
+        row = {
+            "old_best_asset": snapshot_before.get("asset"),
+            "old_asset_quantity": snapshot_before.get("quantity"),
+            "old_unspent_money": snapshot_before.get("unspent_money"),
+            "old_portfolio_value": snapshot_before.get("portfolio_value"),
+            "new_best_asset": self.asset,
+            "new_asset_quantity": self.quantity,
+        }
 
         # Get the momentums of all the assets from the context of on_trading_iteration
         # (notice that on_trading_iteration has a variable called momentums, this is what
         # we are reading here)
         momentums = context.get("momentums")
-        SPY_price = None
-        SPY_momentum = None
-        GLD_price = None
-        GLD_momentum = None
-        TLT_price = None
-        TLT_momentum = None
-        MSFT_price = None
-        MSFT_momentum = None
-        TSLA_price = None
-        TSLA_momentum = None
-        if momentums:
-            for momentum in momentums:
-                symbol = momentum.get("symbol")
-                if symbol == "SPY":
-                    SPY_price = momentum.get("price")
-                    SPY_momentum = momentum.get("return")
-                elif symbol == "GLD":
-                    GLD_price = momentum.get("price")
-                    GLD_momentum = momentum.get("return")
-                elif symbol == "TLT":
-                    TLT_price = momentum.get("price")
-                    TLT_momentum = momentum.get("return")
-                elif symbol == "MSFT":
-                    MSFT_price = momentum.get("price")
-                    MSFT_momentum = momentum.get("return")
-                elif symbol == "TSLA":
-                    TSLA_price = momentum.get("price")
-                    TSLA_momentum = momentum.get("return")
-
-        new_best_asset = self.asset
-        new_asset_quantity = self.quantity
+        for item in momentums:
+            symbol = item.get("symbol")
+            for key in item:
+                if key != "symbol":
+                    row[f"{symbol}_{key}"] = item[key]
 
         # Add all of our values to the row in the CSV file. These automatically get
         # added to portfolio_value, unspent_money and return
-        row = {
-            "old_best_asset": old_best_asset,
-            "old_asset_quantity": old_asset_quantity,
-            "old_unspent_money": old_unspent_money,
-            "old_portfolio_value": old_portfolio_value,
-            "SPY_price": SPY_price,
-            "SPY_momentum": SPY_momentum,
-            "GLD_price": GLD_price,
-            "GLD_momentum": GLD_momentum,
-            "TLT_price": TLT_price,
-            "TLT_momentum": TLT_momentum,
-            "MSFT_price": MSFT_price,
-            "MSFT_momentum": MSFT_momentum,
-            "TSLA_price": TSLA_price,
-            "TSLA_momentum": TSLA_momentum,
-            "new_best_asset": new_best_asset,
-            "new_asset_quantity": new_asset_quantity,
-        }
-
         return row
 
     # =============Helper methods====================

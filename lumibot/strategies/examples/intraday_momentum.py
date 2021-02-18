@@ -35,7 +35,22 @@ class IntradayMomentum(Strategy):
         # Get the asset with the highest return in our momentum_length
         # (aka the highest momentum)
         momentums.sort(key=lambda x: x.get("return"))
-        best_asset = momentums[-1].get("symbol")
+        best_asset_data = momentums[-1]
+        best_asset = best_asset_data.get("symbol")
+        best_asset_return = best_asset_data.get("return")
+
+        # Get the data for the currently held asset
+        if self.asset:
+            current_asset_data = [
+                m for m in momentums if m["symbol"] == self.asset
+            ][0]
+            current_asset_return = current_asset_data["return"]
+
+            # If the returns are equals, keep the current asset
+            if current_asset_return >= best_asset_return:
+                best_asset = self.asset
+                best_asset_data = current_asset_data
+
         logging.info("%s best symbol." % best_asset)
 
         # If the asset with the highest momentum has changed, buy the new asset
@@ -48,11 +63,8 @@ class IntradayMomentum(Strategy):
 
             # Calculate the quantity and send the buy order for the new asset
             self.asset = best_asset
-            best_asset_price = [
-                m["price"] for m in momentums if m["symbol"] == best_asset
-            ][0]
+            best_asset_price = best_asset_data["price"]
             self.quantity = self.portfolio_value // best_asset_price
-
             order = self.create_order(self.asset, self.quantity, "buy")
             self.submit_order(order)
         else:
@@ -108,8 +120,8 @@ class IntradayMomentum(Strategy):
         for symbol in self.symbols:
             # Get the return for symbol over self.momentum_length minutes
             bars_set = self.get_symbol_bars(symbol, self.momentum_length + 1)
-            symbol_momentum = bars_set.get_momentum()
-
+            start_date = self.get_round_minute(timeshift=self.momentum_length + 1)
+            symbol_momentum = bars_set.get_momentum(start=start_date)
             logging.info(
                 "%s has a return value of %.2f%% over the last %d minutes(s)."
                 % (symbol, 100 * symbol_momentum, self.momentum_length)

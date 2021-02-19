@@ -66,8 +66,7 @@ class Screener(Strategy):
         ongoing_assets = self.get_tracked_assets()
         assets = self.get_tradable_assets()
         symbols = [a for a in assets if a not in (ongoing_assets + self.blacklist)]
-        length = 4 * 24 + 1
-        bars_list = self.get_bars(symbols, length)
+        bars_list = self.get_bars(symbols, 2, timestep="day")
         return bars_list
 
     def select_assets(self, data, min_increase_target):
@@ -76,7 +75,8 @@ class Screener(Strategy):
         # filtering and sorting assets on momentum
         potential_positions = []
         for symbol, bars in data.items():
-            momentum = bars.get_momentum()
+            start_date = self.get_round_day(timeshift=1)
+            momentum = bars.get_momentum(start=start_date)
             if momentum >= min_increase_target:
                 record = {"symbol": symbol, "momentum": momentum}
                 potential_positions.append(record)

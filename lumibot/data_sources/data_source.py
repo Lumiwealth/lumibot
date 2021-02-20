@@ -6,6 +6,10 @@ import pytz
 from lumibot.tools import get_chunks
 
 
+class UnavailabeTimestep(Exception):
+    pass
+
+
 class DataSource:
     SOURCE = ""
     IS_BACKTESTING_DATA_SOURCE = False
@@ -72,7 +76,10 @@ class DataSource:
                 if timestep in item["represntations"]:
                     return item["timestep"]
 
-        raise ValueError("timestep %r did not match" % timestep)
+        raise UnavailabeTimestep(
+            "%s data source does not have data with %r timestep"
+            % (self.SOURCE, timestep)
+        )
 
     def _pull_source_symbol_bars(
         self, symbol, length, timestep=MIN_TIMESTEP, timeshift=None

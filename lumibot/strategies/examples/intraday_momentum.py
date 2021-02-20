@@ -41,9 +41,7 @@ class IntradayMomentum(Strategy):
 
         # Get the data for the currently held asset
         if self.asset:
-            current_asset_data = [
-                m for m in momentums if m["symbol"] == self.asset
-            ][0]
+            current_asset_data = [m for m in momentums if m["symbol"] == self.asset][0]
             current_asset_return = current_asset_data["return"]
 
             # If the returns are equals, keep the current asset

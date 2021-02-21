@@ -4,6 +4,7 @@ from lumibot.strategies.strategy import Strategy
 
 
 class Screener(Strategy):
+    IS_BACKTESTABLE = False
 
     # =====Overloading lifecycle methods=============
 

@@ -24,6 +24,8 @@ from lumibot.traders import Trader
 
 
 class Strategy:
+    IS_BACKTESTABLE = True
+
     def __init__(
         self,
         budget,
@@ -51,6 +53,10 @@ class Strategy:
         # Setting the broker object
         self.broker = broker
         self._is_backtesting = self.broker.IS_BACKTESTING_BROKER
+        if self._is_backtesting and not self.IS_BACKTESTABLE:
+            raise Exception(
+                "Strategy %s cannot be backtested for the moment" % self._name
+            )
         broker._add_subscriber(self)
 
         # Initializing the context variables

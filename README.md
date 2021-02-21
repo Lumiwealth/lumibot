@@ -20,6 +20,12 @@ class AlpacaConfig:
 ```API_KEY``` and ```API_SECRET``` are obtained from alpaca paper trading dashboard: https://app.alpaca.markets/paper/dashboard/overview
 
 4) Create your own strategy class (See strategy section) e.g. ```class MyStrategy(Startegy)```
+or import an example from our libraries
+   
+```python
+from lumibot.strategies.examples import Momentum
+```
+
 5) Create another file meant to be the entrypoint of your code e.g. main.py
 6) import the following modules in your main.py:
 ```python
@@ -119,12 +125,16 @@ object corresponds to ```bars.df```. The dataframe has the following columns
 - high
 - low
 - close
-- dividend
 - volume
+- dividend
+- stock_splits
+
+The dataframe index is of type ```pd.Timestamp``` localized at the timezone ```America/New_York```.   
 
 Bars objects has the following fields:
 - source: the source of the data e.g. (yahoo, alpaca, ...)
 - symbol: the symbol of the bars
+- df: the pandas dataframe containing all the datas
 
 Bars objects has the following helper methods:
 - ```get_last_price()```: returns the closing price of the last dataframe row
@@ -133,7 +143,10 @@ Bars objects has the following helper methods:
 - ```get_momentum_df(momentum_length)```: calculates the price change (momentum) 
   after ```momentum_length``` number of rows for each row and filters rows without momentum.
   Returns a dataframe.
-- ```get_momentum()```: calculates the global price momentum of the dataframe
+- ```get_momentum(start=None, end=None)```: calculates the global price momentum of the dataframe.
+When specified, start and end will be used to filter the daterange for the momentum calculation.
+  If none of ``start`` or ``end`` are specified the momentum will be calculated from the first row untill
+  the last row of the dataframe.
 
 ## order
 
@@ -371,26 +384,6 @@ When a strategy is instantiated, a broker object is passed to it (Check Quicksta
 The strategy is run with the passed broker object.
 The following shortcuts executes broker methods within the strategy.
 
-#### get_timestamp
-
-Return the current timestamp according to the broker API. During backtesting this will be the time that the strategy thinks that it is.
-
-Return type: float
-
-```python
-print(f"The current time is {self.get_timestamp()}")
-```
-
-#### get_datetime
-
-Return the current datetime according to the broker API. During backtesting this will be the time that the strategy thinks that it is.
-
-Return type: datetime
-
-```python
-print(f"The current time is {self.get_datetime()}")
-```
-
 #### await_market_to_open
 
 If the market is closed, pauses code execution until market opens again. This means that `on_trading_iteration` will stop being called until the market opens again.
@@ -476,7 +469,7 @@ class MyStrategy(Strategy):
 
 #### submit_order
 
-Submit an order
+Submit an order. Returns the processed order.
 
 Parameters:
 - order (order): the order object
@@ -576,6 +569,117 @@ as the default data source.
 
 The following shortcuts executes data sources methods within the strategy.
 
+#### get_datetime
+
+Return the current datetime localized the datasource timezone e.g. ```America/New_York```. 
+During backtesting this will be the time that the strategy thinks that it is.
+
+Return type: datetime
+
+```python
+print(f"The current time is {self.get_datetime()}")
+```
+
+#### get_timestamp
+
+Return the current UNIX timestamp. 
+During backtesting this will be the UNIX timestamp that the strategy thinks that it is.
+
+Return type: float
+
+```python
+print(f"The current time is {self.get_timestamp()}")
+```
+
+#### get_round_minute
+
+Returns a minute rounded datetime object.
+
+Optional Parameters:
+- timeshift (int): a timeshift in minutes from the present.
+
+Example:
+```python
+import timedelta
+# Return a midnight rounded datetime object of three minutes ago 
+bars =  self.get_round_minute(timeshift=3)
+print(bars)
+# datetime.datetime(2021, 2, 21, 9, 17, tzinfo=<DstTzInfo 'America/New_York' EST-1 day, 19:00:00 STD>)
+```
+
+Return type: datetime
+
+#### get_last_minute
+
+Returns the last minute rounded datetime object. Shortcut to ```straregy.get_round_minute(timeshift=1)```
+
+Return type datetime.
+
+#### get_round_day
+
+Returns a day rounded datetime object.
+
+Optional Parameters:
+- timeshift (int): a timeshift in days from the present.
+
+Example:
+```python
+import timedelta
+# Return a midnight rounded datetime object of three days ago 
+bars =  self.get_round_minute(timeshift=3)
+print(bars)
+# datetime.datetime(2021, 2, 21, 0, 0, tzinfo=<DstTzInfo 'America/New_York' EST-1 day, 19:00:00 STD>)
+```
+
+Return type datetime
+
+#### get_last_day
+
+Returns the last day rounded datetime object. Shortcut to ```straregy.get_round_day(timeshift=1)```
+
+Return type datetime.
+
+#### get_datetime_range
+
+Takes as input length, timestep and timeshift and returns a tuple of datetime representing the start date and end date.
+
+Parameters:
+  - length (int): represents the number of bars required
+  - timestep (str): represents the timestep, either ```minute``` (default value) or ```day```.
+  - timeshift (timedelta): ```None``` by default. If specified indicates the time shift from the present.
+
+Return type datetime
+
+#### localize_datetime
+
+Converts an unaware datetime object (datetime object without a timezone) to an aware datetime object.
+The default timezone is ```America/New_York```.
+
+Parameter:
+- dt (datetime): the datetime object to convert.
+
+Example:
+```python
+from datetime import datetime
+dt =  datetime(2021, 2, 21)
+print(dt)
+# datetime.datetime(2021, 2, 21, 0, 0)
+dt_aware = self.localize_datetime(dt)
+print(dt_aware)
+# datetime.datetime(2021, 2, 21, 0, 0, tzinfo=<DstTzInfo 'America/New_York' EST-1 day, 19:00:00 STD>)
+```
+
+Return type: datetime
+
+#### to_default_timezone
+
+Transpose an aware datetime object to the default timezone ```America/New_York```.  
+
+Parameter:
+- dt (datetime): the datetime object to convert.
+
+Return type: datetime
+
 #### get_symbol_bars
 
 Return bars for a given symbol.
@@ -585,7 +689,7 @@ Parameters:
 - length (int): The number of rows (number of timestamps)
 - timestep (str): Either ```"minute""``` for minutes data or ```"day""``` for days data
   default value depends on the data_source (minute for alpaca, day for yahoo, ...)
-- timeshift (timedelta): ```None``` by default. If specified indicates the time shift.
+- timeshift (timedelta): ```None``` by default. If specified indicates the time shift from the present.
 
 Example:
 ```python
@@ -609,7 +713,7 @@ Parameters:
 - length (int): The number of rows (number of timestamps)
 - timestep (str): Either ```"minute""``` for minutes data or ```"day""``` for days data
   default value depends on the data_source (minute for alpaca, day for yahoo, ...)
-- timeshift (timedelta): ```None``` by default. If specified indicates the time shift.
+- timeshift (timedelta): ```None``` by default. If specified indicates the time shift from the present.
 
 Return type: dict of str:bars
 
@@ -650,3 +754,8 @@ by the broker or when dividends are paid.
   on_trading_iteration. By default equals to 1 minute. 
   This value can be overloaded when creating a strategy class in order to change the 
   default behaviour
+- timezone (property): The string representation of the timezone used by the trading data_source. 
+  By default ``America/New_York``.
+- pytz (property): the ```pytz``` object representation of the timezone property.
+- IS_BACKTESTABLE (class field): A flag to indicate whether backtesting is enabled or not.
+  By default, IS_BACKTESTABLE is ```True```.

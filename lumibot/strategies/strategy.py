@@ -123,6 +123,14 @@ class Strategy:
     def positions(self):
         return self.get_tracked_positions()
 
+    @property
+    def timezone(self):
+        return self.data_source.DEFAULT_TIMEZONE
+
+    @property
+    def pytz(self):
+        return self.data_source.DEFAULT_PYTZ
+
     @staticmethod
     def _copy_instance_dict(instance_dict):
         result = {}

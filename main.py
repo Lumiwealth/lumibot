@@ -46,8 +46,8 @@ mapping = {
     "intraday_momentum": {
         "class": IntradayMomentum,
         "backtesting_datasource": None,
-        "backtesting_cache": True,
-        "auth": AlpacaConfig,
+        "backtesting_cache": False,
+        "auth": None,
     },
     "screener": {
         "class": Screener,

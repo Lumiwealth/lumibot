@@ -43,6 +43,7 @@ class Strategy:
         self._portfolio_value = budget
         self.stats_df = pd.DataFrame()
         self.stat_file = stat_file
+        self.result = {}
 
         # Get risk free rate from US Treasuries by default
         if risk_free_rate is None:
@@ -194,39 +195,54 @@ class Strategy:
                 dividend_per_share = dividends_per_share.get(symbol, 0)
                 self._unspent_money += dividend_per_share * quantity
 
+    def _format_stats_df(self):
+        df_ = self.stats_df.copy()
+        df_.set_index("datetime", inplace=True)
+        df_["return"] = df_["portfolio_value"].pct_change()
+        return df_
+
+    def _get_stats(self, df_):
+        return {
+            "cagr": cagr(df_),
+            "volatility": volatility(df_),
+            "sharpe": sharpe(df_, self.risk_free_rate),
+            "max_drawdown": max_drawdown(df_),
+            "romad": romad(df_),
+        }
+
     def _dump_stats(self):
         logger = logging.getLogger()
         current_level = logging.getLevelName(logger.level)
         logger.setLevel(logging.INFO)
         if not self.stats_df.empty:
-            self.stats_df = self.stats_df.set_index("datetime")
-            self.stats_df["return"] = self.stats_df["portfolio_value"].pct_change()
+            self.stats_df = self._format_stats_df()
             if self.stat_file:
                 self.stats_df.to_csv(self.stat_file)
 
             df_ = day_deduplicate(self.stats_df)
+            self.result = self._get_stats(df_)
 
-            cagr_value = cagr(df_)
+            cagr_value = self.result["cagr"]
             logging.info(self.format_log_message(f"CAGR {round(100 * cagr_value, 2)}%"))
 
-            volatility_value = volatility(df_)
+            volatility_value = self.result["volatility"]
             logging.info(
                 self.format_log_message(
                     f"Volatility {round(100 * volatility_value, 2)}%"
                 )
             )
 
-            sharpe_value = sharpe(df_, self.risk_free_rate)
+            sharpe_value = self.result["sharpe"]
             logging.info(self.format_log_message(f"Sharpe {round(sharpe_value, 2)}"))
 
-            max_drawdown_result = max_drawdown(df_)
+            max_drawdown_result = self.result["max_drawdown"]
             logging.info(
                 self.format_log_message(
                     f"Max Drawdown {round(100 * max_drawdown_result['drawdown'], 2)}% on {max_drawdown_result['date']:%Y-%m-%d}"
                 )
             )
 
-            romad_value = romad(df_)
+            romad_value = self.result["romad"]
             logging.info(
                 self.format_log_message(f"RoMaD {round(100 * romad_value, 2)}%")
             )
@@ -591,7 +607,7 @@ class Strategy:
             logging.error(traceback.format_exc())
             self.on_bot_crash(e)
             return False
-        return True
+        return self.result
 
     @classmethod
     def backtest(

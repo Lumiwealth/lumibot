@@ -31,6 +31,8 @@ def cagr(_df):
     start = datetime.utcfromtimestamp(df.index.values[0].astype("O") / 1e9)
     end = datetime.utcfromtimestamp(df.index.values[-1].astype("O") / 1e9)
     period_years = (end - start).days / 365.25
+    if period_years == 0:
+        return 0
     CAGR = (total_ret) ** (1 / period_years) - 1
     return CAGR
 
@@ -44,6 +46,8 @@ def volatility(_df):
     start = datetime.utcfromtimestamp(df.index.values[0].astype("O") / 1e9)
     end = datetime.utcfromtimestamp(df.index.values[-1].astype("O") / 1e9)
     period_years = (end - start).days / 365.25
+    if period_years == 0:
+        return 0
     ratio_to_annual = df["return"].count() / period_years
     vol = df["return"].std() * math.sqrt(ratio_to_annual)
     return vol
@@ -57,6 +61,8 @@ def sharpe(_df, risk_free_rate):
     """
     ret = cagr(_df)
     vol = volatility(_df)
+    if vol == 0:
+        return 0
     sharpe = (ret - risk_free_rate) / vol
     return sharpe
 

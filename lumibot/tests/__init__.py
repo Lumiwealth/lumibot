@@ -1,5 +1,6 @@
 import pytest
-from traders import Trader
+
+from lumibot.traders import Trader
 
 
 @pytest.fixture(scope="function")

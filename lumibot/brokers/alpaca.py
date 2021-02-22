@@ -21,7 +21,7 @@ class Alpaca(AlpacaData, Broker):
         AlpacaData.__init__(
             self, config, max_workers=max_workers, chunk_size=chunk_size
         )
-        Broker.__init__(self, connect_stream=connect_stream)
+        Broker.__init__(self, name="alpaca", connect_stream=connect_stream)
 
     # =========Clock functions=====================
 

@@ -28,7 +28,7 @@ class BacktestingBroker(Broker):
         self._data_source = data_source
         self._trading_days = get_trading_days()
 
-        Broker.__init__(self, connect_stream=connect_stream)
+        Broker.__init__(self, name=self.name, connect_stream=connect_stream)
 
     def __getattribute__(self, name):
         attr = object.__getattribute__(self, name)

@@ -19,10 +19,10 @@ class Broker:
     FILLED_ORDER = "fill"
     PARTIALLY_FILLED_ORDER = "partial_fill"
 
-    def __init__(self, connect_stream=True):
+    def __init__(self, name="", connect_stream=True):
         """Broker constructor"""
         # Shared Variables between threads
-        self.name = ""
+        self.name = name
         self._lock = RLock()
         self._unprocessed_orders = SafeList(self._lock)
         self._new_orders = SafeList(self._lock)

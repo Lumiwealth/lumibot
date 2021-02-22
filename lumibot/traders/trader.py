@@ -99,4 +99,4 @@ class Trader:
             for task in as_completed(tasks):
                 results.append(task.result())
 
-        return all(results)
+        return results

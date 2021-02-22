@@ -128,7 +128,10 @@ class DataSource:
             timestep = self.MIN_TIMESTEP
 
         chunks = get_chunks(symbols, chunk_size)
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        with ThreadPoolExecutor(
+            max_workers=max_workers,
+            thread_name_prefix=f"{self.name}_requesting_data"
+        ) as executor:
             tasks = []
             func = lambda args, kwargs: self._pull_source_bars(*args, **kwargs)
             kwargs = dict(timestep=timestep, timeshift=timeshift)

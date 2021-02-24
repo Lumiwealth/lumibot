@@ -95,6 +95,15 @@ def romad(_df):
     romad = ret / mdd["drawdown"]
     return romad
 
+def stats_summary(_df, risk_free_rate):
+    return {
+        "cagr": cagr(_df),
+        "volatility": volatility(_df),
+        "sharpe": sharpe(_df, risk_free_rate),
+        "max_drawdown": max_drawdown(_df),
+        "romad": romad(_df),
+    }
+
 
 def performance(_df, risk_free, prefix=""):
     """Calculate and print out all of our performance indicators

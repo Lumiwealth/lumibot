@@ -15,20 +15,20 @@ def test_momentum_strategy():
         backtesting_end = datetime(2020, 12, 31)
 
         valid_result = {
-            "cagr": 0.09294513134496363,
-            "volatility": 0.21715809230245922,
-            "sharpe": 0.4269476230976895,
+            "cagr": 0.09294570506279065,
+            "volatility": 0.21715813789892638,
+            "sharpe": 0.42800931138049775,
             "max_drawdown": {
-                "drawdown": 0.223836022349236,
+                "drawdown": 0.2238357304157359,
                 "date": pd.Timestamp("2020-03-16 16:00:00-0400", tz="America/New_York"),
             },
-            "romad": 0.415237593884454,
+            "romad": 0.41524069857015317,
         }
 
         stats = Momentum.backtest(
-            YahooDataBacktesting, budget, backtesting_start, backtesting_end
+            "momentum", budget, YahooDataBacktesting, backtesting_start, backtesting_end
         )
-        result = stats[0]
+        result = stats.get("momentum")
         assert result
         assert abs(result["cagr"] - valid_result["cagr"]) < TOLERANCE
         assert abs(result["volatility"] - valid_result["volatility"]) < TOLERANCE
@@ -61,21 +61,24 @@ def test_diversification_strategy():
         backtesting_end = datetime(2020, 12, 31)
 
         valid_result = {
-            "cagr": 0.1883317786133596,
-            "volatility": 0.11211875376518643,
-            "sharpe": 1.6777012970310623,
+            "cagr": 0.18833117467445426,
+            "volatility": 0.11211867858588304,
+            "sharpe": 1.6797484330872876,
             "max_drawdown": {
-                "drawdown": 0.13177980529069402,
+                "drawdown": 0.13177984159016465,
                 "date": pd.Timestamp("2020-03-18 16:00:00-0400", tz="America/New_York"),
             },
-            "romad": 1.429139906512361,
+            "romad": 1.4291349299095706,
         }
 
         stats = Diversification.backtest(
-            YahooDataBacktesting, budget, backtesting_start, backtesting_end
+            "diversification",
+            budget,
+            YahooDataBacktesting,
+            backtesting_start,
+            backtesting_end,
         )
-        result = stats[0]
-        assert result
+        result = stats.get("diversification")
         assert abs(result["cagr"] - valid_result["cagr"]) < TOLERANCE
         assert abs(result["volatility"] - valid_result["volatility"]) < TOLERANCE
         assert abs(result["sharpe"] - valid_result["sharpe"]) < TOLERANCE

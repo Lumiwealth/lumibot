@@ -77,7 +77,6 @@ class Momentum(Strategy):
             else:
                 logging.info("Keeping %d shares of %s" % (self.quantity, self.asset))
 
-        logging.info("Sleeping until the market closes.")
         self.counter += 1
 
         # Stop for the day, since we are looking at daily momentums

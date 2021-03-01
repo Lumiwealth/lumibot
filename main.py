@@ -85,10 +85,13 @@ if __name__ == "__main__":
         backtesting_cache = strategy_params["backtesting_cache"]
         auth = strategy_params["auth"]
 
-        stat_file = f"logs/strategy_{strategy_class.__name__}_{int(time())}.csv"
+        stats_file = f"logs/strategy_{strategy_class.__name__}_{int(time())}.csv"
         if live_trading:
             strategy = strategy_class(
-                budget=budget, broker=alpaca_broker, stat_file=stat_file
+                strategy_name,
+                budget=budget,
+                broker=alpaca_broker,
+                stats_file=stats_file,
             )
             trader.add_strategy(strategy)
         else:
@@ -101,11 +104,12 @@ if __name__ == "__main__":
                 set_redis_db()
 
             strategy_class.backtest(
-                backtesting_datasource,
+                strategy_name,
                 budget,
+                backtesting_datasource,
                 backtesting_start,
                 backtesting_end,
-                stat_file=stat_file,
+                stats_file=stats_file,
                 auth=auth,
             )
 

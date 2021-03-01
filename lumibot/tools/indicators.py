@@ -73,6 +73,8 @@ def max_drawdown(_df):
     The dataframe _df must include a column "return" that
     has the return for that time period (eg. daily)
     """
+    if _df.shape[0] == 1:
+        return {"drawdown": 0, "date": _df.index[0]}
     df = _df.copy()
     df = df.sort_index(ascending=True)
     df["cum_return"] = (1 + df["return"]).cumprod()
@@ -92,6 +94,8 @@ def romad(_df):
     """
     ret = cagr(_df)
     mdd = max_drawdown(_df)
+    if mdd["drawdown"] == 0:
+        return 0
     romad = ret / mdd["drawdown"]
     return romad
 

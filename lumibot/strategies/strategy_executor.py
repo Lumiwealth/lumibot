@@ -17,13 +17,15 @@ class StrategyExecutor(Thread):
 
     def __init__(self, strategy):
         super(StrategyExecutor, self).__init__()
+        self.daemon = True
+        self.stop_event = Event()
+        self.lock = Lock()
+        self.queue = Queue()
+
         self.strategy = strategy
         self._strategy_context = None
         self.broker = self.strategy.broker
         self.minutes_before_closing = self.strategy.minutes_before_closing
-        self.stop_event = Event()
-        self.lock = Lock()
-        self.queue = Queue()
         self.result = {}
 
         # Overloading the default time.sleep method
@@ -43,17 +45,18 @@ class StrategyExecutor(Thread):
         if not self.broker.IS_BACKTESTING_BROKER:
             start = time.time()
             end = start + sleeptime
-            timeout = sleeptime
-            while True:
+
+            while self.should_continue:
+                # Setting timeout to 1s to allow listening
+                # to key interrupts
+                timeout = min(end - time.time(), 1)
+                if timeout <= 0:
+                    break
                 try:
-                    # Catch case when timeout occured
                     event, payload = self.queue.get(timeout=timeout)
                     self.process_event(event, payload)
-                    timeout = end - time.time()
-                    if timeout <= 0:
-                        break
                 except Empty:
-                    break
+                    pass
         else:
             self.process_queue()
             self.broker._update_datetime(sleeptime)
@@ -86,8 +89,7 @@ class StrategyExecutor(Thread):
 
     def stop(self):
         self.stop_event.set()
-        self._on_abrupt_closing()
-        self.join()
+        self._on_abrupt_closing(KeyboardInterrupt())
 
     def join(self, timeout=None):
         super(StrategyExecutor, self).join(timeout)
@@ -200,7 +202,6 @@ class StrategyExecutor(Thread):
         self.strategy.on_bot_crash(error)
         self.strategy._dump_stats()
 
-    @event_method
     def _on_abrupt_closing(self, error):
         """Use this lifecycle event to execute code
         when the main trader was shut down (Keybord Interuption, ...)
@@ -245,13 +246,13 @@ class StrategyExecutor(Thread):
         while time_to_close > self.minutes_before_closing * 60:
             self._on_trading_iteration()
             time_to_close = self.broker.get_time_to_close()
-            sleeptime = time_to_close - 15 * 60
+            sleeptime = time_to_close - self.minutes_before_closing * 60
             sleeptime = max(min(sleeptime, 60 * self.strategy.sleeptime), 0)
-            if sleeptime:
-                self.strategy.log_message("Sleeping for %d seconds" % sleeptime)
-                self.strategy.safe_sleep(sleeptime)
-            elif self.broker.IS_BACKTESTING_BROKER:
+            if not self.should_continue or sleeptime == 0:
                 break
+            else:
+                self.strategy.log_message("Sleeping for %d seconds" % sleeptime)
+                self.safe_sleep(sleeptime)
 
         if self.broker.is_market_open():
             self._before_market_closes()

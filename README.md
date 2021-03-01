@@ -53,7 +53,7 @@ The ```Alpaca``` broker class needs your credentials created in step 3 to loging
 
 9) Instantiate your strategy class like so:
 ```python
-strategy = Momentum(budget=budget, broker=broker)
+strategy = Momentum(name="momentum", budget=budget, broker=broker)
 ```
 10) Register the strategy within the trader
 ```python
@@ -78,40 +78,37 @@ logfile = "logs/test.log"
 trader = Trader(logfile=logfile)
 broker = Alpaca(AlpacaConfig)
 
-strategy = Momentum(budget=budget, broker=broker)
+strategy = Momentum(name="momentum", budget=budget, broker=broker)
 trader.add_strategy(strategy)
 trader.run_all()
 ```
 
 # Backtesting
 
-You can also run backtests very easily on any of your strategies, you do not have to modify anything in your strategies. Simply call the `backtest()` function on your strategy. You will also have the details of your backtest (the portfolio value each day, unspent money, etc) put into a CSV file in the location of `stat_file`.
+You can also run backtests very easily on any of your strategies, you do not have to modify anything in your strategies. 
+Simply call the `backtest()` function on your strategy class. 
+You will also have the details of your backtest (the portfolio value each day, unspent money, etc) 
+put into a CSV file in the location of `stats_file`.
 
 ```python
 from lumibot.backtesting import YahooDataBacktesting
-from lumibot.brokers import Alpaca
-
 from my_strategy import MyStrategy
 
-from credentials import AlpacaConfig
-
-# Initialize your strategy
-broker = Alpaca(AlpacaConfig)
-budget = 100000
-strategy = MyStrategy(budget=budget, broker=broker)
-
 # Pick the dates that you want to start and end your backtest
-backtesting_start = datetime(2018, 1, 1)
-backtesting_end = datetime(2019, 1, 1)
+# and the allocated budget
+backtesting_start = datetime(2020, 1, 1)
+backtesting_end = datetime(2020, 12, 31)
+budget = 100000
 
 # Run the backtest
-stat_file = "logs/my_strategy_backtest.csv"
-strategy.backtest(
+stats_file = "logs/my_strategy_backtest.csv"
+MyStrategy.backtest(
+    "my_strategy",
     YahooDataBacktesting,
     budget,
     backtesting_start,
     backtesting_end,
-    stat_file=stat_file,
+    stats_file=stats_file,
 )
 ```
 
@@ -139,14 +136,16 @@ Bars objects has the following fields:
 Bars objects has the following helper methods:
 - ```get_last_price()```: returns the closing price of the last dataframe row
 - ```get_last_dividend()```: returns the dividend per share value of the last dataframe row
-- ```get_total_volume()```: returns the sum of the volume column
-- ```get_momentum_df(momentum_length)```: calculates the price change (momentum) 
-  after ```momentum_length``` number of rows for each row and filters rows without momentum.
-  Returns a dataframe.
 - ```get_momentum(start=None, end=None)```: calculates the global price momentum of the dataframe.
 When specified, start and end will be used to filter the daterange for the momentum calculation.
   If none of ``start`` or ``end`` are specified the momentum will be calculated from the first row untill
   the last row of the dataframe.
+- ```get_total_volume(start=None, end=None)```: returns the sum of the volume column. 
+  When ```start``` and/or ```end``` is/are specified use them to filter for that given daterange
+  before returning the total volume
+- ```filter(start=None, end=None)```: Filter the bars dataframe.
+  When ```start``` and/or ```end``` is/are specified use them to filter for that given daterange
+  before returning the total volume
 
 ## order
 
@@ -166,7 +165,6 @@ Order objects have also the following helper methods
 - ```to_position()```: convert an order to a position belonging to the same strategy with 
 ```order.quantity``` amount of shares.
 - ```get_increment()```: for selling orders returns ```- order.quantity```, for buying orders returns ```order.quantity```
-- ```get_momentum```
 
 ## position
 
@@ -198,6 +196,8 @@ properties that can be used as helpers to build trading logic.
 The methods of this class can be split into several categories:
 
 **Lifecycle Methods** These are executed at different times during the execution of the bot. These represent the main flow of a strategy, some are mandatory.
+
+**Strategy Methods** These are strategy helper methods.
 
 **Event Methods** These methods are executed when an event is trigered. Similar to lifecycle methods, but only *might* happen.
 
@@ -352,6 +352,12 @@ def trace_stats(self, context, snapshot_before):
     return row
 ```
 
+## Strategy Methods
+
+#### log_message
+
+Logs an info message prefixed with the strategy name
+
 ## Event Methods
 
 Events methods are similar to lifecycle methods. They are executed on particular conditions.
@@ -374,7 +380,7 @@ By default, if not overloaded,  it calls on_abrupt_closing.
 
 ```python
 class MyStrategy(Strategy):
-    def on_bot_crash(self):
+    def on_bot_crash(self, error):
         self.on_abrupt_closing()
 ```
 
@@ -738,24 +744,30 @@ Return type: dict of str:float
 
 ## Properties and Parameters
 
-- name (property): indicates the name of the strategy. By default equals to the class name.
-```MyStrategy(Strategy)``` will have a name ```"MyStrategy"```
-- unspent_money (property): indicates the amount of unspent money from the initial
-budget allocated to the strategy. This property is updated whenever a transaction was filled 
-by the broker or when dividends are paid.
-- portfolio_value (property): indicates the actual values of shares held by 
-  the current strategy plus the total unspent money.
-- minutes_before_closing (parameter). The lifecycle method on_trading_iteration is 
+- name: indicates the name of the strategy.
+- initial budget: indicates the initial budget
+- minutes_before_closing. The lifecycle method on_trading_iteration is 
   executed inside a loop that stops only when there is only ```minutes_before_closing``` 
   minutes remaining before market closes. By default equals to 5 minutes.
   This value can be overloaded when creating a strategy class in order to change the 
-  default behaviour
-- sleeptime (parameter): Sleeptime in minute after executing the lifecycle method 
+  default behaviour. Another option is to specify it when instanciation the strategy class
+  ```python
+  my_strategy = MyStrategy("my_strategy", budget, broker, minutes_before_closing=15)
+  ```
+- sleeptime: Sleeptime in minute after executing the lifecycle method 
   on_trading_iteration. By default equals to 1 minute. 
   This value can be overloaded when creating a strategy class in order to change the 
-  default behaviour
-- timezone (property): The string representation of the timezone used by the trading data_source. 
+  default behaviour. Another option is to specify it when instanciation the strategy class
+  ```python
+  my_strategy = MyStrategy("my_strategy", budget, broker, sleeptime=2)
+  ```
+- is_backtesting: A boolean that indicates whether the strategy is run in live trading
+  or in backtesting mode.
+- portfolio_value: indicates the actual values of shares held by 
+  the current strategy plus the total unspent money.
+- unspent_money: indicates the amount of unspent money from the initial
+  budget allocated to the strategy. This property is updated whenever a transaction was filled 
+  by the broker or when dividends are paid.
+- timezone: The string representation of the timezone used by the trading data_source. 
   By default ``America/New_York``.
-- pytz (property): the ```pytz``` object representation of the timezone property.
-- IS_BACKTESTABLE (class field): A flag to indicate whether backtesting is enabled or not.
-  By default, IS_BACKTESTABLE is ```True```.
+- pytz: the ```pytz``` object representation of the timezone property.

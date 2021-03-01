@@ -5,15 +5,26 @@ import pandas as pd
 from .bar import Bar
 
 
+class NoDataFound(Exception):
+    def __init__(self, source, symbol):
+        message = (
+            f"{source} did not return data for symbol {symbol}. "
+            f"Make sure there is no symbol typo or use another data source"
+        )
+        super(NoDataFound, self).__init__(message)
+
+
 class Bars:
     def __init__(self, df, source, symbol, raw=None):
         """
-        df columns: open, high, low, close, dividend, volume
-        df index: pd.Timestamp
+        df columns: open, high, low, close, volume, dividend, stock_splits
+        df index: pd.Timestamp localized at the timezone America/New_York
         """
+        if df.shape[0] == 0:
+            raise NoDataFound(source, symbol)
+        self.df = df
         self.source = source.upper()
         self.symbol = symbol.upper()
-        self.df = df
         self._raw = raw
 
     def __repr__(self):
@@ -60,29 +71,29 @@ class Bars:
     def get_last_dividend(self):
         return self.df["dividend"][-1]
 
-    def get_momentum_df(self, momentum_length):
-        df = self.df.copy()
-        df["momentum"] = df["close"].pct_change(periods=momentum_length)
-        return df[df["momentum"].notna()]
-
-    def get_momentum(self, start=None, end=None):
+    def filter(self, start=None, end=None):
         df_copy = self.df.copy()
         if isinstance(start, datetime):
             df_copy = df_copy[df_copy.index >= start]
         if isinstance(end, datetime):
             df_copy = df_copy[df_copy.index <= end]
 
+        return df_copy
+
+    def get_momentum(self, start=None, end=None):
+        df_copy = self.filter(start=start, end=end)
         n_rows = df_copy.shape[0]
-        if n_rows <= 1:
+        if n_rows == 0:
             return 0
 
         momentum = df_copy["close"].pct_change(n_rows - 1)[-1]
         return momentum
 
-    def get_total_volume(self, period=None):
-        if period is None:
-            volume = self.df["volume"].sum()
-        else:
-            volume = self.df[-period:]["volume"].sum()
+    def get_total_volume(self, start=None, end=None):
+        df_copy = self.filter(start=start, end=end)
+        n_rows = df_copy.shape[0]
+        if n_rows == 0:
+            return 0
 
+        volume = df_copy["volume"].sum()
         return volume

@@ -3,6 +3,11 @@ from copy import deepcopy
 from functools import wraps
 
 
+def staticdecorator(func):
+    """Makes a function decorated with staticmethod executable"""
+    return func.__get__("")
+
+
 def call_function_get_frame(func, *args, **kwargs):
     """
     Calls the function *func* with the specified arguments and keyword
@@ -44,34 +49,17 @@ def snatch_locals(store):
     return wrapper
 
 
-def snatch_method_locals(name, snapshot_before=False, copy_method=deepcopy):
-    """snatch a class method locals and
-    stores in an instance variable"""
+def append_locals(func_input):
+    """Snatch a function local variables
+    and store them in store variable"""
 
-    if not isinstance(name, str):
-        raise ValueError(
-            "snatch_method_locals must receive a string as input, received %r instead"
-            % name
-        )
+    @wraps(func_input)
+    def func_output(*args, **kwargs):
+        frame, result = call_function_get_frame(func_input, *args, **kwargs)
+        func_output.locals = frame.f_locals
+        return result
 
-    def wrapper(func_input):
-        @wraps(func_input)
-        def func_output(*args, **kwargs):
-            instance_copy = None
-            if snapshot_before and hasattr(func_input, "__self__"):
-                instance_copy = copy_method(func_input.__self__.__dict__)
-
-            frame, result = call_function_get_frame(func_input, *args, **kwargs)
-            store = frame.f_locals
-            if instance_copy:
-                store["snapshot_before"] = instance_copy
-            instance = store.pop("self")
-            instance.__dict__[name] = store
-            return result
-
-        return func_output
-
-    return wrapper
+    return func_output
 
 
 def execute_after(actions):

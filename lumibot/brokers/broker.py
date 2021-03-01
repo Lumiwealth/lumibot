@@ -308,7 +308,7 @@ class Broker:
         """submit orders"""
         with ThreadPoolExecutor(
             max_workers=self.max_workers,
-            thread_name_prefix=f"{self.name}_submitting_orders"
+            thread_name_prefix=f"{self.name}_submitting_orders",
         ) as executor:
             tasks = []
             for order in orders:

@@ -95,6 +95,7 @@ def romad(_df):
     romad = ret / mdd["drawdown"]
     return romad
 
+
 def stats_summary(_df, risk_free_rate):
     return {
         "cagr": cagr(_df),

@@ -129,8 +129,7 @@ class DataSource:
 
         chunks = get_chunks(symbols, chunk_size)
         with ThreadPoolExecutor(
-            max_workers=max_workers,
-            thread_name_prefix=f"{self.name}_requesting_data"
+            max_workers=max_workers, thread_name_prefix=f"{self.name}_requesting_data"
         ) as executor:
             tasks = []
             func = lambda args, kwargs: self._pull_source_bars(*args, **kwargs)

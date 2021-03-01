@@ -142,20 +142,11 @@ class Broker:
     def await_market_to_open(self):
         """Executes infinite loop until market opens"""
         isOpen = self.is_market_open()
-        while not isOpen:
+        if not isOpen:
             time_to_open = self.get_time_to_open()
-            if time_to_open > 60 * 60:
-                delta = timedelta(seconds=time_to_open)
-                logging.info("Market will open in %s." % str(delta))
-                time.sleep(60 * 60)
-            elif time_to_open > 60:
-                logging.info("%d minutes til market open." % int(time_to_open / 60))
-                time.sleep(60)
-            else:
-                logging.info("%d seconds til market open." % time_to_open)
-                time.sleep(time_to_open)
-
-            isOpen = self.is_market_open()
+            sleeptime = max(0, time_to_open)
+            logging.info("Sleeping until the market opens")
+            time.sleep(sleeptime)
 
     def await_market_to_close(self):
         """Sleep until market closes"""

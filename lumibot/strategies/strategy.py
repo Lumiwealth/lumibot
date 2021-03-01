@@ -1,116 +1,34 @@
 import logging
-import time
-import traceback
-from copy import deepcopy
-from functools import wraps
-from threading import Lock
 
-import pandas as pd
-
-from lumibot.backtesting import BacktestingBroker
 from lumibot.entities import Order
-from lumibot.tools import (
-    cagr,
-    day_deduplicate,
-    execute_after,
-    get_risk_free_rate,
-    max_drawdown,
-    romad,
-    sharpe,
-    snatch_method_locals,
-    volatility,
-)
-from lumibot.traders import Trader
+
+from ._strategy import _Strategy
 
 
-class Strategy:
-    IS_BACKTESTABLE = True
-
-    def __init__(
-        self,
-        budget,
-        broker,
-        data_source=None,
-        minutes_before_closing=5,
-        sleeptime=1,
-        stat_file=None,
-        risk_free_rate=None,
-    ):
-        # Setting the strategy name and the budget allocated
-        self._name = self.__class__.__name__
-        self._lock = Lock()
-        self._unspent_money = budget
-        self._portfolio_value = budget
-        self.stats_df = pd.DataFrame()
-        self.stat_file = stat_file
-        self.result = {}
-
-        # Get risk free rate from US Treasuries by default
-        if risk_free_rate is None:
-            self.risk_free_rate = get_risk_free_rate()
-        else:
-            self.risk_free_rate = risk_free_rate
-
-        # Setting the broker object
-        self.broker = broker
-        self._is_backtesting = self.broker.IS_BACKTESTING_BROKER
-        if self._is_backtesting and not self.IS_BACKTESTABLE:
-            raise Exception(
-                "Strategy %s cannot be backtested for the moment" % self._name
-            )
-        broker._add_subscriber(self)
-
-        # Initializing the context variables
-        # containing on_trading_iteration local variables
-        self._trading_context = None
-
-        # Setting how many minutes before market closes
-        # The bot should stop
-        self.minutes_before_closing = minutes_before_closing
-
-        # Timesleep after each on_trading_iteration execution
-        # unity is minutes
-        self.sleeptime = sleeptime
-
-        # Setting the data provider
-        if self._is_backtesting:
-            self.data_source = self.broker._data_source
-        elif data_source is None:
-            self.data_source = self.broker
-        else:
-            self.data_source = data_source
-
-        # Ready to close
-        self._ready_to_close = False
-
-    def __getattribute__(self, name):
-        attr = object.__getattribute__(self, name)
-        if name == "on_trading_iteration":
-            decorator = snatch_method_locals("_trading_context")
-            return decorator(attr)
-
-        elif name == "trace_stats":
-            strategy = self
-
-            @wraps(attr)
-            def output_func(*args, **kwargs):
-                row = attr(*args, **kwargs)
-                row["datetime"] = strategy.get_datetime()
-                row["portfolio_value"] = strategy.portfolio_value
-                row["unspent_money"] = strategy.unspent_money
-                strategy.stats_df = strategy.stats_df.append(row, ignore_index=True)
-                return row
-
-            return output_func
-
-        elif name in ["on_bot_crash", "on_abrupt_closing", "on_strategy_end"]:
-            return execute_after([self._dump_stats])(attr)
-
-        return attr
-
+class Strategy(_Strategy):
     @property
     def name(self):
         return self._name
+
+    @property
+    def initial_budget(self):
+        return self._initial_budget
+
+    @property
+    def minutes_before_closing(self):
+        return self._minutes_before_closing
+
+    @property
+    def sleeptime(self):
+        return self._sleeptime
+
+    @sleeptime.setter
+    def sleeptime(self, value):
+        self._sleeptime = value
+
+    @property
+    def is_backtesting(self):
+        return self._is_backtesting
 
     @property
     def portfolio_value(self):
@@ -121,133 +39,27 @@ class Strategy:
         return self._unspent_money
 
     @property
-    def positions(self):
-        return self.get_tracked_positions()
+    def stats_file(self):
+        return self._stats_file
 
     @property
-    def timezone(self):
-        return self.data_source.DEFAULT_TIMEZONE
+    def stats(self):
+        return self._stats
 
     @property
-    def pytz(self):
-        return self.data_source.DEFAULT_PYTZ
+    def analysis(self):
+        return self._analysis
 
-    @staticmethod
-    def _copy_instance_dict(instance_dict):
-        result = {}
-        ignored_fields = ["broker", "data_source"]
-        for key in instance_dict:
-            if key[0] != "_" and key not in ignored_fields:
-                try:
-                    result[key] = deepcopy(instance_dict[key])
-                except:
-                    logging.warning(
-                        "Cannot perform deepcopy on %r" % instance_dict[key]
-                    )
-            elif key in ["_unspent_money", "_portfolio_value"]:
-                result[key[1:]] = deepcopy(instance_dict[key])
+    @property
+    def risk_free_rate(self):
+        return self._risk_free_rate
 
-        return result
+    # =======Helper methods=======================
 
-    def _safe_sleep_(self, sleeptime):
-        """internal function for sleeping"""
-        if not self._is_backtesting:
-            time.sleep(sleeptime)
-        else:
-            self.broker._update_datetime(sleeptime)
-
-    def _update_portfolio_value(self):
-        """updates self.portfolio_value"""
-        with self._lock:
-            portfolio_value = self.unspent_money
-            symbols = [position.symbol for position in self.positions]
-            prices = self.get_last_prices(symbols)
-
-            for position in self.positions:
-                symbol = position.symbol
-                quantity = position.quantity
-                price = prices.get(symbol, 0)
-                portfolio_value += quantity * price
-
-            message = self.format_log_message(
-                f"Porfolio value of {self.portfolio_value}"
-            )
-            logging.info(message)
-            self._portfolio_value = round(portfolio_value, 2)
-
-        return portfolio_value
-
-    def _update_unspent_money(self, side, quantity, price):
-        """update the self.unspent_money"""
-        if side == "buy":
-            self._unspent_money -= quantity * price
-        if side == "sell":
-            self._unspent_money += quantity * price
-        self._unspent_money = round(self._unspent_money, 2)
-
-    def _update_unspent_money_with_dividends(self):
-        with self._lock:
-            symbols = [position.symbol for position in self.positions]
-            dividends_per_share = self.get_yesterday_dividends(symbols)
-            for position in self.positions:
-                symbol = position.symbol
-                quantity = position.quantity
-                dividend_per_share = dividends_per_share.get(symbol, 0)
-                self._unspent_money += dividend_per_share * quantity
-
-    def _format_stats_df(self):
-        df_ = self.stats_df.copy()
-        df_.set_index("datetime", inplace=True)
-        df_["return"] = df_["portfolio_value"].pct_change()
-        return df_
-
-    def _get_stats(self, df_):
-        return {
-            "cagr": cagr(df_),
-            "volatility": volatility(df_),
-            "sharpe": sharpe(df_, self.risk_free_rate),
-            "max_drawdown": max_drawdown(df_),
-            "romad": romad(df_),
-        }
-
-    def _dump_stats(self):
-        logger = logging.getLogger()
-        current_level = logging.getLevelName(logger.level)
-        logger.setLevel(logging.INFO)
-        if not self.stats_df.empty:
-            self.stats_df = self._format_stats_df()
-            if self.stat_file:
-                self.stats_df.to_csv(self.stat_file)
-
-            df_ = day_deduplicate(self.stats_df)
-            self.result = self._get_stats(df_)
-
-            cagr_value = self.result["cagr"]
-            logging.info(self.format_log_message(f"CAGR {round(100 * cagr_value, 2)}%"))
-
-            volatility_value = self.result["volatility"]
-            logging.info(
-                self.format_log_message(
-                    f"Volatility {round(100 * volatility_value, 2)}%"
-                )
-            )
-
-            sharpe_value = self.result["sharpe"]
-            logging.info(self.format_log_message(f"Sharpe {round(sharpe_value, 2)}"))
-
-            max_drawdown_result = self.result["max_drawdown"]
-            logging.info(
-                self.format_log_message(
-                    f"Max Drawdown {round(100 * max_drawdown_result['drawdown'], 2)}% on {max_drawdown_result['date']:%Y-%m-%d}"
-                )
-            )
-
-            romad_value = self.result["romad"]
-            logging.info(
-                self.format_log_message(f"RoMaD {round(100 * romad_value, 2)}%")
-            )
-
-        logger.setLevel(current_level)
+    def log_message(self, message):
+        message = "Strategy %s: %s" % (self.name, message)
+        logging.info(message)
+        return message
 
     # ======Order methods shortcuts===============
 
@@ -261,7 +73,7 @@ class Strategy:
         time_in_force="day",
     ):
         order = Order(
-            self._name,
+            self.name,
             symbol,
             quantity,
             side,
@@ -284,34 +96,38 @@ class Strategy:
     def get_tracked_position(self, symbol):
         """get a tracked position given
         a symbol for the current strategy"""
-        return self.broker.get_tracked_position(self._name, symbol)
+        return self.broker.get_tracked_position(self.name, symbol)
 
     def get_tracked_positions(self):
         """get all tracked positions for the current strategy"""
-        return self.broker.get_tracked_positions(self._name)
+        return self.broker.get_tracked_positions(self.name)
+
+    @property
+    def positions(self):
+        return self.get_tracked_positions()
 
     def get_tracked_order(self, identifier):
         """get a tracked order given an identifier.
         Check that the order belongs to current strategy"""
         order = self.broker.get_tracked_order(identifier)
-        if order.strategy == self._name:
+        if order.strategy == self.name:
             return order
         return None
 
     def get_tracked_orders(self):
         """get all tracked orders for a given strategy"""
-        return self.broker.get_tracked_orders(self._name)
+        return self.broker.get_tracked_orders(self.name)
 
     def get_tracked_assets(self):
         """Get the list of symbols for positions
         and open orders for the current strategy"""
-        return self.broker.get_tracked_assets(self._name)
+        return self.broker.get_tracked_assets(self.name)
 
     def get_asset_potential_total(self, symbol):
         """given current strategy and a symbol, check the ongoing
         position and the tracked order and returns the total
         number of shares provided all orders went through"""
-        return self.broker.get_asset_potential_total(self._name, symbol)
+        return self.broker.get_asset_potential_total(self.name, symbol)
 
     def submit_order(self, order):
         """Submit an order for an asset"""
@@ -331,11 +147,11 @@ class Strategy:
 
     def cancel_open_orders(self):
         """cancel all the strategy open orders"""
-        self.broker.cancel_open_orders(self._name)
+        self.broker.cancel_open_orders(self.name)
 
     def sell_all(self, cancel_open_orders=True):
         """sell all strategy positions"""
-        self.broker.sell_all(self._name, cancel_open_orders=cancel_open_orders)
+        self.broker.sell_all(self.name, cancel_open_orders=cancel_open_orders)
 
     def get_last_price(self, symbol):
         """Takes an asset symbol and returns the last known price"""
@@ -353,6 +169,14 @@ class Strategy:
         )
 
     # =======Data source methods=================
+
+    @property
+    def timezone(self):
+        return self.data_source.DEFAULT_TIMEZONE
+
+    @property
+    def pytz(self):
+        return self.data_source.DEFAULT_PYTZ
 
     def get_datetime(self):
         return self.data_source.get_datetime()
@@ -423,12 +247,6 @@ class Strategy:
 
     def get_yesterday_dividends(self, symbols):
         return self.data_source.get_yesterday_dividends(symbols)
-
-    # =======Helper methods=======================
-
-    def format_log_message(self, message):
-        message = "Strategy %s: %s" % (self._name, message)
-        return message
 
     # =======Lifecycle methods====================
 
@@ -501,129 +319,12 @@ class Strategy:
         when an order has been canceled by the broker"""
         pass
 
-    def on_partially_filled_order(self, order):
+    def on_partially_filled_order(self, order, price, quantity):
         """Use this lifecycle event to execute code
         when an order has been partially filled by the broker"""
         pass
 
-    def on_filled_order(self, position, order):
+    def on_filled_order(self, position, order, price, quantity):
         """Use this lifecycle event to execute code
         when an order has been filled by the broker"""
         pass
-
-    # ======Execution methods ====================
-
-    def get_ready_to_close(self):
-        return self._ready_to_close
-
-    def set_ready_to_close(self, value=True):
-        self._ready_to_close = value
-
-    def _run_trading_session(self):
-        if not self.broker.is_market_open():
-            logging.info(
-                self.format_log_message(
-                    "Executing the before_market_opens lifecycle method"
-                )
-            )
-            self.before_market_opens()
-
-        self.broker.await_market_to_open()
-        self._update_unspent_money_with_dividends()
-
-        logging.info(
-            self.format_log_message(
-                "Executing the before_starting_trading lifecycle method"
-            )
-        )
-        self.before_starting_trading()
-
-        time_to_close = self.broker.get_time_to_close()
-        while time_to_close > self.minutes_before_closing * 60:
-            logging.info(
-                self.format_log_message(
-                    "Executing the on_trading_iteration lifecycle method"
-                )
-            )
-
-            # Executing the on_trading_iteration lifecycle method
-            # and tracking stats
-            self._update_portfolio_value()
-            snapshot_before = self._copy_instance_dict(self.__dict__)
-            self.on_trading_iteration()
-            self._update_portfolio_value()
-            self.trace_stats(self._trading_context, snapshot_before)
-            self._trading_context = None
-
-            time_to_close = self.broker.get_time_to_close()
-            sleeptime = time_to_close - 15 * 60
-            sleeptime = max(min(sleeptime, 60 * self.sleeptime), 0)
-            if sleeptime:
-                logging.info(
-                    self.format_log_message("Sleeping for %d seconds" % sleeptime)
-                )
-                self._safe_sleep_(sleeptime)
-            elif self.broker.IS_BACKTESTING_BROKER:
-                break
-
-        if self.broker.is_market_open():
-            logging.info(
-                self.format_log_message(
-                    "Executing the before_market_closes lifecycle method"
-                )
-            )
-            self.before_market_closes()
-
-        self.broker.await_market_to_close()
-        logging.info(
-            self.format_log_message(
-                "Executing the after_market_closes lifecycle method"
-            )
-        )
-        self.after_market_closes()
-
-    def run(self):
-        """The main execution point.
-        Execute the lifecycle methods"""
-        logging.info(
-            self.format_log_message("Executing the initialize lifecycle method")
-        )
-        self.initialize()
-        while self.broker.should_continue():
-            try:
-                self._run_trading_session()
-            except Exception as e:
-                logging.error(e)
-                logging.error(traceback.format_exc())
-                self.on_bot_crash(e)
-                return False
-        logging.info(
-            self.format_log_message("Executing the on_strategy_end lifecycle method")
-        )
-        try:
-            self.on_strategy_end()
-        except Exception as e:
-            logging.error(e)
-            logging.error(traceback.format_exc())
-            self.on_bot_crash(e)
-            return False
-        return self.result
-
-    @classmethod
-    def backtest(
-        cls,
-        datasource_class,
-        budget,
-        backtesting_start,
-        backtesting_end,
-        logfile="logs/test.log",
-        stat_file=None,
-        auth=None,
-    ):
-        trader = Trader(logfile=logfile)
-        data_source = datasource_class(backtesting_start, backtesting_end, auth=auth)
-        backtesting_broker = BacktestingBroker(data_source)
-        strategy = cls(budget=budget, broker=backtesting_broker, stat_file=stat_file)
-        trader.add_strategy(strategy)
-        result = trader.run_all()
-        return result

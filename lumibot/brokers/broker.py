@@ -366,7 +366,7 @@ class Broker:
     def _get_subscriber(self, name):
         """get a subscriber/strategy by name"""
         for subscriber in self._subscribers:
-            if subscriber._name == name:
+            if subscriber.name == name:
                 return subscriber
 
         return None
@@ -374,31 +374,30 @@ class Broker:
     def _on_new_order(self, order):
         """notify relevant subscriber/strategy about
         new order event"""
+        payload = dict(order=order)
         subscriber = self._get_subscriber(order.strategy)
-        subscriber.on_new_order(order)
+        subscriber.add_event(subscriber.NEW_ORDER, payload)
 
     def _on_canceled_order(self, order):
         """notify relevant subscriber/strategy about
         canceled order event"""
+        payload = dict(order=order)
         subscriber = self._get_subscriber(order.strategy)
-        subscriber.on_canceled_order(order)
+        subscriber.add_event(subscriber.CANCELED_ORDER, payload)
 
-    def _on_partially_filled_order(self, order):
+    def _on_partially_filled_order(self, order, price, quantity):
         """notify relevant subscriber/strategy about
         partially filled order event"""
+        payload = dict(order=order, price=price, quantity=quantity)
         subscriber = self._get_subscriber(order.strategy)
-        subscriber.on_partially_filled_order(order)
+        subscriber.add_event(subscriber.PARTIALLY_FILLED_ORDER, payload)
 
-    def _on_filled_order(self, position, order):
+    def _on_filled_order(self, position, order, price, quantity):
         """notify relevant subscriber/strategy about
         filled order event"""
+        payload = dict(position=position, order=order, price=price, quantity=quantity)
         subscriber = self._get_subscriber(order.strategy)
-        subscriber.on_filled_order(position, order)
-
-    def _update_subscriber_unspent_money(self, name, side, quantity, price):
-        """update the corresponding strategy unspent_money"""
-        subscriber = self._get_subscriber(name)
-        subscriber._update_unspent_money(side, quantity, price)
+        subscriber.add_event(subscriber.FILLED_ORDER, payload)
 
     # ==========Processing streams data=======================
 
@@ -415,68 +414,55 @@ class Broker:
         """process an occured trading event and update the
         corresponding order"""
         # for fill and partial_fill events, price and filled_quantity must be specified
-        strategy = stored_order.strategy
-        subscriber = self._get_subscriber(strategy)
-        with subscriber._lock:
-            if type_event in [self.FILLED_ORDER, self.PARTIALLY_FILLED_ORDER] and (
-                price is None or filled_quantity is None
-            ):
-                raise ValueError(
-                    """For filled_order and partially_filled_order event,
-                    price and filled_quantity must be specified.
-                    Received respectively %r and %r"""
-                    % (price, filled_quantity)
-                )
+        if type_event in [self.FILLED_ORDER, self.PARTIALLY_FILLED_ORDER] and (
+            price is None or filled_quantity is None
+        ):
+            raise ValueError(
+                """For filled_order and partially_filled_order event,
+                price and filled_quantity must be specified.
+                Received respectively %r and %r"""
+                % (price, filled_quantity)
+            )
 
-            if filled_quantity is not None:
-                error = ValueError(
-                    "filled_quantity must be a positive integer, received %r instead"
-                    % filled_quantity
-                )
-                try:
-                    filled_quantity = int(filled_quantity)
-                    if filled_quantity < 0:
-                        raise error
-                except:
+        if filled_quantity is not None:
+            error = ValueError(
+                "filled_quantity must be a positive integer, received %r instead"
+                % filled_quantity
+            )
+            try:
+                filled_quantity = int(filled_quantity)
+                if filled_quantity < 0:
                     raise error
+            except:
+                raise error
 
-            if price is not None:
-                error = ValueError(
-                    "price must be a positive float, received %r instead" % price
-                )
-                try:
-                    price = float(price)
-                    if price < 0:
-                        raise error
-                except:
+        if price is not None:
+            error = ValueError(
+                "price must be a positive float, received %r instead" % price
+            )
+            try:
+                price = float(price)
+                if price < 0:
                     raise error
+            except:
+                raise error
 
-            if type_event == self.NEW_ORDER:
-                stored_order = self._process_new_order(stored_order)
-                self._on_new_order(stored_order)
-            elif type_event == self.CANCELED_ORDER:
-                stored_order = self._process_canceled_order(stored_order)
-                self._on_canceled_order(stored_order)
-            elif type_event == self.PARTIALLY_FILLED_ORDER:
-                self._update_subscriber_unspent_money(
-                    stored_order.strategy, stored_order.side, filled_quantity, price
-                )
-                stored_order = self._process_partially_filled_order(
-                    stored_order, price, filled_quantity
-                )
-                self._on_partially_filled_order(stored_order)
-            elif type_event == self.FILLED_ORDER:
-                self._update_subscriber_unspent_money(
-                    stored_order.strategy, stored_order.side, filled_quantity, price
-                )
-                position = self._process_filled_order(
-                    stored_order, price, filled_quantity
-                )
-                self._on_filled_order(position, stored_order)
-            else:
-                logging.info(
-                    "Unhandled type event %s for %r" % (type_event, stored_order)
-                )
+        if type_event == self.NEW_ORDER:
+            stored_order = self._process_new_order(stored_order)
+            self._on_new_order(stored_order)
+        elif type_event == self.CANCELED_ORDER:
+            stored_order = self._process_canceled_order(stored_order)
+            self._on_canceled_order(stored_order)
+        elif type_event == self.PARTIALLY_FILLED_ORDER:
+            stored_order = self._process_partially_filled_order(
+                stored_order, price, filled_quantity
+            )
+            self._on_partially_filled_order(stored_order, price, filled_quantity)
+        elif type_event == self.FILLED_ORDER:
+            position = self._process_filled_order(stored_order, price, filled_quantity)
+            self._on_filled_order(position, stored_order, price, filled_quantity)
+        else:
+            logging.info("Unhandled type event %s for %r" % (type_event, stored_order))
 
         return
 

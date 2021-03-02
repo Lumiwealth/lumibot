@@ -2,6 +2,7 @@ from datetime import datetime
 
 import yfinance as yf
 
+from lumibot.data_sources.exceptions import NoDataFound
 from lumibot.entities import Bars
 
 from .data_source import DataSource
@@ -30,6 +31,8 @@ class YahooData(DataSource):
             data = self._data_store[symbol]
         else:
             data = yf.Ticker(symbol).history(period="max")
+            if data.shape[0] == 0:
+                raise NoDataFound(self.SOURCE, symbol)
             self._append_data(symbol, data)
 
         if timeshift:

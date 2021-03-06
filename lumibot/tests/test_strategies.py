@@ -16,14 +16,14 @@ def test_momentum_strategy():
         risk_free_rate = 0
 
         valid_result = {
-            "cagr": 0.09294570506279065,
-            "volatility": 0.21715813789892638,
-            "sharpe": 0.42800931138049775,
+            "cagr": 0.09287721125575299,
+            "volatility": 0.2171347340066279,
+            "sharpe": 0.42774000060680284,
             "max_drawdown": {
-                "drawdown": 0.2238357304157359,
+                "drawdown": 0.22376949357971654,
                 "date": pd.Timestamp("2020-03-16 16:00:00-0400", tz="America/New_York"),
             },
-            "romad": 0.41524069857015317,
+            "romad": 0.4150575208888608,
         }
 
         stats = Momentum.backtest(
@@ -68,14 +68,14 @@ def test_diversification_strategy():
         risk_free_rate = 0
 
         valid_result = {
-            "cagr": 0.18833117467445426,
-            "volatility": 0.11211867858588304,
-            "sharpe": 1.6797484330872876,
+            "cagr": 0.18828833851783022,
+            "volatility": 0.11210787357378023,
+            "sharpe": 1.6795282304049255,
             "max_drawdown": {
-                "drawdown": 0.13177984159016465,
+                "drawdown": 0.13174368699156755,
                 "date": pd.Timestamp("2020-03-18 16:00:00-0400", tz="America/New_York"),
             },
-            "romad": 1.4291349299095706,
+            "romad": 1.4292019816469983,
         }
 
         stats = Diversification.backtest(

@@ -141,15 +141,19 @@ class DataSource:
 
         return result
 
-    def get_last_price(self, symbol):
+    def get_last_price(self, symbol, timestep=None):
         """Takes an asset symbol and returns the last known price"""
-        bars = self.get_symbol_bars(symbol, 1, timestep=self.MIN_TIMESTEP)
+        if timestep is None:
+            timestep = self.MIN_TIMESTEP
+        bars = self.get_symbol_bars(symbol, 1, timestep=timestep)
         return bars.df.iloc[0].close
 
-    def get_last_prices(self, symbols):
+    def get_last_prices(self, symbols, timestep=None):
         """Takes a list of symbols and returns the last known prices"""
+        if timestep is None:
+            timestep = self.MIN_TIMESTEP
         result = {}
-        symbols_bars = self.get_bars(symbols, 1, timestep=self.MIN_TIMESTEP)
+        symbols_bars = self.get_bars(symbols, 1, timestep=timestep)
         for symbol, bars in symbols_bars.items():
             if bars is not None:
                 last_value = bars.df.iloc[0].close

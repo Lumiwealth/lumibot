@@ -29,6 +29,12 @@ class Trader:
     def run_all(self):
         """run all strategies"""
         if self.is_backtest:
+            if len(self._strategies) > 1:
+                raise Exception(
+                    "Received %d strategies for backtesting."
+                    "You can backtest only once at a time." % len(self._strategies)
+                )
+
             logging.info("Backtesting starting...")
 
         signal.signal(signal.SIGINT, self._stop_pool)

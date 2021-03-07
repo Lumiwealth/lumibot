@@ -15,7 +15,7 @@ class YahooData(DataSource):
         {"timestep": "day", "represntations": ["1D", "day"]},
     ]
 
-    def __init__(self):
+    def __init__(self, config=None):
         self.name = "yahoo"
         self._data_store = {}
 

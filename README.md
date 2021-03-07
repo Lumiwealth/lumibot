@@ -94,6 +94,8 @@ put into a CSV file in the location of `stats_file`.
 from lumibot.backtesting import YahooDataBacktesting
 from my_strategy import MyStrategy
 
+from datetime import datetime
+
 # Pick the dates that you want to start and end your backtest
 # and the allocated budget
 backtesting_start = datetime(2020, 1, 1)
@@ -104,8 +106,8 @@ budget = 100000
 stats_file = "logs/my_strategy_backtest.csv"
 MyStrategy.backtest(
     "my_strategy",
-    YahooDataBacktesting,
     budget,
+    YahooDataBacktesting,
     backtesting_start,
     backtesting_end,
     stats_file=stats_file,

@@ -1,6 +1,6 @@
 import logging
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 from functools import wraps
 from threading import RLock, Thread
@@ -304,6 +304,12 @@ class Broker:
             tasks = []
             for order in orders:
                 tasks.append(executor.submit(self.submit_order, order))
+
+            result = []
+            for task in as_completed(tasks):
+                result.append(task.result())
+
+        return result
 
     def cancel_order(self, order):
         """Cancel an order"""

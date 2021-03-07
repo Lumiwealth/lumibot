@@ -499,7 +499,7 @@ Submit a list of orders
 Parameters:
 - orders (list(order)): the list of orders
 
-Return type: ```None```
+Return type: ```list(order)```
 
 #### cancel_order
 

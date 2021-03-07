@@ -30,19 +30,19 @@ mapping = {
         "class": Momentum,
         "backtesting_datasource": YahooDataBacktesting,
         "backtesting_cache": False,
-        "auth": None,
+        "config": None,
     },
     "diversification": {
         "class": Diversification,
         "backtesting_datasource": YahooDataBacktesting,
         "backtesting_cache": False,
-        "auth": None,
+        "config": None,
     },
     "intraday_momentum": {
         "class": IntradayMomentum,
         "backtesting_datasource": None,
         "backtesting_cache": False,
-        "auth": None,
+        "config": None,
     },
 }
 
@@ -72,7 +72,7 @@ if __name__ == "__main__":
         strategy_class = strategy_params["class"]
         backtesting_datasource = strategy_params["backtesting_datasource"]
         backtesting_cache = strategy_params["backtesting_cache"]
-        auth = strategy_params["auth"]
+        config = strategy_params["config"]
 
         stats_file = f"logs/strategy_{strategy_class.__name__}_{int(time())}.csv"
         if live_trading:
@@ -99,7 +99,7 @@ if __name__ == "__main__":
                 backtesting_start,
                 backtesting_end,
                 stats_file=stats_file,
-                auth=auth,
+                config=config,
             )
 
             logging.info(f"*** Benchmark Performance for {benchmark_asset} ***")

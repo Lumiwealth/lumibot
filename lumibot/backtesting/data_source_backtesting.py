@@ -10,7 +10,7 @@ class DataSourceBacktesting:
     @classmethod
     def factory(cls, datasource_class):
         def __init__(self, datetime_start, datetime_end, **kwargs):
-            datasource_class.__init__(self)
+            datasource_class.__init__(self, **kwargs)
             cls.__init__(self, datetime_start, datetime_end)
 
         backtesting_class = type(

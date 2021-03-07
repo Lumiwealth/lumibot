@@ -184,10 +184,12 @@ class _Strategy:
         stats_file=None,
         risk_free_rate=None,
         logfile="logs/test.log",
-        auth=None,
+        config=None,
     ):
         trader = Trader(logfile=logfile)
-        data_source = datasource_class(backtesting_start, backtesting_end, auth=auth)
+        data_source = datasource_class(
+            backtesting_start, backtesting_end, config=config
+        )
         backtesting_broker = BacktestingBroker(data_source)
         strategy = cls(
             name,

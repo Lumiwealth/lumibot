@@ -50,7 +50,13 @@ if __name__ == "__main__":
     # Set the benchmark asset for backtesting to be "SPY" by default
     benchmark_asset = "SPY"
 
-    parser = argparse.ArgumentParser("Running AlgoTrader")
+    parser = argparse.ArgumentParser(
+        f"\n\
+        Running AlgoTrader\n\
+        Usage: ‘python main.py [strategies]’\n\
+        Where strategies can be any of diversification, momentum, intraday_momentum, simple\n\
+        Example: ‘python main.py momentum’ "
+    )
     parser.add_argument("strategies", nargs="+", help="list of strategies")
     parser.add_argument(
         "-l",
@@ -61,6 +67,7 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
+
     strategies = args.strategies
     live_trading = args.live_trading
 

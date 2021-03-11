@@ -166,6 +166,8 @@ Order objects have also the following helper methods
 ```order.quantity``` amount of shares.
 - ```get_increment()```: for selling orders returns ```- order.quantity```, for buying orders returns ```order.quantity```
 
+*** NOTE: Limit and stop orders work as normal in live trading, but will be ignored in backtesting. Meaning that a backtest will assume limit and stop orders were never executed.
+
 ## position
 
 This object represents a position. Each position belongs to a specific strategy.

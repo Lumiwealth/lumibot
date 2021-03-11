@@ -9,8 +9,9 @@
 venv
 logs
 credentials.py
-debug.py
+*debug.py
 todos.txt
+*.pem
 
 # Pypi deployment
 build

@@ -610,8 +610,8 @@ Example:
 ```python
 import timedelta
 # Return a midnight rounded datetime object of three minutes ago 
-bars =  self.get_round_minute(timeshift=3)
-print(bars)
+dt =  self.get_round_minute(timeshift=3)
+print(dt)
 # datetime.datetime(2021, 2, 21, 9, 17, tzinfo=<DstTzInfo 'America/New_York' EST-1 day, 19:00:00 STD>)
 ```
 
@@ -634,8 +634,8 @@ Example:
 ```python
 import timedelta
 # Return a midnight rounded datetime object of three days ago 
-bars =  self.get_round_minute(timeshift=3)
-print(bars)
+dt =  self.get_round_day(timeshift=3)
+print(dt)
 # datetime.datetime(2021, 2, 21, 0, 0, tzinfo=<DstTzInfo 'America/New_York' EST-1 day, 19:00:00 STD>)
 ```
 

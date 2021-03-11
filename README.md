@@ -463,6 +463,8 @@ Optional Parameters:
 - stop_price (default = None)
 - time_in_force (default = "day")
 
+*** NOTE: Limit and stop orders work as normal in live trading, but will be ignored in backtesting. Meaning that a backtest will assume limit and stop orders were never executed.
+
 Return type: order
 
 ```python

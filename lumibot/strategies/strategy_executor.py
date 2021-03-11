@@ -28,10 +28,6 @@ class StrategyExecutor(Thread):
         self.minutes_before_closing = self.strategy.minutes_before_closing
         self.result = {}
 
-        # Overloading the default time.sleep method
-        # In case a user is using it for backtesting
-        time.sleep = self.safe_sleep
-
     @property
     def name(self):
         return self.strategy._name
@@ -261,6 +257,10 @@ class StrategyExecutor(Thread):
         self._after_market_closes()
 
     def run(self):
+        # Overloading the default time.sleep method
+        # In case a user is using it for backtesting
+        time.sleep = self.safe_sleep
+
         self._initialize()
         while self.broker.should_continue() and self.should_continue:
             try:

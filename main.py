@@ -7,7 +7,12 @@ from credentials import AlpacaConfig
 from lumibot.backtesting import YahooDataBacktesting
 from lumibot.brokers import Alpaca
 from lumibot.data_sources import AlpacaData
-from lumibot.strategies.examples import Diversification, IntradayMomentum, Momentum
+from lumibot.strategies.examples import (
+    DebtTrading,
+    Diversification,
+    IntradayMomentum,
+    Momentum,
+)
 from lumibot.tools import indicators
 from lumibot.traders import Trader
 from lumibot.trading_builtins import set_redis_db
@@ -34,6 +39,12 @@ mapping = {
     },
     "diversification": {
         "class": Diversification,
+        "backtesting_datasource": YahooDataBacktesting,
+        "backtesting_cache": False,
+        "config": None,
+    },
+    "debt_trading": {
+        "class": DebtTrading,
         "backtesting_datasource": YahooDataBacktesting,
         "backtesting_cache": False,
         "config": None,

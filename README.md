@@ -69,8 +69,8 @@ Below an example of main.py:
 # main.py
 from lumibot.traders import Trader
 from lumibot.brokers import Alpaca
-from lumibot.credentials import AlpacaConfig
 from lumibot.strategies.examples import Momentum
+from credentials import AlpacaConfig
 
 budget = 40000
 logfile = "logs/test.log"

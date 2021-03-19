@@ -18,6 +18,10 @@ class Strategy(_Strategy):
     def minutes_before_closing(self):
         return self._minutes_before_closing
 
+    @minutes_before_closing.setter
+    def minutes_before_closing(self, value):
+        self._minutes_before_closing = value
+
     @property
     def sleeptime(self):
         return self._sleeptime

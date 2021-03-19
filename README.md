@@ -255,9 +255,47 @@ Use this lifecycle method to initialize parameters like:
 
 ```python
 class MyStrategy(Strategy):
-    def initialize(self):
+    def initialize(self, my_custom_parameter=True):
         self.sleeptime = 5
         self.minutes_before_closing = 15
+        self.my_custom_parameter = my_custom_parameter
+```
+
+You can also use the initialize method to define some custom parameters 
+like ```my_custom_parameter``` in the example above.
+
+These parameters can easily be set using the strategy constructor later on.
+
+```python
+strategy_1 = MyStrategy(
+  name="strategy_1",
+  budget=budget,
+  broker=broker,
+  my_custom_parameter=False
+)
+
+strategy_2 = MyStrategy(
+  name="strategy_2",
+  budget=budget,
+  broker=broker,
+  my_custom_parameter=True
+)
+```
+
+or just for backtesting
+
+```python
+options = [True, False]
+for option in options:
+    MyStrategy.backtest(
+        "my_strategy",
+        budget,
+        YahooDataBacktesting,
+        backtesting_start,
+        backtesting_end,
+        stats_file=stats_file,
+        my_custom_parameter=option
+    )
 ```
 
 #### before_market_opens
@@ -750,6 +788,8 @@ Return type: dict of str:float
 
 ## Properties and Parameters
 
+A strategy object has the following properties:
+
 - name: indicates the name of the strategy.
 - initial budget: indicates the initial budget
 - minutes_before_closing. The lifecycle method on_trading_iteration is 
@@ -767,6 +807,8 @@ Return type: dict of str:float
   ```python
   my_strategy = MyStrategy("my_strategy", budget, broker, sleeptime=2)
   ```
+- parameters: a dictionary that contains keyword arguments passed to the constructor. 
+  These keyords arguments will be passed to the `self.initialize()` lifecycle method
 - is_backtesting: A boolean that indicates whether the strategy is run in live trading
   or in backtesting mode.
 - portfolio_value: indicates the actual values of shares held by 

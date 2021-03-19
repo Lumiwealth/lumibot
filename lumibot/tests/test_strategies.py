@@ -16,14 +16,14 @@ def test_momentum_strategy():
         risk_free_rate = 0
 
         valid_result = {
-            "cagr": 0.09287721125575299,
-            "volatility": 0.2171347340066279,
-            "sharpe": 0.42774000060680284,
+            "cagr": 0.08491181810900916,
+            "volatility": 0.2456740093974997,
+            "sharpe": 0.3456280064677991,
             "max_drawdown": {
-                "drawdown": 0.22376949357971654,
+                "drawdown": 0.2633426221391952,
                 "date": pd.Timestamp("2020-03-16 16:00:00-0400", tz="America/New_York"),
             },
-            "romad": 0.4150575208888608,
+            "romad": 0.32243856850535674,
         }
 
         stats = Momentum.backtest(

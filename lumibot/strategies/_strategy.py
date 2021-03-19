@@ -24,6 +24,7 @@ class _Strategy:
         sleeptime=1,
         stats_file=None,
         risk_free_rate=None,
+        **kwargs,
     ):
         # Setting the broker object
         self._name = name
@@ -60,6 +61,9 @@ class _Strategy:
             self._risk_free_rate = get_risk_free_rate()
         else:
             self._risk_free_rate = risk_free_rate
+
+        # Storing parameters for the initialize method
+        self._parameters = kwargs
 
     # =============Internal functions===================
 
@@ -185,6 +189,7 @@ class _Strategy:
         risk_free_rate=None,
         logfile="logs/test.log",
         config=None,
+        **kwargs,
     ):
         trader = Trader(logfile=logfile)
         data_source = datasource_class(
@@ -199,6 +204,7 @@ class _Strategy:
             sleeptime=sleeptime,
             risk_free_rate=risk_free_rate,
             stats_file=stats_file,
+            **kwargs,
         )
         trader.add_strategy(strategy)
         result = trader.run_all()

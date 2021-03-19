@@ -31,6 +31,10 @@ class Strategy(_Strategy):
         self._sleeptime = value
 
     @property
+    def parameters(self):
+        return self._parameters
+
+    @property
     def is_backtesting(self):
         return self._is_backtesting
 

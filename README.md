@@ -381,17 +381,17 @@ Use this method to dump stats
 ```python
 import random
 class MyStrategy(Strategy):
-    def on_trading_iteration(self):
-        google_symbol = "GOOG"
+   def on_trading_iteration(self):
+       google_symbol = "GOOG"
   
-def trace_stats(self, context, snapshot_before):
-    print(context)
-    # printing
-    # { "google_symbol":"GOOG"}
-    random_number = random.randint(0, 100)
-    row = {"my_custom_stat": random_number}
+   def trace_stats(self, context, snapshot_before):
+       print(context)
+       # printing
+       # { "google_symbol":"GOOG"}
+       random_number = random.randint(0, 100)
+       row = {"my_custom_stat": random_number}
 
-    return row
+       return row
 ```
 
 ## Strategy Methods

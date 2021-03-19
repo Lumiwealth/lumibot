@@ -14,7 +14,7 @@ then we will buy SPY.
 class Momentum(Strategy):
     # =====Overloading lifecycle methods=============
 
-    def initialize(self):
+    def initialize(self, symbols=None):
         # Setting the waiting period (in days)
         self.period = 1
 
@@ -26,7 +26,10 @@ class Momentum(Strategy):
         self.sleeptime = 0
 
         # Set the symbols that we will be monitoring for momentum
-        self.symbols = ["SPY", "VEU", "AGG"]
+        if symbols:
+            self.symbols = symbols
+        else:
+            self.symbols = ["SPY", "VEU", "AGG"]
 
         # The asset that we want to buy/currently own, and the quantity
         self.asset = ""

@@ -189,11 +189,12 @@ class _Strategy:
         risk_free_rate=None,
         logfile="logs/test.log",
         config=None,
+        auto_adjust=True,
         **kwargs,
     ):
         trader = Trader(logfile=logfile)
         data_source = datasource_class(
-            backtesting_start, backtesting_end, config=config
+            backtesting_start, backtesting_end, config=config, auto_adjust=auto_adjust
         )
         backtesting_broker = BacktestingBroker(data_source)
         strategy = cls(

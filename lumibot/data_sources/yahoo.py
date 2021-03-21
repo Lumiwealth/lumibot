@@ -15,8 +15,9 @@ class YahooData(DataSource):
         {"timestep": "day", "represntations": ["1D", "day"]},
     ]
 
-    def __init__(self, config=None):
+    def __init__(self, config=None, auto_adjust=True, **kwargs):
         self.name = "yahoo"
+        self.auto_adjust = auto_adjust
         self._data_store = {}
 
     def _append_data(self, symbol, data):
@@ -30,7 +31,7 @@ class YahooData(DataSource):
         if symbol in self._data_store:
             data = self._data_store[symbol]
         else:
-            data = yf.Ticker(symbol).history(period="max")
+            data = yf.Ticker(symbol).history(period="max", auto_adjust=self.auto_adjust)
             if data.shape[0] == 0:
                 raise NoDataFound(self.SOURCE, symbol)
             self._append_data(symbol, data)
@@ -51,7 +52,7 @@ class YahooData(DataSource):
         ]
         tickers = yf.Tickers(" ".join(missing_symbols))
         for ticker in tickers.tickers:
-            data = ticker.history(period="max")
+            data = ticker.history(period="max", auto_adjust=self.auto_adjust)
             self._append_data(ticker.ticker, data)
 
         result = {}
@@ -63,6 +64,8 @@ class YahooData(DataSource):
 
     def _parse_source_symbol_bars(self, response, symbol):
         df = response.copy()
+        if "Adj Close" in df:
+            del df["Adj Close"]
         df.columns = [
             "open",
             "high",

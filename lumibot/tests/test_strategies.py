@@ -16,14 +16,14 @@ def test_momentum_strategy():
         risk_free_rate = 0
 
         valid_result = {
-            "cagr": 0.08491181810900916,
-            "volatility": 0.2456740093974997,
-            "sharpe": 0.3456280064677991,
+            "cagr": 0.06808194998616934,
+            "volatility": 0.24666811122617535,
+            "sharpe": 0.2760062889675412,
             "max_drawdown": {
-                "drawdown": 0.2633426221391952,
+                "drawdown": 0.2670117192959624,
                 "date": pd.Timestamp("2020-03-16 16:00:00-0400", tz="America/New_York"),
             },
-            "romad": 0.32243856850535674,
+            "romad": 0.2549773851338174,
         }
 
         stats = Momentum.backtest(
@@ -33,6 +33,7 @@ def test_momentum_strategy():
             backtesting_start,
             backtesting_end,
             risk_free_rate=risk_free_rate,
+            auto_adjust=False,
         )
         result = stats.get("momentum")
         assert result
@@ -68,14 +69,14 @@ def test_diversification_strategy():
         risk_free_rate = 0
 
         valid_result = {
-            "cagr": 0.18828833851783022,
-            "volatility": 0.11210787357378023,
-            "sharpe": 1.6795282304049255,
+            "cagr": 0.17107361844543667,
+            "volatility": 0.11194730510551205,
+            "sharpe": 1.5281620069745954,
             "max_drawdown": {
-                "drawdown": 0.13174368699156755,
+                "drawdown": 0.1326274935830035,
                 "date": pd.Timestamp("2020-03-18 16:00:00-0400", tz="America/New_York"),
             },
-            "romad": 1.4292019816469983,
+            "romad": 1.2898805053446334,
         }
 
         stats = Diversification.backtest(
@@ -85,6 +86,7 @@ def test_diversification_strategy():
             backtesting_start,
             backtesting_end,
             risk_free_rate=risk_free_rate,
+            auto_adjust=False,
         )
         result = stats.get("diversification")
         assert abs(result["cagr"] - valid_result["cagr"]) < TOLERANCE

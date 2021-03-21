@@ -1,6 +1,5 @@
 import logging
 from copy import deepcopy
-from threading import Lock
 
 import pandas as pd
 

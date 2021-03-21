@@ -261,8 +261,8 @@ class MyStrategy(Strategy):
         self.my_custom_parameter = my_custom_parameter
 ```
 
-You can also use the initialize method to define some custom parameters 
-like ```my_custom_parameter``` in the example above.
+You can also use the initialize method to define custom parameters 
+like ```my_custom_parameter``` in the example above. You can name these parameters however you'd like, and add as many as you'd like.
 
 These parameters can easily be set using the strategy constructor later on.
 
@@ -271,14 +271,16 @@ strategy_1 = MyStrategy(
   name="strategy_1",
   budget=budget,
   broker=broker,
-  my_custom_parameter=False
+  my_custom_parameter=False,
+  my_other_parameter=50
 )
 
 strategy_2 = MyStrategy(
   name="strategy_2",
   budget=budget,
   broker=broker,
-  my_custom_parameter=True
+  my_custom_parameter=True,
+  my_last_parameter="SPY"
 )
 ```
 
@@ -294,7 +296,8 @@ for option in options:
         backtesting_start,
         backtesting_end,
         stats_file=stats_file,
-        my_custom_parameter=option
+        my_custom_parameter=option,
+        my_last_parameter="SPY"
     )
 ```
 

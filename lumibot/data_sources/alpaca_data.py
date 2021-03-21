@@ -24,7 +24,7 @@ class AlpacaData(DataSource):
     def _format_datetime(dt):
         return pd.Timestamp(dt).isoformat()
 
-    def __init__(self, config, max_workers=20, chunk_size=100):
+    def __init__(self, config, max_workers=20, chunk_size=100, **kwargs):
         # Alpaca authorize 200 requests per minute and per API key
         # Setting the max_workers for multithreading with a maximum
         # of 200

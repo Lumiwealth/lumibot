@@ -18,7 +18,7 @@ class AlphaVantageData(DataSource):
         {"timestep": "day", "represntations": ["1D"]},
     ]
 
-    def __init__(self, config, max_workers=24):
+    def __init__(self, config, max_workers=24, **kwargs):
         # Alpaca authorize 200 requests per minute and per API key
         # Setting the max_workers for multithreading with a maximum
         # of 200

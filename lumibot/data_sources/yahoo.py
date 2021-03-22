@@ -22,7 +22,22 @@ class YahooData(DataSource):
 
     def _append_data(self, symbol, data):
         data.index = data.index.tz_localize(self.DEFAULT_TIMEZONE)
+        if "Adj Close" in data:
+            del data["Adj Close"]
+        data.columns = [
+            "open",
+            "high",
+            "low",
+            "close",
+            "volume",
+            "dividend",
+            "stock_splits",
+        ]
+        data["price_change"] = data["close"].pct_change()
+        data["dividend_yield"] = data["dividend"] / data["close"]
+        data["return"] = data["dividend_yield"] + data["price_change"]
         self._data_store[symbol] = data
+        return data
 
     def _pull_source_symbol_bars(
         self, symbol, length, timestep=MIN_TIMESTEP, timeshift=None
@@ -34,7 +49,7 @@ class YahooData(DataSource):
             data = yf.Ticker(symbol).history(period="max", auto_adjust=self.auto_adjust)
             if data.shape[0] == 0:
                 raise NoDataFound(self.SOURCE, symbol)
-            self._append_data(symbol, data)
+            data = self._append_data(symbol, data)
 
         if timeshift:
             end = datetime.now() - timeshift
@@ -64,19 +79,5 @@ class YahooData(DataSource):
 
     def _parse_source_symbol_bars(self, response, symbol):
         df = response.copy()
-        if "Adj Close" in df:
-            del df["Adj Close"]
-        df.columns = [
-            "open",
-            "high",
-            "low",
-            "close",
-            "volume",
-            "dividend",
-            "stock_splits",
-        ]
-        df["price_change"] = df["close"].pct_change()
-        df["dividend_yield"] = df["dividend"] / df["close"]
-        df["return"] = df["dividend_yield"] + df["price_change"]
         bars = Bars(df, self.SOURCE, symbol, raw=response)
         return bars

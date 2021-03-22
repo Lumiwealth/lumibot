@@ -1,7 +1,7 @@
 import argparse
 import logging
 from datetime import datetime
-from time import time
+from time import perf_counter, time
 
 from credentials import AlpacaConfig
 from lumibot.backtesting import YahooDataBacktesting
@@ -20,7 +20,7 @@ from lumibot.trading_builtins import set_redis_db
 # Global parameters
 debug = False
 budget = 40000
-backtesting_start = datetime(2020, 1, 1)
+backtesting_start = datetime(2010, 1, 1)
 backtesting_end = datetime(2020, 12, 31)
 logfile = "logs/test.log"
 
@@ -116,6 +116,7 @@ if __name__ == "__main__":
             if backtesting_cache:
                 set_redis_db()
 
+            tic = perf_counter()
             strategy_class.backtest(
                 strategy_name,
                 budget,
@@ -126,6 +127,8 @@ if __name__ == "__main__":
                 config=config,
                 **kwargs,
             )
+            toc = perf_counter()
+            print("Elpased time:", toc - tic)
 
             logging.info(f"*** Benchmark Performance for {benchmark_asset} ***")
             indicators.calculate_returns(

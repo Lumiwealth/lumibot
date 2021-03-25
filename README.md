@@ -520,6 +520,16 @@ class MyStrategy(Strategy):
       self.submit_order(order)
 ```
 
+For a limit order:
+
+```python
+class MyStrategy(Strategy):
+    def on_trading_iteration(self):
+      # Buy 100 shares of SPY
+      order = self.create_order("SPY", 100, "buy", limit_price=100)
+      self.submit_order(order)
+```
+
 #### submit_order
 
 Submit an order. Returns the processed order.

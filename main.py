@@ -13,7 +13,7 @@ from lumibot.strategies.examples import (
     IntradayMomentum,
     Momentum,
 )
-from lumibot.tools import indicators
+from lumibot.tools import indicators, perf_counters
 from lumibot.traders import Trader
 from lumibot.trading_builtins import set_redis_db
 
@@ -137,5 +137,8 @@ if __name__ == "__main__":
 
     if live_trading:
         trader.run_all()
+
+    for counter, values in perf_counters.counters.items():
+        print("Count %s spent %fs" % (counter, values[0]))
 
     logging.info("The end")

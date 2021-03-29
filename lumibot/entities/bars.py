@@ -65,7 +65,7 @@ class Bars:
         return self.df["dividend"][-1]
 
     def filter(self, start=None, end=None):
-        df_copy = self.df.copy()
+        df_copy = self.df
         if isinstance(start, datetime):
             df_copy = df_copy[df_copy.index >= start]
         if isinstance(end, datetime):

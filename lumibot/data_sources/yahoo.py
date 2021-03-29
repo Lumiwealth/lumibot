@@ -78,6 +78,5 @@ class YahooData(DataSource):
         return result
 
     def _parse_source_symbol_bars(self, response, symbol):
-        df = response.copy()
-        bars = Bars(df, self.SOURCE, symbol, raw=response)
+        bars = Bars(response, self.SOURCE, symbol, raw=response)
         return bars

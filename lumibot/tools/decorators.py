@@ -21,7 +21,6 @@ def call_function_get_frame(func, *args, **kwargs):
         nonlocal frame
         if frame is None and name == "call":
             frame = _frame
-            sys.settrace(trace)
         return trace
 
     sys.settrace(snatch_locals)

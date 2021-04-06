@@ -5,6 +5,9 @@
 **/.ipynb_checkpoints
 **/__pycache__
 
+# Cache files
+lumibot/cache
+
 # Development files
 venv
 logs

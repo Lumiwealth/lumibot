@@ -94,8 +94,11 @@ class _Strategy:
 
     def _update_portfolio_value(self):
         """updates self.portfolio_value"""
+        details = {}
+        details["positions"] = []
         with self._executor.lock:
             portfolio_value = self._unspent_money
+            details["unspent_money"] = self._unspent_money
             positions = self.broker.get_tracked_positions(self._name)
             symbols = [position.symbol for position in positions]
             prices = self.data_source.get_last_prices(symbols)
@@ -105,11 +108,19 @@ class _Strategy:
                 quantity = position.quantity
                 price = prices.get(symbol, 0)
                 portfolio_value += quantity * price
+                details["positions"].append(
+                    {
+                        "symbol": symbol,
+                        "quantity": quantity,
+                        "price": price,
+                    }
+                )
 
             self._portfolio_value = portfolio_value
             self.log_message(f"Porfolio value of {round(portfolio_value, 2)}")
 
-        return portfolio_value
+        details["portfolio_value"] = portfolio_value
+        return details
 
     def _update_unspent_money(self, side, quantity, price):
         """update the self.unspent_money"""

@@ -1,5 +1,3 @@
-import logging
-
 from lumibot.strategies.strategy import Strategy
 
 """
@@ -60,11 +58,11 @@ class Diversification(Strategy):
             self.counter = 0
             self.update_prices()
             self.rebalance_portfolio()
-            logging.info(
+            self.log_message(
                 "Next portfolio rebalancing will be in %d day(s)" % self.period
             )
 
-        logging.info("Sleeping untill next trading day")
+        self.log_message("Sleeping untill next trading day")
         self.counter += 1
 
         # Stop for the day, since we are looking at daily momentums
@@ -108,7 +106,7 @@ class Diversification(Strategy):
             # (including orders that haven't been executed yet)
             quantity = self.get_asset_potential_total(symbol)
             if quantity:
-                logging.info(
+                self.log_message(
                     "Asset %s shares value: %.2f$. %.2f$ per %d shares."
                     % (symbol, quantity * last_price, last_price, quantity)
                 )
@@ -117,7 +115,7 @@ class Diversification(Strategy):
             shares_value = self.portfolio_value * weight
             new_quantity = shares_value // last_price
             quantity_difference = new_quantity - quantity
-            logging.info(
+            self.log_message(
                 "Weighted %s shares value with %.2f%% weight: %.2f$. %.2f$ per %d shares."
                 % (symbol, weight * 100, shares_value, last_price, new_quantity)
             )

@@ -1,4 +1,3 @@
-import logging
 from datetime import datetime
 
 import pandas as pd
@@ -44,25 +43,25 @@ class DebtTrading(Strategy):
             debt_change = self.debt_to_gdp_chng.loc[
                 self.debt_to_gdp_chng.index == findme
             ]["Debt to GDP 300 Day Change"].values[0]
-            logging.info(f"Debt level: {debt_change}")
+            self.log_message(f"Debt level: {debt_change}")
 
             if debt_change > self.debt_change_threshold:
-                logging.info(f"Using the buy_sp_ratio: {self.buy_sp_ratio}")
+                self.log_message(f"Using the buy_sp_ratio: {self.buy_sp_ratio}")
                 self.portfolio[0]["weight"] = self.buy_sp_ratio
                 self.portfolio[1]["weight"] = 1 - self.buy_sp_ratio
             else:
-                logging.info(f"Using the normal_ratio: {self.normal_ratio}")
+                self.log_message(f"Using the normal_ratio: {self.normal_ratio}")
                 self.portfolio[0]["weight"] = self.normal_ratio
                 self.portfolio[1]["weight"] = 1 - self.normal_ratio
 
             self.counter = 0
             self.update_prices()
             self.rebalance_portfolio()
-            logging.info(
+            self.log_message(
                 "Next portfolio rebalancing will be in %d day(s)" % self.period
             )
 
-        logging.info("Sleeping until next trading day")
+        self.log_message("Sleeping until next trading day")
         self.counter += 1
 
         # Wait until the end of the day
@@ -127,7 +126,7 @@ class DebtTrading(Strategy):
             # Get how many shares we already own (including orders that haven't been executed yet)
             quantity = self.get_asset_potential_total(symbol)
             if quantity:
-                logging.info(
+                self.log_message(
                     "Asset %s shares value: %.2f$. %.2f$ per %d shares."
                     % (symbol, quantity * last_price, last_price, quantity)
                 )
@@ -136,7 +135,7 @@ class DebtTrading(Strategy):
             shares_value = self.portfolio_value * weight
             new_quantity = shares_value // last_price
             quantity_difference = new_quantity - quantity
-            logging.info(
+            self.log_message(
                 "Weighted %s shares value with %.2f%% weight: %.2f$. %.2f$ per %d shares."
                 % (symbol, weight * 100, shares_value, last_price, new_quantity)
             )

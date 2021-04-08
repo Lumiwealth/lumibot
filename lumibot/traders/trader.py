@@ -1,7 +1,6 @@
 import logging
 import os
 import signal
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 class Trader:

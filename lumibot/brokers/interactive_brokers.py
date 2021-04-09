@@ -6,33 +6,28 @@ from datetime import timezone
 from dateutil import tz
 import datetime
 
-import ib_insync as ibi
 import pandas_market_calendars as mcal
 
 from lumibot.data_sources import InteractiveBrokersData
 from lumibot.entities import Order, Position
 from .broker import Broker
 
-import nest_asyncio
-
-nest_asyncio.apply()
-
 
 class InteractiveBrokers(InteractiveBrokersData, Broker):
     """Inherit InteractiveBrokerData first and all the price market
     methods than inherits broker"""
 
-    def __init__(self, config, connect_stream=False):
+    def __init__(self, config, max_workers=20, chunk_size=100, connect_stream=True):
         # Calling init methods
         InteractiveBrokersData.__init__(
             self,
             config,
-            max_workers=20,
-            chunk_size=100,
+            max_workers=max_workers,
+            chunk_size=chunk_size,
         )
         Broker.__init__(self, name="interactive_brokers", connect_stream=connect_stream)
 
-        self.api.connect(self.ip, self.socket_port, clientId=self.client_id)
+        # self.api.connect(self.ip, self.socket_port, clientId=self.client_id)
 
 
 
@@ -43,11 +38,9 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
 
     def get_timestamp(self):
         """return current timestamp"""
-        asyncio.set_event_loop(asyncio.new_event_loop())
-        asyncio.get_event_loop()
-        clock = self.api.reqCurrentTime()
-        curr_time = clock.replace(tzinfo=timezone.utc).timestamp()
-        return curr_time
+        return self.ib.get_timestamp()
+        # curr_time = clock.replace(tzinfo=timezone.utc).timestamp()
+        # return
 
     def market_hours(self, market="NASDAQ", close=True, date=None):
         mkt_cal = mcal.get_calendar(market)
@@ -113,7 +106,6 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
 
         return response
 
-    # @ibconnect
     def _pull_broker_positions(self):
         """Get the broker representation of all positions"""
         response = self.api.positions()

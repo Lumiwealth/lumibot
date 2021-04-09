@@ -32,16 +32,17 @@ class Broker:
         self._subscribers = SafeList(self._lock)
         self._is_stream_subscribed = False
 
-        # setting the stream object
-        self.stream = self._get_stream_object()
-        if connect_stream:
-            self._launch_stream()
+        # # setting the stream object
+        # self.stream = self._get_stream_object()
+        # if connect_stream:
+        #     self._launch_stream()  # todo comment out again.
 
     @property
     def _tracked_orders(self):
-        return (
-            self._unprocessed_orders + self._new_orders + self._partially_filled_orders
-        )
+        return () # todo revert
+        # return (
+        #     self._unprocessed_orders + self._new_orders + self._partially_filled_orders
+        # )
 
     def __getattribute__(self, name):
         attr = object.__getattribute__(self, name)

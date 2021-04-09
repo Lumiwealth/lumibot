@@ -1,14 +1,19 @@
 from datetime import datetime
-import asyncio
-import nest_asyncio
-from ib_insync import *
 import pandas as pd
 
 from lumibot.entities import Bars
 
 from .data_source import DataSource
 
-nest_asyncio.apply()
+from ibapi.wrapper import *
+from ibapi.client import *
+from ibapi.contract import *
+from ibapi.order import *
+from threading import Thread
+import queue
+import datetime
+import time
+
 
 class InteractiveBrokersData(DataSource):
     """Make Interactive Brokers connection and gets data.
@@ -16,6 +21,7 @@ class InteractiveBrokersData(DataSource):
     Create connection to Interactive Brokers market through either Gateway or TWS
     which must be running locally for connection to be made.
     """
+
     SOURCE = "InteractiveBrokers"
     MIN_TIMESTEP = "minute"
     TIMESTEP_MAPPING = [
@@ -47,84 +53,60 @@ class InteractiveBrokersData(DataSource):
         self.chunk_size = min(chunk_size, 100)
 
         # Connection to interactive brokers
-        self.config = config
-        self.socket_port = config.SOCKET_PORT
-        self.client_id = config.CLIENT_ID
-        self.ip = config.IP
-        self.api = IB()
+        self.ib = None
+        self.start_ib(config.IP, config.SOCKET_PORT, config.CLIENT_ID)
 
-
+    def start_ib(self, ip, socket_port, client_id):
+        # Connect to interactive brokers.
+        if not self.ib:
+            self.ib = IBApp(ip, socket_port, client_id)
 
     def _pull_source_symbol_bars(
         self, symbol, length, timestep=MIN_TIMESTEP, timeshift=None
     ):
         """pull broker bars for a given symbol"""
-        response = asyncio.run(
-            self._pull_source_bars(
-                [symbol],
-                length=length,
-                timestep=timestep,
-                timeshift=timeshift,
-            )
+        response = self._pull_source_bars(
+            [symbol], length, timestep=timestep, timeshift=timeshift
         )
-
         return response[symbol]
 
-    async def _pull_source_bars(
-            self,
-            symbols,
-            length,
-            timestep=MIN_TIMESTEP,
-            timeshift=None,
-    ):
+    def _pull_source_bars(self, symbols, length, timestep=MIN_TIMESTEP, timeshift=None):
         """pull broker bars for a list symbols"""
         parsed_timestep = self._parse_source_timestep(timestep, reverse=True)
         parsed_duration = self._parse_duration(length, timestep)
         kwargs = dict(limit=length)
-
         if timeshift:
             end = datetime.now() - timeshift
             end = self.to_default_timezone(end)
             kwargs["end"] = self._format_datetime(end)
-        else:
-            end = ""
-
-        with await self.api.connectAsync(
-                self.ip, self.socket_port, clientId=self.client_id
-        ):
-            contracts = [Stock(symbol, "SMART", "USD") for symbol in symbols]
-            bars_dict = {}
-            all_bars = await asyncio.gather(
-                *[
-                    self.api.reqHistoricalDataAsync(
-                        contract,
-                        endDateTime="",
-                        durationStr=parsed_duration,
-                        barSizeSetting=parsed_timestep,
-                        whatToShow="ADJUSTED_LAST",
-                        useRTH=True,
-                    )
-                    for contract in contracts
-                ]
-            )
-            for contract, bars in zip(contracts, all_bars):
-                # Convert to dataframes.
-                bars_dict[contract.symbol] = util.df(bars)
-
-            return bars_dict
+        response = self.api.get_barset(symbols, parsed_timestep, **kwargs)
+        result = {k: v.df for k, v in response.items()}
+        return result
 
     def _parse_source_symbol_bars(self, response, symbol):
         df = response.copy()
-        df['date'] = pd.to_datetime(df['date'])
-        df = df.set_index('date')
+        df["date"] = pd.to_datetime(df["date"])
+        df = df.set_index("date")
         df["price_change"] = df["close"].pct_change()
         df["dividend"] = 0
         df["stock_splits"] = 0
         df["dividend_yield"] = df["dividend"] / df["close"]
         df["return"] = df["dividend_yield"] + df["price_change"]
 
-        df = df[['open', 'high', 'low', 'close', 'volume', "price_change", "dividend",
-                 "stock_splits","dividend_yield","return",]]
+        df = df[
+            [
+                "open",
+                "high",
+                "low",
+                "close",
+                "volume",
+                "price_change",
+                "dividend",
+                "stock_splits",
+                "dividend_yield",
+                "return",
+            ]
+        ]
         bars = Bars(df, self.SOURCE, symbol, raw=response)
         return bars
 
@@ -139,23 +121,132 @@ class InteractiveBrokersData(DataSource):
         raise ValueError(f"Timestep must be `day` or `minute`, you entered: {timestep}")
 
 
-    def get_bars(self, symbols, length, timestep="", timeshift=None, **kwargs):
-        """Get bars for the list of symbols"""
+    def contractCreate(self):
+        # Fills out the contract object
+        contract1 = Contract()  # Creates a contract object from the import
+        contract1.symbol = "AAPL"  # Sets the ticker symbol
+        contract1.secType = "STK"  # Defines the security type as stock
+        contract1.currency = "USD"  # Currency is US dollars
+        # In the API side, NASDAQ is always defined as ISLAND in the exchange field
+        contract1.exchange = "SMART"
+        # contract1.PrimaryExch = "NYSE"
+        return contract1  # Returns the contract object
 
-        if not timestep:
-            timestep = self.MIN_TIMESTEP
 
-        result = asyncio.run(
-            self._pull_source_bars(
-                symbols,
-                length=length,
-                timestep=timestep,
-                timeshift=timeshift,
-            )
+    def orderCreate(self):
+        # Fills out the order object
+        order1 = Order()  # Creates an order object from the import
+        order1.action = "BUY"  # Sets the order action to buy
+        order1.orderType = "MKT"  # Sets order type to market buy
+        order1.transmit = True
+        order1.totalQuantity = 10  # Setting a static quantity of 10
+        return order1  # Returns the order object
+
+
+    def orderExecution(self):
+        # Places the order with the returned contract and order objects
+        contractObject = self.contractCreate()
+        orderObject = self.orderCreate()
+        nextID = self.ib.nextOrderId()
+        print("The next valid id is - " + str(nextID))
+        self.ib.placeOrder(nextID, contractObject, orderObject)
+        print("order was placed")
+
+
+# CALLING THE IB CLASSES
+class IBWrapper(EWrapper):
+    # Below is the TestWrapper/EWrapper class
+    ## error handling code
+    def init_error(self):
+        error_queue = queue.Queue()
+        self.my_errors_queue = error_queue
+
+    def is_error(self):
+        error_exist = not self.my_errors_queue.empty()
+        return error_exist
+
+    def get_error(self, timeout=6):
+        if self.is_error():
+            try:
+                return self.my_errors_queue.get(timeout=timeout)
+            except queue.Empty:
+                return None
+        return None
+
+    def error(self, id, errorCode, errorString):
+        ## Overrides the native method
+        errormessage = "IB returns an error with %d errorcode %d that says %s" % (
+            id,
+            errorCode,
+            errorString,
         )
+        self.my_errors_queue.put(errormessage)
 
-        parsed = self._parse_source_bars(result)
-        result = {**result, **parsed}
+    def nextValidId(self, orderId: int):
+        super().nextValidId(orderId)
 
-        return result
+        logging.debug("setting nextValidOrderId: %d", orderId)
+        self.nextValidOrderId = orderId
 
+    def nextOrderId(self):
+        oid = self.nextValidOrderId
+        self.nextValidOrderId += 1
+        return oid
+
+    def init_time(self):
+        time_queue = queue.Queue()
+        self.my_time_queue = time_queue
+        return time_queue
+
+    def currentTime(self, server_time):
+        ## Overriden method
+        self.my_time_queue.put(server_time)
+
+
+class IBClient(EClient):
+    # Below is the IBClient/EClient Class
+    def __init__(self, wrapper):
+        ## Set up with a wrapper inside
+        EClient.__init__(self, wrapper)
+
+    def get_timestamp(self):
+
+        print("Asking server for Unix time")
+
+        # Creates a queue to store the time
+        time_storage = self.wrapper.init_time()
+
+        # Sets up a request for unix time from the Eclient
+        self.reqCurrentTime()
+
+        # Specifies a max wait time if there is no connection
+        max_wait_time = 10
+
+        try:
+            requested_time = time_storage.get(timeout=max_wait_time)
+        except queue.Empty:
+            print("The queue was empty or max time reached")
+            requested_time = None
+
+        while self.wrapper.is_error():
+            print(f"Error: {self.get_error(timeout=5)}")
+
+        return requested_time
+
+
+class IBApp(IBWrapper, IBClient):
+    # Intializes our main classes
+    def __init__(self, ipaddress, portid, clientid):
+        IBWrapper.__init__(self)
+        IBClient.__init__(self, wrapper=self)
+
+        # Connects to the server with the ipaddress, portid, and clientId specified in the program execution area
+        self.connect(ipaddress, portid, clientid)
+
+        # Initializes the threading
+        thread = Thread(target=self.run)
+        thread.start()
+        setattr(self, "_thread", thread)
+
+        # Starts listening for errors
+        self.init_error()

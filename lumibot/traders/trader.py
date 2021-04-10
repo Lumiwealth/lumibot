@@ -1,10 +1,20 @@
 import logging
 import os
 import signal
+from threading import Thread
+
+from lumibot.clients import client
 
 
 class Trader:
-    def __init__(self, logfile="logs/test.log", debug=False, strategies=None):
+    def __init__(
+        self,
+        logfile="logs/test.log",
+        debug=False,
+        strategies=None,
+        ui=False,
+        port=5000,
+    ):
         # Setting debug and _logfile parameters and setting global log format
         self.debug = debug
         self.log_format = logging.Formatter("%(asctime)s: %(levelname)s: %(message)s")
@@ -13,6 +23,13 @@ class Trader:
         # Setting the list of strategies if defined
         self._strategies = strategies if strategies else []
         self._pool = []
+
+        # Setting web app parameters
+        self._client = None
+        self._client_thread = None
+        self._port = port
+        if ui is True and not self.is_backtest:
+            self._client = client
 
     @property
     def is_backtest(self):
@@ -38,6 +55,8 @@ class Trader:
 
         signal.signal(signal.SIGINT, self._stop_pool)
         self._set_logger()
+        self._sync_client()
+        self._run_client()
         self._init_pool()
         self._start_pool()
         self._join_pool()
@@ -71,6 +90,20 @@ class Trader:
             handler.setFormatter(self.log_format)
 
         logger.propagate = True
+
+    def _sync_client(self):
+        for strategy in self._strategies:
+            strategy._executor.set_client(self._client)
+
+    def _run_client(self):
+        if self._client:
+            self._client_thread = Thread(
+                target=self._client.run,
+                kwargs={"port": self._port},
+                daemon=True,
+                name="lumibot_client",
+            )
+            self._client_thread.start()
 
     def _init_pool(self):
         self._pool = [strategy._executor for strategy in self._strategies]

@@ -22,6 +22,7 @@ class StrategyExecutor(Thread):
         self.lock = Lock()
         self.queue = Queue()
 
+        self._client = None
         self.strategy = strategy
         self._strategy_context = None
         self.broker = self.strategy.broker
@@ -35,6 +36,9 @@ class StrategyExecutor(Thread):
     @property
     def should_continue(self):
         return not self.stop_event.isSet()
+
+    def set_client(self, client):
+        self._client = client
 
     def safe_sleep(self, sleeptime):
         """internal function for sleeping"""

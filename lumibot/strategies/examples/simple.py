@@ -1,5 +1,7 @@
 import logging
 import random
+import sys
+import time
 
 from lumibot.strategies.strategy import Strategy
 
@@ -16,6 +18,7 @@ class Simple(Strategy):
     # =====Overloading lifecycle methods=============
 
     def initialize(self):
+        pass
         # Set the initial variables or constants
 
         # Built in Variables
@@ -25,6 +28,9 @@ class Simple(Strategy):
         # self.counter = 0
         # self.buy_symbol = "AGG"
 
+
+
+    def before_market_opens(self):
         # Dictionary for inserting methods to log, parameters in sub-dict.
         log_methods = dict(
             get_datetime={},
@@ -40,6 +46,8 @@ class Simple(Strategy):
             lm_eval = f"self.{lm}(**kwargs)"
             print(f"{lm}: {eval(lm_eval)}")
 
+        symbols = ["FB", "TSLA"]
+        self.get_bars(symbols, 5)
 
     # def on_trading_iteration(self):
     #     # What to do each iteration

@@ -72,15 +72,45 @@ class InteractiveBrokersData(DataSource):
 
     def _pull_source_bars(self, symbols, length, timestep=MIN_TIMESTEP, timeshift=None):
         """pull broker bars for a list symbols"""
-        parsed_timestep = self._parse_source_timestep(timestep, reverse=True)
-        parsed_duration = self._parse_duration(length, timestep)
-        kwargs = dict(limit=length)
-        if timeshift:
-            end = datetime.now() - timeshift
-            end = self.to_default_timezone(end)
-            kwargs["end"] = self._format_datetime(end)
-        response = self.ib.get_barset(symbols, parsed_timestep, **kwargs)
-        result = {k: v.df for k, v in response.items()}
+
+        # Initial vars,
+        self.ib.reqHistoricalDataId = -1
+        symbol_ref = dict()
+        reqId = 0
+
+        # Call data.
+        for symbol in symbols:
+            reqId += 1
+            contract = self.create_contract(symbol)
+            self.ib.reqHistoricalData(
+                reqId, contract, "", "1 D", "10 mins", "ADJUSTED_LAST", 1, 2, False, []
+            )
+            symbol_ref[reqId] = symbol
+
+        # Wait for data to return.
+        while self.ib.historicalDataEndId < reqId:
+            time.sleep(0.1)
+
+        # Collect results.
+        result = dict()
+        for reqId, symbol in symbol_ref.items():
+            df_list = [
+                bar_data for bar_data in self.ib.data if bar_data["reqId"] == reqId
+            ]
+            df = pd.DataFrame(df_list)
+            del df["reqId"]
+            result[symbol] = df
+
+        #
+        # parsed_timestep = self._parse_source_timestep(timestep, reverse=True)
+        # parsed_duration = self._parse_duration(length, timestep)
+        # kwargs = dict(limit=length)
+        # if timeshift:
+        #     end = datetime.now() - timeshift
+        #     end = self.to_default_timezone(end)
+        #     kwargs["end"] = self._format_datetime(end)
+        # response = self.ib.get_barset(symbols, parsed_timestep, **kwargs)
+        # result = {k: v.df for k, v in response.items()}
         return result
 
     def _parse_source_symbol_bars(self, response, symbol):
@@ -120,20 +150,27 @@ class InteractiveBrokersData(DataSource):
 
         raise ValueError(f"Timestep must be `day` or `minute`, you entered: {timestep}")
 
+    ##### IB TWS METHODS #####
+    def create_contract(
+        self,
+        symbol,
+        secType="STK",
+        exchange="SMART",
+        currency="USD",
+        primaryExchage="ISLAND",
+    ):
+        """Creates new contract objects. """
+        contract = Contract()
 
-    def contractCreate(self):
-        # Fills out the contract object
-        contract1 = Contract()  # Creates a contract object from the import
-        contract1.symbol = "AAPL"  # Sets the ticker symbol
-        contract1.secType = "STK"  # Defines the security type as stock
-        contract1.currency = "USD"  # Currency is US dollars
-        # In the API side, NASDAQ is always defined as ISLAND in the exchange field
-        contract1.exchange = "SMART"
-        # contract1.PrimaryExch = "NYSE"
-        return contract1  # Returns the contract object
+        contract.symbol = str(symbol)
+        contract.secType = secType
+        contract.exchange = exchange
+        contract.currency = currency
+        contract.primaryExchange = primaryExchage
 
+        return contract
 
-    def orderCreate(self):
+    def create_order(self):
         # Fills out the order object
         order1 = Order()  # Creates an order object from the import
         order1.action = "BUY"  # Sets the order action to buy
@@ -142,20 +179,23 @@ class InteractiveBrokersData(DataSource):
         order1.totalQuantity = 10  # Setting a static quantity of 10
         return order1  # Returns the order object
 
-
-    def orderExecution(self):
+    def execute_order(self):
         # Places the order with the returned contract and order objects
-        contractObject = self.contractCreate()
-        orderObject = self.orderCreate()
+        contract_object = self.create_contract()
+        order_object = self.create_order()
         nextID = self.ib.nextOrderId()
         print("The next valid id is - " + str(nextID))
-        self.ib.placeOrder(nextID, contractObject, orderObject)
+        self.ib.placeOrder(nextID, contract_object, order_object)
         print("order was placed")
 
 
-# CALLING THE IB CLASSES
+##### IB TWS CLASSES #####
 class IBWrapper(EWrapper):
-    # Below is the TestWrapper/EWrapper class
+    def __init__(self):
+        super().__init__()
+        self.data = []
+        self.historicalDataEndId = -1
+
     ## error handling code
     def init_error(self):
         error_queue = queue.Queue()
@@ -201,6 +241,14 @@ class IBWrapper(EWrapper):
     def currentTime(self, server_time):
         ## Overriden method
         self.my_time_queue.put(server_time)
+
+    def historicalData(self, reqId, bar):
+        bar_data = vars(bar)
+        bar_data["reqId"] = reqId
+        self.data.append(bar_data)
+
+    def historicalDataEnd(self, reqId: int, start: str, end: str):
+        self.historicalDataEndId = reqId
 
 
 class IBClient(EClient):

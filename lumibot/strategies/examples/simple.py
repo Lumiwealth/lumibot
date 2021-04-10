@@ -31,6 +31,8 @@ class Simple(Strategy):
 
 
     def before_market_opens(self):
+        symbols = ["FB", "TSLA", "MSFT", "F", "AAPL"]
+        symbol = "BRK A"
         # Dictionary for inserting methods to log, parameters in sub-dict.
         log_methods = dict(
             get_datetime={},
@@ -40,14 +42,20 @@ class Simple(Strategy):
             get_round_day={},
             get_last_day={},
             get_datetime_range={"length": 40},
+            get_symbol_bars={"symbol": symbol, "length": 5},
+            get_bars={"symbols": symbols, "length": 5},
+            get_last_price={"symbol": symbol},
+            get_last_prices={"symbols": symbols}
         )
 
         for lm, kwargs in log_methods.items():
             lm_eval = f"self.{lm}(**kwargs)"
             print(f"{lm}: {eval(lm_eval)}")
 
-        symbols = ["FB", "TSLA"]
-        self.get_bars(symbols, 5)
+
+
+
+
 
     # def on_trading_iteration(self):
     #     # What to do each iteration
@@ -81,8 +89,8 @@ class Simple(Strategy):
     #     self.await_market_to_close()
 
     def on_abrupt_closing(self):
-        self.sell_all()
-
+        # self.sell_all()
+        pass
     def trace_stats(self, context, snapshot_before):
         random_number = random.randint(0, 100)
         row = {"my_custom_stat": random_number, "counter": self.counter}

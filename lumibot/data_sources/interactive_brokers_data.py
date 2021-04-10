@@ -60,6 +60,7 @@ class InteractiveBrokersData(DataSource):
         # Connect to interactive brokers.
         if not self.ib:
             self.ib = IBApp(ip, socket_port, client_id)
+            self.ib.reqHistoricalDataId = -1
 
     def _pull_source_symbol_bars(
         self, symbol, length, timestep=MIN_TIMESTEP, timeshift=None
@@ -74,9 +75,17 @@ class InteractiveBrokersData(DataSource):
         """pull broker bars for a list symbols"""
 
         # Initial vars,
-        self.ib.reqHistoricalDataId = -1
+        self.ib.data = list()
         symbol_ref = dict()
-        reqId = 0
+        reqId = self.ib.reqHistoricalDataId
+
+        # parsed_timestep = self._parse_source_timestep(timestep, reverse=True)
+        # parsed_duration = self._parse_duration(length, timestep)
+        # kwargs = dict(limit=length)
+        # if timeshift:
+        #     end = datetime.now() - timeshift
+        #     end = self.to_default_timezone(end)
+        #     kwargs["end"] = self._format_datetime(end)
 
         # Call data.
         for symbol in symbols:
@@ -90,6 +99,7 @@ class InteractiveBrokersData(DataSource):
         # Wait for data to return.
         while self.ib.historicalDataEndId < reqId:
             time.sleep(0.1)
+        time.sleep(0.1)
 
         # Collect results.
         result = dict()
@@ -100,16 +110,8 @@ class InteractiveBrokersData(DataSource):
             df = pd.DataFrame(df_list)
             del df["reqId"]
             result[symbol] = df
+            df['date'] = pd.to_datetime(df['date'], unit='s', origin='unix')
 
-        #
-        # parsed_timestep = self._parse_source_timestep(timestep, reverse=True)
-        # parsed_duration = self._parse_duration(length, timestep)
-        # kwargs = dict(limit=length)
-        # if timeshift:
-        #     end = datetime.now() - timeshift
-        #     end = self.to_default_timezone(end)
-        #     kwargs["end"] = self._format_datetime(end)
-        # response = self.ib.get_barset(symbols, parsed_timestep, **kwargs)
         # result = {k: v.df for k, v in response.items()}
         return result
 

@@ -19,12 +19,26 @@ class Simple(Strategy):
         # Set the initial variables or constants
 
         # Built in Variables
-        self.sleeptime = 1
+        # self.sleeptime = 1
 
-        # Our Own Variables
-        self.counter = 0
-        self.buy_symbol = "AGG"
-        print(self.get_timestamp())
+        # # Our Own Variables
+        # self.counter = 0
+        # self.buy_symbol = "AGG"
+
+        # Dictionary for inserting methods to log, parameters in sub-dict.
+        log_methods = dict(
+            get_datetime={},
+            get_timestamp={},
+            get_round_minute={},
+            get_last_minute={},
+            get_round_day={},
+            get_last_day={},
+            get_datetime_range={"length": 40},
+        )
+
+        for lm, kwargs in log_methods.items():
+            lm_eval = f"self.{lm}(**kwargs)"
+            print(f"{lm}: {eval(lm_eval)}")
 
 
     # def on_trading_iteration(self):

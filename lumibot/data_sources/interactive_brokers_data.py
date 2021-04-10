@@ -79,7 +79,7 @@ class InteractiveBrokersData(DataSource):
             end = datetime.now() - timeshift
             end = self.to_default_timezone(end)
             kwargs["end"] = self._format_datetime(end)
-        response = self.api.get_barset(symbols, parsed_timestep, **kwargs)
+        response = self.ib.get_barset(symbols, parsed_timestep, **kwargs)
         result = {k: v.df for k, v in response.items()}
         return result
 

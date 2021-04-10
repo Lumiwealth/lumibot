@@ -1,3 +1,4 @@
+import datetime
 import logging
 import random
 import sys
@@ -48,11 +49,13 @@ class Simple(Strategy):
             get_last_prices={"symbols": symbols}
         )
 
-        for lm, kwargs in log_methods.items():
-            lm_eval = f"self.{lm}(**kwargs)"
-            print(f"{lm}: {eval(lm_eval)}")
+        # for lm, kwargs in log_methods.items():
+        #     lm_eval = f"self.{lm}(**kwargs)"
+        #     print(f"{lm}: {eval(lm_eval)}")
 
-
+        kwargs = {"symbol": symbol, "timestep": 'minute', "length": 20, "timeshift":
+            datetime.timedelta(days=1)}
+        print(self.get_symbol_bars(**kwargs))
 
 
 

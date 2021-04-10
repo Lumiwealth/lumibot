@@ -21,3 +21,10 @@ build
 dist
 lumibot.egg-info
 setup.py
+/alpaca_data_run.py
+/alpaca_run.py
+/lumibot_profiles.png
+/notebooks/scanner_parameters.xml
+/lumibot/strategies/examples/technical_analysis.py
+/technical_analysis.py
+/lumibot/tests/test_ib_broker.py

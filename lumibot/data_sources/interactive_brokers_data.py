@@ -43,6 +43,10 @@ class InteractiveBrokersData(DataSource):
     def _format_datetime(dt):
         return pd.Timestamp(dt).isoformat()
 
+    @staticmethod
+    def _format_ib_datetime(dt):
+        return pd.Timestamp(dt).strftime("%Y%m%d %H:%M:%S")
+
     def __init__(self, config, max_workers=20, chunk_size=100, **kwargs):
         self.name = "interactivebrokers"
         self.max_workers = min(max_workers, 200)
@@ -62,6 +66,18 @@ class InteractiveBrokersData(DataSource):
             self.ib = IBApp(ip, socket_port, client_id)
             self.ib.reqHistoricalDataId = -1
 
+    def _parse_duration(self, length, timestep):
+        # Converts length and timestep into IB `durationStr`
+        if timestep == "minute":
+            # IB has a max for seconds of 86400.
+            return f"{str(min(length * 60, 86400))} S"
+        elif timestep == "day":
+            return f"{str(length)} D"
+        else:
+            raise ValueError(
+                f"Timestep must be `day` or `minute`, you entered: {timestep}"
+            )
+
     def _pull_source_symbol_bars(
         self, symbol, length, timestep=MIN_TIMESTEP, timeshift=None
     ):
@@ -79,20 +95,31 @@ class InteractiveBrokersData(DataSource):
         symbol_ref = dict()
         reqId = self.ib.reqHistoricalDataId
 
-        # parsed_timestep = self._parse_source_timestep(timestep, reverse=True)
-        # parsed_duration = self._parse_duration(length, timestep)
-        # kwargs = dict(limit=length)
-        # if timeshift:
-        #     end = datetime.now() - timeshift
-        #     end = self.to_default_timezone(end)
-        #     kwargs["end"] = self._format_datetime(end)
+        parsed_timestep = self._parse_source_timestep(timestep, reverse=True)
+        parsed_duration = self._parse_duration(length, timestep)
+        kwargs = dict(limit=length)
+        if timeshift:
+            end = datetime.datetime.now() - timeshift
+            end = self.to_default_timezone(end)
+            end_date_time = self._format_ib_datetime(end)
+        else:
+            end_date_time = ""
 
         # Call data.
         for symbol in symbols:
             reqId += 1
             contract = self.create_contract(symbol)
             self.ib.reqHistoricalData(
-                reqId, contract, "", "1 D", "10 mins", "ADJUSTED_LAST", 1, 2, False, []
+                reqId,
+                contract,
+                end_date_time,
+                parsed_duration,
+                parsed_timestep,
+                "ADJUSTED_LAST",
+                1,
+                2,
+                False,
+                [],
             )
             symbol_ref[reqId] = symbol
 
@@ -110,8 +137,10 @@ class InteractiveBrokersData(DataSource):
             df = pd.DataFrame(df_list)
             del df["reqId"]
             result[symbol] = df
-            df['date'] = pd.to_datetime(df['date'], unit='s', origin='unix')
-
+            if parsed_timestep == "1 min":
+                df["date"] = pd.to_datetime(df["date"], unit="s", origin="unix")
+            elif parsed_timestep == "1 day":
+                df["date"] = pd.to_datetime(df["date"], format="%Y%m%d")
         # result = {k: v.df for k, v in response.items()}
         return result
 
@@ -141,16 +170,6 @@ class InteractiveBrokersData(DataSource):
         ]
         bars = Bars(df, self.SOURCE, symbol, raw=response)
         return bars
-
-    def _parse_duration(self, length, timestep):
-        # Converts length and timestep into IB `durationStr`
-        if timestep == "minute":
-            # IB has a max for seconds of 86400.
-            return f"{str(min(length * 60, 86400))} S"
-        elif timestep == "day":
-            return f"{str(length)} D"
-
-        raise ValueError(f"Timestep must be `day` or `minute`, you entered: {timestep}")
 
     ##### IB TWS METHODS #####
     def create_contract(

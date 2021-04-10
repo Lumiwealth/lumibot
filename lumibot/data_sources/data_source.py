@@ -69,9 +69,9 @@ class DataSource:
         for item in self.TIMESTEP_MAPPING:
             if reverse:
                 if timestep == item["timestep"]:
-                    return item["represntations"][0]
+                    return item["representations"][0]
             else:
-                if timestep in item["represntations"]:
+                if timestep in item["representations"]:
                     return item["timestep"]
 
         raise UnavailabeTimestep(self.SOURCE, timestep)

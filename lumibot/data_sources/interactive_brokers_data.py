@@ -102,8 +102,10 @@ class InteractiveBrokersData(DataSource):
             end = datetime.datetime.now() - timeshift
             end = self.to_default_timezone(end)
             end_date_time = self._format_ib_datetime(end)
+            type="TRADES"
         else:
             end_date_time = ""
+            type="ADJUSTED_LAST"
 
         # Call data.
         for symbol in symbols:
@@ -112,10 +114,10 @@ class InteractiveBrokersData(DataSource):
             self.ib.reqHistoricalData(
                 reqId,
                 contract,
-                "",
+                end_date_time,
                 parsed_duration,
                 parsed_timestep,
-                "ADJUSTED_LAST",
+                type,
                 1,
                 2,
                 False,

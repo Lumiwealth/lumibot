@@ -97,7 +97,7 @@ class InteractiveBrokersData(DataSource):
 
         parsed_timestep = self._parse_source_timestep(timestep, reverse=True)
         parsed_duration = self._parse_duration(length, timestep)
-        kwargs = dict(limit=length)
+
         if timeshift:
             end = datetime.datetime.now() - timeshift
             end = self.to_default_timezone(end)
@@ -112,7 +112,7 @@ class InteractiveBrokersData(DataSource):
             self.ib.reqHistoricalData(
                 reqId,
                 contract,
-                end_date_time,
+                "",
                 parsed_duration,
                 parsed_timestep,
                 "ADJUSTED_LAST",

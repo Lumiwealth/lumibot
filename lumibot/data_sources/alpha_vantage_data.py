@@ -14,8 +14,8 @@ class AlphaVantageData(DataSource):
     SOURCE = "ALPHAVANTAGE"
     MIN_TIMESTEP = "minute"
     TIMESTEP_MAPPING = [
-        {"timestep": "minute", "represntations": ["1min"]},
-        {"timestep": "day", "represntations": ["1D"]},
+        {"timestep": "minute", "representations": ["1min"]},
+        {"timestep": "day", "representations": ["1D"]},
     ]
 
     def __init__(self, config, max_workers=24, **kwargs):

@@ -12,7 +12,7 @@ class YahooData(DataSource):
     SOURCE = "YAHOO"
     MIN_TIMESTEP = "day"
     TIMESTEP_MAPPING = [
-        {"timestep": "day", "represntations": ["1D", "day"]},
+        {"timestep": "day", "representations": ["1D", "day"]},
     ]
 
     def __init__(self, config=None, auto_adjust=True, **kwargs):

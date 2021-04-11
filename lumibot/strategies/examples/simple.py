@@ -37,13 +37,15 @@ class Simple(Strategy):
         symbols = ["FB", "TSLA", "MSFT", "F", "AAPL"]
         symbol = "BRK A"
 
-        kwargs = {"symbol": symbol, "timestep": 'day', "length": 1, "timeshift":
-            datetime.timedelta(days=3)}
-        print(self.get_symbol_bars(**kwargs))
-
-
+        # timeshift not working.
+        # kwargs = {"symbol": symbol, "timestep": 'day', "length": 1, "timeshift":
+        #     datetime.timedelta(days=3)}
+        # print(self.get_symbol_bars(**kwargs))
 
         # Dictionary for inserting methods to log, parameters in sub-dict.
+        ###############
+        # Data Source #
+        ###############_
         log_methods = dict(
             # get_datetime={},
             # get_timestamp={},
@@ -57,14 +59,55 @@ class Simple(Strategy):
             # get_last_price={"symbol": symbol},
             # get_last_prices={"symbols": symbols}
         )
+        ###############
+        #   Broker    #
+        ###############
+        log_methods = {
+            "broker.is_market_open": {},
+            "broker.get_time_to_open": {},
+            "broker.get_time_to_close": {},
+        }
 
+        ###############
+        #   Strategy    #
+        ###############
+        # Attributes
+        log_attributes = {
+            "name": self._name,
+            # "initial_budget": self.initial_budget,
+            # "minutes_before_closing": self.minutes_before_closing,
+            # "sleeptime": self.sleeptime,
+            # "parameters": self.parameters,
+            # "is_backtesting": self.is_backtesting,
+            "portfolio_value": self.portfolio_value,
+            "unspent_money": self.unspent_money,
+            # "stats_file": self.stats_file,
+            # "stats": self.stats,
+            # "analysis": self.analysis,
+            # "risk_free_rate": self.risk_free_rate,
+        }
+        for la in log_attributes.items():
+            print(la[0], ": ", la[1])
+
+
+        # Methods
+        log_methods = {
+            # "broker.get_time_to_open": {},
+            # "broker.get_time_to_close": {},
+            # "broker._pull_broker_position": {"symbol": "LULU"},
+            # "broker._pull_broker_positions": {},
+            "broker._pull_position": {"strategy": "Simple", "symbol": "LULU"},
+            "broker._pull_positions": {"strategy": "Simple"},
+        }
+        self.check_function(log_methods)
+
+        # order = self.create_order("HD", 10, 'buy')
+        # ord = order
+
+    def check_function(self, log_methods):
         for lm, kwargs in log_methods.items():
             lm_eval = f"self.{lm}(**kwargs)"
-            print(f"{lm}: {eval(lm_eval)}")
-
-
-
-
+            print(f"{lm}: \n{eval(lm_eval)}")
 
 
     # def on_trading_iteration(self):

@@ -28,10 +28,6 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         )
         Broker.__init__(self, name="interactive_brokers", connect_stream=connect_stream)
 
-        # self.api.connect(self.ip, self.socket_port, clientId=self.client_id)
-
-
-
     # =========Clock functions=====================
 
     def utc_to_local(self, utc_dt):
@@ -39,9 +35,8 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
 
     def get_timestamp(self):
         """return current timestamp"""
-        return self.ib.get_timestamp()
-        # curr_time = clock.replace(tzinfo=timezone.utc).timestamp()
-        # return
+        clock = self.ib.get_timestamp()
+        return clock
 
     def market_hours(self, market="NASDAQ", close=True, date=None):
         mkt_cal = mcal.get_calendar(market)
@@ -87,30 +82,43 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         else:
             return None
 
-    #
-    # # =========Positions functions==================
-    #
-    # def _parse_broker_position(self, broker_position, strategy, orders=None):
-    #     """parse a broker position representation
-    #     into a position object"""
-    #     symbol = broker_position.symbol
-    #     quantity = broker_position.qty
-    #     position = Position(strategy, symbol, quantity, orders=orders)
-    #     return position
+    # =========Positions functions==================
+
+    def _parse_broker_position(self, broker_position, strategy, orders=None):
+        """parse a broker position representation
+        into a position object"""
+        symbol = broker_position.Symbol
+        quantity = int(broker_position.Quantity)
+        position = Position(strategy, symbol, quantity, orders=orders)
+        return position
+
+    def _parse_broker_positions(self, broker_positions, strategy):
+        """parse a list of broker positions into a
+        list of position objects"""
+        result = []
+        for account, broker_position in broker_positions.iterrows():
+            result.append(self._parse_broker_position(broker_position, strategy))
+
+        return result
 
     def _pull_broker_position(self, symbol):
         """Given a symbol, get the broker representation
         of the corresponding symbol"""
-        response = [
-            pos for pos in self.api.positions() if pos.contract.localSymbol == symbol
-        ]
-
-        return response
+        result = self._pull_broker_positions()
+        result = result[result["Symbol"] == symbol].squeeze()
+        return result
 
     def _pull_broker_positions(self):
         """Get the broker representation of all positions"""
-        response = self.api.positions()
-        return response
+        self.ib.reqPositions()  # associated callback: position
+        print("Waiting for IB's API response for accounts positions requests...\n")
+        time.sleep(1.0)
+        current_positions = self.ib.all_positions
+        current_positions = current_positions.set_index("Account", drop=True)
+        current_positions['Quantity'] = current_positions['Quantity'].astype("int")
+        current_positions = current_positions[current_positions["Quantity"] != 0]
+
+        return current_positions
 
     # =======Orders and assets functions=========
 
@@ -175,24 +183,24 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
             kwargs["stop_loss"] = {"stop_price": order.stop_price}
 
         try:
-            contract = ibi.Stock(order.symbol, "SMART", "USD")
+            contract = self.ib.Stock(order.symbol, "SMART", "USD")
             try:
                 self.api.qualifyContracts(contract)
             except Exception as e:
                 print(f"{e.message} {e.args}")
 
             if order.type == "market":
-                ib_order = ibi.MarketOrder(
+                ib_order = self.ib.MarketOrder(
                     action=order.side, totalQuantity=order.quantity
                 )
             elif order.type == "limit":
-                ib_order = ibi.LimitOrder(
+                ib_order = self.ib.LimitOrder(
                     action=order.side,
                     totalQuantity=order.quantity,
                     lmtPrice=order.limit_price,
                 )
             elif order.type == "stop_limit":
-                ib_order = ibi.StopLimitOrder(
+                ib_order = self.ib.StopLimitOrder(
                     action=order.side,
                     totalQuantity=order.quantity,
                     lmtPrice=order.limit_price,
@@ -237,7 +245,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         return result
 
     def _close_connection(self):
-        self.api.disconnect()
+        self.ib.disconnect()
 
     #
     # # =======Stream functions=========

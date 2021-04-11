@@ -233,6 +233,9 @@ class IBWrapper(EWrapper):
         super().__init__()
         self.data = []
         self.historicalDataEndId = -1
+        self.all_positions = pd.DataFrame(
+            [], columns=["Account", "Symbol", "Quantity", "Average Cost", "Sec Type"]
+        )
 
     ## error handling code
     def init_error(self):
@@ -287,6 +290,16 @@ class IBWrapper(EWrapper):
 
     def historicalDataEnd(self, reqId: int, start: str, end: str):
         self.historicalDataEndId = reqId
+
+    def position(self, account, contract, pos, avgCost):
+        index = str(account) + str(contract.symbol)
+        self.all_positions.loc[index] = (
+            account,
+            contract.symbol,
+            pos,
+            avgCost,
+            contract.secType,
+        )
 
 
 class IBClient(EClient):

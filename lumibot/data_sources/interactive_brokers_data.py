@@ -124,9 +124,9 @@ class InteractiveBrokersData(DataSource):
             symbol_ref[reqId] = symbol
 
         # Wait for data to return.
-        while self.ib.historicalDataEndId < reqId:
+        while self.ib.historicalDataEndId != reqId:
             time.sleep(0.1)
-        time.sleep(0.1)
+        time.sleep(1)  # todo modify or remove, check to see better way to handle.
 
         # Collect results.
         result = dict()
@@ -135,13 +135,22 @@ class InteractiveBrokersData(DataSource):
                 bar_data for bar_data in self.ib.data if bar_data["reqId"] == reqId
             ]
             df = pd.DataFrame(df_list)
-            del df["reqId"]
+            cols = [
+                "date",
+                "open",
+                "high",
+                "low",
+                "close",
+                "volume",
+                "barCount",
+                "average",
+            ]
+            df = df[cols]
             result[symbol] = df
             if parsed_timestep == "1 min":
                 df["date"] = pd.to_datetime(df["date"], unit="s", origin="unix")
             elif parsed_timestep == "1 day":
                 df["date"] = pd.to_datetime(df["date"], format="%Y%m%d")
-        # result = {k: v.df for k, v in response.items()}
         return result
 
     def _parse_source_symbol_bars(self, response, symbol):
@@ -170,6 +179,14 @@ class InteractiveBrokersData(DataSource):
         ]
         bars = Bars(df, self.SOURCE, symbol, raw=response)
         return bars
+
+    def get_yesterday_dividend(self, symbol):
+        """ Unavailable """
+        return 0
+
+    def get_yesterday_dividends(self, symbols):
+        """ Unavailable """
+        return 0
 
     ##### IB TWS METHODS #####
     def create_contract(

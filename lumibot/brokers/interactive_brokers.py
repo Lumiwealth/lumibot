@@ -38,14 +38,16 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         clock = self.ib.get_timestamp()
         return clock
 
-    def market_hours(self, market="NASDAQ", close=True, date=None):
+    def market_hours(self, market="NASDAQ", close=True, next=False, date=None):
         mkt_cal = mcal.get_calendar(market)
         date = date if date is not None else datetime.datetime.now()
         trading_hours = mkt_cal.schedule(
             start_date=date, end_date=date + datetime.timedelta(weeks=1)
-        ).head(1)
+        ).head(2)
 
-        market_open, market_close = trading_hours.values.tolist()[0]
+        row = 0 if not next else 1
+        th = trading_hours.iloc[row, :]
+        market_open, market_close = th[0], th[1]
 
         if close:
             return market_close
@@ -66,7 +68,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
 
     def get_time_to_open(self):
         """Return the remaining time for the market to open in seconds"""
-        open_time = self.utc_to_local(self.market_hours(close=False))
+        open_time = self.utc_to_local(self.market_hours(close=False, next=True))
         current_time = datetime.datetime.now().astimezone(tz=tz.tzlocal())
         if self.is_market_open():
             return None
@@ -125,14 +127,16 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
     def _parse_broker_order(self, response, strategy):
         """parse a broker order representation
         to an order object"""
+        order = response[0]
+        contract = response[1]
         order = Order(
             strategy,
-            response.contract.localSymbol,
-            response.order.totalQuantity,
-            response.order.action,
-            limit_price=response.order.lmtPrice,
-            stop_price=response.order.adjustedStopPrice,
-            time_in_force=response.order.tif,
+            contract.localSymbol,
+            order.totalQuantity,
+            order.action,
+            limit_price=order.lmtPrice,
+            stop_price=order.adjustedStopPrice,
+            time_in_force=order.tif,
         )
         if response.orderStatus.status:
             order._transmitted = True
@@ -169,54 +173,27 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
 
     def submit_order(self, order):
         """Submit an order for an asset"""
-        kwargs = {
-            "type": order.type,
-            "order_class": order.order_class,
-            "time_in_force": order.time_in_force,
-            "limit_price": order.limit_price,
-        }
-
-        # Remove items with None values
-        kwargs = {k: v for k, v in kwargs.items() if v}
-
-        if order.stop_price:
-            kwargs["stop_loss"] = {"stop_price": order.stop_price}
-
         try:
-            contract = self.ib.Stock(order.symbol, "SMART", "USD")
-            try:
-                self.api.qualifyContracts(contract)
-            except Exception as e:
-                print(f"{e.message} {e.args}")
+            contract_object = self.create_contract(order.symbol)
+            order_object = self.create_order(order)
+            nextID = self.ib.nextOrderId()
+            print("The next valid id is - " + str(nextID))
+            self.ib.placeOrder(nextID, contract_object, order_object)
+            while nextID not in self.ib.openOrderDict:
+                time.sleep(.02)
+            while len(self.ib.openOrderDict[nextID]) == 0:
+                time.sleep(.02)
+            response = self.ib.openOrderDict[nextID]
+            print("order was placed")
 
-            if order.type == "market":
-                ib_order = self.ib.MarketOrder(
-                    action=order.side, totalQuantity=order.quantity
-                )
-            elif order.type == "limit":
-                ib_order = self.ib.LimitOrder(
-                    action=order.side,
-                    totalQuantity=order.quantity,
-                    lmtPrice=order.limit_price,
-                )
-            elif order.type == "stop_limit":
-                ib_order = self.ib.StopLimitOrder(
-                    action=order.side,
-                    totalQuantity=order.quantity,
-                    lmtPrice=order.limit_price,
-                    stopPrice=order.stop_price,
-                )
-
-            response = self.api.placeOrder(contract, ib_order)
-            ib_order = self._parse_broker_order(response, order.strategy)
+            ib_order = self._parse_broker_order(response[0], order.strategy)
+            return ib_order
         except Exception as e:
-            # order.set_error(e)
+            order.set_error(e)
             logging.info(
                 "%r did not go through. The following error occured: %s" % (order, e)
             )
 
-        # return trade
-        return ib_order
 
     def cancel_order(self, order_id):
         """Cancel an order"""
@@ -224,6 +201,11 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         print(order)
         if order:
             self.api.cancelOrder(order)
+
+
+    def cancel_open_orders(self, strategy=None):
+        """cancel all the strategy open orders"""
+        self.ib.reqGlobalCancel()
 
     # =========Market functions=======================
 

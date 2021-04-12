@@ -127,8 +127,7 @@ class InteractiveBrokersData(DataSource):
 
         # Wait for data to return.
         while self.ib.historicalDataEndId != reqId:
-            time.sleep(0.1)
-        time.sleep(1)  # todo modify or remove, check to see better way to handle.
+            time.sleep(0.02)
 
         # Collect results.
         result = dict()
@@ -220,14 +219,15 @@ class InteractiveBrokersData(DataSource):
 
         return contract
 
-    def create_order(self):
-        # Fills out the order object
-        order1 = Order()  # Creates an order object from the import
-        order1.action = "BUY"  # Sets the order action to buy
-        order1.orderType = "MKT"  # Sets order type to market buy
-        order1.transmit = True
-        order1.totalQuantity = 10  # Setting a static quantity of 10
-        return order1  # Returns the order object
+    def create_order(self, order):
+        orderType_map = dict(
+            market="MKT"
+        )
+        ib_order = Order()
+        ib_order.action = order.side.upper()
+        ib_order.orderType = orderType_map[order.type]
+        ib_order.totalQuantity = order.quantity
+        return ib_order
 
     def execute_order(self):
         # Places the order with the returned contract and order objects
@@ -248,6 +248,8 @@ class IBWrapper(EWrapper):
         self.all_positions = pd.DataFrame(
             [], columns=["Account", "Symbol", "Quantity", "Average Cost", "Sec Type"]
         )
+        self.openOrderDict = dict()
+        self.openOrderEndNotify = False
 
     ## error handling code
     def init_error(self):
@@ -312,6 +314,26 @@ class IBWrapper(EWrapper):
             avgCost,
             contract.secType,
         )
+
+    def openOrder(self, orderId: OrderId, contract: Contract, order: Order,
+                  orderState: OrderState):
+        self.openOrderEndNotify = False
+        super().openOrder(orderId, contract, order, orderState)
+        print("OpenOrder. PermId: ", order.permId, "ClientId:", order.clientId, " OrderId:", orderId,
+              "Account:", order.account, "Symbol:", contract.symbol, "SecType:", contract.secType,
+              "Exchange:", contract.exchange, "Action:", order.action, "OrderType:", order.orderType,
+              "TotalQty:", order.totalQuantity, "CashQty:", order.cashQty,
+              "LmtPrice:", order.lmtPrice, "AuxPrice:", order.auxPrice, "Status:", orderState.status)
+        order.contract = contract
+        # self.permId2ord[order.permId] = order
+        if orderId not in self.openOrderDict:
+            self.openOrderDict[orderId] = []
+        self.openOrderDict[orderId].append((order, contract,))
+
+    def openOrderEnd(self):
+        super().openOrderEnd()
+        print("Super Order End")
+        self.openOrderEndNotify = True
 
 
 class IBClient(EClient):

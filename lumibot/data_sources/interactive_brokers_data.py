@@ -198,7 +198,13 @@ class InteractiveBrokersData(DataSource):
         exchange="SMART",
         currency="USD",
         primaryExchage="ISLAND",
+        lastTradeDateOrContractMonth="",
+        strike="",
+        right="",
+        multiplier="",
     ):
+
+
         """Creates new contract objects. """
         contract = Contract()
 
@@ -207,6 +213,10 @@ class InteractiveBrokersData(DataSource):
         contract.exchange = exchange
         contract.currency = currency
         contract.primaryExchange = primaryExchage
+        contract.lastTradeDateOrContractMonth = lastTradeDateOrContractMonth
+        contract.strike = strike
+        contract.right = right
+        contract.multiplier = multiplier
 
         return contract
 

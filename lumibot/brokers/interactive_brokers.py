@@ -8,6 +8,7 @@ from dateutil import tz
 import datetime
 
 import pandas_market_calendars as mcal
+import pandas as pd
 
 from lumibot.data_sources import InteractiveBrokersData
 from lumibot.entities import Order, Position
@@ -68,7 +69,16 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
 
     def get_time_to_open(self):
         """Return the remaining time for the market to open in seconds"""
-        open_time = self.utc_to_local(self.market_hours(close=False, next=True))
+        open_time_this_day = self.utc_to_local(
+            self.market_hours(close=False, next=False)
+        )
+        open_time_next_day = self.utc_to_local(
+            self.market_hours(close=False, next=True)
+        )
+        now = self.utc_to_local(datetime.datetime.now())
+        open_time = (
+            open_time_this_day if open_time_this_day > now else open_time_next_day
+        )
         current_time = datetime.datetime.now().astimezone(tz=tz.tzlocal())
         if self.is_market_open():
             return None
@@ -113,11 +123,25 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
     def _pull_broker_positions(self):
         """Get the broker representation of all positions"""
         self.ib.reqPositions()  # associated callback: position
-        print("Waiting for IB's API response for accounts positions requests...\n")
-        time.sleep(1.0)
-        current_positions = self.ib.all_positions
+
+        # Gather the results.
+        positions_exists = True
+        positions = list()
+        while positions_exists:
+            try:
+                position = self.ib.positionTracker.popleft()
+                if len(position) > 0:
+                    positions.append(position)
+                else:
+                    positions_exists = False
+            except:
+                time.sleep(0.02)
+        current_positions = pd.DataFrame(
+            data=positions,
+            columns=["Account", "Symbol", "Quantity", "Average Cost", "Sec Type"],
+        )
         current_positions = current_positions.set_index("Account", drop=True)
-        current_positions['Quantity'] = current_positions['Quantity'].astype("int")
+        current_positions["Quantity"] = current_positions["Quantity"].astype("int")
         current_positions = current_positions[current_positions["Quantity"] != 0]
 
         return current_positions
@@ -170,9 +194,9 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
             nextID = self.ib.nextOrderId()
             self.ib.placeOrder(nextID, contract_object, order_object)
             while nextID not in self.ib.openOrderDict:
-                time.sleep(.02)
+                time.sleep(0.02)
             while len(self.ib.openOrderDict[nextID]) == 0:
-                time.sleep(.02)
+                time.sleep(0.02)
             response = self.ib.openOrderDict[nextID]
 
             ib_order = self._parse_broker_order(response[0], order.strategy)
@@ -183,14 +207,12 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
                 "%r did not go through. The following error occured: %s" % (order, e)
             )
 
-
     def cancel_order(self, order_id):
         """Cancel an order"""
         order = self._pull_broker_order(order_id)
         print(order)
         if order:
             self.api.cancelOrder(order)
-
 
     def cancel_open_orders(self, strategy=None):
         """cancel all the strategy open orders"""

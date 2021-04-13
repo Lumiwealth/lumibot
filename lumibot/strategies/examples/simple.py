@@ -26,40 +26,41 @@ class Simple(Strategy):
         # self.sleeptime = 1
 
         # # Our Own Variables
-        # self.counter = 0
+        self.counter = 0
         # self.buy_symbol = "AGG"
 
-
-
     def before_market_opens(self):
-
 
         symbols = ["FB", "TSLA", "MSFT", "F", "AAPL"]
         symbol = "BRK A"
 
-        # timeshift not working.
-        # kwargs = {"symbol": symbol, "timestep": 'day', "length": 1, "timeshift":
-        #     datetime.timedelta(days=3)}
-        # print(self.get_symbol_bars(**kwargs))
+        # self.cancel_open_orders()
+        # for symbol in symbols:
+        #     new_order = self.create_order(symbol, 10, "buy")
+        #     self.submitted_order = self.submit_order(new_order)
 
         # Dictionary for inserting methods to log, parameters in sub-dict.
-        ###############
+        ##############
         # Data Source #
-        ###############_
-        log_methods = dict(
-            # get_datetime={},
-            # get_timestamp={},
-            # get_round_minute={},
-            # get_last_minute={},
-            # get_round_day={},
-            # get_last_day={},
-            # get_datetime_range={"length": 40},
-            get_symbol_bars={"symbol": symbol, "length": 5, "timeshift":
-                datetime.timedelta(days=20)},
-            # get_bars={"symbols": symbols, "length": 5},
-            # get_last_price={"symbol": symbol},
-            # get_last_prices={"symbols": symbols}
-        )
+        ##############_
+        # log_methods = dict(
+        #     get_datetime={},
+        #     get_timestamp={},
+        #     get_round_minute={},
+        #     get_last_minute={},
+        #     get_round_day={},
+        #     get_last_day={},
+        #     get_datetime_range={"length": 40},
+        #     get_symbol_bars={
+        #         "symbol": symbol,
+        #         "timestep": "day",
+        #         "length": 100,
+        #         "timeshift": datetime.timedelta(days=20),
+        #     },
+        #     get_bars={"symbols": symbols, "length": 5},
+        #     get_last_price={"symbol": symbol},
+        #     get_last_prices={"symbols": symbols},
+        # )
         ###############
         #   Broker    #
         ###############
@@ -75,35 +76,33 @@ class Simple(Strategy):
         # Attributes
         # log_attributes = {
         #     "name": self._name,
-            # "initial_budget": self.initial_budget,
-            # "minutes_before_closing": self.minutes_before_closing,
-            # "sleeptime": self.sleeptime,
-            # "parameters": self.parameters,
-            # "is_backtesting": self.is_backtesting,
-            # "portfolio_value": self.portfolio_value,
-            # "unspent_money": self.unspent_money,
-            # "stats_file": self.stats_file,
-            # "stats": self.stats,
-            # "analysis": self.analysis,
-            # "risk_free_rate": self.risk_free_rate,
+        #     "initial_budget": self.initial_budget,
+        #     "minutes_before_closing": self.minutes_before_closing,
+        #     "sleeptime": self.sleeptime,
+        #     "parameters": self.parameters,
+        #     "is_backtesting": self.is_backtesting,
+        #     "portfolio_value": self.portfolio_value,
+        #     "unspent_money": self.unspent_money,
+        #     "stats_file": self.stats_file,
+        #     "stats": self.stats,
+        #     "analysis": self.analysis,
+        #     "risk_free_rate": self.risk_free_rate,
         # }
         # for la in log_attributes.items():
         #     print(la[0], ": ", la[1])
 
-
         # Methods
         # log_methods = {
-            # "broker.get_time_to_open": {},
-            # "broker.get_time_to_close": {},
-            # "broker._pull_broker_position": {"symbol": "LULU"},
-            # "broker._pull_broker_positions": {},
-            # "broker._pull_position": {"strategy": "Simple", "symbol": "LULU"},
-            # "broker._pull_positions": {"strategy": "Simple"},
+        # "broker.get_time_to_open": {},
+        # "broker.get_time_to_close": {},
+        # "broker._pull_broker_position": {"symbol": "EUR"},
+        # "broker._pull_broker_positions": {},
+        # "broker._pull_position": {"strategy": "Simple", "symbol": "EUR"},
+        # "broker._pull_positions": {"strategy": "Simple"},
         # }
-        self.check_function(log_methods)
 
-        # order = self.create_order("HD", 10, 'buy')
-        # ord = order
+        # self.check_function(log_methods)
+
 
     def check_function(self, log_methods):
         for lm, kwargs in log_methods.items():
@@ -145,6 +144,7 @@ class Simple(Strategy):
     def on_abrupt_closing(self):
         # self.sell_all()
         pass
+
     def trace_stats(self, context, snapshot_before):
         random_number = random.randint(0, 100)
         row = {"my_custom_stat": random_number, "counter": self.counter}

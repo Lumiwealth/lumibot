@@ -1,4 +1,4 @@
-from collections import defaultdict
+from collections import defaultdict, deque, namedtuple
 from datetime import datetime
 import pandas as pd
 
@@ -103,10 +103,10 @@ class InteractiveBrokersData(DataSource):
             end = datetime.datetime.now() - timeshift
             end = self.to_default_timezone(end)
             end_date_time = self._format_ib_datetime(end)
-            type="TRADES"
+            type = "TRADES"
         else:
             end_date_time = ""
-            type="ADJUSTED_LAST"
+            type = "ADJUSTED_LAST"
 
         # Call data.
         for symbol in symbols:
@@ -133,9 +133,17 @@ class InteractiveBrokersData(DataSource):
         # Collect results.
         result = dict()
         for reqId, symbol in symbol_ref.items():
-            df_list = [
-                bar_data for bar_data in self.ib.data if bar_data["reqId"] == reqId
-            ]
+            # Check if data returned before fetching.
+            data_exist = False
+            df_list = []
+            while data_exist == False:
+                df_list = [
+                    bar_data for bar_data in self.ib.data if bar_data["reqId"] == reqId
+                ]
+                data_exist = len(df_list) > 0
+                if not data_exist:
+                    time.sleep(0.01)
+
             df = pd.DataFrame(df_list)
             cols = [
                 "date",
@@ -204,7 +212,6 @@ class InteractiveBrokersData(DataSource):
         multiplier="",
     ):
 
-
         """Creates new contract objects. """
         contract = Contract()
 
@@ -221,9 +228,7 @@ class InteractiveBrokersData(DataSource):
         return contract
 
     def create_order(self, order):
-        orderType_map = dict(
-            market="MKT"
-        )
+        orderType_map = dict(market="MKT")
         ib_order = Order()
         ib_order.action = order.side.upper()
         ib_order.orderType = orderType_map[order.type]
@@ -244,11 +249,9 @@ class IBWrapper(EWrapper):
         super().__init__()
         self.data = []
         self.historicalDataEndId = -1
-        self.all_positions = pd.DataFrame(
-            [], columns=["Account", "Symbol", "Quantity", "Average Cost", "Sec Type"]
-        )
         self.openOrderDict = defaultdict(list)
         self.openOrderEndNotify = False
+        self.positionTracker = deque()
 
     ## error handling code
     def init_error(self):
@@ -305,17 +308,19 @@ class IBWrapper(EWrapper):
         self.historicalDataEndId = reqId
 
     def position(self, account, contract, pos, avgCost):
-        index = str(account) + str(contract.symbol)
-        self.all_positions.loc[index] = (
-            account,
-            contract.symbol,
-            pos,
-            avgCost,
-            contract.secType,
+        Position = namedtuple(
+            "Position", ["account", "symbol", "pos", "avgCost", "secType"]
+        )
+        self.positionTracker.append(
+            Position(account, contract.symbol, pos, avgCost, contract.secType)
         )
 
-    def openOrder(self, orderId: OrderId, contract: Contract, order: Order,
-                  orderState: OrderState):
+    def positionEnd(self):
+        self.positionTracker.append([])
+
+    def openOrder(
+        self, orderId: OrderId, contract: Contract, order: Order, orderState: OrderState
+    ):
         self.openOrderEndNotify = False
         super().openOrder(orderId, contract, order, orderState)
 

@@ -51,10 +51,6 @@ class InteractiveBrokersData(DataSource):
     def __init__(self, config, max_workers=20, chunk_size=100, **kwargs):
         self.name = "interactivebrokers"
         self.max_workers = min(max_workers, 200)
-
-        # When requesting data for assets for example,
-        # if there is too many assets, the best thing to do would
-        # be to split it into chunks and request data for each chunk
         self.chunk_size = min(chunk_size, 100)
 
         # Connection to interactive brokers
@@ -327,20 +323,20 @@ class IBWrapper(EWrapper):
         order.contract = contract
         order.orderState = orderState
         print(
-            "OpenOrder. PermId: ", order.permId,
-            "ClientId:", order.clientId,
-            "OrderId:", orderId,
-            "Account:", order.account,
-            "Symbol:", contract.symbol,
-            "SecType:", contract.secType,
-            "Exchange:", contract.exchange,
-            "Action:", order.action,
-            "OrderType:", order.orderType,
-            "TotalQty:", order.totalQuantity,
-            "CashQty:", order.cashQty,
-            "LmtPrice:", order.lmtPrice,
-            "AuxPrice:", order.auxPrice,
-            "Status:", orderState.status
+            f"OpenOrder.PermId: {order.permId}, "
+            f"ClientId: {order.clientId}, "
+            f"OrderId: {orderId}, "
+            f"Account: {order.account}, "
+            f"Symbol: {contract.symbol}, "
+            f"SecType: {contract.secType}, "
+            f"Exchange: {contract.exchange}, "
+            f"Action: {order.action}, "
+            f"OrderType: {order.orderType}, "
+            f"TotalQty: {order.totalQuantity}, "
+            f"CashQty: {order.cashQty}, "
+            f"LmtPrice: {order.lmtPrice}, "
+            f"AuxPrice: {order.auxPrice}, "
+            f"Status: {orderState.status} "
         )
         self.openOrderDict[orderId].append(order)
 

@@ -48,7 +48,9 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
 
         row = 0 if not next else 1
         th = trading_hours.iloc[row, :]
-        market_open, market_close = th[0], th[1]
+        # market_open, market_close = th[0], th[1]
+        market_open = self.utc_to_local(datetime.datetime(2005, 1, 1))
+        market_close = self.utc_to_local(datetime.datetime(2025, 1, 1))
 
         if close:
             return market_close

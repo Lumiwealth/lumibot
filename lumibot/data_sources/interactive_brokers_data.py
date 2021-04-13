@@ -1,3 +1,4 @@
+from collections import defaultdict
 from datetime import datetime
 import pandas as pd
 
@@ -234,9 +235,7 @@ class InteractiveBrokersData(DataSource):
         contract_object = self.create_contract()
         order_object = self.create_order()
         nextID = self.ib.nextOrderId()
-        print("The next valid id is - " + str(nextID))
         self.ib.placeOrder(nextID, contract_object, order_object)
-        print("order was placed")
 
 
 ##### IB TWS CLASSES #####
@@ -248,7 +247,7 @@ class IBWrapper(EWrapper):
         self.all_positions = pd.DataFrame(
             [], columns=["Account", "Symbol", "Quantity", "Average Cost", "Sec Type"]
         )
-        self.openOrderDict = dict()
+        self.openOrderDict = defaultdict(list)
         self.openOrderEndNotify = False
 
     ## error handling code
@@ -325,14 +324,10 @@ class IBWrapper(EWrapper):
               "TotalQty:", order.totalQuantity, "CashQty:", order.cashQty,
               "LmtPrice:", order.lmtPrice, "AuxPrice:", order.auxPrice, "Status:", orderState.status)
         order.contract = contract
-        # self.permId2ord[order.permId] = order
-        if orderId not in self.openOrderDict:
-            self.openOrderDict[orderId] = []
         self.openOrderDict[orderId].append((order, contract,))
 
     def openOrderEnd(self):
         super().openOrderEnd()
-        print("Super Order End")
         self.openOrderEndNotify = True
 
 

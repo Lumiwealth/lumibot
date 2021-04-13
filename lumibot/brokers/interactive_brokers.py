@@ -127,21 +127,20 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
     def _parse_broker_order(self, response, strategy):
         """parse a broker order representation
         to an order object"""
-        order = response[0]
-        contract = response[1]
+        order_response = response[0]
+        contract_response = response[1]
         order = Order(
             strategy,
-            contract.localSymbol,
-            order.totalQuantity,
-            order.action,
-            limit_price=order.lmtPrice,
-            stop_price=order.adjustedStopPrice,
-            time_in_force=order.tif,
+            contract_response.localSymbol,
+            order_response.totalQuantity,
+            order_response.action.lower(),
+            limit_price=order_response.lmtPrice,
+            stop_price=order_response.adjustedStopPrice,
+            time_in_force=order_response.tif,
         )
-        if response.orderStatus.status:
-            order._transmitted = True
-        order.set_identifier(response.order.orderId)
-        order.update_status(response.orderStatus.status)
+        order._transmitted = True
+        order.set_identifier(order_response.orderId)
+        order.update_status("submitted")
         order.update_raw(response)
         return order
 
@@ -162,13 +161,6 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         """Some submitted orders may triggers other orders.
         _flatten_order returns a list containing the main order
         and all the derived ones"""
-        # orders = [order]
-        # if order._raw.legs:
-        #     strategy = order.strategy
-        #     for json_sub_order in order._raw.legs:
-        #         sub_order = self._parse_broker_order(json_sub_order, strategy)
-        #         orders.append(sub_order)
-
         return [order]  # todo made iterable for now.
 
     def submit_order(self, order):
@@ -177,14 +169,12 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
             contract_object = self.create_contract(order.symbol)
             order_object = self.create_order(order)
             nextID = self.ib.nextOrderId()
-            print("The next valid id is - " + str(nextID))
             self.ib.placeOrder(nextID, contract_object, order_object)
             while nextID not in self.ib.openOrderDict:
                 time.sleep(.02)
             while len(self.ib.openOrderDict[nextID]) == 0:
                 time.sleep(.02)
             response = self.ib.openOrderDict[nextID]
-            print("order was placed")
 
             ib_order = self._parse_broker_order(response[0], order.strategy)
             return ib_order

@@ -318,13 +318,26 @@ class IBWrapper(EWrapper):
                   orderState: OrderState):
         self.openOrderEndNotify = False
         super().openOrder(orderId, contract, order, orderState)
-        print("OpenOrder. PermId: ", order.permId, "ClientId:", order.clientId, " OrderId:", orderId,
-              "Account:", order.account, "Symbol:", contract.symbol, "SecType:", contract.secType,
-              "Exchange:", contract.exchange, "Action:", order.action, "OrderType:", order.orderType,
-              "TotalQty:", order.totalQuantity, "CashQty:", order.cashQty,
-              "LmtPrice:", order.lmtPrice, "AuxPrice:", order.auxPrice, "Status:", orderState.status)
+
         order.contract = contract
-        self.openOrderDict[orderId].append((order, contract,))
+        order.orderState = orderState
+        print(
+            "OpenOrder. PermId: ", order.permId,
+            "ClientId:", order.clientId,
+            "OrderId:", orderId,
+            "Account:", order.account,
+            "Symbol:", contract.symbol,
+            "SecType:", contract.secType,
+            "Exchange:", contract.exchange,
+            "Action:", order.action,
+            "OrderType:", order.orderType,
+            "TotalQty:", order.totalQuantity,
+            "CashQty:", order.cashQty,
+            "LmtPrice:", order.lmtPrice,
+            "AuxPrice:", order.auxPrice,
+            "Status:", orderState.status
+        )
+        self.openOrderDict[orderId].append(order)
 
     def openOrderEnd(self):
         super().openOrderEnd()

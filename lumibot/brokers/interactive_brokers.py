@@ -127,20 +127,19 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
     def _parse_broker_order(self, response, strategy):
         """parse a broker order representation
         to an order object"""
-        order_response = response[0]
-        contract_response = response[1]
+
         order = Order(
             strategy,
-            contract_response.localSymbol,
-            order_response.totalQuantity,
-            order_response.action.lower(),
-            limit_price=order_response.lmtPrice,
-            stop_price=order_response.adjustedStopPrice,
-            time_in_force=order_response.tif,
+            response.contract.localSymbol,
+            response.totalQuantity,
+            response.action.lower(),
+            limit_price=response.lmtPrice,
+            stop_price=response.adjustedStopPrice,
+            time_in_force=response.tif,
         )
         order._transmitted = True
-        order.set_identifier(order_response.orderId)
-        order.update_status("submitted")
+        order.set_identifier(response.orderId)
+        order.update_status(response.orderState.status)
         order.update_raw(response)
         return order
 

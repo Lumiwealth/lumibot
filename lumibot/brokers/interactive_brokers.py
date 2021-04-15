@@ -65,6 +65,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         row = 0 if not next else 1
         th = trading_hours.iloc[row, :]
         # market_open, market_close = th[0], th[1]
+        # todo: remove this, it's temp to have full trading hours.
         market_open = self.utc_to_local(datetime.datetime(2005, 1, 1))
         market_close = self.utc_to_local(datetime.datetime(2025, 1, 1))
 
@@ -140,7 +141,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
 
     def _pull_broker_positions(self):
         """Get the broker representation of all positions"""
-        current_positions = self.ib.get_positions()  # associated callback: position
+        current_positions = self.ib.get_positions()
 
         current_positions_df = pd.DataFrame(
             data=current_positions,
@@ -194,7 +195,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
 
     def _pull_broker_open_orders(self):
         """Get the broker open orders"""
-        orders = self.api.openOrders()
+        orders = self.ib.get_open_orders()
         return orders
 
     def _flatten_order(self, order):  # todo ask about this.
@@ -206,18 +207,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
     def submit_order(self, order):
         """Submit an order for an asset"""
         try:
-            contract_object = self.create_contract(order.symbol)
-            order_object = self.create_order(order)
-            nextID = self.ib.nextOrderId()
-            self.ib.placeOrder(nextID, contract_object, order_object)
-            while nextID not in self.ib.openOrderDict:
-                time.sleep(0.02)
-            while len(self.ib.openOrderDict[nextID]) == 0:
-                time.sleep(0.02)
-            response = self.ib.openOrderDict[nextID]
-
-            ib_order = self._parse_broker_order(response[0], order.strategy)
-            return ib_order
+            self.ib.execute_order(order)
         except Exception as e:
             order.set_error(e)
             logging.info(
@@ -257,6 +247,8 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
     def _close_connection(self):
         self.ib.disconnect()
 
+    def _test_call(self, txt):  # todo Delete
+        print(f"From test call: {txt}")
 
 ############ INTERACTIVE BROKERS CLASSES #################
 
@@ -390,14 +382,49 @@ class IBWrapper(EWrapper):
     ):
         if not hasattr(self, "orders"):
             self.init_orders()
+        print(
+            f"From openOrder -- "
+            f"PermId:  {order.permId}, "   
+            f"ClientId: {order.clientId}, "  
+            f"OrderId: {orderId}, "
+            f"Account: {order.account},"  
+            f"Symbol: {contract.symbol}, "  
+            f"SecType: {contract.secType}, "
+            f"Exchange: {contract.exchange}, "  
+            f"Action: {order.action}, "  
+            f"OrderType: {order.orderType}, "
+            f"TotalQty: {order.totalQuantity},"  
+            f"CashQty: {order.cashQty}, "
+            f"LmtPrice: {order.lmtPrice}, "  
+            f"AuxPrice: {order.auxPrice}, "  
+            f"Status: {orderState.status}) "
+        )
 
         order.contract = contract
         order.orderState = orderState
         self.orders.append(order)
+        self.ib_broker._test_call("TEST  ############# openOrder")
+
 
     def openOrderEnd(self):
         super().openOrderEnd()
         self.my_orders_queue.put(self.orders)
+        self.ib_broker._test_call("TEST ############# openOrderEnd")
+
+    def orderStatus(self, orderId, status, filled, remaining, avgFullPrice, permId,
+                    parentId, lastFillPrice, clientId, whyHeld, mktCapPrice):
+        print(
+            f"orderStatus - orderid: {orderId}, " 
+            f"status: {status}, " 
+            f"filled: {filled}, " 
+            f"remaining: {remaining}, " 
+            f"lastFillPrice: {lastFillPrice}, "
+        )
+
+    def execDetails(self, reqId, contract, execution):
+        print('Order Executed: ', reqId, contract.symbol, contract.secType,
+              contract.currency, execution.execId, execution.orderId,
+              execution.shares, execution.lastLiquidity)
 
 
 class IBClient(EClient):
@@ -519,6 +546,7 @@ class IBClient(EClient):
         return requested_orders
 
 
+
 class IBApp(IBWrapper, IBClient):
     def __init__(self, ipaddress, portid, clientid, ib_broker=None):
         IBWrapper.__init__(self)
@@ -560,19 +588,23 @@ class IBApp(IBWrapper, IBClient):
         return contract
 
     def create_order(self, order):
-        orderType_map = dict(market="MKT")
+        orderType_map = dict(market="MKT", limit="LMT")
         ib_order = Order()
         ib_order.action = order.side.upper()
         ib_order.orderType = orderType_map[order.type]
         ib_order.totalQuantity = order.quantity
+        ib_order.limit_price = order.limit_price,
+        ib_order.stop_price = order.stop_price,
+
         return ib_order
 
-    def execute_order(self):
+    def execute_order(self, order):
         # Places the order with the returned contract and order objects
-        contract_object = self.create_contract()
-        order_object = self.create_order()
-        nextID = self.ib.nextOrderId()
-        self.ib.placeOrder(nextID, contract_object, order_object)
+        contract_object = self.create_contract(order.symbol)
+
+        order_object = self.create_order(order)
+        nextID = self.nextOrderId()
+        self.placeOrder(nextID, contract_object, order_object)
 
     #
     # # =======Stream functions=========

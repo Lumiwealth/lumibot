@@ -46,23 +46,24 @@ class Broker:
 
     def __getattribute__(self, name):
         attr = object.__getattribute__(self, name)
-        if name != "submit_order":
-            return attr
-
-        broker = self
-
-        @wraps(attr)
-        def new_func(order, *args, **kwargs):
-            result = attr(order, *args, **kwargs)
-            if result.was_transmitted():
-                orders = broker._flatten_order(result)
-                for order in orders:
-                    logging.info("%r was sent to broker %s" % (order, broker.name))
-                    broker._unprocessed_orders.append(order)
-
-            return result
-
-        return new_func
+        return attr
+        # if name != "submit_order":
+        #     return attr
+        #
+        # broker = self
+        #
+        # @wraps(attr)
+        # def new_func(order, *args, **kwargs):
+        #     result = attr(order, *args, **kwargs)
+        #     if result.was_transmitted():
+        #         orders = broker._flatten_order(result)
+        #         for order in orders:
+        #             logging.info("%r was sent to broker %s" % (order, broker.name))
+        #             broker._unprocessed_orders.append(order)
+        #
+        #     return result
+        #
+        # return new_func
 
     # =========Internal functions==============
 

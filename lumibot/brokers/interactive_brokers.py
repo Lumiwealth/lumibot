@@ -6,6 +6,8 @@ from asyncio import CancelledError
 from datetime import timezone
 from dateutil import tz
 import datetime
+import queue
+import time
 
 import pandas_market_calendars as mcal
 import pandas as pd
@@ -13,6 +15,12 @@ import pandas as pd
 from lumibot.data_sources import InteractiveBrokersData
 from lumibot.entities import Order, Position
 from .broker import Broker
+
+from ibapi.wrapper import *
+from ibapi.client import *
+from ibapi.contract import *
+from ibapi.order import *
+from threading import Thread
 
 
 class InteractiveBrokers(InteractiveBrokersData, Broker):
@@ -28,6 +36,14 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
             chunk_size=chunk_size,
         )
         Broker.__init__(self, name="interactive_brokers", connect_stream=connect_stream)
+        # Connection to interactive brokers
+        self.ib = None
+        self.start_ib(config.IP, config.SOCKET_PORT, config.CLIENT_ID)
+
+    def start_ib(self, ip, socket_port, client_id):
+        # Connect to interactive brokers.
+        if not self.ib:
+            self.ib = IBApp(ip, socket_port, client_id, ib_broker=self)
 
     # =========Clock functions=====================
 
@@ -124,29 +140,28 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
 
     def _pull_broker_positions(self):
         """Get the broker representation of all positions"""
-        self.ib.reqPositions()  # associated callback: position
+        current_positions = self.ib.get_positions()  # associated callback: position
 
-        # Gather the results.
-        positions_exists = True
-        positions = list()
-        while positions_exists:
-            try:
-                position = self.ib.positionTracker.popleft()
-                if len(position) > 0:
-                    positions.append(position)
-                else:
-                    positions_exists = False
-            except:
-                time.sleep(0.02)
-        current_positions = pd.DataFrame(
-            data=positions,
-            columns=["Account", "Symbol", "Quantity", "Average Cost", "Sec Type"],
+        current_positions_df = pd.DataFrame(
+            data=current_positions,
         )
-        current_positions = current_positions.set_index("Account", drop=True)
-        current_positions["Quantity"] = current_positions["Quantity"].astype("int")
-        current_positions = current_positions[current_positions["Quantity"] != 0]
+        current_positions_df.columns = [
+            "Account",
+            "Symbol",
+            "Quantity",
+            "Average_Cost",
+            "Sec_Type",
+        ]
 
-        return current_positions
+        current_positions_df = current_positions_df.set_index("Account", drop=True)
+        current_positions_df["Quantity"] = current_positions_df["Quantity"].astype(
+            "int"
+        )
+        current_positions_df = current_positions_df[
+            current_positions_df["Quantity"] != 0
+        ]
+
+        return current_positions_df
 
     # =======Orders and assets functions=========
 
@@ -241,6 +256,323 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
 
     def _close_connection(self):
         self.ib.disconnect()
+
+
+############ INTERACTIVE BROKERS CLASSES #################
+
+
+class IBWrapper(EWrapper):
+
+    # Error handling code.
+    def init_error(self):
+        error_queue = queue.Queue()
+        self.my_errors_queue = error_queue
+
+    def is_error(self):
+        error_exist = not self.my_errors_queue.empty()
+        return error_exist
+
+    def get_error(self, timeout=6):
+        if self.is_error():
+            try:
+                return self.my_errors_queue.get(timeout=timeout)
+            except queue.Empty:
+                return None
+        return None
+
+    def error(self, id, errorCode, errorString):
+        errormessage = "IB returns an error with %d errorcode %d that says %s" % (
+            id,
+            errorCode,
+            errorString,
+        )
+        self.my_errors_queue.put(errormessage)
+
+    # Time.
+    def init_time(self):
+        time_queue = queue.Queue()
+        self.my_time_queue = time_queue
+        return time_queue
+
+    def currentTime(self, server_time):
+        if not hasattr(self, "my_time_queue"):
+            self.init_time()
+        self.my_time_queue.put(server_time)
+
+    # Historical Data.
+    def init_historical(self):
+        self.historical = list()
+        historical_queue = queue.Queue()
+        self.my_historical_queue = historical_queue
+        return historical_queue
+
+    def historicalData(self, reqId, bar):
+        if not hasattr(self, "historical"):
+            self.init_historical()
+        self.historical.append(vars(bar))
+
+    def historicalDataEnd(self, reqId: int, start: str, end: str):
+        self.my_historical_queue.put(self.historical)
+
+    # Positions.
+    def init_positions(self):
+        self.positions = list()
+        positions_queue = queue.Queue()
+        self.my_positions_queue = positions_queue
+        return positions_queue
+
+    def position(self, account, contract, pos, avgCost):
+        if not hasattr(self, "positions"):
+            self.init_positions()
+        self.positions.append(
+            {
+                "account": account,
+                "symbol": contract.symbol,
+                "position": pos,
+                "cost": avgCost,
+                "type": contract.secType,
+            }
+        )
+
+    def positionEnd(self):
+        self.my_positions_queue.put(self.positions)
+
+    # Account summary
+    def init_accounts(self):
+        self.accounts = list()
+        accounts_queue = queue.Queue()
+        self.my_accounts_queue = accounts_queue
+        return accounts_queue
+
+    def accountSummary(
+        self, reqId: int, account: str, tag: str, value: str, currency: str
+    ):
+        if not hasattr(self, "accounts"):
+            self.init_accounts()
+
+        self.accounts.append(
+            {
+                "ReqId": reqId,
+                "Account": account,
+                "Tag": tag,
+                "Value": value,
+                "Currency": currency,
+            }
+        )
+
+    def accountSummaryEnd(self, reqId):
+        super().accountSummaryEnd(reqId)
+        self.my_accounts_queue.put(self.accounts)
+
+    # Order IDs
+    def nextValidId(self, orderId: int):
+        super().nextValidId(orderId)
+
+        logging.debug("setting nextValidOrderId: %d", orderId)
+        self.nextValidOrderId = orderId
+
+    def nextOrderId(self):
+        while not hasattr(self, "nextValidOrderId"):
+            print("Waiting for next order id")
+            time.sleep(0.1)
+        oid = self.nextValidOrderId
+        self.nextValidOrderId += 1
+        return oid
+
+    def init_orders(self):
+        self.orders = list()
+        orders_queue = queue.Queue()
+        self.my_orders_queue = orders_queue
+        return orders_queue
+
+    def openOrder(
+        self, orderId: OrderId, contract: Contract, order: Order, orderState: OrderState
+    ):
+        if not hasattr(self, "orders"):
+            self.init_orders()
+
+        order.contract = contract
+        order.orderState = orderState
+        self.orders.append(order)
+
+    def openOrderEnd(self):
+        super().openOrderEnd()
+        self.my_orders_queue.put(self.orders)
+
+
+class IBClient(EClient):
+    def __init__(self, wrapper):
+        ## Set up with a wrapper inside
+        EClient.__init__(self, wrapper)
+        self.max_wait_time = 4
+
+    def get_timestamp(self):
+
+        print("Asking server for Unix time")
+
+        # Creates a queue to store the time
+        time_storage = self.wrapper.init_time()
+
+        # Sets up a request for unix time from the Eclient
+        self.reqCurrentTime()
+
+        try:
+            requested_time = time_storage.get(timeout=self.max_wait_time)
+        except queue.Empty:
+            print("The queue was empty or max time reached for timestamp.")
+            requested_time = None
+
+        while self.wrapper.is_error():
+            print("Error:", self.get_error(timeout=5))
+
+        return requested_time
+
+    def get_historical_data(
+        self,
+        reqId=0,
+        symbol=[],
+        end_date_time="",
+        parsed_duration="1 D",
+        parsed_timestep="1 day",
+        type="TRADES",
+        useRTH=1,
+        formatDate=2,
+        keepUpToDate=False,
+        chartOptions=[],
+    ):
+        historical_storage = self.wrapper.init_historical()
+        contract = self.create_contract(symbol)
+        # Call the historical data.
+        self.reqHistoricalData(
+            reqId,
+            contract,
+            end_date_time,
+            parsed_duration,
+            parsed_timestep,
+            type,
+            useRTH,
+            formatDate,
+            keepUpToDate,
+            chartOptions,
+        )
+
+        try:
+            requested_historical = historical_storage.get(timeout=self.max_wait_time)
+        except queue.Empty:
+            print("The queue was empty or max time reached for historical data.")
+            requested_historical = None
+
+        while self.wrapper.is_error():
+            print(f"Error: {self.get_error(timeout=5)}")
+
+        return requested_historical
+
+    def get_positions(self):
+        positions_storage = self.wrapper.init_positions()
+
+        # Call the positions data.
+        self.reqPositions()
+
+        try:
+            requested_positions = positions_storage.get(timeout=self.max_wait_time)
+        except queue.Empty:
+            print("The queue was empty or max time reached for positions")
+            requested_positions = None
+
+        while self.wrapper.is_error():
+            print(f"Error: {self.get_error(timeout=5)}")
+
+        return requested_positions
+
+    def get_account_summary(self):
+        accounts_storage = self.wrapper.init_accounts()
+
+        # Call the accounts data.
+        self.reqAccountSummary(9001, "All", "$LEDGER")
+
+        try:
+            requested_accounts = accounts_storage.get(timeout=self.max_wait_time)
+        except queue.Empty:
+            print("The queue was empty or max time reached for account summary")
+            requested_accounts = None
+
+        while self.wrapper.is_error():
+            print(f"Error: {self.get_error(timeout=5)}")
+
+        return requested_accounts
+
+    def get_open_orders(self):
+        orders_storage = self.wrapper.init_orders()
+
+        # Call the orders data.
+        self.reqOpenOrders()
+
+        try:
+            requested_orders = orders_storage.get(timeout=self.max_wait_time)
+        except queue.Empty:
+            print("The queue was empty or max time reached for orders.")
+            requested_orders = None
+
+        while self.wrapper.is_error():
+            print(f"Error: {self.get_error(timeout=5)}")
+
+        return requested_orders
+
+
+class IBApp(IBWrapper, IBClient):
+    def __init__(self, ipaddress, portid, clientid, ib_broker=None):
+        IBWrapper.__init__(self)
+        IBClient.__init__(self, wrapper=self)
+        self.ib_broker = ib_broker
+        self.connect(ipaddress, portid, clientid)
+
+        thread = Thread(target=self.run)
+        thread.start()
+        setattr(self, "_thread", thread)
+
+        self.init_error()
+
+    def create_contract(
+        self,
+        symbol,
+        secType="STK",
+        exchange="SMART",
+        currency="USD",
+        primaryExchage="ISLAND",
+        lastTradeDateOrContractMonth="",
+        strike="",
+        right="",
+        multiplier="",
+    ):
+        """Creates new contract objects. """
+        contract = Contract()
+
+        contract.symbol = str(symbol)
+        contract.secType = secType
+        contract.exchange = exchange
+        contract.currency = currency
+        contract.primaryExchange = primaryExchage
+        contract.lastTradeDateOrContractMonth = lastTradeDateOrContractMonth
+        contract.strike = strike
+        contract.right = right
+        contract.multiplier = multiplier
+
+        return contract
+
+    def create_order(self, order):
+        orderType_map = dict(market="MKT")
+        ib_order = Order()
+        ib_order.action = order.side.upper()
+        ib_order.orderType = orderType_map[order.type]
+        ib_order.totalQuantity = order.quantity
+        return ib_order
+
+    def execute_order(self):
+        # Places the order with the returned contract and order objects
+        contract_object = self.create_contract()
+        order_object = self.create_order()
+        nextID = self.ib.nextOrderId()
+        self.ib.placeOrder(nextID, contract_object, order_object)
 
     #
     # # =======Stream functions=========

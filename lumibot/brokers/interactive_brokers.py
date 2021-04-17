@@ -247,8 +247,10 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
     def _close_connection(self):
         self.ib.disconnect()
 
-    def _test_call(self, txt):  # todo Delete
-        print(f"From test call: {txt}")
+    def get_account_summary(self):
+        return self.ib.get_account_summary()
+
+
 
 ############ INTERACTIVE BROKERS CLASSES #################
 
@@ -278,6 +280,7 @@ class IBWrapper(EWrapper):
             errorCode,
             errorString,
         )
+        logging.info(errormessage)
         self.my_errors_queue.put(errormessage)
 
     # Time.
@@ -316,15 +319,20 @@ class IBWrapper(EWrapper):
     def position(self, account, contract, pos, avgCost):
         if not hasattr(self, "positions"):
             self.init_positions()
-        self.positions.append(
-            {
-                "account": account,
-                "symbol": contract.symbol,
-                "position": pos,
-                "cost": avgCost,
-                "type": contract.secType,
-            }
-        )
+
+        positionsdict = {
+            "account": account,
+            "symbol": contract.symbol,
+            "position": pos,
+            "cost": avgCost,
+            "type": contract.secType,
+        }
+
+        self.positions.append(positionsdict)
+
+        positionstxt = ", ".join(f"{k}: {v}" for k, v in positionsdict.items())
+
+        logging.info(positionstxt)
 
     def positionEnd(self):
         self.my_positions_queue.put(self.positions)
@@ -342,15 +350,21 @@ class IBWrapper(EWrapper):
         if not hasattr(self, "accounts"):
             self.init_accounts()
 
-        self.accounts.append(
-            {
-                "ReqId": reqId,
-                "Account": account,
-                "Tag": tag,
-                "Value": value,
-                "Currency": currency,
-            }
+        accountSummarydict = {
+            "ReqId": reqId,
+            "Account": account,
+            "Tag": tag,
+            "Value": value,
+            "Currency": currency,
+        }
+
+        self.accounts.append(accountSummarydict)
+
+        accountSummarytxt = ", ".join(
+            [f"{k}: {v}" for k, v in accountSummarydict.items()]
         )
+
+        logging.info(accountSummarytxt)
 
     def accountSummaryEnd(self, reqId):
         super().accountSummaryEnd(reqId)
@@ -382,49 +396,74 @@ class IBWrapper(EWrapper):
     ):
         if not hasattr(self, "orders"):
             self.init_orders()
-        print(
+        openOrdertxt = (
             f"From openOrder -- "
-            f"PermId:  {order.permId}, "   
-            f"ClientId: {order.clientId}, "  
+            f"PermId:  {order.permId}, "
+            f"ClientId: {order.clientId}, "
             f"OrderId: {orderId}, "
-            f"Account: {order.account},"  
-            f"Symbol: {contract.symbol}, "  
+            f"Account: {order.account},"
+            f"Symbol: {contract.symbol}, "
             f"SecType: {contract.secType}, "
-            f"Exchange: {contract.exchange}, "  
-            f"Action: {order.action}, "  
+            f"Exchange: {contract.exchange}, "
+            f"Action: {order.action}, "
             f"OrderType: {order.orderType}, "
-            f"TotalQty: {order.totalQuantity},"  
+            f"TotalQty: {order.totalQuantity},"
             f"CashQty: {order.cashQty}, "
-            f"LmtPrice: {order.lmtPrice}, "  
-            f"AuxPrice: {order.auxPrice}, "  
+            f"LmtPrice: {order.lmtPrice}, "
+            f"AuxPrice: {order.auxPrice}, "
             f"Status: {orderState.status}) "
         )
+
+        logging.info(openOrdertxt)
+        print(openOrdertxt)
 
         order.contract = contract
         order.orderState = orderState
         self.orders.append(order)
-        self.ib_broker._test_call("TEST  ############# openOrder")
-
 
     def openOrderEnd(self):
         super().openOrderEnd()
         self.my_orders_queue.put(self.orders)
-        self.ib_broker._test_call("TEST ############# openOrderEnd")
 
-    def orderStatus(self, orderId, status, filled, remaining, avgFullPrice, permId,
-                    parentId, lastFillPrice, clientId, whyHeld, mktCapPrice):
-        print(
-            f"orderStatus - orderid: {orderId}, " 
-            f"status: {status}, " 
-            f"filled: {filled}, " 
-            f"remaining: {remaining}, " 
+    def orderStatus(
+        self,
+        orderId,
+        status,
+        filled,
+        remaining,
+        avgFullPrice,
+        permId,
+        parentId,
+        lastFillPrice,
+        clientId,
+        whyHeld,
+        mktCapPrice,
+    ):
+        orderStatustxt = (
+            f"orderStatus - "
+            f"orderid: {orderId}, "
+            f"status: {status}, "
+            f"filled: {filled}, "
+            f"remaining: {remaining}, "
             f"lastFillPrice: {lastFillPrice}, "
         )
+        logging.info(orderStatustxt)
+        print(orderStatustxt)
 
     def execDetails(self, reqId, contract, execution):
-        print('Order Executed: ', reqId, contract.symbol, contract.secType,
-              contract.currency, execution.execId, execution.orderId,
-              execution.shares, execution.lastLiquidity)
+        execDetailstxt = (
+            f"Order Executed: "
+            f"{reqId}, "
+            f"{contract.symbol}, "
+            f"{contract.secType}, "
+            f"{contract.currency}, "
+            f"{execution.execId}, "
+            f"{execution.orderId}, "
+            f"{execution.shares}, "
+            f"{execution.lastLiquidity} "
+        )
+        logging.info(execDetailstxt)
+        print(execDetailstxt)
 
 
 class IBClient(EClient):
@@ -515,7 +554,12 @@ class IBClient(EClient):
         accounts_storage = self.wrapper.init_accounts()
 
         # Call the accounts data.
-        self.reqAccountSummary(9001, "All", "$LEDGER")
+
+        tags = (
+            f"AccountType, TotalCashValue, AccruedCash, "
+            f"NetLiquidation, BuyingPower, GrossPositionValue"
+        )
+        self.reqAccountSummary(9001, "All", tags)
 
         try:
             requested_accounts = accounts_storage.get(timeout=self.max_wait_time)
@@ -546,8 +590,9 @@ class IBClient(EClient):
         return requested_orders
 
 
-
 class IBApp(IBWrapper, IBClient):
+    ORDERTYPE_MAPPING = dict(market="MKT", limit="LMT")
+
     def __init__(self, ipaddress, portid, clientid, ib_broker=None):
         IBWrapper.__init__(self)
         IBClient.__init__(self, wrapper=self)
@@ -588,13 +633,12 @@ class IBApp(IBWrapper, IBClient):
         return contract
 
     def create_order(self, order):
-        orderType_map = dict(market="MKT", limit="LMT")
         ib_order = Order()
         ib_order.action = order.side.upper()
-        ib_order.orderType = orderType_map[order.type]
+        ib_order.orderType = self.ORDERTYPE_MAPPING[order.type]
         ib_order.totalQuantity = order.quantity
-        ib_order.limit_price = order.limit_price,
-        ib_order.stop_price = order.stop_price,
+        ib_order.limit_price = (order.limit_price,)
+        ib_order.stop_price = (order.stop_price,)
 
         return ib_order
 

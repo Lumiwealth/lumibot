@@ -207,11 +207,12 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
     def submit_order(self, order):
         """Submit an order for an asset"""
         try:
-            self.ib.execute_order(order)
+            response = self.ib.execute_order(order)
+            order = self._parse_broker_order(response, order.strategy)
         except Exception as e:
             order.set_error(e)
             logging.info(
-                "%r did not go through. The following error occured: %s" % (order, e)
+                "%r did not go through. The following error occurred: %s" % (order, e)
             )
 
     def cancel_order(self, order_id):
@@ -391,6 +392,11 @@ class IBWrapper(EWrapper):
         self.my_orders_queue = orders_queue
         return orders_queue
 
+    def init_new_orders(self):
+        new_orders_queue = queue.Queue()
+        self.my_new_orders_queue = new_orders_queue
+        return new_orders_queue
+
     def openOrder(
         self, orderId: OrderId, contract: Contract, order: Order, orderState: OrderState
     ):
@@ -420,6 +426,13 @@ class IBWrapper(EWrapper):
         order.contract = contract
         order.orderState = orderState
         self.orders.append(order)
+
+        # Capture new orders.
+        if not hasattr(self, "my_new_orders_queue"):
+            self.init_new_orders()
+        if orderState.status == "PreSubmitted":
+            self.my_new_orders_queue.put(order)
+
 
     def openOrderEnd(self):
         super().openOrderEnd()
@@ -643,12 +656,25 @@ class IBApp(IBWrapper, IBClient):
         return ib_order
 
     def execute_order(self, order):
+        # Create a queue to store the new order.
+        new_order_storage = self.wrapper.init_new_orders()
+
         # Places the order with the returned contract and order objects
         contract_object = self.create_contract(order.symbol)
-
         order_object = self.create_order(order)
         nextID = self.nextOrderId()
         self.placeOrder(nextID, contract_object, order_object)
+
+        try:
+            requested_new_order = new_order_storage.get(timeout=self.max_wait_time)
+        except queue.Empty:
+            print(f"The queue was empty or max time reached for new order {nextID}.")
+            requested_new_order = None
+
+        while self.wrapper.is_error():
+            print("Error:", self.get_error(timeout=5))
+
+        return requested_new_order
 
     #
     # # =======Stream functions=========

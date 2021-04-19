@@ -118,9 +118,9 @@ class Simple(Strategy):
         # self.cancel_open_orders()
         # self.sell_all(cancel_open_orders=True)
 
-        # for symbol in symbols[:1]:
-        #     new_order = self.create_order(symbol, 10, "buy")
-        #     self.submitted_order = self.submit_order(new_order)
+        for symbol in symbols[-1:]:
+            new_order = self.create_order(symbol, 10, "buy")
+            self.submitted_order = self.submit_order(new_order)
 
         # Dictionary for inserting methods to log, parameters in sub-dict.
         ##############

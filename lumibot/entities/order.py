@@ -33,6 +33,9 @@ class Order:
         self.status = "unprocessed"
         self.transactions = []
 
+        self.transmit = True
+        self.parent_id = 0
+
         # setting internal variables
         self._raw = None
         self._transmitted = False

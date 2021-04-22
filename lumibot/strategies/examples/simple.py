@@ -118,8 +118,9 @@ class Simple(Strategy):
         # self.cancel_open_orders()
         # self.sell_all(cancel_open_orders=True)
 
-        for symbol in symbols[-1:]:
-            new_order = self.create_order(symbol, 10, "buy")
+        for symbol in symbols[2:4]:
+            new_order = self.create_order(symbol, 10, "buy", stop_price=130)
+            # new_order = self.create_order(symbol, 10, "buy") # todo Not working
             self.submitted_order = self.submit_order(new_order)
 
         # Dictionary for inserting methods to log, parameters in sub-dict.
@@ -127,7 +128,7 @@ class Simple(Strategy):
         # Data Source #
         ##############_
         log_methods = dict(
-            get_datetime={},
+            # get_datetime={},
             get_timestamp={},
             # get_round_minute={},
             # get_last_minute={},
@@ -144,14 +145,19 @@ class Simple(Strategy):
             # get_last_price={"symbol": symbol},
             # get_last_prices={"symbols": symbols},
         )
+
+        self.check_function(log_methods)
+
         ###############
         #   Broker    #
         ###############
         # log_methods = {
-        #     "broker.is_market_open": {},
-        #     "broker.get_time_to_open": {},
-        #     "broker.get_time_to_close": {},
+            # "broker.is_market_open": {},
+            # "broker.get_time_to_open": {},
+            # "broker.get_time_to_close": {},
         # }
+        #
+        # self.check_function(log_methods)
 
         ###############
         #   Strategy    #
@@ -183,40 +189,8 @@ class Simple(Strategy):
         #     "broker._pull_position": {"strategy": "Simple", "symbol": "EUR"},
         #     "broker._pull_positions": {"strategy": "Simple"},
         # }
-
-        self.check_function(log_methods)
-
-
-
-    #     # What to do each iteration
-    #     current_value = self.get_last_price(self.buy_symbol)
-    #     logging.info(
-    #         f"Counter is at {self.counter}, program thinks it is {self.get_datetime()}"
-    #     )
-    #     logging.info(f"The value of {self.buy_symbol} is {current_value}")
-    #
-    #     all_positions = self.get_tracked_positions()
-    #     if len(all_positions) > 0:
-    #         for position in all_positions:
-    #             logging.info(
-    #                 f"We own {position.quantity} of {position.symbol}, about to sell"
-    #             )
-    #             selling_order = position.get_selling_order()
-    #             self.submit_order(selling_order)
-    #     else:
-    #         logging.info(f"We have no open positions")
-    #
-    #     # We can also do this to sell all our positions:
-    #     # self.sell_all()
-    #
-    #     if self.counter % 2 == 0:
-    #         purchase_order = self.create_order(self.buy_symbol, 10, "buy")
-    #         self.submit_order(purchase_order)
-    #
-    #     self.counter = self.counter + 1
-    #
-    #     # Wait until the end of the day
-    #     self.await_market_to_close()
+        #
+        # self.check_function(log_methods)
 
     def on_abrupt_closing(self):
         # self.sell_all()

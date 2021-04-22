@@ -54,7 +54,7 @@ class Broker:
         @wraps(attr)
         def new_func(order, *args, **kwargs):
             result = attr(order, *args, **kwargs)
-            if result.was_transmitted():
+            if not isinstance(result, list) and result.was_transmitted():
                 orders = broker._flatten_order(result)
                 for order in orders:
                     logging.info("%r was sent to broker %s" % (order, broker.name))

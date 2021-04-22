@@ -13,7 +13,10 @@ import pandas_market_calendars as mcal
 import pandas as pd
 
 from lumibot.data_sources import InteractiveBrokersData
-from lumibot.entities import Order, Position
+
+# Naming conflict on Order between IB and Lumibot.
+from lumibot.entities import Order as OrderLum
+from lumibot.entities import Position
 from .broker import Broker
 
 from ibapi.wrapper import *
@@ -170,7 +173,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         """parse a broker order representation
         to an order object"""
 
-        order = Order(
+        order = OrderLum(
             strategy,
             response.contract.localSymbol,
             response.totalQuantity,
@@ -186,7 +189,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         return order
 
     def _pull_broker_order(self, order_id):
-        """Get a broker order representation by its id"""
+        """Get a broker order representation by its id"""  # todo check api
         pull_order = [
             order for order in self.api.openOrders() if order.orderId == order_id
         ]
@@ -198,22 +201,51 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         orders = self.ib.get_open_orders()
         return orders
 
-    def _flatten_order(self, order):  # todo ask about this.
-        """Some submitted orders may triggers other orders.
-        _flatten_order returns a list containing the main order
-        and all the derived ones"""
-        return [order]  # todo made iterable for now.
+    def _flatten_order(self, orders):  # implement for stop loss.
+        """Used for alpaca, just return orders."""
+        return orders
 
     def submit_order(self, order):
         """Submit an order for an asset"""
+        orders_new = [order]
+        orders = list()
         try:
-            response = self.ib.execute_order(order)
-            order = self._parse_broker_order(response, order.strategy)
+            # Initial order
+            order.identifier = self.ib.nextOrderId()
+            if order.stop_price:
+                order.transmit = False
+
+                # Stop loss order.
+                stop_loss_order = OrderLum(
+                    order.strategy,
+                    order.symbol,
+                    order.quantity,
+                    "sell",
+                    stop_price=order.stop_price,
+                )
+                stop_loss_order.type = "stop"
+                stop_loss_order.transmit = True
+                stop_loss_order.parent_id = order.identifier
+                orders_new.append(stop_loss_order)
+
+            responses = self.ib.execute_order(orders_new)
+
+
+            for response in responses:
+                order_parsed = self._parse_broker_order(response, order.strategy)
+                orders.append(order_parsed)
+                self._unprocessed_orders.append(
+                    order_parsed
+                )
+
+
         except Exception as e:
             order.set_error(e)
             logging.info(
                 "%r did not go through. The following error occurred: %s" % (order, e)
             )
+
+        return orders
 
     def cancel_order(self, order_id):
         """Cancel an order"""
@@ -250,7 +282,6 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
 
     def get_account_summary(self):
         return self.ib.get_account_summary()
-
 
 
 ############ INTERACTIVE BROKERS CLASSES #################
@@ -433,7 +464,6 @@ class IBWrapper(EWrapper):
         if orderState.status == "PreSubmitted":
             self.my_new_orders_queue.put(order)
 
-
     def openOrderEnd(self):
         super().openOrderEnd()
         self.my_orders_queue.put(self.orders)
@@ -604,7 +634,7 @@ class IBClient(EClient):
 
 
 class IBApp(IBWrapper, IBClient):
-    ORDERTYPE_MAPPING = dict(market="MKT", limit="LMT")
+    ORDERTYPE_MAPPING = dict(market="MKT", limit="LMT", stop="STP")
 
     def __init__(self, ipaddress, portid, clientid, ib_broker=None):
         IBWrapper.__init__(self)
@@ -652,29 +682,67 @@ class IBApp(IBWrapper, IBClient):
         ib_order.totalQuantity = order.quantity
         ib_order.limit_price = (order.limit_price,)
         ib_order.stop_price = (order.stop_price,)
+        ib_order.auxPrice = order.stop_price
+        ib_order.transmit = order.transmit
+        ib_order.orderId = order.identifier if order.identifier else self.nextOrderId()
+        ib_order.parentId = order.parent_id
 
         return ib_order
 
-    def execute_order(self, order):
+    def execute_order(self, orders):
         # Create a queue to store the new order.
         new_order_storage = self.wrapper.init_new_orders()
 
-        # Places the order with the returned contract and order objects
-        contract_object = self.create_contract(order.symbol)
-        order_object = self.create_order(order)
-        nextID = self.nextOrderId()
-        self.placeOrder(nextID, contract_object, order_object)
+        if not isinstance(orders, list):
+            orders = [orders]
+
+        ib_orders = []
+        for order in orders:
+            # Places the order with the returned contract and order objects
+            contract_object = self.create_contract(order.symbol)
+            order_object = self.create_order(order)
+            nextID = (
+                order_object.orderId if order_object.orderId else self.nextOrderId()
+            )
+            ib_orders.append((nextID, contract_object, order_object))
+
+        for ib_order in ib_orders: # todo Single orders not making it through
+            if ib_order[2].action == "BUY":
+                print(ib_order[0])
+                for k, v in ib_order[1].__dict__.items():
+                    print(k, "\t", " - ", v)
+                print("\n\n")
+                for k, v in ib_order[2].__dict__.items():
+                    print(k, "\t", " - ", v)
+            self.placeOrder(*ib_order)
 
         try:
-            requested_new_order = new_order_storage.get(timeout=self.max_wait_time)
+            requested_new_orders = []
+            order_ids = [ibo[0] for ibo in ib_orders]
+            get_order = True
+            while get_order:
+                requested_new_order = new_order_storage.get(timeout=self.max_wait_time)
+                if requested_new_order not in requested_new_orders:
+                    requested_new_orders.append(requested_new_order)
+
+                # Check if all orders received.
+                get_order = False
+                for order_id in order_ids:
+                    if order_id not in [rno.orderId for rno in requested_new_orders]:
+                        get_order = True
+
         except queue.Empty:
-            print(f"The queue was empty or max time reached for new order {nextID}.")
-            requested_new_order = None
+            print(f"The queue was empty or max time reached for new order.")
+            requested_new_orders = None
 
         while self.wrapper.is_error():
             print("Error:", self.get_error(timeout=5))
 
-        return requested_new_order
+        # Sort the list by order number.
+        requested_new_orders = sorted(
+            requested_new_orders, key=lambda x: x.orderId, reverse=False
+        )
+        return requested_new_orders
 
     #
     # # =======Stream functions=========

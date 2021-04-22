@@ -76,7 +76,6 @@ class Strategy(_Strategy):
         symbol,
         quantity,
         side,
-        type='market',
         limit_price=None,
         stop_price=None,
         time_in_force="day",

@@ -259,20 +259,15 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
 
     def get_tradable_assets(self, easy_to_borrow=None, filter_func=None):
         """Get the list of all tradable assets from the market"""
-        assets = self.api.list_assets()
-        result = []
-        for asset in assets:
-            is_valid = asset.tradable
-            if easy_to_borrow is not None and isinstance(easy_to_borrow, bool):
-                is_valid = is_valid & (easy_to_borrow == asset.easy_to_borrow)
-            if filter_func is not None:
-                filter_test = filter_func(asset.symbol)
-                is_valid = is_valid & filter_test
+        unavail_warning = (
+            f"ERROR: When working with Interactive Brokers it is not possible to "
+            f"acquire all of the tradable assets in the markets. "
+            f"Please do not use `get_tradable_assets`."
+        )
+        logging.info(unavail_warning)
+        print(unavail_warning)
 
-            if is_valid:
-                result.append(asset.symbol)
-
-        return result
+        return
 
     def _close_connection(self):
         self.ib.disconnect()

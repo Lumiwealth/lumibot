@@ -249,10 +249,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
 
     def cancel_order(self, order_id):
         """Cancel an order"""
-        order = self._pull_broker_order(order_id)
-        print(order)
-        if order:
-            self.api.cancelOrder(order)
+        self.ib.cancel_order(order_id)
 
     def cancel_open_orders(self, strategy=None):
         """cancel all the strategy open orders"""
@@ -631,6 +628,21 @@ class IBClient(EClient):
             print(f"Error: {self.get_error(timeout=5)}")
 
         return requested_orders
+
+    def cancel_order(self, order_id):
+        if not order_id or not isinstance(order_id, int):
+            logging.info(
+                f"An attempt to cancel an order without supplying a proper "
+                f"`order_id` was made. This was your `order_id` {order_id}. "
+                f"An integer is required. No action was taken.")
+            return
+
+        self.cancelOrder(order_id)
+
+        while self.wrapper.is_error():
+            print(f"Error: {self.get_error(timeout=5)}")
+
+        return 0
 
 
 class IBApp(IBWrapper, IBClient):

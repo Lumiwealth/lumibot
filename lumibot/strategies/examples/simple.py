@@ -115,11 +115,13 @@ class Simple(Strategy):
         symbols = ["FB", "TSLA", "MSFT", "F", "AAPL"]
         symbol = "BRK A"
 
+        # self.get_tradable_assets(easy_to_borrow=True, filter_func=None)
         # self.cancel_open_orders()
+        # self.cancel_order(1000324)
         # self.sell_all(cancel_open_orders=True)
 
-        for symbol in symbols[2:4]:
-            new_order = self.create_order(symbol, 10, "buy", stop_price=130)
+        for symbol in symbols[:1]:
+            new_order = self.create_order(symbol, 10, "buy", stop_price=295)
             # new_order = self.create_order(symbol, 10, "buy") # todo Not working
             self.submitted_order = self.submit_order(new_order)
 

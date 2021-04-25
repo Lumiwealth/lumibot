@@ -39,10 +39,10 @@ class Broker:
 
     @property
     def _tracked_orders(self):
-        return () # todo revert
-        # return (
-        #     self._unprocessed_orders + self._new_orders + self._partially_filled_orders
-        # )
+        # return () # todo revert
+        return (
+            self._unprocessed_orders + self._new_orders + self._partially_filled_orders
+        )
 
     def __getattribute__(self, name):
         attr = object.__getattribute__(self, name)

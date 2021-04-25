@@ -39,6 +39,10 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
             chunk_size=chunk_size,
         )
         Broker.__init__(self, name="interactive_brokers", connect_stream=connect_stream)
+
+        # For checking duplicate order status events from IB.
+        self.order_status_duplicates = []
+
         # Connection to interactive brokers
         self.ib = None
         self.start_ib(config.IP, config.SOCKET_PORT, config.CLIENT_ID)
@@ -230,14 +234,10 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
 
             responses = self.ib.execute_order(orders_new)
 
-
             for response in responses:
                 order_parsed = self._parse_broker_order(response, order.strategy)
                 orders.append(order_parsed)
-                self._unprocessed_orders.append(
-                    order_parsed
-                )
-
+                self._unprocessed_orders.append(order_parsed)
 
         except Exception as e:
             order.set_error(e)
@@ -275,10 +275,77 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
     def get_account_summary(self):
         return self.ib.get_account_summary()
 
+    # =======Stream functions=========
+    def on_trade_event(
+        self,
+        orderId,
+        status,
+        filled,
+        remaining,
+        avgFullPrice,
+        permId,
+        parentId,
+        lastFillPrice,
+        clientId,
+        whyHeld,
+        mktCapPrice,
+    ):
+        """Information received from IBWrapper.orderStatus(). This can sometimes fire
+        duplicates so a list must be kept for checking."""
+        order_status = [
+            orderId,
+            status,
+            filled,
+            remaining,
+            avgFullPrice,
+            permId,
+            parentId,
+            lastFillPrice,
+            clientId,
+            whyHeld,
+            mktCapPrice,
+        ]
 
-############ INTERACTIVE BROKERS CLASSES #################
+        if order_status in self.order_status_duplicates:
+            logging.info(
+                f"Duplicate order status event ignored. Order id {orderId} "
+                f"and status {status} "
+            )
+            return False
+        else:
+            self.order_status_duplicates.append(order_status)
+
+        print("FROM BROKER: ", orderId, status, filled, remaining)
+
+        try:
+            stored_order = self.get_tracked_order(orderId)
+            identifier = orderId
+
+            # logged_order = data.order
+            # type_event = data.event
+
+            if stored_order is None:
+                logging.info(
+                    "Untracker order %s was logged by broker %s"
+                    % (identifier, self.name)
+                )
+                return False
+
+            price = lastFillPrice
+            filled_quantity = filled
+            self._process_trade_event(
+                stored_order,
+                type_event,
+                price=price,
+                filled_quantity=filled_quantity,
+            )
+
+            return True
+        except:
+            logging.error(traceback.format_exc())
 
 
+# ===================INTERACTIVE BROKERS CLASSES===================
 class IBWrapper(EWrapper):
 
     # Error handling code.
@@ -420,6 +487,11 @@ class IBWrapper(EWrapper):
         self.my_new_orders_queue = new_orders_queue
         return new_orders_queue
 
+    def init_order_updates(self):
+        order_updates_queue = queue.Queue()
+        self.my_order_updates_queue = order_updates_queue
+        return order_updates_queue
+
     def openOrder(
         self, orderId: OrderId, contract: Contract, order: Order, orderState: OrderState
     ):
@@ -456,6 +528,8 @@ class IBWrapper(EWrapper):
         if orderState.status == "PreSubmitted":
             self.my_new_orders_queue.put(order)
 
+        x = self.ib_broker.temp_open_orders(order)
+
     def openOrderEnd(self):
         super().openOrderEnd()
         self.my_orders_queue.put(self.orders)
@@ -484,6 +558,21 @@ class IBWrapper(EWrapper):
         )
         logging.info(orderStatustxt)
         print(orderStatustxt)
+        x = self.ib_broker.temp_open_orders(
+            [
+                orderId,
+                status,
+                filled,
+                remaining,
+                avgFullPrice,
+                permId,
+                parentId,
+                lastFillPrice,
+                clientId,
+                whyHeld,
+                mktCapPrice,
+            ]
+        )
 
     def execDetails(self, reqId, contract, execution):
         execDetailstxt = (
@@ -629,7 +718,8 @@ class IBClient(EClient):
             logging.info(
                 f"An attempt to cancel an order without supplying a proper "
                 f"`order_id` was made. This was your `order_id` {order_id}. "
-                f"An integer is required. No action was taken.")
+                f"An integer is required. No action was taken."
+            )
             return
 
         self.cancelOrder(order_id)
@@ -713,7 +803,7 @@ class IBApp(IBWrapper, IBClient):
             )
             ib_orders.append((nextID, contract_object, order_object))
 
-        for ib_order in ib_orders: # todo Single orders not making it through
+        for ib_order in ib_orders:  # todo Single orders not making it through
             if ib_order[2].action == "BUY":
                 print(ib_order[0])
                 for k, v in ib_order[1].__dict__.items():
@@ -751,70 +841,63 @@ class IBApp(IBWrapper, IBClient):
         )
         return requested_new_orders
 
-    #
-    # # =======Stream functions=========
-    #
-    # def _get_stream_object(self):
-    #     """get the broker stream connection"""
-    #     # stream = tradeapi.StreamConn(self.api_key, self.api_secret, self.endpoint)
-    #     stream = self.get_connection()
-    #     return stream
-    #
-    # def _register_stream_events(self):
-    #     """Register the function on_trade_event
-    #     to be executed on each trade_update event"""
-    #     broker = self
-    #
-    #     @self.stream.on(r"^trade_updates$")
-    #     async def on_trade_event(conn, channel, data):
-    #         try:
-    #             logged_order = data.order
-    #             type_event = data.event
-    #             identifier = logged_order.get("id")
-    #             stored_order = broker.get_tracked_order(identifier)
-    #             if stored_order is None:
-    #                 logging.info(
-    #                     "Untracker order %s was logged by broker %s"
-    #                     % (identifier, broker.name)
-    #                 )
-    #                 return False
-    #
-    #             price = data.price if hasattr(data, "price") else None
-    #             filled_quantity = data.qty if hasattr(data, "qty") else None
-    #             broker._process_trade_event(
-    #                 stored_order,
-    #                 type_event,
-    #                 price=price,
-    #                 filled_quantity=filled_quantity,
-    #             )
-    #
-    #             return True
-    #         except:
-    #             logging.error(traceback.format_exc())
-    #
-    # def _run_stream(self):
-    #     """Overloading default alpaca_trade_api.STreamCOnnect().run()
-    #     Run forever and block until exception is raised.
-    #     initial_channels is the channels to start with.
-    #     """
-    #     loop = self.stream.loop
-    #     should_renew = True  # should renew connection if it disconnects
-    #     while should_renew:
-    #         try:
-    #             if loop.is_closed():
-    #                 self.stream.loop = asyncio.new_event_loop()
-    #                 loop = self.stream.loop
-    #             loop.run_until_complete(self.stream.subscribe(["trade_updates"]))
-    #             self._stream_established()
-    #             loop.run_until_complete(self.stream.consume())
-    #         except KeyboardInterrupt:
-    #             logging.info("Exiting on Interrupt")
-    #             should_renew = False
-    #         except Exception as e:
-    #             m = "consume cancelled" if isinstance(e, CancelledError) else e
-    #             logging.error(f"error while consuming ws messages: {m}")
-    #             if self.stream._debug:
-    #                 logging.error(traceback.format_exc())
-    #             loop.run_until_complete(self.stream.close(should_renew))
-    #             if loop.is_running():
-    #                 loop.close()
+
+# ===============OLD
+#  def _register_stream_events(self):
+#         """Register the function on_trade_event
+#         to be executed on each trade_update event"""
+#         broker = self
+#
+#         @self.stream.on(r"^trade_updates$")
+#         async def on_trade_event(conn, channel, data):
+#             try:
+#                 logged_order = data.order
+#                 type_event = data.event
+#                 identifier = logged_order.get("id")
+#                 stored_order = broker.get_tracked_order(identifier)
+#                 if stored_order is None:
+#                     logging.info(
+#                         "Untracker order %s was logged by broker %s"
+#                         % (identifier, broker.name)
+#                     )
+#                     return False
+#
+#                 price = data.price if hasattr(data, "price") else None
+#                 filled_quantity = data.qty if hasattr(data, "qty") else None
+#                 broker._process_trade_event(
+#                     stored_order,
+#                     type_event,
+#                     price=price,
+#                     filled_quantity=filled_quantity,
+#                 )
+#
+#                 return True
+#             except:
+#                 logging.error(traceback.format_exc())
+#
+#     def _run_stream(self):
+#         """Overloading default alpaca_trade_api.STreamCOnnect().run()
+#         Run forever and block until exception is raised.
+#         initial_channels is the channels to start with.
+#         """
+#         loop = self.stream.loop
+#         should_renew = True  # should renew connection if it disconnects
+#         while should_renew:
+#             try:
+#                 if loop.is_closed():
+#                     self.stream.loop = asyncio.new_event_loop()
+#                     loop = self.stream.loop
+#                 loop.run_until_complete(self.stream.subscribe(["trade_updates"]))
+#                 self._stream_established()
+#                 loop.run_until_complete(self.stream.consume())
+#             except KeyboardInterrupt:
+#                 logging.info("Exiting on Interrupt")
+#                 should_renew = False
+#             except Exception as e:
+#                 m = "consume cancelled" if isinstance(e, CancelledError) else e
+#                 logging.error(f"error while consuming ws messages: {m}")
+#                 if self.stream._debug:
+#                     logging.error(traceback.format_exc())
+#                 loop.run_until_complete(self.stream.close(should_renew))
+#                 if loop.is_running():
+#                     loop.close()

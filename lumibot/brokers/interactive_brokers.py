@@ -38,7 +38,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
             max_workers=max_workers,
             chunk_size=chunk_size,
         )
-        Broker.__init__(self, name="interactive_brokers", connect_stream=connect_stream)
+        Broker.__init__(self, name="interactive_brokers", connect_stream=False)
 
         # For checking duplicate order status events from IB.
         self.order_status_duplicates = []
@@ -255,6 +255,28 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         """cancel all the strategy open orders"""
         self.ib.reqGlobalCancel()
 
+    def sell_all(self, strategy, cancel_open_orders=True):
+        """sell all positions"""
+        logging.warning("Strategy %s: sell all" % strategy)
+        if cancel_open_orders:
+            self.cancel_open_orders(strategy)
+
+        orders = []
+        # positions = self.get_tracked_positions(strategy)
+        # todo revert to above
+        positions = self.ib.get_positions()
+        for position in positions:
+            if position['position'] == 0:
+                continue
+            close_order = OrderLum(strategy, position["symbol"], position["position"], "sell")
+            orders.append(close_order)
+        self.submit_orders(orders)
+
+    def load_positions(self):  # todo at start up, discuss with team
+        """ Use to load any existing positions with the broker on start. """
+        positions = self.ib.get_positions()
+        print("Load Positions", positions)
+
     # =========Market functions=======================
 
     def get_tradable_assets(self, easy_to_borrow=None, filter_func=None):
@@ -276,7 +298,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         return self.ib.get_account_summary()
 
     # =======Stream functions=========
-    def on_trade_event(
+    def on_status_event(
         self,
         orderId,
         status,
@@ -290,8 +312,32 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         whyHeld,
         mktCapPrice,
     ):
-        """Information received from IBWrapper.orderStatus(). This can sometimes fire
-        duplicates so a list must be kept for checking."""
+        """
+        Information received from IBWrapper.orderStatus(). This can sometimes fire
+        duplicates so a list must be kept for checking.
+
+        The following are possible for status:
+          - PendingSubmit
+          - PendingCancel
+          - PreSubmitted
+          - Submitted
+          - ApiCancelled
+          - Cancelled
+          - Filled
+          - Inactive
+
+          Filled is problematic. - Filled indicates that the order has been completely
+          filled. Market orders executions  will not always trigger a Filled status.
+          Therefore this must also be checked using ExecDetails
+        """
+        if status in [
+            "PendingSubmit",
+            "PendingCancel",
+            "PreSubmitted",
+            "Filled",
+        ]:
+            return
+
         order_status = [
             orderId,
             status,
@@ -305,34 +351,64 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
             whyHeld,
             mktCapPrice,
         ]
-
+        print(f"on_status_event - {order_status}")
         if order_status in self.order_status_duplicates:
             logging.info(
                 f"Duplicate order status event ignored. Order id {orderId} "
                 f"and status {status} "
             )
-            return False
+            return
         else:
             self.order_status_duplicates.append(order_status)
 
-        print("FROM BROKER: ", orderId, status, filled, remaining)
+        stored_order = self.get_tracked_order(orderId)
+        if stored_order is None:
+            logging.info(
+                "Untracker order %s was logged by broker %s"
+                % (orderId, self.name)
+            )
+            return False
+
+        # Check the order status submit changes.
+        if status == "Submitted":
+            type_event = self.NEW_ORDER
+        elif status in ["ApiCancelled", "Cancelled", "Inactive"]:
+            type_event = self.CANCELED_ORDER
+        else:
+            raise ValueError("An order type should not have made it this far.")
+            # todo this is a debug, fix message later.
+        self._process_trade_event(
+            stored_order,
+            type_event,
+            price=None,
+            filled_quantity=None,
+        )
+
+    def on_trade_event(self, reqId, contract, execution):
+        print("on_trade_event: ", reqId, contract, execution)
 
         try:
+            orderId = execution.OrderId
             stored_order = self.get_tracked_order(orderId)
-            identifier = orderId
-
-            # logged_order = data.order
-            # type_event = data.event
 
             if stored_order is None:
                 logging.info(
                     "Untracker order %s was logged by broker %s"
-                    % (identifier, self.name)
+                    % (orderId, self.name)
                 )
                 return False
+                # Check the order status submit changes.
+            if execution['CumQty'] < stored_order.quantity:
+                type_event = self.PARTIALLY_FILLED_ORDER
+            elif execution['CumQty'] == execution['Shares']:
+                type_event = self.FILLED_ORDER
+            else:
+                raise ValueError("An order type should not have made it this far.")
+                # todo this is a debug, fix message later.
 
-            price = lastFillPrice
-            filled_quantity = filled
+            price = execution["Price"]
+            filled_quantity = execution["Shares"]
+
             self._process_trade_event(
                 stored_order,
                 type_event,
@@ -498,7 +574,7 @@ class IBWrapper(EWrapper):
         if not hasattr(self, "orders"):
             self.init_orders()
         openOrdertxt = (
-            f"From openOrder -- "
+            f"openOrder - "
             f"PermId:  {order.permId}, "
             f"ClientId: {order.clientId}, "
             f"OrderId: {orderId}, "
@@ -528,8 +604,6 @@ class IBWrapper(EWrapper):
         if orderState.status == "PreSubmitted":
             self.my_new_orders_queue.put(order)
 
-        x = self.ib_broker.temp_open_orders(order)
-
     def openOrderEnd(self):
         super().openOrderEnd()
         self.my_orders_queue.put(self.orders)
@@ -558,25 +632,23 @@ class IBWrapper(EWrapper):
         )
         logging.info(orderStatustxt)
         print(orderStatustxt)
-        x = self.ib_broker.temp_open_orders(
-            [
-                orderId,
-                status,
-                filled,
-                remaining,
-                avgFullPrice,
-                permId,
-                parentId,
-                lastFillPrice,
-                clientId,
-                whyHeld,
-                mktCapPrice,
-            ]
+        self.ib_broker.on_status_event(
+            orderId,
+            status,
+            filled,
+            remaining,
+            avgFullPrice,
+            permId,
+            parentId,
+            lastFillPrice,
+            clientId,
+            whyHeld,
+            mktCapPrice,
         )
 
     def execDetails(self, reqId, contract, execution):
         execDetailstxt = (
-            f"Order Executed: "
+            f"execDetails - "
             f"{reqId}, "
             f"{contract.symbol}, "
             f"{contract.secType}, "
@@ -588,6 +660,8 @@ class IBWrapper(EWrapper):
         )
         logging.info(execDetailstxt)
         print(execDetailstxt)
+
+        self.ib_broker.on_trade_event(reqId, contract, execution)
 
 
 class IBClient(EClient):
@@ -777,9 +851,7 @@ class IBApp(IBWrapper, IBClient):
         ib_order.action = order.side.upper()
         ib_order.orderType = self.ORDERTYPE_MAPPING[order.type]
         ib_order.totalQuantity = order.quantity
-        ib_order.limit_price = (order.limit_price,)
-        ib_order.stop_price = (order.stop_price,)
-        ib_order.auxPrice = order.stop_price
+        ib_order.auxPrice = order.stop_price if order.stop_price else ""
         ib_order.transmit = order.transmit
         ib_order.orderId = order.identifier if order.identifier else self.nextOrderId()
         ib_order.parentId = order.parent_id
@@ -803,14 +875,7 @@ class IBApp(IBWrapper, IBClient):
             )
             ib_orders.append((nextID, contract_object, order_object))
 
-        for ib_order in ib_orders:  # todo Single orders not making it through
-            if ib_order[2].action == "BUY":
-                print(ib_order[0])
-                for k, v in ib_order[1].__dict__.items():
-                    print(k, "\t", " - ", v)
-                print("\n\n")
-                for k, v in ib_order[2].__dict__.items():
-                    print(k, "\t", " - ", v)
+        for ib_order in ib_orders:
             self.placeOrder(*ib_order)
 
         try:
@@ -840,64 +905,3 @@ class IBApp(IBWrapper, IBClient):
             requested_new_orders, key=lambda x: x.orderId, reverse=False
         )
         return requested_new_orders
-
-
-# ===============OLD
-#  def _register_stream_events(self):
-#         """Register the function on_trade_event
-#         to be executed on each trade_update event"""
-#         broker = self
-#
-#         @self.stream.on(r"^trade_updates$")
-#         async def on_trade_event(conn, channel, data):
-#             try:
-#                 logged_order = data.order
-#                 type_event = data.event
-#                 identifier = logged_order.get("id")
-#                 stored_order = broker.get_tracked_order(identifier)
-#                 if stored_order is None:
-#                     logging.info(
-#                         "Untracker order %s was logged by broker %s"
-#                         % (identifier, broker.name)
-#                     )
-#                     return False
-#
-#                 price = data.price if hasattr(data, "price") else None
-#                 filled_quantity = data.qty if hasattr(data, "qty") else None
-#                 broker._process_trade_event(
-#                     stored_order,
-#                     type_event,
-#                     price=price,
-#                     filled_quantity=filled_quantity,
-#                 )
-#
-#                 return True
-#             except:
-#                 logging.error(traceback.format_exc())
-#
-#     def _run_stream(self):
-#         """Overloading default alpaca_trade_api.STreamCOnnect().run()
-#         Run forever and block until exception is raised.
-#         initial_channels is the channels to start with.
-#         """
-#         loop = self.stream.loop
-#         should_renew = True  # should renew connection if it disconnects
-#         while should_renew:
-#             try:
-#                 if loop.is_closed():
-#                     self.stream.loop = asyncio.new_event_loop()
-#                     loop = self.stream.loop
-#                 loop.run_until_complete(self.stream.subscribe(["trade_updates"]))
-#                 self._stream_established()
-#                 loop.run_until_complete(self.stream.consume())
-#             except KeyboardInterrupt:
-#                 logging.info("Exiting on Interrupt")
-#                 should_renew = False
-#             except Exception as e:
-#                 m = "consume cancelled" if isinstance(e, CancelledError) else e
-#                 logging.error(f"error while consuming ws messages: {m}")
-#                 if self.stream._debug:
-#                     logging.error(traceback.format_exc())
-#                 loop.run_until_complete(self.stream.close(should_renew))
-#                 if loop.is_running():
-#                     loop.close()

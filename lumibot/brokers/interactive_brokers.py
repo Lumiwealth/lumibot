@@ -71,10 +71,10 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
 
         row = 0 if not next else 1
         th = trading_hours.iloc[row, :]
-        # market_open, market_close = th[0], th[1]
+        market_open, market_close = th[0], th[1]
         # todo: remove this, it's temp to have full trading hours.
-        market_open = self.utc_to_local(datetime.datetime(2005, 1, 1))
-        market_close = self.utc_to_local(datetime.datetime(2025, 1, 1))
+        # market_open = self.utc_to_local(datetime.datetime(2005, 1, 1))
+        # market_close = self.utc_to_local(datetime.datetime(2025, 1, 1))
 
         if close:
             return market_close
@@ -297,6 +297,12 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
     def get_account_summary(self):
         return self.ib.get_account_summary()
 
+    def options_details(self, symbol, last_date):
+        self.ib.option_details(symbol=symbol, last_date=last_date)
+
+    def options_params(self, symbol):
+        self.ib.option_params(symbol=symbol)
+
     # =======Stream functions=========
     def on_status_event(
         self,
@@ -388,7 +394,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         print("on_trade_event: ", reqId, contract, execution)
 
         try:
-            orderId = execution.OrderId
+            orderId = execution.orderId
             stored_order = self.get_tracked_order(orderId)
 
             if stored_order is None:
@@ -398,16 +404,16 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
                 )
                 return False
                 # Check the order status submit changes.
-            if execution['CumQty'] < stored_order.quantity:
+            if execution.cumQty < stored_order.quantity:
                 type_event = self.PARTIALLY_FILLED_ORDER
-            elif execution['CumQty'] == execution['Shares']:
+            elif execution.cumQty == execution.shares:
                 type_event = self.FILLED_ORDER
             else:
                 raise ValueError("An order type should not have made it this far.")
                 # todo this is a debug, fix message later.
 
-            price = execution["Price"]
-            filled_quantity = execution["Shares"]
+            price = execution.price
+            filled_quantity = execution.shares
 
             self._process_trade_event(
                 stored_order,
@@ -663,6 +669,12 @@ class IBWrapper(EWrapper):
 
         self.ib_broker.on_trade_event(reqId, contract, execution)
 
+    def contractDetails(self, reqId, contractDetails):
+        print("contractDetails: ", reqId, " ", contractDetails, "\n")
+
+    def contractDetailsEnd(self, reqId):
+        print("\ncontractDetails End\n")
+
 
 class IBClient(EClient):
     def __init__(self, wrapper):
@@ -803,6 +815,23 @@ class IBClient(EClient):
 
         return 0
 
+    def option_details(self, symbol=None, last_date=None):
+        contract = Contract()
+        contract.symbol = symbol
+        contract.secType = "OPT"
+        contract.exchange = "SMART"
+        contract.currency = "USD"
+        contract.lastTradeDateOrContractMonth = last_date
+
+        self.reqContractDetails(1, contract)
+
+    def option_params(self, symbol=None):
+        self.reqSecDefOptParams(0, symbol, "", "STK", 8314)
+        self.simplePlaceOid = self.nextOrderId()
+        self.placeOrder(self.simplePlaceOid, ContractSamples.USStock(),
+        OrderSamples.LimitOrder("SELL", 1, 50))
+
+
 
 class IBApp(IBWrapper, IBClient):
     ORDERTYPE_MAPPING = dict(market="MKT", limit="LMT", stop="STP")
@@ -851,6 +880,7 @@ class IBApp(IBWrapper, IBClient):
         ib_order.action = order.side.upper()
         ib_order.orderType = self.ORDERTYPE_MAPPING[order.type]
         ib_order.totalQuantity = order.quantity
+        ib_order.lmtPrice = order.limit_price if order.limit_price else 0
         ib_order.auxPrice = order.stop_price if order.stop_price else ""
         ib_order.transmit = order.transmit
         ib_order.orderId = order.identifier if order.identifier else self.nextOrderId()

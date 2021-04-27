@@ -13,6 +13,7 @@ from lumibot.strategies.examples import (
     IntradayMomentum,
     Momentum,
     Simple,
+    IBTest
 )
 from lumibot.tools import indicators, perf_counters
 from lumibot.traders import Trader
@@ -32,6 +33,13 @@ trader = Trader(logfile=logfile, debug=debug)
 
 # Strategies mapping
 mapping = {
+    "ib_test": {
+        "class": IBTest,
+        "backtesting_datasource": YahooDataBacktesting,
+        "kwargs": {},
+        "backtesting_cache": False,
+        "config": None,
+    },
     "simple": {
         "class": Simple,
         "backtesting_datasource": YahooDataBacktesting,
@@ -77,7 +85,8 @@ if __name__ == "__main__":
         f"\n\
         Running AlgoTrader\n\
         Usage: ‘python main.py [strategies]’\n\
-        Where strategies can be any of diversification, momentum, intraday_momentum, simple\n\
+        Where strategies can be any of diversification, momentum, intraday_momentum, "
+        f"simple, ib_test\n\
         Example: ‘python main.py momentum’ "
     )
     parser.add_argument("strategies", nargs="+", help="list of strategies")

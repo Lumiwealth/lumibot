@@ -3,7 +3,6 @@ from datetime import datetime
 import alpaca_trade_api as tradeapi
 import pandas as pd
 from alpaca_trade_api.common import URL
-from alpaca_trade_api.entity import Bar
 
 from lumibot.entities import Bars
 

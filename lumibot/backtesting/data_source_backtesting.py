@@ -1,6 +1,5 @@
 from datetime import datetime
 
-from lumibot.data_sources import DataSource
 from lumibot.tools import print_progress_bar
 
 

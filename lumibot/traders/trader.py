@@ -3,17 +3,19 @@ import os
 import signal
 from threading import Thread
 
-from lumibot.clients import client
+from lumibot.clients import LumibotClient
 
 
 class Trader:
     def __init__(
         self,
         logfile="logs/test.log",
+        db_path="logs/lumibot.db",
         debug=False,
         strategies=None,
-        ui=False,
+        run_ui=False,
         port=5000,
+        new_db=True,
     ):
         # Setting debug and _logfile parameters and setting global log format
         self.debug = debug
@@ -25,11 +27,13 @@ class Trader:
         self._pool = []
 
         # Setting web app parameters
-        self._client = None
+        self.run_ui = run_ui
         self._client_thread = None
         self._port = port
-        if ui is True and not self.is_backtest:
-            self._client = client
+        self._client = None
+
+        if not self.is_backtest:
+            self._client = LumibotClient(db_path, new_db=new_db)
 
     @property
     def is_backtest(self):
@@ -96,7 +100,7 @@ class Trader:
             strategy._executor.set_client(self._client)
 
     def _run_client(self):
-        if self._client:
+        if self._client and self.run_ui:
             self._client_thread = Thread(
                 target=self._client.run,
                 kwargs={"port": self._port},

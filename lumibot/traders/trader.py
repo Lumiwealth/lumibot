@@ -45,6 +45,7 @@ class Trader:
     def add_strategy(self, strategy):
         """Adds a strategy to the trader"""
         self._strategies.append(strategy)
+        self._client.process_new_strategy_signal(strategy.name)
 
     def run_all(self):
         """run all strategies"""

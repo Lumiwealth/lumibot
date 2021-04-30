@@ -64,9 +64,21 @@ class Strategy(_Strategy):
 
     # =======Helper methods=======================
 
-    def log_message(self, message):
+    def log_message(self, message, level="info"):
         message = "Strategy %s: %s" % (self.name, message)
-        logging.info(message)
+        level = level.upper()
+
+        if level == "DEBUG":
+            logging.debug(message)
+        elif level == "WARNING":
+            logging.warning(message)
+        elif level == "ERROR":
+            logging.error(message)
+        elif level == "CRITICAL":
+            logging.critical(message)
+        else:
+            logging.info(message)
+
         return message
 
     # ======Order methods shortcuts===============

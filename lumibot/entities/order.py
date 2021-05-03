@@ -1,6 +1,7 @@
 from collections import namedtuple
 
 import lumibot.entities as entities
+from lumibot import OrderStatus
 
 
 class Order:
@@ -30,7 +31,7 @@ class Order:
         self.time_in_force = time_in_force
         self.order_class = None
         self.identifier = None
-        self.status = "unprocessed"
+        self.status = OrderStatus.unprocessed_order
         self.transactions = []
 
         # setting internal variables

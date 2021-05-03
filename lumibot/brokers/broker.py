@@ -4,6 +4,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import wraps
 from threading import RLock, Thread
 
+from lumibot import OrderStatus
 from lumibot.trading_builtins import SafeList
 
 
@@ -13,10 +14,10 @@ class Broker:
     IS_BACKTESTING_BROKER = False
 
     # Trading events flags
-    NEW_ORDER = "new"
-    CANCELED_ORDER = "canceled"
-    FILLED_ORDER = "fill"
-    PARTIALLY_FILLED_ORDER = "partial_fill"
+    NEW_ORDER = OrderStatus.new_order
+    CANCELED_ORDER = OrderStatus.canceled_order
+    FILLED_ORDER = OrderStatus.filled_order
+    PARTIALLY_FILLED_ORDER = OrderStatus.partially_filled_order
 
     def __init__(self, name="", connect_stream=True):
         """Broker constructor"""

@@ -5,15 +5,16 @@ from functools import wraps
 from queue import Empty, Queue
 from threading import Event, Lock, Thread
 
+from lumibot import OrderStatus
 from lumibot.tools import append_locals, staticdecorator
 
 
 class StrategyExecutor(Thread):
     # Trading events flags
-    NEW_ORDER = "new"
-    CANCELED_ORDER = "canceled"
-    FILLED_ORDER = "fill"
-    PARTIALLY_FILLED_ORDER = "partial_fill"
+    NEW_ORDER = OrderStatus.new_order
+    CANCELED_ORDER = OrderStatus.canceled_order
+    FILLED_ORDER = OrderStatus.filled_order
+    PARTIALLY_FILLED_ORDER = OrderStatus.partially_filled_order
 
     def __init__(self, strategy):
         super(StrategyExecutor, self).__init__()

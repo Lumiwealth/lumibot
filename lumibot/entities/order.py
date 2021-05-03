@@ -1,12 +1,11 @@
 from collections import namedtuple
 
 import lumibot.entities as entities
+from .transaction import Transaction
 from lumibot import OrderStatus as Status
 
 
 class Order:
-    Transaction = namedtuple("Transaction", ["quantity", "price"])
-
     SELL = "sell"
     BUY = "buy"
 
@@ -103,7 +102,7 @@ class Order:
         self.identifier = identifier
 
     def add_transaction(self, price, quantity):
-        transaction = self.Transaction(price=price, quantity=quantity)
+        transaction = Transaction(quantity, price)
         self.transactions.append(transaction)
 
     def update_status(self, status):

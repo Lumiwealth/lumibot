@@ -40,6 +40,34 @@ class StrategyExecutor(Thread):
 
     def set_client(self, client):
         self._client = client
+        if client:
+            self.strategy.log_message = self._client.intercept(
+                "log", self.strategy.name, type="input"
+            )(self.strategy.log_message)
+
+            self.strategy._update_portfolio_value = self._client.intercept(
+                "portfolio_update", self.strategy.name, type="result"
+            )(self.strategy._update_portfolio_value)
+
+            self._trace_stats = self._client.intercept(
+                "trace_stats", self.strategy.name, type="result"
+            )(self._trace_stats)
+
+            self._on_new_order = self._client.intercept(
+                "new_order", self.strategy.name, type="input"
+            )(self._on_new_order)
+
+            self._on_canceled_order = self._client.intercept(
+                "canceled_order", self.strategy.name, type="input"
+            )(self._on_canceled_order)
+
+            self._on_partially_filled_order = self._client.intercept(
+                "partially_filled_order", self.strategy.name, type="input"
+            )(self._on_partially_filled_order)
+
+            self._on_filled_order = self._client.intercept(
+                "filled_order", self.strategy.name, type="input"
+            )(self._on_filled_order)
 
     def safe_sleep(self, sleeptime):
         """internal function for sleeping"""

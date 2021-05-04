@@ -46,6 +46,7 @@ class BacktestingBroker(Broker):
                     logging.info("%r was sent to broker %s" % (order, self.name))
                     broker._new_orders.append(order)
 
+                broker.stream.dispatch(broker.NEW_ORDER, order=order)
                 broker.stream.dispatch(broker.FILLED_ORDER, order=order)
             return result
 
@@ -223,8 +224,19 @@ class BacktestingBroker(Broker):
         to be executed on each trade_update event"""
         broker = self
 
+        @broker.stream.add_action(broker.NEW_ORDER)
+        def on_new_order_event(order):
+            try:
+                broker._process_trade_event(
+                    order,
+                    broker.NEW_ORDER,
+                )
+                return True
+            except:
+                logging.error(traceback.format_exc())
+
         @broker.stream.add_action(broker.FILLED_ORDER)
-        def on_trade_event(order):
+        def on_filled_order_event(order):
             try:
                 identifier = order.identifier
                 symbol = order.symbol

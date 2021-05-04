@@ -19,6 +19,14 @@ class Broker:
     FILLED_ORDER = Status.filled_order
     PARTIALLY_FILLED_ORDER = Status.partially_filled_order
 
+    # Events name mapping
+    EVENTS_NAME_MAPPING = {
+        Status.new_order: Status.new_order,
+        Status.canceled_order: Status.canceled_order,
+        Status.filled_order: Status.filled_order,
+        Status.partially_filled_order: Status.partially_filled_order,
+    }
+
     def __init__(self, name="", connect_stream=True):
         """Broker constructor"""
         # Shared Variables between threads
@@ -64,6 +72,13 @@ class Broker:
         return new_func
 
     # =========Internal functions==============
+
+    def _parse_event_name(self, event_name):
+        event_name = event_name.lower()
+        for k, v in self.EVENTS_NAME_MAPPING.items():
+            if event_name == v:
+                return k
+        raise ValueError("Unknown event of type %s" % event_name)
 
     def _process_new_order(self, order):
         logging.info("New %r was submited." % order)

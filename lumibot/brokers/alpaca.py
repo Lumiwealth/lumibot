@@ -6,6 +6,7 @@ from datetime import timezone
 
 import alpaca_trade_api as tradeapi
 
+from lumibot import OrderStatus as Status
 from lumibot.data_sources import AlpacaData
 from lumibot.entities import Order, Position
 
@@ -15,6 +16,13 @@ from .broker import Broker
 class Alpaca(AlpacaData, Broker):
     """Inherit AlpacaData first and all the price market
     methods than inherits broker"""
+
+    EVENTS_NAME_MAPPING = {
+        Status.new_order: "new",
+        Status.canceled_order: "canceled",
+        Status.filled_order: "fill",
+        Status.partially_filled_order: "partial_fill",
+    }
 
     def __init__(self, config, max_workers=20, chunk_size=100, connect_stream=True):
         # Calling init methods
@@ -187,7 +195,7 @@ class Alpaca(AlpacaData, Broker):
         async def on_trade_event(conn, channel, data):
             try:
                 logged_order = data.order
-                type_event = data.event
+                type_event = self._parse_event_name(data.event)
                 identifier = logged_order.get("id")
                 stored_order = broker.get_tracked_order(identifier)
                 if stored_order is None:

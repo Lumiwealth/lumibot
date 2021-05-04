@@ -32,7 +32,7 @@ class Trader:
         self._port = port
         self._client = None
 
-        if not self.is_backtest:
+        if not self.is_backtest and self._strategies:
             self._client = LumibotClient(db_path, new_db=new_db)
 
     @property
@@ -45,7 +45,10 @@ class Trader:
     def add_strategy(self, strategy):
         """Adds a strategy to the trader"""
         self._strategies.append(strategy)
-        self._client.process_new_strategy_signal(strategy.name)
+        if not self.is_backtest:
+            if self._client is None:
+                self._client = LumibotClient(db_path, new_db=new_db)
+            self._client.process_new_strategy_signal(strategy.name)
 
     def run_all(self):
         """run all strategies"""

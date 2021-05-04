@@ -79,6 +79,12 @@ class Strategy(_Strategy):
         limit_price=None,
         stop_price=None,
         time_in_force="day",
+        exchange="SMART",
+        sec_type='STK',
+        expiration="",
+        strike="",
+        right="",
+        multiplier="",
     ):
         order = Order(
             self.name,
@@ -88,6 +94,12 @@ class Strategy(_Strategy):
             limit_price=limit_price,
             stop_price=stop_price,
             time_in_force=time_in_force,
+            exchange=exchange,
+            sec_type=sec_type,
+            expiration=expiration,
+            strike=strike,
+            right=right,
+            multiplier=multiplier,
         )
         return order
 
@@ -157,9 +169,11 @@ class Strategy(_Strategy):
         """cancel all the strategy open orders"""
         self.broker.cancel_open_orders(self.name)
 
-    def sell_all(self, cancel_open_orders=True):
+    def sell_all(self, cancel_open_orders=True, at_broker=False):
         """sell all strategy positions"""
-        self.broker.sell_all(self.name, cancel_open_orders=cancel_open_orders)
+        self.broker.sell_all(
+            self.name, cancel_open_orders=cancel_open_orders, at_broker=at_broker
+        )
 
     def get_last_price(self, symbol):
         """Takes an asset symbol and returns the last known price"""

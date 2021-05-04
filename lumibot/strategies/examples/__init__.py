@@ -4,3 +4,4 @@ from .intraday_momentum import IntradayMomentum
 from .momentum import Momentum
 from .simple import Simple
 from .ib_test import IBTest
+from .option import Option

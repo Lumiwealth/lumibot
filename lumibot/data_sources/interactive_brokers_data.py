@@ -1,21 +1,10 @@
-import logging
-from collections import defaultdict, deque, namedtuple
+import datetime
 from datetime import datetime
 import pandas as pd
 
 from lumibot.entities import Bars
 
 from .data_source import DataSource
-
-from ibapi.wrapper import *
-from ibapi.client import *
-from ibapi.contract import *
-from ibapi.order import *
-from threading import Thread
-import queue
-import datetime
-import time
-
 
 class InteractiveBrokersData(DataSource):
     """Make Interactive Brokers connection and gets data.
@@ -121,7 +110,9 @@ class InteractiveBrokersData(DataSource):
             ]
             df = df[cols]
             if parsed_timestep == "1 min":
-                df["date"] = pd.to_datetime(df["date"], unit="s", origin="unix")
+                df["date"] = pd.to_datetime(
+                    df["date"], unit="s", origin="unix"
+                ).dt.tz_localize(self.DEFAULT_TIMEZONE)
             elif parsed_timestep == "1 day":
                 df["date"] = pd.to_datetime(df["date"], format="%Y%m%d")
             response[symbol] = df

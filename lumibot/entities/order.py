@@ -18,6 +18,12 @@ class Order:
         limit_price=None,
         stop_price=None,
         time_in_force="day",
+        sec_type="STK",
+        exchange="SMART",
+        expiration="",
+        strike="",
+        right="",
+        multiplier="",
     ):
         # Initialization default values
         self.strategy = strategy
@@ -27,6 +33,7 @@ class Order:
         self.stop_price = None
         self.side = None
         self.type = "market"
+        self.exchange = exchange
         self.time_in_force = time_in_force
         self.order_class = None
         self.identifier = None
@@ -35,6 +42,13 @@ class Order:
 
         self.transmit = True
         self.parent_id = 0
+
+        # Options:
+        self.sec_type = sec_type
+        self.expiration = expiration
+        self.strike = strike
+        self.right = right
+        self.multiplier = multiplier
 
         # setting internal variables
         self._raw = None
@@ -135,3 +149,10 @@ class Order:
         if self.side == self.SELL:
             increment = -increment
         return increment
+
+    def is_option(self):
+        # Return true if this order is an option.
+        if self.sec_type == 'OPT':
+            return True
+        else:
+            return False

@@ -1,13 +1,9 @@
-import asyncio
-import logging
-import time
-import traceback
-from asyncio import CancelledError
 from datetime import timezone
 from dateutil import tz
 import datetime
-import queue
+from threading import Thread
 import time
+import traceback
 
 import pandas_market_calendars as mcal
 import pandas as pd
@@ -23,7 +19,6 @@ from ibapi.wrapper import *
 from ibapi.client import *
 from ibapi.contract import *
 from ibapi.order import *
-from threading import Thread
 
 
 class InteractiveBrokers(InteractiveBrokersData, Broker):
@@ -71,10 +66,10 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
 
         row = 0 if not next else 1
         th = trading_hours.iloc[row, :]
-        market_open, market_close = th[0], th[1]
+        # market_open, market_close = th[0], th[1]
         # todo: remove this, it's temp to have full trading hours.
-        # market_open = self.utc_to_local(datetime.datetime(2005, 1, 1))
-        # market_close = self.utc_to_local(datetime.datetime(2025, 1, 1))
+        market_open = self.utc_to_local(datetime.datetime(2005, 1, 1))
+        market_close = self.utc_to_local(datetime.datetime(2025, 1, 1))
 
         if close:
             return market_close
@@ -193,9 +188,9 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         return order
 
     def _pull_broker_order(self, order_id):
-        """Get a broker order representation by its id"""  # todo check api
+        """Get a broker order representation by its id"""
         pull_order = [
-            order for order in self.api.openOrders() if order.orderId == order_id
+            order for order in self.ib.get_open_orders() if order.orderId == order_id
         ]
         response = pull_order[0] if len(pull_order) > 0 else None
         return response
@@ -255,24 +250,29 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         """cancel all the strategy open orders"""
         self.ib.reqGlobalCancel()
 
-    def sell_all(self, strategy, cancel_open_orders=True):
+    def sell_all(self, strategy, cancel_open_orders=True, at_broker=False):
         """sell all positions"""
         logging.warning("Strategy %s: sell all" % strategy)
         if cancel_open_orders:
             self.cancel_open_orders(strategy)
 
         orders = []
-        # positions = self.get_tracked_positions(strategy)
-        # todo revert to above
-        positions = self.ib.get_positions()
+        if at_broker:
+            positions = self.ib.get_positions()
+        else:
+            positions = self.get_tracked_positions(strategy)
+
         for position in positions:
-            if position['position'] == 0:
+            if position["position"] == 0:
                 continue
-            close_order = OrderLum(strategy, position["symbol"], position["position"], "sell")
+            close_order = OrderLum(
+                strategy, position["symbol"], position["position"], "sell"
+            )
             orders.append(close_order)
         self.submit_orders(orders)
 
-    def load_positions(self):  # todo at start up, discuss with team
+    # todo at start up, discuss with team
+    def load_positions(self):
         """ Use to load any existing positions with the broker on start. """
         positions = self.ib.get_positions()
         print("Load Positions", positions)
@@ -297,11 +297,13 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
     def get_account_summary(self):
         return self.ib.get_account_summary()
 
-    def options_details(self, symbol, last_date):
-        self.ib.option_details(symbol=symbol, last_date=last_date)
+    def get_contract_details(self, symbol):
+        return self.ib.get_contract_details(symbol=symbol)
 
-    def options_params(self, symbol):
-        self.ib.option_params(symbol=symbol)
+    def options_params(self, symbol, exchange="", underlyingConId=""):
+        return self.ib.option_params(
+            symbol=symbol, exchange=exchange, underlyingConId=underlyingConId
+        )
 
     # =======Stream functions=========
     def on_status_event(
@@ -357,7 +359,6 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
             whyHeld,
             mktCapPrice,
         ]
-        print(f"on_status_event - {order_status}")
         if order_status in self.order_status_duplicates:
             logging.info(
                 f"Duplicate order status event ignored. Order id {orderId} "
@@ -370,8 +371,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         stored_order = self.get_tracked_order(orderId)
         if stored_order is None:
             logging.info(
-                "Untracker order %s was logged by broker %s"
-                % (orderId, self.name)
+                "Untracker order %s was logged by broker %s" % (orderId, self.name)
             )
             return False
 
@@ -381,8 +381,10 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         elif status in ["ApiCancelled", "Cancelled", "Inactive"]:
             type_event = self.CANCELED_ORDER
         else:
-            raise ValueError("An order type should not have made it this far.")
-            # todo this is a debug, fix message later.
+            raise ValueError(
+                "A status event with an order of unknown order type. Should only be: "
+                "`Submitted`, `ApiCancelled`, `Cancelled`, `Inactive`"
+            )
         self._process_trade_event(
             stored_order,
             type_event,
@@ -391,7 +393,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         )
 
     def on_trade_event(self, reqId, contract, execution):
-        print("on_trade_event: ", reqId, contract, execution)
+        # print("on_trade_event: ", reqId, contract, execution) todo delete
 
         try:
             orderId = execution.orderId
@@ -399,18 +401,18 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
 
             if stored_order is None:
                 logging.info(
-                    "Untracker order %s was logged by broker %s"
-                    % (orderId, self.name)
+                    "Untracker order %s was logged by broker %s" % (orderId, self.name)
                 )
                 return False
                 # Check the order status submit changes.
             if execution.cumQty < stored_order.quantity:
                 type_event = self.PARTIALLY_FILLED_ORDER
-            elif execution.cumQty == execution.shares:
+            elif execution.cumQty == stored_order.quantity:
                 type_event = self.FILLED_ORDER
             else:
-                raise ValueError("An order type should not have made it this far.")
-                # todo this is a debug, fix message later.
+                raise ValueError(
+                    f"An order type should not have made it this far. " f"{execution}"
+                )
 
             price = execution.price
             filled_quantity = execution.shares
@@ -448,6 +450,8 @@ class IBWrapper(EWrapper):
         return None
 
     def error(self, id, errorCode, errorString):
+        if not hasattr(self, "my_errors_queue"):
+            self.init_error()
         errormessage = "IB returns an error with %d errorcode %d that says %s" % (
             id,
             errorCode,
@@ -598,7 +602,6 @@ class IBWrapper(EWrapper):
         )
 
         logging.info(openOrdertxt)
-        print(openOrdertxt)
 
         order.contract = contract
         order.orderState = orderState
@@ -637,7 +640,6 @@ class IBWrapper(EWrapper):
             f"lastFillPrice: {lastFillPrice}, "
         )
         logging.info(orderStatustxt)
-        print(orderStatustxt)
         self.ib_broker.on_status_event(
             orderId,
             status,
@@ -665,15 +667,65 @@ class IBWrapper(EWrapper):
             f"{execution.lastLiquidity} "
         )
         logging.info(execDetailstxt)
-        print(execDetailstxt)
 
-        self.ib_broker.on_trade_event(reqId, contract, execution)
+        return self.ib_broker.on_trade_event(reqId, contract, execution)
+
+    def init_contract_details(self):
+        self.contract_details = list()
+        contract_details_queue = queue.Queue()
+        self.my_contract_details_queue = contract_details_queue
+        return contract_details_queue
 
     def contractDetails(self, reqId, contractDetails):
+        if not hasattr(self, "my_contract_details_queue"):
+            self.init_contract_details()
+        self.contract_details.append(contractDetails)
         print("contractDetails: ", reqId, " ", contractDetails, "\n")
 
     def contractDetailsEnd(self, reqId):
+        super().contractDetailsEnd(reqId)
+        self.my_contract_details_queue.put(self.contract_details)
         print("\ncontractDetails End\n")
+
+    def init_option_params(self):
+        self.option_params_dict = dict()
+        option_params_queue = queue.Queue()
+        self.my_option_params_queue = option_params_queue
+        return option_params_queue
+
+    def securityDefinitionOptionParameter(
+        self,
+        reqId: int,
+        exchange: str,
+        underlyingConId: int,
+        tradingClass: str,
+        multiplier: str,
+        expirations: SetOfString,
+        strikes: SetOfFloat,
+    ):
+        super().securityDefinitionOptionParameter(
+            reqId,
+            exchange,
+            underlyingConId,
+            tradingClass,
+            multiplier,
+            expirations,
+            strikes,
+        )
+        if not hasattr(self, "my_option_params_queue"):
+            self.init_option_params()
+        self.option_params_dict[exchange] = {
+            "Underlying conId": underlyingConId,
+            "TradingClass": tradingClass,
+            "Multiplier": multiplier,
+            "Expirations": expirations,
+            "Strikes": strikes,
+        }
+
+    def securityDefinitionOptionParameterEnd(self, reqId):
+        super().securityDefinitionOptionParameterEnd(reqId)
+        self.my_option_params_queue.put(self.option_params_dict)
+        print("\noption parameters End\n")
 
 
 class IBClient(EClient):
@@ -815,22 +867,52 @@ class IBClient(EClient):
 
         return 0
 
-    def option_details(self, symbol=None, last_date=None):
+    def get_contract_details(self, symbol=None):
+        contract_details_storage = self.wrapper.init_contract_details()
+
+        # Call the contract details.
         contract = Contract()
         contract.symbol = symbol
-        contract.secType = "OPT"
+        contract.secType = "STK"
         contract.exchange = "SMART"
         contract.currency = "USD"
-        contract.lastTradeDateOrContractMonth = last_date
 
         self.reqContractDetails(1, contract)
 
-    def option_params(self, symbol=None):
-        self.reqSecDefOptParams(0, symbol, "", "STK", 8314)
-        self.simplePlaceOid = self.nextOrderId()
-        self.placeOrder(self.simplePlaceOid, ContractSamples.USStock(),
-        OrderSamples.LimitOrder("SELL", 1, 50))
+        try:
+            requested_contract_details = contract_details_storage.get(
+                timeout=self.max_wait_time
+            )
+        except queue.Empty:
+            print("The queue was empty or max time reached for contract details")
+            requested_contract_details = None
 
+        while self.wrapper.is_error():
+            print(f"Error: {self.get_error(timeout=5)}")
+
+        return requested_contract_details
+
+    def option_params(self, symbol="", exchange="", underlyingConId=""):
+        options_params_storage = self.wrapper.init_option_params()
+
+        # Call the orders data.
+        self.reqSecDefOptParams(0, symbol, exchange, "STK", underlyingConId)
+
+        try:
+            requested_option_params = options_params_storage.get(
+                timeout=self.max_wait_time
+            )
+        except queue.Empty:
+            print(
+                "The queue was empty or max time reached for option contract "
+                "details."
+            )
+            requested_option_params = None
+
+        while self.wrapper.is_error():
+            print(f"Error: {self.get_error(timeout=5)}")
+
+        return requested_option_params
 
 
 class IBApp(IBWrapper, IBClient):
@@ -855,7 +937,7 @@ class IBApp(IBWrapper, IBClient):
         exchange="SMART",
         currency="USD",
         primaryExchage="ISLAND",
-        lastTradeDateOrContractMonth="",
+        expiration="",
         strike="",
         right="",
         multiplier="",
@@ -867,11 +949,13 @@ class IBApp(IBWrapper, IBClient):
         contract.secType = secType
         contract.exchange = exchange
         contract.currency = currency
-        contract.primaryExchange = primaryExchage
-        contract.lastTradeDateOrContractMonth = lastTradeDateOrContractMonth
-        contract.strike = strike
-        contract.right = right
-        contract.multiplier = multiplier
+        if secType == "STK":
+            contract.primaryExchange = primaryExchage
+        if secType == "OPT":
+            contract.lastTradeDateOrContractMonth = expiration
+            contract.strike = str(strike)
+            contract.right = right
+            contract.multiplier = multiplier
 
         return contract
 
@@ -898,8 +982,23 @@ class IBApp(IBWrapper, IBClient):
         ib_orders = []
         for order in orders:
             # Places the order with the returned contract and order objects
-            contract_object = self.create_contract(order.symbol)
+            contract_object = self.create_contract(
+                order.symbol,
+                exchange=order.exchange,
+                secType=order.sec_type,
+                expiration=order.expiration,
+                strike=order.strike,
+                right=order.right,
+                multiplier=order.multiplier,
+            )
             order_object = self.create_order(order)
+
+            # There was an update by IB mid april/2021 that ceased support for
+            # `eTradeOnly` and `firmQuoteOnly` attributes. However the defaults
+            # where left `True` causing errors. Set to False
+            order_object.eTradeOnly = False
+            order_object.firmQuoteOnly = False
+
             nextID = (
                 order_object.orderId if order_object.orderId else self.nextOrderId()
             )

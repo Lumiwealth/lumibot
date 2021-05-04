@@ -1,0 +1,104 @@
+{% extends 'layouts/base.html' %}
+
+{% block title %}
+    <title>Lumibot login</title>
+{% endblock %}
+
+{% block style %}
+    <style>
+        .flash-message ul{
+            list-style-type: none;
+            margin: 0;
+        }
+        .login-container{
+            margin-top: 5%;
+            margin-bottom: 5%;
+        }
+        .login-form{
+            padding: 5%;
+            box-shadow: 0 5px 8px 0 rgba(0, 0, 0, 0.2), 0 9px 26px 0 rgba(0, 0, 0, 0.19);
+        }
+        .login-form h3{
+            text-align: center;
+            color: #333;
+        }
+        .login-container form{
+            padding: 10%;
+        }
+        .login-container .error-help ul{
+            margin: 0;
+        }
+        .btnSubmit
+        {
+            width: 50%;
+            border-radius: 1rem;
+            padding: 1.5%;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            color: #fff;
+            background-color: #0062cc;
+        }
+    </style>
+{% endblock %}
+
+{% block body %}
+    <div class="container login-container">
+        {% with messages = get_flashed_messages() %}
+            <div class="row">
+                {% if messages %}
+                    <div class="col-12 alert alert-danger flash-message" role="alert">
+                    <ul>
+                        {% for message in messages %}
+                            <li>{{ message }}</li>
+                        {% endfor %}
+                    </ul>
+                    </div>
+                {% endif %}
+            </div>
+        {% endwith %}
+        <div class="row">
+            <div class="col-md-6 offset-md-3 col-sm-12 login-form">
+                <h3>Please Login to continue</h3>
+                <form action="{{ url_for_security('login') }}" method="POST" name="login_user_form">
+                    {{ login_user_form.hidden_tag() }}
+
+                    {% if login_user_form.email.errors %}
+                        <div id="email-help" class="text-danger ml-2 error-help">
+                            <ul>
+                                {% for error in login_user_form.email.errors %}
+                                <li><small>{{ error }}</small></li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    {% endif %}
+                    <div class="form-group">
+                        <input name="email" type="text" class="form-control" placeholder="Your Email *" value="" />
+                    </div>
+
+                    {% if login_user_form.password.errors %}
+                        <div id="password-help" class="text-danger ml-2 error-help">
+                            <ul>
+                                {% for error in login_user_form.password.errors %}
+                                    <li><small>{{ error }}</small></li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    {% endif %}
+                    <div class="form-group">
+                        <input name="password" type="password" class="form-control" placeholder="Your Password *" value="" />
+                    </div>
+
+                    <div class="form-group form-check">
+                        <input type="checkbox" class="form-check-input" checked id="remember" name="remember">
+                        <label class="form-check-label" for="remember">Remember Me</label>
+                    </div>
+
+                    <div class="form-group text-center">
+                        <input type="submit" class="btnSubmit" value="Login" />
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+{% endblock %}

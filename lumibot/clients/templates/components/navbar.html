@@ -1,0 +1,108 @@
+{% macro navbar() %}
+
+<style>
+    nav.navbar #search-btn{
+        z-index: 2;
+    }
+    #search-form-secondary{
+        position: absolute;
+        top: 0;
+        padding: 48px 0 0;
+        z-index: 1;
+    }
+    #search-form-secondary button{
+        width: 15%;
+    }
+    #search-form-secondary input{
+        width: 85%;
+    }
+    .no-text-decoration{
+        text-decoration: none !important;
+    }
+    #login-logout li:hover{
+        background: #17A2B8;
+    }
+    #login-logout li a{
+        color: #343a40;
+    }
+    #login-logout li a:hover{
+        color: #FFF;
+    }
+    #login-logout .dropdown-menu{
+        margin-left: -130%;
+    }
+</style>
+
+<nav class="navbar navbar-dark bg-info flex-md-nowrap py-1 px-0 shadow fixed-top">
+    <!-- The brand -->
+    <div class="col-4 col-sm-3 col-lg-2 mr-0 text-white navbar-brand text-center">
+        <div class="d-none d-md-block">
+            Lumibot
+        </div>
+    </div>
+
+    <!-- Searchbar -->
+    <form class="form-inline col-4 col-sm-6 col-lg-8 my-0 pl-3" action="" method="get" enctype="multipart/form-data">
+        <input maxlength="400" name="tags" class="form-control mr-sm-2 col-lg-11 col-md-10 col-9 d-sm-block d-none" type="search" placeholder="Search by tags" aria-label="Search">
+        <button id="search-btn" class="btn btn-outline-dark mx-auto mx-sm-0" type="submit"><i class="fa fa-search"></i></button>
+    </form>
+    <form id="search-form-secondary" class="form-inline w-100" action="" method="get" enctype="multipart/form-data" style="display: none;">
+        <input maxlength="400" name="tags" class="form-control" type="search" placeholder="Search by tags" aria-label="Search">
+        <button id="search-btn-secondary" class="btn btn-outline-dark" type="submit">GO!</button>
+    </form>
+
+    <!-- Login/logout -->
+    <div id="login-logout" class="px-3 col-4 col-sm-3 col-lg-2">
+        <div class="navbar-text btn-group float-right">
+            <a href="#" class="dropdown-toggle no-text-decoration" data-toggle="dropdown" role="button" aria-expanded="false">
+                <i class="fa fa-user"></i>
+                    Guest
+                <span class="caret"></span>
+            </a>
+            <ul class="dropdown-menu" role="menu">
+                <li class="px-2 mx-2">
+                    <a class="no-text-decoration" href="#">
+                        Go to Admin
+                    </a>
+                </li>
+                <li class="px-2 mx-2 no-text-decoration">
+                    <a class="no-text-decoration" href="{{ url_for_security('logout') }}">
+                        Logout
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<script>
+    $(document).ready(function(){
+        $("#search-btn").click(function(e){
+            if ($(window).width() < 576){
+                e.preventDefault();
+                $("#search-form-secondary").toggle();
+            }
+        });
+
+        $(document).mouseup(function(e){
+            if ($(window).width() <576){
+                var container = $("#search-form-secondary");
+                var button = $("#search-btn");
+                if (!container.is(e.target) && container.has(e.target).length === 0 &&
+                    !button.is(e.target) && button.has(e.target).length === 0
+                )
+                {
+                    container.hide();
+                }
+            }
+        });
+
+        $(window).resize(function(){
+            if ($(window).width() >= 576){
+                $("#search-form-secondary").hide();
+            }
+        });
+    });
+</script>
+
+{% endmacro %}

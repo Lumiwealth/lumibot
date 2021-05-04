@@ -1,0 +1,56 @@
+{% from "components/navbar.html" import navbar with context %}
+{% from "components/leftnav.html" import leftnav with context %}
+{% from "components/flash_messages.html" import flash_messages with context %}
+{% from "components/widgets.html" import widgets %}
+
+{% extends 'layouts/base.html' %}
+
+{% block title %}
+    <title>My Dashboard</title>
+{% endblock %}
+
+{% block body %}
+    {% block navbar %}
+        {{ navbar() }}
+    {% endblock %}
+
+    <div class="container-fluid mt-5">
+        <div class="row">
+            <div class="col-md-3 col-lg-2">
+                {% block leftnav %}
+                    {{ leftnav() }}
+                {% endblock leftnav %}
+            </div>
+
+            <div class="col-md-9 col-lg-10 text-left">
+                {% block flash %}
+                    {{ flash_messages() }}
+                {% endblock %}
+
+                {% block content %}
+                {% endblock %}
+            </div>
+
+            {% block widgets %}
+                {{ widgets() }}
+            {% endblock widgets %}
+
+        </div>
+    </div>
+{% endblock %}
+
+{% block script %}
+    <script>
+        $(document).ready(async function(){
+
+            //connect to the socket server.
+            const address = `http://${document.domain}:${location.port}/client_socket`;
+            const socket = io.connect(address);
+            checkResponsive();
+
+            // register components
+            dashboard(socket);
+
+        });
+    </script>
+{% endblock %}

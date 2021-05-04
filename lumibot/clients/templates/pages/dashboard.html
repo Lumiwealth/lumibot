@@ -1,0 +1,282 @@
+{% extends 'layouts/home.html' %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-4 col-sm-12">
+            <div class="card">
+                <h5 class="card-header text-white bg-danger">Portfolio value</h5>
+                <div class="card-body">
+                    <h4 id="portfolio-value" class="card-title text-center"></h4>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 col-sm-12">
+            <div class="card">
+                <h5 class="card-header text-white bg-danger">Unspent money</h5>
+                <div class="card-body">
+                    <h4 id="unspent-money" class="card-title text-center"></h4>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 col-sm-12">
+            <div class="card">
+                <h5 class="card-header text-white bg-danger">Last update</h5>
+                <div class="card-body">
+                    <h4 class="card-title text-center" >
+                        <span id="last-update"></span>
+                    </h4>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="row mt-3">
+        <div class="col-xl-6 col-lg-12">
+            <div class="card">
+                <h5 class="card-header text-white bg-primary">Portfolio value</h5>
+                <div class="card-body">
+                    <h5 class="card-title float-left">Portfolio value time evolution</h5>
+                    <a href="#" class="btn btn-success float-right">
+                        <small>Change Format</small>
+                    </a>
+                    <p class="card-text"></p>
+                    <div class="big-chart-container">
+                        <canvas id="portfolioChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-6 col-lg-12">
+            <div class="card">
+                <h5 class="card-header text-white bg-primary">Shares</h5>
+                <div class="card-body">
+                    <h5 class="card-title float-left">Portfolio Shares</h5>
+                    <div class="btn-group float-right" role="group">
+                        <button id="doughnut" type="button" class="btn btn-success shares-button active">
+                            <small>Doughnut</small>
+                        </button>
+                        <button id="pie" type="button" class="btn btn-success shares-button">
+                            <small>Pie</small>
+                        </button>
+                        <button id="bar" type="button" class="btn btn-success shares-button">
+                            <small>Bar</small>
+                        </button>
+                    </div>
+                    <p class="card-text"></p>
+                    <div class="big-chart-container">
+                        <canvas id="sharesChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="row mt-3">
+        <div class="col-lg-12">
+            <ul class="nav nav-tabs mt-5 mt-sm-0" id="logs-stats-menu" role="tablist">
+                <li class="nav-item">
+                    <a class="nav-link active" id="logs-btn-tab" data-toggle="tab" href="#logs-tab" role="tab" aria-controls="logs-tab" aria-selected="true">
+                        Logs
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" id="stats-btn-tab" data-toggle="tab" href="#stats-tab" role="tab" aria-controls="stats-tab" aria-selected="false">
+                        Tracked stats
+                    </a>
+                </li>
+            </ul>
+            <div class="tab-content mt-3" id="logs-stats-content">
+                <div class="tab-pane fade show active" id="logs-tab" role="tabpanel" aria-labelledby="logs-tab">
+                    <table id="logs-table" data-show-columns="true"></table>
+                </div>
+                <div class="tab-pane fade" id="stats-tab" role="tabpanel" aria-labelledby="stats-tab">
+                    <table id="stats-table" data-show-columns="true"></table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function dashboard(socket){
+        // Declaring variables /////////////////////////////////
+        const maxGraphPoints = 1000;
+        const maxTableRows = 1000;
+        let lastPortfolioData = {};
+        let portfolioGraphPoints = [];
+        let statRows = [];
+        let logRows = [];
+        let sharesChartType = "doughnut";
+        let portfolioEvolutionChart;
+        let sharesChart;
+        let logsTable;
+        let statsTable;
+
+        init();
+
+        // Lifecycle Method /////////////////////////////////////////////
+
+        function loadData() {
+            return new Promise((resolve, reject) => {
+                seedData().then((resp) => {
+                    resolve(resp);
+                }).catch((err) => {
+                    reject(err);
+                });
+            });
+        }
+
+        function init() {
+            loadData().then((resp) => {
+                ({lastPortfolioData, portfolioGraphPoints, logRows, statRows} = resp);
+                putPortfolioData(lastPortfolioData);
+                putLogData(logRows);
+                putStatRowsData(statRows);
+            });
+        }
+
+        // Methods /////////////////////////////////////////////
+        function putPortfolioData(data) {
+            lastPortfolioData = data;
+
+            const portfolioValue = data.portfolio_value;
+            $("#portfolio-value").html(parseMoney(portfolioValue));
+
+            const unspentMoney = data.unspent_money;
+            $("#unspent-money").html(parseMoney(unspentMoney));
+
+            const lastUpdate = data.time;
+            $("#last-update").html(parseTimeString(lastUpdate));
+            $("#last-update").attr("title", "NY Timezone").tooltip({placement: "top"});
+
+            portfolioGraphPoints.labels.push(lastUpdate);
+            portfolioGraphPoints.values.push(portfolioValue);
+            if (portfolioGraphPoints.length >= maxGraphPoints){
+                portfolioGraphPoints.shift();
+            }
+
+            if (!portfolioEvolutionChart) {
+                portfolioEvolutionChart = createPortfolioEvolutionChart();
+            } else {
+                editChartData(
+                    portfolioEvolutionChart,
+                    portfolioGraphPoints.labels,
+                    portfolioGraphPoints.values,
+                )
+            }
+
+            sharesChart = createSharesChart();
+        }
+
+        function putLogData(data) {
+            if (!logsTable) {
+                logsTable = createLogMessagesTable();
+            }
+
+            logRows.push(data);
+            if (logRows.length >= maxTableRows){
+                logRows.shift();
+                appendBootstrapRows($("#logs-table"), data, inplace=true);
+            } else {
+                appendBootstrapRows($("#logs-table"), data);
+            }
+        }
+
+        function putStatRowsData(data) {
+            if (!statsTable) {
+                statsTable = createStatsTable();
+            }
+
+            statRows.push(data);
+            if (statRows.length >= maxTableRows){
+                statRows.shift();
+                appendBootstrapRows($("#stats-table"), data, inplace=true);
+            } else {
+                appendBootstrapRows($("#stats-table"), data);
+            }
+        }
+
+        function createPortfolioEvolutionChart(){
+            const {labels, values} = portfolioGraphPoints;
+            const chart = new Chart(
+                'portfolioChart',
+                generateChartLineConfig('Portfolio Evolution', labels, values),
+            );
+            return chart;
+        }
+
+        function createSharesChart(){
+            const labels = lastPortfolioData.positions.map((el) => el.symbol);
+            const values = lastPortfolioData.positions.map((el) => el.quantity * el.price);
+            const chart = new Chart(
+                'sharesChart',
+                generateDoughnutConfig(
+                    labels,
+                    values,
+                    'Portfolio assets',
+                    sharesGraphLabelCallback
+                ),
+            );
+            return chart;
+        }
+
+        function createLogMessagesTable(){
+            const logMessagesColumns = Object.keys(logRows[0])
+            initBootstrapTable($("#logs-table"), logMessagesColumns);
+            return $("#logs-table");
+        }
+
+        function createStatsTable(){
+            const statsColumns = Object.keys(statRows[0])
+            initBootstrapTable($("#stats-table"), statsColumns);
+            return $("#stats-table");
+        }
+
+        function sharesGraphLabelCallback(context) {
+            const symbol = context.label;
+            const total = context.raw;
+            const item = lastPortfolioData.positions.find(e => e.symbol === symbol);
+            const price = item.price;
+            const quantity = item.quantity;
+
+            const totalLabel = `Total value: ${parseMoney(total)}`;
+            const quantityLabel = `${quantity} shares of ${symbol}`;
+            const priceLabel = `${parseMoney(price)} per share`;
+
+            return [totalLabel, quantityLabel, priceLabel];
+        }
+
+        // Frontend Events /////////////////////////////////////
+        $(".shares-button").click((event) => {
+            $(".shares-button").removeClass("active");
+            $(event.currentTarget).addClass("active");
+            const newSharesChartType = $(event.currentTarget).attr("id");
+            if (sharesChartType !== newSharesChartType){
+                sharesChartType = newSharesChartType;
+                sharesChart = updateChartType(sharesChart, newSharesChartType);
+            }
+        });
+
+        // Socket Events /////////////////////////////////////
+        socket.on('portfolio', (payload) => {putPortfolioData(payload);});
+
+        socket.on('log', (payload) => {putStatRowsData(payload);});
+
+        socket.on('trace_stats', (payload) => {putLogData(payload);});
+
+    }
+</script>
+
+<style>
+    .big-chart-container {
+        display: block;
+        max-height: 250px;
+        margin-bottom: 10px;
+    }
+    .shares-button {
+        min-width: 82px;
+    }
+    .tab-content .fixed-table-border {
+        width: 100%!important
+    }
+</style>
+{% endblock %}

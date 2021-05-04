@@ -1,0 +1,65 @@
+{% macro widgets() %}
+
+<style>
+    .widgets-container{
+        overflow: auto;
+        width: 0px;
+        cursor: pointer;
+        position: fixed;
+        top: 0;
+        bottom: 0;
+        right: 0;
+        z-index: 100;
+        padding: 48px 0 0;
+        box-shadow: inset -1px 0 0 rgba(0, 0, 0, .1);
+        color: #000;
+    }
+    #toggle-widgets{
+        position: fixed;
+        right: 20px;
+        top: 60px;
+    }
+</style>
+
+<button id="toggle-widgets" class="btn btn-outline-secondary">
+    Widgets
+    <i class="fa fa-plus"></i>
+</button>
+<div class="widgets-container col-5 col-sm-4 col-md-3 col-xl-2 bg-light">
+    <ul class="list-unstyled mx-2">
+        <li class="text-center">
+            <button class="btn btn-success mx-auto my-2 w-75">
+                <i class="fa fa-file-pdf-o"></i>
+                Widget 1
+            </button>
+        </li>
+        <li class="text-center">
+            <button class="btn btn-success mx-auto my-2 w-75">
+                <i class="fa fa-file-excel-o"></i>
+                Widget 2
+            </button>
+        </li>
+    </ul>
+</div>
+
+<script>
+    $(document).ready(function(){
+
+        $(document).mouseup(function(e){
+            var container = $("#toggle-widgets");
+            var button = $(".widgets-container");
+            if (!container.is(e.target) && container.has(e.target).length === 0 &&
+                !button.is(e.target) && button.has(e.target).length === 0
+            )
+            {
+                $(".widgets-container").animate({width: '0px'}, 500);
+            }
+        });
+
+        $("#toggle-widgets").click(function(){
+            $(".widgets-container").animate({width: '100%'}, 700);
+        });
+    });
+</script>
+
+{% endmacro %}

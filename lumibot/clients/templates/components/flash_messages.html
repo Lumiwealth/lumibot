@@ -1,0 +1,24 @@
+{% macro flash_messages() %}
+
+<div class="flash-messages mt-2 col-9 col-lg-10">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+            <div class="alert alert-{{ category }}" role="alert">
+                <button type="button" class="close close-flash" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+                {{ message }}
+            </div>
+        {% endfor %}
+    {% endwith %}
+</div>
+
+<script>
+    $(document).ready(function(){
+        $(".close-flash").click(function(){
+            $(this).parent().remove()
+        });
+    });
+</script>
+
+{% endmacro %}

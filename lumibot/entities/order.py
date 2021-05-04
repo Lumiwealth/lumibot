@@ -1,8 +1,9 @@
 from collections import namedtuple
 
 import lumibot.entities as entities
-from .transaction import Transaction
 from lumibot import OrderStatus as Status
+
+from .transaction import Transaction
 
 
 class Order:
@@ -35,6 +36,7 @@ class Order:
 
         # setting internal variables
         self._raw = None
+        self._raw_legs = []
         self._transmitted = False
         self._error = None
         self._error_message = None
@@ -116,10 +118,11 @@ class Order:
     def was_transmitted(self):
         return self._transmitted is True
 
-    def update_raw(self, raw):
+    def update_raw(self, raw, legs=None):
         if raw is not None:
             self._transmitted = True
             self._raw = raw
+            self._raw_legs = legs
 
     def to_position(self):
         position = entities.Position(

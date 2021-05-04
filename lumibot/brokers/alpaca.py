@@ -88,7 +88,7 @@ class Alpaca(AlpacaData, Broker):
         )
         order.set_identifier(response.id)
         order.update_status(response.status)
-        order.update_raw(response)
+        order.update_raw(response._raw, response._raw.legs)
         return order
 
     def _pull_broker_order(self, id):
@@ -106,9 +106,9 @@ class Alpaca(AlpacaData, Broker):
         _flatten_order returns a list containing the main order
         and all the derived ones"""
         orders = [order]
-        if order._raw.legs:
+        if order._raw_legs:
             strategy = order.strategy
-            for json_sub_order in order._raw.legs:
+            for json_sub_order in order._raw_legs:
                 sub_order = self._parse_broker_order(json_sub_order, strategy)
                 orders.append(sub_order)
 

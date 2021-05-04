@@ -96,7 +96,7 @@ class Alpaca(AlpacaData, Broker):
         )
         order.set_identifier(response.id)
         order.update_status(response.status)
-        order.update_raw(response._raw, response._raw.legs)
+        order.update_raw(response._raw, response.legs)
         return order
 
     def _pull_broker_order(self, id):

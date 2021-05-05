@@ -829,6 +829,7 @@ A strategy object has the following properties:
 - unspent_money: indicates the amount of unspent money from the initial
   budget allocated to the strategy. This property is updated whenever a transaction was filled 
   by the broker or when dividends are paid.
+- first_iteration: is `True` if the lifecycle method `on_trading_iteration` is being excuted for the first time.
 - timezone: The string representation of the timezone used by the trading data_source. 
   By default ``America/New_York``.
 - pytz: the ```pytz``` object representation of the timezone property.

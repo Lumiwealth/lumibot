@@ -75,7 +75,8 @@ mapping = {
         "kwargs": {},
         "backtesting_cache": False,
         "config": None,
-    },  "option": {
+    },
+    "option": {
         "class": Option,
         "backtesting_datasource": None,
         "kwargs": {},

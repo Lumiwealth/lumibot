@@ -103,13 +103,13 @@ class Simple(Strategy):
         # }
         #
         # self.check_function(log_methods)
+        self.counter = 1
         pass
 
     def check_function(self, log_methods):
         for lm, kwargs in log_methods.items():
             lm_eval = f"self.{lm}(**kwargs)"
             print(f"{lm}: \n{eval(lm_eval)}")
-
 
     def on_trading_iteration(self):
         symbols = ["FB", "TSLA", "MSFT", "F", "AAPL"]
@@ -120,10 +120,33 @@ class Simple(Strategy):
         # self.cancel_order(1000324)
         # self.sell_all(cancel_open_orders=True)
 
-        for symbol in symbols[:1]:
-            new_order = self.create_order(symbol, 10, "buy", stop_price=295)
-            # new_order = self.create_order(symbol, 10, "buy") # todo Not working
+        print(
+            f"Unspent money before:  "
+            f"{self._initial_budget}, "
+            f"{self.unspent_money}, "
+            f"{self._portfolio_value}"
+        )
+
+        if self.counter > 0:
+            return
+        for symbol in symbols[1:2]:
+            # new_order = self.create_order(symbol, 10, "buy", stop_price=295)
+            new_order = self.create_order(symbol, 10, "buy")
             self.submitted_order = self.submit_order(new_order)
+            self.counter += 1
+
+        print(
+            f"Unspent money after:  "
+            f"{self._initial_budget}, "
+            f"{self.unspent_money}, "
+            f"{self._portfolio_value}"
+        )
+        # print(
+        #     "Tradable assets: ",
+        #     self.get_tradable_assets(easy_to_borrow=True, filter_func=None),
+        # )
+        # for item in self.portfolio:
+        #     print("Items in portfolio: ", item)
 
         # Dictionary for inserting methods to log, parameters in sub-dict.
         ##############
@@ -154,9 +177,9 @@ class Simple(Strategy):
         #   Broker    #
         ###############
         # log_methods = {
-            # "broker.is_market_open": {},
-            # "broker.get_time_to_open": {},
-            # "broker.get_time_to_close": {},
+        # "broker.is_market_open": {},
+        # "broker.get_time_to_open": {},
+        # "broker.get_time_to_close": {},
         # }
         #
         # self.check_function(log_methods)

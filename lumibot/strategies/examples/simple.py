@@ -2,6 +2,7 @@ import logging
 import random
 
 from lumibot.strategies.strategy import Strategy
+from lumibot.entities import Asset
 
 """
 Strategy Description
@@ -23,7 +24,8 @@ class Simple(Strategy):
 
         # Our Own Variables
         self.counter = 0
-        self.buy_symbol = "AGG"
+
+        self.buy_symbol = Asset(symbol="AGG")
 
     def on_trading_iteration(self):
         # What to do each iteration
@@ -31,7 +33,7 @@ class Simple(Strategy):
         logging.info(
             f"Counter is at {self.counter}, program thinks it is {self.get_datetime()}"
         )
-        logging.info(f"The value of {self.buy_symbol} is {current_value}")
+        logging.info(f"The value of {self.buy_symbol.symbol} is {current_value}")
 
         all_positions = self.get_tracked_positions()
         if len(all_positions) > 0:

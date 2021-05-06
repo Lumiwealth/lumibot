@@ -8,16 +8,17 @@ from .bar import Bar
 
 
 class Bars:
-    def __init__(self, df, source, symbol, raw=None):
+    def __init__(self, df, source, asset, raw=None):
         """
         df columns: open, high, low, close, volume, dividend, stock_splits
         df index: pd.Timestamp localized at the timezone America/New_York
         """
         if df.shape[0] == 0:
-            raise NoDataFound(source, symbol)
+            raise NoDataFound(source, asset)
         self.df = df
         self.source = source.upper()
-        self.symbol = symbol.upper()
+        self.asset = asset
+        self.symbol = asset.symbol.upper()
         self._raw = raw
 
     def __repr__(self):
@@ -27,7 +28,7 @@ class Bars:
         return self.df._repr_html_()
 
     @classmethod
-    def parse_bar_list(cls, bar_list, source, symbol):
+    def parse_bar_list(cls, bar_list, source, asset):
         raw = []
         for bar in bar_list:
             raw.append(bar)
@@ -37,7 +38,7 @@ class Bars:
         df["price_change"] = df["close"].pct_change()
         df["dividend_yield"] = df["dividend"] / df["close"]
         df["return"] = df["dividend_yield"] + df["price_change"]
-        bars = cls(df, source, symbol, raw=bar_list)
+        bars = cls(df, source, asset, raw=bar_list)
         return bars
 
     def split(self):

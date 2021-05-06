@@ -1,6 +1,8 @@
 import logging
 
 from lumibot.strategies.strategy import Strategy
+from lumibot.entities import Asset
+
 
 """
 Strategy Description
@@ -48,11 +50,14 @@ class Diversification(Strategy):
                 "last_price": None,
             },
             {
-                "symbol": "DJP",  # Commidities
+                "symbol": "DJP",  # Commodities
                 "weight": 0.075,
                 "last_price": None,
             },
         ]
+        # Create asset objects from symbols
+        for port_asset in self.portfolio:
+            port_asset["asset"] = Asset(symbol=port_asset["symbol"])
 
     def on_trading_iteration(self):
         # If the target number of days (period) has passed, rebalance the portfolio
@@ -74,11 +79,11 @@ class Diversification(Strategy):
         # Add the price, quantity and weight of each asset for the time period (row)
         row = {}
         for item in self.portfolio:
-            # Symbol is a dictionary with price, quantity and weight of the asset
-            symbol = item.get("symbol")
+            # item is a dictionary with price, quantity and weight of the asset
+            asset = item.get("asset")
             for key in item:
-                if key != "symbol":
-                    row[f"{symbol}_{key}"] = item[key]
+                if key != "asset":
+                    row[f"{asset}_{key}"] = item[key]
 
         return row
 
@@ -90,27 +95,27 @@ class Diversification(Strategy):
 
     def update_prices(self):
         """Update portfolio assets price"""
-        symbols = [a.get("symbol") for a in self.portfolio]
-        prices = self.get_last_prices(symbols)
-        for asset in self.portfolio:
-            asset["last_price"] = prices.get(asset["symbol"])
+        assets = [a.get("asset") for a in self.portfolio]
+        prices = self.get_last_prices(assets)
+        for port_asset in self.portfolio:
+            port_asset["last_price"] = prices.get(port_asset["asset"])
 
     def rebalance_portfolio(self):
         """Rebalance the portfolio and create orders"""
         orders = []
-        for asset in self.portfolio:
+        for port_asset in self.portfolio:
             # Get all of our variables from portfolio
-            symbol = asset.get("symbol")
-            weight = asset.get("weight")
-            last_price = asset.get("last_price")
+            asset = port_asset.get("asset")
+            weight = port_asset.get("weight")
+            last_price = port_asset.get("last_price")
 
             # Get how many shares we already own
             # (including orders that haven't been executed yet)
-            quantity = self.get_asset_potential_total(symbol)
+            quantity = self.get_asset_potential_total(asset)
             if quantity:
                 logging.info(
                     "Asset %s shares value: %.2f$. %.2f$ per %d shares."
-                    % (symbol, quantity * last_price, last_price, quantity)
+                    % (asset, quantity * last_price, last_price, quantity)
                 )
 
             # Calculate how many shares we need to buy or sell
@@ -119,7 +124,7 @@ class Diversification(Strategy):
             quantity_difference = new_quantity - quantity
             logging.info(
                 "Weighted %s shares value with %.2f%% weight: %.2f$. %.2f$ per %d shares."
-                % (symbol, weight * 100, shares_value, last_price, new_quantity)
+                % (asset, weight * 100, shares_value, last_price, new_quantity)
             )
 
             # If quantity is positive then buy, if it's negative then sell
@@ -131,8 +136,8 @@ class Diversification(Strategy):
 
             # Execute the order if necessary
             if side:
-                order = self.create_order(symbol, abs(quantity_difference), side)
+                order = self.create_order(asset, abs(quantity_difference), side)
                 orders.append(order)
-                asset["quantity"] = new_quantity
+                port_asset["quantity"] = new_quantity
 
         self.submit_orders(orders)

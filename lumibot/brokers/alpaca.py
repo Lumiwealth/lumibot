@@ -56,15 +56,15 @@ class Alpaca(AlpacaData, Broker):
     def _parse_broker_position(self, broker_position, strategy, orders=None):
         """parse a broker position representation
         into a position object"""
-        symbol = broker_position.symbol
+        asset = broker_position.asset
         quantity = broker_position.qty
-        position = Position(strategy, symbol, quantity, orders=orders)
+        position = Position(strategy, asset, quantity, orders=orders)
         return position
 
-    def _pull_broker_position(self, symbol):
-        """Given a symbol, get the broker representation
-        of the corresponding symbol"""
-        response = self.api.get_position(symbol)
+    def _pull_broker_position(self, asset):
+        """Given a asset, get the broker representation
+        of the corresponding asset"""
+        response = self.api.get_position(asset)
         return response
 
     def _pull_broker_positions(self):
@@ -79,7 +79,7 @@ class Alpaca(AlpacaData, Broker):
         to an order object"""
         order = Order(
             strategy,
-            response.symbol,
+            response.asset,
             response.qty,
             response.side,
             limit_price=response.limit_price,
@@ -129,7 +129,7 @@ class Alpaca(AlpacaData, Broker):
         kwargs = {k: v for k, v in kwargs.items() if v}
         try:
             response = self.api.submit_order(
-                order.symbol, order.quantity, order.side, **kwargs
+                order.asset.symbol, order.quantity, order.side, **kwargs
             )
             order = self._parse_broker_order(response, order.strategy)
         except Exception as e:

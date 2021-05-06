@@ -129,17 +129,17 @@ class BacktestingBroker(Broker):
 
     # =========Positions functions==================
 
-    def _pull_broker_position(self, symbol):
-        """Given a symbol, get the broker representation
-        of the corresponding symbol"""
+    def _pull_broker_position(self, asset):
+        """Given an asset, get the broker representation
+        of the corresponding asset"""
         orders = []
         quantity = 0
         for position in self._filled_positions:
-            if position.symbol == symbol:
+            if position.asset == asset:
                 orders.extend(position.orders)
                 quantity += position.quantity
 
-        response = Position("", symbol, quantity, orders=orders)
+        response = Position("", asset, quantity, orders=orders)
         return response
 
     def _pull_broker_positions(self):
@@ -180,7 +180,11 @@ class BacktestingBroker(Broker):
         orders = [order]
         if order.stop_price:
             stop_loss_order = Order(
-                order.strategy, symbol, quantity, "sell", stop_price=order.stop_price
+                order.strategy,
+                order.asset,
+                order.quantity,
+                "sell",
+                stop_price=order.stop_price,
             )
             stop_loss_order = self._parse_broker_order(stop_loss_order, order.strategy)
             orders.append(stop_loss_order)
@@ -199,13 +203,13 @@ class BacktestingBroker(Broker):
 
     # =========Market functions=======================
 
-    def get_last_price(self, symbol):
-        """Takes an asset symbol and returns the last known price"""
-        return self._data_source.get_last_price(symbol)
+    def get_last_price(self, asset):
+        """Takes an asset asset and returns the last known price"""
+        return self._data_source.get_last_price(asset)
 
-    def get_last_prices(self, symbols):
-        """Takes a list of symbols and returns the last known prices"""
-        return self._data_source.get_last_prices(symbols)
+    def get_last_prices(self, assets):
+        """Takes a list of assets and returns the last known prices"""
+        return self._data_source.get_last_prices(assets)
 
     def get_tradable_assets(self, easy_to_borrow=None, filter_func=None):
         """Get the list of all tradable assets from the market"""
@@ -227,10 +231,10 @@ class BacktestingBroker(Broker):
         def on_trade_event(order):
             try:
                 identifier = order.identifier
-                symbol = order.symbol
+                asset = order.asset
                 stored_order = broker.get_tracked_order(identifier)
                 filled_quantity = stored_order.quantity
-                price = broker.get_last_price(symbol)
+                price = broker.get_last_price(asset)
                 broker._process_trade_event(
                     stored_order,
                     broker.FILLED_ORDER,

@@ -51,7 +51,7 @@ class DataSourceBacktesting:
         self._datetime = new_datetime
         print_progress_bar(new_datetime, self.datetime_start, self.datetime_end)
 
-    def _pull_source_symbol_bars(self, symbol, length, timestep=None, timeshift=None):
+    def _pull_source_asset_bars(self, asset, length, timestep=None, timeshift=None):
         if timestep is None:
             timestep = self.MIN_TIMESTEP
 
@@ -59,8 +59,8 @@ class DataSourceBacktesting:
         if timeshift:
             backtesting_timeshift += timeshift
 
-        result = self.LIVE_DATA_SOURCE._pull_source_symbol_bars(
-            self, symbol, length, timestep=timestep, timeshift=backtesting_timeshift
+        result = self.LIVE_DATA_SOURCE._pull_source_asset_bars(
+            self, asset, length, timestep=timestep, timeshift=backtesting_timeshift
         )
 
         filter_criteria = result.index <= self.localize_datetime(self._datetime)

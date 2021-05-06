@@ -1,6 +1,7 @@
 import logging
 
 from lumibot.strategies.strategy import Strategy
+from lumibot.entities import Asset
 
 """
 Strategy Description
@@ -26,9 +27,14 @@ class IntradayMomentum(Strategy):
         # Set the symbols that we want to be monitoring
         self.symbols = ["SPY", "GLD", "TLT", "MSFT", "TSLA"]
 
+        # Create asset objects from symbols
+        self.assets = list()
+        for symbol in self.symbols:
+            self.assets.append(Asset(symbol=symbol))
+
         # Initialize our variables
-        self.asset = ""
-        self.quantity = 0
+        self.curr_asset = ""
+        self.curr_quantity = 0
 
     def on_trading_iteration(self):
         # Get the momentums of all the assets we are tracking
@@ -38,48 +44,54 @@ class IntradayMomentum(Strategy):
         # (aka the highest momentum)
         momentums.sort(key=lambda x: x.get("return"))
         best_asset_data = momentums[-1]
-        best_asset = best_asset_data.get("symbol")
+        best_asset = best_asset_data.get("asset")
         best_asset_return = best_asset_data.get("return")
 
         # Get the data for the currently held asset
-        if self.asset:
-            current_asset_data = [m for m in momentums if m["symbol"] == self.asset][0]
+        if self.curr_asset:
+            current_asset_data = [
+                m for m in momentums if m["asset"] == self.curr_asset
+            ][0]
             current_asset_return = current_asset_data["return"]
 
             # If the returns are equals, keep the current asset
             if current_asset_return >= best_asset_return:
-                best_asset = self.asset
+                best_asset = self.curr_asset
                 best_asset_data = current_asset_data
 
-        logging.info("%s best symbol." % best_asset)
+        logging.info("%s best asset." % best_asset.symbol)
 
         # If the asset with the highest momentum has changed, buy the new asset
-        if best_asset != self.asset:
+        if best_asset != self.curr_asset:
             # Sell the current asset that we own
-            if self.asset:
-                logging.info("Swapping %s for %s." % (self.asset, best_asset))
-                order = self.create_order(self.asset, self.quantity, "sell")
+            if self.curr_asset:
+                logging.info(
+                    "Swapping %s for %s." % (self.curr_asset.symbol, best_asset.symbol)
+                )
+                order = self.create_order(self.curr_asset, self.curr_quantity, "sell")
                 self.submit_order(order)
 
             # Calculate the quantity and send the buy order for the new asset
-            self.asset = best_asset
+            self.curr_asset = best_asset
             best_asset_price = best_asset_data["price"]
-            self.quantity = self.portfolio_value // best_asset_price
-            order = self.create_order(self.asset, self.quantity, "buy")
+            self.curr_quantity = self.portfolio_value // best_asset_price
+            order = self.create_order(self.curr_asset, self.curr_quantity, "buy")
             self.submit_order(order)
         else:
-            logging.info("Keeping %d shares of %s" % (self.quantity, self.asset))
+            logging.info(
+                "Keeping %d shares of %s" % (self.curr_quantity, self.curr_asset.symbol)
+            )
 
     def before_market_closes(self):
         # Make sure that we sell everything before the market closes
         self.sell_all()
-        self.quantity = 0
-        self.asset = ""
+        self.curr_quantity = 0
+        self.curr_asset = ""
 
     def on_abrupt_closing(self):
         self.sell_all()
-        self.quantity = 0
-        self.asset = ""
+        self.curr_quantity = 0
+        self.curr_asset = ""
 
     def trace_stats(self, context, snapshot_before):
         """
@@ -91,14 +103,14 @@ class IntradayMomentum(Strategy):
             "old_asset_quantity": snapshot_before.get("quantity"),
             "old_unspent_money": snapshot_before.get("unspent_money"),
             "old_portfolio_value": snapshot_before.get("portfolio_value"),
-            "new_best_asset": self.asset,
-            "new_asset_quantity": self.quantity,
+            "new_best_asset": self.curr_asset.symbol,
+            "new_asset_quantity": self.curr_quantity,
         }
 
         # Get the momentums of all the assets from the context of on_trading_iteration
         # (notice that on_trading_iteration has a variable called momentums, this is what
         # we are reading here)
-        momentums = context.get("momentums")
+        momentums = context.get("momentums")  # todo review this
         for item in momentums:
             symbol = item.get("symbol")
             for key in item:
@@ -117,21 +129,22 @@ class IntradayMomentum(Strategy):
         over the time period set in self.momentum_length
         """
         momentums = []
-        for symbol in self.symbols:
-            # Get the return for symbol over self.momentum_length minutes
-            bars_set = self.get_symbol_bars(symbol, self.momentum_length + 1)
+        for asset in self.assets:
+            # Get the return for asset over self.momentum_length minutes
+            bars_set = self.get_asset_bars(asset, self.momentum_length + 1)
             start_date = self.get_round_minute(timeshift=self.momentum_length + 1)
-            symbol_momentum = bars_set.get_momentum(start=start_date)
+            asset_momentum = bars_set.get_momentum(start=start_date)
             logging.info(
                 "%s has a return value of %.2f%% over the last %d minutes(s)."
-                % (symbol, 100 * symbol_momentum, self.momentum_length)
+                % (asset.symbol, 100 * asset_momentum, self.momentum_length)
             )
 
             momentums.append(
                 {
-                    "symbol": symbol,
+                    "asset": asset,
+                    "symbol": asset.symbol,
                     "price": bars_set.get_last_price(),
-                    "return": symbol_momentum,
+                    "return": asset_momentum,
                 }
             )
 

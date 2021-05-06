@@ -2,9 +2,10 @@ import lumibot.entities as entities
 
 
 class Position:
-    def __init__(self, strategy, symbol, quantity, orders=None):
+    def __init__(self, strategy, asset, quantity, orders=None):
         self.strategy = strategy
-        self.symbol = symbol
+        self.asset = asset
+        self.symbol = self.asset.symbol
         self.quantity = None
         self.orders = None
 
@@ -47,7 +48,7 @@ class Position:
         self._raw = raw
 
     def get_selling_order(self):
-        order = entities.Order(self.strategy, self.symbol, self.quantity, "sell")
+        order = entities.Order(self.strategy, self.asset, self.quantity, "sell")
         return order
 
     def add_order(self, order):

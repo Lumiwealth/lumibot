@@ -83,7 +83,7 @@ class Broker:
     def _process_partially_filled_order(self, order, price, quantity):
         logging.info(
             "New transaction: %s %d of %s at %s$ per share"
-            % (order.side, quantity, order.symbol, price)
+            % (order.side, quantity, order.asset.symbol, price)
         )
         logging.info("%r was partially filled" % order)
         self._new_orders.remove(order.identifier, key="identifier")
@@ -96,7 +96,7 @@ class Broker:
     def _process_filled_order(self, order, price, quantity):
         logging.info(
             "New transaction: %s %d of %s at %s$ per share"
-            % (order.side, quantity, order.symbol, price)
+            % (order.side, quantity, order.asset.symbol, price)
         )
         logging.info("%r was filled" % order)
         self._new_orders.remove(order.identifier, key="identifier")
@@ -105,9 +105,9 @@ class Broker:
         order.add_transaction(price, quantity)
         order.update_status(self.FILLED_ORDER)
 
-        position = self.get_tracked_position(order.strategy, order.symbol)
+        position = self.get_tracked_position(order.strategy, order.asset.symbol)
         if position is None:
-            # Create new position for this given strategy,symbol
+            # Create new position for this given strategy and asset
             position = order.to_position()
             self._filled_positions.append(position)
         else:
@@ -159,11 +159,11 @@ class Broker:
 
     # =========Positions functions==================
 
-    def get_tracked_position(self, strategy, symbol):
-        """get a tracked position given a symbol and
+    def get_tracked_position(self, strategy, asset):
+        """get a tracked position given an asset and
         a strategy"""
         for position in self._filled_positions:
-            if position.symbol == symbol and position.strategy == strategy:
+            if position.asset == asset and position.strategy == strategy:
                 return position
         return None
 
@@ -190,9 +190,9 @@ class Broker:
 
         return result
 
-    def _pull_broker_position(self, symbol):
-        """Given a symbol, get the broker representation
-        of the corresponding symbol"""
+    def _pull_broker_position(self, asset):
+        """Given a asset, get the broker representation
+        of the corresponding asset"""
         pass
 
     def _pull_broker_positions(self):
@@ -206,10 +206,10 @@ class Broker:
         result = self._parse_broker_positions(response, strategy)
         return result
 
-    def _pull_position(self, strategy, symbol):
-        """Get the account position for a given symbol.
+    def _pull_position(self, strategy, asset):
+        """Get the account position for a given asset.
         return a position object"""
-        response = self._pull_broker_position(symbol)
+        response = self._pull_broker_position(asset)
         result = self._parse_broker_position(response, strategy)
         return result
 
@@ -222,34 +222,32 @@ class Broker:
                 return order
         return None
 
-    def get_tracked_orders(self, strategy, symbol=None):
+    def get_tracked_orders(self, strategy, asset=None):
         """get all tracked orders for a given strategy"""
         result = []
         for order in self._tracked_orders:
-            if order.strategy == strategy and (
-                symbol is None or order.symbol == symbol
-            ):
+            if order.strategy == strategy and (asset is None or order.asset == asset):
                 result.append(order)
 
         return result
 
     def get_tracked_assets(self, strategy):
-        """Get the list of symbols for positions
+        """Get the list of assets for positions
         and open orders for a given strategy"""
         orders = self.get_tracked_orders(strategy)
         positions = self.get_tracked_positions(strategy)
-        result = [o.symbol for o in orders] + [p.symbol for p in positions]
+        result = [o.asset for o in orders] + [p.asset for p in positions]
         return list(set(result))
 
-    def get_asset_potential_total(self, strategy, symbol):
-        """given a strategy and a symbol, check the ongoing
+    def get_asset_potential_total(self, strategy, asset):
+        """given a strategy and a asset, check the ongoing
         position and the tracked order and returns the total
         number of shares provided all orders went through"""
         quantity = 0
-        position = self.get_tracked_position(strategy, symbol)
+        position = self.get_tracked_position(strategy, asset)
         if position is not None:
             quantity = position.quantity
-        orders = self.get_tracked_orders(strategy, symbol)
+        orders = self.get_tracked_orders(strategy, asset)
         for order in orders:
             quantity += order.get_increment()
         return quantity
@@ -342,12 +340,12 @@ class Broker:
 
     # =========Market functions=======================
 
-    def get_last_price(self, symbol):
-        """Takes an asset symbol and returns the last known price"""
+    def get_last_price(self, asset):
+        """Takes an asset asset and returns the last known price"""
         pass
 
-    def get_last_prices(self, symbols):
-        """Takes a list of symbols and returns the last known prices"""
+    def get_last_prices(self, assets):
+        """Takes a list of assets and returns the last known prices"""
         pass
 
     def get_tradable_assets(self, easy_to_borrow=None, filter_func=None):

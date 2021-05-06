@@ -12,7 +12,7 @@ class Order:
     def __init__(
         self,
         strategy,
-        symbol,
+        asset,
         quantity,
         side,
         limit_price=None,
@@ -27,7 +27,8 @@ class Order:
     ):
         # Initialization default values
         self.strategy = strategy
-        self.symbol = symbol
+        self.asset = asset
+        self.symbol = self.asset.symbol
         self.quantity = None
         self.limit_price = None
         self.stop_price = None
@@ -140,7 +141,7 @@ class Order:
 
     def to_position(self):
         position = entities.Position(
-            self.strategy, self.symbol, self.quantity, orders=[self]
+            self.strategy, self.asset, self.quantity, orders=[self]
         )
         return position
 

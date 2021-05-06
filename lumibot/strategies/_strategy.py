@@ -97,13 +97,13 @@ class _Strategy:
         with self._executor.lock:
             portfolio_value = self._unspent_money
             positions = self.broker.get_tracked_positions(self._name)
-            symbols = [position.symbol for position in positions]
-            prices = self.data_source.get_last_prices(symbols)
+            assets = [position.asset for position in positions]
+            prices = self.data_source.get_last_prices(assets)
 
             for position in positions:
-                symbol = position.symbol
+                asset = position.asset
                 quantity = position.quantity
-                price = prices.get(symbol, 0)
+                price = prices.get(asset, 0)
                 portfolio_value += quantity * price
 
             self._portfolio_value = portfolio_value
@@ -124,12 +124,12 @@ class _Strategy:
     def _update_unspent_money_with_dividends(self):
         with self._executor.lock:
             positions = self.broker.get_tracked_positions(self._name)
-            symbols = [position.symbol for position in positions]
-            dividends_per_share = self.get_yesterday_dividends(symbols)
+            assets = [position.asset for position in positions]
+            dividends_per_share = self.get_yesterday_dividends(assets)
             for position in positions:
-                symbol = position.symbol
+                asset = position.asset
                 quantity = position.quantity
-                dividend_per_share = dividends_per_share.get(symbol, 0)
+                dividend_per_share = dividends_per_share.get(asset, 0)
                 self._unspent_money += dividend_per_share * quantity
             return self._unspent_money
 

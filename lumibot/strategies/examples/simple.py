@@ -2,7 +2,6 @@ import logging
 import random
 
 from lumibot.strategies.strategy import Strategy
-from lumibot.entities import Asset
 
 """
 Strategy Description
@@ -25,7 +24,7 @@ class Simple(Strategy):
         # Our Own Variables
         self.counter = 0
 
-        self.buy_symbol = Asset(symbol="AGG")
+        self.buy_symbol = self.create_asset("AGG")
 
     def on_trading_iteration(self):
         # What to do each iteration

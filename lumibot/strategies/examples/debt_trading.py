@@ -5,7 +5,6 @@ import pandas as pd
 import pandas_datareader.data as pdr
 
 from lumibot.strategies.strategy import Strategy
-from lumibot.entities import Asset
 
 
 class DebtTrading(Strategy):
@@ -40,7 +39,8 @@ class DebtTrading(Strategy):
 
         # Create asset objects from symbols
         for port_asset in self.portfolio:
-            port_asset["asset"] = Asset(symbol=port_asset["symbol"])
+            port_asset["asset"] = self.create_asset(port_asset["symbol"])
+
 
     def on_trading_iteration(self):
         # If the target number of days (period) has passed, rebalance the portfolio

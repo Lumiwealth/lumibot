@@ -1,6 +1,6 @@
 import logging
 
-from lumibot.entities import Order
+from lumibot.entities import Order, Asset
 
 from ._strategy import _Strategy
 
@@ -228,6 +228,10 @@ class Strategy(_Strategy):
 
     def to_default_timezone(self, dt):
         return self.data_source.to_default_timezone(dt)
+
+    def create_asset(self, symbol, asset_type=None, name=None):
+        """Create an asset object."""
+        return Asset(symbol, asset_type=asset_type, name=name)
 
     def get_asset_bars(
         self,

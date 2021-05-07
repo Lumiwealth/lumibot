@@ -1,7 +1,6 @@
 import logging
 
 from lumibot.strategies.strategy import Strategy
-from lumibot.entities import Asset
 
 """
 Strategy Description
@@ -35,7 +34,7 @@ class Momentum(Strategy):
         # Create asset objects from symbols
         self.assets = list()
         for symbol in self.symbols:
-            self.assets.append(Asset(symbol=symbol))
+            self.assets.append(self.create_asset(symbol))
 
         # The asset that we want to buy/currently own, and the quantity
         self.curr_asset = ""

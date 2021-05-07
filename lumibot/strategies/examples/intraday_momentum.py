@@ -1,7 +1,6 @@
 import logging
 
 from lumibot.strategies.strategy import Strategy
-from lumibot.entities import Asset
 
 """
 Strategy Description
@@ -30,7 +29,7 @@ class IntradayMomentum(Strategy):
         # Create asset objects from symbols
         self.assets = list()
         for symbol in self.symbols:
-            self.assets.append(Asset(symbol=symbol))
+            self.assets.append(self.create_asset(symbol=symbol))
 
         # Initialize our variables
         self.curr_asset = ""

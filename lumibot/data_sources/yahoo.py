@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import yfinance as yf
 
@@ -46,7 +46,9 @@ class YahooData(DataSource):
         if symbol in self._data_store:
             data = self._data_store[symbol]
         else:
-            data = yf.Ticker(symbol).history(period="max", auto_adjust=self.auto_adjust)
+            data = yf.Ticker(symbol).history(start=self.datetime_start,
+                end=self.datetime_end + timedelta(days=7), auto_adjust=self.auto_adjust)
+            data = data.loc[data.index <= self.datetime_end, :]
             if data.shape[0] == 0:
                 raise NoDataFound(self.SOURCE, symbol)
             data = self._append_data(symbol, data)
@@ -65,10 +67,24 @@ class YahooData(DataSource):
         missing_symbols = [
             symbol for symbol in symbols if symbol not in self._data_store
         ]
-        tickers = yf.Tickers(" ".join(missing_symbols))
-        for ticker in tickers.tickers:
-            data = ticker.history(period="max", auto_adjust=self.auto_adjust)
-            self._append_data(ticker.ticker, data)
+
+        if missing_symbols:
+            tickers = yf.Tickers(" ".join(missing_symbols))
+            df_yf = tickers.history(
+                start=self.datetime_start,
+                end=self.datetime_end + timedelta(days=7),
+                thread=True,
+                group_by="ticker",
+                auto_adjust=self.auto_adjust,
+            )
+            df_yf = df_yf.loc[df_yf.index <= self.datetime_end, :]
+
+            dfs = {}
+            for i in df_yf.columns.levels[0]:
+                dfs[i] = df_yf[i].copy()
+
+            for symbol, df in dfs.items():
+                self._append_data(symbol, df)
 
         result = {}
         for symbol in symbols:

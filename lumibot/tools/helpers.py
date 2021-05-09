@@ -1,5 +1,6 @@
 import logging
 import os
+import pickle
 import sys
 
 import yfinance as yf
@@ -34,13 +35,29 @@ def deduplicate_sequence(seq, key=""):
 def get_trading_days():
     """Requesting data for the oldest company,
     Consolidated Edison from yahoo finance.
-    Storing the trading days."""
+    Storing the trading days.
+    Index saved to pickle where available for performance.
+    """
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
     logging.info("Fetching past trading days")
+
+    filename = "lumibot/tools/date_index.pkl"
+    try:
+        with open(filename, "rb") as f:
+            dates_saved = pickle.load(f)
+    except:
+        dates_saved = list()
+
     ticker = yf.Ticker("ED")
-    history = ticker.history(period="max")
-    days = [d.date() for d in history.index]
+    update_start = dates_saved[-1] if len(dates_saved) != 0 else "1900-01-01"
+    dates_update = ticker.history(start=update_start).index
+    dates_update = dates_update[1:]
+
+    dates_update = list(dates_update.date)
+    days = sorted(list(set(dates_saved + dates_update)))
+    with open(filename, "wb") as f:
+        pickle.dump(days, f)
     return days
 
 

@@ -7,7 +7,7 @@ from datetime import timezone
 import alpaca_trade_api as tradeapi
 
 from lumibot.data_sources import AlpacaData
-from lumibot.entities import Order, Position
+from lumibot.entities import Order, Position, Asset
 
 from .broker import Broker
 
@@ -79,7 +79,7 @@ class Alpaca(AlpacaData, Broker):
         to an order object"""
         order = Order(
             strategy,
-            response.asset,
+            Asset(response.symbol),
             response.qty,
             response.side,
             limit_price=response.limit_price,
@@ -131,6 +131,7 @@ class Alpaca(AlpacaData, Broker):
             response = self.api.submit_order(
                 order.asset.symbol, order.quantity, order.side, **kwargs
             )
+
             order = self._parse_broker_order(response, order.strategy)
         except Exception as e:
             order.set_error(e)

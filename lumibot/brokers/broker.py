@@ -105,7 +105,7 @@ class Broker:
         order.add_transaction(price, quantity)
         order.update_status(self.FILLED_ORDER)
 
-        position = self.get_tracked_position(order.strategy, order.asset.symbol)
+        position = self.get_tracked_position(order.strategy, order.asset)
         if position is None:
             # Create new position for this given strategy and asset
             position = order.to_position()

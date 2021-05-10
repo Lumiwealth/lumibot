@@ -18,9 +18,9 @@ from lumibot.traders import Trader
 from lumibot.trading_builtins import set_redis_db
 
 # Global parameters
-debug = False
+debug = True
 budget = 40000
-backtesting_start = datetime(2010, 1, 1)
+backtesting_start = datetime(2020, 10, 1)
 backtesting_end = datetime(2020, 12, 31)
 logfile = "logs/test.log"
 

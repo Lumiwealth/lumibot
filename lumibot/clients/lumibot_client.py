@@ -232,8 +232,7 @@ class LumibotClient:
                     pass
 
                 self.db.create_all()
-
-            self.create_superadmin()
+                self.create_superadmin()
 
     def run(self, port="5000"):
         return self.socketio.run(self.app, port=port)

@@ -46,7 +46,6 @@ class YahooData(DataSource):
         if asset in self._data_store:
             data = self._data_store[asset]
         else:
-            print(f"CHECK symbol: {asset.symbol}")
             data = yf.Ticker(asset.symbol).history(
                 period="max", auto_adjust=self.auto_adjust
             )

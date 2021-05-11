@@ -12,6 +12,7 @@ from lumibot.strategies.examples import (
     Diversification,
     IntradayMomentum,
     Momentum,
+    Simple,
 )
 from lumibot.tools import indicators, perf_counters
 from lumibot.traders import Trader
@@ -20,7 +21,7 @@ from lumibot.trading_builtins import set_redis_db
 # Global parameters
 debug = False
 budget = 40000
-backtesting_start = datetime(2019, 1, 1)
+backtesting_start = datetime(2010, 1, 1)
 backtesting_end = datetime(2020, 12, 31)
 logfile = "logs/test.log"
 
@@ -54,6 +55,13 @@ mapping = {
     },
     "intraday_momentum": {
         "class": IntradayMomentum,
+        "backtesting_datasource": None,
+        "kwargs": {},
+        "backtesting_cache": False,
+        "config": None,
+    },
+    "simple": {
+        "class": Simple,
         "backtesting_datasource": None,
         "kwargs": {},
         "backtesting_cache": False,

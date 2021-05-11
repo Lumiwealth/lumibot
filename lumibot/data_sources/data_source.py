@@ -96,7 +96,7 @@ class DataSource:
 
     # =================Public Market Data Methods==================
 
-    def get_asset_bars(self, asset, length, timestep="", timeshift=None):
+    def get_symbol_bars(self, asset, length, timestep="", timeshift=None):
         """Get bars for a given asset"""
         if not timestep:
             timestep = self.MIN_TIMESTEP
@@ -143,7 +143,7 @@ class DataSource:
         """Takes an asset and returns the last known price"""
         if timestep is None:
             timestep = self.MIN_TIMESTEP
-        bars = self.get_asset_bars(asset, 1, timestep=timestep)
+        bars = self.get_symbol_bars(asset, 1, timestep=timestep)
         return bars.df.iloc[0].close
 
     def get_last_prices(self, assets, timestep=None):
@@ -162,7 +162,7 @@ class DataSource:
     def get_yesterday_dividend(self, asset):
         """Return dividend per share for a given
         asset for the day before"""
-        bars = self.get_asset_bars(
+        bars = self.get_symbol_bars(
             asset, 1, timestep="day", timeshift=timedelta(days=1)
         )
         return bars.get_last_dividend()

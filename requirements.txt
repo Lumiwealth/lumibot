@@ -12,6 +12,7 @@ redis==3.5.3
 
 # Flask ecosystem dependencies
 Flask-socketio===4.3.2
+flask-smorest===0.30.0
 flask-sqlalchemy==2.5.1
 flask-marshmallow==0.14.0
 marshmallow-sqlalchemy==0.24.3

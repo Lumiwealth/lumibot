@@ -8,6 +8,7 @@ from flask import Flask
 
 from lumibot import OrderStatus
 
+from .api import register_api
 from .blueprints import register_blueprints
 from .config import AppConfig
 from .extensions import db, register_extensions, register_user_datastore, sockets
@@ -51,6 +52,7 @@ class LumibotClient:
         register_extensions(self.app)
         register_user_datastore(self.app, User, Role)
         register_blueprints(self.app)
+        register_api(self.app)
 
         self.init_db()
 

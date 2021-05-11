@@ -1,5 +1,3 @@
-from collections import namedtuple
-
 import lumibot.entities as entities
 from lumibot import OrderStatus as Status
 

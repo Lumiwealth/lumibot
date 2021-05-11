@@ -124,6 +124,10 @@ class Strategy(_Strategy):
     def positions(self):
         return self.get_tracked_positions()
 
+    def get_contract_details(self, asset):
+        asset = self._set_asset_mapping(asset)
+        return self.broker.get_contract_details(asset)
+
     def get_tracked_order(self, identifier):
         """get a tracked order given an identifier.
         Check that the order belongs to current strategy"""
@@ -197,6 +201,12 @@ class Strategy(_Strategy):
         within the current broker from the market"""
         return self.broker.get_tradable_assets(
             easy_to_borrow=easy_to_borrow, filter_func=filter_func
+        )
+
+    def options_params(self, asset, exchange="", underlyingConId=""):
+        asset = self._set_asset_mapping(asset)
+        return self.broker.option_params(
+            asset=asset, exchange=exchange, underlyingConId=underlyingConId
         )
 
     # =======Data source methods=================

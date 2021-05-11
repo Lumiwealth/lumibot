@@ -58,10 +58,10 @@ class Option(Strategy):
             buy_call_strike, sell_call_strike = self.buy_sell_strike(
                 self.last_price, strike_highs
             )
-            expiration_date = self.get_expiration_date()
+            expiration_date = self.get_expiration_date(expirations)
 
             # Create option assets.
-            asset["near"] = self.create_asset(
+            options["near"] = self.create_asset(
                 asset.symbol,
                 asset_type="option",
                 expiration=expiration_date,
@@ -69,7 +69,7 @@ class Option(Strategy):
                 right="CALL",
                 multiplier=100,
             )
-            asset["far"] = self.create_asset(
+            options["far"] = self.create_asset(
                 asset.symbol,
                 asset_type="option",
                 expiration=expiration_date,
@@ -80,7 +80,7 @@ class Option(Strategy):
 
     def on_trading_iteration(self):
 
-        for asset, options in self.trading_pairs[0:1].items():
+        for asset, options in self.trading_pairs.items():
             self.submit_order(
                 self.create_order(
                     options["near"],
@@ -117,7 +117,7 @@ class Option(Strategy):
         """Returns option chain on specific exchange. ."""
         contract_details = self.broker.get_contract_details(asset=asset)
         contract_id = contract_details[0].contract.conId
-        chains = self.broker.options_params(asset, underlyingConId=contract_id)
+        chains = self.options_params(asset, underlyingConId=contract_id)
         if len(chains) == 0:
             raise AssertionError(f"No option chain for {asset.symbol}")
         print(chains)

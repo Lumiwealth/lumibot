@@ -6,7 +6,10 @@ from ibapi.client import *
 from ibapi.contract import *
 from ibapi.order import *
 
-
+TYPE_MAP = dict(
+    stock="STK",
+    option="OPT",
+)
 # ===================INTERACTIVE BROKERS CLASSES===================
 class IBWrapper(EWrapper):
     """Listens and collects data from IB."""
@@ -453,7 +456,7 @@ class IBClient(EClient):
         # Call the contract details.
         contract = Contract()
         contract.symbol = asset.symbol
-        contract.secType = asset.asset_type
+        contract.secType = TYPE_MAP[asset.asset_type]
         contract.exchange = "SMART"
         contract.currency = "USD"
 
@@ -477,7 +480,7 @@ class IBClient(EClient):
 
         # Call the orders data.
         self.reqSecDefOptParams(
-            0, asset.symbol, exchange, asset.asset_type, underlyingConId
+            0, asset.symbol, exchange, TYPE_MAP[asset.asset_type], underlyingConId
         )
 
         try:
@@ -523,7 +526,7 @@ class IBApp(IBWrapper, IBClient):
         contract = Contract()
 
         contract.symbol = str(asset.symbol)
-        contract.secType = asset.asset_type
+        contract.secType = TYPE_MAP[asset.asset_type]
         contract.exchange = exchange
         contract.currency = currency
 

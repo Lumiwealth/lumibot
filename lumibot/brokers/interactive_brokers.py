@@ -299,7 +299,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
     def get_contract_details(self, asset):
         return self.ib.get_contract_details(asset=asset)
 
-    def options_params(self, asset, exchange="", underlyingConId=""):
+    def option_params(self, asset, exchange="", underlyingConId=""):
         return self.ib.option_params(
             asset=asset, exchange=exchange, underlyingConId=underlyingConId
         )

@@ -25,6 +25,7 @@ class Simple(Strategy):
         self.counter = 0
 
         self.buy_symbol = self.create_asset("AGG")
+        self.buy_symbol = "FB"
 
     def on_trading_iteration(self):
         # What to do each iteration

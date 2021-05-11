@@ -207,9 +207,9 @@ class BacktestingBroker(Broker):
         """Takes an asset asset and returns the last known price"""
         return self._data_source.get_last_price(asset)
 
-    def get_last_prices(self, assets):
-        """Takes a list of assets and returns the last known prices"""
-        return self._data_source.get_last_prices(assets)
+    def get_last_prices(self, symbols):
+        """Takes a list of symbols and returns the last known prices"""
+        return self._data_source.get_last_prices(symbols)
 
     def get_tradable_assets(self, easy_to_borrow=None, filter_func=None):
         """Get the list of all tradable assets from the market"""

@@ -12,6 +12,7 @@ from lumibot.strategies.examples import (
     Diversification,
     IntradayMomentum,
     Momentum,
+    Simple,
 )
 from lumibot.tools import indicators, perf_counters
 from lumibot.traders import Trader
@@ -54,6 +55,13 @@ mapping = {
     },
     "intraday_momentum": {
         "class": IntradayMomentum,
+        "backtesting_datasource": None,
+        "kwargs": {},
+        "backtesting_cache": False,
+        "config": None,
+    },
+    "simple": {
+        "class": Simple,
         "backtesting_datasource": None,
         "kwargs": {},
         "backtesting_cache": False,

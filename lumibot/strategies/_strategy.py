@@ -6,8 +6,10 @@ import pandas as pd
 from lumibot.backtesting import BacktestingBroker
 from lumibot.tools import day_deduplicate, get_risk_free_rate, stats_summary
 from lumibot.traders import Trader
+from lumibot.entities import Asset
 
 from .strategy_executor import StrategyExecutor
+
 
 
 class _Strategy:
@@ -64,6 +66,9 @@ class _Strategy:
         # Storing parameters for the initialize method
         self._parameters = kwargs
 
+        # Hold the asset objects for strings for stocks only.
+        self._asset_mapping = dict()
+
     # =============Internal functions===================
 
     def _copy_dict(self):
@@ -89,6 +94,18 @@ class _Strategy:
                 result[key[1:]] = deepcopy(self.__dict__[key])
 
         return result
+
+    def _set_asset_mapping(self, asset):
+        if isinstance(asset, Asset):
+            return asset
+        elif isinstance(asset, str):
+            if asset not in self._asset_mapping:
+                self._asset_mapping[asset] = Asset(asset)
+            return self._asset_mapping[asset]
+        else:
+            raise ValueError(f"You must enter a symbol string or an asset object. You "
+                             f"entered {asset}")
+
 
     # =============Auto updating functions=============
 

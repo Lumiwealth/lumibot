@@ -39,7 +39,7 @@ class YahooData(DataSource):
         self._data_store[asset] = data
         return data
 
-    def _pull_source_asset_bars(
+    def _pull_source_symbol_bars(
         self, asset, length, timestep=MIN_TIMESTEP, timeshift=None
     ):
         self._parse_source_timestep(timestep, reverse=True)
@@ -74,11 +74,11 @@ class YahooData(DataSource):
 
         result = {}
         for asset in assets:
-            result[asset] = self._pull_source_asset_bars(
+            result[asset] = self._pull_source_symbol_bars(
                 asset, length, timestep=timestep, timeshift=timeshift
             )
         return result
 
-    def _parse_source_asset_bars(self, response, asset):
+    def _parse_source_symbol_bars(self, response, asset):
         bars = Bars(response, self.SOURCE, asset, raw=response)
         return bars

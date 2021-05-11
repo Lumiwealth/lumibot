@@ -106,3 +106,4 @@ def print_progress_bar(
     line = f"\r{prefix} |{bar}| {percent_str}% {suffix}"
     file.write(line)
     file.flush()
+

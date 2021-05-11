@@ -52,7 +52,7 @@ class AlpacaData(DataSource):
             self.api_key, self.api_secret, self.endpoint, self.version
         )
 
-    def _pull_source_asset_bars(
+    def _pull_source_symbol_bars(
         self, asset, length, timestep=MIN_TIMESTEP, timeshift=None
     ):
         """pull broker bars for a given asset"""
@@ -78,7 +78,7 @@ class AlpacaData(DataSource):
         }
         return result
 
-    def _parse_source_asset_bars(self, response, asset):
+    def _parse_source_symbol_bars(self, response, asset):
         df = response.copy()
         df["price_change"] = df["close"].pct_change()
         df["dividend"] = 0

@@ -18,6 +18,7 @@ marshmallow-sqlalchemy==0.24.3
 flask-security==3.0.0
 email_validator==1.1.2 # flask_security dependency (not mentionned)
 bcrypt==3.2.0 # flask_security dependency (not mentionned)
+python-dotenv==0.17.1
 
 # Testing dependencies
 pytest==6.2.3

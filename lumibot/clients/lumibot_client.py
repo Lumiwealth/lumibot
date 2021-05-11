@@ -22,7 +22,7 @@ from .models import (
     User,
     UserRole,
 )
-from .schemas import AssetSchema, LoggingSchema, PortfolioPointSchema
+from .schemas import AssetSchema, LoggingSchema, PortfolioDetailSchema
 from .sockets import namespace
 
 
@@ -123,10 +123,16 @@ class LumibotClient:
             strategy = Strategy.get_by_name(source)
             total = data["portfolio_value"]
             unspent_money = data["unspent_money"]
+            positions_details = data["positions"]
             point = PortfolioPoint.create(
                 strategy=strategy, unspent_money=unspent_money, total=total
             )
-            portfolio_schema = PortfolioPointSchema()
+            for item in positions_details:
+                position = Position.get_position(source, item.get("symbol"))
+                position.update(latest_price=item.get("price"))
+
+            point.positions = positions_details
+            portfolio_schema = PortfolioDetailSchema()
             payload = portfolio_schema.dump(point)
 
         return payload
@@ -135,7 +141,7 @@ class LumibotClient:
         with self.app.app_context():
             strategy = Strategy.get_by_name(source)
             j = json.dumps(data, default=self.default_serializer)
-            Stats.create(strategy=strategy, json=j)
+            Stats.create(strategy=strategy, data=j)
 
         return data
 
@@ -189,6 +195,7 @@ class LumibotClient:
 
     def process_filled_order_signal(self, source, data):
         with self.app.app_context():
+            price = data.get("price")
             order = data.get("order")
             stored_order = Order.get_order(source, order.identifier)
             stored_order.update(raw=order, status=OrderStatus.filled_order)
@@ -204,6 +211,7 @@ class LumibotClient:
                 Position.create(
                     symbol=order.symbol,
                     quantity=order.quantity,
+                    latest_price=price,
                     strategy=strategy,
                     raw=position,
                 )

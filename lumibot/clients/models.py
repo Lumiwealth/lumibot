@@ -56,7 +56,7 @@ class Log(Model, SurrogatePK, TimeData):
 
 
 class Stats(Model, SurrogatePK, TimeData):
-    json = db.Column(db.JSON())
+    data = db.Column(db.JSON())
 
     strategy_id = db.Column(db.Integer, db.ForeignKey("strategy.id"))
 
@@ -100,6 +100,7 @@ class Order(Model, SurrogatePK):
 class Position(Model, SurrogatePK):
     symbol = db.Column(db.String(10))
     quantity = db.Column(db.Float())
+    latest_price = db.Column(db.Float())
     raw = db.Column(db.PickleType())
 
     strategy_id = db.Column(db.Integer, db.ForeignKey("strategy.id"))

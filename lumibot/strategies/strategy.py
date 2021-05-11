@@ -80,11 +80,6 @@ class Strategy(_Strategy):
         stop_price=None,
         time_in_force="day",
         exchange="SMART",
-        sec_type='STK',
-        expiration="",
-        strike="",
-        right="",
-        multiplier="",
     ):
         order = Order(
             self.name,
@@ -95,11 +90,11 @@ class Strategy(_Strategy):
             stop_price=stop_price,
             time_in_force=time_in_force,
             exchange=exchange,
-            sec_type=sec_type,
-            expiration=expiration,
-            strike=strike,
-            right=right,
-            multiplier=multiplier,
+            sec_type=asset.asset_types,
+            expiration=asset.expiration,
+            strike=asset.strike,
+            right=asset.right,
+            multiplier=asset.multiplier,
         )
         return order
 
@@ -229,9 +224,26 @@ class Strategy(_Strategy):
     def to_default_timezone(self, dt):
         return self.data_source.to_default_timezone(dt)
 
-    def create_asset(self, symbol, asset_type=None, name=None):
+    def create_asset(
+        self,
+        symbol,
+        asset_type=None,
+        name=None,
+        expiration=None,
+        strike=None,
+        right=None,
+        multiplier=None,
+    ):
         """Create an asset object."""
-        return Asset(symbol, asset_type=asset_type, name=name)
+        return Asset(
+            symbol,
+            asset_type=asset_type,
+            name=name,
+            expiration=expiration,
+            strike=strike,
+            right=right,
+            multiplier=multiplier,
+        )
 
     def get_asset_bars(
         self,

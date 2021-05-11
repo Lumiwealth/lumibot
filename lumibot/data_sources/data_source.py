@@ -76,7 +76,7 @@ class DataSource:
 
         raise UnavailabeTimestep(self.SOURCE, timestep)
 
-    def _pull_source_asset_bars(
+    def _pull_source_symbol_bars(
         self, asset, length, timestep=MIN_TIMESTEP, timeshift=None
     ):
         """pull source bars for a given asset"""
@@ -85,13 +85,13 @@ class DataSource:
     def _pull_source_bars(self, assets, length, timestep=MIN_TIMESTEP, timeshift=None):
         pass
 
-    def _parse_source_asset_bars(self, response, asset):
+    def _parse_source_symbol_bars(self, response, asset):
         pass
 
     def _parse_source_bars(self, response):
         result = {}
         for asset, data in response.items():
-            result[asset] = self._parse_source_asset_bars(data, asset)
+            result[asset] = self._parse_source_symbol_bars(data, asset)
         return result
 
     # =================Public Market Data Methods==================
@@ -101,10 +101,10 @@ class DataSource:
         if not timestep:
             timestep = self.MIN_TIMESTEP
 
-        response = self._pull_source_asset_bars(
+        response = self._pull_source_symbol_bars(
             asset, length, timestep=timestep, timeshift=timeshift
         )
-        bars = self._parse_source_asset_bars(response, asset)
+        bars = self._parse_source_symbol_bars(response, asset)
         return bars
 
     def get_bars(

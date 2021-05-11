@@ -59,7 +59,7 @@ class DataSourceBacktesting:
         if timeshift:
             backtesting_timeshift += timeshift
 
-        result = self.LIVE_DATA_SOURCE._pull_source_asset_bars(
+        result = self.LIVE_DATA_SOURCE._pull_source_symbol_bars(
             self, asset, length, timestep=timestep, timeshift=backtesting_timeshift
         )
 

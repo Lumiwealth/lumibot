@@ -27,44 +27,45 @@ class IBTest(Strategy):
         # contract.strike = strike
         # contract.right = right
         # Options
-        symbol = "AAPL"
-        exchange = "SMART"
-        last_price = self.get_last_price(symbol=symbol)
-        print(f"{symbol} Price: ", last_price)
-        contract_details = self.broker.get_contract_details(symbol=symbol)
-        contract_id = contract_details[0].contract.conId
-        chains = self.broker.options_params(symbol, underlyingConId=contract_id)
-        print(chains)
-        for x, p in chains.items():
-            if x == exchange:
-                print(type(p), p)
-                expirations = sorted(list(p["Expirations"]))
-                strikes = sorted(list(p["Strikes"]))
-                strike_high = sorted([n for n in strikes if n > last_price])
-                strike_low = sorted(
-                    [n for n in strikes if n < last_price], reverse=True
-                )
-                print(strike_high)
-                print(strike_low)
-                print(f"{exchange}:\n{expirations}\n{strikes}")
-        return
-            # buy a call 145, expire: "20210507"
-        right = "CALL"
-        expiration = "20210521"
-        strike = 150
-        self.submit_order(
-            self.create_order(
-                symbol,
-                10,
-                "sell",
-                exchange="CBOE",
-                sec_type="OPT",
-                expiration=expiration,
-                strike=strike,
-                right=right,
-                multiplier=100,
-            )
-        )
+        # symbol = "AAPL"
+        # exchange = "SMART"
+        #
+        # last_price = self.get_last_price(symbol=symbol)
+        # print(f"{symbol} Price: ", last_price)
+        # contract_details = self.broker.get_contract_details(symbol=symbol)
+        # contract_id = contract_details[0].contract.conId
+        # chains = self.broker.options_params(symbol, underlyingConId=contract_id)
+        # print(chains)
+        # for x, p in chains.items():
+        #     if x == exchange:
+        #         print(type(p), p)
+        #         expirations = sorted(list(p["Expirations"]))
+        #         strikes = sorted(list(p["Strikes"]))
+        #         strike_high = sorted([n for n in strikes if n > last_price])
+        #         strike_low = sorted(
+        #             [n for n in strikes if n < last_price], reverse=True
+        #         )
+        #         print(strike_high)
+        #         print(strike_low)
+        #         print(f"{exchange}:\n{expirations}\n{strikes}")
+        # return
+        #     # buy a call 145, expire: "20210507"
+        # right = "CALL"
+        # expiration = "20210521"
+        # strike = 150
+        # self.submit_order(
+        #     self.create_order(
+        #         symbol,
+        #         10,
+        #         "sell",
+        #         exchange="CBOE",
+        #         sec_type="OPT",
+        #         expiration=expiration,
+        #         strike=strike,
+        #         right=right,
+        #         multiplier=100,
+        #     )
+        # )
         time.sleep(5555)
         # Check connection and times
         log_methods = dict(

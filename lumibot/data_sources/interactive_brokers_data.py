@@ -56,22 +56,23 @@ class InteractiveBrokersData(DataSource):
             )
 
     def _pull_source_symbol_bars(
-        self, symbol, length, timestep=MIN_TIMESTEP, timeshift=None
+        self, asset, length, timestep=MIN_TIMESTEP, timeshift=None
     ):
-        """pull broker bars for a given symbol"""
+        """pull broker bars for a given asset"""
         response = self._pull_source_bars(
-            [symbol], length, timestep=timestep, timeshift=timeshift
+            [asset], length, timestep=timestep, timeshift=timeshift
         )
-        return response[symbol]
+        return response[asset]
 
-    def _pull_source_bars(self, symbols, length, timestep=MIN_TIMESTEP, timeshift=None):
-        """pull broker bars for a list symbols"""
+    def _pull_source_bars(self, assets, length, timestep=MIN_TIMESTEP, timeshift=None):
+        """pull broker bars for a list assets"""
 
         response = dict()
 
         parsed_timestep = self._parse_source_timestep(timestep, reverse=True)
         parsed_duration = self._parse_duration(length, timestep)
 
+        # IB can only ADJUSTED_LAST for current time.
         if timeshift:
             end = datetime.datetime.now() - timeshift
             end = self.to_default_timezone(end)
@@ -83,11 +84,11 @@ class InteractiveBrokersData(DataSource):
 
         # Call data.
         reqId = 0
-        for symbol in symbols:
+        for asset in assets:
             reqId += 1
             result = self.ib.get_historical_data(
                 reqId,
-                symbol,
+                asset,
                 end_date_time,
                 parsed_duration,
                 parsed_timestep,
@@ -115,10 +116,10 @@ class InteractiveBrokersData(DataSource):
                 ).dt.tz_localize(self.DEFAULT_TIMEZONE)
             elif parsed_timestep == "1 day":
                 df["date"] = pd.to_datetime(df["date"], format="%Y%m%d")
-            response[symbol] = df
+            response[asset] = df
         return response
 
-    def _parse_source_symbol_bars(self, response, symbol):
+    def _parse_source_symbol_bars(self, response, asset):
         df = response.copy()
         df["date"] = pd.to_datetime(df["date"])
         df = df.set_index("date")
@@ -142,13 +143,13 @@ class InteractiveBrokersData(DataSource):
                 "return",
             ]
         ]
-        bars = Bars(df, self.SOURCE, symbol, raw=response)
+        bars = Bars(df, self.SOURCE, asset, raw=response)
         return bars
 
-    def get_yesterday_dividend(self, symbol):
+    def get_yesterday_dividend(self, asset):
         """ Unavailable """
         return 0
 
-    def get_yesterday_dividends(self, symbols):
+    def get_yesterday_dividends(self, asset):
         """ Unavailable """
         return 0

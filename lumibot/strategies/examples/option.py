@@ -23,25 +23,49 @@ class Option(Strategy):
         self.sleeptime = 1
 
         # Set the symbols that we want to be monitoring
-        self.symbols = ["AAPL", "BAC", "AMZN", "MSFT", "TSLA", "FB"]
+        self.symbols = [
+            "SPY",
+            "EEM",
+            "AAPL",
+            "QQQ",
+            "FXI",
+            "AMD",
+            "BAC",
+            "MSFT",
+            "GLD",
+            "FB",
+            "DIS",
+            "TSLA",
+        ]
         # Underlying Asset Objects.
         self.trading_pairs = dict()
         for symbol in self.symbols:
             self.trading_pairs[self.create_asset(symbol, asset_type="stock")] = {
                 "near": None,
                 "far": None,
+                "expirations": None,
+                "strike_lows": None,
+                "strike_highs": None,
+                "buy_call_strike": None,
+                "sell_call_strike": None,
+                "expiration_date": None,
+                "price_underlying": None,
+                "price_near": None,
+                "price_far": None,
+                "trade_created_time": None,
+                "trade_yield": None,
             }
 
         # Initialize our variables
         self.total_trades = 0
-        self.max_trades = 10
+        self.max_trades = 3
         self.quantity = 100
-        self.sell_strike = 1.1
-        self.buy_strike = 1.15
-        self.annual_yield = 0.10
-        self.close_premium = 0.8
+        self.sell_strike = 1.06
+        self.buy_strike = 1.10
+        self.annual_yield = 0.05  # todo change this back to .1
+        self.close_premium_factor = 0.8
         self.trades_per_company = 1
-        self.max_days_expiry = 35
+        self.max_days_expiry = 25  # todo 35
         self.underlying_price_min = 20
         self.underlying_price_max = 300
         self.days_to_earnings = 15
@@ -51,55 +75,148 @@ class Option(Strategy):
         """Create the option assets object for each underlying. """
         for asset, options in self.trading_pairs.items():
             self.last_price = self.get_last_price(asset)
-            print(f"We a are connected, this is the last price. {self.last_price}")
+            if (
+                self.last_price < self.underlying_price_min
+                or self.last_price > self.underlying_price_max
+            ):
+                logging.info(
+                    f"The price {self.last_price} of {asset.symbol} is outside the "
+                    f"acceptable price range of {self.underlying_price_min} to"
+                    f" {self.underlying_price_max}"
+                )
+                continue
 
             chains = self.get_chains(asset)
-            expirations, strike_lows, strike_highs = self.get_expiration_strikes(chains)
-            buy_call_strike, sell_call_strike = self.buy_sell_strike(
-                self.last_price, strike_highs
+            (
+                options["expirations"],
+                options["strike_lows"],
+                options["strike_highs"],
+            ) = self.get_expiration_strikes(chains)
+            (
+                options["buy_call_strike"],
+                options["sell_call_strike"],
+            ) = self.buy_sell_strike(self.last_price, options["strike_highs"])
+            options["expiration_date"] = self.get_expiration_date(
+                options["expirations"]
             )
-            expiration_date = self.get_expiration_date(expirations)
-
             # Create option assets.
             options["near"] = self.create_asset(
                 asset.symbol,
                 asset_type="option",
-                expiration=expiration_date,
-                strike=sell_call_strike,
+                expiration=options["expiration_date"],
+                strike=options["sell_call_strike"],
                 right="CALL",
                 multiplier=100,
             )
             options["far"] = self.create_asset(
                 asset.symbol,
                 asset_type="option",
-                expiration=expiration_date,
-                strike=buy_call_strike,
+                expiration=options["expiration_date"],
+                strike=options["buy_call_strike"],
                 right="CALL",
                 multiplier=100,
             )
 
     def on_trading_iteration(self):
+        positions = self.get_tracked_positions()
+        filled_assets = [p.asset for p in positions]
+
+        # Sell positions:
+        for asset, options in self.trading_pairs.items():
+            if (
+                options["near"] not in filled_assets
+                and options["far"] not in filled_assets
+            ):
+                continue
+
+            asset_prices = self.get_last_prices(
+                [asset, options["near"], options["far"]]
+            )
+            close_premium = options["price_far"] - options["price_near"]
+            if options["premium_received"] >= close_premium * self.close_premium_factor:
+                # Buy near call.
+                self.submit_order(
+                    self.create_order(
+                        options["near"],
+                        self.quantity,
+                        "buy",
+                        exchange="CBOE",
+                    )
+                )
+
+                # Sell far call.
+                self.submit_order(
+                    self.create_order(
+                        options["far"],
+                        self.quantity,
+                        "sell",
+                        exchange="CBOE",
+                    )
+                )
+
+        # Create positions:
+        if self.total_trades > self.max_trades:
+            return
 
         for asset, options in self.trading_pairs.items():
-            self.submit_order(
-                self.create_order(
-                    options["near"],
-                    self.quantity,
-                    "sell",
-                    exchange="CBOE",
-                )
-            )
+            if options["near"] in filled_assets or options["far"] in filled_assets:
+                continue
 
-            # Buy far call.
-            self.submit_order(
-                self.create_order(
-                    options["far"],
-                    self.quantity,
-                    "buy",
-                    exchange="CBOE",
+            try:
+                asset_prices = self.get_last_prices(
+                    [asset, options["near"], options["far"]]
                 )
-            )
-            time.sleep(55555555)
+
+                options["price_underlying"] = asset_prices[asset]
+                options["price_near"] = asset_prices[options["near"]]
+                options["price_far"] = asset_prices[options["far"]]
+
+                print(
+                    f"Called Prices for: ",
+                    asset.symbol,
+                    [v for v in asset_prices.values()],
+                )
+
+                # (365/days to expiry)*(premium/strike)
+                exp_date = datetime.datetime.strptime(
+                    options["expiration_date"], "%Y%m%d"
+                ).date()
+                current_date = datetime.datetime.now().date()
+                days_to_expiry = (exp_date - current_date).days
+                premium_received = options["price_near"] - options["price_far"]
+                trade_yield = (365 / days_to_expiry) * (
+                    (premium_received) / options["sell_call_strike"]
+                )
+                if trade_yield > self.annual_yield:
+                    self.total_trades += 1
+                    options["trade_created_time"] = datetime.datetime.now()
+                    options["trade_yield"] = trade_yield
+                    options["premium_received"] = premium_received
+
+                    # Sell near call.
+                    self.submit_order(
+                        self.create_order(
+                            options["near"],
+                            self.quantity,
+                            "sell",
+                            exchange="CBOE",
+                        )
+                    )
+
+                    # Buy far call.
+                    self.submit_order(
+                        self.create_order(
+                            options["far"],
+                            self.quantity,
+                            "buy",
+                            exchange="CBOE",
+                        )
+                    )
+
+            except:
+                logging.info(f"Failed to get price data for {asset.symbol}")
+                continue
+
 
     def before_market_closes(self):
         # Make sure that we sell everything before the market closes
@@ -120,7 +237,7 @@ class Option(Strategy):
         chains = self.options_params(asset, underlyingConId=contract_id)
         if len(chains) == 0:
             raise AssertionError(f"No option chain for {asset.symbol}")
-        print(chains)
+        # print(chains)
         return chains
 
     def get_expiration_strikes(self, chains):
@@ -130,16 +247,16 @@ class Option(Strategy):
         strike_highs = []
         for x, p in chains.items():
             if x == self.exchange:
-                print(type(p), p)
+                # print(type(p), p)
                 expirations = sorted(list(p["Expirations"]))
                 strikes = sorted(list(p["Strikes"]))
                 strike_highs = sorted([n for n in strikes if n > self.last_price])
                 strike_lows = sorted(
                     [n for n in strikes if n < self.last_price], reverse=True
                 )
-                print(strike_highs)
-                print(strike_lows)
-                print(f"{self.exchange}:\n{expirations}\n{strikes}")
+                # print(strike_highs)
+                # print(strike_lows)
+                # print(f"{self.exchange}:\n{expirations}\n{strikes}")
 
         return expirations, strike_lows, strike_highs
 

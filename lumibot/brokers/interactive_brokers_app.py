@@ -53,6 +53,23 @@ class IBWrapper(EWrapper):
             self.init_time()
         self.my_time_queue.put(server_time)
 
+    # Tick Data. NOT USED YET
+    def init_tick(self):
+        self.tick = list()
+        tick_queue = queue.Queue()
+        self.my_tick_queue = tick_queue
+        return tick_queue
+
+    def tickPrice(self, reqId, tickType):
+        if not hasattr(self, "tick"):
+            self.init_tick()
+        self.tick.append(vars(tickType))
+
+    def tickSnapshotEnd(self, reqId):
+        super().tickSnapshotEnd(reqId)
+        print("TickSnapshotEnd. TickerId:", reqId)
+        self.my_tick_queue.put(self.tick)
+
     # Historical Data.
     def init_historical(self):
         self.historical = list()
@@ -316,6 +333,12 @@ class IBClient(EClient):
         ## Set up with a wrapper inside
         EClient.__init__(self, wrapper)
         self.max_wait_time = 4
+        self.reqId = 10000
+
+    def get_reqid(self):
+        self.reqId += 1
+        return self.reqId
+
 
     def get_timestamp(self):
 
@@ -338,6 +361,34 @@ class IBClient(EClient):
 
         return requested_time
 
+    def get_tick(
+            self,
+            asset="",
+    ):
+        """
+        Bid Price	1	Highest priced bid for the contract.	IBApi.EWrapper.tickPrice	-
+        Ask Price	2	Lowest price offer on the contract.	IBApi.EWrapper.tickPrice	-
+        Last Price	4	Last price at which the contract traded (does not include some trades in RTVolume).	IBApi.EWrapper.tickPrice	-
+        """
+        tick_storage = self.wrapper.init_tick()
+
+        contract = self.create_contract(asset)
+
+        self.reqMktData(self.get_reqid(), contract, "1, 2, 4", True, False, [])
+
+        try:
+            requested_tick = tick_storage.get(timeout=self.max_wait_time)
+        except queue.Empty:
+            print("The queue was empty or max time reached for tick data.")
+            requested_tick = None
+
+        while self.wrapper.is_error():
+            print(f"Error: {self.get_error(timeout=5)}")
+
+        self.cancelMktData(reqId)
+
+        return requested_tick
+
     def get_historical_data(
         self,
         reqId=0,
@@ -352,10 +403,11 @@ class IBClient(EClient):
         chartOptions=[],
     ):
         historical_storage = self.wrapper.init_historical()
+
         contract = self.create_contract(symbol)
         # Call the historical data.
         self.reqHistoricalData(
-            reqId,
+            self.get_reqid(),
             contract,
             end_date_time,
             parsed_duration,
@@ -398,13 +450,11 @@ class IBClient(EClient):
     def get_account_summary(self):
         accounts_storage = self.wrapper.init_accounts()
 
-        # Call the accounts data.
-
         tags = (
             f"AccountType, TotalCashValue, AccruedCash, "
             f"NetLiquidation, BuyingPower, GrossPositionValue"
         )
-        self.reqAccountSummary(9001, "All", tags)
+        self.reqAccountSummary(self.get_reqid(), "All", tags)
 
         try:
             requested_accounts = accounts_storage.get(timeout=self.max_wait_time)
@@ -460,7 +510,7 @@ class IBClient(EClient):
         contract.exchange = "SMART"
         contract.currency = "USD"
 
-        self.reqContractDetails(1, contract)
+        self.reqContractDetails(self.get_reqid(), contract)
 
         try:
             requested_contract_details = contract_details_storage.get(
@@ -480,7 +530,11 @@ class IBClient(EClient):
 
         # Call the orders data.
         self.reqSecDefOptParams(
-            0, asset.symbol, exchange, TYPE_MAP[asset.asset_type], underlyingConId
+            self.get_reqid(),
+            asset.symbol,
+            exchange,
+            TYPE_MAP[asset.asset_type],
+            underlyingConId,
         )
 
         try:

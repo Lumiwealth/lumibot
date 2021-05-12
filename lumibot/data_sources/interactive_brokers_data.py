@@ -90,7 +90,7 @@ class InteractiveBrokersData(DataSource):
                 reqId,
                 asset,
                 end_date_time,
-                parsed_duration,
+                "1 D",  # TODO parsed_duration,
                 parsed_timestep,
                 type,
                 1,

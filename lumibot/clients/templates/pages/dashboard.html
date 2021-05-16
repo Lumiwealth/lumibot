@@ -102,7 +102,7 @@
         const maxGraphPoints = 1000;
         const maxTableRows = 1000;
         let lastPortfolioData = {};
-        let portfolioGraphPoints = [];
+        let portfolioGraphPoints = {labels:[], values:[]};
         let statRows = [];
         let logRows = [];
         let sharesChartType = "doughnut";
@@ -117,20 +117,53 @@
 
         function loadData() {
             return new Promise((resolve, reject) => {
-                seedData().then((resp) => {
-                    resolve(resp);
-                }).catch((err) => {
-                    reject(err);
+                axios.get('/data/strategies/').then((response) => {
+                    const data = response.data;
+                    const first_strategy_id = data[0].id;
+
+                    const portfolioRequestUrl = `/data/strategies/${first_strategy_id}/portfolio`; 
+                    const portfolioRequest = axios.get(portfolioRequestUrl);
+
+                    const evolutionRequestUrl = `/data/strategies/${first_strategy_id}/evolution`;
+                    const evolutionRequest = axios.get(evolutionRequestUrl);
+
+                    const logsRequestUrl = `/data/strategies/${first_strategy_id}/logs`;
+                    const logsRequest = axios.get(logsRequestUrl);
+
+                    const statsRequestUrl = `/data/strategies/${first_strategy_id}/stats`;
+                    const statsRequest = axios.get(statsRequestUrl);
+
+                    axios.all([portfolioRequest, evolutionRequest, logsRequest, statsRequest]).then(
+                        axios.spread(
+                            (...responses) => {
+                                const portfolioData = responses[0].data;
+                                const evolutionData = responses[1].data;
+                                const logsData = responses[2].data;
+                                const statsData = responses[3].data;
+
+                                const result = {
+                                    lastPortfolioDataRaw: portfolioData,
+                                    portfolioGraphPointsRaw: evolutionData,
+                                    statRowsRaw: statsData,
+                                    logRowsRaw: logsData,
+                                };
+                                resolve(result);
+                            }
+                        )
+                    );
                 });
             });
         }
 
         function init() {
             loadData().then((resp) => {
-                ({lastPortfolioData, portfolioGraphPoints, logRows, statRows} = resp);
-                putPortfolioData(lastPortfolioData);
-                putLogData(logRows);
-                putStatRowsData(statRows);
+                //({lastPortfolioDataRaw, portfolioGraphPointsRaw, logRowsRaw, statRowsRaw} = resp);
+                const {lastPortfolioDataRaw, portfolioGraphPointsRaw, logRowsRaw, statRowsRaw} = resp;
+
+                populatePortfolioGraphPoints(portfolioGraphPointsRaw);
+                putPortfolioData(lastPortfolioDataRaw);
+                putLogData(logRowsRaw);
+                putStatRowsData(statRowsRaw);
             });
         }
 
@@ -138,7 +171,7 @@
         function putPortfolioData(data) {
             lastPortfolioData = data;
 
-            const portfolioValue = data.portfolio_value;
+            const portfolioValue = data.total;
             $("#portfolio-value").html(parseMoney(portfolioValue));
 
             const unspentMoney = data.unspent_money;
@@ -148,10 +181,19 @@
             $("#last-update").html(parseTimeString(lastUpdate));
             $("#last-update").attr("title", "NY Timezone").tooltip({placement: "top"});
 
+            if (!sharesChart){
+                sharesChart = createSharesChart(sharesChartType);
+            } else {
+                const labels = lastPortfolioData.positions.map((el) => el.symbol);
+                const values = lastPortfolioData.positions.map((el) => el.quantity * el.price);
+                editChartData(sharesChart, labels, values, inplace=true);
+            }
+            
             portfolioGraphPoints.labels.push(lastUpdate);
             portfolioGraphPoints.values.push(portfolioValue);
             if (portfolioGraphPoints.length >= maxGraphPoints){
-                portfolioGraphPoints.shift();
+                portfolioGraphPoints.labels.shift();
+                portfolioGraphPoints.values.shift();
             }
 
             if (!portfolioEvolutionChart) {
@@ -161,37 +203,54 @@
                     portfolioEvolutionChart,
                     portfolioGraphPoints.labels,
                     portfolioGraphPoints.values,
-                )
+                );
             }
+        }
 
-            sharesChart = createSharesChart();
+        function populatePortfolioGraphPoints(data){
+            data.pop();
+            portfolioGraphPoints.labels = data.map(item => item.time);
+            portfolioGraphPoints.values = data.map(item => item.total);
         }
 
         function putLogData(data) {
+            if (Array.isArray(data)){
+                logRows.push(...data)
+            }else{
+                logRows.push(data);
+            }
+
             if (!logsTable) {
                 logsTable = createLogMessagesTable();
             }
 
-            logRows.push(data);
             if (logRows.length >= maxTableRows){
                 logRows.shift();
-                appendBootstrapRows($("#logs-table"), data, inplace=true);
+                appendBootstrapRows($("#logs-table"), logRows, inplace=true);
             } else {
                 appendBootstrapRows($("#logs-table"), data);
             }
         }
 
         function putStatRowsData(data) {
+            let processed;
+            if (Array.isArray(data)){
+                processed = data.map(item => item.data);
+                statRows.push(...processed);
+            }else{
+                processed = data.data;
+                statRows.push(processed);
+            }
+
             if (!statsTable) {
                 statsTable = createStatsTable();
             }
 
-            statRows.push(data);
             if (statRows.length >= maxTableRows){
                 statRows.shift();
-                appendBootstrapRows($("#stats-table"), data, inplace=true);
+                appendBootstrapRows($("#stats-table"), statRows, inplace=true);
             } else {
-                appendBootstrapRows($("#stats-table"), data);
+                appendBootstrapRows($("#stats-table"), processed);
             }
         }
 
@@ -204,7 +263,7 @@
             return chart;
         }
 
-        function createSharesChart(){
+        function createSharesChart(type='doughnut'){
             const labels = lastPortfolioData.positions.map((el) => el.symbol);
             const values = lastPortfolioData.positions.map((el) => el.quantity * el.price);
             const chart = new Chart(
@@ -213,7 +272,8 @@
                     labels,
                     values,
                     'Portfolio assets',
-                    sharesGraphLabelCallback
+                    sharesGraphLabelCallback,
+                    type = type,
                 ),
             );
             return chart;
@@ -226,7 +286,11 @@
         }
 
         function createStatsTable(){
-            const statsColumns = Object.keys(statRows[0])
+            if (!statRows){
+                return null;
+            }
+
+            const statsColumns = Object.keys(statRows[0]);
             initBootstrapTable($("#stats-table"), statsColumns);
             return $("#stats-table");
         }
@@ -257,11 +321,11 @@
         });
 
         // Socket Events /////////////////////////////////////
-        socket.on('portfolio', (payload) => {putPortfolioData(payload);});
+        socket.on('portfolio_update', (payload) => {putPortfolioData(payload);});
 
-        socket.on('log', (payload) => {putStatRowsData(payload);});
+        socket.on('log', (payload) => {putLogData(payload);});
 
-        socket.on('trace_stats', (payload) => {putLogData(payload);});
+        socket.on('trace_stats', (payload) => {putStatRowsData(payload);});
 
     }
 </script>

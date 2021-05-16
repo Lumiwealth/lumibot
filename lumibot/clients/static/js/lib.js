@@ -104,9 +104,9 @@ function generateDoughnutData(labels, data, dataLabel='') {
     };
 }
 
-function generateDoughnutConfig(labels, data, dataLabel='', labelCallback='') {
+function generateDoughnutConfig(labels, data, dataLabel='', labelCallback='', type='doughnut') {
     return {
-        type: 'doughnut',
+        type,
         data: generateDoughnutData(labels, data, dataLabel),
         options: generateDoughnutOptions(labelCallback),
     }
@@ -120,11 +120,16 @@ function pushNewChartPoint(chart, label, data) {
     chart.update();
 }
 
-function editChartData(chart, labels, data) {
+function editChartData(chart, labels, data, inplace=false) {
     chart.data.labels = labels;
     chart.data.datasets.forEach((dataset) => {
-        dataset.data.push(...data);
+        if (inplace) {
+            dataset.data = data;
+        } else {
+            dataset.data.push(...data);
+        }        
     });
+
     chart.update();
 }
 

@@ -1,7 +1,4 @@
 from datetime import datetime, timedelta
-from contextlib import contextmanager
-import os
-import sys
 
 import yfinance as yf
 
@@ -73,14 +70,14 @@ class YahooData(DataSource):
 
         if missing_symbols:
             tickers = yf.Tickers(" ".join(missing_symbols))
-            with self.suppress_stdout():
-                df_yf = tickers.history(
-                    start=self.datetime_start,
-                    end=self.datetime_end + timedelta(days=7),
-                    thread=True,
-                    group_by="ticker",
-                    auto_adjust=self.auto_adjust,
-                )
+            df_yf = tickers.history(
+                start=self.datetime_start,
+                end=self.datetime_end + timedelta(days=7),
+                thread=True,
+                group_by="ticker",
+                auto_adjust=self.auto_adjust,
+                progress=False,
+            )
             df_yf = df_yf.loc[df_yf.index <= self.datetime_end, :]
 
             dfs = {}
@@ -100,13 +97,3 @@ class YahooData(DataSource):
     def _parse_source_symbol_bars(self, response, symbol):
         bars = Bars(response, self.SOURCE, symbol, raw=response)
         return bars
-
-    @contextmanager
-    def suppress_stdout(self):
-        with open(os.devnull, "w") as devnull:
-            old_stdout = sys.stdout
-            sys.stdout = devnull
-            try:
-                yield
-            finally:
-                sys.stdout = old_stdout

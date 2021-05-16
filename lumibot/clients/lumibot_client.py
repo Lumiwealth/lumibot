@@ -23,7 +23,7 @@ from .models import (
     User,
     UserRole,
 )
-from .schemas import AssetSchema, LoggingSchema, PortfolioDetailSchema
+from .schemas import LoggingSchema, PortfolioDetailSchema, StatsSchema
 from .sockets import namespace
 
 
@@ -143,24 +143,21 @@ class LumibotClient:
         with self.app.app_context():
             strategy = Strategy.get_by_name(source)
             j = json.dumps(data, default=self.default_serializer)
-            Stats.create(strategy=strategy, data=j)
+            stats = Stats.create(strategy=strategy, data=j)
+            schema = StatsSchema()
+            result = schema.dump(stats)
 
-        return data
+        return result
 
     def process_log_signal(self, source, data):
         with self.app.app_context():
             message = data.get("message")
             level = data.get("level")
-            positions = data.get("positions")
             strategy = Strategy.get_by_name(source)
 
             log = Log.create(message=message, level=level, strategy=strategy)
             schema = LoggingSchema()
             payload = schema.dump(log)
-
-            assets_schema = AssetSchema(many=True)
-            assets = assets_schema.dump(positions)
-            payload["assets"] = assets
 
         return payload
 

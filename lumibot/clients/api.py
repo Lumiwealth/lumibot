@@ -72,6 +72,9 @@ class Portfolio(MethodView):
             .limit(1)
         )
         last_update = query.first()
+        if last_update is None:
+            return {}
+
         positions_details = []
         for position in positions:
             positions_details.append(

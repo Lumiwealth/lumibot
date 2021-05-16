@@ -48,7 +48,7 @@ class YahooData(DataSource):
         else:
             data = yf.Ticker(symbol).history(
                 start=self.datetime_start,
-                end=self.datetime_end + timedelta(seconds=1),
+                end=self.datetime_end + timedelta(days=1),
                 auto_adjust=self.auto_adjust,
             )
             if data.shape[0] == 0:
@@ -74,7 +74,7 @@ class YahooData(DataSource):
             tickers = yf.Tickers(" ".join(missing_symbols))
             df_yf = tickers.history(
                 start=self.datetime_start,
-                end=self.datetime_end + timedelta(seconds=1),
+                end=self.datetime_end + timedelta(days=1),
                 thread=True,
                 group_by="ticker",
                 auto_adjust=self.auto_adjust,

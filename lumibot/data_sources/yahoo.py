@@ -46,9 +46,11 @@ class YahooData(DataSource):
         if symbol in self._data_store:
             data = self._data_store[symbol]
         else:
-            data = yf.Ticker(symbol).history(start=self.datetime_start,
-                end=self.datetime_end + timedelta(days=7), auto_adjust=self.auto_adjust)
-            data = data.loc[data.index <= self.datetime_end, :]
+            data = yf.Ticker(symbol).history(
+                start=self.datetime_start,
+                end=self.datetime_end + timedelta(seconds=1),
+                auto_adjust=self.auto_adjust,
+            )
             if data.shape[0] == 0:
                 raise NoDataFound(self.SOURCE, symbol)
             data = self._append_data(symbol, data)
@@ -72,13 +74,12 @@ class YahooData(DataSource):
             tickers = yf.Tickers(" ".join(missing_symbols))
             df_yf = tickers.history(
                 start=self.datetime_start,
-                end=self.datetime_end + timedelta(days=7),
+                end=self.datetime_end + timedelta(seconds=1),
                 thread=True,
                 group_by="ticker",
                 auto_adjust=self.auto_adjust,
                 progress=False,
             )
-            df_yf = df_yf.loc[df_yf.index <= self.datetime_end, :]
 
             dfs = {}
             for i in df_yf.columns.levels[0]:

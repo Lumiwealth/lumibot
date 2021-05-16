@@ -1,6 +1,6 @@
 import logging
 import math
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import yfinance as yf
 
@@ -132,7 +132,7 @@ def performance(_df, risk_free, prefix=""):
 
 def calculate_returns(symbol, start=datetime(1900, 1, 1), end=datetime.now()):
     benchmark = yf.Ticker(symbol)
-    benchmark_df = benchmark.history(period="max")
+    benchmark_df = benchmark.history(start=start, end=end + timedelta(days=1))
     benchmark_df = benchmark_df.loc[
         (benchmark_df.index >= start) & (benchmark_df.index <= end)
     ]

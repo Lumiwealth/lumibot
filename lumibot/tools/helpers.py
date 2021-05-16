@@ -5,6 +5,8 @@ import sys
 
 import yfinance as yf
 
+from lumibot import LUMIBOT_DATE_INDEX_FILE
+
 
 def get_chunks(l, chunk_size):
     chunks = []
@@ -42,9 +44,8 @@ def get_trading_days():
     logger.setLevel(logging.INFO)
     logging.info("Fetching past trading days")
 
-    filename = "lumibot/tools/date_index.pkl"
     try:
-        with open(filename, "rb") as f:
+        with open(LUMIBOT_DATE_INDEX_FILE, "rb") as f:
             dates_saved = pickle.load(f)
     except:
         dates_saved = list()
@@ -56,7 +57,7 @@ def get_trading_days():
 
     dates_update = list(dates_update.date)
     days = sorted(list(set(dates_saved + dates_update)))
-    with open(filename, "wb") as f:
+    with open(LUMIBOT_DATE_INDEX_FILE, "wb") as f:
         pickle.dump(days, f)
     return days
 

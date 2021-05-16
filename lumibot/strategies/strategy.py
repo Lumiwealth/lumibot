@@ -183,6 +183,11 @@ class Strategy(_Strategy):
         asset = self._set_asset_mapping(asset)
         return self.broker.get_last_price(asset)
 
+    def get_tick(self, asset):
+        """Takes an asset asset and returns the last known price"""
+        asset = self._set_asset_mapping(asset)
+        return self.broker.get_tick(asset)
+
     def get_last_prices(self, assets):
         """Takes a list of assets and returns the last known prices"""
         symbol_asset = isinstance(assets[0], str)
@@ -252,11 +257,11 @@ class Strategy(_Strategy):
         self,
         symbol,
         asset_type=None,
-        name=None,
-        expiration=None,
-        strike=None,
-        right=None,
-        multiplier=None,
+        name="",
+        expiration="",
+        strike="",
+        right="",
+        multiplier=100,
     ):
         """Create an asset object."""
         return Asset(

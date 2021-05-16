@@ -34,7 +34,7 @@ class IBWrapper(EWrapper):
     def error(self, id, errorCode, errorString):
         if not hasattr(self, "my_errors_queue"):
             self.init_error()
-        errormessage = "IB returns an error with %d errorcode %d that says %s" % (
+        errormessage = "IB returns an error with %d error code %d that says %s" % (
             id,
             errorCode,
             errorString,
@@ -279,12 +279,10 @@ class IBWrapper(EWrapper):
         if not hasattr(self, "my_contract_details_queue"):
             self.init_contract_details()
         self.contract_details.append(contractDetails)
-        print("contractDetails: ", reqId, " ", contractDetails, "\n")
 
     def contractDetailsEnd(self, reqId):
         super().contractDetailsEnd(reqId)
         self.my_contract_details_queue.put(self.contract_details)
-        print("\ncontractDetails End\n")
 
     def init_option_params(self):
         self.option_params_dict = dict()
@@ -324,8 +322,6 @@ class IBWrapper(EWrapper):
     def securityDefinitionOptionParameterEnd(self, reqId):
         super().securityDefinitionOptionParameterEnd(reqId)
         self.my_option_params_queue.put(self.option_params_dict)
-        print("\noption parameters End\n")
-
 
 class IBClient(EClient):
     """Sends data to IB"""
@@ -373,8 +369,9 @@ class IBClient(EClient):
         tick_storage = self.wrapper.init_tick()
 
         contract = self.create_contract(asset)
+        reqId = self.get_reqid()
 
-        self.reqMktData(self.get_reqid(), contract, "1, 2, 4", True, False, [])
+        self.reqMktData(reqId, contract, "1, 2, 4", True, False, [])
 
         try:
             requested_tick = tick_storage.get(timeout=self.max_wait_time)
@@ -504,11 +501,7 @@ class IBClient(EClient):
         contract_details_storage = self.wrapper.init_contract_details()
 
         # Call the contract details.
-        contract = Contract()
-        contract.symbol = asset.symbol
-        contract.secType = TYPE_MAP[asset.asset_type]
-        contract.exchange = "SMART"
-        contract.currency = "USD"
+        contract = self.create_contract(asset)
 
         self.reqContractDetails(self.get_reqid(), contract)
 
@@ -574,7 +567,7 @@ class IBApp(IBWrapper, IBClient):
         asset,
         exchange="SMART",
         currency="USD",
-        primaryExchage="ISLAND",
+        primaryExchange="ISLAND",
     ):
         """Creates new contract objects. """
         contract = Contract()
@@ -585,12 +578,13 @@ class IBApp(IBWrapper, IBClient):
         contract.currency = currency
 
         if asset.asset_type == "stock":
-            contract.primaryExchange = primaryExchage
+            contract.primaryExchange = primaryExchange
         elif asset.asset_type == "option":
             contract.lastTradeDateOrContractMonth = asset.expiration
             contract.strike = str(asset.strike)
             contract.right = asset.right
             contract.multiplier = asset.multiplier
+            contract.primaryExchange="CBOE"
         else:
             raise ValueError(
                 f"The asset {asset.symbol} has a type of {asset.asset_type}. "

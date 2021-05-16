@@ -248,8 +248,7 @@ class StrategyExecutor(Thread):
                 break
             else:
                 self.strategy.log_message("Sleeping for %d seconds" % sleeptime)
-                # self.safe_sleep(sleeptime) todo revert
-                self.safe_sleep(15)
+                self.safe_sleep(sleeptime)
 
         if self.broker.is_market_open():
             self._before_market_closes()

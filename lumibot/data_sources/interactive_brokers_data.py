@@ -64,6 +64,53 @@ class InteractiveBrokersData(DataSource):
         )
         return response[asset]
 
+    def _pull_source_ticks(self, assets):
+        """pull ticks, bids, ask for a list assets, live data."""
+
+        response = dict()
+
+        # parsed_timestep = self._parse_source_timestep(timestep, reverse=True)
+        # parsed_duration = self._parse_duration(length, timestep)
+
+        # IB can only ADJUSTED_LAST for current time.
+        # if timeshift:
+        #     end = datetime.datetime.now() - timeshift
+        #     end = self.to_default_timezone(end)
+        #     end_date_time = self._format_ib_datetime(end)
+        #     type = "TRADES"
+        # else:
+        #     end_date_time = ""
+        #     type = "ADJUSTED_LAST"
+
+        # Call data.
+        reqId = 0
+        for asset in assets:
+            reqId += 1
+            result = self.ib.get_tick(
+                reqId,
+                asset,
+            )
+            df = pd.DataFrame(result)
+            cols = [
+                "date",
+                "open",
+                "high",
+                "low",
+                "close",
+                "volume",
+                "barCount",
+                "average",
+            ]
+            df = df[cols]
+            if parsed_timestep == "1 min":
+                df["date"] = pd.to_datetime(
+                    df["date"], unit="s", origin="unix"
+                ).dt.tz_localize(self.DEFAULT_TIMEZONE)
+            elif parsed_timestep == "1 day":
+                df["date"] = pd.to_datetime(df["date"], format="%Y%m%d")
+            response[asset] = df
+        return response
+
     def _pull_source_bars(self, assets, length, timestep=MIN_TIMESTEP, timeshift=None):
         """pull broker bars for a list assets"""
 
@@ -90,7 +137,7 @@ class InteractiveBrokersData(DataSource):
                 reqId,
                 asset,
                 end_date_time,
-                "1 D",  # TODO parsed_duration,
+                parsed_duration,
                 parsed_timestep,
                 type,
                 1,

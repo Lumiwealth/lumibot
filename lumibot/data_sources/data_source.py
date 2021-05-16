@@ -139,6 +139,11 @@ class DataSource:
 
         return result
 
+    def get_tick(self, asset):
+        """Takes an asset and returns ticks and greeks"""
+        tick_data = self.get_tick(asset)
+        return # todo dataframe ticks
+
     def get_last_price(self, asset, timestep=None):
         """Takes an asset and returns the last known price"""
         if timestep is None:

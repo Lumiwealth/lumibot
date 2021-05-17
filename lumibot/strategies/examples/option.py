@@ -34,43 +34,41 @@ class Option(Strategy):
         self.buy_strike = 1.10
         self.annual_yield = 0.10
         self.close_premium_factor = 0.8
-        self.trades_per_company = 1
         self.max_days_expiry = 35
         self.underlying_price_min = 20
         self.underlying_price_max = 300
         self.days_to_earnings_min = 15
         self.exchange = "SMART"
 
+        # Use these for higher options volume stocks.
         symbols_universe = [
-            "AAL",
+            # "AAL",
             "AAPL",
             "ABNB",
             "AMC",
             "AMD",
-            "AMD",
             "AMZN",
             "BABA",
-            "BAC",
-            "DIS",
-            "DKNG",
-            "EEM",
-            "ET",
-            "F",
-            "FB",
-            "FXI",
-            "MARA",
-            "MSFT",
-            "NIO",
-            "PLTR",
-            "PLUG",
-            "SQ",
-            "TSLA",
-            "UBER",
+            # "BAC",
+            # "DIS",
+            # "DKNG",
+            # "EEM",
+            # "ET",
+            # "F",
+            # "FB",
+            # "FXI",
+            # "MARA",
+            # "MSFT",
+            # "NIO",
+            # "PLTR",
+            # "PLUG",
+            # "SQ",
+            # "TSLA",
+            # "UBER",
         ]
 
-        # Set the symbols that we want to be monitoring
+        # Set the symbols that we want to be monitoring. Leave blank for s&p500
         self.symbols_price = self.get_symbols_universe(symbols_universe)
-        self.symbols = self.symbols_price.index.tolist()
 
         # Underlying Asset Objects.
         self.trading_pairs = dict()
@@ -79,7 +77,6 @@ class Option(Strategy):
                 "near": None,
                 "far": None,
                 "expirations": None,
-                "strike_lows": None,
                 "strike_highs": None,
                 "buy_call_strike": None,
                 "sell_call_strike": None,
@@ -89,6 +86,7 @@ class Option(Strategy):
                 "price_far": None,
                 "trade_created_time": None,
                 "trade_yield": None,
+                "trade_yield_ok": None,
             }
 
     def before_starting_trading(self):
@@ -96,7 +94,8 @@ class Option(Strategy):
         for asset, options in self.trading_pairs.items():
             try:
                 chains = self.get_chains(asset)
-            except:
+            except Exception as e:
+                logging.info(f"Error: {e}")
                 continue
 
             options["expirations"] = self.get_expiration(chains)
@@ -148,7 +147,7 @@ class Option(Strategy):
 
             close_premium = options["price_far"] - options["price_near"]
             if options["premium_received"] >= close_premium * self.close_premium_factor:
-
+                self.total_trades -= 1
                 # Buy near call.
                 self.submit_order(
                     self.create_order(
@@ -179,9 +178,14 @@ class Option(Strategy):
         )
 
         for asset, options in self.trading_pairs.items():
+            # Check for symbol in positions.
+            if len([p.symbol for p in positions if p.symbol == asset.symbol]) > 0:
+                continue
+            # Check if options already traded.
             if options["near"] in filled_assets or options["far"] in filled_assets:
                 continue
 
+            # Get the latest prices for stock and options.
             try:
                 print(asset, options["near"], options["far"])
                 asset_prices = self.get_last_prices(
@@ -197,67 +201,44 @@ class Option(Strategy):
                     asset.symbol,
                     [v for v in asset_prices.values()],
                 )
-
-                # (365/days to expiry)*(premium/strike)
-                exp_date = datetime.datetime.strptime(
-                    options["expiration_date"], "%Y%m%d"
-                ).date()
-                current_date = datetime.datetime.now().date()
-                days_to_expiry = (exp_date - current_date).days
-                premium_received = options["price_near"] - options["price_far"]
-                trade_yield = (365 / days_to_expiry) * (
-                    (premium_received) / options["sell_call_strike"]
-                )
-
-                if trade_yield < self.annual_yield:
-                    logging.info(
-                        f"Trade yield for {asset.symbol} is {trade_yield} "
-                        f"which is less than {self.annual_yield} so "
-                        f"{asset.symbol} will not be traded."
-                    )
-                    continue
-
-                self.total_trades -= 1
-                options["trade_created_time"] = datetime.datetime.now()
-                options["trade_yield"] = trade_yield
-                options["premium_received"] = premium_received
-
-                # Check to make sure date is not too close to earnings.
-                print(f"Getting earnings date for {asset.symbol}")
-                edate = Ticker(asset.symbol).calendar.iloc[0, 0].date()
-                days_to_earnings = (edate - current_date).days
-                if days_to_earnings < self.days_to_earnings_min:
-                    logging.info(
-                        f"{asset.symbol} is to close to earnings at {days_to_earnings}"
-                    )
-                    continue
-
-                # Sell near call.
-                self.submit_order(
-                    self.create_order(
-                        options["near"],
-                        self.quantity,
-                        "sell",
-                        exchange="CBOE",
-                    )
-                )
-
-                # Buy far call.
-                self.submit_order(
-                    self.create_order(
-                        options["far"],
-                        self.quantity,
-                        "buy",
-                        exchange="CBOE",
-                    )
-                )
-
-            except:
-                logging.info(f"Failed to get price data for {asset.symbol}")
+            except Exception as e:
+                logging.info(f"Error: {e}")
                 continue
 
+            # If the trade yield is high enough, trade.
+            options = self.check_trade_yield(asset, options)
+            if not options["trade_yield_ok"]:
+                continue
+
+            # Check if too close to earnings.
+            if self.earnings(asset):
+                continue
+
+            options["trade_created_time"] = datetime.datetime.now()
+            self.total_trades += 1
+            # Sell near call.
+            self.submit_order(
+                self.create_order(
+                    options["near"],
+                    self.quantity,
+                    "sell",
+                    exchange="CBOE",
+                )
+            )
+
+            # Buy far call.
+            self.submit_order(
+                self.create_order(
+                    options["far"],
+                    self.quantity,
+                    "buy",
+                    exchange="CBOE",
+                )
+            )
+
         print(
-            f"*******  END ELAPSED TIME  {(time.time() - self.time_start):5.0f}   "
+            f"*******  END ELAPSED TIME  "
+            f"{(time.time() - self.time_start):5.0f}   "
             f"*******"
         )
 
@@ -361,9 +342,16 @@ class Option(Strategy):
 
         start = "2021-05-11"
         end = "2021-05-16"
-        symbols = download(
-            symbols_universe, start=start, end=end, group_by="column", threads=True
-        )["Close"].T.iloc[:, -1:]
+
+        if len(symbols_universe) == 1:
+            symbols = download(
+                symbols_universe, start=start, end=end)[["Close"]]
+            symbols.columns = symbols_universe
+            symbols = pd.DataFrame(symbols.iloc[-1, :].T)
+        else:
+            symbols = download(
+                symbols_universe, start=start, end=end, group_by="column", threads=True
+            )["Close"].T.iloc[:, -1:]
 
         symbols[
             (symbols > self.underlying_price_min)
@@ -371,3 +359,43 @@ class Option(Strategy):
         ].dropna()
 
         return symbols
+
+    def earnings(self, asset):
+        """Check if the current date is too close to earnings."""
+        print(f"Getting earnings date for {asset.symbol}")
+        current_date = datetime.datetime.now().date()
+        edate = Ticker(asset.symbol).calendar.iloc[0, 0].date()
+        days_to_earnings = (edate - current_date).days
+        earnings_too_close = (
+            days_to_earnings < self.days_to_earnings_min
+        ) and days_to_earnings > 0
+
+        if earnings_too_close:
+            logging.info(
+                f"{asset.symbol} is to close to earnings at {days_to_earnings}"
+            )
+
+        return earnings_too_close
+
+    def check_trade_yield(self, asset, options):
+        # Check to determine if trade yield is high enough to trade.
+        exp_date = datetime.datetime.strptime(
+            options["expiration_date"], "%Y%m%d"
+        ).date()
+        current_date = datetime.datetime.now().date()
+        days_to_expiry = (exp_date - current_date).days
+        premium_received = options["price_near"] - options["price_far"]
+        trade_yield = (365 / days_to_expiry) * (
+            premium_received / options["sell_call_strike"]
+        )
+        options["trade_yield_ok"] = trade_yield > self.annual_yield
+        if not options["trade_yield_ok"]:
+            logging.info(
+                f"Trade yield for {asset.symbol} is {trade_yield} "
+                f"which is less than {self.annual_yield} so "
+                f"{asset.symbol} will not be traded."
+            )
+
+        options["trade_yield"] = trade_yield
+        options["premium_received"] = premium_received
+        return options

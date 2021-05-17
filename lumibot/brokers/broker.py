@@ -350,10 +350,6 @@ class Broker:
         """Takes a list of symbols and returns the last known prices"""
         pass
 
-    def get_tradable_assets(self, easy_to_borrow=None, filter_func=None):
-        """Get the list of all tradable assets from the market"""
-        pass
-
     # =========Subscribers/Strategies functions==============
 
     def _add_subscriber(self, subscriber):

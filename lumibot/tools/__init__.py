@@ -3,3 +3,4 @@ from .decorators import append_locals, execute_after, snatch_locals, staticdecor
 from .helpers import *
 from .indicators import *
 from .pandas import *
+from .types import *

@@ -20,8 +20,11 @@ class IBTest(Strategy):
         This needs to be run during market hours to check trades being received and
         executed by Interactive Brokers.
         """
-        # self.sell_all(cancel_open_orders=True, at_broker=True)
-        # return
+        pos = self.broker.ib.get_positions()
+        [print(p) for p in pos if p["position"] != 0]
+
+        self.sell_all(cancel_open_orders=True, at_broker=True)
+        return
 
         # contract.lastTradeDateOrContractMonth = lastTradeDateOrContractMonth
         # contract.strike = strike
@@ -68,17 +71,17 @@ class IBTest(Strategy):
         # )
         time.sleep(5555)
         # Check connection and times
-        log_methods = dict(
+        # log_methods = dict(
             #     get_datetime={},
-            get_timestamp={},
+            # get_timestamp={},
             #     get_round_minute={},
             #     get_last_minute={},
             #     get_round_day={},
             #     get_last_day={},
             #     get_datetime_range={"length": 40},
-        )
-
-        self.check_function(log_methods)
+        # )
+        #
+        # self.check_function(log_methods)
 
         ##############
         #   Broker   #

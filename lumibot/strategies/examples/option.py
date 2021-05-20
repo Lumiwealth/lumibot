@@ -24,15 +24,17 @@ class Option(Strategy):
     def initialize(self):
         self.time_start = time.time()
         # Set how often (in minutes) we should be running on_trading_iteration
-        self.sleeptime = 10
+        self.sleeptime = 1
+        self.iter_count = 0
+
 
         # Initialize our variables
         self.total_trades = 0
         self.max_trades = 3
-        self.quantity = 100
+        self.quantity = 10
         self.sell_strike = 1.06
         self.buy_strike = 1.10
-        self.annual_yield = 0.10
+        self.annual_yield = 0.025,  # 0.10 todo revert
         self.close_premium_factor = 0.8
         self.max_days_expiry = 35
         self.underlying_price_min = 20
@@ -42,13 +44,12 @@ class Option(Strategy):
 
         # Use these for higher options volume stocks.
         symbols_universe = [
-            # "AAL",
-            "AAPL",
-            "ABNB",
-            "AMC",
-            "AMD",
-            "AMZN",
-            "BABA",
+            "AAL",
+            # "ABNB",
+            # "AMC",
+            # "AMD",
+            # "AMZN",
+            # "BABA",
             # "BAC",
             # "DIS",
             # "DKNG",
@@ -103,6 +104,9 @@ class Option(Strategy):
             options["expiration_date"] = self.get_expiration_date(
                 options["expirations"]
             )
+            # todo there's an issue here, not getting options back. below
+
+            multiplier = self.get_chain(chains)["Multiplier"]
 
             (
                 options["buy_call_strike"],
@@ -122,7 +126,7 @@ class Option(Strategy):
                 expiration=options["expiration_date"],
                 strike=options["sell_call_strike"],
                 right="CALL",
-                multiplier=100,
+                multiplier=multiplier,
             )
             options["far"] = self.create_asset(
                 asset.symbol,
@@ -130,10 +134,20 @@ class Option(Strategy):
                 expiration=options["expiration_date"],
                 strike=options["buy_call_strike"],
                 right="CALL",
-                multiplier=100,
+                multiplier=multiplier,
             )
 
     def on_trading_iteration(self):
+        positions = self.get_tracked_positions()
+        filled_assets = [p.asset for p in positions]
+
+        # Delete
+        if self.iter_count > 0:
+            print(f"Positions: {positions}, \nFilled Assets: {filled_assets}")
+            return
+        self.iter_count += 1
+
+
         positions = self.get_tracked_positions()
         filled_assets = [p.asset for p in positions]
 
@@ -211,8 +225,8 @@ class Option(Strategy):
                 continue
 
             # Check if too close to earnings.
-            if self.earnings(asset):
-                continue
+            # if self.earnings(asset):
+            #     continue
 
             options["trade_created_time"] = datetime.datetime.now()
             self.total_trades += 1
@@ -236,11 +250,21 @@ class Option(Strategy):
                 )
             )
 
+
+        # todo After a sleep, check if all orders are filled. If not cancel orders
+        #  and close positions that are open per symbol.
+        time.sleep(10)
+        p = self.get_tracked_positions()
+        fa = [p.asset for p in positions]
         print(
+            f"Positions: {p} "
+            f"Filled_assets: {fa} "
             f"*******  END ELAPSED TIME  "
             f"{(time.time() - self.time_start):5.0f}   "
             f"*******"
         )
+
+        # self.await_market_to_close()
 
     def before_market_closes(self):
         # Make sure that we sell everything before the market closes
@@ -263,14 +287,15 @@ class Option(Strategy):
             raise AssertionError(f"No option chain for {asset.symbol}")
         return chains
 
-    def get_expiration(self, chains):
-        """Returns expirations and strikes high/low of target price."""
-        expirations = []
+    def get_chain(self, chains):
         for x, p in chains.items():
             if x == self.exchange:
-                expirations = sorted(list(p["Expirations"]))
+                return p
 
-        return expirations
+    def get_expiration(self, chains):
+        """Returns expirations and strikes high/low of target price."""
+        return sorted(list(self.get_chain(chains)["Expirations"]))
+
 
     def buy_sell_strike(self, last_price, symbol, expiration_date):
         """Returns strikes for pair."""
@@ -364,7 +389,10 @@ class Option(Strategy):
         """Check if the current date is too close to earnings."""
         print(f"Getting earnings date for {asset.symbol}")
         current_date = datetime.datetime.now().date()
-        edate = Ticker(asset.symbol).calendar.iloc[0, 0].date()
+        edate = Ticker(asset.symbol).calendar
+        if edate is None:
+            return False
+        edate = edate.iloc[0, 0].date()
         days_to_earnings = (edate - current_date).days
         earnings_too_close = (
             days_to_earnings < self.days_to_earnings_min

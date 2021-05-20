@@ -228,8 +228,6 @@ The methods of this class can be split into several categories:
 
 **Strategy Methods** These are strategy helper methods.
 
-**Event Methods** These methods are executed when an event is trigered. Similar to lifecycle methods, but only *might* happen.
-
 **Broker Methods** How to interact with the broker (buy, sell, get positions, etc)
 
 **Data Methods** How to get price data easily
@@ -399,8 +397,8 @@ class MyStrategy(Strategy):
 
 #### on_abrupt_closing
 
-This event method is called when the strategy execution was interrupted.
-Use this event method to execute code to stop trading gracefully like selling all assets
+This lifecycle method is called when the strategy execution was interrupted.
+Use this lifecycle method to execute code to stop trading gracefully like selling all assets
 
 ```python
 class MyStrategy(Strategy):
@@ -410,7 +408,7 @@ class MyStrategy(Strategy):
 
 #### on_bot_crash
 
-This event method is called when the strategy crashes.
+This lifecycle method is called when the strategy crashes.
 By default, if not overloaded,  it calls on_abrupt_closing.
 
 ```python

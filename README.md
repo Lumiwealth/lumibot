@@ -397,16 +397,6 @@ class MyStrategy(Strategy):
        return row
 ```
 
-## Strategy Methods
-
-#### log_message
-
-Logs an info message prefixed with the strategy name
-
-## Event Methods
-
-Events methods are similar to lifecycle methods. They are executed on particular conditions.
-
 #### on_abrupt_closing
 
 This event method is called when the strategy execution was interrupted.
@@ -428,6 +418,12 @@ class MyStrategy(Strategy):
     def on_bot_crash(self, error):
         self.on_abrupt_closing()
 ```
+
+## Strategy Methods
+
+#### log_message
+
+Logs an info message prefixed with the strategy name
 
 ## Broker Methods
 

@@ -14,6 +14,7 @@ class IBTest(Strategy):
     def __init__(self, name, budget, broker, **kwargs):
         super().__init__(name, budget, broker, **kwargs)
         self.symbols = ["FB", "TSLA", "MSFT", "F", "AAPL", "IBM"]
+        self.count = 0
 
     def on_trading_iteration(self):
         """
@@ -69,16 +70,16 @@ class IBTest(Strategy):
         #         multiplier=100,
         #     )
         # )
-        time.sleep(5555)
+        # time.sleep(5555)
         # Check connection and times
         # log_methods = dict(
-            #     get_datetime={},
-            # get_timestamp={},
-            #     get_round_minute={},
-            #     get_last_minute={},
-            #     get_round_day={},
-            #     get_last_day={},
-            #     get_datetime_range={"length": 40},
+        #     get_datetime={},
+        # get_timestamp={},
+        #     get_round_minute={},
+        #     get_last_minute={},
+        #     get_round_day={},
+        #     get_last_day={},
+        #     get_datetime_range={"length": 40},
         # )
         #
         # self.check_function(log_methods)

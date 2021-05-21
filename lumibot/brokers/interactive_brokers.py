@@ -227,19 +227,10 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
             stop_loss_order.parent_id = order.identifier
             orders_new.append(stop_loss_order)
 
-        try:
-            responses = self.ib.execute_order(orders_new)
-            for response in responses:
-                order_parsed = self._parse_broker_order(response, order.strategy)
-                orders.append(order_parsed)
-                self._unprocessed_orders.append(order_parsed)
-        except Exception as e:
-            order.set_error(e)
-            logging.info(
-                "%r did not go through. The following error occurred: %s" % (order, e)
-            )
-
-        return orders
+        for on in orders_new:
+            self._unprocessed_orders.append(on)
+        self.ib.execute_order(orders_new)
+        return orders_new
 
     def cancel_order(self, order_id):
         """Cancel an order"""
@@ -396,38 +387,35 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
     def on_trade_event(self, reqId, contract, execution):
         # print("on_trade_event: ", reqId, contract, execution) todo delete
 
-        try:
-            orderId = execution.orderId
-            stored_order = self.get_tracked_order(orderId)
+        orderId = execution.orderId
+        stored_order = self.get_tracked_order(orderId)
 
-            if stored_order is None:
-                logging.info(
-                    "Untracker order %s was logged by broker %s" % (orderId, self.name)
-                )
-                return False
-                # Check the order status submit changes.
-            if execution.cumQty < stored_order.quantity:
-                type_event = self.PARTIALLY_FILLED_ORDER
-            elif execution.cumQty == stored_order.quantity:
-                type_event = self.FILLED_ORDER
-            else:
-                raise ValueError(
-                    f"An order type should not have made it this far. " f"{execution}"
-                )
-
-            price = execution.price
-            filled_quantity = execution.shares
-
-            self._process_trade_event(
-                stored_order,
-                type_event,
-                price=price,
-                filled_quantity=filled_quantity,
+        if stored_order is None:
+            logging.info(
+                "Untracker order %s was logged by broker %s" % (orderId, self.name)
+            )
+            return False
+            # Check the order status submit changes.
+        if execution.cumQty < stored_order.quantity:
+            type_event = self.PARTIALLY_FILLED_ORDER
+        elif execution.cumQty == stored_order.quantity:
+            type_event = self.FILLED_ORDER
+        else:
+            raise ValueError(
+                f"An order type should not have made it this far. " f"{execution}"
             )
 
-            return True
-        except:
-            logging.error(traceback.format_exc())
+        price = execution.price
+        filled_quantity = execution.shares
+
+        self._process_trade_event(
+            stored_order,
+            type_event,
+            price=price,
+            filled_quantity=filled_quantity,
+        )
+
+        return True
 
 
 TYPE_MAP = dict(
@@ -1059,31 +1047,3 @@ class IBApp(IBWrapper, IBClient):
 
         for ib_order in ib_orders:
             self.placeOrder(*ib_order)
-
-        try:
-            requested_new_orders = []
-            order_ids = [ibo[0] for ibo in ib_orders]
-            get_order = True
-            while get_order:
-                requested_new_order = new_order_storage.get(timeout=self.max_wait_time)
-                if requested_new_order not in requested_new_orders:
-                    requested_new_orders.append(requested_new_order)
-
-                # Check if all orders received.
-                get_order = False
-                for order_id in order_ids:
-                    if order_id not in [rno.orderId for rno in requested_new_orders]:
-                        get_order = True
-
-        except queue.Empty:
-            print(f"The queue was empty or max time reached for new order.")
-            requested_new_orders = None
-
-        while self.wrapper.is_error():
-            print("Error:", self.get_error(timeout=5))
-
-        # Sort the list by order number.
-        requested_new_orders = sorted(
-            requested_new_orders, key=lambda x: x.orderId, reverse=False
-        )
-        return requested_new_orders

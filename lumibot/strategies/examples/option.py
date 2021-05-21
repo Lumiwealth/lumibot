@@ -88,6 +88,7 @@ class Option(Strategy):
                 "trade_created_time": None,
                 "trade_yield": None,
                 "trade_yield_ok": None,
+                "trade_time": None,
             }
 
     def before_starting_trading(self):
@@ -159,8 +160,9 @@ class Option(Strategy):
             ):
                 continue
 
-            close_premium = options["price_far"] - options["price_near"]
-            if options["premium_received"] >= close_premium * self.close_premium_factor:
+            # close_premium = options["price_far"] - options["price_near"]
+            # if options["premium_received"] >= close_premium * self.close_premium_factor:
+            if time.time() - options["trade_time"] > 120:
                 self.total_trades -= 1
                 # Buy near call.
                 self.submit_order(
@@ -181,9 +183,6 @@ class Option(Strategy):
                     )
                 )
 
-        # Create positions:
-        if self.total_trades > self.max_trades:
-            return
 
         print(
             f"*******  START TRADING ELAPSED TIME "
@@ -192,6 +191,11 @@ class Option(Strategy):
         )
 
         for asset, options in self.trading_pairs.items():
+
+            # Create positions:
+            if self.total_trades > self.max_trades:
+                return
+
             # Check for symbol in positions.
             if len([p.symbol for p in positions if p.symbol == asset.symbol]) > 0:
                 continue
@@ -230,6 +234,7 @@ class Option(Strategy):
 
             options["trade_created_time"] = datetime.datetime.now()
             self.total_trades += 1
+            options["trade_time"] = time.time()
             # Sell near call.
             self.submit_order(
                 self.create_order(

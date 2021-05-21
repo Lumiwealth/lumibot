@@ -121,12 +121,21 @@ class Alpaca(AlpacaData, Broker):
             "order_class": order.order_class,
             "time_in_force": order.time_in_force,
             "limit_price": order.limit_price,
+            "stop_price": order.stop_price,
+            "trail_price": order.trail_price,
+            "trail_percent": order.trail_percent,
         }
-        if order.stop_price:
-            kwargs["stop_loss"] = {"stop_price": order.stop_price}
-
         # Remove items with None values
         kwargs = {k: v for k, v in kwargs.items() if v}
+
+        if order.take_profit_price:
+            kwargs["take_profit"] = {"limit_price": order.take_profit_price}
+
+        if order.stop_loss_price:
+            kwargs["stop_loss"] = {"stop_price": order.stop_loss_price}
+            if order.stop_loss_limit_price:
+                kwargs["stop_loss"]["limit_price"] = order.stop_loss_limit_price
+
         try:
             response = self.api.submit_order(
                 order.symbol, order.quantity, order.side, **kwargs

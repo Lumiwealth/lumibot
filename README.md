@@ -417,6 +417,77 @@ class MyStrategy(Strategy):
         self.on_abrupt_closing()
 ```
 
+#### on_new_order
+
+This lifecycle method is called when a new order has been successfully submitted to the broker.
+Use this lifecycle event to execute code when a new order is being processed by the broker
+
+Parameters:
+- order (Order): The corresponding order object being processed 
+
+```python
+class MyStrategy(Strategy):
+    def on_new_order(self, order):
+        self.log_message("%r is currently being processed by the broker" % order)
+```
+
+#### on_canceled_order
+
+This lifecycle method is called when an order has been successfully canceled by the broker.
+Use this lifecycle event to execute code when an order has been canceled by the broker
+
+Parameters:
+- order (Order): The corresponding order object that has been canceled
+
+```python
+class MyStrategy(Strategy):
+    def on_canceled_order(self, order):
+        self.log_message("%r has been canceled by the broker" % order)
+```
+
+#### on_partially_filled_order
+
+This lifecycle method is called when an order has been partially filled by the broker.
+Use this lifecycle event to execute code when an order has been partially filled by the broker.
+
+Parameters:
+- order (Order): The order object that is being processed by the broker
+- price (float): The filled price
+- quantity (int): The filled quantity
+
+```python
+class MyStrategy(Strategy):
+    def on_partially_filled_order(self, order, price, quantity):
+        missing = order.quantity - quantity
+        self.log_message(f"{quantity} has been filled")
+        self.log_message(f"{quantity} waiting for the remaining {missing}")
+```
+
+#### on_filled_order
+
+This lifecycle method is called when an order has been successfully filled by the broker.
+Use this lifecycle event to execute code when an order has been filled by the broker
+
+Parameters:
+- position (Position): The updated position object related to the order symbol. 
+  If the strategy already holds 200 shares of SPY and 300 has just been filled, 
+  then `position.quantity` will be 500 shares otherwise if it is a new
+  position, a new position object will be created and passed to this method.
+- order (Order): The corresponding order object that has been filled
+- price (float): The filled price
+- quantity (int): The filled quantity
+
+```python
+class MyStrategy(Strategy):
+    def on_filled_order(self, position, order, price, quantity):
+        if order.side == "sell":
+            self.log_message(f"{quantity} shares of {order.symbol} has been sold at {price}$")
+        elif order.side == "buy":
+            self.log_message(f"{quantity} shares of {order.symbol} has been bought at {price}$")
+
+        self.log_message(f"Currently holding {position.quantity} of {position.symbol}")
+```
+
 ## Strategy Methods
 
 #### log_message

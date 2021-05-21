@@ -1,3 +1,4 @@
+from itertools import cycle
 import datetime
 import logging
 import time
@@ -30,7 +31,7 @@ class Option(Strategy):
 
         # Initialize our variables
         self.total_trades = 0
-        self.max_trades = 3
+        self.max_trades = 2
         self.quantity = 10
         self.sell_strike = 1.06
         self.buy_strike = 1.10
@@ -44,7 +45,7 @@ class Option(Strategy):
 
         # Use these for higher options volume stocks.
         symbols_universe = [
-            "AAL",
+            # "AAL",
             # "ABNB",
             # "AMC",
             # "AMD",
@@ -62,10 +63,10 @@ class Option(Strategy):
             # "MSFT",
             # "NIO",
             # "PLTR",
-            # "PLUG",
-            # "SQ",
-            # "TSLA",
-            # "UBER",
+            "PLUG",
+            "SQ",
+            "TSLA",
+            "UBER",
         ]
 
         # Set the symbols that we want to be monitoring. Leave blank for s&p500
@@ -74,7 +75,8 @@ class Option(Strategy):
         # Underlying Asset Objects.
         self.trading_pairs = dict()
         for symbol, price in self.symbols_price.iterrows():
-            self.trading_pairs[self.create_asset(symbol, asset_type="stock")] = {
+            asset = self.create_asset(symbol, asset_type="stock")
+            self.trading_pairs[asset] = {
                 "near": None,
                 "far": None,
                 "expirations": None,
@@ -88,8 +90,8 @@ class Option(Strategy):
                 "trade_created_time": None,
                 "trade_yield": None,
                 "trade_yield_ok": None,
-                "trade_time": None,
             }
+            self.asset_gen = self.asset_cycle(self.trading_pairs.keys())
 
     def before_starting_trading(self):
         """Create the option assets object for each underlying. """
@@ -105,7 +107,6 @@ class Option(Strategy):
             options["expiration_date"] = self.get_expiration_date(
                 options["expirations"]
             )
-            # todo there's an issue here, not getting options back. below
 
             multiplier = self.get_chain(chains)["Multiplier"]
 
@@ -160,9 +161,8 @@ class Option(Strategy):
             ):
                 continue
 
-            # close_premium = options["price_far"] - options["price_near"]
-            # if options["premium_received"] >= close_premium * self.close_premium_factor:
-            if time.time() - options["trade_time"] > 120:
+            close_premium = options["price_far"] - options["price_near"]
+            if options["premium_received"] >= close_premium * self.close_premium_factor:
                 self.total_trades -= 1
                 # Buy near call.
                 self.submit_order(
@@ -190,8 +190,10 @@ class Option(Strategy):
             f"*******"
         )
 
-        for asset, options in self.trading_pairs.items():
-
+        for _ in range(len(self.trading_pairs.keys())):
+            asset = next(self.asset_gen)
+            print(f"In trading iteration create position {asset}")
+            options = self.trading_pairs[asset]
             # Create positions:
             if self.total_trades > self.max_trades:
                 return
@@ -228,13 +230,8 @@ class Option(Strategy):
             if not options["trade_yield_ok"]:
                 continue
 
-            # Check if too close to earnings.
-            # if self.earnings(asset):
-            #     continue
-
             options["trade_created_time"] = datetime.datetime.now()
             self.total_trades += 1
-            options["trade_time"] = time.time()
             # Sell near call.
             self.submit_order(
                 self.create_order(
@@ -255,21 +252,17 @@ class Option(Strategy):
                 )
             )
 
-
-        # todo After a sleep, check if all orders are filled. If not cancel orders
-        #  and close positions that are open per symbol.
-        time.sleep(10)
-        p = self.get_tracked_positions()
-        fa = [p.asset for p in positions]
+        pos = self.get_tracked_positions()
+        filla = [pos.asset for pos in positions]
         print(
-            f"Positions: {p} "
-            f"Filled_assets: {fa} "
+            f"Positions: {pos} "
+            f"Filled_assets: {filla} "
             f"*******  END ELAPSED TIME  "
             f"{(time.time() - self.time_start):5.0f}   "
             f"*******"
         )
 
-        # self.await_market_to_close()
+        self.await_market_to_close()
 
     def before_market_closes(self):
         # Make sure that we sell everything before the market closes
@@ -283,6 +276,10 @@ class Option(Strategy):
         self.asset = ""
 
     # =============Helper methods====================
+    def asset_cycle(self, assets):
+        for asset in cycle(assets):
+            yield asset
+
     def get_chains(self, asset):
         """Returns option chain on specific exchange. ."""
         contract_details = self.broker.get_contract_details(asset=asset)
@@ -389,26 +386,6 @@ class Option(Strategy):
         ].dropna()
 
         return symbols
-
-    def earnings(self, asset):
-        """Check if the current date is too close to earnings."""
-        print(f"Getting earnings date for {asset.symbol}")
-        current_date = datetime.datetime.now().date()
-        edate = Ticker(asset.symbol).calendar
-        if edate is None:
-            return False
-        edate = edate.iloc[0, 0].date()
-        days_to_earnings = (edate - current_date).days
-        earnings_too_close = (
-            days_to_earnings < self.days_to_earnings_min
-        ) and days_to_earnings > 0
-
-        if earnings_too_close:
-            logging.info(
-                f"{asset.symbol} is to close to earnings at {days_to_earnings}"
-            )
-
-        return earnings_too_close
 
     def check_trade_yield(self, asset, options):
         # Check to determine if trade yield is high enough to trade.

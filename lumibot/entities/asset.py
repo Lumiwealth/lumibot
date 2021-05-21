@@ -8,6 +8,11 @@ class Asset:
       - asset_type (string, default: `stock`): One of the following:
         - `stock`
         - `option`
+      If asset_type is `option` then the following fields are mandatory.
+      - expiration (string, "YYYY-MM-DD"): Contract expiration date.
+      - strike (float): Contract strike price.
+      - right(string): `call` or `put`
+      - multiplier (int): Contract leverage over the underlying.
 
 
     """
@@ -63,8 +68,5 @@ class Asset:
         else:
             return stock_repr + option_repr
 
-    # Option methods
-    def is_option(self):
-        return self._asset_type == 'option'
 
 

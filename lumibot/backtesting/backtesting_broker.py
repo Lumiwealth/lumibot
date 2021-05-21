@@ -189,6 +189,16 @@ class BacktestingBroker(Broker):
 
     def submit_order(self, order):
         """Submit an order for an asset"""
+        if order.order_class or order.type != "market":
+            if order.order_class:
+                logging.warning(
+                    "Backtest executes Bracket, OTO and OCO orders as simple orders"
+                )
+            else:
+                logging.warning(
+                    "Backtest executes limit, stop, stop_limit and trailing orders as market orders"
+                )
+
         order.set_identifier(token_hex(16))
         order.update_raw(order)
         return order

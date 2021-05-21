@@ -24,6 +24,7 @@ class StrategyExecutor(Thread):
 
         self.strategy = strategy
         self._strategy_context = None
+        self._first_iteration = True
         self.broker = self.strategy.broker
         self.minutes_before_closing = self.strategy.minutes_before_closing
         self.result = {}
@@ -169,6 +170,7 @@ class StrategyExecutor(Thread):
         self.strategy.log_message("Executing the on_trading_iteration lifecycle method")
         on_trading_iteration = append_locals(self.strategy.on_trading_iteration)
         on_trading_iteration()
+        self._first_iteration = False
         self._strategy_context = on_trading_iteration.locals
         self.process_queue()
 

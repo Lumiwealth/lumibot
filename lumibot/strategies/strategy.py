@@ -47,6 +47,10 @@ class Strategy(_Strategy):
         return self._unspent_money
 
     @property
+    def first_iteration(self):
+        return self._first_iteration
+
+    @property
     def stats_file(self):
         return self._stats_file
 

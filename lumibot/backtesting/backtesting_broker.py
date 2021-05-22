@@ -193,6 +193,12 @@ class BacktestingBroker(Broker):
         order.update_raw(order)
         return order
 
+    def submit_orders(self, orders):
+        results = []
+        for order in orders:
+            results.append(self.submit_order(order))
+        return results
+
     def cancel_order(self, order):
         """Cancel an order"""
         pass

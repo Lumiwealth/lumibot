@@ -15,7 +15,6 @@ from lumibot.strategies.examples import (
 )
 from lumibot.tools import indicators, perf_counters
 from lumibot.traders import Trader
-from lumibot.trading_builtins import set_redis_db
 
 # Global parameters
 debug = False
@@ -35,28 +34,24 @@ mapping = {
         "class": Momentum,
         "backtesting_datasource": YahooDataBacktesting,
         "kwargs": {"symbols": ["SPY", "VEU", "AGG"]},
-        "backtesting_cache": False,
         "config": None,
     },
     "diversification": {
         "class": Diversification,
         "backtesting_datasource": YahooDataBacktesting,
         "kwargs": {},
-        "backtesting_cache": False,
         "config": None,
     },
     "debt_trading": {
         "class": DebtTrading,
         "backtesting_datasource": YahooDataBacktesting,
         "kwargs": {},
-        "backtesting_cache": False,
         "config": None,
     },
     "intraday_momentum": {
         "class": IntradayMomentum,
         "backtesting_datasource": None,
         "kwargs": {},
-        "backtesting_cache": False,
         "config": None,
     },
 }
@@ -93,7 +88,6 @@ if __name__ == "__main__":
 
         strategy_class = strategy_params["class"]
         backtesting_datasource = strategy_params["backtesting_datasource"]
-        backtesting_cache = strategy_params["backtesting_cache"]
         kwargs = strategy_params["kwargs"]
         config = strategy_params["config"]
 
@@ -112,9 +106,6 @@ if __name__ == "__main__":
                 raise ValueError(
                     f"Backtesting is not supported for strategy {strategy_name}"
                 )
-
-            if backtesting_cache:
-                set_redis_db()
 
             tic = perf_counter()
             strategy_class.backtest(

@@ -4,25 +4,8 @@ from lumibot.data_sources import DataSource
 from lumibot.tools import print_progress_bar
 
 
-class DataSourceBacktesting:
+class DataSourceBacktesting(DataSource):
     IS_BACKTESTING_DATA_SOURCE = True
-
-    @classmethod
-    def factory(cls, datasource_class):
-        def __init__(self, datetime_start, datetime_end, **kwargs):
-            datasource_class.__init__(self, **kwargs)
-            cls.__init__(self, datetime_start, datetime_end)
-
-        backtesting_class = type(
-            datasource_class.__name__ + "Backtesting",
-            (cls, datasource_class),
-            {
-                "MIN_TIMESTEP": datasource_class.MIN_TIMESTEP,
-                "LIVE_DATA_SOURCE": datasource_class,
-                "__init__": __init__,
-            },
-        )
-        return backtesting_class
 
     def __init__(self, datetime_start, datetime_end):
         self.datetime_start = datetime_start

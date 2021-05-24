@@ -13,8 +13,6 @@ class Asset:
       - strike (float): Contract strike price.
       - right(string): `call` or `put`
       - multiplier (int): Contract leverage over the underlying.
-
-
     """
 
     def __init__(

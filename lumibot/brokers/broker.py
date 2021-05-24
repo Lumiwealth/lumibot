@@ -101,6 +101,7 @@ class Broker:
         logging.info("New %r was submited." % order)
         self._unprocessed_orders.remove(order.identifier, key="identifier")
         order.update_status(self.NEW_ORDER)
+        order.set_new()
         self._new_orders.append(order)
         return order
 
@@ -109,6 +110,7 @@ class Broker:
         self._new_orders.remove(order.identifier, key="identifier")
         self._partially_filled_orders.remove(order.identifier, key="identifier")
         order.update_status(self.CANCELED_ORDER)
+        order.set_canceled()
         self._canceled_orders.append(order)
         return order
 
@@ -122,6 +124,7 @@ class Broker:
 
         order.add_transaction(price, quantity)
         order.update_status(self.PARTIALLY_FILLED_ORDER)
+        order.set_partially_filled()
         self._partially_filled_orders.append(order)
         return order
 
@@ -136,6 +139,7 @@ class Broker:
 
         order.add_transaction(price, quantity)
         order.update_status(self.FILLED_ORDER)
+        order.set_filled()
 
         position = self.get_tracked_position(order.strategy, order.symbol)
         if position is None:

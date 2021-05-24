@@ -1,5 +1,0 @@
-from lumibot.data_sources import AlphaVantageData
-
-from .data_source_backtesting import DataSourceBacktesting
-
-AlphaVantageDataBacktesting = DataSourceBacktesting.factory(AlphaVantageData)

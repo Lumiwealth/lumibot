@@ -114,6 +114,31 @@ MyStrategy.backtest(
 )
 ```
 
+## Example Strategies
+
+We have provided a set of several example strategies that you can copy to create your own, they are located in `lumibot->strategies->examples`. Here is a breakdown of each example strategy:
+
+#### Diversification
+Allocates the budget between self.portfolio and rebalances every self.period days.
+For example, if there is a budget of $100,000 then we will buy $30,000 SPY, $40,000 TLT, etc.
+We will then buy/sell assets every day depending on self.portfolio_value (the amount of money
+we have in this strategy) so that we match the percentages laid out in self.portfolio.
+
+#### Intraday Momentum
+Buys the best performing asset from self.symbols over self.momentum_length number of minutes.
+For example, if TSLA increased 0.03% in the past two minutes, but SPY, GLD, TLT and MSFT only 
+increased 0.01% in the past two minutes, then we will buy TSLA.
+
+#### Momentum
+Buys the best performing asset from self.symbols over self.period number of days.
+For example, if SPY increased 2% yesterday, but VEU and AGG only increased 1% yesterday,
+then we will buy SPY.
+
+#### Simple
+Buys and sells 10 of self.buy_symbol every day (not meant to make money, just an example).
+For example, Day 1 it will buy 10 shares, Day 2 it will sell all of them, Day 3 it will 
+buy 10 shares again, etc.
+
 # Entities
 
 ## asset
@@ -229,38 +254,11 @@ The methods of this class can be split into several categories:
 
 **Strategy Methods** These are strategy helper methods.
 
-**Event Methods** These methods are executed when an event is trigered. Similar to lifecycle methods, but only *might* happen.
-
 **Broker Methods** How to interact with the broker (buy, sell, get positions, etc)
 
 **Data Methods** How to get price data easily
 
 All the methods in each of these categories are described below.
-
-## Example Strategies
-
-We have provided a set of several example strategies that you can copy to create your own, they are located in `lumibot->strategies->examples`. Here is a breakdown of each example strategy:
-
-#### Diversification
-Allocates the budget between self.portfolio and rebalances every self.period days.
-For example, if there is a budget of $100,000 then we will buy $30,000 SPY, $40,000 TLT, etc.
-We will then buy/sell assets every day depending on self.portfolio_value (the amount of money
-we have in this strategy) so that we match the percentages laid out in self.portfolio.
-
-#### Intraday Momentum
-Buys the best performing asset from self.symbols over self.momentum_length number of minutes.
-For example, if TSLA increased 0.03% in the past two minutes, but SPY, GLD, TLT and MSFT only 
-increased 0.01% in the past two minutes, then we will buy TSLA.
-
-#### Momentum
-Buys the best performing asset from self.symbols over self.period number of days.
-For example, if SPY increased 2% yesterday, but VEU and AGG only increased 1% yesterday,
-then we will buy SPY.
-
-#### Simple
-Buys and sells 10 of self.buy_symbol every day (not meant to make money, just an example).
-For example, Day 1 it will buy 10 shares, Day 2 it will sell all of them, Day 3 it will 
-buy 10 shares again, etc.
 
 ## Lifecycle Methods
 
@@ -423,20 +421,10 @@ class MyStrategy(Strategy):
        return row
 ```
 
-## Strategy Methods
-
-#### log_message
-
-Logs an info message prefixed with the strategy name
-
-## Event Methods
-
-Events methods are similar to lifecycle methods. They are executed on particular conditions.
-
 #### on_abrupt_closing
 
-This event method is called when the strategy execution was interrupted.
-Use this event method to execute code to stop trading gracefully like selling all assets
+This lifecycle method is called when the strategy execution was interrupted.
+Use this lifecycle method to execute code to stop trading gracefully like selling all assets
 
 ```python
 class MyStrategy(Strategy):
@@ -446,7 +434,7 @@ class MyStrategy(Strategy):
 
 #### on_bot_crash
 
-This event method is called when the strategy crashes.
+This lifecycle method is called when the strategy crashes.
 By default, if not overloaded,  it calls on_abrupt_closing.
 
 ```python
@@ -454,6 +442,83 @@ class MyStrategy(Strategy):
     def on_bot_crash(self, error):
         self.on_abrupt_closing()
 ```
+
+#### on_new_order
+
+This lifecycle method is called when a new order has been successfully submitted to the broker.
+Use this lifecycle event to execute code when a new order is being processed by the broker
+
+Parameters:
+- order (Order): The corresponding order object being processed 
+
+```python
+class MyStrategy(Strategy):
+    def on_new_order(self, order):
+        self.log_message("%r is currently being processed by the broker" % order)
+```
+
+#### on_canceled_order
+
+This lifecycle method is called when an order has been successfully canceled by the broker.
+Use this lifecycle event to execute code when an order has been canceled by the broker
+
+Parameters:
+- order (Order): The corresponding order object that has been canceled
+
+```python
+class MyStrategy(Strategy):
+    def on_canceled_order(self, order):
+        self.log_message("%r has been canceled by the broker" % order)
+```
+
+#### on_partially_filled_order
+
+This lifecycle method is called when an order has been partially filled by the broker.
+Use this lifecycle event to execute code when an order has been partially filled by the broker.
+
+Parameters:
+- order (Order): The order object that is being processed by the broker
+- price (float): The filled price
+- quantity (int): The filled quantity
+
+```python
+class MyStrategy(Strategy):
+    def on_partially_filled_order(self, order, price, quantity):
+        missing = order.quantity - quantity
+        self.log_message(f"{quantity} has been filled")
+        self.log_message(f"{quantity} waiting for the remaining {missing}")
+```
+
+#### on_filled_order
+
+This lifecycle method is called when an order has been successfully filled by the broker.
+Use this lifecycle event to execute code when an order has been filled by the broker
+
+Parameters:
+- position (Position): The updated position object related to the order symbol. 
+  If the strategy already holds 200 shares of SPY and 300 has just been filled, 
+  then `position.quantity` will be 500 shares otherwise if it is a new
+  position, a new position object will be created and passed to this method.
+- order (Order): The corresponding order object that has been filled
+- price (float): The filled price
+- quantity (int): The filled quantity
+
+```python
+class MyStrategy(Strategy):
+    def on_filled_order(self, position, order, price, quantity):
+        if order.side == "sell":
+            self.log_message(f"{quantity} shares of {order.symbol} has been sold at {price}$")
+        elif order.side == "buy":
+            self.log_message(f"{quantity} shares of {order.symbol} has been bought at {price}$")
+
+        self.log_message(f"Currently holding {position.quantity} of {position.symbol}")
+```
+
+## Strategy Methods
+
+#### log_message
+
+Logs an info message prefixed with the strategy name
 
 ## Broker Methods
 

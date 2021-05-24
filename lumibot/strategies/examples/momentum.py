@@ -125,10 +125,10 @@ class Momentum(Strategy):
         """
 
         momentums = []
-        for symbol in self.symbols:
+        start_date = self.get_round_day(timeshift=self.period + 1)
+        data = self.get_bars(self.symbols, self.period + 2, timestep="day")
+        for symbol, bars_set in data.items():
             # Get the return for symbol over self.period days
-            bars_set = self.get_symbol_bars(symbol, self.period + 2, timestep="day")
-            start_date = self.get_round_day(timeshift=self.period + 1)
             symbol_momentum = bars_set.get_momentum(start=start_date)
             logging.info(
                 "%s has a return value of %.2f%% over the last %d day(s)."
@@ -142,4 +142,5 @@ class Momentum(Strategy):
                     "return": symbol_momentum,
                 }
             )
+
         return momentums

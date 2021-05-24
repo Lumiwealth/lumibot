@@ -1,8 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 
-import pytz
-
+from lumibot import LUMIBOT_DEFAULT_PYTZ, LUMIBOT_DEFAULT_TIMEZONE
 from lumibot.tools import get_chunks
 
 from .exceptions import UnavailabeTimestep
@@ -13,8 +12,8 @@ class DataSource:
     IS_BACKTESTING_DATA_SOURCE = False
     MIN_TIMESTEP = "minute"
     TIMESTEP_MAPPING = []
-    DEFAULT_TIMEZONE = "America/New_York"
-    DEFAULT_PYTZ = pytz.timezone(DEFAULT_TIMEZONE)
+    DEFAULT_TIMEZONE = LUMIBOT_DEFAULT_TIMEZONE
+    DEFAULT_PYTZ = LUMIBOT_DEFAULT_PYTZ
 
     # ========Python datetime helpers======================
 

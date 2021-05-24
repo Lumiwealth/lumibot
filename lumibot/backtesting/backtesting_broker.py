@@ -211,10 +211,6 @@ class BacktestingBroker(Broker):
         """Takes a list of symbols and returns the last known prices"""
         return self._data_source.get_last_prices(symbols)
 
-    def get_tradable_assets(self, easy_to_borrow=None, filter_func=None):
-        """Get the list of all tradable assets from the market"""
-        pass
-
     # ==========Processing streams data=======================
 
     def _get_stream_object(self):

@@ -101,11 +101,11 @@ class Strategy(_Strategy):
 
     def await_market_to_open(self):
         """Executes infinite loop until market opens"""
-        self.broker.await_market_to_open()
+        return self.broker.await_market_to_open()
 
     def await_market_to_close(self):
         """Sleep until market closes"""
-        self.broker.await_market_to_close()
+        return self.broker.await_market_to_close()
 
     def get_tracked_position(self, asset):
         """get a tracked position given
@@ -147,27 +147,27 @@ class Strategy(_Strategy):
 
     def submit_order(self, order):
         """Submit an order for an asset"""
-        self.broker.submit_order(order)
+        return self.broker.submit_order(order)
 
     def submit_orders(self, orders):
         """submit orders"""
-        self.broker.submit_orders(orders)
+        return self.broker.submit_orders(orders)
 
     def cancel_order(self, order):
         """Cancel an order"""
-        self.broker.cancel_order(order)
+        return self.broker.cancel_order(order)
 
     def cancel_orders(self, orders):
         """cancel orders"""
-        self.broker.cancel_orders(orders)
+        return self.broker.cancel_orders(orders)
 
     def cancel_open_orders(self):
         """cancel all the strategy open orders"""
-        self.broker.cancel_open_orders(self.name)
+        return self.broker.cancel_open_orders(self.name)
 
     def sell_all(self, cancel_open_orders=True):
         """sell all strategy positions"""
-        self.broker.sell_all(self.name, cancel_open_orders=cancel_open_orders)
+        return self.broker.sell_all(self.name, cancel_open_orders=cancel_open_orders)
 
     def get_last_price(self, asset):
         """Takes an asset asset and returns the last known price"""
@@ -186,13 +186,6 @@ class Strategy(_Strategy):
             return {a.symbol: p for a, p in asset_prices.items()}
         else:
             return asset_prices
-
-    def get_tradable_assets(self, easy_to_borrow=None, filter_func=None):
-        """Get the list of all tradable assets
-        within the current broker from the market"""
-        return self.broker.get_tradable_assets(
-            easy_to_borrow=easy_to_borrow, filter_func=filter_func
-        )
 
     # =======Data source methods=================
 

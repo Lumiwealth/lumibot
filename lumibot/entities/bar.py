@@ -1,14 +1,13 @@
 from datetime import datetime
 
-import pytz
-
 from lumibot.tools import ComparaisonMixin
+from lumibot import LUMIBOT_DEFAULT_PYTZ, LUMIBOT_DEFAULT_TIMEZONE
 
 
 class Bar(ComparaisonMixin):
     COMPARAISON_PROP = "timestamp"
-    DEFAULT_TIMEZONE = "America/New_York"
-    DEFAULT_PYTZ = pytz.timezone(DEFAULT_TIMEZONE)
+    DEFAULT_TIMEZONE = LUMIBOT_DEFAULT_TIMEZONE
+    DEFAULT_PYTZ = LUMIBOT_DEFAULT_PYTZ
 
     def __init__(self, raw):
         self._raw = raw

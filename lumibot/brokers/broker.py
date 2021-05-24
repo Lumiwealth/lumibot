@@ -335,6 +335,24 @@ class Broker:
         """submit orders"""
         self._orders_queue.put(orders)
 
+    def wait_for_order_registration(self, order):
+        """Wait for the order to be registered by the broker"""
+        order.wait_to_be_registered()
+
+    def wait_for_order_execution(self, order):
+        """Wait for the order to execute/be canceled"""
+        order.wait_to_be_closed()
+
+    def wait_for_orders_registration(self, orders):
+        """Wait for the orders to be registered by the broker"""
+        for order in orders:
+            order.wait_to_be_registered()
+
+    def wait_for_orders_execution(self, orders):
+        """Wait for the orders to execute/be canceled"""
+        for order in orders:
+            order.wait_to_be_closed()
+
     def cancel_order(self, order):
         """Cancel an order"""
         pass

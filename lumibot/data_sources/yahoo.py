@@ -49,7 +49,7 @@ class YahooData(DataSource):
         if asset in self._data_store:
             data = self._data_store[asset]
         else:
-            data = yf.Ticker(symbol).history(
+            data = yf.Ticker(asset.symbol).history(
                 start=self.datetime_start,
                 end=self.datetime_end + timedelta(days=1),
                 auto_adjust=self.auto_adjust,

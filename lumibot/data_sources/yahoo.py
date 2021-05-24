@@ -73,8 +73,8 @@ class YahooData(DataSource):
             asset.symbol for asset in assets if asset not in self._data_store
         ]
               
-        if missing_symbols:
-            tickers = yf.Tickers(" ".join(missing_symbols))
+        if missing_assets:
+            tickers = yf.Tickers(" ".join(missing_assets))
             df_yf = tickers.history(
                 start=self.datetime_start,
                 end=self.datetime_end + timedelta(days=1),

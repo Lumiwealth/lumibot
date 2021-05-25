@@ -12,12 +12,13 @@ from lumibot.strategies.examples import (
     Diversification,
     IntradayMomentum,
     Momentum,
+    Simple,
 )
 from lumibot.tools import indicators, perf_counters
 from lumibot.traders import Trader
 
 # Global parameters
-debug = False
+debug = True
 budget = 40000
 backtesting_start = datetime(2010, 1, 1)
 backtesting_end = datetime(2020, 12, 31)

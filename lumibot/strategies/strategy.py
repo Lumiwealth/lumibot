@@ -1,6 +1,6 @@
 import logging
 
-from lumibot.entities import Order
+from lumibot.entities import Order, Asset
 
 from ._strategy import _Strategy
 
@@ -73,20 +73,22 @@ class Strategy(_Strategy):
         logging.info(message)
         return message
 
+
     # ======Order methods shortcuts===============
 
     def create_order(
         self,
-        symbol,
+        asset,
         quantity,
         side,
         limit_price=None,
         stop_price=None,
         time_in_force="day",
     ):
+        asset = self._set_asset_mapping(asset)
         order = Order(
             self.name,
-            symbol,
+            asset,
             quantity,
             side,
             limit_price=limit_price,
@@ -105,10 +107,11 @@ class Strategy(_Strategy):
         """Sleep until market closes"""
         return self.broker.await_market_to_close()
 
-    def get_tracked_position(self, symbol):
+    def get_tracked_position(self, asset):
         """get a tracked position given
-        a symbol for the current strategy"""
-        return self.broker.get_tracked_position(self.name, symbol)
+        an asset for the current strategy"""
+        asset = self._set_asset_mapping(asset)
+        return self.broker.get_tracked_position(self.name, asset)
 
     def get_tracked_positions(self):
         """get all tracked positions for the current strategy"""
@@ -131,15 +134,16 @@ class Strategy(_Strategy):
         return self.broker.get_tracked_orders(self.name)
 
     def get_tracked_assets(self):
-        """Get the list of symbols for positions
+        """Get the list of assets for positions
         and open orders for the current strategy"""
         return self.broker.get_tracked_assets(self.name)
 
-    def get_asset_potential_total(self, symbol):
-        """given current strategy and a symbol, check the ongoing
+    def get_asset_potential_total(self, asset):
+        """given current strategy and a asset, check the ongoing
         position and the tracked order and returns the total
         number of shares provided all orders went through"""
-        return self.broker.get_asset_potential_total(self.name, symbol)
+        asset = self._set_asset_mapping(asset)
+        return self.broker.get_asset_potential_total(self.name, asset)
 
     def submit_order(self, order):
         """Submit an order for an asset"""
@@ -165,13 +169,23 @@ class Strategy(_Strategy):
         """sell all strategy positions"""
         return self.broker.sell_all(self.name, cancel_open_orders=cancel_open_orders)
 
-    def get_last_price(self, symbol):
-        """Takes an asset symbol and returns the last known price"""
-        return self.broker.get_last_price(symbol)
+    def get_last_price(self, asset):
+        """Takes an asset asset and returns the last known price"""
+        asset = self._set_asset_mapping(asset)
+        return self.broker.get_last_price(asset)
 
-    def get_last_prices(self, symbols):
-        """Takes a list of symbols and returns the last known prices"""
-        return self.broker.get_last_prices(symbols)
+    def get_last_prices(self, assets):
+        """Takes a list of assets and returns the last known prices"""
+        symbol_asset = isinstance(assets[0], str)
+        if symbol_asset:
+            assets = [self._set_asset_mapping(asset) for asset in assets]
+
+        asset_prices = self.broker.get_last_prices(assets)
+
+        if symbol_asset:
+            return {a.symbol: p for a, p in asset_prices.items()}
+        else:
+            return asset_prices
 
     # =======Data source methods=================
 
@@ -212,34 +226,40 @@ class Strategy(_Strategy):
     def to_default_timezone(self, dt):
         return self.data_source.to_default_timezone(dt)
 
+    def create_asset(self, symbol, asset_type=None, name=None):
+        """Create an asset object."""
+        return Asset(symbol, asset_type=asset_type, name=name)
+
     def get_symbol_bars(
         self,
-        symbol,
+        asset,
         length,
         timestep="",
         timeshift=None,
     ):
-        """Get bars for a given symbol"""
+        """Get bars for a given asset"""
+        asset = self._set_asset_mapping(asset)
         if not timestep:
             timestep = self.data_source.MIN_TIMESTEP
         return self.data_source.get_symbol_bars(
-            symbol, length, timestep=timestep, timeshift=timeshift
+            asset, length, timestep=timestep, timeshift=timeshift
         )
 
     def get_bars(
         self,
-        symbols,
+        assets,
         length,
         timestep="",
         timeshift=None,
         chunk_size=100,
         max_workers=200,
     ):
-        """Get bars for the list of symbols"""
+        """Get bars for the list of assets"""
+        assets = [self._set_asset_mapping(asset) for asset in assets]
         if not timestep:
             timestep = self.data_source.MIN_TIMESTEP
         return self.data_source.get_bars(
-            symbols,
+            assets,
             length,
             timestep=timestep,
             timeshift=timeshift,
@@ -247,11 +267,13 @@ class Strategy(_Strategy):
             max_workers=max_workers,
         )
 
-    def get_yesterday_dividend(self, symbol):
-        return self.data_source.get_yesterday_dividend(symbol)
+    def get_yesterday_dividend(self, asset):
+        asset = self._set_asset_mapping(asset)
+        return self.data_source.get_yesterday_dividend(asset)
 
-    def get_yesterday_dividends(self, symbols):
-        return self.data_source.get_yesterday_dividends(symbols)
+    def get_yesterday_dividends(self, assets):
+        assets = [self._set_asset_mapping(asset) for asset in assets]
+        return self.data_source.get_yesterday_dividends(assets)
 
     # =======Lifecycle methods====================
 

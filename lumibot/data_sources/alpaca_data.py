@@ -53,32 +53,37 @@ class AlpacaData(DataSource):
         )
 
     def _pull_source_symbol_bars(
-        self, symbol, length, timestep=MIN_TIMESTEP, timeshift=None
+        self, asset, length, timestep=MIN_TIMESTEP, timeshift=None
     ):
-        """pull broker bars for a given symbol"""
+        """pull broker bars for a given asset"""
         response = self._pull_source_bars(
-            [symbol], length, timestep=timestep, timeshift=timeshift
+            [asset], length, timestep=timestep, timeshift=timeshift
         )
-        return response[symbol]
+        return response[asset]
 
-    def _pull_source_bars(self, symbols, length, timestep=MIN_TIMESTEP, timeshift=None):
-        """pull broker bars for a list symbols"""
+    def _pull_source_bars(self, assets, length, timestep=MIN_TIMESTEP, timeshift=None):
+        """pull broker bars for a list assets"""
         parsed_timestep = self._parse_source_timestep(timestep, reverse=True)
         kwargs = dict(limit=length)
         if timeshift:
             end = datetime.now() - timeshift
             end = self.to_default_timezone(end)
             kwargs["end"] = self._format_datetime(end)
-        response = self.api.get_barset(symbols, parsed_timestep, **kwargs)
-        result = {k: v.df for k, v in response.items()}
+        response = self.api.get_barset(
+            [asset.symbol for asset in assets], parsed_timestep, **kwargs
+        )
+        result = {
+            next((asset for asset in assets if asset.symbol == k)): v.df
+            for k, v in response.items()
+        }
         return result
 
-    def _parse_source_symbol_bars(self, response, symbol):
+    def _parse_source_symbol_bars(self, response, asset):
         df = response.copy()
         df["price_change"] = df["close"].pct_change()
         df["dividend"] = 0
         df["stock_splits"] = 0
         df["dividend_yield"] = df["dividend"] / df["close"]
         df["return"] = df["dividend_yield"] + df["price_change"]
-        bars = Bars(df, self.SOURCE, symbol, raw=response)
+        bars = Bars(df, self.SOURCE, asset, raw=response)
         return bars

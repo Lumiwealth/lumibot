@@ -6,8 +6,10 @@ import pandas as pd
 from lumibot.backtesting import BacktestingBroker
 from lumibot.tools import day_deduplicate, get_risk_free_rate, stats_summary
 from lumibot.traders import Trader
+from lumibot.entities import Asset
 
 from .strategy_executor import StrategyExecutor
+
 
 
 class _Strategy:
@@ -65,6 +67,9 @@ class _Strategy:
         # Storing parameters for the initialize method
         self._parameters = kwargs
 
+        # Hold the asset objects for strings for stocks only.
+        self._asset_mapping = dict()
+
     # =============Internal functions===================
 
     def _copy_dict(self):
@@ -91,6 +96,18 @@ class _Strategy:
 
         return result
 
+    def _set_asset_mapping(self, asset):
+        if isinstance(asset, Asset):
+            return asset
+        elif isinstance(asset, str):
+            if asset not in self._asset_mapping:
+                self._asset_mapping[asset] = Asset(asset)
+            return self._asset_mapping[asset]
+        else:
+            raise ValueError(f"You must enter a symbol string or an asset object. You "
+                             f"entered {asset}")
+
+
     # =============Auto updating functions=============
 
     def _update_portfolio_value(self):
@@ -98,13 +115,13 @@ class _Strategy:
         with self._executor.lock:
             portfolio_value = self._unspent_money
             positions = self.broker.get_tracked_positions(self._name)
-            symbols = [position.symbol for position in positions]
-            prices = self.data_source.get_last_prices(symbols)
+            assets = [position.asset for position in positions]
+            prices = self.data_source.get_last_prices(assets)
 
             for position in positions:
-                symbol = position.symbol
+                asset = position.asset
                 quantity = position.quantity
-                price = prices.get(symbol, 0)
+                price = prices.get(asset, 0)
                 portfolio_value += quantity * price
 
             self._portfolio_value = portfolio_value
@@ -125,12 +142,12 @@ class _Strategy:
     def _update_unspent_money_with_dividends(self):
         with self._executor.lock:
             positions = self.broker.get_tracked_positions(self._name)
-            symbols = [position.symbol for position in positions]
-            dividends_per_share = self.get_yesterday_dividends(symbols)
+            assets = [position.asset for position in positions]
+            dividends_per_share = self.get_yesterday_dividends(assets)
             for position in positions:
-                symbol = position.symbol
+                asset = position.asset
                 quantity = position.quantity
-                dividend_per_share = dividends_per_share.get(symbol, 0)
+                dividend_per_share = dividends_per_share.get(asset, 0)
                 self._unspent_money += dividend_per_share * quantity
             return self._unspent_money
 

@@ -76,52 +76,50 @@ class DataSource:
         raise UnavailabeTimestep(self.SOURCE, timestep)
 
     def _pull_source_symbol_bars(
-        self, symbol, length, timestep=MIN_TIMESTEP, timeshift=None
+        self, asset, length, timestep=MIN_TIMESTEP, timeshift=None
     ):
-        """pull source bars for a given symbol"""
+        """pull source bars for a given asset"""
         pass
 
-    def _pull_source_bars(self, symbols, length, timestep=MIN_TIMESTEP, timeshift=None):
+    def _pull_source_bars(self, assets, length, timestep=MIN_TIMESTEP, timeshift=None):
         pass
 
-    def _parse_source_symbol_bars(self, response, symbol):
+    def _parse_source_symbol_bars(self, response, asset):
         pass
 
     def _parse_source_bars(self, response):
         result = {}
-        for symbol, data in response.items():
-            result[symbol] = self._parse_source_symbol_bars(data, symbol)
+        for asset, data in response.items():
+            result[asset] = self._parse_source_symbol_bars(data, asset)
         return result
 
     # =================Public Market Data Methods==================
 
-    def get_symbol_bars(self, symbol, length, timestep="", timeshift=None):
-        """Get bars for a given symbol"""
+    def get_symbol_bars(self, asset, length, timestep="", timeshift=None):
+        """Get bars for a given asset"""
         if not timestep:
             timestep = self.MIN_TIMESTEP
 
-        if not isinstance(symbol, str):
-            raise ValueError("symbol parameter must be a string, received %r" % symbol)
         response = self._pull_source_symbol_bars(
-            symbol, length, timestep=timestep, timeshift=timeshift
+            asset, length, timestep=timestep, timeshift=timeshift
         )
-        bars = self._parse_source_symbol_bars(response, symbol)
+        bars = self._parse_source_symbol_bars(response, asset)
         return bars
 
     def get_bars(
         self,
-        symbols,
+        assets,
         length,
         timestep="",
         timeshift=None,
         chunk_size=100,
         max_workers=200,
     ):
-        """Get bars for the list of symbols"""
+        """Get bars for the list of assets"""
         if not timestep:
             timestep = self.MIN_TIMESTEP
 
-        chunks = get_chunks(symbols, chunk_size)
+        chunks = get_chunks(assets, chunk_size)
         with ThreadPoolExecutor(
             max_workers=max_workers, thread_name_prefix=f"{self.name}_requesting_data"
         ) as executor:
@@ -140,43 +138,43 @@ class DataSource:
 
         return result
 
-    def get_last_price(self, symbol, timestep=None):
-        """Takes an asset symbol and returns the last known price"""
+    def get_last_price(self, asset, timestep=None):
+        """Takes an asset and returns the last known price"""
         if timestep is None:
             timestep = self.MIN_TIMESTEP
-        bars = self.get_symbol_bars(symbol, 1, timestep=timestep)
+        bars = self.get_symbol_bars(asset, 1, timestep=timestep)
         return bars.df.iloc[0].close
 
-    def get_last_prices(self, symbols, timestep=None):
-        """Takes a list of symbols and returns the last known prices"""
+    def get_last_prices(self, assets, timestep=None):
+        """Takes a list of assets and returns the last known prices"""
         if timestep is None:
             timestep = self.MIN_TIMESTEP
         result = {}
-        symbols_bars = self.get_bars(symbols, 1, timestep=timestep)
-        for symbol, bars in symbols_bars.items():
+        assets_bars = self.get_bars(assets, 1, timestep=timestep)
+        for asset, bars in assets_bars.items():
             if bars is not None:
                 last_value = bars.df.iloc[0].close
-                result[symbol] = last_value
+                result[asset] = last_value
 
         return result
 
-    def get_yesterday_dividend(self, symbol):
+    def get_yesterday_dividend(self, asset):
         """Return dividend per share for a given
-        symbol for the day before"""
+        asset for the day before"""
         bars = self.get_symbol_bars(
-            symbol, 1, timestep="day", timeshift=timedelta(days=1)
+            asset, 1, timestep="day", timeshift=timedelta(days=1)
         )
         return bars.get_last_dividend()
 
-    def get_yesterday_dividends(self, symbols):
+    def get_yesterday_dividends(self, assets):
         """Return dividend per share for a list of
-        symbols for the day before"""
+        assets for the day before"""
         result = {}
-        symbols_bars = self.get_bars(
-            symbols, 1, timestep="day", timeshift=timedelta(days=1)
+        assets_bars = self.get_bars(
+            assets, 1, timestep="day", timeshift=timedelta(days=1)
         )
-        for symbol, bars in symbols_bars.items():
+        for asset, bars in assets_bars.items():
             if bars is not None:
-                result[symbol] = bars.get_last_dividend()
+                result[asset] = bars.get_last_dividend()
 
         return result

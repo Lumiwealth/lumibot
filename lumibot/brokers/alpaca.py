@@ -131,7 +131,10 @@ class Alpaca(AlpacaData, Broker):
             response = self.api.submit_order(
                 order.symbol, order.quantity, order.side, **kwargs
             )
-            order = self._parse_broker_order(response, order.strategy)
+            order.set_identifier(response.id)
+            order.update_status(response.status)
+            order.update_raw(response)
+
         except Exception as e:
             order.set_error(e)
             message = str(e)

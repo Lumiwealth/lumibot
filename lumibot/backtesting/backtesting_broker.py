@@ -1,6 +1,6 @@
 import logging
 import traceback
-from datetime import datetime, time, timedelta
+from datetime import datetime, timedelta
 from functools import wraps
 from secrets import token_hex
 
@@ -14,8 +14,9 @@ class BacktestingBroker(Broker):
     # Metainfo
     IS_BACKTESTING_BROKER = True
 
-    MARKET_OPEN_TIME = time(9, 30)
-    MARKET_CLOSE_TIME = time(16, 0)
+    CannotPredictFuture = ValueError(
+        "Cannot predict the future. Backtesting datetime already in the present"
+    )
 
     def __init__(self, data_source, connect_stream=True, max_workers=20):
         # Calling init methods
@@ -81,42 +82,46 @@ class BacktestingBroker(Broker):
 
     def is_market_open(self):
         """return True if market is open else false"""
-        current_date = self.datetime.date()
-        if current_date in self._trading_days:
-            current_time = self.datetime.time()
-            if self.MARKET_OPEN_TIME <= current_time <= self.MARKET_CLOSE_TIME:
-                return True
-
-        return False
+        now = self._data_source.localize_datetime(self.datetime)
+        return (
+            (now >= self._trading_days.market_open)
+            & (now <= self._trading_days.market_close)
+        ).any()
 
     def _get_next_trading_day(self):
-        current_date = self.datetime.date()
-        for date_ in self._trading_days:
-            if date_ > current_date:
-                return date_
+        now = self._data_source.localize_datetime(self.datetime)
+        search = self._trading_days[now < self._trading_days.market_open]
+        if search.empty:
+            raise self.CannotPredictFuture
 
-        raise ValueError(
-            "Cannot predict the future. Backtesting datetime already in the present"
-        )
+        return search.market_open[0].to_pydatetime()
 
     def get_time_to_open(self):
         """Return the remaining time for the market to open in seconds"""
-        next_trading_date = self._get_next_trading_day()
-        next_open_datetime = datetime.combine(next_trading_date, self.MARKET_OPEN_TIME)
-        delta = next_open_datetime - self.datetime
+        now = self._data_source.localize_datetime(self.datetime)
+        search = self._trading_days[now <= self._trading_days.market_close]
+        if search.empty:
+            raise self.CannotPredictFuture
+
+        trading_day = search.iloc[0]
+        if now >= trading_day.market_open:
+            return 0
+
+        delta = trading_day.market_open - now
         return delta.total_seconds()
 
     def get_time_to_close(self):
         """Return the remaining time for the market to close in seconds"""
-        if self.is_market_open():
-            current_date = self.datetime.date()
-            next_close_datetime = datetime.combine(current_date, self.MARKET_CLOSE_TIME)
-        else:
-            next_trading_date = self._get_next_trading_day()
-            next_close_datetime = datetime.combine(
-                next_trading_date, self.MARKET_CLOSE_TIME
-            )
-        delta = next_close_datetime - self.datetime
+        now = self._data_source.localize_datetime(self.datetime)
+        search = self._trading_days[now < self._trading_days.market_close]
+        if search.empty:
+            raise self.CannotPredictFuture
+
+        trading_day = search.iloc[0]
+        if now < trading_day.market_open:
+            return 0
+
+        delta = trading_day.market_close - now
         return delta.total_seconds()
 
     def await_market_to_open(self):

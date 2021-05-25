@@ -121,6 +121,7 @@ class Order:
         self.status = "error"
         self._error = error
         self._error_message = str(error)
+        self._closed_event.set()
 
     def was_transmitted(self):
         return self._transmitted is True

@@ -192,6 +192,8 @@ Order objects have also the following helper methods
 - ```to_position()```: convert an order to a position belonging to the same strategy with 
 ```order.quantity``` amount of shares.
 - ```get_increment()```: for selling orders returns ```- order.quantity```, for buying orders returns ```order.quantity```
+- ```wait_to_be_registered```: wait for the order to be registered by the broker
+- ```wait_to_be_closed```: wait for the order to be closed by the broker (Order either filled or closed)
 
 *** NOTE: Limit and stop orders work as normal in live trading, but will be ignored in backtesting. Meaning that a backtest will assume limit and stop orders were never executed.
 
@@ -620,6 +622,42 @@ Parameters:
 - orders (list(order)): the list of orders
 
 Return type: ```list(order)```
+
+#### wait_for_order_registration
+
+Wait for the order to be registered by the broker
+
+Parameters:
+- order (order): the order object
+
+Return type: ```None```
+
+#### wait_for_order_execution
+
+Wait for the order to execute/be canceled
+
+Parameters:
+- order (order): the order object
+
+Return type: ```None```
+
+#### wait_for_orders_registration
+
+Wait for the orders to be registered by the broker
+
+Parameters:
+- orders (list(order)): the list of orders
+
+Return type: ```None```
+
+#### wait_for_orders_execution
+
+Wait for the orders to execute/be canceled
+
+Parameters:
+- orders (list(order)): the list of orders
+
+Return type: ```None```
 
 #### cancel_order
 

@@ -62,7 +62,7 @@ class Option(Strategy):
             # "MARA",
             # "MSFT",
             # "NIO",
-            # "PLTR",
+            "PLTR",
             "PLUG",
             "SQ",
             "TSLA",

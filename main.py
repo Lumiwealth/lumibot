@@ -55,13 +55,6 @@ mapping = {
         "kwargs": {},
         "config": None,
     },
-    "simple": {
-        "class": Simple,
-        "backtesting_datasource": None,
-        "kwargs": {},
-        "backtesting_cache": False,
-        "config": None,
-    },
 }
 
 if __name__ == "__main__":

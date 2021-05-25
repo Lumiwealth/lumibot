@@ -385,38 +385,35 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         )
 
     def on_trade_event(self, reqId, contract, execution):
-        try:
-            orderId = execution.orderId
-            stored_order = self.get_tracked_order(orderId)
+        orderId = execution.orderId
+        stored_order = self.get_tracked_order(orderId)
 
-            if stored_order is None:
-                logging.info(
-                    "Untracker order %s was logged by broker %s" % (orderId, self.name)
-                )
-                return False
-                # Check the order status submit changes.
-            if execution.cumQty < stored_order.quantity:
-                type_event = self.PARTIALLY_FILLED_ORDER
-            elif execution.cumQty == stored_order.quantity:
-                type_event = self.FILLED_ORDER
-            else:
-                raise ValueError(
-                    f"An order type should not have made it this far. " f"{execution}"
-                )
-
-            price = execution.price
-            filled_quantity = execution.shares
-
-            self._process_trade_event(
-                stored_order,
-                type_event,
-                price=price,
-                filled_quantity=filled_quantity,
+        if stored_order is None:
+            logging.info(
+                "Untracker order %s was logged by broker %s" % (orderId, self.name)
+            )
+            return False
+            # Check the order status submit changes.
+        if execution.cumQty < stored_order.quantity:
+            type_event = self.PARTIALLY_FILLED_ORDER
+        elif execution.cumQty == stored_order.quantity:
+            type_event = self.FILLED_ORDER
+        else:
+            raise ValueError(
+                f"An order type should not have made it this far. " f"{execution}"
             )
 
-            return True
-        except:
-            logging.error(traceback.format_exc())
+        price = execution.price
+        filled_quantity = execution.shares
+
+        self._process_trade_event(
+            stored_order,
+            type_event,
+            price=price,
+            filled_quantity=filled_quantity,
+        )
+
+        return True
 
 
 TYPE_MAP = dict(
@@ -741,7 +738,6 @@ class IBClient(EClient):
     def __init__(self, wrapper):
         ## Set up with a wrapper inside
         EClient.__init__(self, wrapper)
-        # Long wait time needed to accomodate delays in getting options chains.
         self.max_wait_time = 11
         self.reqId = 10000
 

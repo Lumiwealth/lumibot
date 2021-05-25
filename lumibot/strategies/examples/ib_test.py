@@ -21,11 +21,18 @@ class IBTest(Strategy):
         This needs to be run during market hours to check trades being received and
         executed by Interactive Brokers.
         """
-        pos = self.broker.ib.get_positions()
-        [print(p) for p in pos if p["position"] != 0]
-
-        self.sell_all(cancel_open_orders=True, at_broker=True)
+        print("Positions: ", self.get_tracked_positions())
+        if self.count > 0:
+            return
+        self.count += 1
+        self.submit_order(self.create_order(self.symbols[-1], 10, "buy"))
         return
+
+        # pos = self.broker.ib.get_positions()
+        # [print(p) for p in pos if p["position"] != 0]
+        #
+        # self.sell_all(cancel_open_orders=True, at_broker=True)
+        # return
 
         # contract.lastTradeDateOrContractMonth = lastTradeDateOrContractMonth
         # contract.strike = strike

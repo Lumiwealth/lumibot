@@ -45,6 +45,7 @@ class _Strategy:
             self.data_source = data_source
 
         # Setting execution parameters
+        self._first_iteration = True
         self._initial_budget = budget
         self._unspent_money = budget
         self._portfolio_value = budget

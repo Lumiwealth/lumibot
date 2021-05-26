@@ -4,12 +4,11 @@ from copy import deepcopy
 import pandas as pd
 
 from lumibot.backtesting import BacktestingBroker
+from lumibot.entities import Asset
 from lumibot.tools import day_deduplicate, get_risk_free_rate, stats_summary
 from lumibot.traders import Trader
-from lumibot.entities import Asset
 
 from .strategy_executor import StrategyExecutor
-
 
 
 class _Strategy:
@@ -45,6 +44,7 @@ class _Strategy:
             self.data_source = data_source
 
         # Setting execution parameters
+        self._first_iteration = True
         self._initial_budget = budget
         self._unspent_money = budget
         self._portfolio_value = budget
@@ -103,9 +103,10 @@ class _Strategy:
                 self._asset_mapping[asset] = Asset(asset)
             return self._asset_mapping[asset]
         else:
-            raise ValueError(f"You must enter a symbol string or an asset object. You "
-                             f"entered {asset}")
-
+            raise ValueError(
+                f"You must enter a symbol string or an asset object. You "
+                f"entered {asset}"
+            )
 
     # =============Auto updating functions=============
 

@@ -13,8 +13,6 @@ class Asset:
       - strike (float): Contract strike price.
       - right(string): `call` or `put`
       - multiplier (int): Contract leverage over the underlying.
-
-
     """
 
     def __init__(
@@ -53,20 +51,15 @@ class Asset:
 
     # Option methods
     def is_option(self):
-        return self._asset_type == 'option'
+        return self._asset_type == "option"
 
     def __repr__(self):
         stock_repr = f"{self.symbol.upper()}, Type: {self.asset_type} "
         option_repr = (
-            f"Exp: {self.expiration} "
-            f"Strike: {self.strike} "
-            f"Right: {self.right} "
+            f"Exp: {self.expiration} " f"Strike: {self.strike} " f"Right: {self.right} "
         )
 
-        if self.asset_type == 'stock':
+        if self.asset_type == "stock":
             return stock_repr
         else:
             return stock_repr + option_repr
-
-
-

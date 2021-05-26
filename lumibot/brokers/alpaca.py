@@ -7,7 +7,7 @@ from datetime import timezone
 import alpaca_trade_api as tradeapi
 
 from lumibot.data_sources import AlpacaData
-from lumibot.entities import Order, Position, Asset
+from lumibot.entities import Asset, Order, Position
 
 from .broker import Broker
 
@@ -152,25 +152,6 @@ class Alpaca(AlpacaData, Broker):
     def cancel_order(self, order):
         """Cancel an order"""
         self.api.cancel_order(order.identifier)
-
-    # =========Market functions=======================
-
-    def get_tradable_assets(self, easy_to_borrow=None, filter_func=None):
-        """Get the list of all tradable assets from the market"""
-        assets = self.api.list_assets()
-        result = []
-        for asset in assets:
-            is_valid = asset.tradable
-            if easy_to_borrow is not None and isinstance(easy_to_borrow, bool):
-                is_valid = is_valid & (easy_to_borrow == asset.easy_to_borrow)
-            if filter_func is not None:
-                filter_test = filter_func(asset.symbol)
-                is_valid = is_valid & filter_test
-
-            if is_valid:
-                result.append(asset.symbol)
-
-        return result
 
     # =======Stream functions=========
 

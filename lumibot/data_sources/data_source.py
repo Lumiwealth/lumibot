@@ -1,8 +1,8 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 
-import pytz
-
+from lumibot import LUMIBOT_DEFAULT_PYTZ, LUMIBOT_DEFAULT_TIMEZONE
+from lumibot.entities import Asset, AssetsMapping
 from lumibot.tools import get_chunks
 
 from .exceptions import UnavailabeTimestep
@@ -13,8 +13,8 @@ class DataSource:
     IS_BACKTESTING_DATA_SOURCE = False
     MIN_TIMESTEP = "minute"
     TIMESTEP_MAPPING = []
-    DEFAULT_TIMEZONE = "America/New_York"
-    DEFAULT_PYTZ = pytz.timezone(DEFAULT_TIMEZONE)
+    DEFAULT_TIMEZONE = LUMIBOT_DEFAULT_TIMEZONE
+    DEFAULT_PYTZ = LUMIBOT_DEFAULT_PYTZ
 
     # ========Python datetime helpers======================
 
@@ -98,6 +98,9 @@ class DataSource:
 
     def get_symbol_bars(self, asset, length, timestep="", timeshift=None):
         """Get bars for a given asset"""
+        if isinstance(asset, str):
+            asset = Asset(asset)
+
         if not timestep:
             timestep = self.MIN_TIMESTEP
 
@@ -117,6 +120,8 @@ class DataSource:
         max_workers=200,
     ):
         """Get bars for the list of assets"""
+        assets = [Asset(a) if isinstance(a, str) else a for a in assets]
+
         if not timestep:
             timestep = self.MIN_TIMESTEP
 
@@ -137,7 +142,7 @@ class DataSource:
                 parsed = self._parse_source_bars(response)
                 result = {**result, **parsed}
 
-        return result
+        return AssetsMapping(result)
 
     def get_tick(self, asset):
         """Takes an asset and returns ticks and greeks"""
@@ -162,7 +167,7 @@ class DataSource:
                 last_value = bars.df.iloc[0].close
                 result[asset] = last_value
 
-        return result
+        return AssetsMapping(result)
 
     def get_yesterday_dividend(self, asset):
         """Return dividend per share for a given
@@ -183,4 +188,4 @@ class DataSource:
             if bars is not None:
                 result[asset] = bars.get_last_dividend()
 
-        return result
+        return AssetsMapping(result)

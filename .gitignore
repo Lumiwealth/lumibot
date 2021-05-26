@@ -7,6 +7,7 @@
 
 # Cache files
 lumibot/cache
+**/*.pkl
 
 # Development files
 venv

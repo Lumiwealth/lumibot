@@ -40,5 +40,5 @@ def fill_void(df_, interval, end):
             )
 
     df_ = pd.concat([df_, missing_lines])
-    df_.sort_index(inplace=True)
+    df_ = df_.sort_index()
     return df_

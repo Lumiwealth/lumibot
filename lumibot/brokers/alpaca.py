@@ -7,7 +7,7 @@ from datetime import timezone
 import alpaca_trade_api as tradeapi
 
 from lumibot.data_sources import AlpacaData
-from lumibot.entities import Order, Position, Asset
+from lumibot.entities import Asset, Order, Position
 
 from .broker import Broker
 

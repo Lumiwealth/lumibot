@@ -1,7 +1,7 @@
 from datetime import datetime
 
-from lumibot.tools import ComparaisonMixin
 from lumibot import LUMIBOT_DEFAULT_PYTZ, LUMIBOT_DEFAULT_TIMEZONE
+from lumibot.tools import ComparaisonMixin
 
 
 class Bar(ComparaisonMixin):

@@ -1,6 +1,6 @@
 import logging
 
-from lumibot.entities import Order, Asset
+from lumibot.entities import Asset, Order
 
 from ._strategy import _Strategy
 
@@ -72,7 +72,6 @@ class Strategy(_Strategy):
         message = "Strategy %s: %s" % (self.name, message)
         logging.info(message)
         return message
-
 
     # ======Order methods shortcuts===============
 

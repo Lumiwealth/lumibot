@@ -157,7 +157,7 @@ class _Strategy:
         self._stats = self._stats.append(row, ignore_index=True)
 
     def _format_stats(self):
-        self._stats.set_index("datetime", inplace=True)
+        self._stats = self._stats.set_index("datetime")
         self._stats["return"] = self._stats["portfolio_value"].pct_change()
         return self._stats
 

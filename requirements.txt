@@ -1,5 +1,6 @@
 # Brokers and Datasources dependecies
 alpaca_trade_api==1.2.1
+ibapi==9.81.1.post1
 yfinance==0.1.59
 
 # Datascience dependencies

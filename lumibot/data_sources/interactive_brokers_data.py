@@ -5,6 +5,7 @@ from lumibot.entities import Bars
 
 from .data_source import DataSource
 
+
 class InteractiveBrokersData(DataSource):
     """Make Interactive Brokers connection and gets data.
 
@@ -98,6 +99,7 @@ class InteractiveBrokersData(DataSource):
                 [],
             )
             df = pd.DataFrame(result)
+
             cols = [
                 "date",
                 "open",
@@ -127,7 +129,6 @@ class InteractiveBrokersData(DataSource):
         df["stock_splits"] = 0
         df["dividend_yield"] = df["dividend"] / df["close"]
         df["return"] = df["dividend_yield"] + df["price_change"]
-
         df = df[
             [
                 "open",
@@ -142,6 +143,7 @@ class InteractiveBrokersData(DataSource):
                 "return",
             ]
         ]
+
         bars = Bars(df, self.SOURCE, asset, raw=response)
         return bars
 

@@ -67,10 +67,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
 
         row = 0 if not next else 1
         th = trading_hours.iloc[row, :]
-        # market_open, market_close = th[0], th[1]
-        # todo: remove this, it's temp to have full trading hours.
-        market_open = self.utc_to_local(datetime.datetime(2005, 1, 1))
-        market_close = self.utc_to_local(datetime.datetime(2025, 1, 1))
+        market_open, market_close = th[0], th[1]
 
         if close:
             return market_close
@@ -253,17 +250,16 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
             positions = self.get_tracked_positions(strategy)
 
         for position in positions:
-            size = position["position"]
+            size = position.quantity
             if size == 0:
                 continue
             side = "sell" if size > 0 else "buy"
             close_order = OrderLum(
-                strategy, position["symbol"], position["position"], side
+                strategy, position.asset, size, side
             )
             orders.append(close_order)
         self.submit_orders(orders)
 
-    # todo at start up, discuss with team
     def load_positions(self):
         """ Use to load any existing positions with the broker on start. """
         positions = self.ib.get_positions()
@@ -745,7 +741,6 @@ class IBClient(EClient):
         self.reqId += 1
         return self.reqId
 
-
     def get_timestamp(self):
 
         print("Asking server for Unix time")
@@ -991,7 +986,7 @@ class IBApp(IBWrapper, IBClient):
             contract.primaryExchange = primaryExchange
         elif asset.asset_type == "option":
             contract.lastTradeDateOrContractMonth = asset.expiration
-            contract.strike = str(asset.strike)
+            contract.strike = asset.strike_str
             contract.right = asset.right
             contract.multiplier = asset.multiplier
             contract.primaryExchange="CBOE"

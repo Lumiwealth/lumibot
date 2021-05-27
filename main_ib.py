@@ -14,16 +14,15 @@ from lumibot.strategies.examples import (
     Momentum,
     Simple,
     IBTest,
-    Option,
+    Strangle,
 )
 from lumibot.tools import indicators, perf_counters
 from lumibot.traders import Trader
-from lumibot.trading_builtins import set_redis_db
 
 # Global parameters
 debug = False
-budget = 50000
-backtesting_start = datetime(2020, 10, 1)
+budget = 40000
+backtesting_start = datetime(2010, 1, 1)
 backtesting_end = datetime(2020, 12, 31)
 logfile = "logs/test.log"
 
@@ -38,49 +37,42 @@ mapping = {
         "class": IBTest,
         "backtesting_datasource": YahooDataBacktesting,
         "kwargs": {},
-        "backtesting_cache": False,
         "config": None,
     },
     "simple": {
         "class": Simple,
         "backtesting_datasource": YahooDataBacktesting,
         "kwargs": {},
-        "backtesting_cache": False,
         "config": None,
     },
     "momentum": {
         "class": Momentum,
         "backtesting_datasource": YahooDataBacktesting,
         "kwargs": {"symbols": ["SPY", "VEU", "AGG"]},
-        "backtesting_cache": False,
         "config": None,
     },
     "diversification": {
         "class": Diversification,
         "backtesting_datasource": YahooDataBacktesting,
         "kwargs": {},
-        "backtesting_cache": False,
         "config": None,
     },
     "debt_trading": {
         "class": DebtTrading,
         "backtesting_datasource": YahooDataBacktesting,
         "kwargs": {},
-        "backtesting_cache": False,
         "config": None,
     },
     "intraday_momentum": {
         "class": IntradayMomentum,
         "backtesting_datasource": None,
         "kwargs": {},
-        "backtesting_cache": False,
         "config": None,
     },
-    "option": {
-        "class": Option,
+    "strangle": {
+        "class": Strangle,
         "backtesting_datasource": None,
         "kwargs": {},
-        "backtesting_cache": False,
         "config": None,
     },
 }
@@ -94,7 +86,7 @@ if __name__ == "__main__":
         Running AlgoTrader\n\
         Usage: ‘python main.py [strategies]’\n\
         Where strategies can be any of diversification, momentum, intraday_momentum, "
-        f"simple, ib_test\n\
+        f"simple, strangle\n\
         Example: ‘python main.py momentum’ "
     )
     parser.add_argument("strategies", nargs="+", help="list of strategies")
@@ -118,7 +110,6 @@ if __name__ == "__main__":
 
         strategy_class = strategy_params["class"]
         backtesting_datasource = strategy_params["backtesting_datasource"]
-        backtesting_cache = strategy_params["backtesting_cache"]
         kwargs = strategy_params["kwargs"]
         config = strategy_params["config"]
 
@@ -137,9 +128,6 @@ if __name__ == "__main__":
                 raise ValueError(
                     f"Backtesting is not supported for strategy {strategy_name}"
                 )
-
-            if backtesting_cache:
-                set_redis_db()
 
             tic = perf_counter()
             strategy_class.backtest(

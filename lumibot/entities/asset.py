@@ -53,6 +53,10 @@ class Asset:
     def is_option(self):
         return self._asset_type == "option"
 
+    @property
+    def strike_str(self):
+        return str(self.strike)
+
     def __repr__(self):
         stock_repr = f"{self.symbol.upper()}, Type: {self.asset_type} "
         option_repr = (

@@ -3,7 +3,9 @@ README
 
 # Quickstart
 
-Currently only alpaca is available as a brokerage service. This quickstart is about using Alpaca services.
+Currently Alpaca and Interactive Brokers are available as a brokerage services. This 
+quickstart is about using Alpaca services. After the quickstart will be instructions 
+specific to Interactive Brokers.
 
 1) Install the package on your computer
 ```shell
@@ -83,6 +85,49 @@ trader.add_strategy(strategy)
 trader.run_all()
 ```
 
+# Interactive Brokers
+
+To trade in your interactive brokers account, you must install Trader Workstation 
+(or Gateway). Instructions for installation can be found [here](https://interactivebrokers.github.io/tws-api/initial_setup.html).
+
+Once installed, navigate in Trader Workstation to `File/Global Configuration/ then 
+API/Settings` The key settings required to trade using Lumibot are: 
+  - Enable ActiveX and Socket Clients
+  - Disable Read-Only API
+  - Socket port `7496` for live trading, `7497` for paper account trading. It is 
+    highly recommended to thoroughly test your algorithm in paper trading mode 
+    before trading live.
+  - Master API Client ID: This can be any number up to 999. You will use this in 
+    your configuration file to log in.
+
+Set up your `credentials.py` file as follows: 
+    
+    class InteractiveBrokersConfig:
+        SOCKET_PORT = 7497 
+        CLIENT_ID = "your Master API Client ID three digit number"
+        IP = "127.0.0.1"
+
+Set up your entry point file as above, except using Interactive Brokers. Here is an 
+example of a completed file: 
+
+```python
+# main.py
+from lumibot.traders import Trader
+from lumibot.brokers import InteractiveBrokers
+from lumibot.strategies.examples import Option 
+from credentials import InteractiveBrokersConfig
+
+budget = 40000
+logfile = "logs/test.log"
+
+trader = Trader(logfile=logfile)
+interactive_brokers = InteractiveBrokers(InteractiveBrokersConfig)
+
+strategy = Option(name="option", budget=budget, broker=interactive_brokers)
+trader.add_strategy(strategy)
+trader.run_all()
+```
+
 # Backtesting
 
 You can also run backtests very easily on any of your strategies, you do not have to modify anything in your strategies. 
@@ -139,6 +184,13 @@ Buys and sells 10 of self.buy_symbol every day (not meant to make money, just an
 For example, Day 1 it will buy 10 shares, Day 2 it will sell all of them, Day 3 it will 
 buy 10 shares again, etc.
 
+#### Strangle
+An options strategy trading through Interactive Brokers only. A simple strangle 
+strategy where the bot simultaneously buys an out-of-the-money call and an 
+out-of-the-money put option. The call option's strike price is higher than the 
+underlying asset's current market price, while the put has a strike price that is 
+lower than the asset's market price.
+
 # Entities
 
 ## asset
@@ -164,7 +216,7 @@ When creating a new security there are two options.
    identify and trade options. 
    
 Assets may be created using the `create_asset` method as follows: 
-  `create_asset(symbol, asset_type=None, name=None)` 
+  `create_asset(symbol, asset_type=`option`, **kwargs)` 
     * see attributes above.
 
 ## bars
@@ -323,6 +375,7 @@ for option in options:
         my_custom_parameter=option,
         my_last_parameter="SPY"
     )
+# `options` in this example is not referring to trading options contracts.
 ```
 
 #### before_market_opens
@@ -524,7 +577,8 @@ Logs an info message prefixed with the strategy name
 
 When a strategy is instantiated, a broker object is passed to it (Check Quickstart).
 The strategy is run with the passed broker object.
-The following shortcuts executes broker methods within the strategy.
+The following shortcuts executes broker methods within the strategy. Some methods 
+can use either a `symbol` or an `asset` object. Please see [asset](#asset).
 
 #### await_market_to_open
 
@@ -572,7 +626,7 @@ Return type: list(order)
 
 Return the strategy list of symbols for all tracked positions and orders.
 
-Return type: list(str) 
+Return type: list(str/asset) 
 
 #### get_asset_potential_total
 
@@ -581,7 +635,7 @@ Check the ongoing positions and the tracked orders of the strategy and returns t
 For example, if you own 100 SPY and have an outstanding limit order of 10 shares, we will count all 110 shares.
 
 Parameters:
-- symbol (str): the string representation of the asset/share
+- symbol (str/asset): the string representation of the share/asset
 
 Return type: int
 
@@ -590,7 +644,7 @@ Return type: int
 Create an order object attached to this strategy (Check the Entities, order section)
 
 Required Parameters:
-- symbol (str): representation of the asset to buy
+- symbol (str/asset): representation of the asset to buy
 - quantity (int): the quantity of the asset to buy
 - side (str): either ```"buy"``` or ```"sell"```
 
@@ -689,7 +743,7 @@ class MyStrategy(Strategy):
 Return the last known price for a given symbol
 
 Parameters:
-- symbol (str): the string representation of the asset/share
+- symbol (str/asset): the string representation of the asset/share
 
 Return type: float
 
@@ -704,15 +758,15 @@ logging.info(f"The current price of {symbol} is {current_price}")
 Return the last known prices for a list symbols
 
 Parameters:
-- symbols (list(str)): list of asset/share representations
+- symbols (list(str/asset)): list of share/asset representations
 
-Return type: dict of str:float
+Return type: dict of str:float or asset:asset object
 
 #### get_tradable_assets
 
 Return the list of tradable assets for the used broker
 
-Return type: list(str)
+Return type: list(str/asset)
 
 ## Data Source Methods
 
@@ -839,7 +893,8 @@ Return type: datetime
 Return bars for a given symbol.
 
 Parameters:
-- symbol (str): The share/asset string representation (e.g AAPL, GOOG, ...) 
+- symbol (str/asset): The symbol string representation (e.g AAPL, GOOG, ...) or 
+  asset object. 
 - length (int): The number of rows (number of timestamps)
 - timestep (str): Either ```"minute""``` for minutes data or ```"day""``` for days data
   default value depends on the data_source (minute for alpaca, day for yahoo, ...)
@@ -863,22 +918,24 @@ Return a dictionary of bars for a given list of symbols. Works the same as get_s
 but take as first parameter a list of symbols.
 
 Parameters:
-- symbol (list(str)): A list of share/asset string representations (e.g AAPL, GOOG, ...) 
+- symbol (list(str/asset)): The symbol string representation (e.g AAPL, GOOG, ...) or 
+  asset object. 
 - length (int): The number of rows (number of timestamps)
 - timestep (str): Either ```"minute""``` for minutes data or ```"day""``` for days data
   default value depends on the data_source (minute for alpaca, day for yahoo, ...)
 - timeshift (timedelta): ```None``` by default. If specified indicates the time shift from the present.
 
-Return type: dict of str:bars
+Return type: dict of str/asset:bars
 
 #### get_yesterday_dividend
 
 Return dividend per share for the day before for a given symbol
 
 Parameters:
-- symbol (str): The share/asset string representation (e.g AAPL, GOOG, ...) 
+- symbol (str/asset): The symbol string representation (e.g AAPL, GOOG, ...) or
+  asset object.
 
-Return type: float
+Return type: float or asset object
 
 #### get_yesterday_dividends
 
@@ -886,7 +943,8 @@ Return dividend per share for the day before for a given list of symbols.
 Works the same as get_yesterday_dividend but take as parameter a list of symbols.
 
 Parameters:
-- symbol (list(str)): A list of share/asset string representations (e.g AAPL, GOOG, ...) 
+- symbol (str/asset): The symbol string representation (e.g AAPL, GOOG, ...) or
+  asset object.
 
 Return type: dict of str:float
 

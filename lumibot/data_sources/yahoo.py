@@ -78,7 +78,6 @@ class YahooData(DataSource):
             df_yf = tickers.history(
                 start=self.datetime_start,
                 end=self.datetime_end + timedelta(days=1),
-                thread=True,
                 group_by="ticker",
                 auto_adjust=self.auto_adjust,
                 progress=False,

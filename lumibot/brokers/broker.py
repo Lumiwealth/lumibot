@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from functools import wraps
 from threading import RLock, Thread
 
+from lumibot.tools import lumibot_sleep
 from lumibot.trading_builtins import SafeList
 
 
@@ -146,7 +147,7 @@ class Broker:
             time_to_open = self.get_time_to_open()
             sleeptime = max(0, time_to_open)
             logging.info("Sleeping until the market opens")
-            time.sleep(sleeptime)
+            lumibot_sleep(sleeptime)
 
     def await_market_to_close(self):
         """Sleep until market closes"""
@@ -155,7 +156,7 @@ class Broker:
             time_to_close = self.get_time_to_close()
             sleeptime = max(0, time_to_close)
             logging.info("Sleeping until the market closes")
-            time.sleep(sleeptime)
+            lumibot_sleep(sleeptime)
 
     # =========Positions functions==================
 

@@ -55,6 +55,7 @@ class YahooData(DataSource):
             )
             if data.shape[0] == 0:
                 raise NoDataFound(self.SOURCE, asset.symbol)
+            data = data[data.index >= self.datetime_start]
             data = self._append_data(asset, data)
 
         if timeshift:
@@ -81,6 +82,7 @@ class YahooData(DataSource):
                 auto_adjust=self.auto_adjust,
                 progress=False,
             )
+            df_yf = df_yf[df_yf.index >= self.datetime_start]
 
             dfs = {}
             for i in df_yf.columns.levels[0]:

@@ -206,7 +206,7 @@ class _Strategy:
         risk_free_rate=None,
         logfile="logs/test.log",
         config=None,
-        auto_adjust=True,
+        auto_adjust=False,
         **kwargs,
     ):
         trader = Trader(logfile=logfile)

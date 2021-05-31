@@ -49,13 +49,10 @@ class YahooData(DataSource):
             data = self._data_store[asset]
         else:
             data = yf.Ticker(asset.symbol).history(
-                start=self.datetime_start,
-                end=self.datetime_end + timedelta(days=1),
-                auto_adjust=self.auto_adjust,
+                period="max", auto_adjust=self.auto_adjust
             )
             if data.shape[0] == 0:
                 raise NoDataFound(self.SOURCE, asset.symbol)
-            data = data[data.index >= self.datetime_start]
             data = self._append_data(asset, data)
 
         if timeshift:
@@ -76,13 +73,11 @@ class YahooData(DataSource):
         if missing_assets:
             tickers = yf.Tickers(" ".join(missing_assets))
             df_yf = tickers.history(
-                start=self.datetime_start,
-                end=self.datetime_end + timedelta(days=1),
+                period="max",
                 group_by="ticker",
                 auto_adjust=self.auto_adjust,
                 progress=False,
             )
-            df_yf = df_yf[df_yf.index >= self.datetime_start]
 
             dfs = {}
             for i in df_yf.columns.levels[0]:

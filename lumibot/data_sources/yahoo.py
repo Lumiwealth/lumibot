@@ -24,7 +24,7 @@ class YahooData(DataSource):
         data.index = data.index.tz_localize(self.DEFAULT_TIMEZONE)
         if "Adj Close" in data:
             del data["Adj Close"]
-        data.rename(
+        data = data.rename(
             columns={
                 "Open": "open",
                 "High": "high",
@@ -34,7 +34,6 @@ class YahooData(DataSource):
                 "Dividends": "dividend",
                 "Stock Splits": "stock_splits",
             },
-            inplace=True,
         )
         data["price_change"] = data["close"].pct_change()
         data["dividend_yield"] = data["dividend"] / data["close"]

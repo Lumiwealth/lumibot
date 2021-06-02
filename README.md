@@ -907,9 +907,16 @@ A strategy object has the following properties:
   executed inside a loop that stops only when there is only ```minutes_before_closing``` 
   minutes remaining before market closes. By default equals to 5 minutes.
   This value can be overloaded when creating a strategy class in order to change the 
-  default behaviour. Another option is to specify it when instanciation the strategy class
+  default behaviour. Another option is to specify it when creating an instance the strategy class
   ```python
   my_strategy = MyStrategy("my_strategy", budget, broker, minutes_before_closing=15)
+  ```
+- minutes_before_opening. The lifecycle method before_market_opens is executed ```minutes_before_opening```
+  minutes before the market opens. By default equals to 60 minutes.
+  This value can be overloaded when creating a strategy class in order to change the 
+  default behaviour. Another option is to specify it when creating an instance the strategy class
+  ```python
+  my_strategy = MyStrategy("my_strategy", budget, broker, minutes_before_opening=15)
   ```
 - sleeptime: Sleeptime in minute after executing the lifecycle method 
   on_trading_iteration. By default equals to 1 minute. 

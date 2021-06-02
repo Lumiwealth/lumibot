@@ -15,6 +15,14 @@ class Strategy(_Strategy):
         return self._initial_budget
 
     @property
+    def minutes_before_opening(self):
+        return self._minutes_before_opening
+
+    @minutes_before_opening.setter
+    def minutes_before_opening(self, value):
+        self._minutes_before_opening = value
+
+    @property
     def minutes_before_closing(self):
         return self._minutes_before_closing
 

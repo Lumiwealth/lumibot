@@ -124,12 +124,16 @@ class BacktestingBroker(Broker):
         delta = trading_day.market_close - now
         return delta.total_seconds()
 
-    def await_market_to_open(self):
+    def _await_market_to_open(self, timedelta=None):
         time_to_open = self.get_time_to_open()
+        if timedelta is not None:
+            time_to_open -= 60 * timedelta
         self._update_datetime(time_to_open)
 
-    def await_market_to_close(self):
+    def _await_market_to_close(self, timedelta=None):
         time_to_close = self.get_time_to_close()
+        if timedelta is not None:
+            time_to_close -= 60 * timedelta
         self._update_datetime(time_to_close)
 
     # =========Positions functions==================

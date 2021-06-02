@@ -146,20 +146,26 @@ class Broker:
         running live or in backtesting mode"""
         time.sleep(sleeptime)
 
-    def await_market_to_open(self):
+    def _await_market_to_open(self, timedelta=None):
         """Executes infinite loop until market opens"""
         isOpen = self.is_market_open()
         if not isOpen:
             time_to_open = self.get_time_to_open()
+            if timedelta is not None:
+                time_to_open -= 60 * timedelta
+
             sleeptime = max(0, time_to_open)
             logging.info("Sleeping until the market opens")
             self.sleep(sleeptime)
 
-    def await_market_to_close(self):
+    def _await_market_to_close(self, timedelta=None):
         """Sleep until market closes"""
         isOpen = self.is_market_open()
         if isOpen:
             time_to_close = self.get_time_to_close()
+            if timedelta is not None:
+                time_to_close -= 60 * timedelta
+
             sleeptime = max(0, time_to_close)
             logging.info("Sleeping until the market closes")
             self.sleep(sleeptime)

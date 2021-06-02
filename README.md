@@ -535,13 +535,23 @@ Parameters:
 
 #### await_market_to_open
 
-If the market is closed, pauses code execution until market opens again. This means that `on_trading_iteration` will stop being called until the market opens again.
+If the market is closed, pauses code execution until ```self.minutes_before_opening``` minutes
+before market opens again. If an input (float) is passed as parameter, pauses code execution until 
+```inputes``` minutes before market opens again.
+
+Parameters:
+- timedelta (float): Duration in minutes
 
 Return type: ```None```
 
 #### await_market_to_close
 
-If the market is open, pauses code execution until market closes. This means that `on_trading_iteration` will stop being called until the market closes.
+If the market is open, pauses code execution until ```self.minutes_before_opening``` minutes
+before market closes. If an input (float) is passed as parameter, pauses code execution until 
+```inputes``` minutes before market closes again.
+
+Parameters:
+- timedelta (float): Duration in minutes
 
 Return type: ```None```
 

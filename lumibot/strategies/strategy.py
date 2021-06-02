@@ -110,13 +110,17 @@ class Strategy(_Strategy):
         """Sleeping for sleeptime seconds"""
         return self.broker.sleep(sleeptime)
 
-    def await_market_to_open(self):
+    def await_market_to_open(self, timedelta=None):
         """Executes infinite loop until market opens"""
-        return self.broker.await_market_to_open()
+        if timedelta is None:
+            timedelta = self.minutes_before_opening
+        return self.broker._await_market_to_open(timedelta)
 
-    def await_market_to_close(self):
+    def await_market_to_close(self, timedelta=None):
         """Sleep until market closes"""
-        return self.broker.await_market_to_close()
+        if timedelta is None:
+            timedelta = self.minutes_before_closing
+        return self.broker._await_market_to_close(timedelta)
 
     def get_tracked_position(self, asset):
         """get a tracked position given
@@ -293,8 +297,9 @@ class Strategy(_Strategy):
         pass
 
     def before_market_opens(self):
-        """Lifecycle method executed before market opens
-        Example: self.cancel_open_orders()"""
+        """Use this lifecycle method to execude code
+        self.minutes_before_opening minutes before opening.
+        Example: self.sell_all()"""
         pass
 
     def before_starting_trading(self):

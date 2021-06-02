@@ -136,7 +136,15 @@ class StrategyExecutor(Thread):
         return func_output
 
     def _trace_stats(self, context, snapshot_before):
-        result = self.strategy.trace_stats(context, snapshot_before)
+        if context is None:
+            logging.warning(
+                "on_trading_iteraion context is not available. "
+                "The context is generally unavailable whe debugging "
+                "with IDEs like pycharm etc...")
+            result = {}
+        else:
+            result = self.strategy.trace_stats(context, snapshot_before)
+
         result["datetime"] = self.strategy.get_datetime()
         result["portfolio_value"] = self.strategy.portfolio_value
         result["unspent_money"] = self.strategy.unspent_money

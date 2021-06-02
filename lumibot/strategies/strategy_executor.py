@@ -232,10 +232,11 @@ class StrategyExecutor(Thread):
     # ======Execution methods ====================
 
     def _run_trading_session(self):
+        self.strategy.await_market_to_open()
         if not self.broker.is_market_open():
             self._before_market_opens()
 
-        self.broker.await_market_to_open()
+        self.strategy.await_market_to_open(timedelta=0)
         self.strategy._update_unspent_money_with_dividends()
         self._before_starting_trading()
 
@@ -251,10 +252,11 @@ class StrategyExecutor(Thread):
                 self.strategy.log_message("Sleeping for %d seconds" % sleeptime)
                 self.safe_sleep(sleeptime)
 
+        self.strategy.await_market_to_close()
         if self.broker.is_market_open():
             self._before_market_closes()
 
-        self.broker.await_market_to_close()
+        self.strategy.await_market_to_close(timedelta=0)
         self._after_market_closes()
 
     def run(self):

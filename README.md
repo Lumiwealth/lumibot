@@ -537,7 +537,7 @@ Parameters:
 
 If the market is closed, pauses code execution until ```self.minutes_before_opening``` minutes
 before market opens again. If an input (float) is passed as parameter, pauses code execution until 
-```inputes``` minutes before market opens again.
+```input``` minutes before market opens again.
 
 Parameters:
 - timedelta (float): Duration in minutes
@@ -546,9 +546,9 @@ Return type: ```None```
 
 #### await_market_to_close
 
-If the market is open, pauses code execution until ```self.minutes_before_opening``` minutes
+If the market is open, pauses code execution until ```self.minutes_before_closing``` minutes
 before market closes. If an input (float) is passed as parameter, pauses code execution until 
-```inputes``` minutes before market closes again.
+```input``` minutes before market closes again.
 
 Parameters:
 - timedelta (float): Duration in minutes

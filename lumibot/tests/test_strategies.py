@@ -49,8 +49,14 @@ def test_momentum_strategy():
         )
         assert (
             abs(
-                result["max_drawdown"]["date"].timestamp()
-                - valid_result["max_drawdown"]["date"].timestamp()
+                result["max_drawdown"]["date"]
+                .to_pydatetime()
+                .replace(minute=0, hour=0, second=0)
+                .timestamp()
+                - valid_result["max_drawdown"]["date"]
+                .to_pydatetime()
+                .replace(minute=0, hour=0, second=0)
+                .timestamp()
             )
             < TOLERANCE
         )
@@ -101,8 +107,14 @@ def test_diversification_strategy():
         )
         assert (
             abs(
-                result["max_drawdown"]["date"].timestamp()
-                - valid_result["max_drawdown"]["date"].timestamp()
+                result["max_drawdown"]["date"]
+                .to_pydatetime()
+                .replace(minute=0, hour=0, second=0)
+                .timestamp()
+                - valid_result["max_drawdown"]["date"]
+                .to_pydatetime()
+                .replace(minute=0, hour=0, second=0)
+                .timestamp()
             )
             < TOLERANCE
         )

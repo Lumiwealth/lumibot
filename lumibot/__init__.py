@@ -3,9 +3,6 @@ import os
 
 import pytz
 
-# Overloading time.sleep to warn users against using it
-from lumibot.tools import lumibot_time
-
 # SOURCE PATH
 LUMIBOT_SOURCE_PATH = os.path.abspath(os.path.dirname(__file__))
 

@@ -5,7 +5,7 @@ from functools import wraps
 from queue import Empty, Queue
 from threading import Event, Lock, Thread
 
-from lumibot.tools import append_locals, staticdecorator
+from lumibot.tools import append_locals, lumibot_time, staticdecorator
 
 
 class StrategyExecutor(Thread):

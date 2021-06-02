@@ -98,6 +98,10 @@ class Strategy(_Strategy):
 
     # =======Broker methods shortcuts============
 
+    def sleep(self, sleeptime):
+        """Sleeping for sleeptime seconds"""
+        return self.broker.sleep(sleeptime)
+
     def await_market_to_open(self):
         """Executes infinite loop until market opens"""
         return self.broker.await_market_to_open()

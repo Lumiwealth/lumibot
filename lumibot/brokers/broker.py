@@ -5,7 +5,6 @@ from datetime import datetime, timedelta
 from functools import wraps
 from threading import RLock, Thread
 
-from lumibot.tools import lumibot_sleep
 from lumibot.trading_builtins import SafeList
 
 
@@ -140,6 +139,12 @@ class Broker:
         """Return the remaining time for the market to close in seconds"""
         pass
 
+    def sleep(self, sleeptime):
+        """The broker custom method for sleeping.
+        Needs to be overloaded depending whether strategy is
+        running live or in backtesting mode"""
+        time.sleep(sleeptime)
+
     def await_market_to_open(self):
         """Executes infinite loop until market opens"""
         isOpen = self.is_market_open()
@@ -147,7 +152,7 @@ class Broker:
             time_to_open = self.get_time_to_open()
             sleeptime = max(0, time_to_open)
             logging.info("Sleeping until the market opens")
-            lumibot_sleep(sleeptime)
+            self.sleep(sleeptime)
 
     def await_market_to_close(self):
         """Sleep until market closes"""
@@ -156,7 +161,7 @@ class Broker:
             time_to_close = self.get_time_to_close()
             sleeptime = max(0, time_to_close)
             logging.info("Sleeping until the market closes")
-            lumibot_sleep(sleeptime)
+            self.sleep(sleeptime)
 
     # =========Positions functions==================
 

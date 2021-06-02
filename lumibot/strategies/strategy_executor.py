@@ -5,7 +5,7 @@ from functools import wraps
 from queue import Empty, Queue
 from threading import Event, Lock, Thread
 
-from lumibot.tools import append_locals, lumibot_time, staticdecorator
+from lumibot.tools import append_locals, staticdecorator
 
 
 class StrategyExecutor(Thread):
@@ -258,11 +258,8 @@ class StrategyExecutor(Thread):
         self._after_market_closes()
 
     def run(self):
-        # Overloading the default lumibot_sleep method
-        lumibot_time.lumibot_sleep = self.safe_sleep
-
-        # Warning users that they should not call time.sleep within lumibot
-        time.sleep = lumibot_time.warning_time_sleep
+        # Overloading the broker sleep method
+        self.broker.sleep = self.safe_sleep
 
         self._initialize()
         while self.broker.should_continue() and self.should_continue:

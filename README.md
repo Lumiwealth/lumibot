@@ -526,6 +526,13 @@ When a strategy is instantiated, a broker object is passed to it (Check Quicksta
 The strategy is run with the passed broker object.
 The following shortcuts executes broker methods within the strategy.
 
+#### sleep
+
+Sleeps for `sleeptime` seconds
+
+Parameters:
+- sleeptime (float): The sleep duration in seconds 
+
 #### await_market_to_open
 
 If the market is closed, pauses code execution until market opens again. This means that `on_trading_iteration` will stop being called until the market opens again.

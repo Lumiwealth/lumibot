@@ -59,6 +59,14 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         return clock
 
     def market_hours(self, market="NASDAQ", close=True, next=False, date=None):
+        """Return if market open or closed.
+        params:
+          - market (str: default `NASDAQ`): which market to test.
+          - close (bool: default `True`): Choose open or close to check.
+          - next (bool: default `False`): Check current day or next day.
+          - date (datetime.date, default `None`) Date to check, `None` for today.
+        """
+
         mkt_cal = mcal.get_calendar(market)
         date = date if date is not None else datetime.datetime.now()
         trading_hours = mkt_cal.schedule(

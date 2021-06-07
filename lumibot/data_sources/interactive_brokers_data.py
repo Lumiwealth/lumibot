@@ -85,32 +85,49 @@ class InteractiveBrokersData(DataSource):
         # Call data.
         reqId = 0
         for asset in assets:
-            reqId += 1
-            result = self.ib.get_historical_data(
-                reqId,
-                asset,
-                end_date_time,
-                parsed_duration,
-                parsed_timestep,
-                type,
-                1,
-                2,
-                False,
-                [],
-            )
-            df = pd.DataFrame(result)
+            get_data_attempt = 0
+            max_attempts = 3
+            while get_data_attempt < max_attempts:
+                print(f"Asset: {asset} getting historical")
+                reqId += 1
+                result = self.ib.get_historical_data(
+                    reqId,
+                    asset,
+                    end_date_time,
+                    parsed_duration,
+                    parsed_timestep,
+                    type,
+                    1,
+                    2,
+                    False,
+                    [],
+                )
 
-            cols = [
-                "date",
-                "open",
-                "high",
-                "low",
-                "close",
-                "volume",
-                "barCount",
-                "average",
-            ]
-            df = df[cols]
+                df = pd.DataFrame(result)
+                cols = [
+                    "date",
+                    "open",
+                    "high",
+                    "low",
+                    "close",
+                    "volume",
+                    "barCount",
+                    "average",
+                ]
+                try:
+                    df = df[cols]
+                    get_data_attempt = max_attempts
+                except:
+                    if get_data_attempt < max_attempts:
+                        print(f"Response {response}, count: {get_data_attempt}")
+                        get_data_attempt += 1
+                    else:
+                        print(f"******NO DATA: {asset}*******")
+                        response[asset] = df
+                        get_data_attempt = max_attempts
+                        continue
+
+            print("\n", df.head())
             if parsed_timestep == "1 min":
                 df["date"] = pd.to_datetime(
                     df["date"], unit="s", origin="unix"
@@ -121,6 +138,10 @@ class InteractiveBrokersData(DataSource):
         return response
 
     def _parse_source_symbol_bars(self, response, asset):
+        # Catch empty dataframe.
+        if response.empty:
+            bars = Bars(response, self.SOURCE, asset, raw=response)
+            return bars
         df = response.copy()
         df["date"] = pd.to_datetime(df["date"])
         df = df.set_index("date")

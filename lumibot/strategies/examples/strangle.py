@@ -55,7 +55,7 @@ class Strangle(Strategy):
         # Stock expected to move.
         symbols_universe = [
             "AAL",
-            # "AAPL",
+            "AAPL",
             "AMD",
             "AMZN",
             "BAC",
@@ -71,20 +71,8 @@ class Strangle(Strategy):
         # Underlying Asset Objects.
         self.trading_pairs = dict()
         for symbol in symbols_universe:
-            self.trading_pairs[self.create_asset(symbol, asset_type="stock")] = {
-                "call": None,
-                "put": None,
-                "expirations": None,
-                "strike_lows": None,
-                "strike_highs": None,
-                "buy_call_strike": None,
-                "buy_put_strike": None,
-                "expiration_date": None,
-                "price_underlying": None,
-                "price_call": None,
-                "price_put": None,
-                "trade_created_time": None,
-            }
+            self.create_trading_pair(symbol)
+
         self.asset_gen = self.asset_cycle(self.trading_pairs.keys())
 
     def before_starting_trading(self):
@@ -95,8 +83,21 @@ class Strangle(Strategy):
             except Exception as e:
                 logging.info(f"Error: {e}")
                 continue
-            # Obtain latest price
-            options["price_underlying"] = self.get_last_price(asset)
+            attempts = 2
+            while attempts > 0:
+                # Obtain latest price
+                last_price = self.get_last_price(asset)
+                if last_price == 0:
+                    attempts -= 1
+                    if attempts == 0:
+                        logging.warning(
+                            f"Unable to get price data for {asset.symbol}.")
+                        options["price_underlying"] = 0
+                    continue
+                else:
+                    options["price_underlying"] = last_price
+                    attempts = 0
+
 
             # Get dates from the options chain.
             options["expirations"] = self.get_expiration(chains)
@@ -150,7 +151,12 @@ class Strangle(Strategy):
             ):
                 continue
 
+            if options['status'] > 1:
+                continue
+
             self.last_price = self.get_last_price(asset)
+            if self.last_price == 0:
+                continue
 
             # The sell signal will be the maximum percent movement of original price
             # away from strike, greater than the take profit threshold.
@@ -178,6 +184,9 @@ class Strangle(Strategy):
                     )
                 )
 
+                options['status'] = 2
+                self.total_trades -= 1
+
         # Create positions:
         if self.total_trades >= self.max_trades:
             return
@@ -186,6 +195,8 @@ class Strangle(Strategy):
             asset = next(self.asset_gen)
             print(f"In trading iteration create position {asset}")
             options = self.trading_pairs[asset]
+            if options['status'] > 0:
+                continue
             # Create positions:
             if self.total_trades > self.max_trades:
                 return
@@ -237,7 +248,8 @@ class Strangle(Strategy):
 
             options["trade_created_time"] = datetime.datetime.now()
             self.total_trades += 1
-            # Buy call.
+            options['status'] = 1
+            # Buy cal.
             self.submit_order(
                 self.create_order(
                     options["call"],
@@ -275,15 +287,34 @@ class Strangle(Strategy):
         self.asset = ""
 
     # =============Helper methods====================
+    def create_trading_pair(self, symbol):
+        # Add/update trading pair to self.trading_pairs
+
+        self.trading_pairs[self.create_asset(symbol, asset_type="stock")] = {
+            "call": None,
+            "put": None,
+            "expirations": None,
+            "strike_lows": None,
+            "strike_highs": None,
+            "buy_call_strike": None,
+            "buy_put_strike": None,
+            "expiration_date": None,
+            "price_underlying": None,
+            "price_call": None,
+            "price_put": None,
+            "trade_created_time": None,
+            "status": 0,
+        }
+
     def asset_cycle(self, assets):
-        # Used to cycle through he assets for investing, prevents starting
+        # Used to cycle through the assets for investing, prevents starting
         # at the beginning of the asset list on each iteration.
         for asset in cycle(assets):
             yield asset
 
     def get_chains(self, asset):
         """Returns option chain on specific exchange. ."""
-        contract_details = self.broker.get_contract_details(asset=asset)
+        contract_details = self.get_contract_details(asset=asset)
         contract_id = contract_details[0].contract.conId
         chains = self.options_params(asset, underlyingConId=contract_id)
         if len(chains) == 0:

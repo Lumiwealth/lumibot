@@ -114,7 +114,7 @@ class Alpaca(AlpacaData, Broker):
 
         return orders
 
-    def submit_order(self, order):
+    def _submit_order(self, order):
         """Submit an order for an asset"""
         kwargs = {
             "type": order.type,
@@ -141,7 +141,10 @@ class Alpaca(AlpacaData, Broker):
                 order.asset.symbol, order.quantity, order.side, **kwargs
             )
 
-            order = self._parse_broker_order(response, order.strategy)
+            order.set_identifier(response.id)
+            order.update_status(response.status)
+            order.update_raw(response)
+
         except Exception as e:
             order.set_error(e)
             message = str(e)
@@ -172,25 +175,25 @@ class Alpaca(AlpacaData, Broker):
     def _register_stream_events(self):
         """Register the function on_trade_event
         to be executed on each trade_update event"""
-        broker = self
 
         @self.stream.on(r"^trade_updates$")
         async def on_trade_event(conn, channel, data):
+            self._orders_queue.join()
             try:
                 logged_order = data.order
                 type_event = data.event
                 identifier = logged_order.get("id")
-                stored_order = broker.get_tracked_order(identifier)
+                stored_order = self.get_tracked_order(identifier)
                 if stored_order is None:
                     logging.info(
                         "Untracker order %s was logged by broker %s"
-                        % (identifier, broker.name)
+                        % (identifier, self.name)
                     )
                     return False
 
                 price = data.price if hasattr(data, "price") else None
                 filled_quantity = data.qty if hasattr(data, "qty") else None
-                broker._process_trade_event(
+                self._process_trade_event(
                     stored_order,
                     type_event,
                     price=price,

@@ -168,6 +168,22 @@ class Strategy(_Strategy):
         """submit orders"""
         return self.broker.submit_orders(orders)
 
+    def wait_for_order_registration(self, order):
+        """Wait for the order to be registered by the broker"""
+        return self.broker.wait_for_order_registration(order)
+
+    def wait_for_order_execution(self, order):
+        """Wait for the order to execute/be canceled"""
+        return self.broker.wait_for_order_execution(order)
+
+    def wait_for_orders_registration(self, orders):
+        """Wait for the orders to be registered by the broker"""
+        return self.broker.wait_for_orders_registration(orders)
+
+    def wait_for_orders_execution(self, orders):
+        """Wait for the orders to execute/be canceled"""
+        return self.broker.wait_for_orders_execution(orders)
+
     def cancel_order(self, order):
         """Cancel an order"""
         return self.broker.cancel_order(order)

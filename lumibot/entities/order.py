@@ -1,4 +1,6 @@
+import logging
 from collections import namedtuple
+from threading import Event
 
 import lumibot.entities as entities
 from lumibot.tools import check_positive, check_price, check_quantity
@@ -46,6 +48,13 @@ class Order:
         self.stop_loss_price = None
         self.stop_loss_limit_price = None
         self.transactions = []
+
+        # setting events
+        self._new_event = Event()
+        self._canceled_event = Event()
+        self._partial_filled_event = Event()
+        self._filled_event = Event()
+        self._closed_event = Event()
 
         # setting internal variables
         self._raw = None
@@ -179,6 +188,7 @@ class Order:
         self.status = "error"
         self._error = error
         self._error_message = str(error)
+        self._closed_event.set()
 
     def was_transmitted(self):
         return self._transmitted is True
@@ -199,3 +209,31 @@ class Order:
         if self.side == self.SELL:
             increment = -increment
         return increment
+
+    # ======Setting the events methods===========
+
+    def set_new(self):
+        self._new_event.set()
+
+    def set_canceled(self):
+        self._canceled_event.set()
+        self._closed_event.set()
+
+    def set_partially_filled(self):
+        self._partial_filled_event.set()
+
+    def set_filled(self):
+        self._filled_event.set()
+        self._closed_event.set()
+
+    # =========Waiting methods==================
+
+    def wait_to_be_registered(self):
+        logging.info("Waiting for order %r to be registered" % self)
+        self._new_event.wait()
+        logging.info("Order %r registered" % self)
+
+    def wait_to_be_closed(self):
+        logging.info("Waiting for broker to execute order %r" % self)
+        self._closed_event.wait()
+        logging.info("Order %r executed by broker" % self)

@@ -3,8 +3,10 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 from functools import wraps
+from queue import Queue
 from threading import RLock, Thread
 
+from lumibot.entities import Order
 from lumibot.trading_builtins import SafeList
 
 
@@ -32,6 +34,12 @@ class Broker:
         self._subscribers = SafeList(self._lock)
         self._is_stream_subscribed = False
 
+        # setting the orders queue and threads
+        if not self.IS_BACKTESTING_BROKER:
+            self._orders_queue = Queue()
+            self._orders_thread = None
+            self._start_orders_thread()
+
         # setting the stream object
         self.stream = self._get_stream_object()
         if connect_stream:
@@ -43,25 +51,49 @@ class Broker:
             self._unprocessed_orders + self._new_orders + self._partially_filled_orders
         )
 
-    def __getattribute__(self, name):
-        attr = object.__getattribute__(self, name)
-        if name != "submit_order":
-            return attr
+    def _start_orders_thread(self):
+        self._orders_thread = Thread(
+            target=self._wait_for_orders, daemon=True, name=f"{self.name}_orders_thread"
+        )
+        self._orders_thread.start()
 
-        broker = self
+    def _wait_for_orders(self):
+        while True:
+            # at first, block maybe a list of orders or just one order
+            block = self._orders_queue.get()
+            if isinstance(block, Order):
+                result = [self._submit_order(block)]
+            else:
+                result = self._submit_orders(block)
 
-        @wraps(attr)
-        def new_func(order, *args, **kwargs):
-            result = attr(order, *args, **kwargs)
-            if result.was_transmitted():
-                orders = broker._flatten_order(result)
-                for order in orders:
-                    logging.info("%r was sent to broker %s" % (order, broker.name))
-                    broker._unprocessed_orders.append(order)
+            for order in result:
+                if order.was_transmitted():
+                    flat_orders = self._flatten_order(order)
+                    for flat_order in flat_orders:
+                        logging.info(
+                            "%r was sent to broker %s" % (flat_order, self.name)
+                        )
+                        self._unprocessed_orders.append(flat_order)
 
-            return result
+            self._orders_queue.task_done()
 
-        return new_func
+    def _submit_order(self, order):
+        pass
+
+    def _submit_orders(self, orders):
+        with ThreadPoolExecutor(
+            max_workers=self.max_workers,
+            thread_name_prefix=f"{self.name}_submitting_orders",
+        ) as executor:
+            tasks = []
+            for order in orders:
+                tasks.append(executor.submit(self._submit_order, order))
+
+            result = []
+            for task in as_completed(tasks):
+                result.append(task.result())
+
+        return result
 
     # =========Internal functions==============
 
@@ -69,6 +101,7 @@ class Broker:
         logging.info("New %r was submited." % order)
         self._unprocessed_orders.remove(order.identifier, key="identifier")
         order.update_status(self.NEW_ORDER)
+        order.set_new()
         self._new_orders.append(order)
         return order
 
@@ -77,6 +110,7 @@ class Broker:
         self._new_orders.remove(order.identifier, key="identifier")
         self._partially_filled_orders.remove(order.identifier, key="identifier")
         order.update_status(self.CANCELED_ORDER)
+        order.set_canceled()
         self._canceled_orders.append(order)
         return order
 
@@ -90,6 +124,7 @@ class Broker:
 
         order.add_transaction(price, quantity)
         order.update_status(self.PARTIALLY_FILLED_ORDER)
+        order.set_partially_filled()
         self._partially_filled_orders.append(order)
         return order
 
@@ -104,6 +139,7 @@ class Broker:
 
         order.add_transaction(price, quantity)
         order.update_status(self.FILLED_ORDER)
+        order.set_filled()
 
         position = self.get_tracked_position(order.strategy, order.asset)
         if position is None:
@@ -303,23 +339,29 @@ class Broker:
 
     def submit_order(self, order):
         """Submit an order for an asset"""
-        pass
+        self._orders_queue.put(order)
 
     def submit_orders(self, orders):
         """submit orders"""
-        with ThreadPoolExecutor(
-            max_workers=self.max_workers,
-            thread_name_prefix=f"{self.name}_submitting_orders",
-        ) as executor:
-            tasks = []
-            for order in orders:
-                tasks.append(executor.submit(self.submit_order, order))
+        self._orders_queue.put(orders)
 
-            result = []
-            for task in as_completed(tasks):
-                result.append(task.result())
+    def wait_for_order_registration(self, order):
+        """Wait for the order to be registered by the broker"""
+        order.wait_to_be_registered()
 
-        return result
+    def wait_for_order_execution(self, order):
+        """Wait for the order to execute/be canceled"""
+        order.wait_to_be_closed()
+
+    def wait_for_orders_registration(self, orders):
+        """Wait for the orders to be registered by the broker"""
+        for order in orders:
+            order.wait_to_be_registered()
+
+    def wait_for_orders_execution(self, orders):
+        """Wait for the orders to execute/be canceled"""
+        for order in orders:
+            order.wait_to_be_closed()
 
     def cancel_order(self, order):
         """Cancel an order"""

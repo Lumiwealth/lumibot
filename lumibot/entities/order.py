@@ -26,6 +26,9 @@ class Order:
         time_in_force="day",
         position_filled=False,
     ):
+        if isinstance(asset, str):
+            asset = entities.Asset(asset)
+
         # Initialization default values
         self.strategy = strategy
         self.asset = asset

@@ -19,7 +19,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 setuptools.setup(
     name="lumibot",
     #version=increment_version(),
-    version="1.0.0",
+    version="1.0.1",
     author="Slim Beji",
     author_email="mslimbeji@gmail.com",
     description="Trading Framework",
@@ -29,9 +29,10 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     install_requires=[
         'alpaca_trade_api',
-        'yfinance',
+        'yfinance==0.1.59',
         'pandas',
         'pandas_datareader',
+        'pandas_market_calendars',
         'flask-socketio',
         'flask-sqlalchemy',
         'flask-marshmallow',

@@ -144,7 +144,7 @@ class BacktestingBroker(Broker):
         orders = []
         quantity = 0
         for position in self._filled_positions:
-            if position.asset == asset:
+            if position.asset.same_as(asset):
                 orders.extend(position.orders)
                 quantity += position.quantity
 

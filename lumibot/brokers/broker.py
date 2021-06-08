@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from functools import wraps
 from threading import RLock, Thread
 
+from lumibot.tools import lumibot_sleep
 from lumibot.trading_builtins import SafeList
 
 
@@ -139,23 +140,35 @@ class Broker:
         """Return the remaining time for the market to close in seconds"""
         pass
 
-    def await_market_to_open(self):
+    def sleep(self, sleeptime):
+        """The broker custom method for sleeping.
+        Needs to be overloaded depending whether strategy is
+        running live or in backtesting mode"""
+        time.sleep(sleeptime)
+
+    def _await_market_to_open(self, timedelta=None):
         """Executes infinite loop until market opens"""
         isOpen = self.is_market_open()
         if not isOpen:
             time_to_open = self.get_time_to_open()
+            if timedelta is not None:
+                time_to_open -= 60 * timedelta
+
             sleeptime = max(0, time_to_open)
             logging.info("Sleeping until the market opens")
-            time.sleep(sleeptime)
+            self.sleep(sleeptime)
 
-    def await_market_to_close(self):
+    def _await_market_to_close(self, timedelta=None):
         """Sleep until market closes"""
         isOpen = self.is_market_open()
         if isOpen:
             time_to_close = self.get_time_to_close()
+            if timedelta is not None:
+                time_to_close -= 60 * timedelta
+
             sleeptime = max(0, time_to_close)
             logging.info("Sleeping until the market closes")
-            time.sleep(sleeptime)
+            self.sleep(sleeptime)
 
     # =========Positions functions==================
 
@@ -163,7 +176,7 @@ class Broker:
         """get a tracked position given an asset and
         a strategy"""
         for position in self._filled_positions:
-            if position.asset == asset and position.strategy == strategy:
+            if position.asset.same_as(asset) and position.strategy == strategy:
                 return position
         return None
 
@@ -226,7 +239,9 @@ class Broker:
         """get all tracked orders for a given strategy"""
         result = []
         for order in self._tracked_orders:
-            if order.strategy == strategy and (asset is None or order.asset == asset):
+            if order.strategy == strategy and (
+                asset is None or order.asset.same_as(asset)
+            ):
                 result.append(order)
 
         return result

@@ -580,15 +580,32 @@ The strategy is run with the passed broker object.
 The following shortcuts executes broker methods within the strategy. Some methods 
 can use either a `symbol` or an `asset` object. Please see [asset](#asset).
 
+#### sleep
+
+Sleeps for `sleeptime` seconds
+
+Parameters:
+- sleeptime (float): The sleep duration in seconds 
+
 #### await_market_to_open
 
-If the market is closed, pauses code execution until market opens again. This means that `on_trading_iteration` will stop being called until the market opens again.
+If the market is closed, pauses code execution until ```self.minutes_before_opening``` minutes
+before market opens again. If an input (float) is passed as parameter, pauses code execution until 
+```input``` minutes before market opens again.
+
+Parameters:
+- timedelta (float): Duration in minutes
 
 Return type: ```None```
 
 #### await_market_to_close
 
-If the market is open, pauses code execution until market closes. This means that `on_trading_iteration` will stop being called until the market closes.
+If the market is open, pauses code execution until ```self.minutes_before_closing``` minutes
+before market closes. If an input (float) is passed as parameter, pauses code execution until 
+```input``` minutes before market closes again.
+
+Parameters:
+- timedelta (float): Duration in minutes
 
 Return type: ```None```
 
@@ -958,9 +975,16 @@ A strategy object has the following properties:
   executed inside a loop that stops only when there is only ```minutes_before_closing``` 
   minutes remaining before market closes. By default equals to 5 minutes.
   This value can be overloaded when creating a strategy class in order to change the 
-  default behaviour. Another option is to specify it when instanciation the strategy class
+  default behaviour. Another option is to specify it when creating an instance the strategy class
   ```python
   my_strategy = MyStrategy("my_strategy", budget, broker, minutes_before_closing=15)
+  ```
+- minutes_before_opening. The lifecycle method before_market_opens is executed ```minutes_before_opening```
+  minutes before the market opens. By default equals to 60 minutes.
+  This value can be overloaded when creating a strategy class in order to change the 
+  default behaviour. Another option is to specify it when creating an instance the strategy class
+  ```python
+  my_strategy = MyStrategy("my_strategy", budget, broker, minutes_before_opening=15)
   ```
 - sleeptime: Sleeptime in minute after executing the lifecycle method 
   on_trading_iteration. By default equals to 1 minute. 

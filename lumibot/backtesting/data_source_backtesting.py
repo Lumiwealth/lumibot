@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from lumibot.data_sources import DataSource
 from lumibot.tools import print_progress_bar
@@ -42,10 +42,15 @@ class DataSourceBacktesting(DataSource):
         if timeshift:
             backtesting_timeshift += timeshift
 
+        if timestep == "day":
+            backtesting_timeshift += timedelta(days=1)
+        elif timestep == "minute":
+            backtesting_timeshift += timedelta(minutes=1)
+
         result = self.LIVE_DATA_SOURCE._pull_source_symbol_bars(
             self, asset, length, timestep=timestep, timeshift=backtesting_timeshift
         )
 
-        filter_criteria = result.index <= self.localize_datetime(self._datetime)
+        filter_criteria = result.index < self.localize_datetime(self._datetime)
         result = result[filter_criteria]
         return result

@@ -16,14 +16,14 @@ def test_momentum_strategy():
         risk_free_rate = 0
 
         valid_result = {
-            "cagr": 0.08524645028981514,
-            "volatility": 0.24632330496590924,
-            "sharpe": 0.3460754568132038,
+            "cagr": 0.278191780294768,
+            "volatility": 0.19865763919432644,
+            "sharpe": 1.400357828790271,
             "max_drawdown": {
-                "drawdown": 0.2669783424180549,
-                "date": pd.Timestamp("2020-03-16 16:00:00-0400", tz="America/New_York"),
+                "drawdown": 0.17721582744193054,
+                "date": pd.Timestamp("2020-03-19 16:00:00-0400", tz="America/New_York"),
             },
-            "romad": 0.3193009946714322,
+            "romad": 1.569790826871403,
         }
 
         stats = Momentum.backtest(
@@ -49,8 +49,14 @@ def test_momentum_strategy():
         )
         assert (
             abs(
-                result["max_drawdown"]["date"].timestamp()
-                - valid_result["max_drawdown"]["date"].timestamp()
+                result["max_drawdown"]["date"]
+                .to_pydatetime()
+                .replace(minute=0, hour=0, second=0)
+                .timestamp()
+                - valid_result["max_drawdown"]["date"]
+                .to_pydatetime()
+                .replace(minute=0, hour=0, second=0)
+                .timestamp()
             )
             < TOLERANCE
         )
@@ -69,14 +75,14 @@ def test_diversification_strategy():
         risk_free_rate = 0
 
         valid_result = {
-            "cagr": 0.17107361844543667,
-            "volatility": 0.11194730510551205,
-            "sharpe": 1.5281620069745954,
+            "cagr": 0.1840888064781594,
+            "volatility": 0.1120555153194634,
+            "sharpe": 1.6428357493456125,
             "max_drawdown": {
-                "drawdown": 0.1326274935830035,
-                "date": pd.Timestamp("2020-03-18 16:00:00-0400", tz="America/New_York"),
+                "drawdown": 0.13217679191636564,
+                "date": pd.Timestamp("2020-03-19 16:00:00-0400", tz="America/New_York"),
             },
-            "romad": 1.2898805053446334,
+            "romad": 1.3927468189320322,
         }
 
         stats = Diversification.backtest(
@@ -101,8 +107,14 @@ def test_diversification_strategy():
         )
         assert (
             abs(
-                result["max_drawdown"]["date"].timestamp()
-                - valid_result["max_drawdown"]["date"].timestamp()
+                result["max_drawdown"]["date"]
+                .to_pydatetime()
+                .replace(minute=0, hour=0, second=0)
+                .timestamp()
+                - valid_result["max_drawdown"]["date"]
+                .to_pydatetime()
+                .replace(minute=0, hour=0, second=0)
+                .timestamp()
             )
             < TOLERANCE
         )

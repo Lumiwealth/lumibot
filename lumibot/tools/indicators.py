@@ -2,7 +2,7 @@ import logging
 import math
 from datetime import datetime, timedelta
 
-import yfinance as yf
+from .yahoo_helper import YahooHelper as yh
 
 
 def total_return(_df):
@@ -131,8 +131,7 @@ def performance(_df, risk_free, prefix=""):
 
 
 def calculate_returns(symbol, start=datetime(1900, 1, 1), end=datetime.now()):
-    benchmark = yf.Ticker(symbol)
-    benchmark_df = benchmark.history(start=start, end=end + timedelta(days=1))
+    benchmark_df = yh.get_symbol_data(symbol)
     benchmark_df = benchmark_df.loc[
         (benchmark_df.index >= start) & (benchmark_df.index <= end)
     ]
@@ -146,9 +145,4 @@ def calculate_returns(symbol, start=datetime(1900, 1, 1), end=datetime.now()):
 
 
 def get_risk_free_rate():
-    # 13 Week Treasury Rate (^IRX)
-    risk_free_rate_ticker = yf.Ticker("^IRX")
-    risk_free_rate = risk_free_rate_ticker.info["regularMarketPrice"] / 100
-    logging.info(f"Risk Free Rate {risk_free_rate*100:0.2f}%")
-
-    return risk_free_rate
+    return yh.get_risk_free_rate()

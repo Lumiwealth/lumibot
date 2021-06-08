@@ -1,9 +1,8 @@
 from datetime import datetime, timedelta
 
-import yfinance as yf
-
 from lumibot.data_sources.exceptions import NoDataFound
 from lumibot.entities import Bars
+from lumibot.tools import YahooHelper as yh
 
 from .data_source import DataSource
 
@@ -21,10 +20,9 @@ class YahooData(DataSource):
         self._data_store = {}
 
     def _append_data(self, asset, data):
-        data.index = data.index.tz_localize(self.DEFAULT_TIMEZONE)
         if "Adj Close" in data:
             del data["Adj Close"]
-        data.rename(
+        data = data.rename(
             columns={
                 "Open": "open",
                 "High": "high",
@@ -34,7 +32,6 @@ class YahooData(DataSource):
                 "Dividends": "dividend",
                 "Stock Splits": "stock_splits",
             },
-            inplace=True,
         )
         data["price_change"] = data["close"].pct_change()
         data["dividend_yield"] = data["dividend"] / data["close"]
@@ -49,11 +46,7 @@ class YahooData(DataSource):
         if asset in self._data_store:
             data = self._data_store[asset]
         else:
-            data = yf.Ticker(asset.symbol).history(
-                start=self.datetime_start,
-                end=self.datetime_end + timedelta(days=1),
-                auto_adjust=self.auto_adjust,
-            )
+            data = yh.get_symbol_data(asset.symbol, auto_adjust=self.auto_adjust)
             if data.shape[0] == 0:
                 raise NoDataFound(self.SOURCE, asset.symbol)
             data = self._append_data(asset, data)
@@ -74,20 +67,7 @@ class YahooData(DataSource):
         ]
 
         if missing_assets:
-            tickers = yf.Tickers(" ".join(missing_assets))
-            df_yf = tickers.history(
-                start=self.datetime_start,
-                end=self.datetime_end + timedelta(days=1),
-                thread=True,
-                group_by="ticker",
-                auto_adjust=self.auto_adjust,
-                progress=False,
-            )
-
-            dfs = {}
-            for i in df_yf.columns.levels[0]:
-                dfs[i] = df_yf[i].copy()
-
+            dfs = yh.get_symbols_data(missing_assets, auto_adjust=self.auto_adjust)
             for symbol, df in dfs.items():
                 self._append_data(symbol, df)
 

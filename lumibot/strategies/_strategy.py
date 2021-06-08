@@ -21,6 +21,7 @@ class _Strategy:
         broker,
         data_source=None,
         minutes_before_closing=5,
+        minutes_before_opening=60,
         sleeptime=1,
         stats_file=None,
         risk_free_rate=None,
@@ -49,6 +50,7 @@ class _Strategy:
         self._unspent_money = budget
         self._portfolio_value = budget
         self._minutes_before_closing = minutes_before_closing
+        self._minutes_before_opening = minutes_before_opening
         self._sleeptime = sleeptime
         self._executor = StrategyExecutor(self)
         broker._add_subscriber(self._executor)
@@ -88,6 +90,7 @@ class _Strategy:
                 "_unspent_money",
                 "_portfolio_value",
                 "_minutes_before_closing",
+                "_minutes_before_opening",
                 "_sleeptime",
                 "_is_backtesting",
             ]:
@@ -157,7 +160,7 @@ class _Strategy:
         self._stats = self._stats.append(row, ignore_index=True)
 
     def _format_stats(self):
-        self._stats.set_index("datetime", inplace=True)
+        self._stats = self._stats.set_index("datetime")
         self._stats["return"] = self._stats["portfolio_value"].pct_change()
         return self._stats
 
@@ -201,12 +204,13 @@ class _Strategy:
         backtesting_start,
         backtesting_end,
         minutes_before_closing=5,
+        minutes_before_opening=60,
         sleeptime=1,
         stats_file=None,
         risk_free_rate=None,
         logfile="logs/test.log",
         config=None,
-        auto_adjust=True,
+        auto_adjust=False,
         **kwargs,
     ):
         trader = Trader(logfile=logfile)
@@ -219,6 +223,7 @@ class _Strategy:
             budget,
             backtesting_broker,
             minutes_before_closing=minutes_before_closing,
+            minutes_before_opening=minutes_before_opening,
             sleeptime=sleeptime,
             risk_free_rate=risk_free_rate,
             stats_file=stats_file,

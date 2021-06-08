@@ -20,7 +20,6 @@ class YahooData(DataSource):
         self._data_store = {}
 
     def _append_data(self, asset, data):
-        data.index = data.index.tz_localize(self.DEFAULT_TIMEZONE)
         if "Adj Close" in data:
             del data["Adj Close"]
         data = data.rename(

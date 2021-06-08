@@ -4,7 +4,7 @@ import pickle
 
 import yfinance as yf
 
-from lumibot import LUMIBOT_CACHE_FOLDER
+from lumibot import LUMIBOT_CACHE_FOLDER, LUMIBOT_DEFAULT_PYTZ
 
 from .helpers import get_lumibot_datetime
 
@@ -112,6 +112,7 @@ class YahooHelper:
     @staticmethod
     def process_df(df):
         df = df.dropna().copy()
+        df.index = df.index.tz_localize(LUMIBOT_DEFAULT_PYTZ)
         df["Adj Ratio"] = df["Adj Close"] / df["Close"]
         df["Adj Open"] = df["Open"] * df["Adj Ratio"]
         df["Adj High"] = df["High"] * df["Adj Ratio"]

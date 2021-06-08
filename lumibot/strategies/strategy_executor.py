@@ -140,7 +140,8 @@ class StrategyExecutor(Thread):
             logging.warning(
                 "on_trading_iteraion context is not available. "
                 "The context is generally unavailable whe debugging "
-                "with IDEs like pycharm etc...")
+                "with IDEs like pycharm etc..."
+            )
             result = {}
         else:
             result = self.strategy.trace_stats(context, snapshot_before)

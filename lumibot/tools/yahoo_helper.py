@@ -335,3 +335,32 @@ class YahooHelper:
             logging.info(f"Risk Free Rate {risk_free_rate * 100:0.2f}%")
 
         return risk_free_rate
+
+    # ==========Appending Data====================================
+
+    @staticmethod
+    def append_actions_data(symbol, df, caching=True):
+        if df.empty:
+            return df
+
+        df = df.copy()
+        df["dividend"] = 0
+        df["stock_splits"] = 0
+
+        dividends_actions = YahooHelper.get_symbol_actions(symbol, caching=caching)
+        start = df.index[0]
+        end = df.index[-1]
+        filtered_actions = dividends_actions[
+            (dividends_actions.index >= start) & (dividends_actions.index <= end)
+        ]
+
+        for index, row in filtered_actions.iterrows():
+            dividends = row["Dividends"]
+            stock_splits = row["Stock Splits"]
+            search = df[df.index >= index]
+            if not search.empty:
+                target_day = search.index[0]
+                df.loc[target_day, "dividend"] = dividends
+                df.loc[target_day, "stock_splits"] = stock_splits
+
+        return df

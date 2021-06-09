@@ -77,6 +77,10 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         th = trading_hours.iloc[row, :]
         market_open, market_close = th[0], th[1]
 
+        # todo: remove this, it's temp to have full trading hours.
+        # market_open = self.utc_to_local(datetime.datetime(2005, 1, 1))
+        # market_close = self.utc_to_local(datetime.datetime(2025, 1, 1))
+
         if close:
             return market_close
         else:

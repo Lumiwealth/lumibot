@@ -108,11 +108,8 @@ class DataSource:
             asset, length, timestep=timestep, timeshift=timeshift
         )
 
-        if response.empty:
-            return response
-        else:
-            bars = self._parse_source_symbol_bars(response, asset)
-            return bars
+        bars = self._parse_source_symbol_bars(response, asset)
+        return bars
 
     def get_bars(
         self,
@@ -159,10 +156,7 @@ class DataSource:
             timestep = self.MIN_TIMESTEP
         bars = self.get_symbol_bars(asset, 1, timestep=timestep)
 
-        if bars.df.empty:
-            return 0
-        else:
-            return bars.df.iloc[0].close
+        return bars.df.iloc[0].close
 
     def get_last_prices(self, assets, timestep=None):
         """Takes a list of assets and returns the last known prices"""

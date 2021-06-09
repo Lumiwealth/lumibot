@@ -70,7 +70,6 @@ class InteractiveBrokersData(DataSource):
         response = dict()
 
         parsed_timestep = self._parse_source_timestep(timestep, reverse=True)
-        parsed_duration = self._parse_duration(length, timestep)
 
         # IB can only ADJUSTED_LAST for current time.
         if timeshift:
@@ -86,15 +85,16 @@ class InteractiveBrokersData(DataSource):
         reqId = 0
         for asset in assets:
             get_data_attempt = 0
-            max_attempts = 3
+            max_attempts = 2
+            # Two attempts to retreive data are possible, one short, then one longer,
+            # If no data is returned, than a dataframe with `0` in each row is returned.
             while get_data_attempt < max_attempts:
-                print(f"Asset: {asset} getting historical")
                 reqId += 1
                 result = self.ib.get_historical_data(
                     reqId,
                     asset,
                     end_date_time,
-                    parsed_duration,
+                    self._parse_duration(length, timestep),
                     parsed_timestep,
                     type,
                     1,
@@ -118,16 +118,19 @@ class InteractiveBrokersData(DataSource):
                     df = df[cols]
                     get_data_attempt = max_attempts
                 except:
-                    if get_data_attempt < max_attempts:
-                        print(f"Response {response}, count: {get_data_attempt}")
-                        get_data_attempt += 1
-                    else:
-                        print(f"******NO DATA: {asset}*******")
-                        response[asset] = df
-                        get_data_attempt = max_attempts
-                        continue
+                    get_data_attempt += 1
+                    # Add one day in minutes.
+                    length += 1339
+                    continue
 
-            print("\n", df.head())
+            # Return dataframe with zeros if no historical data.
+            if df.empty:
+                response[asset] = pd.DataFrame(
+                    data=[[0, 0, 0, 0, 0, 0, 0, 0]],
+                    columns=cols,
+                )
+                continue
+
             if parsed_timestep == "1 min":
                 df["date"] = pd.to_datetime(
                     df["date"], unit="s", origin="unix"

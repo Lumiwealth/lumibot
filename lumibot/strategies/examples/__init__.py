@@ -1,3 +1,4 @@
+from .buy_and_hold import BuyAndHold
 from .debt_trading import DebtTrading
 from .diversification import Diversification
 from .fast_trading import FastTrading

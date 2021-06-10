@@ -2,6 +2,8 @@ import logging
 import math
 from datetime import datetime, timedelta
 
+from lumibot import LUMIBOT_DEFAULT_PYTZ
+
 from .yahoo_helper import YahooHelper as yh
 
 
@@ -131,6 +133,10 @@ def performance(_df, risk_free, prefix=""):
 
 
 def calculate_returns(symbol, start=datetime(1900, 1, 1), end=datetime.now()):
+    # Making start and end datetime aware
+    start = LUMIBOT_DEFAULT_PYTZ.localize(start, is_dst=None)
+    end = LUMIBOT_DEFAULT_PYTZ.localize(end, is_dst=None)
+
     benchmark_df = yh.get_symbol_data(symbol)
     benchmark_df = benchmark_df.loc[
         (benchmark_df.index >= start) & (benchmark_df.index <= end)

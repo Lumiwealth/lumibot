@@ -94,7 +94,7 @@ class Asset:
             )
 
         return False
-      
+
 
 class AssetsMapping(UserDict):
     def __init__(self, mapping):
@@ -118,4 +118,3 @@ class AssetsMapping(UserDict):
             self.data[Asset(key)] = value
         else:
             self.data[key] = value
-

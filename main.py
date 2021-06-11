@@ -22,7 +22,7 @@ from lumibot.traders import Trader
 # Global parameters
 debug = False
 budget = 40000
-backtesting_start = datetime(2010, 1, 1)
+backtesting_start = datetime(2019, 1, 1)
 backtesting_end = datetime(2020, 12, 31)
 logfile = "logs/test.log"
 

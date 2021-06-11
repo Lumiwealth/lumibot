@@ -30,7 +30,8 @@ class BuyAndHold(Strategy):
 
         all_positions = self.get_tracked_positions()
         if len(all_positions) == 0:
-            purchase_order = self.create_order(self.buy_symbol, 10, "buy")
+            quantity = self.portfolio_value // current_value
+            purchase_order = self.create_order(self.buy_symbol, quantity, "buy")
             self.submit_order(purchase_order)
 
         # Wait until the end of the day
@@ -38,3 +39,9 @@ class BuyAndHold(Strategy):
 
     def on_abrupt_closing(self):
         self.sell_all()
+
+    def trace_stats(self, context, snapshot_before):
+
+        row = {"current_value": context["current_value"]}
+
+        return row

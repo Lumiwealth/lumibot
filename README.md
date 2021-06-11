@@ -255,23 +255,145 @@ When specified, start and end will be used to filter the daterange for the momen
 ## order
 
 This object represents an order. Each order belongs to a specific strategy. 
-Order object has the following properties
-- strategy (str): the strategy name that this order belongs to
+
+A simple market order can be constructed as follows:
+
+```python
+strategy_name = "Test Strategy"
+symbol = "SPY"
+quantity = 50
+side = "buy"
+order = Order(strategy_name, symbol, quantity, side)
+```
+
+With:
+- strategy_name (str): the strategy name that this order belongs to
 - symbol (str): the string representation of the asset e.g. "GOOG" for Google
 - quantity (int): the number of shares to buy/sell
-- side (str): must be either ```"buy""``` for buying order or ```"sell""``` for selling order
-- limit_price (float): The limit price of the transaction. If the price becomes greater
-  than the limit_ price after submitting the order and before being filled, the order is canceled.
-- stop_price (float): This option is for buying orders. Triggers a selling order when
-  the asset price becomes lower and reach this value. 
-- time_in_force (str): ```"day"``` by default. For more information, check this link: https://alpaca.markets/docs/trading-on-alpaca/orders/#time-in-force
+- side (str): must be either ```"buy"``` for buying order or ```"sell"``` for selling order
 
-Order objects have also the following helper methods
+Order objects have the following helper methods
 - ```to_position()```: convert an order to a position belonging to the same strategy with 
 ```order.quantity``` amount of shares.
 - ```get_increment()```: for selling orders returns ```- order.quantity```, for buying orders returns ```order.quantity```
 
-*** NOTE: Limit and stop orders work as normal in live trading, but will be ignored in backtesting. Meaning that a backtest will assume limit and stop orders were never executed.
+### advanced order types
+
+#### limit order
+
+A limit order is an order to buy or sell at a specified price or better.
+
+To create a limit order object, add the keyword parameter `limit_price`
+
+```python
+my_limit_price = 500
+order = Order(strategy_name, symbol, quantity, side, limit_price=my_limit_price)
+my_broker.submit(order)
+```
+
+#### stop order
+
+A stop (market) order is an order to buy or sell a security when its price moves past a particular point, 
+ensuring a higher probability of achieving a predetermined entry or exit price.
+
+To create a stop order object, add the keyword parameter `stop_price`.
+
+```python
+my_stop_price = 400
+order = Order(strategy_name, symbol, quantity, side, stop_price=my_stop_price)
+my_broker.submit(order)
+```
+
+#### stop_limit order
+
+A stop_limit order is a stop order with a limit price (combining stop orders and limit orders)  
+
+To create a stop_limit order object, add the keyword parameters `stop_price` and `limit_price`.
+
+```python
+my_limit_price = 405
+my_stop_price = 400
+order = Order(strategy_name, symbol, quantity, side, stop_price=my_stop_price, limit_price=my_limit_price)
+my_broker.submit(order)
+```
+
+#### trailing_stop order
+
+Trailing stop orders allow you to continuously and automatically keep updating the stop price threshold 
+based on the stock price movement.
+
+To create trailing_stop orders, add either a `trail_price` or a `trail_percent` keyword parameter.
+
+```python
+my_trail_price = 20
+order_1 = Order(strategy_name, symbol, quantity, side, trail_price=my_trail_price)
+my_broker.submit(order_1)
+
+my_trail_percent = 2.0 # 2.0 % 
+order_2 = Order(strategy_name, symbol, quantity, side, trail_percent=my_trail_percent)
+my_broker.submit(order_2)
+```
+
+*** NOTE: Advanced type of orders work as normal in live trading, but will be ignored in backtesting. Meaning that a backtest will assume limit and stop orders were never executed.
+
+### order with legs
+
+#### bracket order
+
+A bracket order is a chain of three orders that can be used to manage your position entry and exit.
+
+The first order is used to enter a new long or short position, and once it is completely filled, 
+two conditional exit orders are activated. One of the two closing orders is called a take-profit order, 
+which is a limit order, and the other is called a stop-loss order, which is either a stop or stop-limit order. 
+Importantly, only one of the two exit orders can be executed. Once one of the exit orders is filled, 
+the other is canceled. Please note, however, that in extremely volatile and fast market conditions, 
+both orders may fill before the cancellation occurs.
+
+To create a bracket order object, add the keyword parameters `take_profit_price` and `stop_loss_price`.
+A `stop_loss_limit_price` can also be specified to make the stop loss order a stop-limit order.
+
+```python
+my_take_profit_price = 420
+my_stop_loss_price = 400
+order = Order(
+  strategy_name, symbol, quantity, side, 
+  take_profit_price=my_take_profit_price,
+  stop_loss_price=my_stop_loss_price
+)
+my_broker.submit(order)
+```
+
+#### OTO (One-Triggers-Other) order 
+
+OTO (One-Triggers-Other) is a variant of bracket order. 
+It takes one of the take-profit or stop-loss order in addition to the entry order.
+
+To create an OTO order object, add either a `take_profit_price` or a `stop_loss_price` keyword parameter.
+A `stop_loss_limit_price` can also be specified in case of stop loss exit.
+
+#### OCO (One-Triggers-Other) order
+
+OCO orders are a set of two orders with the same side (buy/buy or sell/sell).
+In other words, this is the second part of the bracket orders where the entry order is already filled, 
+and you can submit the take-profit and stop-loss in one order submission.
+
+To create an OCO order object, add the keyword parameters `take_profit_price` and `stop_loss_price`
+and set `position_filled` to `True`. 
+A `stop_loss_limit_price` can also be specified to make the stop loss order a stop-limit order.
+
+```python
+my_take_profit_price = 420
+my_stop_loss_price = 400
+order = Order(
+  strategy_name, symbol, quantity, side, 
+  take_profit_price=my_take_profit_price,
+  stop_loss_price=my_stop_loss_price,
+  position_filled=True
+)
+my_broker.submit(order)
+```
+
+*** NOTE: Orders with legs work as normal in live trading, but will be ignored in backtesting. Meaning that a backtest will never execute the order legs.
 
 ## position
 

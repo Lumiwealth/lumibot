@@ -1,6 +1,7 @@
 from collections import namedtuple
 
 import lumibot.entities as entities
+from lumibot.tools import check_positive, check_price, check_quantity
 
 
 class Order:
@@ -17,6 +18,11 @@ class Order:
         side,
         limit_price=None,
         stop_price=None,
+        take_profit_price=None,
+        stop_loss_price=None,
+        stop_loss_limit_price=None,
+        trail_price=None,
+        trail_percent=None,
         time_in_force="day",
         sec_type="STK",
         exchange="SMART",
@@ -24,21 +30,31 @@ class Order:
         strike="",
         right="",
         multiplier="",
+        position_filled=False,
     ):
         # Initialization default values
         self.strategy = strategy
         self.asset = asset
         self.symbol = self.asset.symbol
         self.quantity = None
+        self.identifier = None
+        self.status = "unprocessed"
+        self.side = None
+        self.time_in_force = time_in_force
+        self.position_filled = position_filled
         self.limit_price = None
         self.stop_price = None
-        self.side = None
         self.type = "market"
         self.exchange = exchange
         self.time_in_force = time_in_force
         self.order_class = None
         self.identifier = None
         self.status = "unprocessed"
+        self.trail_price = None
+        self.trail_percent = None
+        self.take_profit_price = None
+        self.stop_loss_price = None
+        self.stop_loss_limit_price = None
         self.transactions = []
 
         self.transmit = True
@@ -58,51 +74,104 @@ class Order:
         self._error_message = None
 
         # setting the quantity
-        error = ValueError(
-            "Quantity must be a positive integer, got %r instead" % quantity
+        self.quantity = check_quantity(
+            quantity, "Order quantity must be a positive integer"
         )
-        try:
-            quantity = int(quantity)
-            if quantity <= 0:
-                raise error
-            self.quantity = quantity
-        except ValueError:
-            raise error
 
         # setting the side
         if side not in [self.BUY, self.SELL]:
             raise ValueError("Side must be either sell or buy, got %r instead" % side)
         self.side = side
 
-        # setting the limit_price
-        self.limit_price = None
-        if limit_price is not None:
-            error = ValueError(
-                "limit_price must be a positive float, got %r instead" % limit_price
-            )
-            try:
-                limit_price = float(limit_price)
-                if limit_price < 0:
-                    raise error
-                self.limit_price = limit_price
-                self.type = "limit"
-            except ValueError:
-                raise error
-
-        # setting the stop price
-        self.stop_price = None
-        if stop_price is not None:
-            error = ValueError(
-                "stop_price must be a positive float, got %r instead" % stop_price
-            )
-            try:
-                stop_price = float(stop_price)
-                if stop_price < 0:
-                    raise error
-                self.stop_price = stop_price
+        if position_filled:
+            # This is a "One-Cancel-Other" advanced order
+            # with the entry order already filled
+            self.order_class = "oco"
+            self.type = "limit"
+            if stop_loss_price is None or take_profit_price is None:
+                raise ValueError(
+                    "stop_loss_price and take_profit_loss must be defined for oco class orders"
+                )
+            else:
+                self.take_profit_price = check_price(
+                    take_profit_price, "take_profit_price must be positive float."
+                )
+                self.stop_loss_price = check_price(
+                    stop_loss_price, "stop_loss_price must be positive float."
+                )
+                self.stop_loss_limit_price = check_price(
+                    stop_loss_limit_price,
+                    "stop_loss_limit_price must be positive float.",
+                    nullable=True,
+                )
+        else:
+            # This is either a simple order, bracket order or One-Triggers-Other order
+            if take_profit_price is not None and stop_loss_price is not None:
+                # Both take_profit_price and stop_loss_price are defined
+                # so this is a bracket order
+                self.order_class = "bracket"
+                self.take_profit_price = check_price(
+                    take_profit_price, "take_profit_price must be positive float."
+                )
+                self.stop_loss_price = check_price(
+                    stop_loss_price, "stop_loss_price must be positive float."
+                )
+                self.stop_loss_limit_price = check_price(
+                    stop_loss_limit_price,
+                    "stop_loss_limit_price must be positive float.",
+                    nullable=True,
+                )
+            elif take_profit_price is not None or stop_loss_price is not None:
+                # Only one of take_profit_price and stop_loss_price are defined
+                # so this is a One-Triggers-Other order
                 self.order_class = "oto"
-            except:
-                raise error
+                if take_profit_price is not None:
+                    self.take_profit_price = check_price(
+                        take_profit_price, "take_profit_price must be positive float."
+                    )
+                else:
+                    self.stop_loss_price = check_price(
+                        stop_loss_price, "stop_loss_price must be positive float."
+                    )
+                    self.stop_loss_limit_price = check_price(
+                        stop_loss_limit_price,
+                        "stop_loss_limit_price must be positive float.",
+                        nullable=True,
+                    )
+            else:
+                # This is a simple order with no legs
+                self.order_class = ""
+
+            if trail_price is not None or trail_percent is not None:
+                self.type = "trailing_stop"
+                if trail_price is not None:
+                    self.trail_price = check_price(
+                        trail_price, "trail_price must be positive float."
+                    )
+                else:
+                    self.trail_percent = check_positive(
+                        trail_percent, float, "trail_percent must be positive float."
+                    )
+            elif limit_price is None and stop_price is None:
+                self.type = "market"
+            elif limit_price is None and stop_price is not None:
+                self.type = "stop"
+                self.stop_price = check_price(
+                    stop_price, "stop_price must be positive float."
+                )
+            elif limit_price is not None and stop_price is None:
+                self.type = "limit"
+                self.limit_price = check_price(
+                    limit_price, "limit_price must be positive float."
+                )
+            elif limit_price is not None and stop_price is not None:
+                self.type = "stop_limit"
+                self.limit_price = check_price(
+                    limit_price, "limit_price must be positive float."
+                )
+                self.stop_price = check_price(
+                    stop_price, "stop_price must be positive float."
+                )
 
     def __repr__(self):
         repr = "%s order of | %d %s %s |" % (

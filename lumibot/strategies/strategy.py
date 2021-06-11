@@ -91,6 +91,12 @@ class Strategy(_Strategy):
         limit_price=None,
         stop_price=None,
         time_in_force="day",
+        take_profit_price=None,
+        stop_loss_price=None,
+        stop_loss_limit_price=None,
+        trail_price=None,
+        trail_percent=None,
+        position_filled=False,
         exchange="SMART",
     ):
         asset = self._set_asset_mapping(asset)
@@ -102,12 +108,18 @@ class Strategy(_Strategy):
             limit_price=limit_price,
             stop_price=stop_price,
             time_in_force=time_in_force,
+            take_profit_price=take_profit_price,
+            stop_loss_price=stop_loss_price,
+            stop_loss_limit_price=stop_loss_limit_price,
+            trail_price=trail_price,
+            trail_percent=trail_percent,
             exchange=exchange,
             sec_type=asset.asset_types,
             expiration=asset.expiration,
             strike=asset.strike,
             right=asset.right,
             multiplier=asset.multiplier,
+            position_filled=position_filled,
         )
         return order
 

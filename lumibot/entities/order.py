@@ -1,4 +1,6 @@
+import logging
 from collections import namedtuple
+from threading import Event
 
 import lumibot.entities as entities
 from lumibot.tools import check_positive, check_price, check_quantity
@@ -36,7 +38,6 @@ class Order:
         self.strategy = strategy
         self.asset = asset
         self.symbol = self.asset.symbol
-        self.quantity = None
         self.identifier = None
         self.status = "unprocessed"
         self.side = None
@@ -44,23 +45,17 @@ class Order:
         self.position_filled = position_filled
         self.limit_price = None
         self.stop_price = None
-        self.type = "market"
-        self.exchange = exchange
-        self.time_in_force = time_in_force
-        self.order_class = None
-        self.identifier = None
-        self.status = "unprocessed"
         self.trail_price = None
         self.trail_percent = None
         self.take_profit_price = None
         self.stop_loss_price = None
         self.stop_loss_limit_price = None
         self.transactions = []
-
-        self.transmit = True
-        self.parent_id = 0
+        self.order_class = None
+        self.type = "market"
 
         # Options:
+        self.exchange = exchange
         self.sec_type = sec_type
         self.expiration = expiration
         self.strike = strike
@@ -226,3 +221,31 @@ class Order:
             return True
         else:
             return False
+
+    # ======Setting the events methods===========
+
+    def set_new(self):
+        self._new_event.set()
+
+    def set_canceled(self):
+        self._canceled_event.set()
+        self._closed_event.set()
+
+    def set_partially_filled(self):
+        self._partial_filled_event.set()
+
+    def set_filled(self):
+        self._filled_event.set()
+        self._closed_event.set()
+
+    # =========Waiting methods==================
+
+    def wait_to_be_registered(self):
+        logging.info("Waiting for order %r to be registered" % self)
+        self._new_event.wait()
+        logging.info("Order %r registered" % self)
+
+    def wait_to_be_closed(self):
+        logging.info("Waiting for broker to execute order %r" % self)
+        self._closed_event.wait()
+        logging.info("Order %r executed by broker" % self)

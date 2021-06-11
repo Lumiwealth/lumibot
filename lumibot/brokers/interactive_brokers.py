@@ -216,30 +216,31 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
 
     def submit_order(self, order):
         """Submit an order for an asset"""
-        orders_new = [order]
-        orders = list()
         # Initial order
         order.identifier = self.ib.nextOrderId()
-        if order.stop_price:
-            order.transmit = False
+        kwargs = {
+            "type": order.type,
+            "order_class": order.order_class,
+            "time_in_force": order.time_in_force,
+            "limit_price": order.limit_price,
+            "stop_price": order.stop_price,
+            "trail_price": order.trail_price,
+            "trail_percent": order.trail_percent,
+        }
+        # Remove items with None values
+        kwargs = {k: v for k, v in kwargs.items() if v}
 
-            # Stop loss order.
-            stop_loss_order = OrderLum(
-                order.strategy,
-                order.asset,
-                order.quantity,
-                "sell",
-                stop_price=order.stop_price,
-            )
-            stop_loss_order.type = "stop"
-            stop_loss_order.transmit = True
-            stop_loss_order.parent_id = order.identifier
-            orders_new.append(stop_loss_order)
+        if order.take_profit_price:
+            kwargs["take_profit"] = {"limit_price": order.take_profit_price}
 
-        for on in orders_new:
-            self._unprocessed_orders.append(on)
-        self.ib.execute_order(orders_new)
-        return orders_new
+        if order.stop_loss_price:
+            kwargs["stop_loss"] = {"stop_price": order.stop_loss_price}
+            if order.stop_loss_limit_price:
+                kwargs["stop_loss"]["limit_price"] = order.stop_loss_limit_price
+
+        self._unprocessed_orders.append(order)
+        self.ib.execute_order(order)
+        return order
 
     def cancel_order(self, order_id):
         """Cancel an order"""
@@ -965,7 +966,13 @@ class IBClient(EClient):
 
 
 class IBApp(IBWrapper, IBClient):
-    ORDERTYPE_MAPPING = dict(market="MKT", limit="LMT", stop="STP")
+    ORDERTYPE_MAPPING = dict(
+        market="MKT",
+        limit="LMT",
+        stop="STP",
+        stop_limit="STP LMT",
+        trailing_stop="TRAIL",
+    )
 
     def __init__(self, ipaddress, portid, clientid, ib_broker=None):
         IBWrapper.__init__(self)
@@ -1012,16 +1019,119 @@ class IBApp(IBWrapper, IBClient):
 
     def create_order(self, order):
         ib_order = Order()
-        ib_order.action = order.side.upper()
-        ib_order.orderType = self.ORDERTYPE_MAPPING[order.type]
-        ib_order.totalQuantity = order.quantity
-        ib_order.lmtPrice = order.limit_price if order.limit_price else 0
-        ib_order.auxPrice = order.stop_price if order.stop_price else ""
-        ib_order.transmit = order.transmit
-        ib_order.orderId = order.identifier if order.identifier else self.nextOrderId()
-        ib_order.parentId = order.parent_id
+        if order.order_class == "bracket":
+            if not order.limit_price:
+                logging.info(
+                    f"All bracket orders must have limit price for the originating "
+                    f"order. The bracket order for {order.symbol} is cancelled.")
+                return []
+            parent = Order()
+            parent.orderId = order.identifier if order.identifier else self.nextOrderId()
+            parent.action = order.side.upper()
+            parent.orderType = "LMT"
+            parent.totalQuantity = order.quantity
+            parent.lmtPrice = order.limit_price
+            parent.transmit = False
 
-        return ib_order
+            takeProfit = Order()
+            takeProfit.orderId = parent.orderId + 1
+            takeProfit.action = "SELL" if parent.action == "BUY" else "BUY"
+            takeProfit.orderType = "LMT"
+            takeProfit.totalQuantity = order.quantity
+            takeProfit.lmtPrice = order.take_profit_price
+            takeProfit.parentId = parent.orderId
+            takeProfit.transmit = False
+
+            stopLoss = Order()
+            stopLoss.orderId = parent.orderId + 2
+            stopLoss.action = "SELL" if parent.action == "BUY" else "BUY"
+            stopLoss.orderType = "STP"
+            stopLoss.auxPrice = order.stop_loss_price
+            stopLoss.totalQuantity = order.quantity
+            stopLoss.parentId = parent.orderId
+            stopLoss.transmit = True
+
+            bracketOrder = [parent, takeProfit, stopLoss]
+
+            return bracketOrder
+
+        elif order.order_class == "oto":
+            if not order.limit_price:
+                logging.info(
+                    f"All oto orders must have limit price for the originating order. "
+                    f"The one triggers other order for {order.symbol} is cancelled.")
+                return []
+
+            parent = Order()
+            parent.orderId = order.identifier if order.identifier else self.nextOrderId()
+            parent.action = order.side.upper()
+            parent.orderType = "LMT"
+            parent.totalQuantity = order.quantity
+            parent.lmtPrice = order.limit_price
+            parent.transmit = False
+
+            if order.take_profit_price:
+                takeProfit = Order()
+                takeProfit.orderId = parent.orderId + 1
+                takeProfit.action = "SELL" if parent.action == "BUY" else "BUY"
+                takeProfit.orderType = "LMT"
+                takeProfit.totalQuantity = order.quantity
+                takeProfit.lmtPrice = order.take_profit_price
+                takeProfit.parentId = parent.orderId
+                takeProfit.transmit = True
+                return [parent, takeProfit]
+
+            elif order.stop_loss_price:
+                stopLoss = Order()
+                stopLoss.orderId = parent.orderId + 1
+                stopLoss.action = "SELL" if parent.action == "BUY" else "BUY"
+                stopLoss.orderType = "STP"
+                stopLoss.auxPrice = order.stop_loss_price
+                stopLoss.totalQuantity = order.quantity
+                stopLoss.parentId = parent.orderId
+                stopLoss.transmit = True
+                return [parent, stopLoss]
+
+        elif order.order_class == "oco":
+            takeProfit = Order()
+            takeProfit.orderId = order.identifier if order.identifier else self.nextOrderId()
+            takeProfit.action = order.side.upper()
+            takeProfit.orderType = "LMT"
+            takeProfit.totalQuantity = order.quantity
+            takeProfit.lmtPrice = order.take_profit_price
+            takeProfit.transmit = False
+
+            oco_Group = f"oco_{takeProfit.orderId}"
+            takeProfit.ocaGroup = oco_Group
+            takeProfit.ocaType = 1
+
+            stopLoss = Order()
+            stopLoss.orderId = takeProfit.orderId + 1
+            stopLoss.action = order.side.upper()
+            stopLoss.orderType = "STP"
+            stopLoss.totalQuantity = order.quantity
+            stopLoss.auxPrice = order.stop_loss_price
+            stopLoss.transmit = True
+
+            stopLoss.ocaGroup = oco_Group
+            stopLoss.ocaType = 1
+
+
+            return [takeProfit, stopLoss]
+        else:
+            ib_order.action = order.side.upper()
+            ib_order.orderType = self.ORDERTYPE_MAPPING[order.type]
+            ib_order.totalQuantity = order.quantity
+            ib_order.lmtPrice = order.limit_price if order.limit_price else 0
+            ib_order.auxPrice = order.stop_price if order.stop_price else ""
+            ib_order.trailingPercent = order.trail_percent if order.trail_percent else ""
+            if order.trail_price:
+                ib_order.auxPrice = order.trail_price
+            ib_order.transmit = order.transmit
+            ib_order.orderId = order.identifier if order.identifier else self.nextOrderId()
+            ib_order.parentId = order.parent_id
+
+            return [ib_order]
 
     def execute_order(self, orders):
         # Create a queue to store the new order.
@@ -1037,18 +1147,23 @@ class IBApp(IBWrapper, IBClient):
                 order.asset,
                 exchange=order.exchange,
             )
-            order_object = self.create_order(order)
+            order_objects = self.create_order(order)
+            if len(order_objects) == 0:
+                continue
 
             # There was an update by IB mid april/2021 that ceased support for
             # `eTradeOnly` and `firmQuoteOnly` attributes. However the defaults
             # where left `True` causing errors. Set to False
-            order_object.eTradeOnly = False
-            order_object.firmQuoteOnly = False
+            for order_object in order_objects:
+                order_object.eTradeOnly = False
+                order_object.firmQuoteOnly = False
 
-            nextID = (
-                order_object.orderId if order_object.orderId else self.nextOrderId()
-            )
-            ib_orders.append((nextID, contract_object, order_object))
+                nextID = (
+                    order_object.orderId if order_object.orderId else self.nextOrderId()
+                )
+                ib_orders.append((nextID, contract_object, order_object))
 
         for ib_order in ib_orders:
+            if len(ib_order) == 0:
+                continue
             self.placeOrder(*ib_order)

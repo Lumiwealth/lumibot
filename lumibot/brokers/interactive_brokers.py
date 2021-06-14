@@ -1127,9 +1127,7 @@ class IBApp(IBWrapper, IBClient):
             ib_order.trailingPercent = order.trail_percent if order.trail_percent else ""
             if order.trail_price:
                 ib_order.auxPrice = order.trail_price
-            ib_order.transmit = order.transmit
             ib_order.orderId = order.identifier if order.identifier else self.nextOrderId()
-            ib_order.parentId = order.parent_id
 
             return [ib_order]
 

@@ -10,8 +10,8 @@ from lumibot.strategies.strategy import Strategy
 
 
 class Strangle(Strategy):
-    """
-    Strategy Description: Strangle
+    """Strategy Description: Strangle
+
     In a long strangle—the more common strategy—the investor simultaneously buys an
     out-of-the-money call and an out-of-the-money put option. The call option's strike
     price is higher than the underlying asset's current market price, while the put has a

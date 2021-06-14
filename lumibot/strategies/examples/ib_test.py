@@ -2,7 +2,7 @@ import datetime
 import time
 import numpy as np
 from lumibot.strategies.strategy import Strategy
-from lumibot.entities import Asset
+from lumibot.entities import Asset, Order
 
 """
 Testing for IB Broker implementation. 
@@ -17,16 +17,63 @@ class IBTest(Strategy):
         self.symbols = ["FB", "TSLA", "MSFT", "F", "AAPL", "IBM"]
         self.assets = [Asset(t) for t in self.symbols]
         self.option = self.create_asset(
-            symbol="UBER",
+            symbol="FB",
             asset_type="option",
-            expiration="20210604",
-            strike=51.5,
+            expiration="20210618",
+            strike=335,
             right="CALL",
             multiplier=100,
         )
         self.count = 0
 
     def on_trading_iteration(self):
+        time.sleep(2)
+        instr = self.create_asset(
+            "MSFT",
+            asset_type="stock",
+            #     expiration=expiration,
+            #     strike=strike,
+            #     right=right,
+            #     multiplier=100,
+        )
+        # o1 = self.create_order(instr, 10, 'buy')
+        # o2 = self.create_order(instr, 10, 'sell', trail_percent=2.0)
+        # o2 = self.create_order(instr, 10, 'sell', trail_price=1.0)
+        # $329.74
+        # self.submit_order(o1)
+        # self.submit_orders([o1, o2])
+
+        # bracket = self.create_order(
+        #     instr,
+        #     10,
+        #     "buy",
+        #     limit_price=331,
+        #     take_profit_price=335,
+        #     stop_loss_price=327,
+        # )
+        # self.submit_order(self.create_order(instr, 20, "sell", stop_price=329.))
+        # self.submit_order(self.create_order(instr, 20, "sell", trail_percent=5.))
+        # self.submit_order(Order("ib_test", instr, 10, "sell"))
+        # self.submit_order(bracket)
+        self.submit_order(
+            self.create_order(
+                instr,
+                10,
+                "buy",
+                limit_price=257.25,
+                # trail_percent=2.0,
+                # take_profit_price=610,
+                stop_loss_price=255,
+                # position_filled=True,
+            )
+            # Order("ib_test", instr, 10, "sell", trail_percent=2.0)
+            # Order("ib_test", instr, 10, "buy", trail_price=0.15)
+        )
+        time.sleep(1)
+        self.broker._close_connection()
+        exit(0)
+        # time.sleep(3)
+        # self.broker.api.close_all_positions()
 
         # log_methods = dict(
         #     get_datetime={},
@@ -48,9 +95,9 @@ class IBTest(Strategy):
         # "broker.get_time_to_open": {},
         # "broker.get_time_to_close": {},
         # }
-        #
+
         # self.check_function(broker_methods)
-        #
+
         # print(
         #     f"Unspent money before:  "
         #     f"{self._initial_budget}, "
@@ -59,18 +106,24 @@ class IBTest(Strategy):
         # )
 
         # Create orders, check status, cancel order.
-        self.submit_order(self.create_order(self.symbols[-1], 10, "buy"))
-        self.submit_order(self.create_order("IQ", 250, "buy", limit_price=80))
-        self.submit_order(self.create_order("D", 10, "buy", stop_price=295))
+        # self.submit_order(self.create_order(self.symbols[1], 10, "buy"))
+        # self.submit_order(self.create_order("IQ", 250, "buy", limit_price=80))
+        # self.submit_order(self.create_order("D", 10, "buy", stop_price=295))
         # self.submit_orders([
         #     self.create_order("TSLA", 10, "buy", limit_price=710),
         #     self.create_order("AAPL", 10, "buy", limit_price=135),
         # ])
 
-        time.sleep(10)
+        time.sleep(3)
+
         # Cancelling orders.
         # self.cancel_open_orders()
-        self.sell_all(cancel_open_orders=True)
+        # print(self.broker.api.list_positions())
+        # self.broker.api.close_all_positions()
+
+        # print(self.broker.api.list_positions())
+
+        # self.sell_all(cancel_open_orders=True)
 
         # time.sleep(6)
         # print(
@@ -130,20 +183,18 @@ class IBTest(Strategy):
         # Data Source #
         ##############_
         # log_methods = dict(
-            # get_symbol_bars={
-            #     "asset": self.option,
-            #     "timestep": "day",
-            #     "length": 100,
-            #     "timeshift": datetime.timedelta(days=20),
-            # },
-            # get_bars={"assets": self.assets, "length": 5},
-            # get_last_price={"asset": self.assets[-1]},
-            # get_last_prices={"assets": self.assets},
+        # get_symbol_bars={
+        #     "asset": self.option,
+        #     "timestep": "day",
+        #     "length": 100,
+        #     "timeshift": datetime.timedelta(days=20),
+        # },
+        # get_bars={"assets": self.assets, "length": 5},
+        # get_last_price={"asset": self.assets[-1]},
+        # get_last_prices={"assets": self.assets},
         # )
         #
         # self.check_function(log_methods)
-
-
 
         # ##############
         # #  Strategy  #
@@ -166,6 +217,10 @@ class IBTest(Strategy):
         # }
         # for la in log_attributes.items():
         #     print(la[0], ": ", la[1])
+
+        # alpaca close
+        # self.broker.stream.close(renew=False)
+        # exit(0)
 
     def on_abrupt_closing(self):
         # self.sell_all()

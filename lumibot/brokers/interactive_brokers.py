@@ -214,7 +214,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         """Used for alpaca, just return orders."""
         return orders
 
-    def submit_order(self, order):
+    def _submit_order(self, order):
         """Submit an order for an asset"""
         # Initial order
         order.identifier = self.ib.nextOrderId()
@@ -240,6 +240,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
 
         self._unprocessed_orders.append(order)
         self.ib.execute_order(order)
+        order.update_status("submitted")
         return order
 
     def cancel_order(self, order_id):

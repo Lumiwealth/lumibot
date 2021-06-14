@@ -36,6 +36,26 @@ class IBTest(Strategy):
             #     right=right,
             #     multiplier=100,
         )
+        self.submit_order(
+            [
+                self.create_order(
+                    self.create_asset(symbol, asset_type="stock"), 20, "buy"
+                )
+                for symbol in self.symbols
+            ]
+        )
+        # instr1 = self.create_asset(
+        #     "MSFT",
+        #     asset_type="stock",
+        # )
+        #
+        # self.submit_orders(
+        #     [
+        #         self.create_order(instr0, 10, "buy"),
+        #         self.create_order(instr1, 15, "buy"),
+        #     ]
+        # )
+
         # o1 = self.create_order(instr, 10, 'buy')
         # o2 = self.create_order(instr, 10, 'sell', trail_percent=2.0)
         # o2 = self.create_order(instr, 10, 'sell', trail_price=1.0)
@@ -55,21 +75,22 @@ class IBTest(Strategy):
         # self.submit_order(self.create_order(instr, 20, "sell", trail_percent=5.))
         # self.submit_order(Order("ib_test", instr, 10, "sell"))
         # self.submit_order(bracket)
-        self.submit_order(
-            self.create_order(
-                instr,
-                10,
-                "buy",
-                limit_price=257.25,
-                # trail_percent=2.0,
-                # take_profit_price=610,
-                stop_loss_price=255,
-                # position_filled=True,
-            )
-            # Order("ib_test", instr, 10, "sell", trail_percent=2.0)
-            # Order("ib_test", instr, 10, "buy", trail_price=0.15)
-        )
-        time.sleep(1)
+        # self.submit_order(
+        #     self.create_order(
+        #         instr,
+        #         10,
+        #         "buy",
+        #         limit_price=257.25,
+        #         # trail_percent=2.0,
+        #         # take_profit_price=610,
+        #         stop_loss_price=255,
+        #         # position_filled=True,
+        #     ),
+        # ),
+        # Order("ib_test", instr, 10, "sell", trail_percent=2.0)
+        # Order("ib_test", instr, 10, "buy", trail_price=0.15)
+
+        time.sleep(5)
         self.broker._close_connection()
         exit(0)
         # time.sleep(3)

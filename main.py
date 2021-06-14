@@ -10,6 +10,7 @@ from lumibot.data_sources import AlpacaData
 from lumibot.strategies.examples import (
     DebtTrading,
     Diversification,
+    FastTrading,
     IntradayMomentum,
     Momentum,
     Simple,
@@ -53,6 +54,13 @@ mapping = {
         "class": IntradayMomentum,
         "backtesting_datasource": None,
         "kwargs": {},
+        "config": None,
+    },
+    "fast_trading": {
+        "class": FastTrading,
+        "backtesting_datasource": None,
+        "kwargs": {},
+        "backtesting_cache": False,
         "config": None,
     },
 }

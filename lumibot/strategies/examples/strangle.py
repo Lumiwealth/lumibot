@@ -44,7 +44,7 @@ class Strangle(Strategy):
         self.sleeptime = 1
 
         # Initialize our variables
-        self.take_profit_threshold = 0.02
+        self.take_profit_threshold = 0.015
         self.total_trades = 0
         self.max_trades = 3
         self.quantity = 10
@@ -100,14 +100,14 @@ class Strangle(Strategy):
 
 
             # Get dates from the options chain.
-            options["expirations"] = self.get_expiration(chains)
+            options["expirations"] = self.get_expiration(chains, self.exchange)
 
             # Find the first date that meets the minimum days requirement.
             options["expiration_date"] = self.get_expiration_date(
                 options["expirations"]
             )
 
-            multiplier = self.get_chain(chains)["Multiplier"]
+            multiplier = self.get_chain(chains, self.exchange)["Multiplier"]
 
             # Get the call and put strikes to buy.
             (
@@ -129,7 +129,7 @@ class Strangle(Strategy):
                 strike=options["buy_put_strike"],
                 right="CALL",
                 multiplier=multiplier,
-            )
+            ) # todo review this put call terminology.
             options["put"] = self.create_asset(
                 asset.symbol,
                 asset_type="option",
@@ -311,24 +311,6 @@ class Strangle(Strategy):
         # at the beginning of the asset list on each iteration.
         for asset in cycle(assets):
             yield asset
-
-    def get_chains(self, asset):
-        """Returns option chain on specific exchange. ."""
-        contract_details = self.get_contract_details(asset=asset)
-        contract_id = contract_details[0].contract.conId
-        chains = self.options_params(asset, underlyingConId=contract_id)
-        if len(chains) == 0:
-            raise AssertionError(f"No option chain for {asset.symbol}")
-        return chains
-
-    def get_chain(self, chains):
-        for x, p in chains.items():
-            if x == self.exchange:
-                return p
-
-    def get_expiration(self, chains):
-        """Returns expirations and strikes high/low of target price."""
-        return sorted(list(self.get_chain(chains)["Expirations"]))
 
     def call_put_strike(self, last_price, symbol, expiration_date):
         """Returns strikes for pair."""

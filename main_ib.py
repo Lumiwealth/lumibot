@@ -15,6 +15,7 @@ from lumibot.strategies.examples import (
     Simple,
     IBTest,
     Strangle,
+    FastTrading,
 )
 from lumibot.tools import indicators, perf_counters
 from lumibot.traders import Trader
@@ -79,6 +80,13 @@ mapping = {
         "class": Strangle,
         "backtesting_datasource": None,
         "kwargs": {},
+        "config": None,
+    },
+    "fast_trading": {
+        "class": FastTrading,
+        "backtesting_datasource": None,
+        "kwargs": {},
+        "backtesting_cache": False,
         "config": None,
     },
 }

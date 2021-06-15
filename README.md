@@ -351,6 +351,7 @@ Importantly, only one of the two exit orders can be executed. Once one of the ex
 the other is canceled. Please note, however, that in extremely volatile and fast market conditions, 
 both orders may fill before the cancellation occurs.
 
+
 To create a bracket order object, add the keyword parameters `take_profit_price` and `stop_loss_price`.
 A `stop_loss_limit_price` can also be specified to make the stop loss order a stop-limit order.
 
@@ -364,6 +365,7 @@ order = Order(
 )
 my_broker.submit(order)
 ```
+> Interactive Brokers requires the main or parent order to be a limit order. 
 
 #### OTO (One-Triggers-Other) order 
 
@@ -372,6 +374,8 @@ It takes one of the take-profit or stop-loss order in addition to the entry orde
 
 To create an OTO order object, add either a `take_profit_price` or a `stop_loss_price` keyword parameter.
 A `stop_loss_limit_price` can also be specified in case of stop loss exit.
+
+> Interactive Brokers requires the main or parent order to be a limit order. 
 
 #### OCO (One-Triggers-Other) order
 
@@ -394,6 +398,7 @@ order = Order(
 )
 my_broker.submit(order)
 ```
+> Interactive Brokers requires the main or parent order to be a limit order. 
 
 *** NOTE: Orders with legs work as normal in live trading, but will be ignored in backtesting. Meaning that a backtest will never execute the order legs.
 
@@ -793,6 +798,12 @@ Optional Parameters:
 - limit_price (default = None)
 - stop_price (default = None)
 - time_in_force (default = "day")
+- take_profit_price (default = None),
+- stop_loss_price (default = None),
+- stop_loss_limit_price (default = None),
+- trail_price (default = None),
+- trail_percent (default = None),
+- position_filled (default = None)e,
 
 *** NOTE: Limit and stop orders work as normal in live trading, but will be ignored in backtesting. Meaning that a backtest will assume limit and stop orders were never executed.
 
@@ -944,6 +955,12 @@ Return type: dict of str:float or asset:asset object
 Return the list of tradable assets for the used broker
 
 Return type: list(str/asset)
+
+#### Options: get_chains
+
+#### Options :get_chain
+
+#### Options: get_expiration
 
 ## Data Source Methods
 
@@ -1124,6 +1141,7 @@ Parameters:
   asset object.
 
 Return type: dict of str:float
+
 
 ## Properties and Parameters
 

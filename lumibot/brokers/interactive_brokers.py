@@ -300,12 +300,33 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         return self.ib.get_account_summary()
 
     def get_contract_details(self, asset):
+        # Used for Interactive Brokers. Convert an asset into a IB Contract.
         return self.ib.get_contract_details(asset=asset)
 
     def option_params(self, asset, exchange="", underlyingConId=""):
+        # Returns option chain data, list of strikes and list of expiry dates.
         return self.ib.option_params(
             asset=asset, exchange=exchange, underlyingConId=underlyingConId
         )
+
+    def get_chains(self, asset):
+        """Returns option chain."""
+        contract_details = self.get_contract_details(asset=asset)
+        contract_id = contract_details[0].contract.conId
+        chains = self.option_params(asset, underlyingConId=contract_id)
+        if len(chains) == 0:
+            raise AssertionError(f"No option chain for {asset.symbol}")
+        return chains
+
+    def get_chain(self, chains, exchange="SMART"):
+        """Returns option chain for a particular exchange."""
+        for x, p in chains.items():
+            if x == exchange:
+                return p
+
+    def get_expiration(self, chains, exchange='SMART'):
+        """Returns expirations and strikes high/low of target price."""
+        return sorted(list(self.get_chain(chains, exchange=exchange)["Expirations"]))
 
     # =======Stream functions=========
     def on_status_event(

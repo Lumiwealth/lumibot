@@ -156,6 +156,7 @@ class Strategy(_Strategy):
         return self.get_tracked_positions()
 
     def get_contract_details(self, asset):
+        # Used for Interactive Brokers. Convert an asset into a IB Contract.
         asset = self._set_asset_mapping(asset)
         return self.broker.get_contract_details(asset)
 
@@ -255,11 +256,27 @@ class Strategy(_Strategy):
             easy_to_borrow=easy_to_borrow, filter_func=filter_func
         )
 
-    def options_params(self, asset, exchange="", underlyingConId=""):
+    # =======Broker methods shortcuts============
+    def option_params(self, asset, exchange="", underlyingConId=""):
+        """Returns option chain data, list of strikes and list of expiry dates."""
         asset = self._set_asset_mapping(asset)
         return self.broker.option_params(
             asset=asset, exchange=exchange, underlyingConId=underlyingConId
         )
+
+    def get_chains(self, asset):
+        """Returns option chain."""
+        asset = self._set_asset_mapping(asset)
+        return self.broker.get_chains(asset)
+
+    def get_chain(self, chains, exchange="SMART"):
+        """Returns option chain for a particular exchange."""
+        return self.broker.get_chain(chains, exchange=exchange)
+
+    def get_expiration(self, chains, exchange="SMART"):
+        """Returns option chain for a particular exchange."""
+        return self.broker.get_expiration(chains, exchange=exchange)
+
 
     # =======Data source methods=================
 

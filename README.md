@@ -1,6 +1,8 @@
 README
 -------
 
+This library is covered by the MIT license for open sourced software which can be found here: https://github.com/Lumiwealth/lumibot/blob/master/LICENSE
+
 # Quickstart
 
 Currently only alpaca is available as a brokerage service. This quickstart is about using Alpaca services.

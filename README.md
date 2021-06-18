@@ -323,7 +323,7 @@ It takes one of the take-profit or stop-loss order in addition to the entry orde
 To create an OTO order object, add either a `take_profit_price` or a `stop_loss_price` keyword parameter.
 A `stop_loss_limit_price` can also be specified in case of stop loss exit.
 
-#### OCO (One-Triggers-Other) order
+#### OCO (One-Cancels-Other) order
 
 OCO orders are a set of two orders with the same side (buy/buy or sell/sell).
 In other words, this is the second part of the bracket orders where the entry order is already filled, 

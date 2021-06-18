@@ -6,3 +6,4 @@ from .momentum import Momentum
 from .simple import Simple
 from .ib_test import IBTest
 from .strangle import Strangle
+from .long_call_spread import LongCallSpread

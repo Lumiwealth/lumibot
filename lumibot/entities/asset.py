@@ -26,7 +26,7 @@ class Asset:
         expiration=None,
         strike=None,
         right=None,
-        multiplier=None,
+        multiplier=1,
     ):
         self.asset_types = ["stock", "option"]
 
@@ -38,7 +38,7 @@ class Asset:
         self.expiration = expiration
         self.strike = strike
         self.right = right
-        self.multiplier = multiplier
+        self.multiplier = int(multiplier)
 
     @property
     def asset_type(self):

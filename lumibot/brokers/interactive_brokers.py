@@ -436,12 +436,15 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
 
         price = execution.price
         filled_quantity = execution.shares
+        multiplier = stored_order.asset.multiplier if stored_order.asset.multiplier \
+            else 1
 
         self._process_trade_event(
             stored_order,
             type_event,
             price=price,
             filled_quantity=filled_quantity,
+            multiplier=multiplier,
         )
 
         return True
@@ -501,14 +504,14 @@ class IBWrapper(EWrapper):
         self.my_tick_queue = tick_queue
         return tick_queue
 
-    def tickPrice(self, reqId, tickType):
+    def tickPrice(self, reqId, tickType, price, attrib):
         if not hasattr(self, "tick"):
             self.init_tick()
-        self.tick.append(vars(tickType))
+        if tickType == 4:
+            self.tick.append(price)
 
     def tickSnapshotEnd(self, reqId):
         super().tickSnapshotEnd(reqId)
-        print("TickSnapshotEnd. TickerId:", reqId)
         self.my_tick_queue.put(self.tick)
 
     # Historical Data.
@@ -811,7 +814,7 @@ class IBClient(EClient):
         contract = self.create_contract(asset)
         reqId = self.get_reqid()
 
-        self.reqMktData(reqId, contract, "1, 2, 4", True, False, [])
+        self.reqMktData(reqId, contract, "", True, False, [])
 
         try:
             requested_tick = tick_storage.get(timeout=self.max_wait_time)
@@ -821,8 +824,6 @@ class IBClient(EClient):
 
         while self.wrapper.is_error():
             print(f"Error: {self.get_error(timeout=5)}")
-
-        self.cancelMktData(reqId)
 
         return requested_tick
 

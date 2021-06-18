@@ -83,6 +83,7 @@ class Strangle(Strategy):
             except Exception as e:
                 logging.info(f"Error: {e}")
                 continue
+
             attempts = 2
             while attempts > 0:
                 # Obtain latest price
@@ -136,10 +137,12 @@ class Strangle(Strategy):
                 expiration=options["expiration_date"],
                 strike=options["buy_call_strike"],
                 right="PUT",
-                multiplier=100,
+                multiplier=multiplier,
             )
 
     def on_trading_iteration(self):
+        print(f"Portfolio values: {self.portfolio_value:8.2f}")
+
         positions = self.get_tracked_positions()
         filled_assets = [p.asset for p in positions]
 
@@ -166,6 +169,7 @@ class Strangle(Strategy):
                     (options["put"].strike - self.last_price),
                 ]
             )
+
             if price_move / options["price_underlying"] > self.take_profit_threshold:
                 self.submit_order(
                     self.create_order(
@@ -197,7 +201,6 @@ class Strangle(Strategy):
             options = self.trading_pairs[asset]
             if options['status'] > 0:
                 continue
-            # Create positions:
             if self.total_trades > self.max_trades:
                 return
 
@@ -247,8 +250,7 @@ class Strangle(Strategy):
                 continue
 
             options["trade_created_time"] = datetime.datetime.now()
-            self.total_trades += 1
-            options['status'] = 1
+
             # Buy cal.
             self.submit_order(
                 self.create_order(
@@ -268,11 +270,15 @@ class Strangle(Strategy):
                     exchange="CBOE",
                 )
             )
+            self.total_trades += 1
+            options['status'] = 1
 
-        pos = self.get_tracked_positions()
+        positions = self.get_tracked_positions()
         filla = [pos.asset for pos in positions]
         print(
-            f"Positions: {pos} "
+            f"**** End of iteration ****\n"
+            f"Cash: {self.unspent_money}, Value: {self.portfolio_value}"
+            f"Positions: {positions} "
             f"Filled_assets: {filla} "
             f"*******  END ELAPSED TIME  "
             f"{(time.time() - self.time_start):5.0f}   "

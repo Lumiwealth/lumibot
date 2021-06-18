@@ -19,31 +19,47 @@ class IBTest(Strategy):
         self.option = self.create_asset(
             symbol="FB",
             asset_type="option",
-            expiration="20210618",
+            expiration="20210625",
             strike=335,
             right="CALL",
             multiplier=100,
         )
+        self.options = [
+            self.create_asset(
+                symbol="FB",
+                asset_type="option",
+                expiration="20210625",
+                strike=s,
+                right=p,
+                multiplier=100,
+            )
+            for s in [330, 335, 340, 345]
+            for p in ["CALL", "PUT"]
+        ]
+
         self.count = 0
 
     def on_trading_iteration(self):
-        time.sleep(2)
-        instr = self.create_asset(
-            "MSFT",
-            asset_type="stock",
-            #     expiration=expiration,
-            #     strike=strike,
-            #     right=right,
-            #     multiplier=100,
-        )
-        self.submit_order(
-            [
-                self.create_order(
-                    self.create_asset(symbol, asset_type="stock"), 20, "buy"
-                )
-                for symbol in self.symbols
-            ]
-        )
+        # print(self.get_last_prices(self.options))
+        print(self.get_last_prices(self.assets))
+
+        # time.sleep(1)
+        # instr = self.create_asset(
+        #     "MSFT",
+        #     asset_type="stock",
+        #     #     expiration=expiration,
+        #     #     strike=strike,
+        #     #     right=right,
+        #     #     multiplier=100,
+        # )
+        # self.submit_order(
+        #     [
+        #         self.create_order(
+        #             self.create_asset(symbol, asset_type="stock"), 20, "buy"
+        #         )
+        #         for symbol in self.symbols
+        #     ]
+        # )
         # instr1 = self.create_asset(
         #     "MSFT",
         #     asset_type="stock",
@@ -77,22 +93,30 @@ class IBTest(Strategy):
         # self.submit_order(bracket)
         # self.submit_order(
         #     self.create_order(
-        #         instr,
-        #         10,
+        #         self.option,
+        #         5,
         #         "buy",
-        #         limit_price=257.25,
+        #         # limit_price=257.25,
         #         # trail_percent=2.0,
         #         # take_profit_price=610,
-        #         stop_loss_price=255,
+        #         # stop_loss_price=255,
         #         # position_filled=True,
         #     ),
         # ),
         # Order("ib_test", instr, 10, "sell", trail_percent=2.0)
         # Order("ib_test", instr, 10, "buy", trail_price=0.15)
 
-        time.sleep(5)
-        self.broker._close_connection()
-        exit(0)
+        # time.sleep(10)
+        # positions = self.get_tracked_positions()
+        # filla = [pos.asset for pos in positions]
+        # print(
+        #     f"Cash: {self.unspent_money}, Value: {self.portfolio_value}"
+        #     f"\nPositions: {positions} "
+        #     f"Filled_assets: {filla} "
+        # )
+
+        # self.broker._close_connection()
+        # exit(0)
         # time.sleep(3)
         # self.broker.api.close_all_positions()
 
@@ -133,9 +157,9 @@ class IBTest(Strategy):
         # self.submit_orders([
         #     self.create_order("TSLA", 10, "buy", limit_price=710),
         #     self.create_order("AAPL", 10, "buy", limit_price=135),
-        # ])
+        #       ])
 
-        time.sleep(3)
+        # time.sleep(3)
 
         # Cancelling orders.
         # self.cancel_open_orders()
@@ -202,46 +226,45 @@ class IBTest(Strategy):
 
         ##############
         # Data Source #
-        ##############_
+        ##############
         # log_methods = dict(
-        # get_symbol_bars={
-        #     "asset": self.option,
-        #     "timestep": "day",
-        #     "length": 100,
-        #     "timeshift": datetime.timedelta(days=20),
-        # },
-        # get_bars={"assets": self.assets, "length": 5},
-        # get_last_price={"asset": self.assets[-1]},
-        # get_last_prices={"assets": self.assets},
+            #     "timestep": "day",
+            #     "length": 100,
+            #     "timeshift": datetime.timedelta(days=20),
+            # },
+            # get_bars={"assets": self.assets, "length": 5},
+            # get_last_price={"asset": self.assets[-1]},
+        #     get_last_prices={"assets": self.options},
         # )
         #
         # self.check_function(log_methods)
 
-        # ##############
-        # #  Strategy  #
-        # ##############
-        # # Attributes #
-        #
-        # log_attributes = {
-        #     "name": self._name,
-        #     "initial_budget": self.initial_budget,
-        #     "minutes_before_closing": self.minutes_before_closing,
-        #     "sleeptime": self.sleeptime,
-        #     "parameters": self.parameters,
-        #     "is_backtesting": self.is_backtesting,
-        #     "portfolio_value": self.portfolio_value,
-        #     "unspent_money": self.unspent_money,
-        #     "stats_file": self.stats_file,
-        #     "stats": self.stats,
-        #     "analysis": self.analysis,
-        #     "risk_free_rate": self.risk_free_rate,
-        # }
-        # for la in log_attributes.items():
-        #     print(la[0], ": ", la[1])
 
-        # alpaca close
-        # self.broker.stream.close(renew=False)
-        # exit(0)
+    # ##############
+    # #  Strategy  #
+    # ##############
+    # # Attributes #
+    #
+    # log_attributes = {
+    #     "name": self._name,
+    #     "initial_budget": self.initial_budget,
+    #     "minutes_before_closing": self.minutes_before_closing,
+    #     "sleeptime": self.sleeptime,
+    #     "parameters": self.parameters,
+    #     "is_backtesting": self.is_backtesting,
+    #     "portfolio_value": self.portfolio_value,
+    #     "unspent_money": self.unspent_money,
+    #     "stats_file": self.stats_file,
+    #     "stats": self.stats,
+    #     "analysis": self.analysis,
+    #     "risk_free_rate": self.risk_free_rate,
+    # }
+    # for la in log_attributes.items():
+    #     print(la[0], ": ", la[1])
+
+    # alpaca close
+    # self.broker.stream.close(renew=False)
+    # exit(0)
 
     def on_abrupt_closing(self):
         # self.sell_all()

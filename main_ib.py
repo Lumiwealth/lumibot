@@ -16,6 +16,7 @@ from lumibot.strategies.examples import (
     IBTest,
     Strangle,
     FastTrading,
+    LongCallSpread,
 )
 from lumibot.tools import indicators, perf_counters
 from lumibot.traders import Trader
@@ -78,6 +79,12 @@ mapping = {
     },
     "strangle": {
         "class": Strangle,
+        "backtesting_datasource": None,
+        "kwargs": {},
+        "config": None,
+    },
+    "long_call_spread": {
+        "class": LongCallSpread,
         "backtesting_datasource": None,
         "kwargs": {},
         "config": None,

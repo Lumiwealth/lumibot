@@ -91,6 +91,9 @@ class DataSource:
     def _parse_source_bars(self, response):
         result = {}
         for asset, data in response.items():
+            if isinstance(data, float):
+                result[asset] = data
+                continue
             result[asset] = self._parse_source_symbol_bars(data, asset)
         return result
 
@@ -107,6 +110,8 @@ class DataSource:
         response = self._pull_source_symbol_bars(
             asset, length, timestep=timestep, timeshift=timeshift
         )
+        if isinstance(response, float):
+            return response
 
         bars = self._parse_source_symbol_bars(response, asset)
         return bars
@@ -145,17 +150,14 @@ class DataSource:
 
         return AssetsMapping(result)
 
-    def get_tick(self, asset):
-        """Takes an asset and returns ticks and greeks"""
-        tick_data = self.get_tick(asset)
-        return # todo dataframe ticks
 
     def get_last_price(self, asset, timestep=None):
         """Takes an asset and returns the last known price"""
         if timestep is None:
             timestep = self.MIN_TIMESTEP
         bars = self.get_symbol_bars(asset, 1, timestep=timestep)
-
+        if isinstance(bars, float):
+            return bars
         return bars.df.iloc[0].close
 
     def get_last_prices(self, assets, timestep=None):
@@ -165,7 +167,9 @@ class DataSource:
         result = {}
         assets_bars = self.get_bars(assets, 1, timestep=timestep)
         for asset, bars in assets_bars.items():
-            if bars is not None:
+            if isinstance(bars, float):
+                result[asset] = bars
+            elif bars is not None:
                 last_value = bars.df.iloc[0].close
                 result[asset] = last_value
 

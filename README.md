@@ -238,6 +238,8 @@ Bars objects has the following fields:
 - symbol: the symbol of the bars
 - df: the pandas dataframe containing all the datas
 
+# todo insert comment about ib bars pacing.
+
 Bars objects has the following helper methods:
 - ```get_last_price()```: returns the closing price of the last dataframe row
 - ```get_last_dividend()```: returns the dividend per share value of the last dataframe row
@@ -662,10 +664,11 @@ Parameters:
 - order (Order): The order object that is being processed by the broker
 - price (float): The filled price
 - quantity (int): The filled quantity
+- multiplier (int): Options multiplier
 
 ```python
 class MyStrategy(Strategy):
-    def on_partially_filled_order(self, order, price, quantity):
+    def on_partially_filled_order(self, order, price, quantity, multiplier):
         missing = order.quantity - quantity
         self.log_message(f"{quantity} has been filled")
         self.log_message(f"{quantity} waiting for the remaining {missing}")
@@ -684,10 +687,11 @@ Parameters:
 - order (Order): The corresponding order object that has been filled
 - price (float): The filled price
 - quantity (int): The filled quantity
+- multiplier (int): Options multiplier
 
 ```python
 class MyStrategy(Strategy):
-    def on_filled_order(self, position, order, price, quantity):
+    def on_filled_order(self, position, order, price, quantity, multiplier):
         if order.side == "sell":
             self.log_message(f"{quantity} shares of {order.symbol} has been sold at {price}$")
         elif order.side == "buy":

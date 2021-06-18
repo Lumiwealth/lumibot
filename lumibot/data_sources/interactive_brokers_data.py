@@ -88,61 +88,72 @@ class InteractiveBrokersData(DataSource):
             max_attempts = 2
             # Two attempts to retreive data are possible, one short, then one longer,
             # If no data is returned, than a dataframe with `0` in each row is returned.
-            while get_data_attempt < max_attempts:
-                reqId += 1
-                result = self.ib.get_historical_data(
-                    reqId,
-                    asset,
-                    end_date_time,
-                    self._parse_duration(length, timestep),
-                    parsed_timestep,
-                    type,
-                    1,
-                    2,
-                    False,
-                    [],
-                )
-
-                df = pd.DataFrame(result)
-                cols = [
-                    "date",
-                    "open",
-                    "high",
-                    "low",
-                    "close",
-                    "volume",
-                    "barCount",
-                    "average",
-                ]
+            if length == 1:
                 try:
-                    df = df[cols]
+                    result = self.ib.get_tick(asset)
+                    if result:
+                        response[asset] = result[0]
                     get_data_attempt = max_attempts
+                    continue
                 except:
                     get_data_attempt += 1
-                    # Add one day in minutes.
-                    length += 1339
+                    continue
+            else:
+                while get_data_attempt < max_attempts:
+                    reqId += 1
+                    result = self.ib.get_historical_data(
+                        reqId,
+                        asset,
+                        end_date_time,
+                        self._parse_duration(length, timestep),
+                        parsed_timestep,
+                        type,
+                        1,
+                        2,
+                        False,
+                        [],
+                    )
+
+                    df = pd.DataFrame(result)
+                    cols = [
+                        "date",
+                        "open",
+                        "high",
+                        "low",
+                        "close",
+                        "volume",
+                        "barCount",
+                        "average",
+                    ]
+                    try:
+                        df = df[cols]
+                        get_data_attempt = max_attempts
+                    except:
+                        get_data_attempt += 1
+                        # Add one day in minutes.
+                        length += 1339
+                        continue
+
+                # Return dataframe with zeros if no historical data.
+                if df.empty:
+                    response[asset] = pd.DataFrame(
+                        data=[[0, 0, 0, 0, 0, 0, 0, 0]],
+                        columns=cols,
+                    )
                     continue
 
-            # Return dataframe with zeros if no historical data.
-            if df.empty:
-                response[asset] = pd.DataFrame(
-                    data=[[0, 0, 0, 0, 0, 0, 0, 0]],
-                    columns=cols,
-                )
-                continue
-
-            if parsed_timestep == "1 min":
-                df["date"] = pd.to_datetime(
-                    df["date"], unit="s", origin="unix"
-                ).dt.tz_localize(self.DEFAULT_TIMEZONE)
-            elif parsed_timestep == "1 day":
-                df["date"] = pd.to_datetime(df["date"], format="%Y%m%d")
-            response[asset] = df
+                if parsed_timestep == "1 min":
+                    df["date"] = pd.to_datetime(
+                        df["date"], unit="s", origin="unix"
+                    ).dt.tz_localize(self.DEFAULT_TIMEZONE)
+                elif parsed_timestep == "1 day":
+                    df["date"] = pd.to_datetime(df["date"], format="%Y%m%d")
+                response[asset] = df
         return response
 
     def _parse_source_symbol_bars(self, response, asset):
         # Catch empty dataframe.
-        if response.empty:
+        if isinstance(response, float) or response.empty:
             bars = Bars(response, self.SOURCE, asset, raw=response)
             return bars
         df = response.copy()

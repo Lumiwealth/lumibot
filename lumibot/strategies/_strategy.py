@@ -125,20 +125,20 @@ class _Strategy:
                 asset = position.asset
                 quantity = position.quantity
                 price = prices.get(asset, 0)
-                portfolio_value += quantity * price
+                multiplier = asset.multiplier if asset.asset_type == "option" else 1
+                portfolio_value += quantity * price * multiplier
 
             self._portfolio_value = portfolio_value
-            self.log_message(f"Porfolio value of {round(portfolio_value, 2)}")
 
         return portfolio_value
 
-    def _update_unspent_money(self, side, quantity, price):
+    def _update_unspent_money(self, side, quantity, price, multiplier):
         """update the self.unspent_money"""
         with self._executor.lock:
             if side == "buy":
-                self._unspent_money -= quantity * price
+                self._unspent_money -= quantity * price * multiplier
             if side == "sell":
-                self._unspent_money += quantity * price
+                self._unspent_money += quantity * price * multiplier
             self._unspent_money = self._unspent_money
             return self._unspent_money
 

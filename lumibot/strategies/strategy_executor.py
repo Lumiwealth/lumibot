@@ -263,9 +263,9 @@ class StrategyExecutor(Thread):
                 break
             else:
                 self.strategy.log_message("Sleeping for %d seconds" % sleeptime)
-                # self.safe_sleep(sleeptime)
-                # # todo revert
-                self.safe_sleep(10)
+                self.safe_sleep(sleeptime)
+                # todo revert
+                # self.safe_sleep(20)
 
         self.strategy.await_market_to_close()
         if self.broker.is_market_open():

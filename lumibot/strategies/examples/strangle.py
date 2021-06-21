@@ -24,14 +24,17 @@ class Strangle(Strategy):
 
     params:
       - take_profit_threshold (float): Percentage to take profit.
+      - sleeptime (int): Number of minutes to wait between trading iterations.
+      - total_trades (int): Tracks the total number of pairs traded.
       - max_trades (int): Maximum trades at any time.
-      - quantity (int): Number of contracts to trade.
       - max_days_expiry (int): Maximum number of days to to expiry.
       - days_to_earnings_min(int): Minimum number of days to earnings.
       - exchange (str): Exchange, defaults to `SMART`
 
       - symbol_universe (list): is the stock symbols expected to have a sharp
       movement in either direction.
+      - trading_pairs (dict): Used to track all information for each
+      symbol/options.
     """
 
     IS_BACKTESTABLE = False
@@ -41,19 +44,18 @@ class Strangle(Strategy):
     def initialize(self):
         self.time_start = time.time()
         # Set how often (in minutes) we should be running on_trading_iteration
-        self.sleeptime = 1
 
         # Initialize our variables
-        self.take_profit_threshold = 0.015
+        self.take_profit_threshold = 0.001  # 0.015
+        self.sleeptime = 2
         self.total_trades = 0
-        self.max_trades = 3
-        self.quantity = 10
+        self.max_trades = 4
         self.max_days_expiry = 15
         self.days_to_earnings_min = 100  # 15
         self.exchange = "SMART"
 
         # Stock expected to move.
-        symbols_universe = [
+        self.symbols_universe = [
             "AAL",
             "AAPL",
             "AMD",
@@ -70,13 +72,13 @@ class Strangle(Strategy):
 
         # Underlying Asset Objects.
         self.trading_pairs = dict()
-        for symbol in symbols_universe:
+        for symbol in self.symbols_universe:
             self.create_trading_pair(symbol)
-
-        self.asset_gen = self.asset_cycle(self.trading_pairs.keys())
 
     def before_starting_trading(self):
         """Create the option assets object for each underlying. """
+        self.asset_gen = self.asset_cycle(self.trading_pairs.keys())
+
         for asset, options in self.trading_pairs.items():
             try:
                 chains = self.get_chains(asset)
@@ -91,14 +93,12 @@ class Strangle(Strategy):
                 if last_price == 0:
                     attempts -= 1
                     if attempts == 0:
-                        logging.warning(
-                            f"Unable to get price data for {asset.symbol}.")
+                        logging.warning(f"Unable to get price data for {asset.symbol}.")
                         options["price_underlying"] = 0
                     continue
                 else:
                     options["price_underlying"] = last_price
                     attempts = 0
-
 
             # Get dates from the options chain.
             options["expirations"] = self.get_expiration(chains, self.exchange)
@@ -111,10 +111,7 @@ class Strangle(Strategy):
             multiplier = self.get_chain(chains, self.exchange)["Multiplier"]
 
             # Get the call and put strikes to buy.
-            (
-                options["buy_call_strike"],
-                options["buy_put_strike"],
-            ) = self.call_put_strike(
+            options["buy_call_strike"], options["buy_put_strike"] = self.call_put_strike(
                 options["price_underlying"], asset.symbol, options["expiration_date"]
             )
 
@@ -127,24 +124,30 @@ class Strangle(Strategy):
                 asset.symbol,
                 asset_type="option",
                 expiration=options["expiration_date"],
-                strike=options["buy_put_strike"],
+                strike=options["buy_call_strike"],
                 right="CALL",
                 multiplier=multiplier,
-            ) # todo review this put call terminology.
+            )
             options["put"] = self.create_asset(
                 asset.symbol,
                 asset_type="option",
                 expiration=options["expiration_date"],
-                strike=options["buy_call_strike"],
+                strike=options["buy_put_strike"],
                 right="PUT",
                 multiplier=multiplier,
             )
 
     def on_trading_iteration(self):
-        print(f"Portfolio values: {self.portfolio_value:8.2f}")
-
+        value = self.portfolio_value
+        cash = self.unspent_money
         positions = self.get_tracked_positions()
         filled_assets = [p.asset for p in positions]
+        trade_cash = self.portfolio_value / (self.max_trades * 2)
+
+        print(  # todo delete
+            f"Start iteration: Portfolio cash: {cash}, values: {value:8.2f}, positions: "
+            f"{positions}"
+        )
 
         # Sell positions:
         for asset, options in self.trading_pairs.items():
@@ -154,19 +157,19 @@ class Strangle(Strategy):
             ):
                 continue
 
-            if options['status'] > 1:
+            if options["status"] > 1:
                 continue
 
-            self.last_price = self.get_last_price(asset)
-            if self.last_price == 0:
+            last_price = self.get_last_price(asset)
+            if last_price == 0:
                 continue
 
             # The sell signal will be the maximum percent movement of original price
             # away from strike, greater than the take profit threshold.
             price_move = max(
                 [
-                    (self.last_price - options["call"].strike),
-                    (options["put"].strike - self.last_price),
+                    (last_price - options["call"].strike),
+                    (options["put"].strike - last_price),
                 ]
             )
 
@@ -174,7 +177,7 @@ class Strangle(Strategy):
                 self.submit_order(
                     self.create_order(
                         options["call"],
-                        self.quantity,
+                        options["call_order"].quantity,
                         "sell",
                         exchange="CBOE",
                     )
@@ -182,27 +185,32 @@ class Strangle(Strategy):
                 self.submit_order(
                     self.create_order(
                         options["put"],
-                        self.quantity,
+                        options["put_order"].quantity,
                         "sell",
                         exchange="CBOE",
                     )
                 )
 
-                options['status'] = 2
+                options["status"] = 2
                 self.total_trades -= 1
+
+                print( # todo delete
+                    f"After Sell Sold: {asset}: Portfolio cash: {cash}, values: {value:8.2f}"
+                )
 
         # Create positions:
         if self.total_trades >= self.max_trades:
             return
 
         for _ in range(len(self.trading_pairs.keys())):
+            if self.total_trades >= self.max_trades:
+                break
+
             asset = next(self.asset_gen)
-            print(f"In trading iteration create position {asset}")
+            print(f"In trading iteration create position {asset}") # todo delete
             options = self.trading_pairs[asset]
-            if options['status'] > 0:
+            if options["status"] > 0:
                 continue
-            if self.total_trades > self.max_trades:
-                return
 
             # Check for symbol in positions.
             if len([p.symbol for p in positions if p.symbol == asset.symbol]) > 0:
@@ -217,6 +225,7 @@ class Strangle(Strategy):
                 asset_prices = self.get_last_prices(
                     [asset, options["call"], options["put"]]
                 )
+                assert(len(asset_prices) == 3)
             except:
                 logging.info(f"Failed to get price data for {asset.symbol}")
                 continue
@@ -225,7 +234,7 @@ class Strangle(Strategy):
             options["price_call"] = asset_prices[options["call"]]
             options["price_put"] = asset_prices[options["put"]]
 
-            print(
+            print( # todo delete
                 f"Called Prices for: ",
                 asset.symbol,
                 [v for v in asset_prices.values()],
@@ -251,33 +260,56 @@ class Strangle(Strategy):
 
             options["trade_created_time"] = datetime.datetime.now()
 
-            # Buy cal.
-            self.submit_order(
-                self.create_order(
-                    options["call"],
-                    self.quantity,
-                    "buy",
-                    exchange="CBOE",
-                )
+            quantity_call = int(
+                trade_cash / (options["price_call"] * options["call"].multiplier)
+            )
+            quantity_put = int(
+                trade_cash / (options["price_put"] * options["put"].multiplier)
+            )
+            print(  # todo delete
+                f"Log on price: {asset}, "
+                f"CALL: {trade_cash} price_call {options['price_call']} mult: {options['call'].multiplier} {quantity_call} "
+                f"PUT: {trade_cash} price_put {options['price_put']} mult: "
+                f"{options['put'].multiplier} {quantity_call} "
             )
 
-            # Buy put.
-            self.submit_order(
-                self.create_order(
-                    options["put"],
-                    self.quantity,
-                    "buy",
-                    exchange="CBOE",
-                )
+            # Check to see if the trade size it too big for cash available.
+            if quantity_call == 0 or quantity_put == 0:
+                options["status"] = 2
+                continue
+
+            # todo delete
+            print(f"Before buy: {asset}: Portfolio cash: {cash}, values: {value:8.2f}")
+
+            # Buy call.
+            options["call_order"] = self.create_order(
+                options["call"],
+                quantity_call,
+                "buy",
+                exchange="CBOE",
             )
+            self.submit_order(options["call_order"])
+
+            # Buy put.
+            options["put_order"] = self.create_order(
+                options["put"],
+                quantity_put,
+                "buy",
+                exchange="CBOE",
+            )
+            self.submit_order(options["put_order"])
+
             self.total_trades += 1
-            options['status'] = 1
+            options["status"] = 1
+
+            # todo delete
+            print(f"After buy {asset}: Portfolio cash: {cash}, values: {value:8.2f}")
 
         positions = self.get_tracked_positions()
         filla = [pos.asset for pos in positions]
         print(
             f"**** End of iteration ****\n"
-            f"Cash: {self.unspent_money}, Value: {self.portfolio_value}"
+            f"Cash: {self.unspent_money}, Value: {self.portfolio_value}  "
             f"Positions: {positions} "
             f"Filled_assets: {filla} "
             f"*******  END ELAPSED TIME  "
@@ -285,17 +317,20 @@ class Strangle(Strategy):
             f"*******"
         )
 
+        # todo delete
         # self.await_market_to_close()
+
+
+    def before_market_closes(self):
+        self.sell_all()
+        self.trading_pairs = dict()
 
     def on_abrupt_closing(self):
         self.sell_all()
-        self.quantity = 0
-        self.asset = ""
 
     # =============Helper methods====================
     def create_trading_pair(self, symbol):
         # Add/update trading pair to self.trading_pairs
-
         self.trading_pairs[self.create_asset(symbol, asset_type="stock")] = {
             "call": None,
             "put": None,
@@ -309,6 +344,8 @@ class Strangle(Strategy):
             "price_call": None,
             "price_put": None,
             "trade_created_time": None,
+            "call_order": None,
+            "put_order": None,
             "status": 0,
         }
 
@@ -320,8 +357,9 @@ class Strangle(Strategy):
 
     def call_put_strike(self, last_price, symbol, expiration_date):
         """Returns strikes for pair."""
-        buy_call_strike = None
-        buy_put_strike = None
+
+        buy_call_strike = 0
+        buy_put_strike = 0
 
         asset = self.create_asset(
             symbol,
@@ -340,7 +378,7 @@ class Strangle(Strategy):
                 buy_call_strike = strike
             elif strike > last_price and buy_call_strike < last_price:
                 buy_call_strike = strike
-            elif strike > last_price and buy_put_strike > last_price:
+            elif strike > last_price and buy_call_strike > last_price:
                 break
 
         return buy_call_strike, buy_put_strike

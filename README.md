@@ -94,11 +94,11 @@ Once installed, navigate in Trader Workstation to `File/Global Configuration/ th
 API/Settings` The key settings required to trade using Lumibot are: 
   - Enable ActiveX and Socket Clients
   - Disable Read-Only API
-  - Socket port `7496` for live trading, `7497` for paper account trading. It is 
-    highly recommended to thoroughly test your algorithm in paper trading mode 
+  - Socket port `7496` for live trading, `7497` for paper account trading. 
+    > It is highly recommended to thoroughly test your algorithm in paper trading mode 
     before trading live.
-  - Master API Client ID: This can be any number up to 999. You will use this in 
-    your configuration file to log in.
+  - Master API Client ID: This can be any number you choose up to 999. You will use 
+    this in your configuration file to log in.
 
 Set up your `credentials.py` file as follows: 
     
@@ -130,9 +130,10 @@ trader.run_all()
 
 # Backtesting
 
-You can also run backtests very easily on any of your strategies, you do not have to modify anything in your strategies. 
-Simply call the `backtest()` function on your strategy class. 
-You will also have the details of your backtest (the portfolio value each day, unspent money, etc) 
+You can also run backtests very easily on your strategies, you do not have to 
+modify anything in your strategies. (Intraday and options backtests are not available at this time.)
+Simply call the `backtest()` function on your strategy class. You will also have the 
+details of your backtest (the portfolio value each day, unspent money, etc) 
 put into a CSV file in the location of `stats_file`.
 
 ```python
@@ -161,23 +162,25 @@ MyStrategy.backtest(
 
 ## Example Strategies
 
-We have provided a set of several example strategies that you can copy to create your own, they are located in `lumibot->strategies->examples`. Here is a breakdown of each example strategy:
+Lumibot provides a set of several example strategies that you can copy from to create 
+your own, they are located in `lumibot->strategies->examples`. Here is a breakdown of each example strategy:
 
 #### Diversification
-Allocates the budget between self.portfolio and rebalances every self.period days.
-For example, if there is a budget of $100,000 then we will buy $30,000 SPY, $40,000 TLT, etc.
-We will then buy/sell assets every day depending on self.portfolio_value (the amount of money
-we have in this strategy) so that we match the percentages laid out in self.portfolio.
+Allocates the budget by the percent allocations set in self.portfolio and rebalances every self.
+period days. For example, if there is a budget of $100,000 then the strategy will buy $30,000 SPY, 
+$40,000 TLT, etc. at current default weights in the strategy. The strategy will then buy/sell 
+assets every day depending on self.portfolio_value (the amount of money available in this 
+strategy) so that the target percentages laid out in self.portfolio are achieved.
 
 #### Intraday Momentum
 Buys the best performing asset from self.symbols over self.momentum_length number of minutes.
 For example, if TSLA increased 0.03% in the past two minutes, but SPY, GLD, TLT and MSFT only 
-increased 0.01% in the past two minutes, then we will buy TSLA.
+increased 0.01% in the past two minutes, then the strategy will buy TSLA.
 
 #### Momentum
 Buys the best performing asset from self.symbols over self.period number of days.
 For example, if SPY increased 2% yesterday, but VEU and AGG only increased 1% yesterday,
-then we will buy SPY.
+then the strategy will buy SPY.
 
 #### Simple
 Buys and sells 10 of self.buy_symbol every day (not meant to make money, just an example).
@@ -202,10 +205,10 @@ that are tracked for assets are:
   - asset_type(str): Asset type can be either `stock` or `option`. default: `stock`
   - name(str): Optional to add in the name of the corporation for logging or printout.  
   #### Options only
-  - expiration (str): Expiration of the options contract. Format is "YYYY-MM-DD".
+  - expiration (str): Expiration of the options contract. Format is "YYYYMMDD".
   - strike(float): Contract strike price.
   - right(str): May enter `call` or `put`.
-  - multiplier(float): Contract multiplier to the underlying.
+  - multiplier(float): Contract multiplier to the underlying. (default: 1)
 
 When creating a new security there are two options. 
 1. Security symbol: It is permissible to use the security symbol only when trading 
@@ -233,17 +236,16 @@ object corresponds to ```bars.df```. The dataframe has the following columns
 
 The dataframe index is of type ```pd.Timestamp``` localized at the timezone ```America/New_York```.   
 
-Bars objects has the following fields:
+Bars objects have the following fields:
 - source: the source of the data e.g. (yahoo, alpaca, ...)
 - symbol: the symbol of the bars
 - df: the pandas dataframe containing all the datas
-
-# todo insert comment about ib bars pacing.
 
 Bars objects has the following helper methods:
 - ```get_last_price()```: returns the closing price of the last dataframe row
 - ```get_last_dividend()```: returns the dividend per share value of the last dataframe row
 - ```get_momentum(start=None, end=None)```: calculates the global price momentum of the dataframe.
+
 When specified, start and end will be used to filter the daterange for the momentum calculation.
   If none of ``start`` or ``end`` are specified the momentum will be calculated from the first row untill
   the last row of the dataframe.
@@ -253,6 +255,14 @@ When specified, start and end will be used to filter the daterange for the momen
 - ```filter(start=None, end=None)```: Filter the bars dataframe.
   When ```start``` and/or ```end``` is/are specified use them to filter for that given daterange
   before returning the total volume
+
+When getting historical data from Interactive Brokers, it is important to note that they do not
+consider themselves a data supplier. If you exceed these data access pacing rates, your data
+will be throttled. Additionally, with respect to above three mentioned helpers, when using 
+Interactive Brokers live, tick data is called instead of bar data. This allows for more frequent 
+and accurate pricing updates. `get_last_dividend` are not available in Interactive Brokers. (see 
+[Interactive Brokers' pacing rules](https://interactivebrokers.github.
+io/tws-api/historical_limitations.html))
 
 ## order
 
@@ -265,7 +275,7 @@ strategy_name = "Test Strategy"
 symbol = "SPY"
 quantity = 50
 side = "buy"
-order = Order(strategy_name, symbol, quantity, side)
+order = self.create_order(strategy_name, symbol, quantity, side)
 ```
 
 With:
@@ -291,21 +301,20 @@ To create a limit order object, add the keyword parameter `limit_price`
 
 ```python
 my_limit_price = 500
-order = Order(strategy_name, symbol, quantity, side, limit_price=my_limit_price)
-my_broker.submit(order)
+order = self.create_order(strategy_name, symbol, quantity, side, limit_price=my_limit_price)
+self.submit_order(order)
 ```
 
 #### stop order
 
-A stop (market) order is an order to buy or sell a security when its price moves past a particular point, 
-ensuring a higher probability of achieving a predetermined entry or exit price.
+A stop (market) order is an order to buy or sell a security when its price moves past a particular point, ensuring a higher probability of achieving a predetermined entry or exit price.
 
 To create a stop order object, add the keyword parameter `stop_price`.
 
 ```python
 my_stop_price = 400
-order = Order(strategy_name, symbol, quantity, side, stop_price=my_stop_price)
-my_broker.submit(order)
+order = self.create_order(strategy_name, symbol, quantity, side, stop_price=my_stop_price)
+self.submit_order(order)
 ```
 
 #### stop_limit order
@@ -317,8 +326,8 @@ To create a stop_limit order object, add the keyword parameters `stop_price` and
 ```python
 my_limit_price = 405
 my_stop_price = 400
-order = Order(strategy_name, symbol, quantity, side, stop_price=my_stop_price, limit_price=my_limit_price)
-my_broker.submit(order)
+order = self.create_order(strategy_name, symbol, quantity, side, stop_price=my_stop_price,               limit_price=my_limit_price)
+self.submit_order(order)
 ```
 
 #### trailing_stop order
@@ -330,15 +339,16 @@ To create trailing_stop orders, add either a `trail_price` or a `trail_percent` 
 
 ```python
 my_trail_price = 20
-order_1 = Order(strategy_name, symbol, quantity, side, trail_price=my_trail_price)
-my_broker.submit(order_1)
+order_1 = self.create_order(strategy_name, symbol, quantity, side, trail_price=my_trail_price)
+self.submit_order(order_1)
 
 my_trail_percent = 2.0 # 2.0 % 
-order_2 = Order(strategy_name, symbol, quantity, side, trail_percent=my_trail_percent)
-my_broker.submit(order_2)
+order_2 = self.create_order(strategy_name, symbol, quantity, side, trail_percent=my_trail_percent)
+self.submit_order(order_2)
 ```
 
-*** NOTE: Advanced type of orders work as normal in live trading, but will be ignored in backtesting. Meaning that a backtest will assume limit and stop orders were never executed.
+> *** NOTE: Advanced type of orders work as normal in live trading, but will be ignored in 
+backtesting. Meaning that a backtest will assume limit and stop orders were never executed.
 
 ### order with legs
 
@@ -347,12 +357,12 @@ my_broker.submit(order_2)
 A bracket order is a chain of three orders that can be used to manage your position entry and exit.
 
 The first order is used to enter a new long or short position, and once it is completely filled, 
-two conditional exit orders are activated. One of the two closing orders is called a take-profit order, 
-which is a limit order, and the other is called a stop-loss order, which is either a stop or stop-limit order. 
-Importantly, only one of the two exit orders can be executed. Once one of the exit orders is filled, 
-the other is canceled. Please note, however, that in extremely volatile and fast market conditions, 
-both orders may fill before the cancellation occurs.
-
+two conditional exit orders will be activated. One of the two closing orders is called a 
+take-profit order, which is a limit order, and the other closing order is a stop-loss order, 
+which is either a stop or stop-limit order. 
+Importantly, only one of the two exit orders can be executed. Once one of the exit orders fills, 
+the other order cancels. Please note, however, that in extremely volatile and fast market 
+conditions, both orders may fill before the cancellation occurs.
 
 To create a bracket order object, add the keyword parameters `take_profit_price` and `stop_loss_price`.
 A `stop_loss_limit_price` can also be specified to make the stop loss order a stop-limit order.
@@ -360,14 +370,15 @@ A `stop_loss_limit_price` can also be specified to make the stop loss order a st
 ```python
 my_take_profit_price = 420
 my_stop_loss_price = 400
-order = Order(
+order = self.create_order(
   strategy_name, symbol, quantity, side, 
   take_profit_price=my_take_profit_price,
   stop_loss_price=my_stop_loss_price
 )
-my_broker.submit(order)
+self.submit_order(order)
 ```
-> Interactive Brokers requires the main or parent order to be a limit order. 
+> Interactive Brokers requires the main or parent order to be a limit order. Add  
+> `limit_price=my_limit_price`. 
 
 #### OTO (One-Triggers-Other) order 
 
@@ -377,9 +388,10 @@ It takes one of the take-profit or stop-loss order in addition to the entry orde
 To create an OTO order object, add either a `take_profit_price` or a `stop_loss_price` keyword parameter.
 A `stop_loss_limit_price` can also be specified in case of stop loss exit.
 
-> Interactive Brokers requires the main or parent order to be a limit order. 
+> Interactive Brokers requires the main or parent order to be a limit order. Add 
+> `limit_price=my_limit_price`. 
 
-#### OCO (One-Triggers-Other) order
+#### OCO (One-Cancels-Other) order
 
 OCO orders are a set of two orders with the same side (buy/buy or sell/sell).
 In other words, this is the second part of the bracket orders where the entry order is already filled, 
@@ -392,15 +404,15 @@ A `stop_loss_limit_price` can also be specified to make the stop loss order a st
 ```python
 my_take_profit_price = 420
 my_stop_loss_price = 400
-order = Order(
+order = self.create_order(
   strategy_name, symbol, quantity, side, 
   take_profit_price=my_take_profit_price,
   stop_loss_price=my_stop_loss_price,
   position_filled=True
 )
-my_broker.submit(order)
+self.submit_order(order)
 ```
-> Interactive Brokers requires the main or parent order to be a limit order. 
+> Interactive Brokers requires the main or parent order to be a limit order. Add `limit_price=my_limit_price`. 
 
 *** NOTE: Orders with legs work as normal in live trading, but will be ignored in backtesting. Meaning that a backtest will never execute the order legs.
 
@@ -411,7 +423,7 @@ Position object has the following properties
 - strategy (str): the strategy name that this order belongs to
 - symbol (str): the string representation of the asset e.g. "GOOG" for Google
 - quantity (int): the number of shares held
-- orders (list(order)): a list of orders objects that leds to the current state of the position
+- orders (list(order)): a list of orders objects responsible for the current state of the position
 
 Position objects have also the following helper methods
 - ```get_selling_order()```: returns an order for selling all the shares attached to this position.
@@ -445,8 +457,9 @@ All the methods in each of these categories are described below.
 
 ## Lifecycle Methods
 
-The abstract class Strategy define a design pattern that needs to be followed by user-defined strategies.
-The design pattern was greatly influenced by React.js components and their lifecycle methods.
+The abstract class Strategy defines a design pattern that needs to be followed by user-defined 
+strategies. The design pattern was greatly influenced by React.js components and their lifecycle 
+methods.
 
 When building strategies, lifecycle methods needs to be overloaded.
 Trading logics should be implemented in these methods.
@@ -607,7 +620,7 @@ class MyStrategy(Strategy):
 
 #### on_abrupt_closing
 
-This lifecycle method is called when the strategy execution was interrupted.
+This lifecycle method runs when the strategy execution gets interrupted.
 Use this lifecycle method to execute code to stop trading gracefully like selling all assets
 
 ```python
@@ -618,7 +631,7 @@ class MyStrategy(Strategy):
 
 #### on_bot_crash
 
-This lifecycle method is called when the strategy crashes.
+This lifecycle method runs when the strategy crashes.
 By default, if not overloaded,  it calls on_abrupt_closing.
 
 ```python
@@ -629,11 +642,11 @@ class MyStrategy(Strategy):
 
 #### on_new_order
 
-This lifecycle method is called when a new order has been successfully submitted to the broker.
-Use this lifecycle event to execute code when a new order is being processed by the broker
+This lifecycle method runs when a new order has been successfully submitted to the broker.
+Use this lifecycle event to execute code when the broker processes a new order.
 
 Parameters:
-- order (Order): The corresponding order object being processed 
+- order (Order): The corresponding order object processed 
 
 ```python
 class MyStrategy(Strategy):
@@ -643,7 +656,7 @@ class MyStrategy(Strategy):
 
 #### on_canceled_order
 
-This lifecycle method is called when an order has been successfully canceled by the broker.
+The lifecycle method called when an order has been successfully canceled by the broker.
 Use this lifecycle event to execute code when an order has been canceled by the broker
 
 Parameters:
@@ -657,7 +670,7 @@ class MyStrategy(Strategy):
 
 #### on_partially_filled_order
 
-This lifecycle method is called when an order has been partially filled by the broker.
+The lifecycle method called when an order has been partially filled by the broker.
 Use this lifecycle event to execute code when an order has been partially filled by the broker.
 
 Parameters:
@@ -676,7 +689,7 @@ class MyStrategy(Strategy):
 
 #### on_filled_order
 
-This lifecycle method is called when an order has been successfully filled by the broker.
+The lifecycle method called when an order has been successfully filled by the broker.
 Use this lifecycle event to execute code when an order has been filled by the broker
 
 Parameters:

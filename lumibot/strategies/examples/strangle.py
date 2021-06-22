@@ -47,7 +47,7 @@ class Strangle(Strategy):
 
         # Initialize our variables
         self.take_profit_threshold = 0.001  # 0.015
-        self.sleeptime = 2
+        self.sleeptime = 5
         self.total_trades = 0
         self.max_trades = 4
         self.max_days_expiry = 15

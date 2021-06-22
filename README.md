@@ -968,16 +968,35 @@ Parameters:
 Return type: dict of str:float or asset:asset object
 
 #### get_tradable_assets
+Return the list of tradable assets for the used broker  
+Return type: list(str/asset)  
+### Options
+#### get_chains  
+For a given symbol/asset, returns the full options chain for all exchanges.   
+Parameters: symbol/asset  
+Return type: Dictionary with `exchanges` as keys, `chain dictionary` as value.  
 
-Return the list of tradable assets for the used broker
+#### get_chain
+Returns an option chain for one symbol on one exchange.   
+Parameters: chains, exchange='SMART'   
+Returns: Dictionary with:  
+- Underlying_conid: Contract ID with Interactive Brokers. 
+- TradingClass: Stock symbol
+- Multiplier: Option leverage multiplier.
+- Expiration: Set of expiration dates. Format 'YYYYMMDD'
+- Strikes: Set of strike prices. 
 
-Return type: list(str/asset)
+#### get_expiration
+Retrieves all of the expiration dates for an option chain, sorted by date.   
+Parameters: chains, exchange='SMART'  
+Returns: list of expirations date in the format "YYYYMMDD"  
+```python
+asset = self.create_asset("FB")
+chains = self.get_chains(asset)
+chain = self.get_chain(chains)
+expiration = self.get_expiration(chains)
+```
 
-#### Options: get_chains
-
-#### Options :get_chain
-
-#### Options: get_expiration
 
 ## Data Source Methods
 

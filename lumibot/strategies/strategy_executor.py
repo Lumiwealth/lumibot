@@ -69,13 +69,17 @@ class StrategyExecutor(Thread):
             order = payload["order"]
             price = payload["price"]
             quantity = payload["quantity"]
-            self.strategy._update_unspent_money(order.side, quantity, price)
+            multiplier = payload["multiplier"]
+
+            self.strategy._update_unspent_money(order.side, quantity, price, multiplier)
             self._on_filled_order(**payload)
         elif event == self.PARTIALLY_FILLED_ORDER:
             order = payload["order"]
             price = payload["price"]
             quantity = payload["quantity"]
-            self.strategy._update_unspent_money(order.side, quantity, price)
+            multiplier = payload["multiplier"]
+
+            self.strategy._update_unspent_money(order.side, quantity, price, multiplier)
             self._on_partially_filled_order(**payload)
 
     def process_queue(self):
@@ -227,16 +231,16 @@ class StrategyExecutor(Thread):
         self.strategy.on_canceled_order(order)
 
     @event_method
-    def _on_partially_filled_order(self, order, price, quantity):
+    def _on_partially_filled_order(self, order, price, quantity, multiplier):
         self.strategy.log_message(
             "Executing the on_partially_filled_order event method"
         )
-        self.strategy.on_partially_filled_order(order, price, quantity)
+        self.strategy.on_partially_filled_order(order, price, quantity, multiplier)
 
     @event_method
-    def _on_filled_order(self, position, order, price, quantity):
+    def _on_filled_order(self, position, order, price, quantity, multiplier):
         self.strategy.log_message("Executing the on_filled_order event method")
-        self.strategy.on_filled_order(position, order, price, quantity)
+        self.strategy.on_filled_order(position, order, price, quantity, multiplier)
 
     # ======Execution methods ====================
 
@@ -260,6 +264,8 @@ class StrategyExecutor(Thread):
             else:
                 self.strategy.log_message("Sleeping for %d seconds" % sleeptime)
                 self.safe_sleep(sleeptime)
+                # todo revert
+                # self.safe_sleep(20)
 
         self.strategy.await_market_to_close()
         if self.broker.is_market_open():

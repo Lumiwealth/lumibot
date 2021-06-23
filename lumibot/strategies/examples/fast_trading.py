@@ -46,12 +46,12 @@ class FastTrading(Strategy):
         max_count = 20
         wait = 3
         while (
-                len(self.orders) > 0 or count < max_count
+                len(self.orders) > 0 and count < max_count
         ):
             self.orders = [
                 order for order in self.orders if order.status != "fill"
             ]
-            time.sleep(wait)
+            self.sleep(wait)
             count += 1
 
         # For debugging where the error is, catch and stop the program.
@@ -82,7 +82,7 @@ class FastTrading(Strategy):
         self.get_assets_momentums()
 
         # Get the assets with the highest return in our momentum_length
-        best_assets = self.assets.sort(key=lambda x: x.momentum)[-self.max_assets :]
+        best_assets = sorted(self.assets, key=lambda x: x.momentum)[-self.max_assets :]
 
         # Selling assets
         for asset in self.trade_positions:
@@ -130,6 +130,7 @@ class FastTrading(Strategy):
             row[f"{asset.symbol}_quantity"] = asset.quantity
             row[f"{asset.symbol}_momentum"] = asset.momentum
             row[f"{asset.symbol}_last_price"] = asset.last_price
+            row[f"{asset.symbol}_mkt_value"] = asset.quantity * asset.last_price
 
         # Add all of our values to the row in the CSV file. These automatically get
         # added to portfolio_value, unspent_money and return

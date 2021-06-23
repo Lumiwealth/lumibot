@@ -48,11 +48,14 @@ class FastTrading(Strategy):
         while (
                 len(self.orders) > 0 and count < max_count
         ):
+
+            self.sleep(wait)
+            count += 1
+            self.log_message(f"In on iter while loop, cound: {count} "
+                             f"orders: {[o for o in self.orders]}")
             self.orders = [
                 order for order in self.orders if order.status != "fill"
             ]
-            self.sleep(wait)
-            count += 1
 
         # For debugging where the error is, catch and stop the program.
         if count >= max_count:

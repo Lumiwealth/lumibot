@@ -15,7 +15,6 @@ class FastTrading(Strategy):
     IS_BACKTESTABLE = False
 
     # =====Overloading lifecycle methods=============
-
     def initialize(self, momentum_length=2, max_assets=3):
         # Setting the momentum period (in minutes)
         self.momentum_length = momentum_length
@@ -39,7 +38,7 @@ class FastTrading(Strategy):
         self.trade_positions = list()
 
         # Initialize our variables
-        self.max_assets = min(max_assets, len(self.symbols))
+        self.max_assets = min(max_assets, len(self.assets))
 
     def on_trading_iteration(self):
         # Wait until orders are filled.
@@ -88,7 +87,7 @@ class FastTrading(Strategy):
         # Selling assets
         for asset in self.trade_positions:
             if asset not in best_assets:
-                self.log_message("Selling {asset.symbol}")
+                self.log_message(f"Selling {asset.quantity} shares of {asset.symbol}")
                 self.orders.append(
                     self.create_order(asset, asset.quantity, "sell")
                 )
@@ -106,8 +105,8 @@ class FastTrading(Strategy):
                 break
             trade_cash = cash / items_to_trade
             asset.quantity = trade_cash // asset.last_price
-            self.log_message(f"Buying {asset.symbol}.")
-            self.orders["buy"].append(self.create_order(asset, asset.quantity, "buy"))
+            self.log_message(f"Buying {asset.quantity} shares of {asset.symbol}.")
+            self.orders.append(self.create_order(asset, asset.quantity, "buy"))
             cash -= asset.last_price * asset.quantity
             self.trade_positions.append(asset)
         self.submit_orders(self.orders_buy())
@@ -127,23 +126,10 @@ class FastTrading(Strategy):
             "old_portfolio_value": snapshot_before.get("portfolio_value"),
         }
 
-        # Get the momentums of all the assets from the context of on_trading_iteration
-        # (notice that on_trading_iteration has a variable called momentums, this is what
-        # we are reading here)
-        # momentums = context.get("")
-        # for item in momentums:
-        #     symbol = item.get("symbol")
-        #     for key in item:
-        #         if key != "symbol":
-        #             row[f"{symbol}_{key}"] = item[key]
-        #
-        #     row[f"{symbol}_quantity"] = self.assets_quantity[symbol]
-
         for asset in self.assets:
             row[f"{asset.symbol}_quantity"] = asset.quantity
             row[f"{asset.symbol}_momentum"] = asset.momentum
             row[f"{asset.symbol}_last_price"] = asset.last_price
-
 
         # Add all of our values to the row in the CSV file. These automatically get
         # added to portfolio_value, unspent_money and return
@@ -152,10 +138,7 @@ class FastTrading(Strategy):
     def before_market_closes(self):
         # Make sure that we sell everything before the market closes
         self.sell_all()
-        self.orders = dict(
-            buy=list(),
-            sell=list(),
-        )
+        self.orders = list()
         self.trade_positions = list()
 
     def on_abrupt_closing(self):
@@ -168,7 +151,6 @@ class FastTrading(Strategy):
         Gets the momentums (the percentage return) for all the assets we are tracking,
         over the time period set in self.momentum_length
         """
-
         for asset in self.assets:
             # Get the return for symbol over self.momentum_length minutes
             bars_set = self.get_symbol_bars(asset, self.momentum_length + 1)
@@ -185,7 +167,6 @@ class FastTrading(Strategy):
     def orders_buy(self):
         """Returns list of buy orders."""
         return [order for order in self.orders if order.side == 'buy']
-
 
     def orders_sell(self):
         """Returns list of sell orders."""

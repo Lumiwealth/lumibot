@@ -85,21 +85,6 @@ class Asset:
 
         return False
 
-    def same_as(self, other):
-        # Check if an asset is the same as other, return `True` if so.
-        if isinstance(other, Asset):
-            return (
-                self.symbol == other.symbol
-                and self.asset_type == other.asset_type
-                and self.expiration == other.expiration
-                and self.strike == other.strike
-                and self.right == other.right
-                and self.multiplier == other.multiplier
-            )
-
-        return False
-
-
 class AssetsMapping(UserDict):
     def __init__(self, mapping):
         UserDict.__init__(self, mapping)

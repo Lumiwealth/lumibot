@@ -1,3 +1,5 @@
+import time
+
 from lumibot.strategies.strategy import Strategy
 
 """
@@ -24,84 +26,96 @@ class FastTrading(Strategy):
         # Set the symbols that we want to be monitoring
         self.symbols = ["SPY", "GLD", "TLT", "MSFT", "TSLA", "MCHI", "SPXL", "SPXS"]
 
+        # Set up assets, orders, positions.
+        self.assets = [self.create_asset(symbol) for symbol in self.symbols]
+        for asset in self.assets:
+            asset.quantity = 0
+            asset.last_price = 0
+
+        # Set up order dict. Will hold active orders.
+        self.orders = list()
+
+        # Positions. Will track positions, held, sold or bought.
+        self.trade_positions = list()
+
         # Initialize our variables
-        self.assets_quantity = {symbol: 0 for symbol in self.symbols}
         self.max_assets = min(max_assets, len(self.symbols))
-        self.quantity = 0
 
     def on_trading_iteration(self):
-        # Setting the buying budget
-        buying_budget = self.unspent_money
+        # Wait until orders are filled.
+        count = 0
+        max_count = 20
+        wait = 3
+        while (
+                len(self.orders) > 0 or count < max_count
+        ):
+            self.orders = [
+                order for order in self.orders if order.status != "fill"
+            ]
+            time.sleep(wait)
+            count += 1
 
-        # Get the momentums of all the assets we are tracking
-        momentums = self.get_assets_momentums()
-        for item in momentums:
-            symbol = item.get("symbol")
-            if self.assets_quantity[symbol] > 0:
-                item["held"] = True
-            else:
-                item["held"] = False
+        # For debugging where the error is, catch and stop the program.
+        if count >= max_count:
+            d = f"{'~' *50}\n"
+            print(
+                f"{d}{d}"
+                f"Need to evaluate here. \n"
+                f"UNFILLED ORDERS: {self.orders} \n"
+                f"TRACKED ORDERS: {self.get_tracked_orders()} \n"
+                f"TRADE POSITIONS: {self.trade_positions} \n"
+                f"POSITIONS: {self.positions} \n"
+                f"TRACKED POSITIONS: {self.get_tracked_positions()} \n"
+                f"{d}{d}"
+            )
+            exit()
+
+
+        # Setting the buying budget
+        cash = self.unspent_money
+        value = self.portfolio_value
+
+        self.log_message(
+            f"At beginning of iteration: Cash: {cash}, Value: {value}, "
+            f"Orders: {self.orders}, Positions: {self.trade_positions}"
+        )
+        # Get the momentums of all the assets we are tracking, attach to assets.
+        self.get_assets_momentums()
 
         # Get the assets with the highest return in our momentum_length
-        # (aka the highest momentum)
-        # In case of parity, giving priority to current assets
-        momentums.sort(key=lambda x: (x.get("return"), x.get("held")))
-        prices = {item.get("symbol"): item.get("price") for item in momentums}
-        best_assets = momentums[-self.max_assets :]
-        best_assets_symbols = [item.get("symbol") for item in best_assets]
-
-        # Deciding which assets to keep, sell and buy
-        assets_to_keep = []
-        assets_to_sell = []
-        assets_to_buy = []
-        for symbol, quantity in self.assets_quantity.items():
-            if quantity > 0 and symbol in best_assets_symbols:
-                # The asset is still a top asset and should be kept
-                assets_to_keep.append(symbol)
-            elif quantity <= 0 and symbol in best_assets_symbols:
-                # Need to buy this new asset
-                assets_to_buy.append(symbol)
-            elif quantity > 0 and symbol not in best_assets_symbols:
-                # The asset is no longer a top asset and should be sold
-                assets_to_sell.append(symbol)
-
-        # Printing decisions
-        self.log_message("Keeping %r" % assets_to_keep)
-        self.log_message("Selling %r" % assets_to_sell)
-        self.log_message("Buying %r" % assets_to_buy)
+        best_assets = self.assets.sort(key=lambda x: x.momentum)[-self.max_assets :]
 
         # Selling assets
-        selling_orders = []
-        for symbol in assets_to_sell:
-            self.log_message("Selling %s." % symbol)
-            quantity = self.assets_quantity[symbol]
-            order = self.create_order(symbol, quantity, "sell")
-            selling_orders.append(order)
-        self.submit_orders(selling_orders)
-        self.wait_for_orders_execution(selling_orders)
+        for asset in self.trade_positions:
+            if asset not in best_assets:
+                self.log_message("Selling {asset.symbol}")
+                self.orders.append(
+                    self.create_order(asset, asset.quantity, "sell")
+                )
+                cash += asset.last_price * asset.quantity
+                self.trade_positions.remove(asset)
+                asset.quantity = 0
+        self.submit_orders(self.orders_sell())
 
-        # Checking if all orders went successfully through
-        assets_sold = 0
-        for order in selling_orders:
-            if order.status == "fill":
-                self.assets_quantity[order.symbol] = 0
-                assets_sold += 1
-                buying_budget += order.quantity * prices.get(order.symbol)
+        # Buying assets
+        for asset in best_assets:
+            if asset in self.trade_positions:
+                continue
+            items_to_trade = self.max_assets - len(self.trade_positions)
+            if items_to_trade <= 0:
+                break
+            trade_cash = cash / items_to_trade
+            asset.quantity = trade_cash // asset.last_price
+            self.log_message(f"Buying {asset.symbol}.")
+            self.orders["buy"].append(self.create_order(asset, asset.quantity, "buy"))
+            cash -= asset.last_price * asset.quantity
+            self.trade_positions.append(asset)
+        self.submit_orders(self.orders_buy())
 
-        # Buying new assets
-        if self.first_iteration:
-            number_of_assets_to_buy = self.max_assets
-        else:
-            number_of_assets_to_buy = assets_sold
-
-        for i in range(number_of_assets_to_buy):
-            symbol = assets_to_buy[i]
-            price = prices.get(symbol)
-            quantity = (buying_budget / number_of_assets_to_buy) // price
-            order = self.create_order(symbol, quantity, "buy")
-            self.log_message("Buying %d shares of %s." % (quantity, symbol))
-            self.submit_order(order)
-            self.assets_quantity[symbol] = quantity
+        self.log_message(
+            f"At end of iteration: Cash: {cash}, Value: {self.portfolio_value}, "
+            f"Orders: {self.orders}, Positions: {self.trade_positions}"
+        )
 
     def trace_stats(self, context, snapshot_before):
         """
@@ -116,14 +130,20 @@ class FastTrading(Strategy):
         # Get the momentums of all the assets from the context of on_trading_iteration
         # (notice that on_trading_iteration has a variable called momentums, this is what
         # we are reading here)
-        momentums = context.get("momentums")
-        for item in momentums:
-            symbol = item.get("symbol")
-            for key in item:
-                if key != "symbol":
-                    row[f"{symbol}_{key}"] = item[key]
+        # momentums = context.get("")
+        # for item in momentums:
+        #     symbol = item.get("symbol")
+        #     for key in item:
+        #         if key != "symbol":
+        #             row[f"{symbol}_{key}"] = item[key]
+        #
+        #     row[f"{symbol}_quantity"] = self.assets_quantity[symbol]
 
-            row[f"{symbol}_quantity"] = self.assets_quantity[symbol]
+        for asset in self.assets:
+            row[f"{asset.symbol}_quantity"] = asset.quantity
+            row[f"{asset.symbol}_momentum"] = asset.momentum
+            row[f"{asset.symbol}_last_price"] = asset.last_price
+
 
         # Add all of our values to the row in the CSV file. These automatically get
         # added to portfolio_value, unspent_money and return
@@ -132,13 +152,14 @@ class FastTrading(Strategy):
     def before_market_closes(self):
         # Make sure that we sell everything before the market closes
         self.sell_all()
-        self.quantity = 0
-        self.assets_quantity = {symbol: 0 for symbol in self.symbols}
+        self.orders = dict(
+            buy=list(),
+            sell=list(),
+        )
+        self.trade_positions = list()
 
     def on_abrupt_closing(self):
         self.sell_all()
-        self.quantity = 0
-        self.assets_quantity = {symbol: 0 for symbol in self.symbols}
 
     # =============Helper methods====================
 
@@ -147,23 +168,25 @@ class FastTrading(Strategy):
         Gets the momentums (the percentage return) for all the assets we are tracking,
         over the time period set in self.momentum_length
         """
-        momentums = []
-        for symbol in self.symbols:
+
+        for asset in self.assets:
             # Get the return for symbol over self.momentum_length minutes
-            bars_set = self.get_symbol_bars(symbol, self.momentum_length + 1)
+            bars_set = self.get_symbol_bars(asset, self.momentum_length + 1)
+            asset.last_price = bars_set.get_last_price()
             start_date = self.get_round_minute(timeshift=self.momentum_length + 1)
-            symbol_momentum = bars_set.get_momentum(start=start_date)
+            asset.momentum = bars_set.get_momentum(start=start_date)
             self.log_message(
                 "%s has a return value of %.2f%% over the last %d minutes(s)."
-                % (symbol, 100 * symbol_momentum, self.momentum_length)
+                % (asset.symbol, 100 * asset.momentum, self.momentum_length)
             )
 
-            momentums.append(
-                {
-                    "symbol": symbol,
-                    "price": bars_set.get_last_price(),
-                    "return": symbol_momentum,
-                }
-            )
+        return None
 
-        return momentums
+    def orders_buy(self):
+        """Returns list of buy orders."""
+        return [order for order in self.orders if order.side == 'buy']
+
+
+    def orders_sell(self):
+        """Returns list of sell orders."""
+        return [order for order in self.orders if order.side == 'sell']

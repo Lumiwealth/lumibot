@@ -41,12 +41,6 @@ alpaca_data_source = AlpacaData(AlpacaConfig)
 
 # Strategies mapping
 mapping = {
-    "ib_test": {
-        "class": IBTest,
-        "backtesting_datasource": YahooDataBacktesting,
-        "kwargs": {},
-        "config": None,
-    },
     "simple": {
         "class": Simple,
         "backtesting_datasource": YahooDataBacktesting,
@@ -79,12 +73,6 @@ mapping = {
     },
     "strangle": {
         "class": Strangle,
-        "backtesting_datasource": None,
-        "kwargs": {},
-        "config": None,
-    },
-    "long_call_spread": {
-        "class": LongCallSpread,
         "backtesting_datasource": None,
         "kwargs": {},
         "config": None,

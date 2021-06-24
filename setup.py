@@ -20,7 +20,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 setuptools.setup(
     name="lumibot",
     # version=increment_version(),
-    version="1.0.2",
+    version="1.1",
     author="Robert Grzesik",
     author_email="rob@lumiwealth.com",
     description="Trading Framework",
@@ -41,6 +41,7 @@ setuptools.setup(
         "flask-security",
         "email_validator",
         "bcrypt",
+        "ibapi==9.81.1.post1",
     ],
     classifiers=[
         "Programming Language :: Python :: 3",

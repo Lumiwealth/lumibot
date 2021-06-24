@@ -13,7 +13,7 @@ Simply buys one asset and holds onto it.
 class BuyAndHold(Strategy):
     # =====Overloading lifecycle methods=============
 
-    def initialize(self):
+    def initialize(self, buy_symbol="SPY"):
         # Set the initial variables or constants
 
         # Built in Variables
@@ -21,7 +21,7 @@ class BuyAndHold(Strategy):
 
         # Our Own Variables
         self.counter = 0
-        self.buy_symbol = "SPY"
+        self.buy_symbol = buy_symbol
 
     def on_trading_iteration(self):
         # What to do each iteration

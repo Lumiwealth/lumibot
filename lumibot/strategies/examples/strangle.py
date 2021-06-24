@@ -81,34 +81,30 @@ class Strangle(Strategy):
 
         for asset, options in self.trading_pairs.items():
             try:
-                chains = self.get_chains(asset)
+                if not options["chains"]:
+                    options["chains"] = self.get_chains(asset)
             except Exception as e:
                 logging.info(f"Error: {e}")
                 continue
 
-            attempts = 2
-            while attempts > 0:
-                # Obtain latest price
+            try:
                 last_price = self.get_last_price(asset)
-                if last_price == 0:
-                    attempts -= 1
-                    if attempts == 0:
-                        logging.warning(f"Unable to get price data for {asset.symbol}.")
-                        options["price_underlying"] = 0
-                    continue
-                else:
-                    options["price_underlying"] = last_price
-                    attempts = 0
+                options["price_underlying"] = last_price
+                assert(last_price != 0)
+            except:
+                logging.warning(f"Unable to get price data for {asset.symbol}.")
+                options["price_underlying"] = 0
+                continue
 
             # Get dates from the options chain.
-            options["expirations"] = self.get_expiration(chains, self.exchange)
+            options["expirations"] = self.get_expiration(options["chains"], exchange=self.exchange)
 
             # Find the first date that meets the minimum days requirement.
             options["expiration_date"] = self.get_expiration_date(
                 options["expirations"]
             )
 
-            multiplier = self.get_chain(chains, self.exchange)["Multiplier"]
+            multiplier = self.get_multiplier(options["chains"])
 
             # Get the call and put strikes to buy.
             options["buy_call_strike"], options["buy_put_strike"] = self.call_put_strike(
@@ -143,11 +139,6 @@ class Strangle(Strategy):
         positions = self.get_tracked_positions()
         filled_assets = [p.asset for p in positions]
         trade_cash = self.portfolio_value / (self.max_trades * 2)
-
-        print(  # todo delete
-            f"Start iteration: Portfolio cash: {cash}, values: {value:8.2f}, positions: "
-            f"{positions}"
-        )
 
         # Sell positions:
         for asset, options in self.trading_pairs.items():
@@ -194,10 +185,6 @@ class Strangle(Strategy):
                 options["status"] = 2
                 self.total_trades -= 1
 
-                print( # todo delete
-                    f"After Sell Sold: {asset}: Portfolio cash: {cash}, values: {value:8.2f}"
-                )
-
         # Create positions:
         if self.total_trades >= self.max_trades:
             return
@@ -207,7 +194,6 @@ class Strangle(Strategy):
                 break
 
             asset = next(self.asset_gen)
-            print(f"In trading iteration create position {asset}") # todo delete
             options = self.trading_pairs[asset]
             if options["status"] > 0:
                 continue
@@ -233,12 +219,6 @@ class Strangle(Strategy):
             options["price_underlying"] = asset_prices[asset]
             options["price_call"] = asset_prices[options["call"]]
             options["price_put"] = asset_prices[options["put"]]
-
-            print( # todo delete
-                f"Called Prices for: ",
-                asset.symbol,
-                [v for v in asset_prices.values()],
-            )
 
             # Check to make sure date is not too close to earnings.
             print(f"Getting earnings date for {asset.symbol}")
@@ -266,20 +246,11 @@ class Strangle(Strategy):
             quantity_put = int(
                 trade_cash / (options["price_put"] * options["put"].multiplier)
             )
-            print(  # todo delete
-                f"Log on price: {asset}, "
-                f"CALL: {trade_cash} price_call {options['price_call']} mult: {options['call'].multiplier} {quantity_call} "
-                f"PUT: {trade_cash} price_put {options['price_put']} mult: "
-                f"{options['put'].multiplier} {quantity_call} "
-            )
 
             # Check to see if the trade size it too big for cash available.
             if quantity_call == 0 or quantity_put == 0:
                 options["status"] = 2
                 continue
-
-            # todo delete
-            print(f"Before buy: {asset}: Portfolio cash: {cash}, values: {value:8.2f}")
 
             # Buy call.
             options["call_order"] = self.create_order(
@@ -302,8 +273,6 @@ class Strangle(Strategy):
             self.total_trades += 1
             options["status"] = 1
 
-            # todo delete
-            print(f"After buy {asset}: Portfolio cash: {cash}, values: {value:8.2f}")
 
         positions = self.get_tracked_positions()
         filla = [pos.asset for pos in positions]
@@ -317,7 +286,6 @@ class Strangle(Strategy):
             f"*******"
         )
 
-        # todo delete
         # self.await_market_to_close()
 
 
@@ -334,6 +302,7 @@ class Strangle(Strategy):
         self.trading_pairs[self.create_asset(symbol, asset_type="stock")] = {
             "call": None,
             "put": None,
+            "chains": None,
             "expirations": None,
             "strike_lows": None,
             "strike_highs": None,
@@ -367,11 +336,9 @@ class Strangle(Strategy):
             expiration=expiration_date,
             right="call",
         )
-        contract_details = self.get_contract_details(asset)
-        if not contract_details:
-            return None, None
 
-        strikes = sorted(list(set(cd.contract.strike for cd in contract_details)))
+        strikes = self.get_strikes(asset)
+
         for strike in strikes:
             if strike < last_price:
                 buy_put_strike = strike
@@ -395,25 +362,3 @@ class Strangle(Strategy):
                 expiration_date = expiration
 
         return expiration_date
-
-    def get_symbols_latest_price(self, symbols_universe=None):
-        """Returns dataframe with symbols and latest price."""
-
-        end = datetime.datetime.now()
-        start = end - datetime.timedelta(days=5)
-        symbols = download(
-            symbols_universe, start=start, end=end, group_by="column", thread=True
-        )
-        if len(symbols_universe) == 1:
-            symbols = symbols[["Close"]]
-            symbols.columns = symbols_universe
-            symbols = pd.DataFrame(symbols.iloc[-1])
-        elif len(symbols_universe) > 1:
-            symbols = symbols["Close"].T.iloc[:, -1:]
-        else:
-            raise ValueError(
-                "You must provide symbols to trade to the "
-                "get_symbols_latest_price method."
-            )
-
-        return symbols

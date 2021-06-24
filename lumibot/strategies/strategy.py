@@ -277,6 +277,19 @@ class Strategy(_Strategy):
         """Returns option chain for a particular exchange."""
         return self.broker.get_expiration(chains, exchange=exchange)
 
+    def get_multiplier(self, chains, exchange="SMART"):
+        """Returns option chain for a particular exchange."""
+        return self.broker.get_multiplier(chains, exchange=exchange)
+
+    def get_strikes(self, asset):
+        """Returns a list of strikes for a give underlying asset."""
+        asset = self._set_asset_mapping(asset)
+        contract_details = self.get_contract_details(asset)
+        if not contract_details:
+            return None
+
+        return sorted(list(set(cd.contract.strike for cd in contract_details)))
+
 
     # =======Data source methods=================
 

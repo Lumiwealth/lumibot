@@ -77,10 +77,6 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         th = trading_hours.iloc[row, :]
         market_open, market_close = th[0], th[1]
 
-        # todo: remove this, it's temp to have full trading hours.
-        # market_open = self.utc_to_local(datetime.datetime(2005, 1, 1))
-        # market_close = self.utc_to_local(datetime.datetime(2025, 1, 1))
-
         if close:
             return market_close
         else:
@@ -327,6 +323,10 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
     def get_expiration(self, chains, exchange='SMART'):
         """Returns expirations and strikes high/low of target price."""
         return sorted(list(self.get_chain(chains, exchange=exchange)["Expirations"]))
+
+    def get_multiplier(self, chains, exchange='SMART'):
+        """Returns the multiplier"""
+        return self.get_chain(chains, exchange)["Multiplier"]
 
     # =======Stream functions=========
     def on_status_event(

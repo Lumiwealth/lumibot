@@ -41,37 +41,17 @@ class FastTrading(Strategy):
         self.max_assets = min(max_assets, len(self.assets))
 
     def on_trading_iteration(self):
-        # Wait until orders are filled.
-        count = 0
-        max_count = 20
-        wait = 3
-        while (
-                len(self.orders) > 0 and count < max_count
-        ):
 
-            self.sleep(wait)
-            count += 1
-            self.log_message(f"In on iter while loop, cound: {count} "
-                             f"orders: {[o for o in self.orders]}")
-            self.orders = [
-                order for order in self.orders if order.status != "fill"
-            ]
+        self.print_details("Before wait fill")
+        # orders_pending = [order for order in self.orders if order.status != "fill"]
+        # cash_pending = sum([order.cash_pending(self) for order in orders_pending])
+        # check = [order.cash_pending(self) for order in self.orders]
 
-        # For debugging where the error is, catch and stop the program.
-        if count >= max_count:
-            d = f"{'~' *50}\n"
-            print(
-                f"{d}{d}"
-                f"Need to evaluate here. \n"
-                f"UNFILLED ORDERS: {self.orders} \n"
-                f"TRACKED ORDERS: {self.get_tracked_orders()} \n"
-                f"TRADE POSITIONS: {self.trade_positions} \n"
-                f"POSITIONS: {self.positions} \n"
-                f"TRACKED POSITIONS: {self.get_tracked_positions()} \n"
-                f"{d}{d}"
-            )
-            exit()
-
+        # print(f"*********************************************8 cash_unfilled: {cash_pending}, "
+        #       f"orders unfilled: {orders_pending}")
+        # self.wait_for_orders_execution(orders_pending)
+        self.print_details("After wait fill. ")
+        self.orders = list()
 
         # Setting the buying budget
         cash = self.unspent_money
@@ -91,13 +71,16 @@ class FastTrading(Strategy):
         for asset in self.trade_positions:
             if asset not in best_assets:
                 self.log_message(f"Selling {asset.quantity} shares of {asset.symbol}")
-                self.orders.append(
-                    self.create_order(asset, asset.quantity, "sell")
-                )
+                self.orders.append(self.create_order(asset, asset.quantity, "sell"))
                 cash += asset.last_price * asset.quantity
                 self.trade_positions.remove(asset)
                 asset.quantity = 0
-        self.submit_orders(self.orders_sell())
+        selling_orders = self.orders_sell()
+        self.submit_orders(selling_orders)
+        self.wait_for_orders_execution(selling_orders)
+        # open_orders = [[order.symbol, order.status] for order in selling_orders]
+
+        self.print_details("After sale.")
 
         # Buying assets
         for asset in best_assets:
@@ -113,7 +96,9 @@ class FastTrading(Strategy):
             cash -= asset.last_price * asset.quantity
             self.trade_positions.append(asset)
         self.submit_orders(self.orders_buy())
+        self.wait_for_orders_execution(self.orders_buy())
 
+        self.print_details("After buy")
         self.log_message(
             f"At end of iteration: Cash: {cash}, Value: {self.portfolio_value}, "
             f"Orders: {self.orders}, Positions: {self.trade_positions}"
@@ -170,8 +155,21 @@ class FastTrading(Strategy):
 
     def orders_buy(self):
         """Returns list of buy orders."""
-        return [order for order in self.orders if order.side == 'buy']
+        return [order for order in self.orders if order.side == "buy"]
 
     def orders_sell(self):
         """Returns list of sell orders."""
-        return [order for order in self.orders if order.side == 'sell']
+        return [order for order in self.orders if order.side == "sell"]
+
+    def print_details(self, txt):
+        d = f"{'~' * 50}\n"
+        print(
+            f"{d}"
+            f"{txt}. Cash: {self.unspent_money:7.2f}, Value: {self.portfolio_value:7.2f}\n"
+            f"UNFILLED ORDERS: {self.orders} \n"
+            f"TRACKED ORDERS: {self.get_tracked_orders()} \n"
+            f"TRADE POSITIONS: {self.trade_positions} \n"
+            f"POSITIONS: {self.positions} \n"
+            f"TRACKED POSITIONS: {self.get_tracked_positions()} \n"
+            f"{d}"
+        )

@@ -181,6 +181,23 @@ class Order:
         transaction = self.Transaction(price=price, quantity=quantity)
         self.transactions.append(transaction)
 
+    # def cash_pending(self, strategy):
+    #     # Returns the impact to cash of any unfilled shares.
+    #     quantity_unfilled = self.quantity - sum(
+    #             [transaction.quantity for transaction in self.transactions]
+    #         )
+    #     if quantity_unfilled == 0:
+    #         return 0
+    #     elif len(self.transactions) == 0:
+    #         cash_value = self.quantity * strategy.get_last_price(self.asset)
+    #     else:
+    #         cash_value = quantity_unfilled * self.transactions[-1].price
+    #
+    #     if self.status == "sell":
+    #         return cash_value
+    #     else:
+    #         return -cash_value
+
     def update_status(self, status):
         self.status = status
 

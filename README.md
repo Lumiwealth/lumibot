@@ -1,6 +1,8 @@
 README
 -------
 
+This library is covered by the MIT license for open sourced software which can be found here: https://github.com/Lumiwealth/lumibot/blob/master/LICENSE
+
 # Quickstart
 
 Currently Alpaca and Interactive Brokers are available as a brokerage services. This 

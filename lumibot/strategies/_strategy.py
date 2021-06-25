@@ -180,7 +180,7 @@ class _Strategy:
         return self._stats
 
     def _dump_stats(self):
-        logger = logging.getLogger("lumibot")
+        logger = logging.getLogger()
         current_level = logging.getLevelName(logger.level)
         logger.setLevel(logging.INFO)
         if not self._stats.empty:
@@ -259,7 +259,7 @@ class _Strategy:
 
         logger.setLevel(current_level)
 
-    def plot_returns_vs_benchmark(self, plot_file="backtest_result.pdf"):
+    def plot_returns_vs_benchmark(self, plot_file="backtest_result.jpg"):
         if self._strategy_returns_df is None:
             logging.warning(
                 "Cannot plot returns because the strategy returns are missing"
@@ -294,7 +294,7 @@ class _Strategy:
         config=None,
         auto_adjust=False,
         benchmark_asset="SPY",
-        plot_file="backtest_result.pdf",
+        plot_file="backtest_result.jpg",
         **kwargs,
     ):
         trader = Trader(logfile=logfile)

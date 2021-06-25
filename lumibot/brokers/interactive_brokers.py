@@ -1,25 +1,24 @@
-from datetime import timezone
-from dateutil import tz
 import datetime
+import time
 import traceback
+from datetime import timezone
+from threading import Thread
 
-import pandas_market_calendars as mcal
 import pandas as pd
+import pandas_market_calendars as mcal
+from dateutil import tz
+from ibapi.client import *
+from ibapi.contract import *
+from ibapi.order import *
+from ibapi.wrapper import *
 
 from lumibot.data_sources import InteractiveBrokersData
 
 # Naming conflict on Order between IB and Lumibot.
 from lumibot.entities import Order as OrderLum
 from lumibot.entities import Position
+
 from .broker import Broker
-
-from ibapi.wrapper import *
-from ibapi.client import *
-from ibapi.contract import *
-from ibapi.order import *
-
-from threading import Thread
-import time
 
 
 class InteractiveBrokers(InteractiveBrokersData, Broker):
@@ -394,7 +393,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         stored_order = self.get_tracked_order(orderId)
         if stored_order is None:
             logging.info(
-                "Untracker order %s was logged by broker %s" % (orderId, self.name)
+                "Untracked order %s was logged by broker %s" % (orderId, self.name)
             )
             return False
 
@@ -421,7 +420,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
 
         if stored_order is None:
             logging.info(
-                "Untracker order %s was logged by broker %s" % (orderId, self.name)
+                "Untracked order %s was logged by broker %s" % (orderId, self.name)
             )
             return False
             # Check the order status submit changes.

@@ -186,7 +186,7 @@ class Alpaca(AlpacaData, Broker):
                 stored_order = self.get_tracked_order(identifier)
                 if stored_order is None:
                     logging.info(
-                        "Untracker order %s was logged by broker %s"
+                        "Untracked order %s was logged by broker %s"
                         % (identifier, self.name)
                     )
                     return False

@@ -54,7 +54,7 @@ class Trader:
         logging.getLogger("urllib3").setLevel(logging.ERROR)
         logging.getLogger("requests").setLevel(logging.ERROR)
 
-        logger = logging.getLogger("lumibot")
+        logger = logging.getLogger()
         if not logger.handlers:
             logger.addHandler(logging.StreamHandler())
         if self.debug:

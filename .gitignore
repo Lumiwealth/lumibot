@@ -16,6 +16,7 @@ credentials.py
 *debug.py
 todos.txt
 *.pem
+test_bot.py
 
 # Pypi deployment
 build

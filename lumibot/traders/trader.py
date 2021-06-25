@@ -46,7 +46,7 @@ class Trader:
         self._start_pool()
         self._join_pool()
         result = self._collect_analysis()
-        
+
         return result
 
     def _set_logger(self):
@@ -54,7 +54,7 @@ class Trader:
         logging.getLogger("urllib3").setLevel(logging.ERROR)
         logging.getLogger("requests").setLevel(logging.ERROR)
 
-        logger = logging.getLogger()
+        logger = logging.getLogger("lumibot")
         if not logger.handlers:
             logger.addHandler(logging.StreamHandler())
         if self.debug:
@@ -76,6 +76,11 @@ class Trader:
             handler.setFormatter(self.log_format)
 
         logger.propagate = True
+
+        # Diable Interactive Brokers logs
+        for log_name, log_obj in logging.Logger.manager.loggerDict.items():
+            if log_name.startswith("ibapi"):
+                log_obj.disabled = True
 
     def _init_pool(self):
         self._pool = [strategy._executor for strategy in self._strategies]

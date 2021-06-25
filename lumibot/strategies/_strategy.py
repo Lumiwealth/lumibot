@@ -180,7 +180,7 @@ class _Strategy:
         return self._stats
 
     def _dump_stats(self):
-        logger = logging.getLogger()
+        logger = logging.getLogger("lumibot")
         current_level = logging.getLevelName(logger.level)
         logger.setLevel(logging.INFO)
         if not self._stats.empty:

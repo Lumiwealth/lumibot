@@ -7,7 +7,6 @@ from queue import Queue
 from threading import RLock, Thread
 
 from lumibot.entities import Order
-
 from lumibot.trading_builtins import SafeList
 
 
@@ -99,7 +98,7 @@ class Broker:
     # =========Internal functions==============
 
     def _process_new_order(self, order):
-        logging.info("New %r was submited." % order)
+        logging.info("New %r was submitted." % order)
         self._unprocessed_orders.remove(order.identifier, key="identifier")
         order.update_status(self.NEW_ORDER)
         order.set_new()

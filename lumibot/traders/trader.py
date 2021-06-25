@@ -35,7 +35,7 @@ class Trader:
             if len(self._strategies) > 1:
                 raise Exception(
                     "Received %d strategies for backtesting."
-                    "You can backtest only once at a time." % len(self._strategies)
+                    "You can only backtest one at a time." % len(self._strategies)
                 )
 
             logging.info("Backtesting starting...")
@@ -46,6 +46,7 @@ class Trader:
         self._start_pool()
         self._join_pool()
         result = self._collect_analysis()
+        
         return result
 
     def _set_logger(self):

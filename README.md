@@ -154,6 +154,7 @@ budget = 100000
 
 # Run the backtest
 stats_file = "logs/my_strategy_backtest.csv"
+plot_file = f"logs/my_strategy_backtest.jpg"
 MyStrategy.backtest(
     "my_strategy",
     budget,
@@ -161,6 +162,8 @@ MyStrategy.backtest(
     backtesting_start,
     backtesting_end,
     stats_file=stats_file,
+    plot_file=plot_file,
+    benchmark_asset="SPY",
 )
 ```
 

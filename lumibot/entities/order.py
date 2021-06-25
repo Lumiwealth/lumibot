@@ -26,6 +26,12 @@ class Order:
         trail_price=None,
         trail_percent=None,
         time_in_force="day",
+        sec_type="STK",
+        exchange="SMART",
+        expiration="",
+        strike="",
+        right="",
+        multiplier="",
         position_filled=False,
     ):
         if isinstance(asset, str):
@@ -48,6 +54,16 @@ class Order:
         self.stop_loss_price = None
         self.stop_loss_limit_price = None
         self.transactions = []
+        self.order_class = None
+        self.type = "market"
+
+        # Options:
+        self.exchange = exchange
+        self.sec_type = sec_type
+        self.expiration = expiration
+        self.strike = strike
+        self.right = right
+        self.multiplier = multiplier
 
         # setting events
         self._new_event = Event()
@@ -210,6 +226,40 @@ class Order:
             increment = -increment
         return increment
 
+    def is_option(self):
+        # Return true if this order is an option.
+        if self.sec_type == 'OPT':
+            return True
+        else:
+            return False
+
+    # ======Setting the events methods===========
+
+    def set_new(self):
+        self._new_event.set()
+
+    def set_canceled(self):
+        self._canceled_event.set()
+        self._closed_event.set()
+
+    def set_partially_filled(self):
+        self._partial_filled_event.set()
+
+    def set_filled(self):
+        self._filled_event.set()
+        self._closed_event.set()
+
+    # =========Waiting methods==================
+
+    def wait_to_be_registered(self):
+        logging.info("Waiting for order %r to be registered" % self)
+        self._new_event.wait()
+        logging.info("Order %r registered" % self)
+
+    def wait_to_be_closed(self):
+        logging.info("Waiting for broker to execute order %r" % self)
+        self._closed_event.wait()
+        logging.info("Order %r executed by broker" % self)
     # ======Setting the events methods===========
 
     def set_new(self):

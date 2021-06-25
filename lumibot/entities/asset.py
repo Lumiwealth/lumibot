@@ -26,7 +26,7 @@ class Asset:
         expiration=None,
         strike=None,
         right=None,
-        multiplier=None,
+        multiplier=1,
     ):
         self.asset_types = ["stock", "option"]
 
@@ -38,7 +38,7 @@ class Asset:
         self.expiration = expiration
         self.strike = strike
         self.right = right
-        self.multiplier = multiplier
+        self.multiplier = int(multiplier)
 
     @property
     def asset_type(self):
@@ -55,6 +55,10 @@ class Asset:
     # Option methods
     def is_option(self):
         return self._asset_type == "option"
+
+    @property
+    def strike_str(self):
+        return str(self.strike)
 
     def __repr__(self):
         stock_repr = f"{self.symbol.upper()}, Type: {self.asset_type} "
@@ -80,21 +84,6 @@ class Asset:
             )
 
         return False
-
-    def same_as(self, other):
-        # Check if an asset is the same as other, return `True` if so.
-        if isinstance(other, Asset):
-            return (
-                self.symbol == other.symbol
-                and self.asset_type == other.asset_type
-                and self.expiration == other.expiration
-                and self.strike == other.strike
-                and self.right == other.right
-                and self.multiplier == other.multiplier
-            )
-
-        return False
-
 
 class AssetsMapping(UserDict):
     def __init__(self, mapping):

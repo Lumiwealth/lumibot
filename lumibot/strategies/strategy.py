@@ -91,6 +91,13 @@ class Strategy(_Strategy):
         limit_price=None,
         stop_price=None,
         time_in_force="day",
+        take_profit_price=None,
+        stop_loss_price=None,
+        stop_loss_limit_price=None,
+        trail_price=None,
+        trail_percent=None,
+        position_filled=False,
+        exchange="SMART",
     ):
         asset = self._set_asset_mapping(asset)
         order = Order(
@@ -101,6 +108,18 @@ class Strategy(_Strategy):
             limit_price=limit_price,
             stop_price=stop_price,
             time_in_force=time_in_force,
+            take_profit_price=take_profit_price,
+            stop_loss_price=stop_loss_price,
+            stop_loss_limit_price=stop_loss_limit_price,
+            trail_price=trail_price,
+            trail_percent=trail_percent,
+            exchange=exchange,
+            sec_type=asset.asset_types,
+            expiration=asset.expiration,
+            strike=asset.strike,
+            right=asset.right,
+            multiplier=asset.multiplier,
+            position_filled=position_filled,
         )
         return order
 
@@ -135,6 +154,11 @@ class Strategy(_Strategy):
     @property
     def positions(self):
         return self.get_tracked_positions()
+
+    def get_contract_details(self, asset):
+        # Used for Interactive Brokers. Convert an asset into a IB Contract.
+        asset = self._set_asset_mapping(asset)
+        return self.broker.get_contract_details(asset)
 
     def get_tracked_order(self, identifier):
         """get a tracked order given an identifier.
@@ -196,14 +220,21 @@ class Strategy(_Strategy):
         """cancel all the strategy open orders"""
         return self.broker.cancel_open_orders(self.name)
 
-    def sell_all(self, cancel_open_orders=True):
+    def sell_all(self, cancel_open_orders=True, at_broker=False):
         """sell all strategy positions"""
-        return self.broker.sell_all(self.name, cancel_open_orders=cancel_open_orders)
+        self.broker.sell_all(
+            self.name, cancel_open_orders=cancel_open_orders, at_broker=at_broker
+        )
 
     def get_last_price(self, asset):
         """Takes an asset asset and returns the last known price"""
         asset = self._set_asset_mapping(asset)
         return self.broker.get_last_price(asset)
+
+    def get_tick(self, asset):
+        """Takes an asset asset and returns the last known price"""
+        asset = self._set_asset_mapping(asset)
+        return self.broker.get_tick(asset)
 
     def get_last_prices(self, assets):
         """Takes a list of assets and returns the last known prices"""
@@ -217,6 +248,48 @@ class Strategy(_Strategy):
             return {a.symbol: p for a, p in asset_prices.items()}
         else:
             return asset_prices
+
+    def get_tradable_assets(self, easy_to_borrow=None, filter_func=None):
+        """Get the list of all tradable assets
+        within the current broker from the market"""
+        return self.broker.get_tradable_assets(
+            easy_to_borrow=easy_to_borrow, filter_func=filter_func
+        )
+
+    # =======Broker methods shortcuts============
+    def option_params(self, asset, exchange="", underlyingConId=""):
+        """Returns option chain data, list of strikes and list of expiry dates."""
+        asset = self._set_asset_mapping(asset)
+        return self.broker.option_params(
+            asset=asset, exchange=exchange, underlyingConId=underlyingConId
+        )
+
+    def get_chains(self, asset):
+        """Returns option chain."""
+        asset = self._set_asset_mapping(asset)
+        return self.broker.get_chains(asset)
+
+    def get_chain(self, chains, exchange="SMART"):
+        """Returns option chain for a particular exchange."""
+        return self.broker.get_chain(chains, exchange=exchange)
+
+    def get_expiration(self, chains, exchange="SMART"):
+        """Returns option chain for a particular exchange."""
+        return self.broker.get_expiration(chains, exchange=exchange)
+
+    def get_multiplier(self, chains, exchange="SMART"):
+        """Returns option chain for a particular exchange."""
+        return self.broker.get_multiplier(chains, exchange=exchange)
+
+    def get_strikes(self, asset):
+        """Returns a list of strikes for a give underlying asset."""
+        asset = self._set_asset_mapping(asset)
+        contract_details = self.get_contract_details(asset)
+        if not contract_details:
+            return None
+
+        return sorted(list(set(cd.contract.strike for cd in contract_details)))
+
 
     # =======Data source methods=================
 
@@ -257,9 +330,26 @@ class Strategy(_Strategy):
     def to_default_timezone(self, dt):
         return self.data_source.to_default_timezone(dt)
 
-    def create_asset(self, symbol, asset_type=None, name=None):
+    def create_asset(
+        self,
+        symbol,
+        asset_type=None,
+        name="",
+        expiration="",
+        strike="",
+        right="",
+        multiplier=100,
+    ):
         """Create an asset object."""
-        return Asset(symbol, asset_type=asset_type, name=name)
+        return Asset(
+            symbol,
+            asset_type=asset_type,
+            name=name,
+            expiration=expiration,
+            strike=strike,
+            right=right,
+            multiplier=multiplier,
+        )
 
     def get_symbol_bars(
         self,
@@ -378,12 +468,12 @@ class Strategy(_Strategy):
         when an order has been canceled by the broker"""
         pass
 
-    def on_partially_filled_order(self, order, price, quantity):
+    def on_partially_filled_order(self, order, price, quantity, multiplier):
         """Use this lifecycle event to execute code
         when an order has been partially filled by the broker"""
         pass
 
-    def on_filled_order(self, position, order, price, quantity):
+    def on_filled_order(self, position, order, price, quantity, multiplier):
         """Use this lifecycle event to execute code
         when an order has been filled by the broker"""
         pass

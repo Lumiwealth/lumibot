@@ -16,9 +16,17 @@ credentials.py
 *debug.py
 todos.txt
 *.pem
+test_bot.py
 
 # Pypi deployment
 build
 dist
 lumibot.egg-info
-test_bot.py
+setup.py
+/alpaca_data_run.py
+/alpaca_run.py
+/lumibot_profiles.png
+/notebooks/scanner_parameters.xml
+/lumibot/strategies/examples/technical_analysis.py
+/technical_analysis.py
+/lumibot/tests/test_ib_broker.py

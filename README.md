@@ -114,7 +114,7 @@ example of a completed file:
 # main.py
 from lumibot.traders import Trader
 from lumibot.brokers import InteractiveBrokers
-from lumibot.strategies.examples import Option 
+from lumibot.strategies.examples import Strangle 
 from credentials import InteractiveBrokersConfig
 
 budget = 40000
@@ -123,10 +123,12 @@ logfile = "logs/test.log"
 trader = Trader(logfile=logfile)
 interactive_brokers = InteractiveBrokers(InteractiveBrokersConfig)
 
-strategy = Option(name="option", budget=budget, broker=interactive_brokers)
+strategy = Strangle(name="option", budget=budget, broker=interactive_brokers)
 trader.add_strategy(strategy)
 trader.run_all()
 ```
+
+You can also see `simple_start_ib.py` for a working bot
 
 # Backtesting
 

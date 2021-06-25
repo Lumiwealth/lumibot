@@ -128,7 +128,7 @@ trader.add_strategy(strategy)
 trader.run_all()
 ```
 
-You can also see `simple_start_ib.py` for a working bot
+You can also see the file `simple_start_ib.py` for a working bot
 
 # Backtesting
 

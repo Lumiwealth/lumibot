@@ -15,8 +15,8 @@ class AlpacaData(DataSource):
     SOURCE = "ALPACA"
     MIN_TIMESTEP = "minute"
     TIMESTEP_MAPPING = [
-        {"timestep": "minute", "represntations": ["1Min", "minute"]},
-        {"timestep": "day", "represntations": ["1D", "day"]},
+        {"timestep": "minute", "representations": ["1Min", "minute"]},
+        {"timestep": "day", "representations": ["1D", "day"]},
     ]
 
     """Common base class for data_sources/alpaca and brokers/alpaca"""

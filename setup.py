@@ -30,6 +30,7 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     install_requires=[
         "alpaca_trade_api",
+        "ibapi == 9.81.1.post1",
         "yfinance==0.1.59",
         "pandas",
         "pandas_datareader",

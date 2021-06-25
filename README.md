@@ -97,7 +97,7 @@ API/Settings` The key settings required to trade using Lumibot are:
   - Socket port `7496` for live trading, `7497` for paper account trading. 
     > It is highly recommended to thoroughly test your algorithm in paper trading mode 
     before trading live.
-  - Master API Client ID: This can be any number you choose up to 999. You will use 
+  - Master API Client ID: You can find in the Trader Workstation by going to File -> Global Configurations -> API -> Settings, then looking for "Master API client ID". This can be any number you choose up to 999. You will use 
     this in your configuration file to log in.
 
 Set up your `credentials.py` file as follows: 

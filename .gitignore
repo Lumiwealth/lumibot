@@ -21,3 +21,4 @@ todos.txt
 build
 dist
 lumibot.egg-info
+test_bot.py

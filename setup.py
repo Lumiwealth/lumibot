@@ -20,7 +20,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 setuptools.setup(
     name="lumibot",
     # version=increment_version(),
-    version="1.0.2",
+    version="1.1.0",
     author="Robert Grzesik",
     author_email="rob@lumiwealth.com",
     description="Trading Framework",
@@ -30,6 +30,7 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     install_requires=[
         "alpaca_trade_api",
+        "ibapi==9.81.1.post1",
         "yfinance==0.1.59",
         "pandas",
         "pandas_datareader",

@@ -47,12 +47,17 @@ class DiversifiedLeverage(Strategy):
             },
             {
                 "symbol": "TMF",  # Leveraged Treasury Bonds
-                "weight": 0.40,
+                "weight": 0.35,
+                "last_price": None,
+            },
+            {
+                "symbol": "XVZ",  # Barclays VIX ETF
+                "weight": 0.10,
                 "last_price": None,
             },
             {
                 "symbol": "UGL",  # Leveraged Gold
-                "weight": 0.10,
+                "weight": 0.05,
                 "last_price": None,
             },
         ]

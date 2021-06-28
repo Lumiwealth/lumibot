@@ -19,9 +19,9 @@ from lumibot.tools import indicators
 from lumibot.traders import Trader
 
 # Choose your budget and log file locations
-budget = 50000  # - 12.80
+budget = 50000
 logfile = "logs/test.log"
-backtesting_start = datetime(2010, 3, 1)
+backtesting_start = datetime(2012, 1, 1)
 backtesting_end = datetime(2021, 1, 1)
 benchmark_asset = "SPY"
 
@@ -41,6 +41,7 @@ strategy = DiversifiedLeverage(name=strategy_name, budget=budget, broker=broker)
 ####
 
 stats_file = f"logs/strategy_{strategy_name}_{int(time())}.csv"
+plot_file = f"logs/strategy_{strategy_name}_{int(time())}.jpg"
 strategy.backtest(
     strategy_name,
     budget,
@@ -48,11 +49,9 @@ strategy.backtest(
     backtesting_start,
     backtesting_end,
     stats_file=stats_file,
+    plot_file=plot_file,
     config=None,
 )
-
-logging.info(f"*** Benchmark Performance for {benchmark_asset} ***")
-indicators.calculate_returns(benchmark_asset, backtesting_start, backtesting_end)
 
 ####
 # Run the strategy

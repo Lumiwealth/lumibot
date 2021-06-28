@@ -98,7 +98,7 @@ class Broker:
     # =========Internal functions==============
 
     def _process_new_order(self, order):
-        logging.info("New %r was submited." % order)
+        logging.info("New %r was submitted." % order)
         self._unprocessed_orders.remove(order.identifier, key="identifier")
         order.update_status(self.NEW_ORDER)
         order.set_new()
@@ -432,17 +432,25 @@ class Broker:
         subscriber = self._get_subscriber(order.strategy)
         subscriber.add_event(subscriber.CANCELED_ORDER, payload)
 
-    def _on_partially_filled_order(self, order, price, quantity):
+    def _on_partially_filled_order(self, order, price, quantity, multiplier):
         """notify relevant subscriber/strategy about
         partially filled order event"""
-        payload = dict(order=order, price=price, quantity=quantity)
+        payload = dict(
+            order=order, price=price, quantity=quantity, multiplier=multiplier
+        )
         subscriber = self._get_subscriber(order.strategy)
         subscriber.add_event(subscriber.PARTIALLY_FILLED_ORDER, payload)
 
-    def _on_filled_order(self, position, order, price, quantity):
+    def _on_filled_order(self, position, order, price, quantity, multiplier):
         """notify relevant subscriber/strategy about
         filled order event"""
-        payload = dict(position=position, order=order, price=price, quantity=quantity)
+        payload = dict(
+            position=position,
+            order=order,
+            price=price,
+            quantity=quantity,
+            multiplier=multiplier,
+        )
         subscriber = self._get_subscriber(order.strategy)
         subscriber.add_event(subscriber.FILLED_ORDER, payload)
 
@@ -456,9 +464,9 @@ class Broker:
         self._is_stream_subscribed = True
 
     def _process_trade_event(
-        self, stored_order, type_event, price=None, filled_quantity=None
+        self, stored_order, type_event, price=None, filled_quantity=None, multiplier=1
     ):
-        """process an occured trading event and update the
+        """process an occurred trading event and update the
         corresponding order"""
         # for fill and partial_fill events, price and filled_quantity must be specified
         if type_event in [self.FILLED_ORDER, self.PARTIALLY_FILLED_ORDER] and (
@@ -504,10 +512,14 @@ class Broker:
             stored_order = self._process_partially_filled_order(
                 stored_order, price, filled_quantity
             )
-            self._on_partially_filled_order(stored_order, price, filled_quantity)
+            self._on_partially_filled_order(
+                stored_order, price, filled_quantity, multiplier
+            )
         elif type_event == self.FILLED_ORDER:
             position = self._process_filled_order(stored_order, price, filled_quantity)
-            self._on_filled_order(position, stored_order, price, filled_quantity)
+            self._on_filled_order(
+                position, stored_order, price, filled_quantity, multiplier
+            )
         else:
             logging.info("Unhandled type event %s for %r" % (type_event, stored_order))
 

@@ -827,7 +827,7 @@ Optional Parameters:
 - stop_loss_limit_price (default = None),
 - trail_price (default = None),
 - trail_percent (default = None),
-- position_filled (default = None)e,
+- position_filled (default = None),
 
 *** NOTE: Limit and stop orders work as normal in live trading, but will be ignored in backtesting. Meaning that a backtest will assume limit and stop orders were never executed.
 
@@ -1207,10 +1207,15 @@ A strategy object has the following properties:
   ```python
   my_strategy = MyStrategy("my_strategy", budget, broker, minutes_before_opening=15)
   ```
-- sleeptime: Sleeptime in minute after executing the lifecycle method 
-  on_trading_iteration. By default equals to 1 minute. 
+- sleeptime: Sleeptime in seconds or minutes after executing the lifecycle method 
+  on_trading_iteration. By default equals 1 minute. You can set the sleep time as an integer 
+  which will be interpreted as minutes. eg: sleeptime = 50 would be 50 minutes. Conversely, you 
+  can enter the time as a string with the duration numbers first, followed by the time units: 
+  'M' for minutes, 'S' for seconds eg: '300S' is 300 seconds, '10M' is 10 minutes. Only "S" and 
+  "M" are allowed.
+  
   This value can be overloaded when creating a strategy class in order to change the 
-  default behaviour. Another option is to specify it when instanciation the strategy class
+  default behaviour. Another option is to specify it when instantiating the strategy class
   ```python
   my_strategy = MyStrategy("my_strategy", budget, broker, sleeptime=2)
   ```

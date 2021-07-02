@@ -279,30 +279,3 @@ class Order:
         logging.info("Waiting for broker to execute order %r" % self)
         self._closed_event.wait()
         logging.info("Order %r executed by broker" % self)
-    # ======Setting the events methods===========
-
-    def set_new(self):
-        self._new_event.set()
-
-    def set_canceled(self):
-        self._canceled_event.set()
-        self._closed_event.set()
-
-    def set_partially_filled(self):
-        self._partial_filled_event.set()
-
-    def set_filled(self):
-        self._filled_event.set()
-        self._closed_event.set()
-
-    # =========Waiting methods==================
-
-    def wait_to_be_registered(self):
-        logging.info("Waiting for order %r to be registered" % self)
-        self._new_event.wait()
-        logging.info("Order %r registered" % self)
-
-    def wait_to_be_closed(self):
-        logging.info("Waiting for broker to execute order %r" % self)
-        self._closed_event.wait()
-        logging.info("Order %r executed by broker" % self)

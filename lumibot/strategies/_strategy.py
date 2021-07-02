@@ -90,7 +90,7 @@ class _Strategy:
 
     def _copy_dict(self):
         result = {}
-        ignored_fields = ["broker", "data_source"]
+        ignored_fields = ["broker", "data_source", "trading_pairs", "asset_gen"]
         for key in self.__dict__:
             if key[0] != "_" and key not in ignored_fields:
                 try:

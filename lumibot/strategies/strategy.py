@@ -468,7 +468,7 @@ class Strategy(_Strategy):
         when an order has been canceled by the broker"""
         pass
 
-    def on_partially_filled_order(self, order, price, quantity, multiplier):
+    def on_partially_filled_order(self, position, order, price, quantity, multiplier):
         """Use this lifecycle event to execute code
         when an order has been partially filled by the broker"""
         pass

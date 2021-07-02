@@ -443,11 +443,11 @@ class Broker:
         subscriber = self._get_subscriber(order.strategy)
         subscriber.add_event(subscriber.CANCELED_ORDER, payload)
 
-    def _on_partially_filled_order(self, order, price, quantity, multiplier):
+    def _on_partially_filled_order(self, position, order, price, quantity, multiplier):
         """notify relevant subscriber/strategy about
         partially filled order event"""
         payload = dict(
-            order=order, price=price, quantity=quantity, multiplier=multiplier
+            position=position, order=order, price=price, quantity=quantity, multiplier=multiplier
         )
         subscriber = self._get_subscriber(order.strategy)
         subscriber.add_event(subscriber.PARTIALLY_FILLED_ORDER, payload)
@@ -524,7 +524,7 @@ class Broker:
                 stored_order, price, filled_quantity
             )
             self._on_partially_filled_order(
-                stored_order, price, filled_quantity, multiplier
+                position, stored_order, price, filled_quantity, multiplier
             )
         elif type_event == self.FILLED_ORDER:
             position = self._process_filled_order(stored_order, price, filled_quantity)

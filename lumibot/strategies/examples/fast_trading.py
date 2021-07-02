@@ -20,10 +20,20 @@ class FastTrading(Strategy):
         self.momentum_length = momentum_length
 
         # Set how often (in minutes) we should be running on_trading_iteration
-        self.sleeptime = 1
+        self.sleeptime = "1S"
 
         # Set the symbols that we want to be monitoring
-        self.symbols = ["SPY", "GLD", "TLT", "MSFT", "TSLA", "MCHI", "SPXL", "SPXS"]
+        self.symbols = [
+            "SPY",
+            "GLD",
+            "TLT",
+            "MSFT",
+            "TSLA",
+            "MCHI",
+            "SPXL",
+            "SPXS",
+            "TUEM",
+        ]
 
         # Set up assets, orders, positions.
         self.assets = [self.create_asset(symbol) for symbol in self.symbols]
@@ -42,25 +52,49 @@ class FastTrading(Strategy):
 
     def on_trading_iteration(self):
 
-        self.print_details("Before wait fill")
-        # orders_pending = [order for order in self.orders if order.status != "fill"]
-        # cash_pending = sum([order.cash_pending(self) for order in orders_pending])
-        # check = [order.cash_pending(self) for order in self.orders]
-
-        # print(f"*********************************************8 cash_unfilled: {cash_pending}, "
-        #       f"orders unfilled: {orders_pending}")
-        # self.wait_for_orders_execution(orders_pending)
-        self.print_details("After wait fill. ")
-        self.orders = list()
-
         # Setting the buying budget
+
+        # ACTUAL
+        # Cash
         cash = self.unspent_money
+        # Positions
+        positions = self.get_tracked_positions()
+        # Value
         value = self.portfolio_value
+        # orders
+        orders_pending = self.get_tracked_orders()
+        # orders_pending = [order for order in self.get_tracked_orders() if order.status != "fill"]
+
+        # DELTA
+        # Cash pending from outstanding orders.
+        cash_pending = sum(
+            [order.cash_pending(self) for order in self.get_tracked_orders()]
+        )
+        # Net shares to trade
+        shares_to_trade = [
+            (order.asset, order.get_increment()) for order in orders_pending
+        ]
+        if len(shares_to_trade) > 0 or cash_pending > 0:
+            print(f"{50*'#'}")
+        # PROJECTED
+
+        # Positions
+        # self.trade_positions
 
         self.log_message(
-            f"At beginning of iteration: Cash: {cash}, Value: {value}, "
-            f"Orders: {self.orders}, Positions: {self.trade_positions}"
+            f"Check Values \n\n"
+            f"Actual:    Cash: {cash:7.2f}, Value: {value:8.2f}, Positions: {positions}\n"
+            f"Pending:   Cash: {cash_pending:7.2f}, Value: 'N/A', Positions: {shares_to_trade}\n"
+            f"Expected:  Cash: {cash+cash_pending:7.2f}, Value: 'N/A', Positions: "
+            f"{self.trade_positions}"
         )
+
+        cash = cash + cash_pending
+
+        self.orders = list()
+
+        # self.print_details("Start Iteration")
+
         # Get the momentums of all the assets we are tracking, attach to assets.
         self.get_assets_momentums()
 
@@ -77,10 +111,6 @@ class FastTrading(Strategy):
                 asset.quantity = 0
         selling_orders = self.orders_sell()
         self.submit_orders(selling_orders)
-        self.wait_for_orders_execution(selling_orders)
-        # open_orders = [[order.symbol, order.status] for order in selling_orders]
-
-        self.print_details("After sale.")
 
         # Buying assets
         for asset in best_assets:
@@ -96,11 +126,9 @@ class FastTrading(Strategy):
             cash -= asset.last_price * asset.quantity
             self.trade_positions.append(asset)
         self.submit_orders(self.orders_buy())
-        self.wait_for_orders_execution(self.orders_buy())
 
-        self.print_details("After buy")
         self.log_message(
-            f"At end of iteration: Cash: {cash}, Value: {self.portfolio_value}, "
+            f"At end of iteration: Cash: {cash:7.2f}, Value: {self.portfolio_value:7.2f}, "
             f"Orders: {self.orders}, Positions: {self.trade_positions}"
         )
 

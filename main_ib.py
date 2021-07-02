@@ -13,10 +13,8 @@ from lumibot.strategies.examples import (
     IntradayMomentum,
     Momentum,
     Simple,
-    IBTest,
     Strangle,
     FastTrading,
-    LongCallSpread,
 )
 from lumibot.tools import indicators, perf_counters
 from lumibot.traders import Trader
@@ -27,7 +25,7 @@ from lumibot.data_sources import AlpacaData
 
 # Global parameters
 debug = False
-budget = 400000
+budget = 40000
 backtesting_start = datetime(2010, 1, 1)
 backtesting_end = datetime(2020, 12, 31)
 logfile = "logs/test.log"

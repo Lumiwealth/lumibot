@@ -116,7 +116,7 @@ class Broker:
 
     def _process_partially_filled_order(self, order, price, quantity):
         logging.info(
-            "New transaction: %s %d of %s at %s$ per share"
+            "Partial Fill Transaction: %s %d of %s at %s$ per share"
             % (order.side, quantity, order.asset.symbol, price)
         )
         logging.info("%r was partially filled" % order)
@@ -125,12 +125,23 @@ class Broker:
         order.add_transaction(price, quantity)
         order.update_status(self.PARTIALLY_FILLED_ORDER)
         order.set_partially_filled()
-        self._partially_filled_orders.append(order)
-        return order
+
+        position = self.get_tracked_position(order.strategy, order.asset)
+        if position is None:
+            # Create new position for this given strategy and asset
+            position = order.to_position(quantity)
+            self._filled_positions.append(position)
+        else:
+            # Add the order to the already existing position
+            position.add_order(order, quantity)
+
+        if order not in self._partially_filled_orders:
+            self._partially_filled_orders.append(order)
+        return order, position
 
     def _process_filled_order(self, order, price, quantity):
         logging.info(
-            "New transaction: %s %d of %s at %s$ per share"
+            "Filled Transaction: %s %d of %s at %s$ per share"
             % (order.side, quantity, order.asset.symbol, price)
         )
         logging.info("%r was filled" % order)
@@ -144,11 +155,11 @@ class Broker:
         position = self.get_tracked_position(order.strategy, order.asset)
         if position is None:
             # Create new position for this given strategy and asset
-            position = order.to_position()
+            position = order.to_position(quantity)
             self._filled_positions.append(position)
         else:
             # Add the order to the already existing position
-            position.add_order(order)
+            position.add_order(order, quantity)
             if position.quantity == 0:
                 logging.info("Position %r liquidated" % position)
                 self._filled_positions.remove(position)
@@ -509,7 +520,7 @@ class Broker:
             stored_order = self._process_canceled_order(stored_order)
             self._on_canceled_order(stored_order)
         elif type_event == self.PARTIALLY_FILLED_ORDER:
-            stored_order = self._process_partially_filled_order(
+            stored_order, position = self._process_partially_filled_order(
                 stored_order, price, filled_quantity
             )
             self._on_partially_filled_order(

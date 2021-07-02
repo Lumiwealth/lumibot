@@ -154,7 +154,6 @@ class _Strategy:
                 self._unspent_money -= quantity * price * multiplier
             if side == "sell":
                 self._unspent_money += quantity * price * multiplier
-            self._unspent_money = self._unspent_money
             return self._unspent_money
 
     def _update_unspent_money_with_dividends(self):

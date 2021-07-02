@@ -392,7 +392,7 @@ class Broker:
         orders = self.get_tracked_orders(strategy)
         self.cancel_orders(orders)
 
-    def sell_all(self, strategy, cancel_open_orders=True):
+    def sell_all(self, strategy, cancel_open_orders=True, at_broker=False):
         """sell all positions"""
         logging.warning("Strategy %s: sell all" % strategy)
         if cancel_open_orders:

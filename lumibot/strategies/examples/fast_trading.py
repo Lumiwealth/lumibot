@@ -1,11 +1,9 @@
-import time
-
 from lumibot.strategies.strategy import Strategy
 
 """
 Strategy Description
 
-Buys the best performing asset from self.symbols over self.momentum_length number of minutes.
+Buys the best performing assets from self.symbols over self.momentum_length number of minutes.
 For example, if TSLA increased 0.03% in the past two minutes, but SPY, GLD, TLT and MSFT only 
 increased 0.01% in the past two minutes, then we will buy TSLA.
 """
@@ -19,7 +17,7 @@ class FastTrading(Strategy):
         # Setting the momentum period (in minutes)
         self.momentum_length = momentum_length
 
-        # Set how often (in minutes) we should be running on_trading_iteration
+        # Set how often (in seconds) we should be running on_trading_iteration
         self.sleeptime = "1S"
 
         # Set the symbols that we want to be monitoring
@@ -53,47 +51,11 @@ class FastTrading(Strategy):
     def on_trading_iteration(self):
 
         # Setting the buying budget
-
-        # ACTUAL
-        # Cash
-        cash = self.unspent_money
-        # Positions
-        positions = self.get_tracked_positions()
-        # Value
-        value = self.portfolio_value
-        # orders
-        orders_pending = self.get_tracked_orders()
-        # orders_pending = [order for order in self.get_tracked_orders() if order.status != "fill"]
-
-        # DELTA
-        # Cash pending from outstanding orders.
-        cash_pending = sum(
+        cash = self.unspent_money + sum(
             [order.cash_pending(self) for order in self.get_tracked_orders()]
         )
-        # Net shares to trade
-        shares_to_trade = [
-            (order.asset, order.get_increment()) for order in orders_pending
-        ]
-        if len(shares_to_trade) > 0 or cash_pending > 0:
-            print(f"{50*'#'}")
-        # PROJECTED
-
-        # Positions
-        # self.trade_positions
-
-        self.log_message(
-            f"Check Values \n\n"
-            f"Actual:    Cash: {cash:7.2f}, Value: {value:8.2f}, Positions: {positions}\n"
-            f"Pending:   Cash: {cash_pending:7.2f}, Value: 'N/A', Positions: {shares_to_trade}\n"
-            f"Expected:  Cash: {cash+cash_pending:7.2f}, Value: 'N/A', Positions: "
-            f"{self.trade_positions}"
-        )
-
-        cash = cash + cash_pending
 
         self.orders = list()
-
-        # self.print_details("Start Iteration")
 
         # Get the momentums of all the assets we are tracking, attach to assets.
         self.get_assets_momentums()
@@ -188,16 +150,3 @@ class FastTrading(Strategy):
     def orders_sell(self):
         """Returns list of sell orders."""
         return [order for order in self.orders if order.side == "sell"]
-
-    def print_details(self, txt):
-        d = f"{'~' * 50}\n"
-        print(
-            f"{d}"
-            f"{txt}. Cash: {self.unspent_money:7.2f}, Value: {self.portfolio_value:7.2f}\n"
-            f"UNFILLED ORDERS: {self.orders} \n"
-            f"TRACKED ORDERS: {self.get_tracked_orders()} \n"
-            f"TRADE POSITIONS: {self.trade_positions} \n"
-            f"POSITIONS: {self.positions} \n"
-            f"TRACKED POSITIONS: {self.get_tracked_positions()} \n"
-            f"{d}"
-        )

@@ -5,7 +5,13 @@ import pandas as pd
 
 from lumibot.backtesting import BacktestingBroker
 from lumibot.entities import Asset
-from lumibot.tools import day_deduplicate, get_risk_free_rate, stats_summary
+from lumibot.tools import (
+    day_deduplicate,
+    get_risk_free_rate,
+    get_symbol_returns,
+    plot_returns,
+    stats_summary,
+)
 from lumibot.traders import Trader
 
 from .strategy_executor import StrategyExecutor
@@ -25,6 +31,9 @@ class _Strategy:
         sleeptime=1,
         stats_file=None,
         risk_free_rate=None,
+        benchmark_asset="SPY",
+        backtesting_start=None,
+        backtesting_end=None,
         **kwargs,
     ):
         # Setting the broker object
@@ -32,9 +41,12 @@ class _Strategy:
         self.broker = broker
         self._is_backtesting = self.broker.IS_BACKTESTING_BROKER
         if self._is_backtesting and not self.IS_BACKTESTABLE:
-            raise Exception(
+            logging.warning(
                 "Strategy %s cannot be backtested for the moment" % self._name
             )
+        self._benchmark_asset = benchmark_asset
+        self._backtesting_start = backtesting_start
+        self._backtesting_end = backtesting_end
 
         # Setting the data provider
         if self._is_backtesting:
@@ -71,11 +83,14 @@ class _Strategy:
         # Hold the asset objects for strings for stocks only.
         self._asset_mapping = dict()
 
+        self._strategy_returns_df = None
+        self._benchmark_returns_df = None
+
     # =============Internal functions===================
 
     def _copy_dict(self):
         result = {}
-        ignored_fields = ["broker", "data_source"]
+        ignored_fields = ["broker", "data_source", "trading_pairs", "asset_gen"]
         for key in self.__dict__:
             if key[0] != "_" and key not in ignored_fields:
                 try:
@@ -139,7 +154,6 @@ class _Strategy:
                 self._unspent_money -= quantity * price * multiplier
             if side == "sell":
                 self._unspent_money += quantity * price * multiplier
-            self._unspent_money = self._unspent_money
             return self._unspent_money
 
     def _update_unspent_money_with_dividends(self):
@@ -173,8 +187,13 @@ class _Strategy:
             if self._stats_file:
                 self._stats.to_csv(self._stats_file)
 
-            df_ = day_deduplicate(self._stats)
-            self._analysis = stats_summary(df_, self._risk_free_rate)
+            # Getting the performance of the strategy
+            self.log_message(f"--- {self._name} Strategy Performance ---")
+
+            self._strategy_returns_df = day_deduplicate(self._stats)
+            self._analysis = stats_summary(
+                self._strategy_returns_df, self._risk_free_rate
+            )
 
             cagr_value = self._analysis["cagr"]
             self.log_message(f"CAGR {round(100 * cagr_value, 2)}%")
@@ -193,7 +212,69 @@ class _Strategy:
             romad_value = self._analysis["romad"]
             self.log_message(f"RoMaD {round(100 * romad_value, 2)}%")
 
+            # Getting performance for the benchmark asset
+            if (
+                self._backtesting_start is not None
+                and self._backtesting_end is not None
+            ):
+                self.log_message(
+                    f"--- {self._benchmark_asset} Benchmark Performance ---"
+                )
+
+                self._benchmark_returns_df = get_symbol_returns(
+                    self._benchmark_asset,
+                    self._backtesting_start,
+                    self._backtesting_end,
+                )
+
+                self._benchmark_analysis = stats_summary(
+                    self._benchmark_returns_df, self._risk_free_rate
+                )
+
+                cagr_value = self._benchmark_analysis["cagr"]
+                self.log_message(
+                    f"{self._benchmark_asset} CAGR {round(100 * cagr_value, 2)}%"
+                )
+
+                volatility_value = self._benchmark_analysis["volatility"]
+                self.log_message(
+                    f"{self._benchmark_asset} Volatility {round(100 * volatility_value, 2)}%"
+                )
+
+                sharpe_value = self._benchmark_analysis["sharpe"]
+                self.log_message(
+                    f"{self._benchmark_asset} Sharpe {round(sharpe_value, 2)}"
+                )
+
+                max_drawdown_result = self._benchmark_analysis["max_drawdown"]
+                self.log_message(
+                    f"{self._benchmark_asset} Max Drawdown {round(100 * max_drawdown_result['drawdown'], 2)}% on {max_drawdown_result['date']:%Y-%m-%d}"
+                )
+
+                romad_value = self._benchmark_analysis["romad"]
+                self.log_message(
+                    f"{self._benchmark_asset} RoMaD {round(100 * romad_value, 2)}%"
+                )
+
         logger.setLevel(current_level)
+
+    def plot_returns_vs_benchmark(self, plot_file="backtest_result.jpg"):
+        if self._strategy_returns_df is None:
+            logging.warning(
+                "Cannot plot returns because the strategy returns are missing"
+            )
+        elif self._benchmark_returns_df is None:
+            logging.warning(
+                "Cannot plot returns because the benchmark returns are missing"
+            )
+        else:
+            plot_returns(
+                self._strategy_returns_df,
+                f"{self._name} Strategy",
+                self._benchmark_returns_df,
+                self._benchmark_asset,
+                plot_file,
+            )
 
     @classmethod
     def backtest(
@@ -211,6 +292,8 @@ class _Strategy:
         logfile="logs/test.log",
         config=None,
         auto_adjust=False,
+        benchmark_asset="SPY",
+        plot_file="backtest_result.jpg",
         **kwargs,
     ):
         trader = Trader(logfile=logfile)
@@ -227,8 +310,14 @@ class _Strategy:
             sleeptime=sleeptime,
             risk_free_rate=risk_free_rate,
             stats_file=stats_file,
+            benchmark_asset=benchmark_asset,
+            backtesting_start=backtesting_start,
+            backtesting_end=backtesting_end,
             **kwargs,
         )
         trader.add_strategy(strategy)
         result = trader.run_all()
+
+        strategy.plot_returns_vs_benchmark(plot_file)
+
         return result

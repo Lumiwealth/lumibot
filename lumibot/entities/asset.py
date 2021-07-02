@@ -71,7 +71,6 @@ class Asset:
         else:
             return stock_repr + option_repr
 
-
     def same_as(self, other):
         # Check if an asset is the same as other, return `True` if so.
         if isinstance(other, Asset):
@@ -85,7 +84,6 @@ class Asset:
             )
 
         return False
-      
 
 class AssetsMapping(UserDict):
     def __init__(self, mapping):
@@ -109,4 +107,3 @@ class AssetsMapping(UserDict):
             self.data[Asset(key)] = value
         else:
             self.data[key] = value
-

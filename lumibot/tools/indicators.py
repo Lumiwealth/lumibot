@@ -2,6 +2,11 @@ import logging
 import math
 from datetime import datetime, timedelta
 
+import matplotlib.pyplot as plt
+import pandas as pd
+
+from lumibot import LUMIBOT_DEFAULT_PYTZ
+
 from .yahoo_helper import YahooHelper as yh
 
 
@@ -130,18 +135,46 @@ def performance(_df, risk_free, prefix=""):
     print(f"{prefix} RoMaD {romad_adj*100:0.2f}%")
 
 
+def get_symbol_returns(symbol, start=datetime(1900, 1, 1), end=datetime.now()):
+    # Making start and end datetime aware
+    start = LUMIBOT_DEFAULT_PYTZ.localize(start, is_dst=None)
+    end = LUMIBOT_DEFAULT_PYTZ.localize(end, is_dst=None)
+
+    returns_df = yh.get_symbol_data(symbol)
+    returns_df = returns_df.loc[(returns_df.index >= start) & (returns_df.index <= end)]
+    returns_df["pct_change"] = returns_df["Close"].pct_change()
+    returns_df["div_yield"] = returns_df["Dividends"] / returns_df["Close"]
+    returns_df["return"] = returns_df["pct_change"] + returns_df["div_yield"]
+
+    return returns_df
+
+
 def calculate_returns(symbol, start=datetime(1900, 1, 1), end=datetime.now()):
-    benchmark_df = yh.get_symbol_data(symbol)
-    benchmark_df = benchmark_df.loc[
-        (benchmark_df.index >= start) & (benchmark_df.index <= end)
-    ]
-    benchmark_df["pct_change"] = benchmark_df["Close"].pct_change()
-    benchmark_df["div_yield"] = benchmark_df["Dividends"] / benchmark_df["Close"]
-    benchmark_df["return"] = benchmark_df["pct_change"] + benchmark_df["div_yield"]
+    benchmark_df = get_symbol_returns(symbol, start, end)
 
     risk_free_rate = get_risk_free_rate()
 
     performance(benchmark_df, risk_free_rate, symbol)
+
+
+def plot_returns(df1, name1, df2, name2, plot_file="backtest_result.pdf"):
+    dfs_concat = []
+
+    _df1 = df1.copy()
+    _df1 = _df1.sort_index(ascending=True)
+    _df1[name1] = (1 + _df1["return"]).cumprod()
+    _df1.index = _df1.index.date
+    dfs_concat.append(_df1.loc[:, [name1]])
+
+    _df2 = df2.copy()
+    _df2 = _df2.sort_index(ascending=True)
+    _df2[name2] = (1 + _df2["return"]).cumprod()
+    _df2.index = _df2.index.date
+    dfs_concat.append(_df2.loc[:, [name2]])
+
+    df_final = pd.concat(dfs_concat, join="outer", axis=1)
+    df_final.plot()
+    plt.savefig(plot_file)
 
 
 def get_risk_free_rate():

@@ -1,25 +1,24 @@
-from datetime import timezone
-from dateutil import tz
 import datetime
+import time
 import traceback
+from datetime import timezone
+from threading import Thread
 
-import pandas_market_calendars as mcal
 import pandas as pd
+import pandas_market_calendars as mcal
+from dateutil import tz
+from ibapi.client import *
+from ibapi.contract import *
+from ibapi.order import *
+from ibapi.wrapper import *
 
 from lumibot.data_sources import InteractiveBrokersData
 
 # Naming conflict on Order between IB and Lumibot.
 from lumibot.entities import Order as OrderLum
 from lumibot.entities import Position
+
 from .broker import Broker
-
-from ibapi.wrapper import *
-from ibapi.client import *
-from ibapi.contract import *
-from ibapi.order import *
-
-from threading import Thread
-import time
 
 
 class InteractiveBrokers(InteractiveBrokersData, Broker):
@@ -76,10 +75,6 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         row = 0 if not next else 1
         th = trading_hours.iloc[row, :]
         market_open, market_close = th[0], th[1]
-
-        # todo: remove this, it's temp to have full trading hours.
-        # market_open = self.utc_to_local(datetime.datetime(2005, 1, 1))
-        # market_close = self.utc_to_local(datetime.datetime(2025, 1, 1))
 
         if close:
             return market_close
@@ -251,17 +246,14 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         """cancel all the strategy open orders"""
         self.ib.reqGlobalCancel()
 
-    def sell_all(self, strategy, cancel_open_orders=True, at_broker=False):
+    def sell_all(self, strategy, cancel_open_orders=True):
         """sell all positions"""
         logging.warning("Strategy %s: sell all" % strategy)
         if cancel_open_orders:
             self.cancel_open_orders(strategy)
 
         orders = []
-        if at_broker:
-            positions = self.ib.get_positions()
-        else:
-            positions = self.get_tracked_positions(strategy)
+        positions = self.get_tracked_positions(strategy)
 
         for position in positions:
             size = position.quantity
@@ -327,6 +319,10 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
     def get_expiration(self, chains, exchange='SMART'):
         """Returns expirations and strikes high/low of target price."""
         return sorted(list(self.get_chain(chains, exchange=exchange)["Expirations"]))
+
+    def get_multiplier(self, chains, exchange='SMART'):
+        """Returns the multiplier"""
+        return self.get_chain(chains, exchange)["Multiplier"]
 
     # =======Stream functions=========
     def on_status_event(
@@ -394,7 +390,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         stored_order = self.get_tracked_order(orderId)
         if stored_order is None:
             logging.info(
-                "Untracker order %s was logged by broker %s" % (orderId, self.name)
+                "Untracked order %s was logged by broker %s" % (orderId, self.name)
             )
             return False
 
@@ -421,7 +417,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
 
         if stored_order is None:
             logging.info(
-                "Untracker order %s was logged by broker %s" % (orderId, self.name)
+                "Untracked order %s was logged by broker %s" % (orderId, self.name)
             )
             return False
             # Check the order status submit changes.

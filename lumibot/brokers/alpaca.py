@@ -140,6 +140,7 @@ class Alpaca(AlpacaData, Broker):
             response = self.api.submit_order(
                 order.asset.symbol, order.quantity, order.side, **kwargs
             )
+
             order.set_identifier(response.id)
             order.update_status(response.status)
             order.update_raw(response)
@@ -185,7 +186,7 @@ class Alpaca(AlpacaData, Broker):
                 stored_order = self.get_tracked_order(identifier)
                 if stored_order is None:
                     logging.info(
-                        "Untracker order %s was logged by broker %s"
+                        "Untracked order %s was logged by broker %s"
                         % (identifier, self.name)
                     )
                     return False

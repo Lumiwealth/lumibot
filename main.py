@@ -8,6 +8,7 @@ from lumibot.backtesting import YahooDataBacktesting
 from lumibot.brokers import Alpaca
 from lumibot.data_sources import AlpacaData
 from lumibot.strategies.examples import (
+    BuyAndHold,
     DebtTrading,
     Diversification,
     FastTrading,
@@ -21,7 +22,7 @@ from lumibot.traders import Trader
 # Global parameters
 debug = False
 budget = 40000
-backtesting_start = datetime(2010, 1, 1)
+backtesting_start = datetime(2019, 1, 1)
 backtesting_end = datetime(2020, 12, 31)
 logfile = "logs/test.log"
 
@@ -59,6 +60,20 @@ mapping = {
     "fast_trading": {
         "class": FastTrading,
         "backtesting_datasource": None,
+        "kwargs": {},
+        "backtesting_cache": False,
+        "config": None,
+    },
+    "buy_and_hold": {
+        "class": BuyAndHold,
+        "backtesting_datasource": YahooDataBacktesting,
+        "kwargs": {},
+        "backtesting_cache": False,
+        "config": None,
+    },
+    "simple": {
+        "class": Simple,
+        "backtesting_datasource": YahooDataBacktesting,
         "kwargs": {},
         "backtesting_cache": False,
         "config": None,

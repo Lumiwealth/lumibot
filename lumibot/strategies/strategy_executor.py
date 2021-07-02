@@ -231,11 +231,11 @@ class StrategyExecutor(Thread):
         self.strategy.on_canceled_order(order)
 
     @event_method
-    def _on_partially_filled_order(self, order, price, quantity, multiplier):
+    def _on_partially_filled_order(self, position, order, price, quantity, multiplier):
         self.strategy.log_message(
             "Executing the on_partially_filled_order event method"
         )
-        self.strategy.on_partially_filled_order(order, price, quantity, multiplier)
+        self.strategy.on_partially_filled_order(position, order, price, quantity, multiplier)
 
     @event_method
     def _on_filled_order(self, position, order, price, quantity, multiplier):
@@ -258,14 +258,35 @@ class StrategyExecutor(Thread):
             self._on_trading_iteration()
             time_to_close = self.broker.get_time_to_close()
             sleeptime = time_to_close - self.minutes_before_closing * 60
-            sleeptime = max(min(sleeptime, 60 * self.strategy.sleeptime), 0)
+            sleeptime_err_msg = (
+               f"You can set the sleep time as an integer which will be interpreted as "
+               f"minutes. eg: sleeptime = 50 would be 50 minutes. Conversely, you can enter "
+               f"the time as a string with the duration numbers first, followed by the time "
+               f"units: 'M' for minutes, 'S' for seconds eg: '300S' is 300 seconds."
+            )
+            if isinstance(self.strategy.sleeptime, int):
+                units = "M"
+                time = self.strategy.sleeptime
+            elif isinstance(self.strategy.sleeptime, str):
+                units = self.strategy.sleeptime[-1:]
+                time = int(self.strategy.sleeptime[:-1])
+            else:
+                raise ValueError(sleeptime_err_msg)
+
+            if units not in "MS":
+                raise ValueError(sleeptime_err_msg)
+
+            if units == "M":
+                strategy_sleeptime = 60 * time
+            else:
+                strategy_sleeptime = time
+
+            sleeptime = max(min(sleeptime, strategy_sleeptime), 0)
             if not self.should_continue or sleeptime == 0:
                 break
             else:
                 self.strategy.log_message("Sleeping for %d seconds" % sleeptime)
-                # self.safe_sleep(sleeptime)
-                # # todo revert
-                self.safe_sleep(10)
+                self.safe_sleep(sleeptime)
 
         self.strategy.await_market_to_close()
         if self.broker.is_market_open():

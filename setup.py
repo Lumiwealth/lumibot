@@ -32,6 +32,8 @@ setuptools.setup(
         "alpaca_trade_api",
         "ibapi==9.81.1.post1",
         "yfinance==0.1.59",
+        "matplotlib",
+        "quandl",
         "pandas",
         "pandas_datareader",
         "pandas_market_calendars",

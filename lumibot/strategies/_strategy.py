@@ -90,7 +90,7 @@ class _Strategy:
 
     def _copy_dict(self):
         result = {}
-        ignored_fields = ["broker", "data_source"]
+        ignored_fields = ["broker", "data_source", "trading_pairs", "asset_gen"]
         for key in self.__dict__:
             if key[0] != "_" and key not in ignored_fields:
                 try:
@@ -154,7 +154,6 @@ class _Strategy:
                 self._unspent_money -= quantity * price * multiplier
             if side == "sell":
                 self._unspent_money += quantity * price * multiplier
-            self._unspent_money = self._unspent_money
             return self._unspent_money
 
     def _update_unspent_money_with_dividends(self):

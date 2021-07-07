@@ -13,21 +13,15 @@ from lumibot.strategies.examples import (
     IntradayMomentum,
     Momentum,
     Simple,
-    IBTest,
     Strangle,
     FastTrading,
-    LongCallSpread,
 )
 from lumibot.tools import indicators, perf_counters
 from lumibot.traders import Trader
 
-from credentials import AlpacaConfig
-from lumibot.brokers import Alpaca
-from lumibot.data_sources import AlpacaData
-
 # Global parameters
 debug = False
-budget = 400000
+budget = 40000
 backtesting_start = datetime(2010, 1, 1)
 backtesting_end = datetime(2020, 12, 31)
 logfile = "logs/test.log"
@@ -36,8 +30,6 @@ logfile = "logs/test.log"
 interactive_brokers = InteractiveBrokers(InteractiveBrokersConfig)
 interactive_brokers_data_source = InteractiveBrokersData(InteractiveBrokersConfig)
 trader = Trader(logfile=logfile, debug=debug)
-alpaca_broker = Alpaca(AlpacaConfig)
-alpaca_data_source = AlpacaData(AlpacaConfig)
 
 # Strategies mapping
 mapping = {
@@ -128,7 +120,6 @@ if __name__ == "__main__":
                 strategy_name,
                 budget=budget,
                 broker=interactive_brokers,
-                # broker=alpaca_broker,
                 stats_file=stats_file,
                 **kwargs,
             )

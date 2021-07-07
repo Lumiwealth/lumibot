@@ -197,6 +197,22 @@ class Order:
         transaction = self.Transaction(price=price, quantity=quantity)
         self.transactions.append(transaction)
 
+    def cash_pending(self, strategy):
+        # Returns the impact to cash of any unfilled shares.
+        quantity_unfilled = self.quantity - sum(
+            [transaction.quantity for transaction in self.transactions]
+        )
+        if quantity_unfilled == 0:
+            return 0
+        elif len(self.transactions) == 0:
+            cash_value = self.quantity * strategy.get_last_price(self.asset)
+        else:
+            cash_value = quantity_unfilled * self.transactions[-1].price
+        if self.side == self.SELL:
+            return cash_value
+        else:
+            return -cash_value
+
     def update_status(self, status):
         self.status = status
 
@@ -214,9 +230,12 @@ class Order:
             self._transmitted = True
             self._raw = raw
 
-    def to_position(self):
+    def to_position(self, quantity):
         position = entities.Position(
-            self.strategy, self.asset, self.quantity, orders=[self]
+            self.strategy,
+            self.asset,
+            quantity,
+            orders=[self],
         )
         return position
 
@@ -233,33 +252,6 @@ class Order:
         else:
             return False
 
-    # ======Setting the events methods===========
-
-    def set_new(self):
-        self._new_event.set()
-
-    def set_canceled(self):
-        self._canceled_event.set()
-        self._closed_event.set()
-
-    def set_partially_filled(self):
-        self._partial_filled_event.set()
-
-    def set_filled(self):
-        self._filled_event.set()
-        self._closed_event.set()
-
-    # =========Waiting methods==================
-
-    def wait_to_be_registered(self):
-        logging.info("Waiting for order %r to be registered" % self)
-        self._new_event.wait()
-        logging.info("Order %r registered" % self)
-
-    def wait_to_be_closed(self):
-        logging.info("Waiting for broker to execute order %r" % self)
-        self._closed_event.wait()
-        logging.info("Order %r executed by broker" % self)
     # ======Setting the events methods===========
 
     def set_new(self):

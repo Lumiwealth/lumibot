@@ -220,10 +220,10 @@ class Strategy(_Strategy):
         """cancel all the strategy open orders"""
         return self.broker.cancel_open_orders(self.name)
 
-    def sell_all(self, cancel_open_orders=True, at_broker=False):
+    def sell_all(self, cancel_open_orders=True):
         """sell all strategy positions"""
         self.broker.sell_all(
-            self.name, cancel_open_orders=cancel_open_orders, at_broker=at_broker
+            self.name, cancel_open_orders=cancel_open_orders,
         )
 
     def get_last_price(self, asset):
@@ -468,7 +468,7 @@ class Strategy(_Strategy):
         when an order has been canceled by the broker"""
         pass
 
-    def on_partially_filled_order(self, order, price, quantity, multiplier):
+    def on_partially_filled_order(self, position, order, price, quantity, multiplier):
         """Use this lifecycle event to execute code
         when an order has been partially filled by the broker"""
         pass

@@ -51,12 +51,8 @@ class Position:
         order = entities.Order(self.strategy, self.asset, self.quantity, "sell")
         return order
 
-    def add_order(self, order):
-        increment = order.get_increment()
-        if order.quantity + increment < 0:
-            raise ValueError(
-                "Cannot sell %d shares for position %r" % (increment, self)
-            )
-
+    def add_order(self, order, quantity):
+        increment = quantity if order.side == order.BUY else -quantity
         self.quantity += increment
-        self.orders.append(order)
+        if order not in self.orders:
+            self.orders.append(order)

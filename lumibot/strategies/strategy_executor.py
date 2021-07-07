@@ -231,11 +231,11 @@ class StrategyExecutor(Thread):
         self.strategy.on_canceled_order(order)
 
     @event_method
-    def _on_partially_filled_order(self, order, price, quantity, multiplier):
+    def _on_partially_filled_order(self, position, order, price, quantity, multiplier):
         self.strategy.log_message(
             "Executing the on_partially_filled_order event method"
         )
-        self.strategy.on_partially_filled_order(order, price, quantity, multiplier)
+        self.strategy.on_partially_filled_order(position, order, price, quantity, multiplier)
 
     @event_method
     def _on_filled_order(self, position, order, price, quantity, multiplier):

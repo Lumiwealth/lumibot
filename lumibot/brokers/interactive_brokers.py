@@ -246,17 +246,14 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         """cancel all the strategy open orders"""
         self.ib.reqGlobalCancel()
 
-    def sell_all(self, strategy, cancel_open_orders=True, at_broker=False):
+    def sell_all(self, strategy, cancel_open_orders=True):
         """sell all positions"""
         logging.warning("Strategy %s: sell all" % strategy)
         if cancel_open_orders:
             self.cancel_open_orders(strategy)
 
         orders = []
-        if at_broker:
-            positions = self.ib.get_positions()
-        else:
-            positions = self.get_tracked_positions(strategy)
+        positions = self.get_tracked_positions(strategy)
 
         for position in positions:
             size = position.quantity

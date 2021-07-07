@@ -71,6 +71,13 @@ mapping = {
         "backtesting_cache": False,
         "config": None,
     },
+    "simple": {
+        "class": Simple,
+        "backtesting_datasource": YahooDataBacktesting,
+        "kwargs": {},
+        "backtesting_cache": False,
+        "config": None,
+    },
 }
 
 if __name__ == "__main__":

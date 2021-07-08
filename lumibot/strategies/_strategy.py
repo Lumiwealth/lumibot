@@ -40,10 +40,7 @@ class _Strategy:
         self._name = name
         self.broker = broker
         self._is_backtesting = self.broker.IS_BACKTESTING_BROKER
-        if self._is_backtesting and not self.IS_BACKTESTABLE:
-            logging.warning(
-                "Strategy %s cannot be backtested for the moment" % self._name
-            )
+
         self._benchmark_asset = benchmark_asset
         self._backtesting_start = backtesting_start
         self._backtesting_end = backtesting_end
@@ -296,6 +293,10 @@ class _Strategy:
         plot_file="backtest_result.jpg",
         **kwargs,
     ):
+        if not cls.IS_BACKTESTABLE:
+            logging.warning(f"Strategy {name} cannot be backtested at the moment")
+            return None
+
         trader = Trader(logfile=logfile)
         data_source = datasource_class(
             backtesting_start, backtesting_end, config=config, auto_adjust=auto_adjust

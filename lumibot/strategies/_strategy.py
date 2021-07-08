@@ -42,7 +42,7 @@ class _Strategy:
         self._is_backtesting = self.broker.IS_BACKTESTING_BROKER
         if self._is_backtesting and not self.IS_BACKTESTABLE:
             logging.warning(
-                "Strategy %s cannot be backtested for the moment" % self._name
+                "Strategy %s cannot be backtested at the moment" % self._name
             )
         self._benchmark_asset = benchmark_asset
         self._backtesting_start = backtesting_start

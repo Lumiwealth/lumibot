@@ -18,7 +18,7 @@ class FastTrading(Strategy):
         self.momentum_length = momentum_length
 
         # Set how often (in seconds) we should be running on_trading_iteration
-        self.sleeptime = "1S"
+        self.sleeptime = "20S"
 
         # Set the symbols that we want to be monitoring
         self.symbols = [

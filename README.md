@@ -278,15 +278,13 @@ This object represents an order. Each order belongs to a specific strategy.
 A simple market order can be constructed as follows:
 
 ```python
-strategy_name = "Test Strategy"
 symbol = "SPY"
 quantity = 50
 side = "buy"
-order = self.create_order(strategy_name, symbol, quantity, side)
+order = self.create_order(symbol, quantity, side)
 ```
 
 With:
-- strategy_name (str): the strategy name that this order belongs to
 - symbol (str): the string representation of the asset e.g. "GOOG" for Google
 - quantity (int): the number of shares to buy/sell
 - side (str): must be either ```"buy"``` for buying order or ```"sell"``` for selling order
@@ -308,7 +306,7 @@ To create a limit order object, add the keyword parameter `limit_price`
 
 ```python
 my_limit_price = 500
-order = self.create_order(strategy_name, symbol, quantity, side, limit_price=my_limit_price)
+order = self.create_order(symbol, quantity, side, limit_price=my_limit_price)
 self.submit_order(order)
 ```
 
@@ -320,7 +318,7 @@ To create a stop order object, add the keyword parameter `stop_price`.
 
 ```python
 my_stop_price = 400
-order = self.create_order(strategy_name, symbol, quantity, side, stop_price=my_stop_price)
+order = self.create_order(symbol, quantity, side, stop_price=my_stop_price)
 self.submit_order(order)
 ```
 
@@ -333,7 +331,7 @@ To create a stop_limit order object, add the keyword parameters `stop_price` and
 ```python
 my_limit_price = 405
 my_stop_price = 400
-order = self.create_order(strategy_name, symbol, quantity, side, stop_price=my_stop_price,               limit_price=my_limit_price)
+order = self.create_order(symbol, quantity, side, stop_price=my_stop_price,               limit_price=my_limit_price)
 self.submit_order(order)
 ```
 
@@ -346,11 +344,11 @@ To create trailing_stop orders, add either a `trail_price` or a `trail_percent` 
 
 ```python
 my_trail_price = 20
-order_1 = self.create_order(strategy_name, symbol, quantity, side, trail_price=my_trail_price)
+order_1 = self.create_order(symbol, quantity, side, trail_price=my_trail_price)
 self.submit_order(order_1)
 
 my_trail_percent = 2.0 # 2.0 % 
-order_2 = self.create_order(strategy_name, symbol, quantity, side, trail_percent=my_trail_percent)
+order_2 = self.create_order(symbol, quantity, side, trail_percent=my_trail_percent)
 self.submit_order(order_2)
 ```
 
@@ -378,7 +376,7 @@ A `stop_loss_limit_price` can also be specified to make the stop loss order a st
 my_take_profit_price = 420
 my_stop_loss_price = 400
 order = self.create_order(
-  strategy_name, symbol, quantity, side, 
+  symbol, quantity, side, 
   take_profit_price=my_take_profit_price,
   stop_loss_price=my_stop_loss_price
 )
@@ -412,7 +410,7 @@ A `stop_loss_limit_price` can also be specified to make the stop loss order a st
 my_take_profit_price = 420
 my_stop_loss_price = 400
 order = self.create_order(
-  strategy_name, symbol, quantity, side, 
+  symbol, quantity, side, 
   take_profit_price=my_take_profit_price,
   stop_loss_price=my_stop_loss_price,
   position_filled=True

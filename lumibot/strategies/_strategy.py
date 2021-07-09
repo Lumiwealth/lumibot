@@ -48,6 +48,12 @@ class _Strategy:
         # Setting the data provider
         if self._is_backtesting:
             self.data_source = self.broker._data_source
+
+            if risk_free_rate is None:
+                # Get risk free rate from US Treasuries by default
+                self._risk_free_rate = get_risk_free_rate()
+            else:
+                self._risk_free_rate = risk_free_rate
         elif data_source is None:
             self.data_source = self.broker
         else:
@@ -68,11 +74,6 @@ class _Strategy:
         self._stats_file = stats_file
         self._stats = pd.DataFrame()
         self._analysis = {}
-        if risk_free_rate is None:
-            # Get risk free rate from US Treasuries by default
-            self._risk_free_rate = get_risk_free_rate()
-        else:
-            self._risk_free_rate = risk_free_rate
 
         # Storing parameters for the initialize method
         self._parameters = kwargs

@@ -6,7 +6,6 @@ from alpaca_trade_api.common import URL
 from alpaca_trade_api.entity import Bar
 
 from lumibot.entities import Bars
-from lumibot.tools import YahooHelper as yh
 
 from .data_source import DataSource
 
@@ -80,9 +79,7 @@ class AlpacaData(DataSource):
         return result
 
     def _parse_source_symbol_bars(self, response, asset):
-        df = yh.append_actions_data(asset.symbol, response)
-        df["price_change"] = df["close"].pct_change()
-        df["dividend_yield"] = df["dividend"] / df["close"]
-        df["return"] = df["dividend_yield"] + df["price_change"]
-        bars = Bars(df, self.SOURCE, asset, raw=response)
+        # TODO: Alpaca return should also include dividend yield
+        response["return"] = response["close"].pct_change()
+        bars = Bars(response, self.SOURCE, asset, raw=response)
         return bars

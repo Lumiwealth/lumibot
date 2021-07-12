@@ -235,12 +235,22 @@ class StrategyExecutor(Thread):
         self.strategy.log_message(
             "Executing the on_partially_filled_order event method"
         )
-        self.strategy.on_partially_filled_order(position, order, price, quantity, multiplier)
+        self.strategy.on_partially_filled_order(
+            position, order, price, quantity, multiplier
+        )
 
     @event_method
     def _on_filled_order(self, position, order, price, quantity, multiplier):
         self.strategy.log_message("Executing the on_filled_order event method")
         self.strategy.on_filled_order(position, order, price, quantity, multiplier)
+
+        # Let our listener know that an order has been filled (set in the callback)
+        if hasattr(self.strategy, "_filled_order_callback") and callable(
+            self.strategy._filled_order_callback
+        ):
+            self.strategy._filled_order_callback(
+                self, position, order, price, quantity, multiplier
+            )
 
     # ======Execution methods ====================
 
@@ -259,10 +269,10 @@ class StrategyExecutor(Thread):
             time_to_close = self.broker.get_time_to_close()
             sleeptime = time_to_close - self.minutes_before_closing * 60
             sleeptime_err_msg = (
-               f"You can set the sleep time as an integer which will be interpreted as "
-               f"minutes. eg: sleeptime = 50 would be 50 minutes. Conversely, you can enter "
-               f"the time as a string with the duration numbers first, followed by the time "
-               f"units: 'M' for minutes, 'S' for seconds eg: '300S' is 300 seconds."
+                f"You can set the sleep time as an integer which will be interpreted as "
+                f"minutes. eg: sleeptime = 50 would be 50 minutes. Conversely, you can enter "
+                f"the time as a string with the duration numbers first, followed by the time "
+                f"units: 'M' for minutes, 'S' for seconds eg: '300S' is 300 seconds."
             )
             if isinstance(self.strategy.sleeptime, int):
                 units = "M"

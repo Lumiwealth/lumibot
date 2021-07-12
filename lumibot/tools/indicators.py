@@ -5,7 +5,9 @@ from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
 import pandas as pd
 
+# import lumibot.data_sources.alpha_vantage as av
 from lumibot import LUMIBOT_DEFAULT_PYTZ
+from lumibot.entities.asset import Asset
 
 from .yahoo_helper import YahooHelper as yh
 
@@ -178,4 +180,10 @@ def plot_returns(df1, name1, df2, name2, plot_file="backtest_result.pdf"):
 
 
 def get_risk_free_rate():
-    return yh.get_risk_free_rate()
+    result = None
+    try:
+        result = yh.get_risk_free_rate()
+    except:
+        pass
+
+    return result

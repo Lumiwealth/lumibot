@@ -150,7 +150,6 @@ class DataSource:
 
         return AssetsMapping(result)
 
-
     def get_last_price(self, asset, timestep=None):
         """Takes an asset and returns the last known price"""
         if timestep is None:

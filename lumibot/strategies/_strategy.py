@@ -34,6 +34,7 @@ class _Strategy:
         benchmark_asset="SPY",
         backtesting_start=None,
         backtesting_end=None,
+        filled_order_callback=None,
         **kwargs,
     ):
         # Setting the broker object
@@ -83,6 +84,8 @@ class _Strategy:
 
         self._strategy_returns_df = None
         self._benchmark_returns_df = None
+
+        self._filled_order_callback = filled_order_callback
 
     # =============Internal functions===================
 

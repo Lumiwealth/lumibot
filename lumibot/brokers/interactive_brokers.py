@@ -493,7 +493,6 @@ class IBWrapper(EWrapper):
             self.init_time()
         self.my_time_queue.put(server_time)
 
-    # Tick Data. NOT USED YET
     def init_tick(self):
         self.tick = list()
         tick_queue = queue.Queue()

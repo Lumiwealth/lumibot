@@ -15,6 +15,7 @@ from lumibot.strategies.examples import (
     Simple,
     Strangle,
     FastTrading,
+    CoveredCall,
 )
 from lumibot.tools import indicators, perf_counters
 from lumibot.traders import Trader
@@ -71,6 +72,13 @@ mapping = {
     },
     "fast_trading": {
         "class": FastTrading,
+        "backtesting_datasource": None,
+        "kwargs": {},
+        "backtesting_cache": False,
+        "config": None,
+    },
+    "covered_call": {
+        "class": CoveredCall,
         "backtesting_datasource": None,
         "kwargs": {},
         "backtesting_cache": False,

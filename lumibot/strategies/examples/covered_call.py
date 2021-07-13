@@ -2,6 +2,7 @@ from itertools import cycle
 import datetime
 import logging
 import time
+
 # import btalib
 import finta as TA
 from yfinance import Ticker, download
@@ -59,20 +60,7 @@ class CoveredCall(Strategy):
 
         self.buy_signal = True
 
-        self.option = {
-            "call": None,
-            "chains": None,
-            "expirations": None,
-            "strikes": None,
-            "sell_call_strike": None,
-            "expiration_date": None,
-            "price_underlying": None,
-            "price_call": None,
-            "trade_created_time": None,
-            "call_order": None,
-            "multiplier": 100,
-            "status": 0,
-        }
+        self.option = self.set_option_dict()
 
     def before_starting_trading(self):
         """Create the option assets object for each underlying. """
@@ -83,7 +71,6 @@ class CoveredCall(Strategy):
             logging.info(f"Error: {e}")
             if self.option["chains"] is None:
                 raise ValueError("Unable to obtain the initial option chain. ")
-
 
         # options["put"] = self.create_asset(
         #     asset.symbol,
@@ -105,6 +92,19 @@ class CoveredCall(Strategy):
 
         # Determine if there's an exising call, Check if it's matured, if so remove from dict.
         # and proceed, else return.
+
+        if (
+            self.option["status"] == 1
+            and self.option["expiration_date"] < datetime.datetime.now()
+        ):
+            return
+
+        if (
+            self.option["status"] == 1
+            and self.option["expiration_date"] > datetime.datetime.now()
+        ):
+            self.remove_expired_option(self.option["call"])
+            self.option = self.set_option_dict()
 
         try:
             self.option["price_underlying"] = self.get_last_price(self.asset)
@@ -149,161 +149,24 @@ class CoveredCall(Strategy):
             for strike in self.option["strikes"]
         ]
 
-        # rsi_bars = self.get_symbol_bars(self.asset, self.rsi_period).df["close"]
-
         last_option_prices = self.get_last_prices(option_assets)
 
         # Determine most profitable option.
-        selected_option = self.select_option(self.option["price_underlying"], last_option_prices)
+        self.option["call"] = self.select_option(
+            self.option["price_underlying"], last_option_prices
+        )
 
-        x = 1
+        # Buy stock and sell put.
+        if self.asset not in filled_assets:
+            self.submit_order(self.create_order(self.asset, 100, "buy"))
 
-        # # Sell positions:
-        # for asset, options in self.trading_pairs.items():
-        #     if (
-        #         options["call"] not in filled_assets
-        #         and options["put"] not in filled_assets
-        #     ):
-        #         continue
-        #
-        #     if options["status"] > 1:
-        #         continue
-        #
-        #     last_price = self.get_last_price(asset)
-        #     if last_price == 0:
-        #         continue
-        #
-        #     # The sell signal will be the maximum percent movement of original price
-        #     # away from strike, greater than the take profit threshold.
-        #     price_move = max(
-        #         [
-        #             (last_price - options["call"].strike),
-        #             (options["put"].strike - last_price),
-        #         ]
-        #     )
-        #
-        #     if price_move / options["price_underlying"] > self.take_profit_threshold:
-        #         self.submit_order(
-        #             self.create_order(
-        #                 options["call"],
-        #                 options["call_order"].quantity,
-        #                 "sell",
-        #                 exchange="CBOE",
-        #             )
-        #         )
-        #         self.submit_order(
-        #             self.create_order(
-        #                 options["put"],
-        #                 options["put_order"].quantity,
-        #                 "sell",
-        #                 exchange="CBOE",
-        #             )
-        #         )
-        #
-        #         options["status"] = 2
-        #         self.total_trades -= 1
-        #
-        # # Create positions:
-        # if self.total_trades >= self.max_trades:
-        #     return
-        #
-        # for _ in range(len(self.trading_pairs.keys())):
-        #     if self.total_trades >= self.max_trades:
-        #         break
-        #
-        #     asset = next(self.asset_gen)
-        #     options = self.trading_pairs[asset]
-        #     if options["status"] > 0:
-        #         continue
-        #
-        #     # Check for symbol in positions.
-        #     if len([p.symbol for p in positions if p.symbol == asset.symbol]) > 0:
-        #         continue
-        #     # Check if options already traded.
-        #     if options["call"] in filled_assets or options["put"] in filled_assets:
-        #         continue
-        #
-        #     # Get the latest prices for stock and options.
-        #     try:
-        #         print(asset, options["call"], options["put"])
-        #         asset_prices = self.get_last_prices(
-        #             [asset, options["call"], options["put"]]
-        #         )
-        #         assert len(asset_prices) == 3
-        #     except:
-        #         logging.info(f"Failed to get price data for {asset.symbol}")
-        #         continue
-        #
-        #     options["price_underlying"] = asset_prices[asset]
-        #     options["price_call"] = asset_prices[options["call"]]
-        #     options["price_put"] = asset_prices[options["put"]]
-        #
-        #     # Check to make sure date is not too close to earnings.
-        #     print(f"Getting earnings date for {asset.symbol}")
-        #     edate_df = Ticker(asset.symbol).calendar
-        #     if edate_df is None:
-        #         print(
-        #             f"There was no calendar information for {asset.symbol} so it "
-        #             f"was not traded."
-        #         )
-        #         continue
-        #     edate = edate_df.iloc[0, 0].date()
-        #     current_date = datetime.datetime.now().date()
-        #     days_to_earnings = (edate - current_date).days
-        #     if days_to_earnings > self.days_to_earnings_min:
-        #         logging.info(
-        #             f"{asset.symbol} is too far from earnings at" f" {days_to_earnings}"
-        #         )
-        #         continue
-        #
-        #     options["trade_created_time"] = datetime.datetime.now()
-        #
-        #     quantity_call = int(
-        #         trade_cash / (options["price_call"] * options["call"].multiplier)
-        #     )
-        #     quantity_put = int(
-        #         trade_cash / (options["price_put"] * options["put"].multiplier)
-        #     )
-        #
-        #     # Check to see if the trade size it too big for cash available.
-        #     if quantity_call == 0 or quantity_put == 0:
-        #         options["status"] = 2
-        #         continue
-        #
-        #     # Buy call.
-        #     options["call_order"] = self.create_order(
-        #         options["call"],
-        #         quantity_call,
-        #         "buy",
-        #         exchange="CBOE",
-        #     )
-        #     self.submit_order(options["call_order"])
-        #
-        #     # Buy put.
-        #     options["put_order"] = self.create_order(
-        #         options["put"],
-        #         quantity_put,
-        #         "buy",
-        #         exchange="CBOE",
-        #     )
-        #     self.submit_order(options["put_order"])
-        #
-        #     self.total_trades += 1
-        #     options["status"] = 1
-        #
-        # positions = self.get_tracked_positions()
-        # filla = [pos.asset for pos in positions]
-        # print(
-        #     f"**** End of iteration ****\n"
-        #     f"Cash: {self.unspent_money}, Value: {self.portfolio_value}  "
-        #     f"Positions: {positions} "
-        #     f"Filled_assets: {filla} "
-        #     f"*******  END ELAPSED TIME  "
-        #     f"{(time.time() - self.time_start):5.0f}   "
-        #     f"*******"
-        # )
+        if self.option["call_order"] is None:
+            self.option["call_order"] = self.submit_order(
+                self.create_order(self.option["call"], 1, "sell", exchange="SMART")
+            )
+            self.option["status"] = 1
 
-        # self.await_market_to_close()
+        self.await_market_to_close()
 
     def before_market_closes(self):
         self.sell_all()
@@ -330,10 +193,26 @@ class CoveredCall(Strategy):
             key=lambda i: abs(strikes[i] - self.option["price_underlying"]),
         )
         cover_strikes = strikes[
-            (nearest_strike - nStrikesLess): (nearest_strike + nStrikesMore)
+            (nearest_strike - nStrikesLess) : (nearest_strike + nStrikesMore)
         ]
 
         return cover_strikes
+
+    def set_option_dict(self):
+        return {
+            "call": None,
+            "chains": None,
+            "expirations": None,
+            "strikes": None,
+            "sell_call_strike": None,
+            "expiration_date": None,
+            "price_underlying": None,
+            "price_call": None,
+            "trade_created_time": None,
+            "call_order": None,
+            "multiplier": 100,
+            "status": 0,
+        }
 
     def get_expiration_date(self, expirations, max_days):
         """Expiration date that is closest to, but less than max days to expriry. """
@@ -350,14 +229,20 @@ class CoveredCall(Strategy):
 
     def select_option(self, stock_price, options_price_list):
         """Strike minus the latest price to get stock profit. Then add premium."""
-        strike = None
         max_profit = None
+        option_asset = None
         for option, option_price in options_price_list.items():
-            stock_profit = (option.strike - stock_price)
+            stock_profit = option.strike - stock_price
             total_profit = stock_profit + option_price
 
             if max_profit is None or total_profit > max_profit:
                 max_profit = total_profit
-                strike = option.strike
+                option_asset = option
 
-        return strike, max_profit
+        return option_asset
+
+    def remove_expired_option(self, option):
+        # remove matured options
+        for position in self.get_tracked_positions():
+            if position.asset == option:
+                position.remove(option)

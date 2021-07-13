@@ -176,7 +176,7 @@ class Broker:
 
     def is_market_open(self):
         """return True if market is open else false"""
-        pass
+        # pass
 
     def get_time_to_open(self):
         """Return the remaining time for the market to open in seconds"""

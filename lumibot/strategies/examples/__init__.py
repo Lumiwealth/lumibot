@@ -8,3 +8,4 @@ from .momentum import Momentum
 from .simple import Simple
 from .strangle import Strangle
 from .covered_call import CoveredCall
+from .bear_call_spread import BearCallSpread

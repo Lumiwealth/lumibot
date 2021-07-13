@@ -16,6 +16,7 @@ from lumibot.strategies.examples import (
     Strangle,
     FastTrading,
     CoveredCall,
+    BearCallSpread,
 )
 from lumibot.tools import indicators, perf_counters
 from lumibot.traders import Trader
@@ -79,6 +80,13 @@ mapping = {
     },
     "covered_call": {
         "class": CoveredCall,
+        "backtesting_datasource": None,
+        "kwargs": {},
+        "backtesting_cache": False,
+        "config": None,
+    },
+    "bear_call_spread": {
+        "class": BearCallSpread,
         "backtesting_datasource": None,
         "kwargs": {},
         "backtesting_cache": False,

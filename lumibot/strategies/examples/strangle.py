@@ -49,7 +49,7 @@ class Strangle(Strategy):
         self.take_profit_threshold = 0.001  # 0.015
         self.sleeptime = 5
         self.total_trades = 0
-        self.max_trades = 4
+        self.max_trades = 2
         self.max_days_expiry = 15
         self.days_to_earnings_min = 100  # 15
         self.exchange = "SMART"
@@ -60,14 +60,14 @@ class Strangle(Strategy):
             "AAPL",
             "AMD",
             "AMZN",
-            "BAC",
-            "DIS",
-            "EEM",
-            "FB",
-            "FXI",
-            "MSFT",
-            "TSLA",
-            "UBER",
+            # "BAC",
+            # "DIS",
+            # "EEM",
+            # "FB",
+            # "FXI",
+            # "MSFT",
+            # "TSLA",
+            # "UBER",
         ]
 
         # Underlying Asset Objects.

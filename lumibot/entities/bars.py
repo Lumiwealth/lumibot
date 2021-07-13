@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 
 import pandas as pd
@@ -63,7 +64,11 @@ class Bars:
         return self.df["close"][-1]
 
     def get_last_dividend(self):
-        return self.df["dividend"][-1]
+        if "dividend" in self.df.columns:
+            return self.df["dividend"][-1]
+        else:
+            logging.warning("Unable to find 'dividend' column in bars")
+            return 0
 
     def filter(self, start=None, end=None):
         df_copy = self.df

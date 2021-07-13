@@ -77,7 +77,7 @@ class Trader:
 
         logger.propagate = True
 
-        # Diable Interactive Brokers logs
+        # Disable Interactive Brokers logs
         for log_name, log_obj in logging.Logger.manager.loggerDict.items():
             if log_name.startswith("ibapi"):
                 log_obj.disabled = True

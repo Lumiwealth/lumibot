@@ -1043,7 +1043,6 @@ Optional Parameters:
 
 Example:
 ```python
-import timedelta
 # Return a midnight rounded datetime object of three minutes ago 
 dt =  self.get_round_minute(timeshift=3)
 print(dt)
@@ -1067,7 +1066,6 @@ Optional Parameters:
 
 Example:
 ```python
-import timedelta
 # Return a midnight rounded datetime object of three days ago 
 dt =  self.get_round_day(timeshift=3)
 print(dt)
@@ -1137,7 +1135,7 @@ Parameters:
 
 Example:
 ```python
-import timedelta
+from datetime import timedelta
 #...
 
 # Extract 10 rows of SPY data with one minute timestep between each row

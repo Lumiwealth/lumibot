@@ -339,6 +339,7 @@ class Strategy(_Strategy):
         strike="",
         right="",
         multiplier=100,
+        currency=None,
     ):
         """Create an asset object."""
         return Asset(
@@ -349,6 +350,7 @@ class Strategy(_Strategy):
             strike=strike,
             right=right,
             multiplier=multiplier,
+            currency=currency,
         )
 
     def get_symbol_bars(

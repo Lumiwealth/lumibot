@@ -449,6 +449,8 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
 TYPE_MAP = dict(
     stock="STK",
     option="OPT",
+    future="FUT",
+    forex="CASH",
 )
 # ===================INTERACTIVE BROKERS CLASSES===================
 class IBWrapper(EWrapper):
@@ -1027,7 +1029,13 @@ class IBApp(IBWrapper, IBClient):
             contract.strike = asset.strike_str
             contract.right = asset.right
             contract.multiplier = asset.multiplier
-            contract.primaryExchange="CBOE"
+            contract.primaryExchange = "CBOE"
+        elif asset.asset_type == 'future':
+            contract.lastTradeDateOrContractMonth = asset.expiration
+            contract.primaryExchange = "GLOBEX"
+            contract.currency = "USD"
+        elif asset.asset_type == 'forex':
+            contract.exchange = "IDEALPRO"
         else:
             raise ValueError(
                 f"The asset {asset.symbol} has a type of {asset.asset_type}. "
@@ -1163,6 +1171,7 @@ class IBApp(IBWrapper, IBClient):
             contract_object = self.create_contract(
                 order.asset,
                 exchange=order.exchange,
+                currency=order.asset.currency,
             )
             order_objects = self.create_order(order)
             if len(order_objects) == 0:

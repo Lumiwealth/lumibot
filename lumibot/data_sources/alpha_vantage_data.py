@@ -39,6 +39,7 @@ class AlphaVantageData(DataSource):
     def _pull_source_symbol_bars(
         self, asset, length, timestep=MIN_TIMESTEP, timeshift=None
     ):
+
         ts = TimeSeries(key=self.config.API_KEY)
         # Get json object with the intraday data and another with the call's metadata
 

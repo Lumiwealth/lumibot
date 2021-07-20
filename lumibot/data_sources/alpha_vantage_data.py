@@ -21,6 +21,7 @@ class AlphaVantageData(DataSource):
         self.name = "alpha vantage"
         self.auto_adjust = auto_adjust
         self._data_store = {}
+        self.config = config
 
     def _append_data(self, asset, data):
         result = data.rename(
@@ -38,7 +39,8 @@ class AlphaVantageData(DataSource):
     def _pull_source_symbol_bars(
         self, asset, length, timestep=MIN_TIMESTEP, timeshift=None
     ):
-        ts = TimeSeries(key=credentials.AlphaVantageConfig.API_KEY)
+
+        ts = TimeSeries(key=self.config.API_KEY)
         # Get json object with the intraday data and another with the call's metadata
 
         # TODO: make sure this grabs the correct days, this is currently resulting in a bug

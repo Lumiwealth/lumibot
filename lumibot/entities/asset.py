@@ -11,11 +11,20 @@ class Asset:
       - asset_type (string, default: `stock`): One of the following:
         - `stock`
         - `option`
+        - `future`
+        - 'forex'
       If asset_type is `option` then the following fields are mandatory.
       - expiration (string, "YYYY-MM-DD"): Contract expiration date.
+          For futures:
+          - expiration (string, "YYYYMM"): (use for futures)
       - strike (float): Contract strike price.
       - right(string): `call` or `put`
       - multiplier (int): Contract leverage over the underlying.
+      If the asset_type if 'forex' then use the following fields:
+      - symbol (string): The base currency.
+      - currency (string): Conversion currency.
+      - asset_type(string): `forex`
+      When ordering forex, use the full dallar value, minimums of 20,000.
     """
 
     def __init__(
@@ -27,8 +36,9 @@ class Asset:
         strike=None,
         right=None,
         multiplier=1,
+        currency=None,
     ):
-        self.asset_types = ["stock", "option"]
+        self.asset_types = ["stock", "option", "future", "forex"]
 
         self.symbol = symbol
         self.asset_type = asset_type
@@ -39,6 +49,9 @@ class Asset:
         self.strike = strike
         self.right = right
         self.multiplier = int(multiplier)
+
+        # Forex
+        self.currency = currency
 
     @property
     def asset_type(self):

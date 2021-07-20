@@ -3,7 +3,6 @@ from datetime import datetime
 import pandas as pd
 from alpha_vantage.timeseries import TimeSeries
 
-from credentials import AlphaVantageConfig
 from lumibot import LUMIBOT_DEFAULT_PYTZ, LUMIBOT_DEFAULT_TIMEZONE
 from lumibot.data_sources.exceptions import NoDataFound
 from lumibot.entities import Bars
@@ -39,7 +38,7 @@ class AlphaVantageData(DataSource):
     def _pull_source_symbol_bars(
         self, asset, length, timestep=MIN_TIMESTEP, timeshift=None
     ):
-        ts = TimeSeries(key=AlphaVantageConfig.API_KEY)
+        ts = TimeSeries(key=credentials.AlphaVantageConfig.API_KEY)
         # Get json object with the intraday data and another with the call's metadata
 
         # TODO: make sure this grabs the correct days, this is currently resulting in a bug

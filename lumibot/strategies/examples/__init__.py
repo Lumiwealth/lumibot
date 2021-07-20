@@ -7,3 +7,4 @@ from .intraday_momentum import IntradayMomentum
 from .momentum import Momentum
 from .simple import Simple
 from .strangle import Strangle
+from.futures import Futures

@@ -209,21 +209,32 @@ An asset object represents securities such as stocks or options in Lumibot. Attr
 that are tracked for assets are: 
   - symbol(str): Ticker symbol representing the stock or underlying for options. So for 
     example if trading IBM calls the symbol would just be `IBM`. 
-  - asset_type(str): Asset type can be either `stock` or `option`. default: `stock`
+  - asset_type(str): Asset type can be either `stock`, `option`, `future`, `forex`. default: `stock`
   - name(str): Optional to add in the name of the corporation for logging or printout.  
   #### Options only
   - expiration (str): Expiration of the options contract. Format is "YYYYMMDD".
   - strike(float): Contract strike price.
   - right(str): May enter `call` or `put`.
   - multiplier(float): Contract multiplier to the underlying. (default: 1)
+  
+  #### Futures Only
+  Set up a futures contract using the following: 
+  - symbol(str): Ticker symbol for the contract, > eg: `ES`
+  - asset_type(str): "future"
+  - expiration(str): Month formatted as `YYYYMM`. So August 2021 would be `202108`
+  
+  #### Forex Only
+  - symbol(str): Currency base: eg: `EUR`
+  - currency(str): Conversion currency. eg: `GBP`
+  - asset_type(str): "forex"
 
 When creating a new security there are two options. 
 1. Security symbol: It is permissible to use the security symbol only when trading 
    stocks. Lumibot will convert the ticker symbol to an asset behind the scenes.
    
 2. Asset object: Asset objects may be created at anytime for stocks or options. For 
-   options asset objects are mandatory due to the additional details required to 
-   identify and trade options. 
+   options, futures, or forex asset objects are mandatory due to the additional details required to 
+   identify and trade these securities. 
    
 Assets may be created using the `create_asset` method as follows: 
   `create_asset(symbol, asset_type=`option`, **kwargs)` 
@@ -826,6 +837,7 @@ Optional Parameters:
 - trail_price (default = None),
 - trail_percent (default = None),
 - position_filled (default = None),
+- exhange (default = "SMART")
 
 *** NOTE: Limit and stop orders work as normal in live trading, but will be ignored in backtesting. Meaning that a backtest will assume limit and stop orders were never executed.
 

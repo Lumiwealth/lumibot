@@ -23,8 +23,8 @@ from lumibot.traders import Trader
 # Global parameters
 debug = True
 budget = 40000
-backtesting_start = datetime(2019, 1, 15)
-backtesting_end = datetime(2019, 12, 15)
+backtesting_start = datetime(2020, 1, 10)
+backtesting_end = datetime(2020, 2, 15)
 logfile = "logs/test.log"
 
 # Trading objects

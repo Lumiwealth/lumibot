@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-
+import pandas as pd
 from lumibot.data_sources import DataSource
 from lumibot.tools import print_progress_bar
 
@@ -51,6 +51,6 @@ class DataSourceBacktesting(DataSource):
             self, asset, length, timestep=timestep, timeshift=backtesting_timeshift
         )
 
-        filter_criteria = result.index < self.localize_datetime(self._datetime)
-        result = result[filter_criteria]  # todo review chaning this its in core file.
+        # filter_criteria = result.index < pd.Timestamp(self.localize_datetime(self._datetime))
+        # result = result[filter_criteria]  # todo review chaning this its in core file.
         return result

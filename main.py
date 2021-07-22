@@ -4,7 +4,7 @@ from datetime import datetime
 from time import perf_counter, time
 
 from credentials import AlpacaConfig
-from lumibot.backtesting import YahooDataBacktesting
+from lumibot.backtesting import YahooDataBacktesting, PandasDataBacktesting
 from lumibot.brokers import Alpaca
 from lumibot.data_sources import AlpacaData
 from lumibot.strategies.examples import (
@@ -15,15 +15,16 @@ from lumibot.strategies.examples import (
     IntradayMomentum,
     Momentum,
     Simple,
+    Dev,
 )
 from lumibot.tools import indicators, perf_counters
 from lumibot.traders import Trader
 
 # Global parameters
-debug = False
+debug = True
 budget = 40000
-backtesting_start = datetime(2019, 1, 1)
-backtesting_end = datetime(2020, 12, 31)
+backtesting_start = datetime(2019, 1, 15)
+backtesting_end = datetime(2019, 12, 15)
 logfile = "logs/test.log"
 
 # Trading objects
@@ -74,6 +75,13 @@ mapping = {
     "simple": {
         "class": Simple,
         "backtesting_datasource": YahooDataBacktesting,
+        "kwargs": {},
+        "backtesting_cache": False,
+        "config": None,
+    },
+    "dev": {
+        "class": Dev,
+        "backtesting_datasource": PandasDataBacktesting,
         "kwargs": {},
         "backtesting_cache": False,
         "config": None,

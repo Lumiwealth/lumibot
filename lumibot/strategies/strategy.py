@@ -330,6 +330,10 @@ class Strategy(_Strategy):
     def to_default_timezone(self, dt):
         return self.data_source.to_default_timezone(dt)
 
+    def load_pandas(self, asset, df):
+        asset = self._set_asset_mapping(asset)
+        self.data_source.load_pandas(asset, df)
+
     def create_asset(
         self,
         symbol,

@@ -52,5 +52,5 @@ class DataSourceBacktesting(DataSource):
         )
 
         filter_criteria = result.index < self.localize_datetime(self._datetime)
-        result = result[filter_criteria]
+        result = result[filter_criteria]  # todo review chaning this its in core file.
         return result

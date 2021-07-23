@@ -24,7 +24,7 @@ from lumibot.traders import Trader
 debug = True
 budget = 40000
 backtesting_start = datetime(2020, 1, 10)
-backtesting_end = datetime(2020, 2, 15)
+backtesting_end = datetime(2020, 1, 20)
 logfile = "logs/test.log"
 
 # Trading objects
@@ -90,7 +90,7 @@ mapping = {
 
 if __name__ == "__main__":
     # Set the benchmark asset for backtesting to be "SPY" by default
-    benchmark_asset = "SPY"
+    benchmark_asset = None
 
     parser = argparse.ArgumentParser(
         f"\n\
@@ -153,10 +153,10 @@ if __name__ == "__main__":
             toc = perf_counter()
             print("Elpased time:", toc - tic)
 
-            logging.info(f"*** Benchmark Performance for {benchmark_asset} ***")
-            indicators.calculate_returns(
-                benchmark_asset, backtesting_start, backtesting_end
-            )
+            # logging.info(f"*** Benchmark Performance for {benchmark_asset} ***")
+            # indicators.calculate_returns(
+            #     benchmark_asset, backtesting_start, backtesting_end
+            # )
 
     if live_trading:
         trader.run_all()

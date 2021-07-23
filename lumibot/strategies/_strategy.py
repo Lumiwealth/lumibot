@@ -315,7 +315,7 @@ class _Strategy:
             sleeptime=sleeptime,
             risk_free_rate=risk_free_rate,
             stats_file=stats_file,
-            benchmark_asset=benchmark_asset,
+            # benchmark_asset=benchmark_asset,
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             **kwargs,
@@ -323,6 +323,6 @@ class _Strategy:
         trader.add_strategy(strategy)
         result = trader.run_all()
 
-        strategy.plot_returns_vs_benchmark(plot_file)
+        # strategy.plot_returns_vs_benchmark(plot_file)
 
         return result

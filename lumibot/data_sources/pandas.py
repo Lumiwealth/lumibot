@@ -52,7 +52,7 @@ class PandasData(DataSource):
     def _pull_source_symbol_bars(
         self, asset, length, timestep=MIN_TIMESTEP, timeshift=None
     ):
-        self._parse_source_timestep(timestep, reverse=True)
+        self._parse_source_timestep(timestep, reverse=True) # todo, doing nothing
         if asset in self._data_store:
             data = self._data_store[asset]
         else:

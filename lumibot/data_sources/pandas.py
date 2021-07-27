@@ -13,21 +13,24 @@ class PandasData(DataSource):
     MIN_TIMESTEP = "day"
     TIMESTEP_MAPPING = [
         {"timestep": "day", "representations": ["1D", "day"]},
+        {"timestep": "minute", "representations": ["1M", "minute"]},
     ]
 
-    def __init__(self, config=None, auto_adjust=True, **kwargs):
+    def __init__(self, pandas_data, config=None, auto_adjust=True, **kwargs):
         self.name = "pandas"
+        self.pandas_data = pandas_data
         self.auto_adjust = auto_adjust
         self._data_store = {}
+        self._date_index = None
+        self._date_supply = None
 
-    def load_pandas(self, asset, data):
-        # df.columns = df.columns.str.lower()
-        if "Date" in data.columns:
-            data = data.set_index("Date")
-            data.index = pd.to_datetime(data.index)
-        self._append_data(asset, data)
-
-
+    def load_data(self, pandas_data):
+        for asset, data in pandas_data.items():
+            if "Date" in data.columns:
+                data = data.set_index("Date")
+                data.index = pd.to_datetime(data.index)
+                data.index = data.index.tz_localize(self.DEFAULT_PYTZ)
+            self._append_data(asset, data)
 
     def _append_data(self, asset, data):
         if "Adj Close" in data:
@@ -46,8 +49,31 @@ class PandasData(DataSource):
         data["price_change"] = data["close"].pct_change()
         data["dividend_yield"] = data["dividend"] / data["close"]
         data["return"] = data["dividend_yield"] + data["price_change"]
+        data_start = self.datetime_start - pd.Timedelta(days=4)
+        data_end = self.datetime_end - pd.Timedelta(days=4)
+        data = data.loc[data_start: data_end, :]
         self._data_store[asset] = data
+
+        self.update_date_index(data.index)
+
         return data
+
+    def get_assets(self):
+        return list(self._data_store.keys())
+
+    def get_asset_by_name(self, name):
+        return [asset for asset in self.get_assets() if asset.name == name]
+
+    def get_asset_by_symbol(self, name):
+        return [asset for asset in self.get_assets() if asset.name == name]
+
+    def update_date_index(self, new_date_index):
+
+        if self._date_index is None:
+            self._date_index = new_date_index
+        else:
+            self._date_index = self._date_index.union(new_date_index)
+
 
     def _pull_source_symbol_bars(
         self, asset, length, timestep=MIN_TIMESTEP, timeshift=None
@@ -56,10 +82,7 @@ class PandasData(DataSource):
         if asset in self._data_store:
             data = self._data_store[asset]
         else:
-            data = yh.get_symbol_data(asset.symbol, auto_adjust=self.auto_adjust)
-            if data.shape[0] == 0:
-                raise NoDataFound(self.SOURCE, asset.symbol)
-            data = self._append_data(asset, data)
+            raise ValueError(f"Asset {asset} does not have data.")
 
         if timeshift:
             end = datetime.now() - timeshift

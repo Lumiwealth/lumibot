@@ -1,6 +1,7 @@
 import os
 import sys
 from datetime import datetime
+import pandas as pd
 
 import pandas_market_calendars as mcal
 
@@ -88,6 +89,9 @@ def print_progress_bar(
     decimals=2,
     fill=chr(9608),
 ):
+    if isinstance(value, pd.Timestamp):
+        value = value.tz_localize(None)
+
     total_length = end_value - start_value
     current_length = value - start_value
     percent = min((current_length / total_length) * 100, 100)

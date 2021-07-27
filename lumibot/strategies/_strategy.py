@@ -34,6 +34,7 @@ class _Strategy:
         benchmark_asset="SPY",
         backtesting_start=None,
         backtesting_end=None,
+        pandas_data=None,
         filled_order_callback=None,
         **kwargs,
     ):
@@ -46,9 +47,18 @@ class _Strategy:
         self._backtesting_start = backtesting_start
         self._backtesting_end = backtesting_end
 
+        # Hold the asset objects for strings for stocks only.
+        self._asset_mapping = dict()
+
         # Setting the data provider
         if self._is_backtesting:
             self.data_source = self.broker._data_source
+            if self.data_source.SOURCE == 'PANDAS':
+                pd_asset_keys = dict()
+                for asset, df in pandas_data.items():
+                    new_asset = self._set_asset_mapping(asset)
+                    pd_asset_keys[new_asset] = df
+                self.data_source.load_data(pd_asset_keys)
 
             if risk_free_rate is None:
                 # Get risk free rate from US Treasuries by default
@@ -78,9 +88,6 @@ class _Strategy:
 
         # Storing parameters for the initialize method
         self._parameters = kwargs
-
-        # Hold the asset objects for strings for stocks only.
-        self._asset_mapping = dict()
 
         self._strategy_returns_df = None
         self._benchmark_returns_df = None
@@ -295,6 +302,7 @@ class _Strategy:
         auto_adjust=False,
         benchmark_asset="SPY",
         plot_file="backtest_result.jpg",
+        pandas_data=None,
         **kwargs,
     ):
         if not cls.IS_BACKTESTABLE:
@@ -303,7 +311,8 @@ class _Strategy:
 
         trader = Trader(logfile=logfile)
         data_source = datasource_class(
-            backtesting_start, backtesting_end, config=config, auto_adjust=auto_adjust
+            backtesting_start, backtesting_end, config=config, auto_adjust=auto_adjust,
+            pandas_data=pandas_data, **kwargs
         )
         backtesting_broker = BacktestingBroker(data_source)
         strategy = cls(
@@ -318,6 +327,7 @@ class _Strategy:
             # benchmark_asset=benchmark_asset,
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
+            pandas_data=pandas_data,
             **kwargs,
         )
         trader.add_strategy(strategy)

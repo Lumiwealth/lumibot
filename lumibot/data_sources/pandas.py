@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+
 import pandas as pd
 
 from lumibot.data_sources.exceptions import NoDataFound
@@ -47,11 +48,14 @@ class PandasData(DataSource):
             },
         )
         data["price_change"] = data["close"].pct_change()
-        data["dividend_yield"] = data["dividend"] / data["close"]
+        if "dividend" in data:
+            data["dividend_yield"] = data["dividend"] / data["close"]
+        else:
+            data["dividend_yield"] = 0
         data["return"] = data["dividend_yield"] + data["price_change"]
         data_start = self.datetime_start - pd.Timedelta(days=4)
         data_end = self.datetime_end - pd.Timedelta(days=4)
-        data = data.loc[data_start: data_end, :]
+        data = data.loc[data_start:data_end, :]
         self._data_store[asset] = data
 
         self.update_date_index(data.index)
@@ -74,11 +78,10 @@ class PandasData(DataSource):
         else:
             self._date_index = self._date_index.union(new_date_index)
 
-
     def _pull_source_symbol_bars(
         self, asset, length, timestep=MIN_TIMESTEP, timeshift=None
     ):
-        self._parse_source_timestep(timestep, reverse=True) # todo, doing nothing
+        self._parse_source_timestep(timestep, reverse=True)  # todo, doing nothing
         if asset in self._data_store:
             data = self._data_store[asset]
         else:

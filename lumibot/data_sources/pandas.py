@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+
 import pandas as pd
 
 from lumibot.data_sources.exceptions import NoDataFound
@@ -47,7 +48,10 @@ class PandasData(DataSource):
             },
         )
         data["price_change"] = data["close"].pct_change()
-        data["dividend_yield"] = data["dividend"] / data["close"]
+        if "dividend" in data:
+            data["dividend_yield"] = data["dividend"] / data["close"]
+        else:
+            data["dividend_yield"] = 0
         data["return"] = data["dividend_yield"] + data["price_change"]
         data_start = self.datetime_start - pd.Timedelta(days=4)
         data_end = self.datetime_end + pd.Timedelta(days=4)

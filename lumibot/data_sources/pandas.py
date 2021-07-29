@@ -50,7 +50,7 @@ class PandasData(DataSource):
         data["dividend_yield"] = data["dividend"] / data["close"]
         data["return"] = data["dividend_yield"] + data["price_change"]
         data_start = self.datetime_start - pd.Timedelta(days=4)
-        data_end = self.datetime_end - pd.Timedelta(days=4)
+        data_end = self.datetime_end + pd.Timedelta(days=4)
         data = data.loc[data_start: data_end, :]
         self._data_store[asset] = data
 

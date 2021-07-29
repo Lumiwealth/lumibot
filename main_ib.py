@@ -8,6 +8,7 @@ from lumibot.backtesting import YahooDataBacktesting
 from lumibot.brokers import InteractiveBrokers
 from lumibot.data_sources import InteractiveBrokersData
 from lumibot.strategies.examples import (
+    BuyAndHold,
     DebtTrading,
     Diversification,
     IntradayMomentum,
@@ -15,7 +16,6 @@ from lumibot.strategies.examples import (
     Simple,
     Strangle,
     FastTrading,
-    Futures,
 )
 from lumibot.tools import indicators, perf_counters
 from lumibot.traders import Trader
@@ -70,17 +70,18 @@ mapping = {
         "kwargs": {},
         "config": None,
     },
+    "buy_and_hold": {
+        "class": BuyAndHold,
+        "backtesting_datasource": YahooDataBacktesting,
+        "kwargs": {},
+        "backtesting_cache": False,
+        "config": None,
+    },
     "fast_trading": {
         "class": FastTrading,
         "backtesting_datasource": None,
         "kwargs": {},
         "backtesting_cache": False,
-        "config": None,
-    },
-    "futures": {
-        "class": Futures,
-        "backtesting_datasource": YahooDataBacktesting,
-        "kwargs": {},
         "config": None,
     },
 }

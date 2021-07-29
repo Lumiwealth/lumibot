@@ -18,7 +18,6 @@ from lumibot.strategies.examples import (
     IntradayMomentum,
     Momentum,
     Simple,
-    Dev,
 )
 from lumibot.tools import indicators, perf_counters
 from lumibot.traders import Trader
@@ -35,41 +34,28 @@ alpaca_broker = Alpaca(AlpacaConfig)
 alpaca_data_source = AlpacaData(AlpacaConfig)
 trader = Trader(logfile=logfile, debug=debug)
 
-# Development: Minute Data
-asset = "SPY"
-df = pd.read_csv("data/minute_data.csv")
-df["SMA15"] = TA.SMA(df, 15)
-df["SMA100"] = TA.SMA(df, 100)
-my_data = dict()
-my_data[asset] = df
-
-# Diversification: Multi Daily data.
-tickers = ["SPY", "TLT", "IEF", "GLD", "DJP",]
-div_data = dict()
-# for ticker in tickers:
-#     div_data[ticker] = pd.read_csv(f"data/{ticker}.csv")
-
 # Strategies mapping
 mapping = {
     "momentum": {
         "class": Momentum,
-        "backtesting_datasource": PandasDataBacktesting,
-        "kwargs": {"symbols": tickers},  # ["SPY", "VEU", "AGG"]},
+        "backtesting_datasource": YahooDataBacktesting,
+        "kwargs": {"symbols": ["SPY", "VEU", "AGG"]},
         "config": None,
-        "pandas_data": div_data,
+        "pandas_data": None,
     },
     "diversification": {
         "class": Diversification,
-        "backtesting_datasource": PandasDataBacktesting,
+        "backtesting_datasource": YahooDataBacktesting,
         "kwargs": {},
         "config": None,
-        "pandas_data": div_data,
+        "pandas_data": None,
     },
     "debt_trading": {
         "class": DebtTrading,
         "backtesting_datasource": YahooDataBacktesting,
         "kwargs": {},
         "config": None,
+        "pandas_data": None,
     },
     "intraday_momentum": {
         "class": IntradayMomentum,
@@ -90,6 +76,7 @@ mapping = {
         "kwargs": {},
         "backtesting_cache": False,
         "config": None,
+        "pandas_data": None,
     },
     "simple": {
         "class": Simple,
@@ -97,14 +84,7 @@ mapping = {
         "kwargs": {},
         "backtesting_cache": False,
         "config": None,
-    },
-    "dev": {
-        "class": Dev,
-        "backtesting_datasource": PandasDataBacktesting,
-        "kwargs": {"assets": list(my_data.keys())},
-        "backtesting_cache": False,
-        "pandas_data": my_data,
-        "config": None,
+        "pandas_data": None,
     },
 }
 

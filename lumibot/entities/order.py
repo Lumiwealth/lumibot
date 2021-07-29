@@ -35,7 +35,7 @@ class Order:
         position_filled=False,
     ):
         if isinstance(asset, str):
-            asset = entities.Asset(asset)
+            asset = entities.Asset(symbol=asset)
 
         # Initialization default values
         self.strategy = strategy

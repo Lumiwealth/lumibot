@@ -53,7 +53,7 @@ class _Strategy:
         # Setting the data provider
         if self._is_backtesting:
             self.data_source = self.broker._data_source
-            if self.data_source.SOURCE == 'PANDAS':
+            if self.data_source.SOURCE == "PANDAS":
                 pd_asset_keys = dict()
                 for asset, df in pandas_data.items():
                     new_asset = self._set_asset_mapping(asset)
@@ -204,21 +204,21 @@ class _Strategy:
             )
 
             cagr_value = self._analysis["cagr"]
-            self.log_message(f"CAGR {round(100 * cagr_value, 2)}%")
+            self.log_message(f"CAGR {cagr_value*100:0.2f}%")
 
             volatility_value = self._analysis["volatility"]
-            self.log_message(f"Volatility {round(100 * volatility_value, 2)}%")
+            self.log_message(f"Volatility {volatility_value*100:0.2f}%")
 
             sharpe_value = self._analysis["sharpe"]
-            self.log_message(f"Sharpe {round(sharpe_value, 2)}")
+            self.log_message(f"Sharpe {sharpe_value*100:0.2f}")
 
             max_drawdown_result = self._analysis["max_drawdown"]
             self.log_message(
-                f"Max Drawdown {round(100 * max_drawdown_result['drawdown'], 2)}% on {max_drawdown_result['date']:%Y-%m-%d}"
+                f"Max Drawdown {max_drawdown_result['drawdown']*100:0.2f} on {max_drawdown_result['date']:%Y-%m-%d}"
             )
 
             romad_value = self._analysis["romad"]
-            self.log_message(f"RoMaD {round(100 * romad_value, 2)}%")
+            self.log_message(f"RoMaD {romad_value*100:0.2f}%")
 
             # Getting performance for the benchmark asset
             if (
@@ -311,8 +311,12 @@ class _Strategy:
 
         trader = Trader(logfile=logfile)
         data_source = datasource_class(
-            backtesting_start, backtesting_end, config=config, auto_adjust=auto_adjust,
-            pandas_data=pandas_data, **kwargs
+            backtesting_start,
+            backtesting_end,
+            config=config,
+            auto_adjust=auto_adjust,
+            pandas_data=pandas_data,
+            **kwargs,
         )
         backtesting_broker = BacktestingBroker(data_source)
         strategy = cls(

@@ -54,7 +54,10 @@ class DataSource:
 
     @classmethod
     def localize_datetime(cls, dt):
-        return cls.DEFAULT_PYTZ.localize(dt, is_dst=None)
+        if dt.tzinfo is not None and dt.tzinfo.utcoffset(dt) is not None:
+            return cls.to_default_timezone(dt)
+        else:
+            return cls.DEFAULT_PYTZ.localize(dt, is_dst=None)
 
     @classmethod
     def to_default_timezone(cls, dt):

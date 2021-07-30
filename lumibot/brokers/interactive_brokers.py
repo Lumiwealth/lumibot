@@ -1026,7 +1026,7 @@ class IBApp(IBWrapper, IBClient):
             contract.primaryExchange = primaryExchange
         elif asset.asset_type == "option":
             contract.lastTradeDateOrContractMonth = asset.expiration
-            contract.strike = asset.strike_str
+            contract.strike = str(asset.strike)
             contract.right = asset.right
             contract.multiplier = asset.multiplier
             contract.primaryExchange = "CBOE"
@@ -1039,7 +1039,7 @@ class IBApp(IBWrapper, IBClient):
         else:
             raise ValueError(
                 f"The asset {asset.symbol} has a type of {asset.asset_type}. "
-                f"It must be one of {asset.types}"
+                f"It must be one of {asset._asset_types}"
             )
 
         return contract

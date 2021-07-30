@@ -334,7 +334,8 @@ class Strangle(Strategy):
             symbol,
             asset_type="option",
             expiration=expiration_date,
-            right="call",
+            right="CALL",
+            multiplier=100,
         )
 
         strikes = self.get_strikes(asset)

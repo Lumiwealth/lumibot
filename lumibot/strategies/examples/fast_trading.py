@@ -1,4 +1,5 @@
 from lumibot.strategies.strategy import Strategy
+from lumibot.entities.asset import Asset
 
 """
 Strategy Description
@@ -61,16 +62,19 @@ class FastTrading(Strategy):
         self.get_assets_momentums()
 
         # Get the assets with the highest return in our momentum_length
-        best_assets = sorted(self.assets, key=lambda x: x.momentum)[-self.max_assets :]
+        # best_assets = sorted(self.assets, key=lambda x: x.momentum)[-self.max_assets :]
+        best_assets = [
+            k[0] for k in sorted(self.assets.items(), key=lambda x: x[1]["momentum"])
+        ][-self.max_assets :]
 
         # Selling assets
         for asset in self.trade_positions:
             if asset not in best_assets:
-                self.log_message(f"Selling {asset.quantity} shares of {asset.symbol}")
-                self.orders.append(self.create_order(asset, asset.quantity, "sell"))
-                cash += asset.last_price * asset.quantity
+                self.log_message(f"Selling {self.assets[asset]['quantity']} shares of {asset.symbol}")
+                self.orders.append(self.create_order(asset, self.assets[asset]["quantity"], "sell"))
+                cash += self.assets[asset]["last_price"] * self.assets[asset]["quantity"]
                 self.trade_positions.remove(asset)
-                asset.quantity = 0
+                self.assets[asset]["quantity"] = 0
         selling_orders = self.orders_sell()
         self.submit_orders(selling_orders)
 
@@ -82,10 +86,10 @@ class FastTrading(Strategy):
             if items_to_trade <= 0:
                 break
             trade_cash = cash / items_to_trade
-            asset.quantity = trade_cash // asset.last_price
-            self.log_message(f"Buying {asset.quantity} shares of {asset.symbol}.")
-            self.orders.append(self.create_order(asset, asset.quantity, "buy"))
-            cash -= asset.last_price * asset.quantity
+            self.assets[asset]["quantity"] = trade_cash // self.assets[asset]["last_price"]
+            self.log_message(f"Buying {self.assets[asset]['quantity'] } shares of {asset.symbol}.")
+            self.orders.append(self.create_order(asset, self.assets[asset]["quantity"], "buy"))
+            cash -= self.assets[asset]["last_price"] * self.assets[asset]["quantity"]
             self.trade_positions.append(asset)
         self.submit_orders(self.orders_buy())
 
@@ -105,10 +109,10 @@ class FastTrading(Strategy):
         }
 
         for asset in self.assets:
-            row[f"{asset.symbol}_quantity"] = asset.quantity
-            row[f"{asset.symbol}_momentum"] = asset.momentum
-            row[f"{asset.symbol}_last_price"] = asset.last_price
-            row[f"{asset.symbol}_mkt_value"] = asset.quantity * asset.last_price
+            row[f"{asset.symbol}_quantity"] = self.assets[asset]["quantity"]
+            row[f"{asset.symbol}_momentum"] = self.assets[asset]["momentum"]
+            row[f"{asset.symbol}_last_price"] = self.assets[asset]["last_price"]
+            row[f"{asset.symbol}_mkt_value"] = self.assets[asset]["quantity"] * self.assets[asset]["last_price"]
 
         # Add all of our values to the row in the CSV file. These automatically get
         # added to portfolio_value, unspent_money and return
@@ -130,15 +134,15 @@ class FastTrading(Strategy):
         Gets the momentums (the percentage return) for all the assets we are tracking,
         over the time period set in self.momentum_length
         """
-        for asset in self.assets:
+        for asset, params in self.assets.items():
             # Get the return for symbol over self.momentum_length minutes
             bars_set = self.get_symbol_bars(asset, self.momentum_length + 1)
-            asset.last_price = bars_set.get_last_price()
+            params["last_price"] = bars_set.get_last_price()
             start_date = self.get_round_minute(timeshift=self.momentum_length + 1)
-            asset.momentum = bars_set.get_momentum(start=start_date)
+            params["momentum"] = bars_set.get_momentum(start=start_date)
             self.log_message(
                 "%s has a return value of %.2f%% over the last %d minutes(s)."
-                % (asset.symbol, 100 * asset.momentum, self.momentum_length)
+                % (asset.symbol, 100 * params["momentum"], self.momentum_length)
             )
 
         return None

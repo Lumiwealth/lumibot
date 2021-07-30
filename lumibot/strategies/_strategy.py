@@ -54,6 +54,13 @@ class _Strategy:
         if self._is_backtesting:
             self.data_source = self.broker._data_source
             if self.data_source.SOURCE == "PANDAS":
+                try:
+                    assert pandas_data != None
+                except AssertionError:
+                    raise ValueError(
+                        f"Please add a pandas dataframe as an input parameter. "
+                        f"Use the following: 'pandas_data': your_dataframe "
+                    )
                 pd_asset_keys = dict()
                 for asset, df in pandas_data.items():
                     new_asset = self._set_asset_mapping(asset)
@@ -126,7 +133,7 @@ class _Strategy:
             return asset
         elif isinstance(asset, str):
             if asset not in self._asset_mapping:
-                self._asset_mapping[asset] = Asset(asset)
+                self._asset_mapping[asset] = Asset(symbol=asset)
             return self._asset_mapping[asset]
         else:
             raise ValueError(

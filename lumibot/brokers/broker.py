@@ -222,7 +222,7 @@ class Broker:
         """get a tracked position given an asset and
         a strategy"""
         for position in self._filled_positions:
-            if position.asset.same_as(asset) and position.strategy == strategy:
+            if position.asset == asset and position.strategy == strategy:
                 return position
         return None
 
@@ -286,7 +286,7 @@ class Broker:
         result = []
         for order in self._tracked_orders:
             if order.strategy == strategy and (
-                asset is None or order.asset.same_as(asset)
+                asset is None or order.asset == asset
             ):
                 result.append(order)
 

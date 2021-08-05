@@ -82,14 +82,14 @@ class BacktestingBroker(Broker):
 
     def is_market_open(self):
         """return True if market is open else false"""
-        now = self._data_source.localize_datetime(self.datetime)
+        now = self.datetime
         return (
             (now >= self._trading_days.market_open)
             & (now < self._trading_days.market_close)
         ).any()
 
     def _get_next_trading_day(self):
-        now = self._data_source.localize_datetime(self.datetime)
+        now = self.datetime
         search = self._trading_days[now < self._trading_days.market_open]
         if search.empty:
             raise self.CannotPredictFuture
@@ -98,7 +98,7 @@ class BacktestingBroker(Broker):
 
     def get_time_to_open(self):
         """Return the remaining time for the market to open in seconds"""
-        now = self._data_source.localize_datetime(self.datetime)
+        now = self.datetime
         search = self._trading_days[now < self._trading_days.market_close]
         if search.empty:
             raise self.CannotPredictFuture
@@ -112,7 +112,7 @@ class BacktestingBroker(Broker):
 
     def get_time_to_close(self):
         """Return the remaining time for the market to close in seconds"""
-        now = self._data_source.localize_datetime(self.datetime)
+        now = self.datetime
         search = self._trading_days[now < self._trading_days.market_close]
         if search.empty:
             raise self.CannotPredictFuture

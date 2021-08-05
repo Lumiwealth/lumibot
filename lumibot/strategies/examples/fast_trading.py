@@ -31,7 +31,6 @@ class FastTrading(Strategy):
             "MCHI",
             "SPXL",
             "SPXS",
-            "TUEM",
         ]
 
         # Set up assets, orders, positions.

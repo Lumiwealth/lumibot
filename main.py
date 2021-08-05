@@ -3,6 +3,7 @@ import logging
 from datetime import datetime
 import pandas as pd
 from time import perf_counter, time
+import pytz
 from finta import TA
 
 from credentials import AlpacaConfig
@@ -25,8 +26,17 @@ from lumibot.traders import Trader
 # Global parameters
 debug = True
 budget = 40000
-backtesting_start = datetime(2020, 1, 10)
-backtesting_end = datetime(2020, 1, 21)
+
+# Time zone aware
+# tz = pytz.timezone("America/New_York")
+# backtesting_start = tz.localize(datetime(2019, 1, 1))
+# backtesting_end = tz.localize(datetime(2020, 12, 31))
+
+# Naive
+backtesting_start = datetime(2020, 11, 1)
+backtesting_end = datetime(2020, 12, 31)
+
+
 logfile = "logs/test.log"
 
 # Trading objects

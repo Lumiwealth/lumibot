@@ -340,9 +340,9 @@ class Strategy(_Strategy):
         asset_type='stock',
         expiration=None,
         strike="",
-        right=None,
+        right="",
         multiplier=1,
-        currency="",
+        currency="USD",
     ):
         """Create an asset object."""
         return Asset(

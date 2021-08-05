@@ -109,3 +109,11 @@ def print_progress_bar(
 
 def get_lumibot_datetime():
     return datetime.now().astimezone(LUMIBOT_DEFAULT_PYTZ)
+
+
+def to_datetime_aware(dt):
+    """Convert naive time to datetime aware on default timezone. """
+    if dt.tzinfo is None or dt.tzinfo.utcoffset(dt) is None:
+        return LUMIBOT_DEFAULT_PYTZ.localize(dt)
+    else:
+        return dt

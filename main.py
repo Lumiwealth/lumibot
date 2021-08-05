@@ -2,6 +2,7 @@ import argparse
 import logging
 from datetime import datetime
 from time import perf_counter, time
+import pytz
 
 from credentials import AlpacaConfig
 from lumibot.backtesting import YahooDataBacktesting
@@ -22,8 +23,17 @@ from lumibot.traders import Trader
 # Global parameters
 debug = False
 budget = 40000
-backtesting_start = datetime(2019, 1, 1)
+
+# Time zone aware
+# tz = pytz.timezone("America/New_York")
+# backtesting_start = tz.localize(datetime(2019, 1, 1))
+# backtesting_end = tz.localize(datetime(2020, 12, 31))
+
+# Naive
+backtesting_start = datetime(2020, 11, 1)
 backtesting_end = datetime(2020, 12, 31)
+
+
 logfile = "logs/test.log"
 
 # Trading objects

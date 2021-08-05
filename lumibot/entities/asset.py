@@ -36,7 +36,7 @@ class Asset:
         strike=None,
         right=None,
         multiplier=1,
-        currency=None,
+        currency="USD",
     ):
         self.asset_types = ["stock", "option", "future", "forex"]
 

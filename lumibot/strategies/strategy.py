@@ -339,7 +339,7 @@ class Strategy(_Strategy):
         strike="",
         right="",
         multiplier=100,
-        currency=None,
+        currency="USD",
     ):
         """Create an asset object."""
         return Asset(

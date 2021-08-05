@@ -8,6 +8,7 @@ from lumibot.backtesting import YahooDataBacktesting
 from lumibot.brokers import InteractiveBrokers
 from lumibot.data_sources import InteractiveBrokersData
 from lumibot.strategies.examples import (
+    BuyAndHold,
     DebtTrading,
     Diversification,
     IntradayMomentum,
@@ -34,22 +35,11 @@ trader = Trader(logfile=logfile, debug=debug)
 
 # Strategies mapping
 mapping = {
-    "simple": {
-        "class": Simple,
+    "buy_and_hold": {
+        "class": BuyAndHold,
         "backtesting_datasource": YahooDataBacktesting,
         "kwargs": {},
-        "config": None,
-    },
-    "momentum": {
-        "class": Momentum,
-        "backtesting_datasource": YahooDataBacktesting,
-        "kwargs": {"symbols": ["SPY", "VEU", "AGG"]},
-        "config": None,
-    },
-    "diversification": {
-        "class": Diversification,
-        "backtesting_datasource": YahooDataBacktesting,
-        "kwargs": {},
+        "backtesting_cache": False,
         "config": None,
     },
     "debt_trading": {
@@ -58,15 +48,9 @@ mapping = {
         "kwargs": {},
         "config": None,
     },
-    "intraday_momentum": {
-        "class": IntradayMomentum,
-        "backtesting_datasource": None,
-        "kwargs": {},
-        "config": None,
-    },
-    "strangle": {
-        "class": Strangle,
-        "backtesting_datasource": None,
+    "diversification": {
+        "class": Diversification,
+        "backtesting_datasource": YahooDataBacktesting,
         "kwargs": {},
         "config": None,
     },
@@ -80,6 +64,30 @@ mapping = {
     "futures": {
         "class": Futures,
         "backtesting_datasource": YahooDataBacktesting,
+        "kwargs": {},
+        "config": None,
+    },
+    "intraday_momentum": {
+        "class": IntradayMomentum,
+        "backtesting_datasource": None,
+        "kwargs": {},
+        "config": None,
+    },
+    "momentum": {
+        "class": Momentum,
+        "backtesting_datasource": YahooDataBacktesting,
+        "kwargs": {"symbols": ["SPY", "VEU", "AGG"]},
+        "config": None,
+    },
+    "simple": {
+        "class": Simple,
+        "backtesting_datasource": YahooDataBacktesting,
+        "kwargs": {},
+        "config": None,
+    },
+    "strangle": {
+        "class": Strangle,
+        "backtesting_datasource": None,
         "kwargs": {},
         "config": None,
     },

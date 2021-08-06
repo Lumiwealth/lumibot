@@ -340,7 +340,7 @@ class Strategy(_Strategy):
         asset_type='stock',
         expiration=None,
         strike="",
-        right="",
+        right=None,
         multiplier=1,
         currency="USD",
     ):

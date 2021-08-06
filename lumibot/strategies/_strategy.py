@@ -68,16 +68,16 @@ class _Strategy:
                     new_asset = self._set_asset_mapping(asset)
                     pd_asset_keys[new_asset] = df
                 self.data_source.load_data(pd_asset_keys)
-
-            if risk_free_rate is None:
-                # Get risk free rate from US Treasuries by default
-                self._risk_free_rate = get_risk_free_rate()
-            else:
-                self._risk_free_rate = risk_free_rate
         elif data_source is None:
             self.data_source = self.broker
         else:
             self.data_source = data_source
+
+        if risk_free_rate is None:
+            # Get risk free rate from US Treasuries by default
+            self._risk_free_rate = get_risk_free_rate()
+        else:
+            self._risk_free_rate = risk_free_rate
 
         # Setting execution parameters
         self._first_iteration = True

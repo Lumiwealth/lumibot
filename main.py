@@ -33,8 +33,8 @@ budget = 40000
 # backtesting_end = tz.localize(datetime(2020, 12, 31))
 
 # Naive
-backtesting_start = datetime(2020, 11, 1)
-backtesting_end = datetime(2020, 12, 31)
+backtesting_start = datetime(2019, 1, 3)
+backtesting_end = datetime(2019, 12, 31)
 
 
 logfile = "logs/test.log"
@@ -44,28 +44,34 @@ alpaca_broker = Alpaca(AlpacaConfig)
 alpaca_data_source = AlpacaData(AlpacaConfig)
 trader = Trader(logfile=logfile, debug=debug)
 
+# Diversification: Multi Daily data.
+tickers = ["SPY", "TLT", "IEF", "GLD", "DJP",]
+div_data = dict()
+for ticker in tickers:
+    div_data[Asset(symbol=ticker)] = pd.read_csv(f"data/{ticker}.csv")
+
 # Strategies mapping
 mapping = {
     "momentum": {
         "class": Momentum,
         "backtesting_datasource": YahooDataBacktesting,
-        "kwargs": {"symbols": ["SPY", "VEU", "AGG"]},
+        "kwargs": {"symbols": tickers},  # {"symbols": ["SPY", "VEU", "AGG"]},
         "config": None,
-        "pandas_data": None,
+        "pandas_data": div_data,
     },
     "diversification": {
         "class": Diversification,
         "backtesting_datasource": YahooDataBacktesting,
         "kwargs": {},
         "config": None,
-        "pandas_data": None,
+        "pandas_data": div_data,
     },
     "debt_trading": {
         "class": DebtTrading,
         "backtesting_datasource": YahooDataBacktesting,
         "kwargs": {},
         "config": None,
-        "pandas_data": None,
+        "pandas_data": div_data,
     },
     "intraday_momentum": {
         "class": IntradayMomentum,
@@ -82,19 +88,19 @@ mapping = {
     },
     "buy_and_hold": {
         "class": BuyAndHold,
-        "backtesting_datasource": YahooDataBacktesting,
+        "backtesting_datasource": PandasDataBacktesting,
         "kwargs": {},
         "backtesting_cache": False,
         "config": None,
-        "pandas_data": None,
+        "pandas_data": div_data,
     },
     "simple": {
         "class": Simple,
-        "backtesting_datasource": YahooDataBacktesting,
+        "backtesting_datasource": PandasDataBacktesting,
         "kwargs": {},
         "backtesting_cache": False,
         "config": None,
-        "pandas_data": None,
+        "pandas_data": div_data,
     },
 }
 

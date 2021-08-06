@@ -16,7 +16,6 @@ from lumibot.strategies.examples import (
     Simple,
     Strangle,
     FastTrading,
-    Futures,
 )
 from lumibot.tools import indicators, perf_counters
 from lumibot.traders import Trader
@@ -59,12 +58,6 @@ mapping = {
         "backtesting_datasource": None,
         "kwargs": {},
         "backtesting_cache": False,
-        "config": None,
-    },
-    "futures": {
-        "class": Futures,
-        "backtesting_datasource": YahooDataBacktesting,
-        "kwargs": {},
         "config": None,
     },
     "intraday_momentum": {

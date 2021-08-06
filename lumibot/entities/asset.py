@@ -50,8 +50,9 @@ class Asset(BaseModel, frozen=True, extra='forbid'):
         if v is None:
             return
 
+        v = v.upper()
         if v not in cls._right:
-            raise ValueError(f"`right` must be one of {', '.join(cls._right)}, upper case.")
+            raise ValueError(f"`right` is {v} must be one of {', '.join(cls._right)}, upper case.")
         return v
 
 

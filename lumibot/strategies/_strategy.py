@@ -4,6 +4,7 @@ from copy import deepcopy
 import pandas as pd
 
 from lumibot.backtesting import BacktestingBroker
+from lumibot import LUMIBOT_DEFAULT_PYTZ
 from lumibot.entities import Asset
 from lumibot.tools import (
     day_deduplicate,
@@ -11,6 +12,7 @@ from lumibot.tools import (
     get_symbol_returns,
     plot_returns,
     stats_summary,
+    to_datetime_aware,
 )
 from lumibot.traders import Trader
 
@@ -66,16 +68,16 @@ class _Strategy:
                     new_asset = self._set_asset_mapping(asset)
                     pd_asset_keys[new_asset] = df
                 self.data_source.load_data(pd_asset_keys)
-
-            if risk_free_rate is None:
-                # Get risk free rate from US Treasuries by default
-                self._risk_free_rate = get_risk_free_rate()
-            else:
-                self._risk_free_rate = risk_free_rate
         elif data_source is None:
             self.data_source = self.broker
         else:
             self.data_source = data_source
+
+        if risk_free_rate is None:
+            # Get risk free rate from US Treasuries by default
+            self._risk_free_rate = get_risk_free_rate()
+        else:
+            self._risk_free_rate = risk_free_rate
 
         # Setting execution parameters
         self._first_iteration = True
@@ -315,6 +317,9 @@ class _Strategy:
         if not cls.IS_BACKTESTABLE:
             logging.warning(f"Strategy {name} cannot be backtested at the moment")
             return None
+
+        backtesting_start = to_datetime_aware(backtesting_start)
+        backtesting_end  = to_datetime_aware(backtesting_end)
 
         trader = Trader(logfile=logfile)
         data_source = datasource_class(

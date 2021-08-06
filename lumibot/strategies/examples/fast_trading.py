@@ -31,14 +31,13 @@ class FastTrading(Strategy):
             "MCHI",
             "SPXL",
             "SPXS",
-            "TUEM",
         ]
 
         # Set up assets, orders, positions.
-        self.assets = [self.create_asset(symbol) for symbol in self.symbols]
-        for asset in self.assets:
-            asset.quantity = 0
-            asset.last_price = 0
+        self.assets = {
+            Asset(symbol=symbol): {"quantity": 0, "last_price": 0, "momentum": 0}
+            for symbol in self.symbols
+        }
 
         # Set up order dict. Will hold active orders.
         self.orders = list()

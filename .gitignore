@@ -28,7 +28,9 @@ setup.py
 /lumibot_profiles.png
 /notebooks/scanner_parameters.xml
 /lumibot/strategies/examples/technical_analysis.py
-/technical_analysis.py
+/technical_analysis.pyx
 /lumibot/tests/test_ib_broker.py
 test.csv
 test_strategy.py
+venv
+my_dev

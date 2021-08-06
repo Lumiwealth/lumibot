@@ -29,6 +29,7 @@ setuptools.setup(
     url="https://github.com/Lumiwealth/lumibot",
     packages=setuptools.find_packages(),
     install_requires=[
+        "pydantic",
         "alpaca_trade_api",
         "alpha_vantage",
         "ibapi==9.81.1.post1",

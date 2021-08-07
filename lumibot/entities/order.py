@@ -231,10 +231,14 @@ class Order:
             self._raw = raw
 
     def to_position(self, quantity):
+        position_qty = quantity
+        if self.side == self.SELL:
+            position_qty = -quantity
+
         position = entities.Position(
             self.strategy,
             self.asset,
-            quantity,
+            position_qty,
             orders=[self],
         )
         return position
@@ -247,7 +251,7 @@ class Order:
 
     def is_option(self):
         # Return true if this order is an option.
-        if self.sec_type == 'OPT':
+        if self.sec_type == "OPT":
             return True
         else:
             return False

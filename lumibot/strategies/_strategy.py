@@ -3,8 +3,8 @@ from copy import deepcopy
 
 import pandas as pd
 
-from lumibot.backtesting import BacktestingBroker
 from lumibot import LUMIBOT_DEFAULT_PYTZ
+from lumibot.backtesting import BacktestingBroker
 from lumibot.entities import Asset
 from lumibot.tools import (
     day_deduplicate,
@@ -319,7 +319,7 @@ class _Strategy:
             return None
 
         backtesting_start = to_datetime_aware(backtesting_start)
-        backtesting_end  = to_datetime_aware(backtesting_end)
+        backtesting_end = to_datetime_aware(backtesting_end)
 
         trader = Trader(logfile=logfile)
         data_source = datasource_class(

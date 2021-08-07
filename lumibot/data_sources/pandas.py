@@ -10,6 +10,7 @@ from .data_source import DataSource
 
 
 class PandasData(DataSource):
+    IS_BACKTESTING_DATA_SOURCE = True
     SOURCE = "PANDAS"
     MIN_TIMESTEP = "day"
     TIMESTEP_MAPPING = [

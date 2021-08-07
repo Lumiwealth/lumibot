@@ -178,6 +178,8 @@ class StrategyExecutor(Thread):
     @lifecycle_method
     @trace_stats
     def _on_trading_iteration(self):
+        if self.strategy.IS_BACKTESTABLE == True:
+            self.broker.process_pending_orders()
         self._strategy_context = None
         self.strategy.log_message("Executing the on_trading_iteration lifecycle method")
         on_trading_iteration = append_locals(self.strategy.on_trading_iteration)
@@ -254,7 +256,7 @@ class StrategyExecutor(Thread):
 
     # ======Execution methods ====================
     def _run_daily_trading(self):
-        """ Used for backtesting only, daily data.
+        """Used for backtesting only, daily data.
         Update the index,
         Update the date,
         Outstanding orders evaluated against previous close
@@ -263,9 +265,8 @@ class StrategyExecutor(Thread):
         """
         pass
 
-
     def _run_trading_session(self):
-        """ This is really intraday trading method. Timeframes of less than a day, seconds,
+        """This is really intraday trading method. Timeframes of less than a day, seconds,
         minutes, hours.
         """
         self.strategy.await_market_to_open()  # set new time and bar length. Check if hit bar max
@@ -275,7 +276,7 @@ class StrategyExecutor(Thread):
 
         self.strategy.await_market_to_open(timedelta=0)
         self.strategy._update_unspent_money_with_dividends()
-        self._before_starting_trading() # Can't use this because it will have a different meaning
+        self._before_starting_trading()  # Can't use this because it will have a different meaning
         # in intraday trading.
 
         time_to_close = self.broker.get_time_to_close()
@@ -315,7 +316,7 @@ class StrategyExecutor(Thread):
 
         self.strategy.await_market_to_close()
         if self.broker.is_market_open():
-            self._before_market_closes() # perhaps the user could set the time of day based on
+            self._before_market_closes()  # perhaps the user could set the time of day based on
             # their data that the market closes?
 
         self.strategy.await_market_to_close(timedelta=0)

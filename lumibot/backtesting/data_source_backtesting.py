@@ -1,8 +1,9 @@
 from datetime import datetime, timedelta
+
 import pandas as pd
+
 from lumibot.data_sources import DataSource
-from lumibot.tools import print_progress_bar
-from lumibot.tools import to_datetime_aware
+from lumibot.tools import print_progress_bar, to_datetime_aware
 
 
 class DataSourceBacktesting(DataSource):
@@ -39,7 +40,9 @@ class DataSourceBacktesting(DataSource):
         if timestep is None:
             timestep = self.MIN_TIMESTEP
 
-        backtesting_timeshift = self.localize_datetime(datetime.now()) - self._datetime
+        now = datetime.now()
+        now_local = self.localize_datetime(now)
+        backtesting_timeshift = now_local - self._datetime
         if timeshift:
             backtesting_timeshift += timeshift
 

@@ -245,9 +245,11 @@ class BacktestingBroker(Broker):
                 limit_price = pending_order.limit_price
                 if pending_order.side == "buy":
                     if open < limit_price or low < limit_price or close < limit_price:
-                        # self._parse_broker_order(pending_order, pending_order.strategy)
-                        # self.stream.dispatch(self.FILLED_ORDER, order=pending_order)
-                        price = min(open, low, close)
+                        ##
+                        # TODO: Should this be average or something else?
+                        # Maybe we can get a better estimate by checking which price would have happened first?
+                        ##
+                        price = (open + low + close) / 3
                         self._process_trade_event(
                             pending_order,
                             self.FILLED_ORDER,
@@ -257,9 +259,34 @@ class BacktestingBroker(Broker):
                         self.pending_orders.remove(pending_order)
                 if pending_order.side == "sell":
                     if open > limit_price or high > limit_price or close > limit_price:
-                        # self._parse_broker_order(pending_order, pending_order.strategy)
-                        # self.stream.dispatch(self.FILLED_ORDER, order=pending_order)
-                        price = max(open, high, close)
+                        price = (open + high + close) / 3
+                        self._process_trade_event(
+                            pending_order,
+                            self.FILLED_ORDER,
+                            price=price,
+                            filled_quantity=pending_order.quantity,
+                        )
+                        self.pending_orders.remove(pending_order)
+
+            if pending_order.type == "stop":
+                stop_price = pending_order.stop_price
+                if pending_order.side == "buy":
+                    if open > stop_price or low > stop_price or close > stop_price:
+                        ##
+                        # TODO: Should this be average or something else?
+                        # Maybe we can get a better estimate by checking which price would have happened first?
+                        ##
+                        price = (open + low + close) / 3
+                        self._process_trade_event(
+                            pending_order,
+                            self.FILLED_ORDER,
+                            price=price,
+                            filled_quantity=pending_order.quantity,
+                        )
+                        self.pending_orders.remove(pending_order)
+                if pending_order.side == "sell":
+                    if open < stop_price or high < stop_price or close < stop_price:
+                        price = (open + high + close) / 3
                         self._process_trade_event(
                             pending_order,
                             self.FILLED_ORDER,

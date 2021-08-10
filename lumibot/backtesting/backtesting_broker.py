@@ -47,7 +47,7 @@ class BacktestingBroker(Broker):
                     logging.info("%r was sent to broker %s" % (order, self.name))
                     broker._new_orders.append(order)
 
-                broker.stream.dispatch(broker.FILLED_ORDER, order=order)
+                # broker.stream.dispatch(broker.FILLED_ORDER, order=order)
             return result
 
         return new_func
@@ -226,6 +226,15 @@ class BacktestingBroker(Broker):
         """Cancel an order"""
         pass
 
+    def order_execution(self):
+        """Used to evaluate and execute open orders in backtesting.
+        This method will evaluate the open orders at the beginning of every new bar to
+        determine if any of the open orders should have been filled. This method will
+        execute order events as needed, mostly fill events.
+        """
+        for order in self.get_tracked_orders("momentum"):
+            self.stream.dispatch(self.FILLED_ORDER, order=order)
+
     # =========Market functions=======================
 
     def get_last_price(self, asset):
@@ -235,6 +244,11 @@ class BacktestingBroker(Broker):
     def get_last_prices(self, symbols):
         """Takes a list of symbols and returns the last known prices"""
         return self._data_source.get_last_prices(symbols)
+
+    def get_last_bar(self, asset):
+        """Returns OHLCV for last bar of the asset. """
+
+        return self._data_source.get_symbol_bars(asset, 1).df
 
     # ==========Processing streams data=======================
 
@@ -255,7 +269,7 @@ class BacktestingBroker(Broker):
                 asset = order.asset
                 stored_order = broker.get_tracked_order(identifier)
                 filled_quantity = stored_order.quantity
-                price = broker.get_last_price(asset)
+                price = broker.get_last_bar(asset)["open"][0]
                 broker._process_trade_event(
                     stored_order,
                     broker.FILLED_ORDER,

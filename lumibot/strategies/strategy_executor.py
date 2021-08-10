@@ -280,6 +280,8 @@ class StrategyExecutor(Thread):
 
         time_to_close = self.broker.get_time_to_close()
         while time_to_close > self.minutes_before_closing * 60:
+            if self.broker.IS_BACKTESTING_BROKER:
+                self.broker.order_execution()
             self._on_trading_iteration()
             time_to_close = self.broker.get_time_to_close()
             sleeptime = time_to_close - self.minutes_before_closing * 60

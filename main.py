@@ -54,7 +54,7 @@ for ticker in tickers:
 mapping = {
     "momentum": {
         "class": Momentum,
-        "backtesting_datasource": YahooDataBacktesting,
+        "backtesting_datasource": PandasDataBacktesting,
         "kwargs": {"symbols": tickers},  # {"symbols": ["SPY", "VEU", "AGG"]},
         "config": None,
         "pandas_data": div_data,

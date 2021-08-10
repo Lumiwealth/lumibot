@@ -311,6 +311,7 @@ class _Strategy:
         auto_adjust=False,
         benchmark_asset="SPY",
         plot_file="backtest_result.jpg",
+        trades_file="trades.csv",
         pandas_data=None,
         **kwargs,
     ):
@@ -348,6 +349,8 @@ class _Strategy:
         )
         trader.add_strategy(strategy)
         result = trader.run_all()
+
+        backtesting_broker.export_trade_events_to_csv(trades_file)
 
         # strategy.plot_returns_vs_benchmark(plot_file)
 

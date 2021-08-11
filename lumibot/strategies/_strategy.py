@@ -3,8 +3,8 @@ from copy import deepcopy
 
 import pandas as pd
 
-from lumibot.backtesting import BacktestingBroker
 from lumibot import LUMIBOT_DEFAULT_PYTZ
+from lumibot.backtesting import BacktestingBroker
 from lumibot.entities import Asset
 from lumibot.tools import (
     day_deduplicate,
@@ -213,17 +213,17 @@ class _Strategy:
             )
 
             cagr_value = self._analysis["cagr"]
-            self.log_message(f"CAGR {cagr_value*100:0.2f}%")
+            self.log_message(f"CAGR {cagr_value*100:,.2f}%")
 
             volatility_value = self._analysis["volatility"]
-            self.log_message(f"Volatility {volatility_value*100:0.2f}%")
+            self.log_message(f"Volatility {volatility_value*100:,.2f}%")
 
             sharpe_value = self._analysis["sharpe"]
-            self.log_message(f"Sharpe {sharpe_value*100:0.2f}")
+            self.log_message(f"Sharpe {sharpe_value*100:,.2f}")
 
             max_drawdown_result = self._analysis["max_drawdown"]
             self.log_message(
-                f"Max Drawdown {max_drawdown_result['drawdown']*100:0.2f} on {max_drawdown_result['date']:%Y-%m-%d}"
+                f"Max Drawdown {max_drawdown_result['drawdown']*100:,.2f} on {max_drawdown_result['date']:%Y-%m-%d}"
             )
 
             romad_value = self._analysis["romad"]
@@ -311,6 +311,7 @@ class _Strategy:
         auto_adjust=False,
         benchmark_asset="SPY",
         plot_file="backtest_result.jpg",
+        trades_file="trades.csv",
         pandas_data=None,
         **kwargs,
     ):
@@ -319,7 +320,7 @@ class _Strategy:
             return None
 
         backtesting_start = to_datetime_aware(backtesting_start)
-        backtesting_end  = to_datetime_aware(backtesting_end)
+        backtesting_end = to_datetime_aware(backtesting_end)
 
         trader = Trader(logfile=logfile)
         data_source = datasource_class(
@@ -348,6 +349,8 @@ class _Strategy:
         )
         trader.add_strategy(strategy)
         result = trader.run_all()
+
+        backtesting_broker.export_trade_events_to_csv(trades_file)
 
         # strategy.plot_returns_vs_benchmark(plot_file)
 

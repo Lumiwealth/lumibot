@@ -6,6 +6,9 @@ from functools import wraps
 from queue import Queue
 from threading import RLock, Thread
 
+import pandas as pd
+
+from lumibot.data_sources import DataSource
 from lumibot.entities import Order
 from lumibot.trading_builtins import SafeList
 
@@ -33,6 +36,7 @@ class Broker:
         self._filled_positions = SafeList(self._lock)
         self._subscribers = SafeList(self._lock)
         self._is_stream_subscribed = False
+        self._trade_event_log_df = pd.DataFrame()
 
         # setting the orders queue and threads
         if not self.IS_BACKTESTING_BROKER:
@@ -285,9 +289,7 @@ class Broker:
         """get all tracked orders for a given strategy"""
         result = []
         for order in self._tracked_orders:
-            if order.strategy == strategy and (
-                asset is None or order.asset == asset
-            ):
+            if order.strategy == strategy and (asset is None or order.asset == asset):
                 result.append(order)
 
         return result
@@ -447,7 +449,11 @@ class Broker:
         """notify relevant subscriber/strategy about
         partially filled order event"""
         payload = dict(
-            position=position, order=order, price=price, quantity=quantity, multiplier=multiplier
+            position=position,
+            order=order,
+            price=price,
+            quantity=quantity,
+            multiplier=multiplier,
         )
         subscriber = self._get_subscriber(order.strategy)
         subscriber.add_event(subscriber.PARTIALLY_FILLED_ORDER, payload)
@@ -534,6 +540,24 @@ class Broker:
         else:
             logging.info("Unhandled type event %s for %r" % (type_event, stored_order))
 
+        if self._data_source is not None and hasattr(self._data_source, "get_datetime"):
+            new_row = {
+                "time": self._data_source.get_datetime(),
+                "strategy": stored_order.strategy,
+                "exchange": stored_order.exchange,
+                "side": stored_order.side,
+                "sec_type": stored_order.sec_type,
+                "type": stored_order.type,
+                "status": stored_order.status,
+                "price": price,
+                "filled_quantity": filled_quantity,
+                "multiplier": multiplier,
+            }
+            # append row to the dataframe
+            self._trade_event_log_df = self._trade_event_log_df.append(
+                new_row, ignore_index=True
+            )
+
         return
 
     def _register_stream_events(self):
@@ -586,3 +610,6 @@ class Broker:
                     price=price,
                     filled_quantity=filled_quantity,
                 )
+
+    def export_trade_events_to_csv(self, filename):
+        self._trade_event_log_df.to_csv(filename)

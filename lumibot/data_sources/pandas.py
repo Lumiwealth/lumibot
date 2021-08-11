@@ -10,8 +10,9 @@ from .data_source import DataSource
 
 
 class PandasData(DataSource):
+    IS_BACKTESTING_DATA_SOURCE = True
     SOURCE = "PANDAS"
-    MIN_TIMESTEP = "day"
+    MIN_TIMESTEP = "minute"
     TIMESTEP_MAPPING = [
         {"timestep": "day", "representations": ["1D", "day"]},
         {"timestep": "minute", "representations": ["1M", "minute"]},
@@ -85,7 +86,9 @@ class PandasData(DataSource):
             raise ValueError(f"Asset {asset} does not have data.")
 
         if timeshift:
-            end = datetime.now() - timeshift
+            now = datetime.now()
+            now_local = self.localize_datetime(now)
+            end = now_local - timeshift
             end = pd.Timestamp(self.to_default_timezone(end))
             data = data.loc[:end, :]
 

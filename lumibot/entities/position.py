@@ -13,16 +13,8 @@ class Position:
         self._raw = None
 
         # setting the quantity
-        error = ValueError(
-            "Quantity must be a positive integer, got %r instead" % quantity
-        )
-        try:
-            quantity = int(quantity)
-            if quantity <= 0:
-                raise error
-            self.quantity = quantity
-        except ValueError:
-            raise error
+        quantity = int(quantity)
+        self.quantity = quantity
 
         if orders is not None and not isinstance(orders, list):
             raise ValueError(
@@ -48,7 +40,11 @@ class Position:
         self._raw = raw
 
     def get_selling_order(self):
-        order = entities.Order(self.strategy, self.asset, self.quantity, "sell")
+        order = None
+        if self.quantity < 0:
+            order = entities.Order(self.strategy, self.asset, abs(self.quantity), "buy")
+        else:
+            order = entities.Order(self.strategy, self.asset, self.quantity, "sell")
         return order
 
     def add_order(self, order, quantity):

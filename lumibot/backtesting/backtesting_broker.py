@@ -1,8 +1,8 @@
+import logging
+import traceback
 from datetime import datetime, timedelta
 from functools import wraps
-import logging
 from secrets import token_hex
-import traceback
 
 from lumibot.brokers import Broker
 from lumibot.entities import Order, Position
@@ -28,29 +28,34 @@ class BacktestingBroker(Broker):
             )
         self._data_source = data_source
         self._trading_days = get_trading_days()
+        self.pending_orders = []
 
         Broker.__init__(self, name=self.name, connect_stream=connect_stream)
 
     def __getattribute__(self, name):
         attr = object.__getattribute__(self, name)
-        if name != "submit_order":
+
+        if name == "submit_order":
+
+            broker = self
+
+            @wraps(attr)
+            def new_func(order, *args, **kwargs):
+                result = attr(order, *args, **kwargs)
+                if result.was_transmitted() and order.type == "market":
+                    orders = broker._flatten_order(result)
+                    for order in orders:
+                        logging.info("%r was sent to broker %s" % (order, self.name))
+                        broker._new_orders.append(order)
+
+                    broker.stream.dispatch(broker.FILLED_ORDER, order=order)
+                else:
+                    self.pending_orders.append(order)
+                return result
+
+            return new_func
+        else:
             return attr
-
-        broker = self
-
-        @wraps(attr)
-        def new_func(order, *args, **kwargs):
-            result = attr(order, *args, **kwargs)
-            if result.was_transmitted():
-                orders = broker._flatten_order(result)
-                for order in orders:
-                    logging.info("%r was sent to broker %s" % (order, self.name))
-                    broker._new_orders.append(order)
-
-                # broker.stream.dispatch(broker.FILLED_ORDER, order=order)
-            return result
-
-        return new_func
 
     @property
     def datetime(self):
@@ -192,7 +197,7 @@ class BacktestingBroker(Broker):
                 order.strategy,
                 order.asset,
                 order.quantity,
-                "sell",
+                order.side,
                 stop_price=order.stop_price,
             )
             stop_loss_order = self._parse_broker_order(stop_loss_order, order.strategy)
@@ -234,6 +239,70 @@ class BacktestingBroker(Broker):
         """
         for order in self.get_tracked_orders("momentum"):
             self.stream.dispatch(self.FILLED_ORDER, order=order)
+
+    def process_pending_orders(self):
+        for pending_order in self.pending_orders:
+            symbol = pending_order.symbol
+            bars = self._data_source.get_symbol_bars(symbol, 1)
+            ohlc = bars.df.iloc[-1]
+            open = ohlc["open"]
+            high = ohlc["high"]
+            low = ohlc["low"]
+            close = ohlc["close"]
+
+            if pending_order.type == "limit":
+                limit_price = pending_order.limit_price
+                if pending_order.side == "buy":
+                    if open < limit_price or low < limit_price or close < limit_price:
+                        ##
+                        # TODO: Should this be average or something else?
+                        # Maybe we can get a better estimate by checking which price would have happened first?
+                        ##
+                        price = (open + low + close) / 3
+                        self._process_trade_event(
+                            pending_order,
+                            self.FILLED_ORDER,
+                            price=price,
+                            filled_quantity=pending_order.quantity,
+                        )
+                        self.pending_orders.remove(pending_order)
+                if pending_order.side == "sell":
+                    if open > limit_price or high > limit_price or close > limit_price:
+                        price = (open + high + close) / 3
+                        self._process_trade_event(
+                            pending_order,
+                            self.FILLED_ORDER,
+                            price=price,
+                            filled_quantity=pending_order.quantity,
+                        )
+                        self.pending_orders.remove(pending_order)
+
+            if pending_order.type == "stop":
+                stop_price = pending_order.stop_price
+                if pending_order.side == "buy":
+                    if open > stop_price or low > stop_price or close > stop_price:
+                        ##
+                        # TODO: Should this be average or something else?
+                        # Maybe we can get a better estimate by checking which price would have happened first?
+                        ##
+                        price = (open + low + close) / 3
+                        self._process_trade_event(
+                            pending_order,
+                            self.FILLED_ORDER,
+                            price=price,
+                            filled_quantity=pending_order.quantity,
+                        )
+                        self.pending_orders.remove(pending_order)
+                if pending_order.side == "sell":
+                    if open < stop_price or high < stop_price or close < stop_price:
+                        price = (open + high + close) / 3
+                        self._process_trade_event(
+                            pending_order,
+                            self.FILLED_ORDER,
+                            price=price,
+                            filled_quantity=pending_order.quantity,
+                        )
+                        self.pending_orders.remove(pending_order)
 
     # =========Market functions=======================
 

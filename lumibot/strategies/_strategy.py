@@ -227,7 +227,7 @@ class _Strategy:
             )
 
             romad_value = self._analysis["romad"]
-            self.log_message(f"RoMaD {romad_value*100:0.2f}%")
+            self.log_message(f"RoMaD {romad_value*100:,.2f}%")
 
             # Getting performance for the benchmark asset
             if (

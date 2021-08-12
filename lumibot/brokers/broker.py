@@ -613,5 +613,6 @@ class Broker:
                 )
 
     def export_trade_events_to_csv(self, filename):
-        output_df = self._trade_event_log_df.set_index("time")
-        output_df.to_csv(filename)
+        if len(self._trade_event_log_df) > 0:
+            output_df = self._trade_event_log_df.set_index("time")
+            output_df.to_csv(filename)

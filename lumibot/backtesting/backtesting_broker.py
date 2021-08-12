@@ -286,12 +286,13 @@ class BacktestingBroker(Broker):
 
                 result = False
                 for order in orders:
-                    if order.type == "limit":
+                    # Check if result is false so we only process one of them
+                    if order.type == "limit" and result == False:
                         result = self.process_limit_order(
                             order, open, high, low, close, volume
                         )
 
-                    elif order.type == "stop":
+                    elif order.type == "stop" and result == False:
                         result = self.process_stop_order(
                             order, open, high, low, close, volume
                         )
@@ -329,6 +330,8 @@ class BacktestingBroker(Broker):
 
                 return True
 
+        return False
+
     def process_stop_order(self, pending_order, open, high, low, close, volume):
         stop_price = pending_order.stop_price
         if pending_order.side == "buy":
@@ -358,6 +361,8 @@ class BacktestingBroker(Broker):
                 )
 
                 return True
+
+        return False
 
     # =========Market functions=======================
 

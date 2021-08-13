@@ -28,7 +28,6 @@ class BacktestingBroker(Broker):
             )
         self._data_source = data_source
         self._trading_days = get_trading_days()
-        self.pending_orders = []
 
         Broker.__init__(self, name=self.name, connect_stream=connect_stream)
 
@@ -42,15 +41,15 @@ class BacktestingBroker(Broker):
             @wraps(attr)
             def new_func(order, *args, **kwargs):
                 result = attr(order, *args, **kwargs)
-                if result.was_transmitted() and order.type == "market":
+                if (
+                    result.was_transmitted() and order.type == "market"
+                ):
                     orders = broker._flatten_order(result)
                     for order in orders:
                         logging.info("%r was sent to broker %s" % (order, self.name))
                         broker._new_orders.append(order)
-
-                    broker.stream.dispatch(broker.FILLED_ORDER, order=order)
                 else:
-                    self.pending_orders.append(order)
+                    broker._new_orders.append(order)
                 return result
 
             return new_func
@@ -231,81 +230,98 @@ class BacktestingBroker(Broker):
         """Cancel an order"""
         pass
 
-    def order_execution(self):
+    def process_pending_orders(self, strategy):
         """Used to evaluate and execute open orders in backtesting.
+
         This method will evaluate the open orders at the beginning of every new bar to
         determine if any of the open orders should have been filled. This method will
         execute order events as needed, mostly fill events.
         """
-        for order in self.get_tracked_orders("momentum"):
-            self.stream.dispatch(self.FILLED_ORDER, order=order)
+        pending_orders = [
+            order
+            for order in self.get_tracked_orders(strategy)
+            if order.status in ["unprocessed", "new"]
+        ]
 
-    def process_pending_orders(self):
-        for pending_order in self.pending_orders:
-            symbol = pending_order.symbol
-            bars = self._data_source.get_symbol_bars(symbol, 1)
-            ohlc = bars.df.iloc[-1]
+        if len(pending_orders) == 0:
+            return
+
+        for order in pending_orders:
+            # Check validity if current date > valid date, cancel order. todo
+            price = 0
+            filled_quantity = order.quantity
+
+            ohlc = self.get_last_bar(order.asset)
             open = ohlc["open"]
             high = ohlc["high"]
             low = ohlc["low"]
-            close = ohlc["close"]
+            # close = ohlc["close"]
 
-            if pending_order.type == "limit":
-                limit_price = pending_order.limit_price
-                if pending_order.side == "buy":
-                    if open < limit_price or low < limit_price or close < limit_price:
-                        ##
-                        # TODO: Should this be average or something else?
-                        # Maybe we can get a better estimate by checking which price would have happened first?
-                        ##
-                        price = (open + low + close) / 3
-                        self._process_trade_event(
-                            pending_order,
-                            self.FILLED_ORDER,
-                            price=price,
-                            filled_quantity=pending_order.quantity,
-                        )
-                        self.pending_orders.remove(pending_order)
-                if pending_order.side == "sell":
-                    if open > limit_price or high > limit_price or close > limit_price:
-                        price = (open + high + close) / 3
-                        self._process_trade_event(
-                            pending_order,
-                            self.FILLED_ORDER,
-                            price=price,
-                            filled_quantity=pending_order.quantity,
-                        )
-                        self.pending_orders.remove(pending_order)
+            # Determine transaction price.
+            if order.type == "market":
+                price = open
+            elif order.type == "limit":
+                price = self.limit_order(order.limit_price, order.side, open, high, low)
+            elif order.type == "stop":
+                price = self.stop_order(order.stop_price, order.side, open, high, low)
+            elif type == "stop_limit":
+                price = self.stop_order(order.stop_price, order.side, open, high, low)
+                if price != 0:
+                    order.type = "limit"
+                    price = 0
+            else:
+                raise ValueError(f"Order type {order.type} is not allowable in backtesting.")
 
-            if pending_order.type == "stop":
-                stop_price = pending_order.stop_price
-                if pending_order.side == "buy":
-                    if open > stop_price or low > stop_price or close > stop_price:
-                        ##
-                        # TODO: Should this be average or something else?
-                        # Maybe we can get a better estimate by checking which price would have happened first?
-                        ##
-                        price = (open + low + close) / 3
-                        self._process_trade_event(
-                            pending_order,
-                            self.FILLED_ORDER,
-                            price=price,
-                            filled_quantity=pending_order.quantity,
-                        )
-                        self.pending_orders.remove(pending_order)
-                if pending_order.side == "sell":
-                    if open < stop_price or high < stop_price or close < stop_price:
-                        price = (open + high + close) / 3
-                        self._process_trade_event(
-                            pending_order,
-                            self.FILLED_ORDER,
-                            price=price,
-                            filled_quantity=pending_order.quantity,
-                        )
-                        self.pending_orders.remove(pending_order)
+
+
+
+
+            if price != 0:
+                self.stream.dispatch(
+                    self.FILLED_ORDER,
+                        order=order,
+                        price=price,
+                        filled_quantity=filled_quantity,
+                    )
+            else:
+                continue
+
+
+    def limit_order(self, limit_price, side, open, high, low):
+        """Limit order logic. """
+        if side == "buy":
+            if limit_price >= open:
+                return open
+            elif limit_price < open and limit_price >= low:
+                return limit_price
+            elif limit_price < low:
+                return 0
+        elif side == "sell":
+            if limit_price <= open:
+                return open
+            elif limit_price > open and limit_price <= high:
+                return limit_price
+            elif limit_price > high:
+                return 0
+
+    def stop_order(self, stop_price, side, open, high, low):
+        """Stop order logic. """
+        if side == "buy":
+            if stop_price <= open:
+                return open
+            elif stop_price > open and stop_price <= high:
+                return stop_price
+            elif stop_price > high:
+                return 0
+        elif side == "sell":
+            if stop_price >= open:
+                return open
+            elif stop_price < open and stop_price >= low:
+                return stop_price
+            elif stop_price < low:
+                return 0
 
     # =========Market functions=======================
-
     def get_last_price(self, asset):
         """Takes an asset asset and returns the last known price"""
         return self._data_source.get_last_price(asset)
@@ -315,9 +331,9 @@ class BacktestingBroker(Broker):
         return self._data_source.get_last_prices(symbols)
 
     def get_last_bar(self, asset):
-        """Returns OHLCV for last bar of the asset. """
-
-        return self._data_source.get_symbol_bars(asset, 1).df
+        """Returns OHLCV dictionary for last bar of the asset. """
+        return self._data_source.get_symbol_bars(asset, 1).df\
+            .to_dict(orient="records")[0]
 
     # ==========Processing streams data=======================
 
@@ -332,15 +348,10 @@ class BacktestingBroker(Broker):
         broker = self
 
         @broker.stream.add_action(broker.FILLED_ORDER)
-        def on_trade_event(order):
+        def on_trade_event(order, price, filled_quantity):
             try:
-                identifier = order.identifier
-                asset = order.asset
-                stored_order = broker.get_tracked_order(identifier)
-                filled_quantity = stored_order.quantity
-                price = broker.get_last_bar(asset)["open"][0]
                 broker._process_trade_event(
-                    stored_order,
+                    order,
                     broker.FILLED_ORDER,
                     price=price,
                     filled_quantity=filled_quantity,

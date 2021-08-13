@@ -33,8 +33,8 @@ budget = 40000
 # backtesting_end = tz.localize(datetime(2020, 12, 31))
 
 # Naive
-backtesting_start = datetime(2019, 1, 3)
-backtesting_end = datetime(2019, 12, 31)
+backtesting_start = datetime(2019, 1, 1)
+backtesting_end = datetime(2019, 1, 31)
 
 
 logfile = "logs/test.log"
@@ -43,6 +43,16 @@ logfile = "logs/test.log"
 alpaca_broker = Alpaca(AlpacaConfig)
 alpaca_data_source = AlpacaData(AlpacaConfig)
 trader = Trader(logfile=logfile, debug=debug)
+
+# Development: Minute Data
+# asset = "SPY"
+asset = Asset(symbol="SPY")
+df = pd.read_csv("data/dev_min_2019.csv", parse_dates=True)
+df = df.set_index('date')
+# df["SMA15"] = TA.SMA(df, 15)
+# df["SMA100"] = TA.SMA(df, 100)
+minute_df = dict()
+minute_df[asset] = df
 
 # Diversification: Multi Daily data.
 tickers = ["SPY", "TLT", "IEF", "GLD", "DJP",]
@@ -100,7 +110,7 @@ mapping = {
         "kwargs": {},
         "backtesting_cache": False,
         "config": None,
-        "pandas_data": div_data,
+        "pandas_data": div_data ,
     },
 }
 

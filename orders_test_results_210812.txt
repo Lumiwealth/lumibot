@@ -1771,3 +1771,1593 @@ Final Value: 40000.00
 Final Value: 40085.65
 
 Process finished with exit code 0
+
+=======================================================================================================
+=======================================================================================================
+Stop Limit Orders
+=======================================================================================================
+Lumibot Log
+
+/home/runout/projects/lumibot/lumibot/venv/bin/python3 /home/runout/projects/lumibot/simple_start_dev.py
+2021-08-13 16:03:31,630: INFO: Strategy Dev: Executing the initialize lifecycle method
+2021-08-13 16:03:31,631: INFO: Current backtesting datetime 2019-01-02 08:30:00-05:00
+2021-08-13 16:03:31,632: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:31,633: INFO: Current backtesting datetime 2019-01-02 09:30:00-05:00
+2021-08-13 16:03:31,633: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:31,634: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:31,637: INFO: Counter is at 0, program thinks it is 2019-01-02 09:30:00-05:00
+Progress ||   1.57% Complete*********  BUY  *********  2019-01-02 09:30:00-05:00, Stop price: 252.68 Limit price: 252.68 Close Price: 250.18
+2021-08-13 16:03:31,648: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-01-02 00:00:00-05:00  245.979996  251.210007  245.949997  250.179993
+
+2021-08-13 16:03:31,649: INFO: We have no open positions
+2021-08-13 16:03:31,649: WARNING: Backtest executes limit, stop, stop_limit and trailing orders as market orders
+2021-08-13 16:03:31,650: INFO: Current backtesting datetime 2019-01-02 15:55:00-05:00
+2021-08-13 16:03:31,655: INFO: Current backtesting datetime 2019-01-02 15:55:00-05:00
+2021-08-13 16:03:31,656: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:31,657: INFO: Current backtesting datetime 2019-01-02 16:00:00-05:00
+2021-08-13 16:03:31,657: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:31,658: INFO: Current backtesting datetime 2019-01-03 08:30:00-05:00
+2021-08-13 16:03:31,659: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:31,660: INFO: Current backtesting datetime 2019-01-03 09:30:00-05:00
+2021-08-13 16:03:31,660: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+Progress ||   2.99% Complete2021-08-13 16:03:31,662: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status unprocessed
+2021-08-13 16:03:31,662: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:31,664: INFO: Counter is at 1, program thinks it is 2019-01-03 09:30:00-05:00
+2021-08-13 16:03:31,674: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-01-03 00:00:00-05:00  248.229996  248.570007  243.669998  244.210007
+
+2021-08-13 16:03:31,675: INFO: We have no open positions
+2021-08-13 16:03:31,676: INFO: Current backtesting datetime 2019-01-03 15:55:00-05:00
+2021-08-13 16:03:31,681: INFO: Current backtesting datetime 2019-01-03 15:55:00-05:00
+2021-08-13 16:03:31,682: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:31,683: INFO: Current backtesting datetime 2019-01-03 16:00:00-05:00
+2021-08-13 16:03:31,683: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:31,684: INFO: Current backtesting datetime 2019-01-04 08:30:00-05:00
+2021-08-13 16:03:31,684: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:31,685: INFO: Current backtesting datetime 2019-01-04 09:30:00-05:00
+2021-08-13 16:03:31,686: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:31,688: INFO: Filled Transaction: buy 10 of SPY at 252.68179260253908$ per share
+2021-08-13 16:03:31,688: INFO: stop_limit order of | 10 SPY buy | with status unprocessed was filled
+2021-08-13 16:03:31,692: INFO: Strategy Dev: Executing the on_filled_order event method
+Progress ||   3.82% Complete
+ORDER FILLED: 2019-01-04 09:30:00-05:00, position: 10 shares of SPY, price: 252.68179260253908, side: buy
+2021-08-13 16:03:31,694: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status fill
+2021-08-13 16:03:31,694: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:31,696: INFO: Counter is at 2, program thinks it is 2019-01-04 09:30:00-05:00
+2021-08-13 16:03:31,707: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-01-04 00:00:00-05:00  247.589996  253.110001  247.169998  252.389999
+
+2021-08-13 16:03:31,707: INFO: We own 10 of SPY, about to sell
+2021-08-13 16:03:31,707: INFO: market order of | 10 SPY sell | with status unprocessed was sent to broker backtesting
+2021-08-13 16:03:31,708: INFO: Current backtesting datetime 2019-01-04 15:55:00-05:00
+2021-08-13 16:03:31,714: INFO: Current backtesting datetime 2019-01-04 15:55:00-05:00
+2021-08-13 16:03:31,714: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:31,715: INFO: Current backtesting datetime 2019-01-04 16:00:00-05:00
+2021-08-13 16:03:31,715: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:31,716: INFO: Current backtesting datetime 2019-01-07 08:30:00-05:00
+2021-08-13 16:03:31,717: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+Progress ||   7.19% Complete
+2021-08-13 16:03:31,718: INFO: Current backtesting datetime 2019-01-07 09:30:00-05:00
+2021-08-13 16:03:31,720: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:31,722: INFO: Filled Transaction: sell 10 of SPY at 252.69000244140625$ per share
+2021-08-13 16:03:31,722: INFO: market order of | 10 SPY sell | with status unprocessed was filled
+2021-08-13 16:03:31,722: INFO: Position 0 shares of SPY liquidated
+2021-08-13 16:03:31,727: INFO: Strategy Dev: Executing the on_filled_order event method
+2021-08-13 16:03:31,727: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status fill
+2021-08-13 16:03:31,727: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:31,729: INFO: Counter is at 3, program thinks it is 2019-01-07 09:30:00-05:00
+2021-08-13 16:03:31,739: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-01-07 00:00:00-05:00  252.690002  255.949997  251.690002  254.380005
+
+2021-08-13 16:03:31,739: INFO: We have no open positions
+2021-08-13 16:03:31,740: WARNING: Backtest executes limit, stop, stop_limit and trailing orders as market orders
+2021-08-13 16:03:31,741: INFO: Current backtesting datetime 2019-01-07 15:55:00-05:00
+ORDER FILLED: 2019-01-07 09:30:00-05:00, position: 0 shares of SPY, price: 252.69000244140625, side: sell
+*********  BUY  *********  2019-01-07 09:30:00-05:00, Stop price: 256.92 Limit price: 256.92 Close Price: 254.38
+Progress ||   8.31% Complete2021-08-13 16:03:31,746: INFO: Current backtesting datetime 2019-01-07 15:55:00-05:00
+2021-08-13 16:03:31,747: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:31,748: INFO: Current backtesting datetime 2019-01-07 16:00:00-05:00
+2021-08-13 16:03:31,748: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:31,749: INFO: Current backtesting datetime 2019-01-08 08:30:00-05:00
+2021-08-13 16:03:31,750: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:31,751: INFO: Current backtesting datetime 2019-01-08 09:30:00-05:00
+2021-08-13 16:03:31,751: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:31,753: INFO: Filled Transaction: buy 10 of SPY at 256.92380493164063$ per share
+2021-08-13 16:03:31,754: INFO: stop_limit order of | 10 SPY buy | with status unprocessed was filled
+2021-08-13 16:03:31,758: INFO: Strategy Dev: Executing the on_filled_order event method
+2021-08-13 16:03:31,759: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status fill
+2021-08-13 16:03:31,760: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:31,761: INFO: Counter is at 4, program thinks it is 2019-01-08 09:30:00-05:00
+2021-08-13 16:03:31,772: INFO: The value of SPY is
+                                 open        high    low       close
+Date
+2019-01-08 00:00:00-05:00  256.820007  257.309998  254.0  256.769989
+
+2021-08-13 16:03:31,772: INFO: We own 10 of SPY, about to sell
+2021-08-13 16:03:31,772: INFO: market order of | 10 SPY sell | with status unprocessed was sent to broker backtesting
+2021-08-13 16:03:31,774: INFO: Current backtesting datetime 2019-01-08 15:55:00-05:00
+
+ORDER FILLED: 2019-01-08 09:30:00-05:00, position: 10 shares of SPY, price: 256.92380493164063, side: buy
+Progress ||   9.44% Complete
+2021-08-13 16:03:31,779: INFO: Current backtesting datetime 2019-01-08 15:55:00-05:00
+2021-08-13 16:03:31,780: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:31,781: INFO: Current backtesting datetime 2019-01-08 16:00:00-05:00
+2021-08-13 16:03:31,781: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:31,782: INFO: Current backtesting datetime 2019-01-09 08:30:00-05:00
+2021-08-13 16:03:31,782: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:31,783: INFO: Current backtesting datetime 2019-01-09 09:30:00-05:00
+2021-08-13 16:03:31,785: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:31,787: INFO: Filled Transaction: sell 10 of SPY at 257.5599975585937$ per share
+2021-08-13 16:03:31,787: INFO: market order of | 10 SPY sell | with status unprocessed was filled
+2021-08-13 16:03:31,787: INFO: Position 0 shares of SPY liquidated
+2021-08-13 16:03:31,792: INFO: Strategy Dev: Executing the on_filled_order event method
+2021-08-13 16:03:31,792: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status fill
+2021-08-13 16:03:31,792: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:31,794: INFO: Counter is at 5, program thinks it is 2019-01-09 09:30:00-05:00
+2021-08-13 16:03:31,804: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-01-09 00:00:00-05:00  257.559998  258.910004  256.190002  257.970001
+
+2021-08-13 16:03:31,804: INFO: We have no open positions
+2021-08-13 16:03:31,805: WARNING: Backtest executes limit, stop, stop_limit and trailing orders as market orders
+2021-08-13 16:03:31,806: INFO: Current backtesting datetime 2019-01-09 15:55:00-05:00
+ORDER FILLED: 2019-01-09 09:30:00-05:00, position: 0 shares of SPY, price: 257.5599975585937, side: sell
+*********  BUY  *********  2019-01-09 09:30:00-05:00, Stop price: 260.55 Limit price: 260.55 Close Price: 257.97
+Progress ||  10.56% Complete2021-08-13 16:03:31,811: INFO: Current backtesting datetime 2019-01-09 15:55:00-05:00
+2021-08-13 16:03:31,812: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:31,813: INFO: Current backtesting datetime 2019-01-09 16:00:00-05:00
+2021-08-13 16:03:31,813: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:31,814: INFO: Current backtesting datetime 2019-01-10 08:30:00-05:00
+2021-08-13 16:03:31,815: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:31,816: INFO: Current backtesting datetime 2019-01-10 09:30:00-05:00
+2021-08-13 16:03:31,816: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:31,818: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status unprocessed
+2021-08-13 16:03:31,818: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:31,820: INFO: Counter is at 6, program thinks it is 2019-01-10 09:30:00-05:00
+2021-08-13 16:03:31,832: INFO: The value of SPY is
+                                open        high    low       close
+Date
+2019-01-10 00:00:00-05:00  256.26001  259.160004  255.5  258.880005
+
+2021-08-13 16:03:31,832: INFO: We have no open positions
+2021-08-13 16:03:31,834: INFO: Current backtesting datetime 2019-01-10 15:55:00-05:00
+2021-08-13 16:03:31,840: INFO: Current backtesting datetime 2019-01-10 15:55:00-05:00
+2021-08-13 16:03:31,840: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:31,841: INFO: Current backtesting datetime 2019-01-10 16:00:00-05:00
+2021-08-13 16:03:31,841: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:31,842: INFO: Current backtesting datetime 2019-01-11 08:30:00-05:00
+2021-08-13 16:03:31,843: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:31,844: INFO: Current backtesting datetime 2019-01-11 09:30:00-05:00
+2021-08-13 16:03:31,844: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:31,847: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status unprocessed
+2021-08-13 16:03:31,847: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:31,849: INFO: Counter is at 7, program thinks it is 2019-01-11 09:30:00-05:00
+Progress ||  15.06% Complete2021-08-13 16:03:31,859: INFO: The value of SPY is
+                                 open       high         low       close
+Date
+2019-01-11 00:00:00-05:00  257.679993  259.01001  257.029999  258.980011
+
+2021-08-13 16:03:31,859: INFO: We have no open positions
+2021-08-13 16:03:31,861: INFO: Current backtesting datetime 2019-01-11 15:55:00-05:00
+2021-08-13 16:03:31,867: INFO: Current backtesting datetime 2019-01-11 15:55:00-05:00
+2021-08-13 16:03:31,867: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:31,868: INFO: Current backtesting datetime 2019-01-11 16:00:00-05:00
+2021-08-13 16:03:31,868: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:31,869: INFO: Current backtesting datetime 2019-01-14 08:30:00-05:00
+2021-08-13 16:03:31,870: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:31,871: INFO: Current backtesting datetime 2019-01-14 09:30:00-05:00
+2021-08-13 16:03:31,871: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:31,874: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status unprocessed
+2021-08-13 16:03:31,874: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:31,876: INFO: Counter is at 8, program thinks it is 2019-01-14 09:30:00-05:00
+2021-08-13 16:03:31,887: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-01-14 00:00:00-05:00  256.859985  258.299988  256.410004  257.399994
+
+2021-08-13 16:03:31,887: INFO: We have no open positions
+2021-08-13 16:03:31,889: INFO: Current backtesting datetime 2019-01-14 15:55:00-05:00
+2021-08-13 16:03:31,894: INFO: Current backtesting datetime 2019-01-14 15:55:00-05:00
+2021-08-13 16:03:31,895: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:31,896: INFO: Current backtesting datetime 2019-01-14 16:00:00-05:00
+2021-08-13 16:03:31,896: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:31,897: INFO: Current backtesting datetime 2019-01-15 08:30:00-05:00
+2021-08-13 16:03:31,898: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:31,899: INFO: Current backtesting datetime 2019-01-15 09:30:00-05:00
+2021-08-13 16:03:31,899: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:31,902: INFO: Filled Transaction: buy 10 of SPY at 260.54970123291014$ per share
+2021-08-13 16:03:31,902: INFO: stop_limit order of | 10 SPY buy | with status unprocessed was filled
+2021-08-13 16:03:31,907: INFO: Strategy Dev: Executing the on_filled_order event method
+Progress ||  16.18% Complete
+ORDER FILLED: 2019-01-15 09:30:00-05:00, position: 10 shares of SPY, price: 260.54970123291014, side: buy
+2021-08-13 16:03:31,908: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status fill
+2021-08-13 16:03:31,909: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:31,910: INFO: Counter is at 9, program thinks it is 2019-01-15 09:30:00-05:00
+2021-08-13 16:03:31,921: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-01-15 00:00:00-05:00  257.820007  260.700012  257.809998  260.350006
+
+2021-08-13 16:03:31,921: INFO: We own 10 of SPY, about to sell
+2021-08-13 16:03:31,921: INFO: market order of | 10 SPY sell | with status unprocessed was sent to broker backtesting
+2021-08-13 16:03:31,923: INFO: Current backtesting datetime 2019-01-15 15:55:00-05:00
+2021-08-13 16:03:31,929: INFO: Current backtesting datetime 2019-01-15 15:55:00-05:00
+2021-08-13 16:03:31,929: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:31,931: INFO: Current backtesting datetime 2019-01-15 16:00:00-05:00
+2021-08-13 16:03:31,931: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:31,932: INFO: Current backtesting datetime 2019-01-16 08:30:00-05:00
+2021-08-13 16:03:31,932: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:31,933: INFO: Current backtesting datetime 2019-01-16 09:30:00-05:00
+2021-08-13 16:03:31,935: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:31,937: INFO: Filled Transaction: sell 10 of SPY at 260.8299865722656$ per share
+2021-08-13 16:03:31,937: INFO: market order of | 10 SPY sell | with status unprocessed was filled
+2021-08-13 16:03:31,938: INFO: Position 0 shares of SPY liquidated
+2021-08-13 16:03:31,942: INFO: Strategy Dev: Executing the on_filled_order event method
+2021-08-13 16:03:31,942: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status fill
+2021-08-13 16:03:31,942: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+Progress ||  17.31% Complete
+ORDER FILLED: 2019-01-16 09:30:00-05:00, position: 0 shares of SPY, price: 260.8299865722656, side: sell
+*********  BUY  *********  2019-01-16 09:30:00-05:00, Stop price: 263.59 Limit price: 263.59 Close Price: 260.98
+Progress ||  17.61% Complete2021-08-13 16:03:31,944: INFO: Counter is at 10, program thinks it is 2019-01-16 09:30:00-05:00
+2021-08-13 16:03:31,955: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-01-16 00:00:00-05:00  260.829987  261.970001  260.600006  260.980011
+
+2021-08-13 16:03:31,955: INFO: We have no open positions
+2021-08-13 16:03:31,955: WARNING: Backtest executes limit, stop, stop_limit and trailing orders as market orders
+2021-08-13 16:03:31,957: INFO: Current backtesting datetime 2019-01-16 15:55:00-05:00
+2021-08-13 16:03:31,962: INFO: Current backtesting datetime 2019-01-16 15:55:00-05:00
+2021-08-13 16:03:31,962: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:31,963: INFO: Current backtesting datetime 2019-01-16 16:00:00-05:00
+2021-08-13 16:03:31,964: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:31,965: INFO: Current backtesting datetime 2019-01-17 08:30:00-05:00
+2021-08-13 16:03:31,965: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:31,966: INFO: Current backtesting datetime 2019-01-17 09:30:00-05:00
+2021-08-13 16:03:31,966: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:31,969: INFO: Filled Transaction: buy 10 of SPY at 263.5898110961914$ per share
+2021-08-13 16:03:31,969: INFO: stop_limit order of | 10 SPY buy | with status unprocessed was filled
+2021-08-13 16:03:31,973: INFO: Strategy Dev: Executing the on_filled_order event method
+2021-08-13 16:03:31,975: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status fill
+2021-08-13 16:03:31,975: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:31,977: INFO: Counter is at 11, program thinks it is 2019-01-17 09:30:00-05:00
+Progress ||  18.43% Complete
+ORDER FILLED: 2019-01-17 09:30:00-05:00, position: 10 shares of SPY, price: 263.5898110961914, side: buy
+Progress ||  19.56% Complete2021-08-13 16:03:31,987: INFO: The value of SPY is
+                                open        high         low       close
+Date
+2019-01-17 00:00:00-05:00  260.01001  263.920013  259.959991  262.959991
+
+2021-08-13 16:03:31,987: INFO: We own 10 of SPY, about to sell
+2021-08-13 16:03:31,988: INFO: market order of | 10 SPY sell | with status unprocessed was sent to broker backtesting
+2021-08-13 16:03:31,989: INFO: Current backtesting datetime 2019-01-17 15:55:00-05:00
+2021-08-13 16:03:31,994: INFO: Current backtesting datetime 2019-01-17 15:55:00-05:00
+2021-08-13 16:03:31,995: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:31,996: INFO: Current backtesting datetime 2019-01-17 16:00:00-05:00
+2021-08-13 16:03:31,996: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:31,997: INFO: Current backtesting datetime 2019-01-18 08:30:00-05:00
+2021-08-13 16:03:31,998: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:31,999: INFO: Current backtesting datetime 2019-01-18 09:30:00-05:00
+2021-08-13 16:03:32,000: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:32,003: INFO: Filled Transaction: sell 10 of SPY at 264.9800109863281$ per share
+2021-08-13 16:03:32,003: INFO: market order of | 10 SPY sell | with status unprocessed was filled
+2021-08-13 16:03:32,003: INFO: Position 0 shares of SPY liquidated
+2021-08-13 16:03:32,007: INFO: Strategy Dev: Executing the on_filled_order event method
+2021-08-13 16:03:32,007: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status fill
+2021-08-13 16:03:32,007: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:32,009: INFO: Counter is at 12, program thinks it is 2019-01-18 09:30:00-05:00
+2021-08-13 16:03:32,020: INFO: The value of SPY is
+                                 open        high    low       close
+Date
+2019-01-18 00:00:00-05:00  264.980011  266.980011  263.0  266.459991
+
+2021-08-13 16:03:32,020: INFO: We have no open positions
+2021-08-13 16:03:32,020: WARNING: Backtest executes limit, stop, stop_limit and trailing orders as market orders
+2021-08-13 16:03:32,022: INFO: Current backtesting datetime 2019-01-18 15:55:00-05:00
+
+ORDER FILLED: 2019-01-18 09:30:00-05:00, position: 0 shares of SPY, price: 264.9800109863281, side: sell
+*********  BUY  *********  2019-01-18 09:30:00-05:00, Stop price: 269.12 Limit price: 269.12 Close Price: 266.46
+Progress ||  24.05% Complete2021-08-13 16:03:32,027: INFO: Current backtesting datetime 2019-01-18 15:55:00-05:00
+2021-08-13 16:03:32,027: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:32,028: INFO: Current backtesting datetime 2019-01-18 16:00:00-05:00
+2021-08-13 16:03:32,029: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:32,030: INFO: Current backtesting datetime 2019-01-22 08:30:00-05:00
+2021-08-13 16:03:32,030: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:32,031: INFO: Current backtesting datetime 2019-01-22 09:30:00-05:00
+2021-08-13 16:03:32,031: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:32,034: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status unprocessed
+2021-08-13 16:03:32,034: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:32,037: INFO: Counter is at 13, program thinks it is 2019-01-22 09:30:00-05:00
+2021-08-13 16:03:32,048: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-01-22 00:00:00-05:00  264.820007  265.059998  261.059998  262.859985
+
+2021-08-13 16:03:32,048: INFO: We have no open positions
+2021-08-13 16:03:32,050: INFO: Current backtesting datetime 2019-01-22 15:55:00-05:00
+2021-08-13 16:03:32,055: INFO: Current backtesting datetime 2019-01-22 15:55:00-05:00
+2021-08-13 16:03:32,055: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:32,056: INFO: Current backtesting datetime 2019-01-22 16:00:00-05:00
+2021-08-13 16:03:32,056: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:32,057: INFO: Current backtesting datetime 2019-01-23 08:30:00-05:00
+2021-08-13 16:03:32,058: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:32,059: INFO: Current backtesting datetime 2019-01-23 09:30:00-05:00
+2021-08-13 16:03:32,059: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:32,062: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status unprocessed
+2021-08-13 16:03:32,062: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:32,064: INFO: Counter is at 14, program thinks it is 2019-01-23 09:30:00-05:00
+Progress ||  26.30% Complete2021-08-13 16:03:32,075: INFO: The value of SPY is
+                                open        high         low       close
+Date
+2019-01-23 00:00:00-05:00  264.01001  264.790009  260.660004  263.410004
+
+2021-08-13 16:03:32,075: INFO: We have no open positions
+2021-08-13 16:03:32,077: INFO: Current backtesting datetime 2019-01-23 15:55:00-05:00
+2021-08-13 16:03:32,082: INFO: Current backtesting datetime 2019-01-23 15:55:00-05:00
+2021-08-13 16:03:32,083: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:32,084: INFO: Current backtesting datetime 2019-01-23 16:00:00-05:00
+2021-08-13 16:03:32,084: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:32,085: INFO: Current backtesting datetime 2019-01-24 08:30:00-05:00
+2021-08-13 16:03:32,086: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:32,087: INFO: Current backtesting datetime 2019-01-24 09:30:00-05:00
+2021-08-13 16:03:32,087: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:32,089: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status unprocessed
+2021-08-13 16:03:32,089: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:32,091: INFO: Counter is at 15, program thinks it is 2019-01-24 09:30:00-05:00
+Progress ||  27.42% Complete2021-08-13 16:03:32,102: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-01-24 00:00:00-05:00  263.209991  264.200012  262.079987  263.549988
+
+2021-08-13 16:03:32,102: INFO: We have no open positions
+2021-08-13 16:03:32,104: INFO: Current backtesting datetime 2019-01-24 15:55:00-05:00
+2021-08-13 16:03:32,109: INFO: Current backtesting datetime 2019-01-24 15:55:00-05:00
+2021-08-13 16:03:32,110: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:32,111: INFO: Current backtesting datetime 2019-01-24 16:00:00-05:00
+2021-08-13 16:03:32,111: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:32,112: INFO: Current backtesting datetime 2019-01-25 08:30:00-05:00
+2021-08-13 16:03:32,112: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:32,113: INFO: Current backtesting datetime 2019-01-25 09:30:00-05:00
+2021-08-13 16:03:32,114: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:32,116: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status unprocessed
+2021-08-13 16:03:32,116: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:32,118: INFO: Counter is at 16, program thinks it is 2019-01-25 09:30:00-05:00
+2021-08-13 16:03:32,129: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-01-25 00:00:00-05:00  265.609985  266.700012  263.660004  265.779999
+
+2021-08-13 16:03:32,129: INFO: We have no open positions
+2021-08-13 16:03:32,131: INFO: Current backtesting datetime 2019-01-25 15:55:00-05:00
+2021-08-13 16:03:32,136: INFO: Current backtesting datetime 2019-01-25 15:55:00-05:00
+2021-08-13 16:03:32,137: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:32,138: INFO: Current backtesting datetime 2019-01-25 16:00:00-05:00
+2021-08-13 16:03:32,138: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:32,139: INFO: Current backtesting datetime 2019-01-28 08:30:00-05:00
+2021-08-13 16:03:32,140: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:32,141: INFO: Current backtesting datetime 2019-01-28 09:30:00-05:00
+2021-08-13 16:03:32,141: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:32,143: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status unprocessed
+2021-08-13 16:03:32,143: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:32,145: INFO: Counter is at 17, program thinks it is 2019-01-28 09:30:00-05:00
+Progress ||  31.92% Complete2021-08-13 16:03:32,156: INFO: The value of SPY is
+                                 open        high         low      close
+Date
+2019-01-28 00:00:00-05:00  263.390015  263.829987  261.790009  263.76001
+
+2021-08-13 16:03:32,156: INFO: We have no open positions
+2021-08-13 16:03:32,157: INFO: Current backtesting datetime 2019-01-28 15:55:00-05:00
+2021-08-13 16:03:32,163: INFO: Current backtesting datetime 2019-01-28 15:55:00-05:00
+2021-08-13 16:03:32,163: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:32,165: INFO: Current backtesting datetime 2019-01-28 16:00:00-05:00
+2021-08-13 16:03:32,165: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:32,166: INFO: Current backtesting datetime 2019-01-29 08:30:00-05:00
+2021-08-13 16:03:32,166: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:32,168: INFO: Current backtesting datetime 2019-01-29 09:30:00-05:00
+2021-08-13 16:03:32,168: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:32,170: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status unprocessed
+2021-08-13 16:03:32,170: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:32,172: INFO: Counter is at 18, program thinks it is 2019-01-29 09:30:00-05:00
+2021-08-13 16:03:32,183: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-01-29 00:00:00-05:00  263.920013  264.549988  262.480011  263.410004
+
+2021-08-13 16:03:32,183: INFO: We have no open positions
+2021-08-13 16:03:32,184: INFO: Current backtesting datetime 2019-01-29 15:55:00-05:00
+2021-08-13 16:03:32,189: INFO: Current backtesting datetime 2019-01-29 15:55:00-05:00
+2021-08-13 16:03:32,190: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:32,191: INFO: Current backtesting datetime 2019-01-29 16:00:00-05:00
+2021-08-13 16:03:32,191: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:32,192: INFO: Current backtesting datetime 2019-01-30 08:30:00-05:00
+2021-08-13 16:03:32,193: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:32,194: INFO: Current backtesting datetime 2019-01-30 09:30:00-05:00
+2021-08-13 16:03:32,194: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:32,196: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status unprocessed
+2021-08-13 16:03:32,197: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:32,198: INFO: Counter is at 19, program thinks it is 2019-01-30 09:30:00-05:00
+Progress ||  34.17% Complete
+2021-08-13 16:03:32,209: INFO: The value of SPY is
+                                 open        high     low       close
+Date
+2019-01-30 00:00:00-05:00  265.100006  268.519989  264.25  267.579987
+
+2021-08-13 16:03:32,209: INFO: We have no open positions
+2021-08-13 16:03:32,210: INFO: Current backtesting datetime 2019-01-30 15:55:00-05:00
+2021-08-13 16:03:32,216: INFO: Current backtesting datetime 2019-01-30 15:55:00-05:00
+2021-08-13 16:03:32,216: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:32,217: INFO: Current backtesting datetime 2019-01-30 16:00:00-05:00
+2021-08-13 16:03:32,217: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:32,218: INFO: Current backtesting datetime 2019-01-31 08:30:00-05:00
+2021-08-13 16:03:32,219: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:32,220: INFO: Current backtesting datetime 2019-01-31 09:30:00-05:00
+2021-08-13 16:03:32,220: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:32,223: INFO: Filled Transaction: buy 10 of SPY at 269.1245913696289$ per share
+2021-08-13 16:03:32,223: INFO: stop_limit order of | 10 SPY buy | with status unprocessed was filled
+2021-08-13 16:03:32,227: INFO: Strategy Dev: Executing the on_filled_order event method
+2021-08-13 16:03:32,229: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status fill
+2021-08-13 16:03:32,229: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:32,231: INFO: Counter is at 20, program thinks it is 2019-01-31 09:30:00-05:00
+ORDER FILLED: 2019-01-31 09:30:00-05:00, position: 10 shares of SPY, price: 269.1245913696289, side: buy
+Progress ||  35.29% Complete2021-08-13 16:03:32,242: INFO: The value of SPY is
+                                open        high         low       close
+Date
+2019-01-31 00:00:00-05:00  267.51001  270.470001  267.269989  269.929993
+
+2021-08-13 16:03:32,242: INFO: We own 10 of SPY, about to sell
+2021-08-13 16:03:32,242: INFO: market order of | 10 SPY sell | with status unprocessed was sent to broker backtesting
+2021-08-13 16:03:32,244: INFO: Current backtesting datetime 2019-01-31 15:55:00-05:00
+2021-08-13 16:03:32,250: INFO: Current backtesting datetime 2019-01-31 15:55:00-05:00
+2021-08-13 16:03:32,250: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:32,251: INFO: Current backtesting datetime 2019-01-31 16:00:00-05:00
+2021-08-13 16:03:32,251: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:32,253: INFO: Current backtesting datetime 2019-02-01 08:30:00-05:00
+2021-08-13 16:03:32,253: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:32,255: INFO: Current backtesting datetime 2019-02-01 09:30:00-05:00
+2021-08-13 16:03:32,256: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:32,259: INFO: Filled Transaction: sell 10 of SPY at 270.1499938964844$ per share
+2021-08-13 16:03:32,259: INFO: market order of | 10 SPY sell | with status unprocessed was filled
+2021-08-13 16:03:32,259: INFO: Position 0 shares of SPY liquidated
+2021-08-13 16:03:32,263: INFO: Strategy Dev: Executing the on_filled_order event method
+2021-08-13 16:03:32,264: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status fill
+2021-08-13 16:03:32,264: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:32,267: INFO: Counter is at 21, program thinks it is 2019-02-01 09:30:00-05:00
+2021-08-13 16:03:32,278: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-02-01 00:00:00-05:00  270.149994  271.200012  269.179993  270.059998
+
+2021-08-13 16:03:32,278: INFO: We have no open positions
+2021-08-13 16:03:32,279: WARNING: Backtest executes limit, stop, stop_limit and trailing orders as market orders
+2021-08-13 16:03:32,281: INFO: Current backtesting datetime 2019-02-01 15:55:00-05:00
+
+ORDER FILLED: 2019-02-01 09:30:00-05:00, position: 0 shares of SPY, price: 270.1499938964844, side: sell
+*********  BUY  *********  2019-02-01 09:30:00-05:00, Stop price: 272.76 Limit price: 272.76 Close Price: 270.06
+Progress ||  38.67% Complete2021-08-13 16:03:32,286: INFO: Current backtesting datetime 2019-02-01 15:55:00-05:00
+2021-08-13 16:03:32,287: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:32,288: INFO: Current backtesting datetime 2019-02-01 16:00:00-05:00
+2021-08-13 16:03:32,288: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:32,290: INFO: Current backtesting datetime 2019-02-04 08:30:00-05:00
+2021-08-13 16:03:32,290: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:32,291: INFO: Current backtesting datetime 2019-02-04 09:30:00-05:00
+2021-08-13 16:03:32,291: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:32,294: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status unprocessed
+2021-08-13 16:03:32,294: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:32,296: INFO: Counter is at 22, program thinks it is 2019-02-04 09:30:00-05:00
+2021-08-13 16:03:32,307: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-02-04 00:00:00-05:00  270.109985  272.029999  269.359985  271.959991
+
+2021-08-13 16:03:32,308: INFO: We have no open positions
+2021-08-13 16:03:32,309: INFO: Current backtesting datetime 2019-02-04 15:55:00-05:00
+2021-08-13 16:03:32,315: INFO: Current backtesting datetime 2019-02-04 15:55:00-05:00
+2021-08-13 16:03:32,316: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:32,317: INFO: Current backtesting datetime 2019-02-04 16:00:00-05:00
+2021-08-13 16:03:32,317: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:32,318: INFO: Current backtesting datetime 2019-02-05 08:30:00-05:00
+2021-08-13 16:03:32,319: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:32,320: INFO: Current backtesting datetime 2019-02-05 09:30:00-05:00
+2021-08-13 16:03:32,320: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:32,323: INFO: Filled Transaction: buy 10 of SPY at 272.7605975341796$ per share
+2021-08-13 16:03:32,323: INFO: stop_limit order of | 10 SPY buy | with status unprocessed was filled
+Progress ||  39.79% Complete
+ORDER FILLED: 2019-02-05 09:30:00-05:00, position: 10 shares of SPY, price: 272.7605975341796, side: buy
+Progress ||  40.09% Complete2021-08-13 16:03:32,328: INFO: Strategy Dev: Executing the on_filled_order event method
+2021-08-13 16:03:32,330: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status fill
+2021-08-13 16:03:32,330: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:32,332: INFO: Counter is at 23, program thinks it is 2019-02-05 09:30:00-05:00
+2021-08-13 16:03:32,343: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-02-05 00:00:00-05:00  272.440002  273.440002  271.880005  273.100006
+
+2021-08-13 16:03:32,343: INFO: We own 10 of SPY, about to sell
+2021-08-13 16:03:32,343: INFO: market order of | 10 SPY sell | with status unprocessed was sent to broker backtesting
+2021-08-13 16:03:32,345: INFO: Current backtesting datetime 2019-02-05 15:55:00-05:00
+2021-08-13 16:03:32,351: INFO: Current backtesting datetime 2019-02-05 15:55:00-05:00
+2021-08-13 16:03:32,351: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:32,352: INFO: Current backtesting datetime 2019-02-05 16:00:00-05:00
+2021-08-13 16:03:32,352: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:32,353: INFO: Current backtesting datetime 2019-02-06 08:30:00-05:00
+2021-08-13 16:03:32,354: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:32,355: INFO: Current backtesting datetime 2019-02-06 09:30:00-05:00
+2021-08-13 16:03:32,356: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:32,359: INFO: Filled Transaction: sell 10 of SPY at 272.7900085449219$ per share
+2021-08-13 16:03:32,359: INFO: market order of | 10 SPY sell | with status unprocessed was filled
+2021-08-13 16:03:32,359: INFO: Position 0 shares of SPY liquidated
+2021-08-13 16:03:32,363: INFO: Strategy Dev: Executing the on_filled_order event method
+2021-08-13 16:03:32,364: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status fill
+2021-08-13 16:03:32,364: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:32,366: INFO: Counter is at 24, program thinks it is 2019-02-06 09:30:00-05:00
+Progress ||  40.91% Complete
+ORDER FILLED: 2019-02-06 09:30:00-05:00, position: 0 shares of SPY, price: 272.7900085449219, side: sell
+2021-08-13 16:03:32,376: INFO: The value of SPY is
+                                 open        high         low      close
+Date
+2019-02-06 00:00:00-05:00  272.790009  273.339996  271.920013  272.73999
+
+2021-08-13 16:03:32,376: INFO: We have no open positions
+2021-08-13 16:03:32,376: WARNING: Backtest executes limit, stop, stop_limit and trailing orders as market orders
+2021-08-13 16:03:32,378: INFO: Current backtesting datetime 2019-02-06 15:55:00-05:00
+2021-08-13 16:03:32,383: INFO: Current backtesting datetime 2019-02-06 15:55:00-05:00
+2021-08-13 16:03:32,384: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:32,385: INFO: Current backtesting datetime 2019-02-06 16:00:00-05:00
+2021-08-13 16:03:32,385: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:32,386: INFO: Current backtesting datetime 2019-02-07 08:30:00-05:00
+2021-08-13 16:03:32,387: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:32,388: INFO: Current backtesting datetime 2019-02-07 09:30:00-05:00
+2021-08-13 16:03:32,388: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:32,390: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status unprocessed
+2021-08-13 16:03:32,390: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:32,392: INFO: Counter is at 25, program thinks it is 2019-02-07 09:30:00-05:00
+*********  BUY  *********  2019-02-06 09:30:00-05:00, Stop price: 275.47 Limit price: 275.47 Close Price: 272.74
+Progress ||  43.16% Complete2021-08-13 16:03:32,403: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-02-07 00:00:00-05:00  270.940002  271.549988  268.290009  270.140015
+
+2021-08-13 16:03:32,403: INFO: We have no open positions
+2021-08-13 16:03:32,404: INFO: Current backtesting datetime 2019-02-07 15:55:00-05:00
+2021-08-13 16:03:32,409: INFO: Current backtesting datetime 2019-02-07 15:55:00-05:00
+2021-08-13 16:03:32,410: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:32,411: INFO: Current backtesting datetime 2019-02-07 16:00:00-05:00
+2021-08-13 16:03:32,411: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:32,412: INFO: Current backtesting datetime 2019-02-08 08:30:00-05:00
+2021-08-13 16:03:32,413: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:32,414: INFO: Current backtesting datetime 2019-02-08 09:30:00-05:00
+2021-08-13 16:03:32,414: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:32,417: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status unprocessed
+2021-08-13 16:03:32,417: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:32,419: INFO: Counter is at 26, program thinks it is 2019-02-08 09:30:00-05:00
+2021-08-13 16:03:32,430: INFO: The value of SPY is
+                             open        high         low       close
+Date
+2019-02-08 00:00:00-05:00  268.75  270.579987  267.829987  270.470001
+
+2021-08-13 16:03:32,430: INFO: We have no open positions
+2021-08-13 16:03:32,432: INFO: Current backtesting datetime 2019-02-08 15:55:00-05:00
+2021-08-13 16:03:32,437: INFO: Current backtesting datetime 2019-02-08 15:55:00-05:00
+2021-08-13 16:03:32,437: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:32,438: INFO: Current backtesting datetime 2019-02-08 16:00:00-05:00
+2021-08-13 16:03:32,438: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:32,439: INFO: Current backtesting datetime 2019-02-11 08:30:00-05:00
+2021-08-13 16:03:32,440: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:32,441: INFO: Current backtesting datetime 2019-02-11 09:30:00-05:00
+2021-08-13 16:03:32,441: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:32,444: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status unprocessed
+2021-08-13 16:03:32,444: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:32,446: INFO: Counter is at 27, program thinks it is 2019-02-11 09:30:00-05:00
+Progress ||  47.66% Complete2021-08-13 16:03:32,457: INFO: The value of SPY is
+                                 open       high         low       close
+Date
+2019-02-11 00:00:00-05:00  271.200012  271.48999  270.029999  270.619995
+
+2021-08-13 16:03:32,457: INFO: We have no open positions
+2021-08-13 16:03:32,459: INFO: Current backtesting datetime 2019-02-11 15:55:00-05:00
+2021-08-13 16:03:32,465: INFO: Current backtesting datetime 2019-02-11 15:55:00-05:00
+2021-08-13 16:03:32,465: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:32,466: INFO: Current backtesting datetime 2019-02-11 16:00:00-05:00
+2021-08-13 16:03:32,467: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:32,468: INFO: Current backtesting datetime 2019-02-12 08:30:00-05:00
+2021-08-13 16:03:32,468: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:32,470: INFO: Current backtesting datetime 2019-02-12 09:30:00-05:00
+2021-08-13 16:03:32,470: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:32,473: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status unprocessed
+2021-08-13 16:03:32,473: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:32,475: INFO: Counter is at 28, program thinks it is 2019-02-12 09:30:00-05:00
+Progress ||  48.78% Complete
+2021-08-13 16:03:32,486: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-02-12 00:00:00-05:00  272.420013  274.519989  272.339996  274.100006
+
+2021-08-13 16:03:32,486: INFO: We have no open positions
+2021-08-13 16:03:32,488: INFO: Current backtesting datetime 2019-02-12 15:55:00-05:00
+2021-08-13 16:03:32,494: INFO: Current backtesting datetime 2019-02-12 15:55:00-05:00
+2021-08-13 16:03:32,494: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:32,496: INFO: Current backtesting datetime 2019-02-12 16:00:00-05:00
+2021-08-13 16:03:32,496: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:32,497: INFO: Current backtesting datetime 2019-02-13 08:30:00-05:00
+2021-08-13 16:03:32,498: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:32,499: INFO: Current backtesting datetime 2019-02-13 09:30:00-05:00
+2021-08-13 16:03:32,499: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:32,501: INFO: Filled Transaction: buy 10 of SPY at 275.46739013671873$ per share
+2021-08-13 16:03:32,501: INFO: stop_limit order of | 10 SPY buy | with status unprocessed was filled
+2021-08-13 16:03:32,506: INFO: Strategy Dev: Executing the on_filled_order event method
+2021-08-13 16:03:32,508: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status fill
+2021-08-13 16:03:32,508: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:32,510: INFO: Counter is at 29, program thinks it is 2019-02-13 09:30:00-05:00
+ORDER FILLED: 2019-02-13 09:30:00-05:00, position: 10 shares of SPY, price: 275.46739013671873, side: buy
+2021-08-13 16:03:32,521: INFO: The value of SPY is
+                                 open        high         low      close
+Date
+2019-02-13 00:00:00-05:00  275.029999  275.929993  274.559998  274.98999
+
+2021-08-13 16:03:32,521: INFO: We own 10 of SPY, about to sell
+2021-08-13 16:03:32,521: INFO: market order of | 10 SPY sell | with status unprocessed was sent to broker backtesting
+2021-08-13 16:03:32,523: INFO: Current backtesting datetime 2019-02-13 15:55:00-05:00
+2021-08-13 16:03:32,529: INFO: Current backtesting datetime 2019-02-13 15:55:00-05:00
+2021-08-13 16:03:32,529: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:32,530: INFO: Current backtesting datetime 2019-02-13 16:00:00-05:00
+2021-08-13 16:03:32,531: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:32,532: INFO: Current backtesting datetime 2019-02-14 08:30:00-05:00
+2021-08-13 16:03:32,532: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:32,533: INFO: Current backtesting datetime 2019-02-14 09:30:00-05:00
+2021-08-13 16:03:32,535: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:32,538: INFO: Filled Transaction: sell 10 of SPY at 273.7799987792969$ per share
+2021-08-13 16:03:32,538: INFO: market order of | 10 SPY sell | with status unprocessed was filled
+2021-08-13 16:03:32,538: INFO: Position 0 shares of SPY liquidated
+2021-08-13 16:03:32,542: INFO: Strategy Dev: Executing the on_filled_order event method
+2021-08-13 16:03:32,543: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status fill
+2021-08-13 16:03:32,543: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+Progress ||  49.91% Complete
+ORDER FILLED: 2019-02-14 09:30:00-05:00, position: 0 shares of SPY, price: 273.7799987792969, side: sell
+2021-08-13 16:03:32,545: INFO: Counter is at 30, program thinks it is 2019-02-14 09:30:00-05:00
+2021-08-13 16:03:32,556: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-02-14 00:00:00-05:00  273.779999  275.640015  272.869995  274.380005
+
+2021-08-13 16:03:32,556: INFO: We have no open positions
+2021-08-13 16:03:32,556: WARNING: Backtest executes limit, stop, stop_limit and trailing orders as market orders
+2021-08-13 16:03:32,558: INFO: Current backtesting datetime 2019-02-14 15:55:00-05:00
+2021-08-13 16:03:32,563: INFO: Current backtesting datetime 2019-02-14 15:55:00-05:00
+2021-08-13 16:03:32,564: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:32,565: INFO: Current backtesting datetime 2019-02-14 16:00:00-05:00
+2021-08-13 16:03:32,565: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:32,566: INFO: Current backtesting datetime 2019-02-15 08:30:00-05:00
+2021-08-13 16:03:32,566: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:32,567: INFO: Current backtesting datetime 2019-02-15 09:30:00-05:00
+2021-08-13 16:03:32,568: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:32,570: INFO: Filled Transaction: buy 10 of SPY at 277.1238049316406$ per share
+2021-08-13 16:03:32,570: INFO: stop_limit order of | 10 SPY buy | with status unprocessed was filled
+2021-08-13 16:03:32,575: INFO: Strategy Dev: Executing the on_filled_order event method
+*********  BUY  *********  2019-02-14 09:30:00-05:00, Stop price: 277.12 Limit price: 277.12 Close Price: 274.38
+Progress ||  51.03% Complete
+ORDER FILLED: 2019-02-15 09:30:00-05:00, position: 10 shares of SPY, price: 277.1238049316406, side: buy
+Progress ||  51.33% Complete2021-08-13 16:03:32,576: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status fill
+2021-08-13 16:03:32,576: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:32,578: INFO: Counter is at 31, program thinks it is 2019-02-15 09:30:00-05:00
+2021-08-13 16:03:32,590: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-02-15 00:00:00-05:00  276.359985  277.410004  276.130005  277.369995
+
+2021-08-13 16:03:32,590: INFO: We own 10 of SPY, about to sell
+2021-08-13 16:03:32,590: INFO: market order of | 10 SPY sell | with status unprocessed was sent to broker backtesting
+2021-08-13 16:03:32,592: INFO: Current backtesting datetime 2019-02-15 15:55:00-05:00
+2021-08-13 16:03:32,598: INFO: Current backtesting datetime 2019-02-15 15:55:00-05:00
+2021-08-13 16:03:32,598: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:32,599: INFO: Current backtesting datetime 2019-02-15 16:00:00-05:00
+2021-08-13 16:03:32,599: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:32,600: INFO: Current backtesting datetime 2019-02-19 08:30:00-05:00
+2021-08-13 16:03:32,601: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:32,602: INFO: Current backtesting datetime 2019-02-19 09:30:00-05:00
+2021-08-13 16:03:32,604: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:32,606: INFO: Filled Transaction: sell 10 of SPY at 276.4800109863281$ per share
+2021-08-13 16:03:32,606: INFO: market order of | 10 SPY sell | with status unprocessed was filled
+2021-08-13 16:03:32,606: INFO: Position 0 shares of SPY liquidated
+2021-08-13 16:03:32,611: INFO: Strategy Dev: Executing the on_filled_order event method
+2021-08-13 16:03:32,611: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status fill
+2021-08-13 16:03:32,611: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+Progress ||  55.53% Complete
+ORDER FILLED: 2019-02-19 09:30:00-05:00, position: 0 shares of SPY, price: 276.4800109863281, side: sell
+*********  BUY  *********  2019-02-19 09:30:00-05:00, Stop price: 280.63 Limit price: 280.63 Close Price: 277.85
+Progress ||  55.83% Complete2021-08-13 16:03:32,613: INFO: Counter is at 32, program thinks it is 2019-02-19 09:30:00-05:00
+2021-08-13 16:03:32,623: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-02-19 00:00:00-05:00  276.480011  278.579987  276.470001  277.850006
+
+2021-08-13 16:03:32,623: INFO: We have no open positions
+2021-08-13 16:03:32,624: WARNING: Backtest executes limit, stop, stop_limit and trailing orders as market orders
+2021-08-13 16:03:32,625: INFO: Current backtesting datetime 2019-02-19 15:55:00-05:00
+2021-08-13 16:03:32,631: INFO: Current backtesting datetime 2019-02-19 15:55:00-05:00
+2021-08-13 16:03:32,631: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:32,632: INFO: Current backtesting datetime 2019-02-19 16:00:00-05:00
+2021-08-13 16:03:32,632: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:32,633: INFO: Current backtesting datetime 2019-02-20 08:30:00-05:00
+2021-08-13 16:03:32,634: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:32,635: INFO: Current backtesting datetime 2019-02-20 09:30:00-05:00
+2021-08-13 16:03:32,635: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:32,638: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status unprocessed
+2021-08-13 16:03:32,638: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:32,639: INFO: Counter is at 33, program thinks it is 2019-02-20 09:30:00-05:00
+Progress ||  57.78% Complete2021-08-13 16:03:32,650: INFO: The value of SPY is
+                                 open        high     low       close
+Date
+2019-02-20 00:00:00-05:00  277.809998  278.920013  277.25  278.410004
+
+2021-08-13 16:03:32,650: INFO: We have no open positions
+2021-08-13 16:03:32,652: INFO: Current backtesting datetime 2019-02-20 15:55:00-05:00
+2021-08-13 16:03:32,657: INFO: Current backtesting datetime 2019-02-20 15:55:00-05:00
+2021-08-13 16:03:32,658: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:32,659: INFO: Current backtesting datetime 2019-02-20 16:00:00-05:00
+2021-08-13 16:03:32,659: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:32,660: INFO: Current backtesting datetime 2019-02-21 08:30:00-05:00
+2021-08-13 16:03:32,661: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:32,662: INFO: Current backtesting datetime 2019-02-21 09:30:00-05:00
+2021-08-13 16:03:32,662: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:32,665: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status unprocessed
+2021-08-13 16:03:32,665: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:32,667: INFO: Counter is at 34, program thinks it is 2019-02-21 09:30:00-05:00
+2021-08-13 16:03:32,677: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-02-21 00:00:00-05:00  277.700012  278.100006  276.350006  277.420013
+
+2021-08-13 16:03:32,677: INFO: We have no open positions
+2021-08-13 16:03:32,679: INFO: Current backtesting datetime 2019-02-21 15:55:00-05:00
+2021-08-13 16:03:32,685: INFO: Current backtesting datetime 2019-02-21 15:55:00-05:00
+2021-08-13 16:03:32,685: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:32,686: INFO: Current backtesting datetime 2019-02-21 16:00:00-05:00
+2021-08-13 16:03:32,686: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:32,688: INFO: Current backtesting datetime 2019-02-22 08:30:00-05:00
+2021-08-13 16:03:32,688: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:32,689: INFO: Current backtesting datetime 2019-02-22 09:30:00-05:00
+2021-08-13 16:03:32,689: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:32,692: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status unprocessed
+2021-08-13 16:03:32,692: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:32,694: INFO: Counter is at 35, program thinks it is 2019-02-22 09:30:00-05:00
+Progress ||  62.27% Complete2021-08-13 16:03:32,705: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-02-22 00:00:00-05:00  278.109985  279.359985  277.399994  279.140015
+
+2021-08-13 16:03:32,705: INFO: We have no open positions
+2021-08-13 16:03:32,706: INFO: Current backtesting datetime 2019-02-22 15:55:00-05:00
+2021-08-13 16:03:32,712: INFO: Current backtesting datetime 2019-02-22 15:55:00-05:00
+2021-08-13 16:03:32,712: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:32,714: INFO: Current backtesting datetime 2019-02-22 16:00:00-05:00
+2021-08-13 16:03:32,714: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:32,715: INFO: Current backtesting datetime 2019-02-25 08:30:00-05:00
+2021-08-13 16:03:32,715: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:32,716: INFO: Current backtesting datetime 2019-02-25 09:30:00-05:00
+2021-08-13 16:03:32,716: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:32,719: INFO: Filled Transaction: buy 10 of SPY at 280.6285061645508$ per share
+2021-08-13 16:03:32,719: INFO: stop_limit order of | 10 SPY buy | with status unprocessed was filled
+2021-08-13 16:03:32,724: INFO: Strategy Dev: Executing the on_filled_order event method
+2021-08-13 16:03:32,727: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status fill
+2021-08-13 16:03:32,727: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:32,729: INFO: Counter is at 36, program thinks it is 2019-02-25 09:30:00-05:00
+
+ORDER FILLED: 2019-02-25 09:30:00-05:00, position: 10 shares of SPY, price: 280.6285061645508, side: buy
+Progress ||  63.40% Complete2021-08-13 16:03:32,740: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-02-25 00:00:00-05:00  280.730011  281.309998  279.429993  279.519989
+
+2021-08-13 16:03:32,741: INFO: We own 10 of SPY, about to sell
+2021-08-13 16:03:32,741: INFO: market order of | 10 SPY sell | with status unprocessed was sent to broker backtesting
+2021-08-13 16:03:32,743: INFO: Current backtesting datetime 2019-02-25 15:55:00-05:00
+2021-08-13 16:03:32,748: INFO: Current backtesting datetime 2019-02-25 15:55:00-05:00
+2021-08-13 16:03:32,749: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:32,750: INFO: Current backtesting datetime 2019-02-25 16:00:00-05:00
+2021-08-13 16:03:32,750: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:32,752: INFO: Current backtesting datetime 2019-02-26 08:30:00-05:00
+2021-08-13 16:03:32,752: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:32,753: INFO: Current backtesting datetime 2019-02-26 09:30:00-05:00
+2021-08-13 16:03:32,755: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:32,757: INFO: Filled Transaction: sell 10 of SPY at 279.1300048828125$ per share
+2021-08-13 16:03:32,757: INFO: market order of | 10 SPY sell | with status unprocessed was filled
+2021-08-13 16:03:32,757: INFO: Position 0 shares of SPY liquidated
+2021-08-13 16:03:32,762: INFO: Strategy Dev: Executing the on_filled_order event method
+2021-08-13 16:03:32,762: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status fill
+2021-08-13 16:03:32,763: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:32,764: INFO: Counter is at 37, program thinks it is 2019-02-26 09:30:00-05:00
+2021-08-13 16:03:32,775: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-02-26 00:00:00-05:00  279.130005  280.299988  278.899994  279.320007
+
+2021-08-13 16:03:32,775: INFO: We have no open positions
+2021-08-13 16:03:32,775: WARNING: Backtest executes limit, stop, stop_limit and trailing orders as market orders
+2021-08-13 16:03:32,777: INFO: Current backtesting datetime 2019-02-26 15:55:00-05:00
+2021-08-13 16:03:32,782: INFO: Current backtesting datetime 2019-02-26 15:55:00-05:00
+2021-08-13 16:03:32,783: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+
+ORDER FILLED: 2019-02-26 09:30:00-05:00, position: 0 shares of SPY, price: 279.1300048828125, side: sell
+*********  BUY  *********  2019-02-26 09:30:00-05:00, Stop price: 282.11 Limit price: 282.11 Close Price: 279.32
+Progress ||  64.82% Complete2021-08-13 16:03:32,784: INFO: Current backtesting datetime 2019-02-26 16:00:00-05:00
+2021-08-13 16:03:32,784: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:32,785: INFO: Current backtesting datetime 2019-02-27 08:30:00-05:00
+2021-08-13 16:03:32,785: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:32,786: INFO: Current backtesting datetime 2019-02-27 09:30:00-05:00
+2021-08-13 16:03:32,787: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:32,789: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status unprocessed
+2021-08-13 16:03:32,789: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:32,791: INFO: Counter is at 38, program thinks it is 2019-02-27 09:30:00-05:00
+2021-08-13 16:03:32,801: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-02-27 00:00:00-05:00  278.519989  279.589996  277.480011  279.200012
+
+2021-08-13 16:03:32,801: INFO: We have no open positions
+2021-08-13 16:03:32,803: INFO: Current backtesting datetime 2019-02-27 15:55:00-05:00
+2021-08-13 16:03:32,808: INFO: Current backtesting datetime 2019-02-27 15:55:00-05:00
+2021-08-13 16:03:32,808: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:32,809: INFO: Current backtesting datetime 2019-02-27 16:00:00-05:00
+2021-08-13 16:03:32,809: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:32,810: INFO: Current backtesting datetime 2019-02-28 08:30:00-05:00
+2021-08-13 16:03:32,811: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:32,812: INFO: Current backtesting datetime 2019-02-28 09:30:00-05:00
+2021-08-13 16:03:32,812: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:32,815: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status unprocessed
+2021-08-13 16:03:32,815: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:32,817: INFO: Counter is at 39, program thinks it is 2019-02-28 09:30:00-05:00
+Progress ||  66.77% Complete2021-08-13 16:03:32,827: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-02-28 00:00:00-05:00  278.959991  279.450012  278.320007  278.679993
+
+2021-08-13 16:03:32,827: INFO: We have no open positions
+2021-08-13 16:03:32,829: INFO: Current backtesting datetime 2019-02-28 15:55:00-05:00
+2021-08-13 16:03:32,835: INFO: Current backtesting datetime 2019-02-28 15:55:00-05:00
+2021-08-13 16:03:32,835: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:32,836: INFO: Current backtesting datetime 2019-02-28 16:00:00-05:00
+2021-08-13 16:03:32,836: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:32,837: INFO: Current backtesting datetime 2019-03-01 08:30:00-05:00
+2021-08-13 16:03:32,838: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:32,839: INFO: Current backtesting datetime 2019-03-01 09:30:00-05:00
+2021-08-13 16:03:32,839: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:32,841: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status unprocessed
+2021-08-13 16:03:32,841: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:32,843: INFO: Counter is at 40, program thinks it is 2019-03-01 09:30:00-05:00
+Progress ||  70.14% Complete2021-08-13 16:03:32,854: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-03-01 00:00:00-05:00  280.440002  280.880005  278.820007  280.420013
+
+2021-08-13 16:03:32,854: INFO: We have no open positions
+2021-08-13 16:03:32,855: INFO: Current backtesting datetime 2019-03-01 15:55:00-05:00
+2021-08-13 16:03:32,861: INFO: Current backtesting datetime 2019-03-01 15:55:00-05:00
+2021-08-13 16:03:32,861: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:32,862: INFO: Current backtesting datetime 2019-03-01 16:00:00-05:00
+2021-08-13 16:03:32,863: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:32,864: INFO: Current backtesting datetime 2019-03-04 08:30:00-05:00
+2021-08-13 16:03:32,864: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:32,865: INFO: Current backtesting datetime 2019-03-04 09:30:00-05:00
+2021-08-13 16:03:32,865: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:32,868: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status unprocessed
+2021-08-13 16:03:32,868: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:32,870: INFO: Counter is at 41, program thinks it is 2019-03-04 09:30:00-05:00
+2021-08-13 16:03:32,881: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-03-04 00:00:00-05:00  281.600006  281.869995  276.839996  279.399994
+
+2021-08-13 16:03:32,881: INFO: We have no open positions
+2021-08-13 16:03:32,883: INFO: Current backtesting datetime 2019-03-04 15:55:00-05:00
+2021-08-13 16:03:32,888: INFO: Current backtesting datetime 2019-03-04 15:55:00-05:00
+2021-08-13 16:03:32,888: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:32,889: INFO: Current backtesting datetime 2019-03-04 16:00:00-05:00
+2021-08-13 16:03:32,889: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:32,891: INFO: Current backtesting datetime 2019-03-05 08:30:00-05:00
+2021-08-13 16:03:32,891: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:32,892: INFO: Current backtesting datetime 2019-03-05 09:30:00-05:00
+2021-08-13 16:03:32,893: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:32,895: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status unprocessed
+2021-08-13 16:03:32,895: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:32,897: INFO: Counter is at 42, program thinks it is 2019-03-05 09:30:00-05:00
+Progress ||  72.39% Complete2021-08-13 16:03:32,908: INFO: The value of SPY is
+                                 open       high         low       close
+Date
+2019-03-05 00:00:00-05:00  279.540009  279.76001  278.410004  279.019989
+
+2021-08-13 16:03:32,908: INFO: We have no open positions
+2021-08-13 16:03:32,910: INFO: Current backtesting datetime 2019-03-05 15:55:00-05:00
+2021-08-13 16:03:32,915: INFO: Current backtesting datetime 2019-03-05 15:55:00-05:00
+2021-08-13 16:03:32,916: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:32,917: INFO: Current backtesting datetime 2019-03-05 16:00:00-05:00
+2021-08-13 16:03:32,917: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:32,918: INFO: Current backtesting datetime 2019-03-06 08:30:00-05:00
+2021-08-13 16:03:32,918: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:32,919: INFO: Current backtesting datetime 2019-03-06 09:30:00-05:00
+2021-08-13 16:03:32,920: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:32,922: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status unprocessed
+2021-08-13 16:03:32,922: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:32,924: INFO: Counter is at 43, program thinks it is 2019-03-06 09:30:00-05:00
+2021-08-13 16:03:32,935: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-03-06 00:00:00-05:00  279.149994  279.160004  276.970001  277.329987
+
+2021-08-13 16:03:32,935: INFO: We have no open positions
+2021-08-13 16:03:32,936: INFO: Current backtesting datetime 2019-03-06 15:55:00-05:00
+2021-08-13 16:03:32,942: INFO: Current backtesting datetime 2019-03-06 15:55:00-05:00
+2021-08-13 16:03:32,942: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:32,943: INFO: Current backtesting datetime 2019-03-06 16:00:00-05:00
+2021-08-13 16:03:32,944: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:32,945: INFO: Current backtesting datetime 2019-03-07 08:30:00-05:00
+2021-08-13 16:03:32,945: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:32,946: INFO: Current backtesting datetime 2019-03-07 09:30:00-05:00
+2021-08-13 16:03:32,946: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:32,949: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status unprocessed
+2021-08-13 16:03:32,949: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:32,951: INFO: Counter is at 44, program thinks it is 2019-03-07 09:30:00-05:00
+Progress ||  74.64% Complete2021-08-13 16:03:32,962: INFO: The value of SPY is
+                                 open       high         low      close
+Date
+2019-03-07 00:00:00-05:00  276.829987  276.98999  274.070007  275.01001
+
+2021-08-13 16:03:32,962: INFO: We have no open positions
+2021-08-13 16:03:32,963: INFO: Current backtesting datetime 2019-03-07 15:55:00-05:00
+2021-08-13 16:03:32,969: INFO: Current backtesting datetime 2019-03-07 15:55:00-05:00
+2021-08-13 16:03:32,969: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:32,970: INFO: Current backtesting datetime 2019-03-07 16:00:00-05:00
+2021-08-13 16:03:32,970: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:32,971: INFO: Current backtesting datetime 2019-03-08 08:30:00-05:00
+2021-08-13 16:03:32,972: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:32,973: INFO: Current backtesting datetime 2019-03-08 09:30:00-05:00
+2021-08-13 16:03:32,973: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:32,975: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status unprocessed
+2021-08-13 16:03:32,976: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:32,977: INFO: Counter is at 45, program thinks it is 2019-03-08 09:30:00-05:00
+2021-08-13 16:03:32,988: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-03-08 00:00:00-05:00  272.940002  274.649994  272.420013  274.459991
+
+2021-08-13 16:03:32,988: INFO: We have no open positions
+2021-08-13 16:03:32,989: INFO: Current backtesting datetime 2019-03-08 15:55:00-05:00
+2021-08-13 16:03:32,994: INFO: Current backtesting datetime 2019-03-08 15:55:00-05:00
+2021-08-13 16:03:32,995: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:32,996: INFO: Current backtesting datetime 2019-03-08 16:00:00-05:00
+2021-08-13 16:03:32,996: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:32,997: INFO: Current backtesting datetime 2019-03-11 07:30:00-05:00
+2021-08-13 16:03:32,998: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:32,999: INFO: Current backtesting datetime 2019-03-11 08:30:00-05:00
+2021-08-13 16:03:32,999: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+Progress ||  78.26% Complete2021-08-13 16:03:33,001: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status unprocessed
+2021-08-13 16:03:33,001: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:33,003: INFO: Counter is at 46, program thinks it is 2019-03-11 08:30:00-05:00
+2021-08-13 16:03:33,013: INFO: The value of SPY is
+                                open        high         low       close
+Date
+2019-03-11 00:00:00-04:00  275.26001  278.619995  275.230011  278.440002
+
+2021-08-13 16:03:33,013: INFO: We have no open positions
+2021-08-13 16:03:33,015: INFO: Current backtesting datetime 2019-03-11 14:55:00-05:00
+2021-08-13 16:03:33,020: INFO: Current backtesting datetime 2019-03-11 14:55:00-05:00
+2021-08-13 16:03:33,021: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:33,021: INFO: Current backtesting datetime 2019-03-11 15:00:00-05:00
+2021-08-13 16:03:33,022: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:33,023: INFO: Current backtesting datetime 2019-03-12 07:30:00-05:00
+2021-08-13 16:03:33,023: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:33,024: INFO: Current backtesting datetime 2019-03-12 08:30:00-05:00
+2021-08-13 16:03:33,024: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:33,027: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status unprocessed
+2021-08-13 16:03:33,027: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:33,029: INFO: Counter is at 47, program thinks it is 2019-03-12 08:30:00-05:00
+Progress ||  80.21% Complete
+2021-08-13 16:03:33,039: INFO: The value of SPY is
+                                 open        high         low      close
+Date
+2019-03-12 00:00:00-04:00  279.059998  280.070007  278.850006  279.48999
+
+2021-08-13 16:03:33,039: INFO: We have no open positions
+2021-08-13 16:03:33,040: INFO: Current backtesting datetime 2019-03-12 14:55:00-05:00
+2021-08-13 16:03:33,046: INFO: Current backtesting datetime 2019-03-12 14:55:00-05:00
+2021-08-13 16:03:33,046: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:33,047: INFO: Current backtesting datetime 2019-03-12 15:00:00-05:00
+2021-08-13 16:03:33,047: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:33,048: INFO: Current backtesting datetime 2019-03-13 07:30:00-05:00
+2021-08-13 16:03:33,049: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:33,050: INFO: Current backtesting datetime 2019-03-13 08:30:00-05:00
+2021-08-13 16:03:33,050: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:33,052: INFO: Filled Transaction: buy 10 of SPY at 282.11320739746094$ per share
+2021-08-13 16:03:33,053: INFO: stop_limit order of | 10 SPY buy | with status unprocessed was filled
+2021-08-13 16:03:33,057: INFO: Strategy Dev: Executing the on_filled_order event method
+2021-08-13 16:03:33,059: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status fill
+2021-08-13 16:03:33,059: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:33,061: INFO: Counter is at 48, program thinks it is 2019-03-13 08:30:00-05:00
+ORDER FILLED: 2019-03-13 08:30:00-05:00, position: 10 shares of SPY, price: 282.11320739746094, side: buy
+2021-08-13 16:03:33,072: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-03-13 00:00:00-04:00  280.480011  282.380005  280.299988  281.339996
+
+2021-08-13 16:03:33,072: INFO: We own 10 of SPY, about to sell
+2021-08-13 16:03:33,072: INFO: market order of | 10 SPY sell | with status unprocessed was sent to broker backtesting
+2021-08-13 16:03:33,074: INFO: Current backtesting datetime 2019-03-13 14:55:00-05:00
+2021-08-13 16:03:33,079: INFO: Current backtesting datetime 2019-03-13 14:55:00-05:00
+2021-08-13 16:03:33,080: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:33,081: INFO: Current backtesting datetime 2019-03-13 15:00:00-05:00
+2021-08-13 16:03:33,081: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:33,082: INFO: Current backtesting datetime 2019-03-14 07:30:00-05:00
+2021-08-13 16:03:33,082: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:33,083: INFO: Current backtesting datetime 2019-03-14 08:30:00-05:00
+2021-08-13 16:03:33,085: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:33,089: INFO: Filled Transaction: sell 10 of SPY at 281.3699951171875$ per share
+2021-08-13 16:03:33,089: INFO: market order of | 10 SPY sell | with status unprocessed was filled
+2021-08-13 16:03:33,089: INFO: Position 0 shares of SPY liquidated
+Progress ||  81.33% Complete
+ORDER FILLED: 2019-03-14 08:30:00-05:00, position: 0 shares of SPY, price: 281.3699951171875, side: sell
+*********  BUY  *********  2019-03-14 08:30:00-05:00, Stop price: 283.97 Limit price: 283.97 Close Price: 281.16
+Progress ||  81.64% Complete2021-08-13 16:03:33,093: INFO: Strategy Dev: Executing the on_filled_order event method
+2021-08-13 16:03:33,094: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status fill
+2021-08-13 16:03:33,094: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:33,096: INFO: Counter is at 49, program thinks it is 2019-03-14 08:30:00-05:00
+2021-08-13 16:03:33,108: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-03-14 00:00:00-04:00  281.369995  281.839996  280.670013  281.160004
+
+2021-08-13 16:03:33,108: INFO: We have no open positions
+2021-08-13 16:03:33,108: WARNING: Backtest executes limit, stop, stop_limit and trailing orders as market orders
+2021-08-13 16:03:33,110: INFO: Current backtesting datetime 2019-03-14 14:55:00-05:00
+2021-08-13 16:03:33,116: INFO: Current backtesting datetime 2019-03-14 14:55:00-05:00
+2021-08-13 16:03:33,116: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:33,118: INFO: Current backtesting datetime 2019-03-14 15:00:00-05:00
+2021-08-13 16:03:33,118: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:33,119: INFO: Current backtesting datetime 2019-03-15 07:30:00-05:00
+2021-08-13 16:03:33,120: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:33,121: INFO: Current backtesting datetime 2019-03-15 08:30:00-05:00
+2021-08-13 16:03:33,121: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:33,124: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status unprocessed
+2021-08-13 16:03:33,124: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:33,126: INFO: Counter is at 50, program thinks it is 2019-03-15 08:30:00-05:00
+Progress ||  85.83% Complete2021-08-13 16:03:33,137: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-03-15 00:00:00-04:00  280.540009  282.209991  280.329987  281.309998
+
+2021-08-13 16:03:33,137: INFO: We have no open positions
+2021-08-13 16:03:33,140: INFO: Current backtesting datetime 2019-03-15 14:55:00-05:00
+2021-08-13 16:03:33,145: INFO: Current backtesting datetime 2019-03-15 14:55:00-05:00
+2021-08-13 16:03:33,146: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:33,147: INFO: Current backtesting datetime 2019-03-15 15:00:00-05:00
+2021-08-13 16:03:33,147: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:33,148: INFO: Current backtesting datetime 2019-03-18 07:30:00-05:00
+2021-08-13 16:03:33,149: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:33,150: INFO: Current backtesting datetime 2019-03-18 08:30:00-05:00
+2021-08-13 16:03:33,150: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:33,153: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status unprocessed
+2021-08-13 16:03:33,153: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:33,155: INFO: Counter is at 51, program thinks it is 2019-03-18 08:30:00-05:00
+2021-08-13 16:03:33,166: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-03-18 00:00:00-04:00  281.549988  282.660004  281.299988  282.329987
+
+2021-08-13 16:03:33,166: INFO: We have no open positions
+2021-08-13 16:03:33,167: INFO: Current backtesting datetime 2019-03-18 14:55:00-05:00
+2021-08-13 16:03:33,172: INFO: Current backtesting datetime 2019-03-18 14:55:00-05:00
+2021-08-13 16:03:33,173: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:33,174: INFO: Current backtesting datetime 2019-03-18 15:00:00-05:00
+2021-08-13 16:03:33,174: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:33,175: INFO: Current backtesting datetime 2019-03-19 07:30:00-05:00
+2021-08-13 16:03:33,175: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:33,177: INFO: Current backtesting datetime 2019-03-19 08:30:00-05:00
+2021-08-13 16:03:33,177: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:33,179: INFO: Filled Transaction: buy 10 of SPY at 283.97160369873046$ per share
+2021-08-13 16:03:33,179: INFO: stop_limit order of | 10 SPY buy | with status unprocessed was filled
+2021-08-13 16:03:33,183: INFO: Strategy Dev: Executing the on_filled_order event method
+2021-08-13 16:03:33,185: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status fill
+2021-08-13 16:03:33,185: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+Progress ||  86.96% Complete
+ORDER FILLED: 2019-03-19 08:30:00-05:00, position: 10 shares of SPY, price: 283.97160369873046, side: buy
+Progress ||  87.26% Complete2021-08-13 16:03:33,187: INFO: Counter is at 52, program thinks it is 2019-03-19 08:30:00-05:00
+2021-08-13 16:03:33,197: INFO: The value of SPY is
+                                open        high         low       close
+Date
+2019-03-19 00:00:00-04:00  283.51001  284.359985  281.410004  282.399994
+
+2021-08-13 16:03:33,197: INFO: We own 10 of SPY, about to sell
+2021-08-13 16:03:33,198: INFO: market order of | 10 SPY sell | with status unprocessed was sent to broker backtesting
+2021-08-13 16:03:33,199: INFO: Current backtesting datetime 2019-03-19 14:55:00-05:00
+2021-08-13 16:03:33,204: INFO: Current backtesting datetime 2019-03-19 14:55:00-05:00
+2021-08-13 16:03:33,205: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:33,206: INFO: Current backtesting datetime 2019-03-19 15:00:00-05:00
+2021-08-13 16:03:33,206: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:33,207: INFO: Current backtesting datetime 2019-03-20 07:30:00-05:00
+2021-08-13 16:03:33,207: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:33,208: INFO: Current backtesting datetime 2019-03-20 08:30:00-05:00
+2021-08-13 16:03:33,210: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:33,213: INFO: Filled Transaction: sell 10 of SPY at 282.1600036621094$ per share
+2021-08-13 16:03:33,213: INFO: market order of | 10 SPY sell | with status unprocessed was filled
+2021-08-13 16:03:33,213: INFO: Position 0 shares of SPY liquidated
+2021-08-13 16:03:33,217: INFO: Strategy Dev: Executing the on_filled_order event method
+2021-08-13 16:03:33,217: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status fill
+2021-08-13 16:03:33,217: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:33,219: INFO: Counter is at 53, program thinks it is 2019-03-20 08:30:00-05:00
+Progress ||  88.08% Complete
+ORDER FILLED: 2019-03-20 08:30:00-05:00, position: 0 shares of SPY, price: 282.1600036621094, side: sell
+*********  BUY  *********  2019-03-20 08:30:00-05:00, Stop price: 284.37 Limit price: 284.37 Close Price: 281.55
+Progress ||  89.20% Complete2021-08-13 16:03:33,229: INFO: The value of SPY is
+                                 open   high         low       close
+Date
+2019-03-20 00:00:00-04:00  282.160004  283.5  280.320007  281.549988
+
+2021-08-13 16:03:33,229: INFO: We have no open positions
+2021-08-13 16:03:33,230: WARNING: Backtest executes limit, stop, stop_limit and trailing orders as market orders
+2021-08-13 16:03:33,231: INFO: Current backtesting datetime 2019-03-20 14:55:00-05:00
+2021-08-13 16:03:33,236: INFO: Current backtesting datetime 2019-03-20 14:55:00-05:00
+2021-08-13 16:03:33,237: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:33,238: INFO: Current backtesting datetime 2019-03-20 15:00:00-05:00
+2021-08-13 16:03:33,238: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:33,239: INFO: Current backtesting datetime 2019-03-21 07:30:00-05:00
+2021-08-13 16:03:33,240: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:33,241: INFO: Current backtesting datetime 2019-03-21 08:30:00-05:00
+2021-08-13 16:03:33,241: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:33,243: INFO: Filled Transaction: buy 10 of SPY at 284.36548767089846$ per share
+2021-08-13 16:03:33,243: INFO: stop_limit order of | 10 SPY buy | with status unprocessed was filled
+2021-08-13 16:03:33,247: INFO: Strategy Dev: Executing the on_filled_order event method
+2021-08-13 16:03:33,249: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status fill
+2021-08-13 16:03:33,249: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:33,251: INFO: Counter is at 54, program thinks it is 2019-03-21 08:30:00-05:00
+2021-08-13 16:03:33,261: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-03-21 00:00:00-04:00  280.640015  285.179993  280.589996  284.730011
+
+2021-08-13 16:03:33,261: INFO: We own 10 of SPY, about to sell
+2021-08-13 16:03:33,262: INFO: market order of | 10 SPY sell | with status unprocessed was sent to broker backtesting
+2021-08-13 16:03:33,263: INFO: Current backtesting datetime 2019-03-21 14:55:00-05:00
+
+ORDER FILLED: 2019-03-21 08:30:00-05:00, position: 10 shares of SPY, price: 284.36548767089846, side: buy
+Progress ||  90.33% Complete
+2021-08-13 16:03:33,270: INFO: Current backtesting datetime 2019-03-21 14:55:00-05:00
+2021-08-13 16:03:33,270: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:33,271: INFO: Current backtesting datetime 2019-03-21 15:00:00-05:00
+2021-08-13 16:03:33,271: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:33,272: INFO: Current backtesting datetime 2019-03-22 07:30:00-05:00
+2021-08-13 16:03:33,273: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:33,274: INFO: Current backtesting datetime 2019-03-22 08:30:00-05:00
+2021-08-13 16:03:33,275: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:33,278: INFO: Filled Transaction: sell 10 of SPY at 283.2200012207031$ per share
+2021-08-13 16:03:33,278: INFO: market order of | 10 SPY sell | with status unprocessed was filled
+2021-08-13 16:03:33,278: INFO: Position 0 shares of SPY liquidated
+2021-08-13 16:03:33,282: INFO: Strategy Dev: Executing the on_filled_order event method
+2021-08-13 16:03:33,282: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status fill
+2021-08-13 16:03:33,282: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:33,284: INFO: Counter is at 55, program thinks it is 2019-03-22 08:30:00-05:00
+2021-08-13 16:03:33,295: INFO: The value of SPY is
+                                 open        high         low   close
+Date
+2019-03-22 00:00:00-04:00  283.220001  283.799988  279.179993  279.25
+
+2021-08-13 16:03:33,296: INFO: We have no open positions
+2021-08-13 16:03:33,296: WARNING: Backtest executes limit, stop, stop_limit and trailing orders as market orders
+2021-08-13 16:03:33,298: INFO: Current backtesting datetime 2019-03-22 14:55:00-05:00
+ORDER FILLED: 2019-03-22 08:30:00-05:00, position: 0 shares of SPY, price: 283.2200012207031, side: sell
+*********  BUY  *********  2019-03-22 08:30:00-05:00, Stop price: 282.04 Limit price: 282.04 Close Price: 279.25
+Progress ||  93.70% Complete2021-08-13 16:03:33,304: INFO: Current backtesting datetime 2019-03-22 14:55:00-05:00
+2021-08-13 16:03:33,304: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:33,305: INFO: Current backtesting datetime 2019-03-22 15:00:00-05:00
+2021-08-13 16:03:33,305: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:33,306: INFO: Current backtesting datetime 2019-03-25 07:30:00-05:00
+2021-08-13 16:03:33,307: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:33,308: INFO: Current backtesting datetime 2019-03-25 08:30:00-05:00
+2021-08-13 16:03:33,308: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:33,311: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status unprocessed
+2021-08-13 16:03:33,311: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:33,313: INFO: Counter is at 56, program thinks it is 2019-03-25 08:30:00-05:00
+2021-08-13 16:03:33,324: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-03-25 00:00:00-04:00  278.869995  280.190002  277.640015  279.040009
+
+2021-08-13 16:03:33,324: INFO: We have no open positions
+2021-08-13 16:03:33,326: INFO: Current backtesting datetime 2019-03-25 14:55:00-05:00
+2021-08-13 16:03:33,332: INFO: Current backtesting datetime 2019-03-25 14:55:00-05:00
+2021-08-13 16:03:33,332: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:33,334: INFO: Current backtesting datetime 2019-03-25 15:00:00-05:00
+2021-08-13 16:03:33,334: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:33,335: INFO: Current backtesting datetime 2019-03-26 07:30:00-05:00
+2021-08-13 16:03:33,336: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+Progress ||  94.82% Complete
+2021-08-13 16:03:33,337: INFO: Current backtesting datetime 2019-03-26 08:30:00-05:00
+2021-08-13 16:03:33,337: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:33,339: INFO: Filled Transaction: buy 10 of SPY at 282.0425$ per share
+2021-08-13 16:03:33,339: INFO: stop_limit order of | 10 SPY buy | with status unprocessed was filled
+2021-08-13 16:03:33,344: INFO: Strategy Dev: Executing the on_filled_order event method
+2021-08-13 16:03:33,346: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status fill
+2021-08-13 16:03:33,346: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:33,348: INFO: Counter is at 57, program thinks it is 2019-03-26 08:30:00-05:00
+2021-08-13 16:03:33,359: INFO: The value of SPY is
+                                open        high         low       close
+Date
+2019-03-26 00:00:00-04:00  280.98999  282.179993  279.559998  281.119995
+
+2021-08-13 16:03:33,359: INFO: We own 10 of SPY, about to sell
+2021-08-13 16:03:33,359: INFO: market order of | 10 SPY sell | with status unprocessed was sent to broker backtesting
+2021-08-13 16:03:33,361: INFO: Current backtesting datetime 2019-03-26 14:55:00-05:00
+ORDER FILLED: 2019-03-26 08:30:00-05:00, position: 10 shares of SPY, price: 282.0425, side: buy
+Progress ||  95.95% Complete
+2021-08-13 16:03:33,366: INFO: Current backtesting datetime 2019-03-26 14:55:00-05:00
+2021-08-13 16:03:33,367: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:33,368: INFO: Current backtesting datetime 2019-03-26 15:00:00-05:00
+2021-08-13 16:03:33,368: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:33,369: INFO: Current backtesting datetime 2019-03-27 07:30:00-05:00
+2021-08-13 16:03:33,369: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:33,370: INFO: Current backtesting datetime 2019-03-27 08:30:00-05:00
+2021-08-13 16:03:33,372: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:33,374: INFO: Filled Transaction: sell 10 of SPY at 281.1099853515625$ per share
+2021-08-13 16:03:33,375: INFO: market order of | 10 SPY sell | with status unprocessed was filled
+2021-08-13 16:03:33,375: INFO: Position 0 shares of SPY liquidated
+2021-08-13 16:03:33,379: INFO: Strategy Dev: Executing the on_filled_order event method
+2021-08-13 16:03:33,380: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status fill
+2021-08-13 16:03:33,380: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:33,382: INFO: Counter is at 58, program thinks it is 2019-03-27 08:30:00-05:00
+2021-08-13 16:03:33,392: INFO: The value of SPY is
+                                 open       high         low       close
+Date
+2019-03-27 00:00:00-04:00  281.109985  281.76001  277.929993  279.649994
+
+2021-08-13 16:03:33,392: INFO: We have no open positions
+2021-08-13 16:03:33,392: WARNING: Backtest executes limit, stop, stop_limit and trailing orders as market orders
+ORDER FILLED: 2019-03-27 08:30:00-05:00, position: 0 shares of SPY, price: 281.1099853515625, side: sell
+*********  BUY  *********  2019-03-27 08:30:00-05:00, Stop price: 282.45 Limit price: 282.45 Close Price: 279.65
+Progress ||  97.07% Complete2021-08-13 16:03:33,394: INFO: Current backtesting datetime 2019-03-27 14:55:00-05:00
+2021-08-13 16:03:33,399: INFO: Current backtesting datetime 2019-03-27 14:55:00-05:00
+2021-08-13 16:03:33,400: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:33,401: INFO: Current backtesting datetime 2019-03-27 15:00:00-05:00
+2021-08-13 16:03:33,401: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:33,402: INFO: Current backtesting datetime 2019-03-28 07:30:00-05:00
+2021-08-13 16:03:33,402: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:33,403: INFO: Current backtesting datetime 2019-03-28 08:30:00-05:00
+2021-08-13 16:03:33,404: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:33,406: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status unprocessed
+2021-08-13 16:03:33,406: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:33,408: INFO: Counter is at 59, program thinks it is 2019-03-28 08:30:00-05:00
+Progress ||  98.20% Complete2021-08-13 16:03:33,418: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-03-28 00:00:00-04:00  280.350006  281.209991  279.070007  280.709991
+
+2021-08-13 16:03:33,418: INFO: We have no open positions
+2021-08-13 16:03:33,420: INFO: Current backtesting datetime 2019-03-28 14:55:00-05:00
+2021-08-13 16:03:33,425: INFO: Current backtesting datetime 2019-03-28 14:55:00-05:00
+2021-08-13 16:03:33,426: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:33,427: INFO: Current backtesting datetime 2019-03-28 15:00:00-05:00
+2021-08-13 16:03:33,427: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:33,428: INFO: Current backtesting datetime 2019-03-29 07:30:00-05:00
+2021-08-13 16:03:33,429: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:33,430: INFO: Current backtesting datetime 2019-03-29 08:30:00-05:00
+2021-08-13 16:03:33,430: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:33,433: INFO: Filled Transaction: buy 10 of SPY at 282.44649383544925$ per share
+2021-08-13 16:03:33,433: INFO: stop_limit order of | 10 SPY buy | with status unprocessed was filled
+2021-08-13 16:03:33,437: INFO: Strategy Dev: Executing the on_filled_order event method
+2021-08-13 16:03:33,439: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status fill
+2021-08-13 16:03:33,439: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:33,441: INFO: Counter is at 60, program thinks it is 2019-03-29 08:30:00-05:00
+2021-08-13 16:03:33,451: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-03-29 00:00:00-04:00  282.390015  282.839996  281.140015  282.480011
+
+2021-08-13 16:03:33,451: INFO: We own 10 of SPY, about to sell
+2021-08-13 16:03:33,451: INFO: market order of | 10 SPY sell | with status unprocessed was sent to broker backtesting
+2021-08-13 16:03:33,453: INFO: Current backtesting datetime 2019-03-29 14:55:00-05:00
+2021-08-13 16:03:33,458: INFO: Current backtesting datetime 2019-03-29 14:55:00-05:00
+2021-08-13 16:03:33,459: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+
+ORDER FILLED: 2019-03-29 08:30:00-05:00, position: 10 shares of SPY, price: 282.44649383544925, side: buy
+Progress || 100.00% Complete
+2021-08-13 16:03:33,460: INFO: Current backtesting datetime 2019-03-29 15:00:00-05:00
+2021-08-13 16:03:33,460: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:33,461: INFO: Current backtesting datetime 2019-04-01 07:30:00-05:00
+2021-08-13 16:03:33,461: INFO: Strategy Dev: Executing the before_market_opens lifecycle method
+2021-08-13 16:03:33,462: INFO: Current backtesting datetime 2019-04-01 08:30:00-05:00
+2021-08-13 16:03:33,464: INFO: Strategy Dev: Executing the before_starting_trading lifecycle method
+2021-08-13 16:03:33,466: INFO: Filled Transaction: sell 10 of SPY at 284.70001220703125$ per share
+2021-08-13 16:03:33,467: INFO: market order of | 10 SPY sell | with status unprocessed was filled
+2021-08-13 16:03:33,467: INFO: Position 0 shares of SPY liquidated
+2021-08-13 16:03:33,471: INFO: Strategy Dev: Executing the on_filled_order event method
+2021-08-13 16:03:33,472: WARNING: Cannot perform deepcopy on stop_limit order of | 10 SPY buy | with status fill
+2021-08-13 16:03:33,472: INFO: Strategy Dev: Executing the on_trading_iteration lifecycle method
+2021-08-13 16:03:33,474: INFO: Counter is at 61, program thinks it is 2019-04-01 08:30:00-05:00
+2021-08-13 16:03:33,484: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-04-01 00:00:00-04:00  284.700012  286.160004  284.399994  285.829987
+
+2021-08-13 16:03:33,484: INFO: We have no open positions
+2021-08-13 16:03:33,484: WARNING: Backtest executes limit, stop, stop_limit and trailing orders as market orders
+2021-08-13 16:03:33,486: INFO: Current backtesting datetime 2019-04-01 14:55:00-05:00
+ORDER FILLED: 2019-04-01 08:30:00-05:00, position: 0 shares of SPY, price: 284.70001220703125, side: sell
+*********  BUY  *********  2019-04-01 08:30:00-05:00, Stop price: 288.69 Limit price: 288.69 Close Price: 285.83
+Progress || 100.00% Complete2021-08-13 16:03:33,491: INFO: Current backtesting datetime 2019-04-01 14:55:00-05:00
+2021-08-13 16:03:33,492: INFO: Strategy Dev: Executing the before_market_closes lifecycle method
+2021-08-13 16:03:33,494: INFO: Current backtesting datetime 2019-04-01 15:00:00-05:00
+2021-08-13 16:03:33,494: INFO: Strategy Dev: Executing the after_market_closes lifecycle method
+2021-08-13 16:03:33,494: INFO: Strategy Dev: Executing the on_strategy_end lifecycle method
+2021-08-13 16:03:33,498: INFO: Strategy Dev: --- Dev Strategy Performance ---
+2021-08-13 16:03:33,509: INFO: Strategy Dev: CAGR -0.29%
+2021-08-13 16:03:33,510: INFO: Strategy Dev: Volatility 0.24%
+2021-08-13 16:03:33,510: INFO: Strategy Dev: Sharpe -1.41
+2021-08-13 16:03:33,510: INFO: Strategy Dev: Max Drawdown 0.22% on 2019-03-27
+2021-08-13 16:03:33,510: INFO: Strategy Dev: RoMaD -134.31%
+2021-08-13 16:03:33,510: INFO: Strategy Dev: --- SPY Benchmark Performance ---
+2021-08-13 16:03:33,525: INFO: Strategy Dev: SPY CAGR 75.09%
+2021-08-13 16:03:33,525: INFO: Strategy Dev: SPY Volatility 13.78%
+2021-08-13 16:03:33,526: INFO: Strategy Dev: SPY Sharpe 5.45
+2021-08-13 16:03:33,526: INFO: Strategy Dev: SPY Max Drawdown 2.13% on 2019-03-08
+2021-08-13 16:03:33,526: INFO: Strategy Dev: SPY RoMaD 3532.84%
+2021-08-13 16:03:33,528: INFO: *** Benchmark Performance for SPY ***
+2021-08-13 16:03:33,536: INFO: Risk Free Rate 0.04%
+Elapsed time: 2.688635804999649
+SPY CAGR 75.09%
+SPY Volatility 13.78%
+SPY Sharpe 5.45
+SPY Max Drawdown 2.13% on 2019-03-08
+SPY RoMaD 3,532.84%
+
+Process finished with exit code 0
+
+=======================================================================================================
+Lumibot Log
+
+datetime,counter,my_custom_stat,portfolio_value,unspent_money,return
+2019-01-02 15:55:00-05:00,1.0,43.0,40000.0,40000.0,
+2019-01-03 15:55:00-05:00,2.0,38.0,40000.0,40000.0,0.0
+2019-01-04 15:55:00-05:00,3.0,42.0,39997.082067871095,37473.18207397461,-7.294830322257528e-05
+2019-01-07 15:55:00-05:00,4.0,72.0,40000.08209838867,40000.08209838867,7.500623451694999e-05
+2019-01-08 15:55:00-05:00,5.0,75.0,39998.54393920898,37430.844049072264,-3.845390056722575e-05
+2019-01-09 15:55:00-05:00,6.0,56.0,40006.4440246582,40006.4440246582,0.0001975093258701488
+2019-01-10 15:55:00-05:00,7.0,95.0,40006.4440246582,40006.4440246582,0.0
+2019-01-11 15:55:00-05:00,8.0,2.0,40006.4440246582,40006.4440246582,0.0
+2019-01-14 15:55:00-05:00,9.0,13.0,40006.4440246582,40006.4440246582,0.0
+2019-01-15 15:55:00-05:00,10.0,15.0,40004.44707336426,37400.9470123291,-4.991574089197037e-05
+2019-01-16 15:55:00-05:00,11.0,85.0,40009.24687805176,40009.24687805176,0.00011998177799332765
+2019-01-17 15:55:00-05:00,12.0,87.0,40002.94868164063,37373.34876708985,-0.00015741851953199326
+2019-01-18 15:55:00-05:00,13.0,57.0,40023.14887695313,40023.14887695313,0.0005049676580908269
+2019-01-22 15:55:00-05:00,14.0,0.0,40023.14887695313,40023.14887695313,0.0
+2019-01-23 15:55:00-05:00,15.0,90.0,40023.14887695313,40023.14887695313,0.0
+2019-01-24 15:55:00-05:00,16.0,29.0,40023.14887695313,40023.14887695313,0.0
+2019-01-25 15:55:00-05:00,17.0,19.0,40023.14887695313,40023.14887695313,0.0
+2019-01-28 15:55:00-05:00,18.0,25.0,40023.14887695313,40023.14887695313,0.0
+2019-01-29 15:55:00-05:00,19.0,25.0,40023.14887695313,40023.14887695313,0.0
+2019-01-30 15:55:00-05:00,20.0,88.0,40023.14887695313,40023.14887695313,0.0
+2019-01-31 15:55:00-05:00,21.0,48.0,40031.202890014654,37331.90296325684,0.000201233868086792
+2019-02-01 15:55:00-05:00,22.0,35.0,40033.402902221686,40033.402902221686,5.495743440619982e-05
+2019-02-04 15:55:00-05:00,23.0,87.0,40033.402902221686,40033.402902221686,0.0
+2019-02-05 15:55:00-05:00,24.0,64.0,40036.79698791505,37305.79692687989,8.47813437605538e-05
+2019-02-06 15:55:00-05:00,25.0,27.0,40033.69701232911,40033.69701232911,-7.742816157030319e-05
+2019-02-07 15:55:00-05:00,26.0,75.0,40033.69701232911,40033.69701232911,0.0
+2019-02-08 15:55:00-05:00,27.0,39.0,40033.69701232911,40033.69701232911,0.0
+2019-02-11 15:55:00-05:00,28.0,14.0,40033.69701232911,40033.69701232911,0.0
+2019-02-12 15:55:00-05:00,29.0,79.0,40033.69701232911,40033.69701232911,0.0
+2019-02-13 15:55:00-05:00,30.0,75.0,40028.92301330567,37279.02311096192,-0.00011924951677511064
+2019-02-14 15:55:00-05:00,31.0,21.0,40016.82309875489,40016.82309875489,-0.0003022792930691409
+2019-02-15 15:55:00-05:00,32.0,57.0,40019.285000610354,37245.58504943848,6.152167175765832e-05
+2019-02-19 15:55:00-05:00,33.0,100.0,40010.38515930176,40010.38515930176,-0.00022238881350478135
+2019-02-20 15:55:00-05:00,34.0,73.0,40010.38515930176,40010.38515930176,0.0
+2019-02-21 15:55:00-05:00,35.0,100.0,40010.38515930176,40010.38515930176,0.0
+2019-02-22 15:55:00-05:00,36.0,37.0,40010.38515930176,40010.38515930176,0.0
+2019-02-25 15:55:00-05:00,37.0,81.0,39999.29998779297,37204.10009765625,-0.00027705735560046296
+2019-02-26 15:55:00-05:00,38.0,96.0,39995.400146484375,39995.400146484375,-9.749773895506575e-05
+2019-02-27 15:55:00-05:00,39.0,44.0,39995.400146484375,39995.400146484375,0.0
+2019-02-28 15:55:00-05:00,40.0,95.0,39995.400146484375,39995.400146484375,0.0
+2019-03-01 15:55:00-05:00,41.0,5.0,39995.400146484375,39995.400146484375,0.0
+2019-03-04 15:55:00-05:00,42.0,40.0,39995.400146484375,39995.400146484375,0.0
+2019-03-05 15:55:00-05:00,43.0,30.0,39995.400146484375,39995.400146484375,0.0
+2019-03-06 15:55:00-05:00,44.0,66.0,39995.400146484375,39995.400146484375,0.0
+2019-03-07 15:55:00-05:00,45.0,14.0,39995.400146484375,39995.400146484375,0.0
+2019-03-08 15:55:00-05:00,46.0,7.0,39995.400146484375,39995.400146484375,0.0
+2019-03-11 15:55:00-04:00,47.0,8.0,39995.400146484375,39995.400146484375,0.0
+2019-03-12 15:55:00-04:00,48.0,39.0,39995.400146484375,39995.400146484375,0.0
+2019-03-13 15:55:00-04:00,49.0,3.0,39987.66803588867,37174.26807250977,-0.00019332499655921875
+2019-03-14 15:55:00-04:00,50.0,28.0,39987.96802368164,39987.96802368164,7.5020076863996366e-06
+2019-03-15 15:55:00-04:00,51.0,34.0,39987.96802368164,39987.96802368164,0.0
+2019-03-18 15:55:00-04:00,52.0,99.0,39987.96802368164,39987.96802368164,0.0
+2019-03-19 15:55:00-04:00,53.0,63.0,39972.251925659184,37148.25198669434,-0.00039302067094659776
+2019-03-20 15:55:00-04:00,54.0,30.0,39969.852023315434,39969.852023315434,-6.0039207903872516e-05
+2019-03-21 15:55:00-04:00,55.0,30.0,39973.49725646973,37126.19714660645,9.119956591718825e-05
+2019-03-22 15:55:00-04:00,56.0,17.0,39958.39715881348,39958.39715881348,-0.0003777527284982707
+2019-03-25 15:55:00-04:00,57.0,86.0,39958.39715881348,39958.39715881348,0.0
+2019-03-26 15:55:00-04:00,58.0,81.0,39949.17210998535,37137.97215881348,-0.00023086633809321633
+2019-03-27 15:55:00-04:00,59.0,33.0,39949.0720123291,39949.0720123291,-2.5056252974664517e-06
+2019-03-28 15:55:00-04:00,60.0,4.0,39949.0720123291,39949.0720123291,0.0
+2019-03-29 15:55:00-04:00,61.0,20.0,39949.407183837895,37124.607073974614,8.389969826883004e-06
+
+
+
+=======================================================================================================
+Backtrader Log
+/usr/bin/python3.8 /home/runout/projects/scratch/_lumibot_simple.py
+Final Value: 40000.00
+2019-01-02, o  245.98 h  251.21 l  245.95 c  250.18 v     239
+*******************Stop price: 252.68, Limit Price: 252.68, Close Price: 250.18
+2019-01-03, SPY    Order:   1	Type: Buy  	Status Accepted 	Size:   10.0000 Price:  252.6818 Position: 0
+2019-01-03, o  248.23 h  248.57 l  243.67 c  244.21 v     234
+2019-01-04, SPY    Order:   1	Type: Buy  	Status Completed 	Size:   10.0000 Price:  252.6818 Position: 10
+2019-01-04, SPY    BUY   Price: 252.68 Cost: 2526.82 Comm: 0.00 Size:   10.0000
+2019-01-04, o  247.59 h  253.11 l  247.17 c  252.39 v     242
+2019-01-07, SPY    Order:   2	Type: Sell 	Status Accepted 	Size:  -10.0000 Price:  252.3900 Position: 0
+2019-01-07, SPY    Order:   2	Type: Sell 	Status Completed 	Size:  -10.0000 Price:  252.3900 Position: 0
+2019-01-07, SPY    SELL  Price: 252.69 Cost: 2526.82 Comm: 0.00 Size:  -10.0000
+2019-01-07, SPY Closed: PnL Gross 0.08, Net 0.1,
+2019-01-07, o  252.69 h  255.95 l  251.69 c  254.38 v     243
+*******************Stop price: 256.92, Limit Price: 256.92, Close Price: 254.38
+2019-01-08, SPY    Order:   3	Type: Buy  	Status Accepted 	Size:   10.0000 Price:  256.9238 Position: 10
+2019-01-08, SPY    Order:   3	Type: Buy  	Status Completed 	Size:   10.0000 Price:  256.9238 Position: 10
+2019-01-08, SPY    BUY   Price: 256.92 Cost: 2569.24 Comm: 0.00 Size:   10.0000
+2019-01-08, o  256.82 h  257.31 l  254.00 c  256.77 v     246
+2019-01-09, SPY    Order:   4	Type: Sell 	Status Accepted 	Size:  -10.0000 Price:  256.7700 Position: 0
+2019-01-09, SPY    Order:   4	Type: Sell 	Status Completed 	Size:  -10.0000 Price:  256.7700 Position: 0
+2019-01-09, SPY    SELL  Price: 257.56 Cost: 2569.24 Comm: 0.00 Size:  -10.0000
+2019-01-09, SPY Closed: PnL Gross 6.36, Net 6.4,
+2019-01-09, o  257.56 h  258.91 l  256.19 c  257.97 v     247
+*******************Stop price: 260.55, Limit Price: 260.55, Close Price: 257.97
+2019-01-10, SPY    Order:   5	Type: Buy  	Status Accepted 	Size:   10.0000 Price:  260.5497 Position: 0
+2019-01-10, o  256.26 h  259.16 l  255.50 c  258.88 v     248
+2019-01-11, o  257.68 h  259.01 l  257.03 c  258.98 v     248
+2019-01-14, o  256.86 h  258.30 l  256.41 c  257.40 v     246
+2019-01-15, SPY    Order:   5	Type: Buy  	Status Completed 	Size:   10.0000 Price:  260.5497 Position: 10
+2019-01-15, SPY    BUY   Price: 260.55 Cost: 2605.50 Comm: 0.00 Size:   10.0000
+2019-01-15, o  257.82 h  260.70 l  257.81 c  260.35 v     249
+2019-01-16, SPY    Order:   6	Type: Sell 	Status Accepted 	Size:  -10.0000 Price:  260.3500 Position: 0
+2019-01-16, SPY    Order:   6	Type: Sell 	Status Completed 	Size:  -10.0000 Price:  260.3500 Position: 0
+2019-01-16, SPY    SELL  Price: 260.83 Cost: 2605.50 Comm: 0.00 Size:  -10.0000
+2019-01-16, SPY Closed: PnL Gross 2.8, Net 2.8,
+2019-01-16, o  260.83 h  261.97 l  260.60 c  260.98 v     250
+*******************Stop price: 263.59, Limit Price: 263.59, Close Price: 260.98
+2019-01-17, SPY    Order:   7	Type: Buy  	Status Accepted 	Size:   10.0000 Price:  263.5898 Position: 10
+2019-01-17, SPY    Order:   7	Type: Buy  	Status Completed 	Size:   10.0000 Price:  263.5898 Position: 10
+2019-01-17, SPY    BUY   Price: 263.59 Cost: 2635.90 Comm: 0.00 Size:   10.0000
+2019-01-17, o  260.01 h  263.92 l  259.96 c  262.96 v     252
+2019-01-18, SPY    Order:   8	Type: Sell 	Status Accepted 	Size:  -10.0000 Price:  262.9600 Position: 0
+2019-01-18, SPY    Order:   8	Type: Sell 	Status Completed 	Size:  -10.0000 Price:  262.9600 Position: 0
+2019-01-18, SPY    SELL  Price: 264.98 Cost: 2635.90 Comm: 0.00 Size:  -10.0000
+2019-01-18, SPY Closed: PnL Gross 13.9, Net 13.9,
+2019-01-18, o  264.98 h  266.98 l  263.00 c  266.46 v     255
+*******************Stop price: 269.12, Limit Price: 269.12, Close Price: 266.46
+2019-01-22, SPY    Order:   9	Type: Buy  	Status Accepted 	Size:   10.0000 Price:  269.1246 Position: 0
+2019-01-22, o  264.82 h  265.06 l  261.06 c  262.86 v     252
+2019-01-23, o  264.01 h  264.79 l  260.66 c  263.41 v     252
+2019-01-24, o  263.21 h  264.20 l  262.08 c  263.55 v     252
+2019-01-25, o  265.61 h  266.70 l  263.66 c  265.78 v     254
+2019-01-28, o  263.39 h  263.83 l  261.79 c  263.76 v     252
+2019-01-29, o  263.92 h  264.55 l  262.48 c  263.41 v     252
+2019-01-30, o  265.10 h  268.52 l  264.25 c  267.58 v     256
+2019-01-31, SPY    Order:   9	Type: Buy  	Status Completed 	Size:   10.0000 Price:  269.1246 Position: 10
+2019-01-31, SPY    BUY   Price: 269.12 Cost: 2691.25 Comm: 0.00 Size:   10.0000
+2019-01-31, o  267.51 h  270.47 l  267.27 c  269.93 v     258
+2019-02-01, SPY    Order:  10	Type: Sell 	Status Accepted 	Size:  -10.0000 Price:  269.9300 Position: 0
+2019-02-01, SPY    Order:  10	Type: Sell 	Status Completed 	Size:  -10.0000 Price:  269.9300 Position: 0
+2019-02-01, SPY    SELL  Price: 270.15 Cost: 2691.25 Comm: 0.00 Size:  -10.0000
+2019-02-01, SPY Closed: PnL Gross 10.25, Net 10.3,
+2019-02-01, o  270.15 h  271.20 l  269.18 c  270.06 v     258
+*******************Stop price: 272.76, Limit Price: 272.76, Close Price: 270.06
+2019-02-04, SPY    Order:  11	Type: Buy  	Status Accepted 	Size:   10.0000 Price:  272.7606 Position: 0
+2019-02-04, o  270.11 h  272.03 l  269.36 c  271.96 v     260
+2019-02-05, SPY    Order:  11	Type: Buy  	Status Completed 	Size:   10.0000 Price:  272.7606 Position: 10
+2019-02-05, SPY    BUY   Price: 272.76 Cost: 2727.61 Comm: 0.00 Size:   10.0000
+2019-02-05, o  272.44 h  273.44 l  271.88 c  273.10 v     261
+2019-02-06, SPY    Order:  12	Type: Sell 	Status Accepted 	Size:  -10.0000 Price:  273.1000 Position: 0
+2019-02-06, SPY    Order:  12	Type: Sell 	Status Completed 	Size:  -10.0000 Price:  273.1000 Position: 0
+2019-02-06, SPY    SELL  Price: 272.79 Cost: 2727.61 Comm: 0.00 Size:  -10.0000
+2019-02-06, SPY Closed: PnL Gross 0.29, Net 0.3,
+2019-02-06, o  272.79 h  273.34 l  271.92 c  272.74 v     261
+*******************Stop price: 275.47, Limit Price: 275.47, Close Price: 272.74
+2019-02-07, SPY    Order:  13	Type: Buy  	Status Accepted 	Size:   10.0000 Price:  275.4674 Position: 0
+2019-02-07, o  270.94 h  271.55 l  268.29 c  270.14 v     259
+2019-02-08, o  268.75 h  270.58 l  267.83 c  270.47 v     259
+2019-02-11, o  271.20 h  271.49 l  270.03 c  270.62 v     259
+2019-02-12, o  272.42 h  274.52 l  272.34 c  274.10 v     262
+2019-02-13, SPY    Order:  13	Type: Buy  	Status Completed 	Size:   10.0000 Price:  275.4674 Position: 10
+2019-02-13, SPY    BUY   Price: 275.47 Cost: 2754.67 Comm: 0.00 Size:   10.0000
+2019-02-13, o  275.03 h  275.93 l  274.56 c  274.99 v     263
+2019-02-14, SPY    Order:  14	Type: Sell 	Status Accepted 	Size:  -10.0000 Price:  274.9900 Position: 0
+2019-02-14, SPY    Order:  14	Type: Sell 	Status Completed 	Size:  -10.0000 Price:  274.9900 Position: 0
+2019-02-14, SPY    SELL  Price: 273.78 Cost: 2754.67 Comm: 0.00 Size:  -10.0000
+2019-02-14, SPY Closed: PnL Gross -16.87, Net -16.9,
+2019-02-14, o  273.78 h  275.64 l  272.87 c  274.38 v     263
+*******************Stop price: 277.12, Limit Price: 277.12, Close Price: 274.38
+2019-02-15, SPY    Order:  15	Type: Buy  	Status Accepted 	Size:   10.0000 Price:  277.1238 Position: 10
+2019-02-15, SPY    Order:  15	Type: Buy  	Status Completed 	Size:   10.0000 Price:  277.1238 Position: 10
+2019-02-15, SPY    BUY   Price: 277.12 Cost: 2771.24 Comm: 0.00 Size:   10.0000
+2019-02-15, o  276.36 h  277.41 l  276.13 c  277.37 v     265
+2019-02-19, SPY    Order:  16	Type: Sell 	Status Accepted 	Size:  -10.0000 Price:  277.3700 Position: 0
+2019-02-19, SPY    Order:  16	Type: Sell 	Status Completed 	Size:  -10.0000 Price:  277.3700 Position: 0
+2019-02-19, SPY    SELL  Price: 276.48 Cost: 2771.24 Comm: 0.00 Size:  -10.0000
+2019-02-19, SPY Closed: PnL Gross -6.44, Net -6.4,
+2019-02-19, o  276.48 h  278.58 l  276.47 c  277.85 v     266
+*******************Stop price: 280.63, Limit Price: 280.63, Close Price: 277.85
+2019-02-20, SPY    Order:  17	Type: Buy  	Status Accepted 	Size:   10.0000 Price:  280.6285 Position: 0
+2019-02-20, o  277.81 h  278.92 l  277.25 c  278.41 v     266
+2019-02-21, o  277.70 h  278.10 l  276.35 c  277.42 v     266
+2019-02-22, o  278.11 h  279.36 l  277.40 c  279.14 v     267
+2019-02-25, SPY    Order:  17	Type: Buy  	Status Completed 	Size:   10.0000 Price:  280.6285 Position: 10
+2019-02-25, SPY    BUY   Price: 280.63 Cost: 2806.29 Comm: 0.00 Size:   10.0000
+2019-02-25, o  280.73 h  281.31 l  279.43 c  279.52 v     268
+2019-02-26, SPY    Order:  18	Type: Sell 	Status Accepted 	Size:  -10.0000 Price:  279.5200 Position: 0
+2019-02-26, SPY    Order:  18	Type: Sell 	Status Completed 	Size:  -10.0000 Price:  279.5200 Position: 0
+2019-02-26, SPY    SELL  Price: 279.13 Cost: 2806.29 Comm: 0.00 Size:  -10.0000
+2019-02-26, SPY Closed: PnL Gross -14.99, Net -15.0,
+2019-02-26, o  279.13 h  280.30 l  278.90 c  279.32 v     267
+*******************Stop price: 282.11, Limit Price: 282.11, Close Price: 279.32
+2019-02-27, SPY    Order:  19	Type: Buy  	Status Accepted 	Size:   10.0000 Price:  282.1132 Position: 0
+2019-02-27, o  278.52 h  279.59 l  277.48 c  279.20 v     267
+2019-02-28, o  278.96 h  279.45 l  278.32 c  278.68 v     267
+2019-03-01, o  280.44 h  280.88 l  278.82 c  280.42 v     268
+2019-03-04, o  281.60 h  281.87 l  276.84 c  279.40 v     267
+2019-03-05, o  279.54 h  279.76 l  278.41 c  279.02 v     267
+2019-03-06, o  279.15 h  279.16 l  276.97 c  277.33 v     265
+2019-03-07, o  276.83 h  276.99 l  274.07 c  275.01 v     263
+2019-03-08, o  272.94 h  274.65 l  272.42 c  274.46 v     263
+2019-03-11, o  275.26 h  278.62 l  275.23 c  278.44 v     267
+2019-03-12, o  279.06 h  280.07 l  278.85 c  279.49 v     268
+2019-03-13, SPY    Order:  19	Type: Buy  	Status Completed 	Size:   10.0000 Price:  282.1132 Position: 10
+2019-03-13, SPY    BUY   Price: 282.11 Cost: 2821.13 Comm: 0.00 Size:   10.0000
+2019-03-13, o  280.48 h  282.38 l  280.30 c  281.34 v     269
+2019-03-14, SPY    Order:  20	Type: Sell 	Status Accepted 	Size:  -10.0000 Price:  281.3400 Position: 0
+2019-03-14, SPY    Order:  20	Type: Sell 	Status Completed 	Size:  -10.0000 Price:  281.3400 Position: 0
+2019-03-14, SPY    SELL  Price: 281.37 Cost: 2821.13 Comm: 0.00 Size:  -10.0000
+2019-03-14, SPY Closed: PnL Gross -7.43, Net -7.4,
+2019-03-14, o  281.37 h  281.84 l  280.67 c  281.16 v     269
+*******************Stop price: 283.97, Limit Price: 283.97, Close Price: 281.16
+2019-03-15, SPY    Order:  21	Type: Buy  	Status Accepted 	Size:   10.0000 Price:  283.9716 Position: 0
+2019-03-15, o  280.54 h  282.21 l  280.33 c  281.31 v     270
+2019-03-18, o  281.55 h  282.66 l  281.30 c  282.33 v     271
+2019-03-19, SPY    Order:  21	Type: Buy  	Status Completed 	Size:   10.0000 Price:  283.9716 Position: 10
+2019-03-19, SPY    BUY   Price: 283.97 Cost: 2839.72 Comm: 0.00 Size:   10.0000
+2019-03-19, o  283.51 h  284.36 l  281.41 c  282.40 v     271
+2019-03-20, SPY    Order:  22	Type: Sell 	Status Accepted 	Size:  -10.0000 Price:  282.4000 Position: 0
+2019-03-20, SPY    Order:  22	Type: Sell 	Status Completed 	Size:  -10.0000 Price:  282.4000 Position: 0
+2019-03-20, SPY    SELL  Price: 282.16 Cost: 2839.72 Comm: 0.00 Size:  -10.0000
+2019-03-20, SPY Closed: PnL Gross -18.12, Net -18.1,
+2019-03-20, o  282.16 h  283.50 l  280.32 c  281.55 v     271
+*******************Stop price: 284.37, Limit Price: 284.37, Close Price: 281.55
+2019-03-21, SPY    Order:  23	Type: Buy  	Status Accepted 	Size:   10.0000 Price:  284.3655 Position: 10
+2019-03-21, SPY    Order:  23	Type: Buy  	Status Completed 	Size:   10.0000 Price:  284.3655 Position: 10
+2019-03-21, SPY    BUY   Price: 284.37 Cost: 2843.65 Comm: 0.00 Size:   10.0000
+2019-03-21, o  280.64 h  285.18 l  280.59 c  284.73 v     274
+2019-03-22, SPY    Order:  24	Type: Sell 	Status Accepted 	Size:  -10.0000 Price:  284.7300 Position: 0
+2019-03-22, SPY    Order:  24	Type: Sell 	Status Completed 	Size:  -10.0000 Price:  284.7300 Position: 0
+2019-03-22, SPY    SELL  Price: 283.22 Cost: 2843.65 Comm: 0.00 Size:  -10.0000
+2019-03-22, SPY Closed: PnL Gross -11.45, Net -11.5,
+2019-03-22, o  283.22 h  283.80 l  279.18 c  279.25 v     268
+*******************Stop price: 282.04, Limit Price: 282.04, Close Price: 279.25
+2019-03-25, SPY    Order:  25	Type: Buy  	Status Accepted 	Size:   10.0000 Price:  282.0425 Position: 0
+2019-03-25, o  278.87 h  280.19 l  277.64 c  279.04 v     268
+2019-03-26, SPY    Order:  25	Type: Buy  	Status Completed 	Size:   10.0000 Price:  282.0425 Position: 10
+2019-03-26, SPY    BUY   Price: 282.04 Cost: 2820.43 Comm: 0.00 Size:   10.0000
+2019-03-26, o  280.99 h  282.18 l  279.56 c  281.12 v     270
+2019-03-27, SPY    Order:  26	Type: Sell 	Status Accepted 	Size:  -10.0000 Price:  281.1200 Position: 0
+2019-03-27, SPY    Order:  26	Type: Sell 	Status Completed 	Size:  -10.0000 Price:  281.1200 Position: 0
+2019-03-27, SPY    SELL  Price: 281.11 Cost: 2820.43 Comm: 0.00 Size:  -10.0000
+2019-03-27, SPY Closed: PnL Gross -9.33, Net -9.3,
+2019-03-27, o  281.11 h  281.76 l  277.93 c  279.65 v     269
+*******************Stop price: 282.45, Limit Price: 282.45, Close Price: 279.65
+2019-03-28, SPY    Order:  27	Type: Buy  	Status Accepted 	Size:   10.0000 Price:  282.4465 Position: 0
+2019-03-28, o  280.35 h  281.21 l  279.07 c  280.71 v     270
+2019-03-29, SPY    Order:  27	Type: Buy  	Status Completed 	Size:   10.0000 Price:  282.4465 Position: 10
+2019-03-29, SPY    BUY   Price: 282.45 Cost: 2824.46 Comm: 0.00 Size:   10.0000
+2019-03-29, o  282.39 h  282.84 l  281.14 c  282.48 v     272
+Final Value: 39949.41
+
+Process finished with exit code 0

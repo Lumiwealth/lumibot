@@ -1,0 +1,1773 @@
+The following are log comparisons between lumibot and backtrader for:
+1. Market Orders.
+2. Limit Orders
+3. Stop Orders.
+
+=======================================================================================================
+=======================================================================================================
+Market Orders
+=======================================================================================================
+/home/runout/projects/lumibot/lumibot/venv/bin/python3 /home/runout/projects/lumibot/main.py simple
+Progress ||   4.65% Complete2021-08-12 19:39:13,592: INFO: Strategy simple: Executing the initialize lifecycle method
+2021-08-12 19:39:13,593: INFO: Current backtesting datetime 2019-01-02 08:30:00-05:00
+2021-08-12 19:39:13,594: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 19:39:13,595: INFO: Current backtesting datetime 2019-01-02 09:30:00-05:00
+2021-08-12 19:39:13,595: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 19:39:13,596: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 19:39:13,599: INFO: Counter is at 0, program thinks it is 2019-01-02 09:30:00-05:00
+2021-08-12 19:39:13,611: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-01-02 00:00:00-05:00  245.979996  251.210007  245.949997  250.179993
+
+2021-08-12 19:39:13,611: INFO: We have no open positions
+2021-08-12 19:39:13,611: INFO: market order of | 10 SPY buy | with status unprocessed was sent to broker backtesting
+2021-08-12 19:39:13,614: INFO: Current backtesting datetime 2019-01-02 15:55:00-05:00
+2021-08-12 19:39:13,619: INFO: Current backtesting datetime 2019-01-02 15:55:00-05:00
+2021-08-12 19:39:13,619: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 19:39:13,620: INFO: Current backtesting datetime 2019-01-02 16:00:00-05:00
+2021-08-12 19:39:13,620: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 19:39:13,621: INFO: Current backtesting datetime 2019-01-03 08:30:00-05:00
+2021-08-12 19:39:13,622: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 19:39:13,623: INFO: Current backtesting datetime 2019-01-03 09:30:00-05:00
+2021-08-12 19:39:13,623: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 19:39:13,626: INFO: Filled Transaction: buy 10 of SPY at 248.22999572753903$ per share
+2021-08-12 19:39:13,626: INFO: market order of | 10 SPY buy | with status unprocessed was filled
+2021-08-12 19:39:13,630: INFO: Strategy simple: Executing the on_filled_order event method
+Progress ||   7.99% Complete
+ORDER FILLED: 2019-01-03 09:30:00-05:00, position: 10 shares of SPY, price: 248.22999572753903, side: buy
+Progress ||   8.88% Complete2021-08-12 19:39:13,632: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 19:39:13,634: INFO: Counter is at 1, program thinks it is 2019-01-03 09:30:00-05:00
+2021-08-12 19:39:13,645: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-01-03 00:00:00-05:00  248.229996  248.570007  243.669998  244.210007
+
+2021-08-12 19:39:13,645: INFO: We own 10 of SPY, about to sell
+2021-08-12 19:39:13,645: INFO: market order of | 10 SPY sell | with status unprocessed was sent to broker backtesting
+2021-08-12 19:39:13,647: INFO: Current backtesting datetime 2019-01-03 15:55:00-05:00
+2021-08-12 19:39:13,652: INFO: Current backtesting datetime 2019-01-03 15:55:00-05:00
+2021-08-12 19:39:13,652: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 19:39:13,653: INFO: Current backtesting datetime 2019-01-03 16:00:00-05:00
+2021-08-12 19:39:13,653: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 19:39:13,654: INFO: Current backtesting datetime 2019-01-04 08:30:00-05:00
+2021-08-12 19:39:13,655: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 19:39:13,656: INFO: Current backtesting datetime 2019-01-04 09:30:00-05:00
+2021-08-12 19:39:13,658: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 19:39:13,660: INFO: Filled Transaction: sell 10 of SPY at 247.58999633789065$ per share
+2021-08-12 19:39:13,660: INFO: market order of | 10 SPY sell | with status unprocessed was filled
+2021-08-12 19:39:13,660: INFO: Position 0 shares of SPY liquidated
+Progress ||  11.32% Complete
+ORDER FILLED: 2019-01-04 09:30:00-05:00, position: 0 shares of SPY, price: 247.58999633789065, side: sell
+Progress ||  12.21% Complete2021-08-12 19:39:13,665: INFO: Strategy simple: Executing the on_filled_order event method
+2021-08-12 19:39:13,665: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 19:39:13,667: INFO: Counter is at 2, program thinks it is 2019-01-04 09:30:00-05:00
+2021-08-12 19:39:13,678: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-01-04 00:00:00-05:00  247.589996  253.110001  247.169998  252.389999
+
+2021-08-12 19:39:13,679: INFO: We have no open positions
+2021-08-12 19:39:13,679: INFO: market order of | 10 SPY buy | with status unprocessed was sent to broker backtesting
+2021-08-12 19:39:13,681: INFO: Current backtesting datetime 2019-01-04 15:55:00-05:00
+2021-08-12 19:39:13,686: INFO: Current backtesting datetime 2019-01-04 15:55:00-05:00
+2021-08-12 19:39:13,687: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 19:39:13,688: INFO: Current backtesting datetime 2019-01-04 16:00:00-05:00
+2021-08-12 19:39:13,688: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 19:39:13,689: INFO: Current backtesting datetime 2019-01-07 08:30:00-05:00
+2021-08-12 19:39:13,689: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 19:39:13,690: INFO: Current backtesting datetime 2019-01-07 09:30:00-05:00
+2021-08-12 19:39:13,690: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 19:39:13,693: INFO: Filled Transaction: buy 10 of SPY at 252.69000244140625$ per share
+2021-08-12 19:39:13,693: INFO: market order of | 10 SPY buy | with status unprocessed was filled
+2021-08-12 19:39:13,697: INFO: Strategy simple: Executing the on_filled_order event method
+2021-08-12 19:39:13,699: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+Progress ||  21.32% Complete
+ORDER FILLED: 2019-01-07 09:30:00-05:00, position: 10 shares of SPY, price: 252.69000244140625, side: buy
+Progress ||  22.21% Complete2021-08-12 19:39:13,701: INFO: Counter is at 3, program thinks it is 2019-01-07 09:30:00-05:00
+2021-08-12 19:39:13,712: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-01-07 00:00:00-05:00  252.690002  255.949997  251.690002  254.380005
+
+2021-08-12 19:39:13,712: INFO: We own 10 of SPY, about to sell
+2021-08-12 19:39:13,712: INFO: market order of | 10 SPY sell | with status unprocessed was sent to broker backtesting
+2021-08-12 19:39:13,714: INFO: Current backtesting datetime 2019-01-07 15:55:00-05:00
+2021-08-12 19:39:13,719: INFO: Current backtesting datetime 2019-01-07 15:55:00-05:00
+2021-08-12 19:39:13,720: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 19:39:13,721: INFO: Current backtesting datetime 2019-01-07 16:00:00-05:00
+2021-08-12 19:39:13,721: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 19:39:13,722: INFO: Current backtesting datetime 2019-01-08 08:30:00-05:00
+2021-08-12 19:39:13,723: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 19:39:13,724: INFO: Current backtesting datetime 2019-01-08 09:30:00-05:00
+2021-08-12 19:39:13,725: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 19:39:13,728: INFO: Filled Transaction: sell 10 of SPY at 256.82000732421875$ per share
+2021-08-12 19:39:13,728: INFO: market order of | 10 SPY sell | with status unprocessed was filled
+2021-08-12 19:39:13,728: INFO: Position 0 shares of SPY liquidated
+2021-08-12 19:39:13,733: INFO: Strategy simple: Executing the on_filled_order event method
+2021-08-12 19:39:13,733: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 19:39:13,735: INFO: Counter is at 4, program thinks it is 2019-01-08 09:30:00-05:00
+Progress ||  24.65% Complete
+ORDER FILLED: 2019-01-08 09:30:00-05:00, position: 0 shares of SPY, price: 256.82000732421875, side: sell
+2021-08-12 19:39:13,746: INFO: The value of SPY is
+                                 open        high    low       close
+Date
+2019-01-08 00:00:00-05:00  256.820007  257.309998  254.0  256.769989
+
+2021-08-12 19:39:13,746: INFO: We have no open positions
+2021-08-12 19:39:13,746: INFO: market order of | 10 SPY buy | with status unprocessed was sent to broker backtesting
+2021-08-12 19:39:13,748: INFO: Current backtesting datetime 2019-01-08 15:55:00-05:00
+2021-08-12 19:39:13,754: INFO: Current backtesting datetime 2019-01-08 15:55:00-05:00
+2021-08-12 19:39:13,754: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 19:39:13,755: INFO: Current backtesting datetime 2019-01-08 16:00:00-05:00
+2021-08-12 19:39:13,756: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 19:39:13,757: INFO: Current backtesting datetime 2019-01-09 08:30:00-05:00
+2021-08-12 19:39:13,757: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 19:39:13,758: INFO: Current backtesting datetime 2019-01-09 09:30:00-05:00
+2021-08-12 19:39:13,759: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 19:39:13,761: INFO: Filled Transaction: buy 10 of SPY at 257.5599975585937$ per share
+2021-08-12 19:39:13,761: INFO: market order of | 10 SPY buy | with status unprocessed was filled
+2021-08-12 19:39:13,766: INFO: Strategy simple: Executing the on_filled_order event method
+Progress ||  27.99% Complete
+ORDER FILLED: 2019-01-09 09:30:00-05:00, position: 10 shares of SPY, price: 257.5599975585937, side: buy
+Progress ||  28.88% Complete2021-08-12 19:39:13,768: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 19:39:13,770: INFO: Counter is at 5, program thinks it is 2019-01-09 09:30:00-05:00
+2021-08-12 19:39:13,782: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-01-09 00:00:00-05:00  257.559998  258.910004  256.190002  257.970001
+
+2021-08-12 19:39:13,782: INFO: We own 10 of SPY, about to sell
+2021-08-12 19:39:13,782: INFO: market order of | 10 SPY sell | with status unprocessed was sent to broker backtesting
+2021-08-12 19:39:13,784: INFO: Current backtesting datetime 2019-01-09 15:55:00-05:00
+2021-08-12 19:39:13,790: INFO: Current backtesting datetime 2019-01-09 15:55:00-05:00
+2021-08-12 19:39:13,791: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 19:39:13,792: INFO: Current backtesting datetime 2019-01-09 16:00:00-05:00
+2021-08-12 19:39:13,792: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 19:39:13,794: INFO: Current backtesting datetime 2019-01-10 08:30:00-05:00
+2021-08-12 19:39:13,794: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 19:39:13,796: INFO: Current backtesting datetime 2019-01-10 09:30:00-05:00
+2021-08-12 19:39:13,798: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 19:39:13,801: INFO: Filled Transaction: sell 10 of SPY at 256.260009765625$ per share
+2021-08-12 19:39:13,801: INFO: market order of | 10 SPY sell | with status unprocessed was filled
+2021-08-12 19:39:13,801: INFO: Position 0 shares of SPY liquidated
+Progress ||  31.32% Complete
+ORDER FILLED: 2019-01-10 09:30:00-05:00, position: 0 shares of SPY, price: 256.260009765625, side: sell
+Progress ||  32.21% Complete2021-08-12 19:39:13,806: INFO: Strategy simple: Executing the on_filled_order event method
+2021-08-12 19:39:13,806: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 19:39:13,808: INFO: Counter is at 6, program thinks it is 2019-01-10 09:30:00-05:00
+2021-08-12 19:39:13,819: INFO: The value of SPY is
+                                open        high    low       close
+Date
+2019-01-10 00:00:00-05:00  256.26001  259.160004  255.5  258.880005
+
+2021-08-12 19:39:13,819: INFO: We have no open positions
+2021-08-12 19:39:13,819: INFO: market order of | 10 SPY buy | with status unprocessed was sent to broker backtesting
+2021-08-12 19:39:13,821: INFO: Current backtesting datetime 2019-01-10 15:55:00-05:00
+2021-08-12 19:39:13,827: INFO: Current backtesting datetime 2019-01-10 15:55:00-05:00
+2021-08-12 19:39:13,827: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 19:39:13,828: INFO: Current backtesting datetime 2019-01-10 16:00:00-05:00
+2021-08-12 19:39:13,829: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 19:39:13,830: INFO: Current backtesting datetime 2019-01-11 08:30:00-05:00
+2021-08-12 19:39:13,830: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 19:39:13,832: INFO: Current backtesting datetime 2019-01-11 09:30:00-05:00
+2021-08-12 19:39:13,832: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 19:39:13,835: INFO: Filled Transaction: buy 10 of SPY at 257.67999267578125$ per share
+2021-08-12 19:39:13,835: INFO: market order of | 10 SPY buy | with status unprocessed was filled
+2021-08-12 19:39:13,841: INFO: Strategy simple: Executing the on_filled_order event method
+2021-08-12 19:39:13,843: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+Progress ||  34.65% Complete
+ORDER FILLED: 2019-01-11 09:30:00-05:00, position: 10 shares of SPY, price: 257.67999267578125, side: buy
+2021-08-12 19:39:13,846: INFO: Counter is at 7, program thinks it is 2019-01-11 09:30:00-05:00
+2021-08-12 19:39:13,859: INFO: The value of SPY is
+                                 open       high         low       close
+Date
+2019-01-11 00:00:00-05:00  257.679993  259.01001  257.029999  258.980011
+
+2021-08-12 19:39:13,859: INFO: We own 10 of SPY, about to sell
+2021-08-12 19:39:13,860: INFO: market order of | 10 SPY sell | with status unprocessed was sent to broker backtesting
+2021-08-12 19:39:13,861: INFO: Current backtesting datetime 2019-01-11 15:55:00-05:00
+2021-08-12 19:39:13,867: INFO: Current backtesting datetime 2019-01-11 15:55:00-05:00
+2021-08-12 19:39:13,868: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 19:39:13,869: INFO: Current backtesting datetime 2019-01-11 16:00:00-05:00
+2021-08-12 19:39:13,869: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 19:39:13,870: INFO: Current backtesting datetime 2019-01-14 08:30:00-05:00
+2021-08-12 19:39:13,871: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 19:39:13,872: INFO: Current backtesting datetime 2019-01-14 09:30:00-05:00
+2021-08-12 19:39:13,874: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 19:39:13,876: INFO: Filled Transaction: sell 10 of SPY at 256.8599853515625$ per share
+2021-08-12 19:39:13,876: INFO: market order of | 10 SPY sell | with status unprocessed was filled
+2021-08-12 19:39:13,877: INFO: Position 0 shares of SPY liquidated
+2021-08-12 19:39:13,881: INFO: Strategy simple: Executing the on_filled_order event method
+Progress ||  44.65% Complete
+ORDER FILLED: 2019-01-14 09:30:00-05:00, position: 0 shares of SPY, price: 256.8599853515625, side: sell
+2021-08-12 19:39:13,882: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 19:39:13,884: INFO: Counter is at 8, program thinks it is 2019-01-14 09:30:00-05:00
+Progress ||  47.99% Complete
+2021-08-12 19:39:13,895: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-01-14 00:00:00-05:00  256.859985  258.299988  256.410004  257.399994
+
+2021-08-12 19:39:13,895: INFO: We have no open positions
+2021-08-12 19:39:13,895: INFO: market order of | 10 SPY buy | with status unprocessed was sent to broker backtesting
+2021-08-12 19:39:13,897: INFO: Current backtesting datetime 2019-01-14 15:55:00-05:00
+2021-08-12 19:39:13,903: INFO: Current backtesting datetime 2019-01-14 15:55:00-05:00
+2021-08-12 19:39:13,903: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 19:39:13,904: INFO: Current backtesting datetime 2019-01-14 16:00:00-05:00
+2021-08-12 19:39:13,904: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 19:39:13,906: INFO: Current backtesting datetime 2019-01-15 08:30:00-05:00
+2021-08-12 19:39:13,906: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 19:39:13,908: INFO: Current backtesting datetime 2019-01-15 09:30:00-05:00
+2021-08-12 19:39:13,908: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 19:39:13,911: INFO: Filled Transaction: buy 10 of SPY at 257.82000732421875$ per share
+2021-08-12 19:39:13,911: INFO: market order of | 10 SPY buy | with status unprocessed was filled
+2021-08-12 19:39:13,915: INFO: Strategy simple: Executing the on_filled_order event method
+2021-08-12 19:39:13,918: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 19:39:13,920: INFO: Counter is at 9, program thinks it is 2019-01-15 09:30:00-05:00
+ORDER FILLED: 2019-01-15 09:30:00-05:00, position: 10 shares of SPY, price: 257.82000732421875, side: buy
+2021-08-12 19:39:13,932: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-01-15 00:00:00-05:00  257.820007  260.700012  257.809998  260.350006
+
+2021-08-12 19:39:13,932: INFO: We own 10 of SPY, about to sell
+2021-08-12 19:39:13,932: INFO: market order of | 10 SPY sell | with status unprocessed was sent to broker backtesting
+2021-08-12 19:39:13,934: INFO: Current backtesting datetime 2019-01-15 15:55:00-05:00
+2021-08-12 19:39:13,940: INFO: Current backtesting datetime 2019-01-15 15:55:00-05:00
+2021-08-12 19:39:13,940: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 19:39:13,941: INFO: Current backtesting datetime 2019-01-15 16:00:00-05:00
+2021-08-12 19:39:13,941: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 19:39:13,942: INFO: Current backtesting datetime 2019-01-16 08:30:00-05:00
+2021-08-12 19:39:13,943: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 19:39:13,944: INFO: Current backtesting datetime 2019-01-16 09:30:00-05:00
+2021-08-12 19:39:13,946: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 19:39:13,949: INFO: Filled Transaction: sell 10 of SPY at 260.8299865722656$ per share
+2021-08-12 19:39:13,949: INFO: market order of | 10 SPY sell | with status unprocessed was filled
+2021-08-12 19:39:13,950: INFO: Position 0 shares of SPY liquidated
+Progress ||  51.32% Complete
+ORDER FILLED: 2019-01-16 09:30:00-05:00, position: 0 shares of SPY, price: 260.8299865722656, side: sell
+Progress ||  52.21% Complete2021-08-12 19:39:13,954: INFO: Strategy simple: Executing the on_filled_order event method
+2021-08-12 19:39:13,954: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 19:39:13,956: INFO: Counter is at 10, program thinks it is 2019-01-16 09:30:00-05:00
+2021-08-12 19:39:13,967: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-01-16 00:00:00-05:00  260.829987  261.970001  260.600006  260.980011
+
+2021-08-12 19:39:13,967: INFO: We have no open positions
+2021-08-12 19:39:13,967: INFO: market order of | 10 SPY buy | with status unprocessed was sent to broker backtesting
+2021-08-12 19:39:13,969: INFO: Current backtesting datetime 2019-01-16 15:55:00-05:00
+2021-08-12 19:39:13,974: INFO: Current backtesting datetime 2019-01-16 15:55:00-05:00
+2021-08-12 19:39:13,975: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 19:39:13,976: INFO: Current backtesting datetime 2019-01-16 16:00:00-05:00
+2021-08-12 19:39:13,976: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 19:39:13,977: INFO: Current backtesting datetime 2019-01-17 08:30:00-05:00
+2021-08-12 19:39:13,978: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 19:39:13,979: INFO: Current backtesting datetime 2019-01-17 09:30:00-05:00
+2021-08-12 19:39:13,980: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 19:39:13,982: INFO: Filled Transaction: buy 10 of SPY at 260.010009765625$ per share
+2021-08-12 19:39:13,982: INFO: market order of | 10 SPY buy | with status unprocessed was filled
+2021-08-12 19:39:13,987: INFO: Strategy simple: Executing the on_filled_order event method
+2021-08-12 19:39:13,989: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 19:39:13,991: INFO: Counter is at 11, program thinks it is 2019-01-17 09:30:00-05:00
+Progress ||  54.65% Complete
+ORDER FILLED: 2019-01-17 09:30:00-05:00, position: 10 shares of SPY, price: 260.010009765625, side: buy
+2021-08-12 19:39:14,006: INFO: The value of SPY is
+                                open        high         low       close
+Date
+2019-01-17 00:00:00-05:00  260.01001  263.920013  259.959991  262.959991
+
+2021-08-12 19:39:14,006: INFO: We own 10 of SPY, about to sell
+2021-08-12 19:39:14,006: INFO: market order of | 10 SPY sell | with status unprocessed was sent to broker backtesting
+2021-08-12 19:39:14,008: INFO: Current backtesting datetime 2019-01-17 15:55:00-05:00
+2021-08-12 19:39:14,013: INFO: Current backtesting datetime 2019-01-17 15:55:00-05:00
+2021-08-12 19:39:14,014: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 19:39:14,015: INFO: Current backtesting datetime 2019-01-17 16:00:00-05:00
+2021-08-12 19:39:14,015: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 19:39:14,016: INFO: Current backtesting datetime 2019-01-18 08:30:00-05:00
+2021-08-12 19:39:14,017: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 19:39:14,018: INFO: Current backtesting datetime 2019-01-18 09:30:00-05:00
+2021-08-12 19:39:14,020: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 19:39:14,023: INFO: Filled Transaction: sell 10 of SPY at 264.9800109863281$ per share
+2021-08-12 19:39:14,023: INFO: market order of | 10 SPY sell | with status unprocessed was filled
+2021-08-12 19:39:14,023: INFO: Position 0 shares of SPY liquidated
+Progress ||  57.99% Complete
+ORDER FILLED: 2019-01-18 09:30:00-05:00, position: 0 shares of SPY, price: 264.9800109863281, side: sell
+Progress ||  58.88% Complete2021-08-12 19:39:14,028: INFO: Strategy simple: Executing the on_filled_order event method
+2021-08-12 19:39:14,028: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 19:39:14,030: INFO: Counter is at 12, program thinks it is 2019-01-18 09:30:00-05:00
+2021-08-12 19:39:14,041: INFO: The value of SPY is
+                                 open        high    low       close
+Date
+2019-01-18 00:00:00-05:00  264.980011  266.980011  263.0  266.459991
+
+2021-08-12 19:39:14,042: INFO: We have no open positions
+2021-08-12 19:39:14,042: INFO: market order of | 10 SPY buy | with status unprocessed was sent to broker backtesting
+2021-08-12 19:39:14,044: INFO: Current backtesting datetime 2019-01-18 15:55:00-05:00
+2021-08-12 19:39:14,050: INFO: Current backtesting datetime 2019-01-18 15:55:00-05:00
+2021-08-12 19:39:14,050: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 19:39:14,051: INFO: Current backtesting datetime 2019-01-18 16:00:00-05:00
+2021-08-12 19:39:14,051: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 19:39:14,052: INFO: Current backtesting datetime 2019-01-22 08:30:00-05:00
+2021-08-12 19:39:14,053: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 19:39:14,054: INFO: Current backtesting datetime 2019-01-22 09:30:00-05:00
+2021-08-12 19:39:14,054: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 19:39:14,057: INFO: Filled Transaction: buy 10 of SPY at 264.82000732421875$ per share
+2021-08-12 19:39:14,058: INFO: market order of | 10 SPY buy | with status unprocessed was filled
+2021-08-12 19:39:14,062: INFO: Strategy simple: Executing the on_filled_order event method
+2021-08-12 19:39:14,064: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 19:39:14,066: INFO: Counter is at 13, program thinks it is 2019-01-22 09:30:00-05:00
+Progress ||  71.32% Complete
+ORDER FILLED: 2019-01-22 09:30:00-05:00, position: 10 shares of SPY, price: 264.82000732421875, side: buy
+2021-08-12 19:39:14,078: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-01-22 00:00:00-05:00  264.820007  265.059998  261.059998  262.859985
+
+2021-08-12 19:39:14,078: INFO: We own 10 of SPY, about to sell
+2021-08-12 19:39:14,078: INFO: market order of | 10 SPY sell | with status unprocessed was sent to broker backtesting
+2021-08-12 19:39:14,080: INFO: Current backtesting datetime 2019-01-22 15:55:00-05:00
+2021-08-12 19:39:14,086: INFO: Current backtesting datetime 2019-01-22 15:55:00-05:00
+2021-08-12 19:39:14,087: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 19:39:14,088: INFO: Current backtesting datetime 2019-01-22 16:00:00-05:00
+2021-08-12 19:39:14,088: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 19:39:14,089: INFO: Current backtesting datetime 2019-01-23 08:30:00-05:00
+2021-08-12 19:39:14,090: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 19:39:14,091: INFO: Current backtesting datetime 2019-01-23 09:30:00-05:00
+2021-08-12 19:39:14,093: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 19:39:14,095: INFO: Filled Transaction: sell 10 of SPY at 264.010009765625$ per share
+2021-08-12 19:39:14,096: INFO: market order of | 10 SPY sell | with status unprocessed was filled
+2021-08-12 19:39:14,096: INFO: Position 0 shares of SPY liquidated
+Progress ||  74.65% Complete
+ORDER FILLED: 2019-01-23 09:30:00-05:00, position: 0 shares of SPY, price: 264.010009765625, side: sell
+2021-08-12 19:39:14,100: INFO: Strategy simple: Executing the on_filled_order event method
+2021-08-12 19:39:14,100: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 19:39:14,102: INFO: Counter is at 14, program thinks it is 2019-01-23 09:30:00-05:00
+2021-08-12 19:39:14,112: INFO: The value of SPY is
+                                open        high         low       close
+Date
+2019-01-23 00:00:00-05:00  264.01001  264.790009  260.660004  263.410004
+
+2021-08-12 19:39:14,112: INFO: We have no open positions
+2021-08-12 19:39:14,113: INFO: market order of | 10 SPY buy | with status unprocessed was sent to broker backtesting
+2021-08-12 19:39:14,114: INFO: Current backtesting datetime 2019-01-23 15:55:00-05:00
+2021-08-12 19:39:14,120: INFO: Current backtesting datetime 2019-01-23 15:55:00-05:00
+2021-08-12 19:39:14,120: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 19:39:14,121: INFO: Current backtesting datetime 2019-01-23 16:00:00-05:00
+2021-08-12 19:39:14,121: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 19:39:14,122: INFO: Current backtesting datetime 2019-01-24 08:30:00-05:00
+2021-08-12 19:39:14,123: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 19:39:14,124: INFO: Current backtesting datetime 2019-01-24 09:30:00-05:00
+2021-08-12 19:39:14,124: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 19:39:14,127: INFO: Filled Transaction: buy 10 of SPY at 263.2099914550781$ per share
+2021-08-12 19:39:14,127: INFO: market order of | 10 SPY buy | with status unprocessed was filled
+2021-08-12 19:39:14,131: INFO: Strategy simple: Executing the on_filled_order event method
+Progress ||  77.99% Complete
+ORDER FILLED: 2019-01-24 09:30:00-05:00, position: 10 shares of SPY, price: 263.2099914550781, side: buy
+Progress ||  78.88% Complete2021-08-12 19:39:14,133: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 19:39:14,135: INFO: Counter is at 15, program thinks it is 2019-01-24 09:30:00-05:00
+2021-08-12 19:39:14,146: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-01-24 00:00:00-05:00  263.209991  264.200012  262.079987  263.549988
+
+2021-08-12 19:39:14,146: INFO: We own 10 of SPY, about to sell
+2021-08-12 19:39:14,146: INFO: market order of | 10 SPY sell | with status unprocessed was sent to broker backtesting
+2021-08-12 19:39:14,148: INFO: Current backtesting datetime 2019-01-24 15:55:00-05:00
+2021-08-12 19:39:14,153: INFO: Current backtesting datetime 2019-01-24 15:55:00-05:00
+2021-08-12 19:39:14,154: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 19:39:14,155: INFO: Current backtesting datetime 2019-01-24 16:00:00-05:00
+2021-08-12 19:39:14,155: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 19:39:14,156: INFO: Current backtesting datetime 2019-01-25 08:30:00-05:00
+2021-08-12 19:39:14,156: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 19:39:14,157: INFO: Current backtesting datetime 2019-01-25 09:30:00-05:00
+2021-08-12 19:39:14,159: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 19:39:14,161: INFO: Filled Transaction: sell 10 of SPY at 265.6099853515625$ per share
+2021-08-12 19:39:14,162: INFO: market order of | 10 SPY sell | with status unprocessed was filled
+2021-08-12 19:39:14,162: INFO: Position 0 shares of SPY liquidated
+2021-08-12 19:39:14,166: INFO: Strategy simple: Executing the on_filled_order event method
+2021-08-12 19:39:14,166: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+Progress ||  81.32% Complete
+ORDER FILLED: 2019-01-25 09:30:00-05:00, position: 0 shares of SPY, price: 265.6099853515625, side: sell
+Progress ||  82.22% Complete2021-08-12 19:39:14,168: INFO: Counter is at 16, program thinks it is 2019-01-25 09:30:00-05:00
+2021-08-12 19:39:14,178: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-01-25 00:00:00-05:00  265.609985  266.700012  263.660004  265.779999
+
+2021-08-12 19:39:14,178: INFO: We have no open positions
+2021-08-12 19:39:14,178: INFO: market order of | 10 SPY buy | with status unprocessed was sent to broker backtesting
+2021-08-12 19:39:14,180: INFO: Current backtesting datetime 2019-01-25 15:55:00-05:00
+2021-08-12 19:39:14,185: INFO: Current backtesting datetime 2019-01-25 15:55:00-05:00
+2021-08-12 19:39:14,186: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 19:39:14,187: INFO: Current backtesting datetime 2019-01-25 16:00:00-05:00
+2021-08-12 19:39:14,187: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 19:39:14,188: INFO: Current backtesting datetime 2019-01-28 08:30:00-05:00
+2021-08-12 19:39:14,189: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 19:39:14,190: INFO: Current backtesting datetime 2019-01-28 09:30:00-05:00
+2021-08-12 19:39:14,190: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 19:39:14,192: INFO: Filled Transaction: buy 10 of SPY at 263.3900146484375$ per share
+2021-08-12 19:39:14,192: INFO: market order of | 10 SPY buy | with status unprocessed was filled
+2021-08-12 19:39:14,197: INFO: Strategy simple: Executing the on_filled_order event method
+2021-08-12 19:39:14,199: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 19:39:14,201: INFO: Counter is at 17, program thinks it is 2019-01-28 09:30:00-05:00
+Progress ||  91.32% Complete
+ORDER FILLED: 2019-01-28 09:30:00-05:00, position: 10 shares of SPY, price: 263.3900146484375, side: buy
+2021-08-12 19:39:14,212: INFO: The value of SPY is
+                                 open        high         low      close
+Date
+2019-01-28 00:00:00-05:00  263.390015  263.829987  261.790009  263.76001
+
+2021-08-12 19:39:14,212: INFO: We own 10 of SPY, about to sell
+2021-08-12 19:39:14,212: INFO: market order of | 10 SPY sell | with status unprocessed was sent to broker backtesting
+2021-08-12 19:39:14,214: INFO: Current backtesting datetime 2019-01-28 15:55:00-05:00
+2021-08-12 19:39:14,220: INFO: Current backtesting datetime 2019-01-28 15:55:00-05:00
+2021-08-12 19:39:14,220: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 19:39:14,221: INFO: Current backtesting datetime 2019-01-28 16:00:00-05:00
+2021-08-12 19:39:14,221: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 19:39:14,222: INFO: Current backtesting datetime 2019-01-29 08:30:00-05:00
+2021-08-12 19:39:14,223: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 19:39:14,224: INFO: Current backtesting datetime 2019-01-29 09:30:00-05:00
+2021-08-12 19:39:14,226: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 19:39:14,229: INFO: Filled Transaction: sell 10 of SPY at 263.9200134277344$ per share
+2021-08-12 19:39:14,229: INFO: market order of | 10 SPY sell | with status unprocessed was filled
+2021-08-12 19:39:14,229: INFO: Position 0 shares of SPY liquidated
+2021-08-12 19:39:14,233: INFO: Strategy simple: Executing the on_filled_order event method
+Progress ||  94.65% Complete
+2021-08-12 19:39:14,234: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 19:39:14,236: INFO: Counter is at 18, program thinks it is 2019-01-29 09:30:00-05:00
+ORDER FILLED: 2019-01-29 09:30:00-05:00, position: 0 shares of SPY, price: 263.9200134277344, side: sell
+2021-08-12 19:39:14,247: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-01-29 00:00:00-05:00  263.920013  264.549988  262.480011  263.410004
+
+2021-08-12 19:39:14,247: INFO: We have no open positions
+2021-08-12 19:39:14,247: INFO: market order of | 10 SPY buy | with status unprocessed was sent to broker backtesting
+2021-08-12 19:39:14,249: INFO: Current backtesting datetime 2019-01-29 15:55:00-05:00
+2021-08-12 19:39:14,254: INFO: Current backtesting datetime 2019-01-29 15:55:00-05:00
+2021-08-12 19:39:14,255: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 19:39:14,256: INFO: Current backtesting datetime 2019-01-29 16:00:00-05:00
+2021-08-12 19:39:14,256: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 19:39:14,257: INFO: Current backtesting datetime 2019-01-30 08:30:00-05:00
+2021-08-12 19:39:14,258: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 19:39:14,259: INFO: Current backtesting datetime 2019-01-30 09:30:00-05:00
+2021-08-12 19:39:14,259: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 19:39:14,262: INFO: Filled Transaction: buy 10 of SPY at 265.1000061035156$ per share
+2021-08-12 19:39:14,262: INFO: market order of | 10 SPY buy | with status unprocessed was filled
+Progress ||  97.99% Complete
+2021-08-12 19:39:14,266: INFO: Strategy simple: Executing the on_filled_order event method
+2021-08-12 19:39:14,268: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 19:39:14,270: INFO: Counter is at 19, program thinks it is 2019-01-30 09:30:00-05:00
+ORDER FILLED: 2019-01-30 09:30:00-05:00, position: 10 shares of SPY, price: 265.1000061035156, side: buy
+2021-08-12 19:39:14,281: INFO: The value of SPY is
+                                 open        high     low       close
+Date
+2019-01-30 00:00:00-05:00  265.100006  268.519989  264.25  267.579987
+
+2021-08-12 19:39:14,281: INFO: We own 10 of SPY, about to sell
+2021-08-12 19:39:14,281: INFO: market order of | 10 SPY sell | with status unprocessed was sent to broker backtesting
+2021-08-12 19:39:14,283: INFO: Current backtesting datetime 2019-01-30 15:55:00-05:00
+2021-08-12 19:39:14,288: INFO: Current backtesting datetime 2019-01-30 15:55:00-05:00
+2021-08-12 19:39:14,289: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 19:39:14,290: INFO: Current backtesting datetime 2019-01-30 16:00:00-05:00
+2021-08-12 19:39:14,290: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 19:39:14,291: INFO: Current backtesting datetime 2019-01-31 08:30:00-05:00
+2021-08-12 19:39:14,291: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 19:39:14,293: INFO: Current backtesting datetime 2019-01-31 09:30:00-05:00
+2021-08-12 19:39:14,294: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 19:39:14,297: INFO: Filled Transaction: sell 10 of SPY at 267.510009765625$ per share
+2021-08-12 19:39:14,297: INFO: market order of | 10 SPY sell | with status unprocessed was filled
+2021-08-12 19:39:14,297: INFO: Position 0 shares of SPY liquidated
+Progress || 100.00% Complete
+ORDER FILLED: 2019-01-31 09:30:00-05:00, position: 0 shares of SPY, price: 267.510009765625, side: sell
+Progress || 100.00% Complete2021-08-12 19:39:14,301: INFO: Strategy simple: Executing the on_filled_order event method
+2021-08-12 19:39:14,301: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 19:39:14,303: INFO: Counter is at 20, program thinks it is 2019-01-31 09:30:00-05:00
+2021-08-12 19:39:14,314: INFO: The value of SPY is
+                                open        high         low       close
+Date
+2019-01-31 00:00:00-05:00  267.51001  270.470001  267.269989  269.929993
+
+2021-08-12 19:39:14,314: INFO: We have no open positions
+2021-08-12 19:39:14,314: INFO: market order of | 10 SPY buy | with status unprocessed was sent to broker backtesting
+2021-08-12 19:39:14,316: INFO: Current backtesting datetime 2019-01-31 15:55:00-05:00
+2021-08-12 19:39:14,321: INFO: Current backtesting datetime 2019-01-31 15:55:00-05:00
+2021-08-12 19:39:14,322: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 19:39:14,323: INFO: Current backtesting datetime 2019-01-31 16:00:00-05:00
+2021-08-12 19:39:14,323: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 19:39:14,323: INFO: Strategy simple: Executing the on_strategy_end lifecycle method
+2021-08-12 19:39:14,330: INFO: Strategy simple: --- simple Strategy Performance ---
+2021-08-12 19:39:14,341: INFO: Strategy simple: CAGR 4.46%
+2021-08-12 19:39:14,341: INFO: Strategy simple: Volatility 0.77%
+2021-08-12 19:39:14,341: INFO: Strategy simple: Sharpe 574.98
+2021-08-12 19:39:14,341: INFO: Strategy simple: Max Drawdown 0.06 on 2019-01-14
+2021-08-12 19:39:14,341: INFO: Strategy simple: RoMaD 7057.32%
+2021-08-12 19:39:14,341: INFO: Strategy simple: --- SPY Benchmark Performance ---
+2021-08-12 19:39:14,358: INFO: Strategy simple: SPY CAGR 160.38%
+2021-08-12 19:39:14,358: INFO: Strategy simple: SPY Volatility 18.68%
+2021-08-12 19:39:14,358: INFO: Strategy simple: SPY Sharpe 8.58
+2021-08-12 19:39:14,359: INFO: Strategy simple: SPY Max Drawdown 1.35% on 2019-01-22
+2021-08-12 19:39:14,359: INFO: Strategy simple: SPY RoMaD 11870.89%
+2021-08-12 19:39:14,360: INFO: *** Benchmark Performance for SPY ***
+2021-08-12 19:39:14,368: INFO: Risk Free Rate 0.04%
+Elapsed time: 1.562975375998576
+2021-08-12 19:39:14,377: INFO: The end
+SPY CAGR 160.38%
+SPY Volatility 18.68%
+SPY Sharpe 8.58
+SPY Max Drawdown 1.35% on 2019-01-22
+SPY RoMaD 11870.89%
+
+Process finished with exit code 0
+
+
+=======================================================================================================
+
+datetime,counter,my_custom_stat,portfolio_value,unspent_money,return
+2019-01-02 15:55:00-05:00,1.0,71.0,40000.0,40000.0,
+2019-01-03 15:55:00-05:00,2.0,12.0,39959.80010986328,37517.70004272461,-0.0010049972534179608
+2019-01-04 15:55:00-05:00,3.0,46.0,39993.600006103516,39993.600006103516,0.0008458474804005078
+2019-01-07 15:55:00-05:00,4.0,52.0,40010.50003051758,37466.69998168945,0.0004225682212024573
+2019-01-08 15:55:00-05:00,5.0,97.0,40034.90005493164,40034.90005493164,0.0006098405267480622
+2019-01-09 15:55:00-05:00,6.0,56.0,40039.000091552734,37459.3000793457,0.00010241156129953133
+2019-01-10 15:55:00-05:00,7.0,29.0,40021.90017700195,40021.90017700195,-0.00042708145837011546
+2019-01-11 15:55:00-05:00,8.0,62.0,40034.90036010742,37445.10025024414,0.00032482673356271086
+2019-01-14 15:55:00-05:00,9.0,42.0,40013.700103759766,40013.700103759766,-0.0005295443764555818
+2019-01-15 15:55:00-05:00,10.0,8.0,40039.000091552734,37435.50003051758,0.000632283136209999
+2019-01-16 15:55:00-05:00,11.0,44.0,40043.799896240234,40043.799896240234,0.00011987823563330835
+2019-01-17 15:55:00-05:00,12.0,12.0,40073.299713134766,37443.699798583984,0.0007366887500928065
+2019-01-18 15:55:00-05:00,13.0,19.0,40093.499908447266,40093.499908447266,0.000504081157706171
+2019-01-22 15:55:00-05:00,14.0,31.0,40073.8996887207,37445.29983520508,-0.0004888627775404553
+2019-01-23 15:55:00-05:00,15.0,67.0,40085.39993286133,40085.39993286133,0.0002869759177408504
+2019-01-24 15:55:00-05:00,16.0,59.0,40088.799896240234,37453.30001831055,8.48179981889352e-05
+2019-01-25 15:55:00-05:00,17.0,99.0,40109.39987182617,40109.39987182617,0.0005138586248343291
+2019-01-28 15:55:00-05:00,18.0,14.0,40113.09982299805,37475.4997253418,9.22464854546945e-05
+2019-01-29 15:55:00-05:00,19.0,5.0,40114.69985961914,40114.69985961914,3.9888132010501565e-05
+2019-01-30 15:55:00-05:00,20.0,75.0,40139.49966430664,37463.699798583984,0.0006182223667205999
+2019-01-31 15:55:00-05:00,21.0,44.0,40138.799896240234,40138.799896240234,-1.743340281412653e-05
+
+
+
+=======================================================================================================
+
+Backtrader
+
+/usr/bin/python3.8 /home/runout/projects/scratch/_lumibot_simple.py
+Final Value: 40000.00
+2019-01-02, o  245.98 h  251.21 l  245.95 c  250.18 v     239
+2019-01-03, SPY    Order:   1	Type: Buy  	Status Accepted 	Size:   10.0000 Price:  250.1800 Position: 10
+2019-01-03, SPY    Order:   1	Type: Buy  	Status Completed 	Size:   10.0000 Price:  250.1800 Position: 10
+2019-01-03, SPY    BUY   Price: 248.23 Cost: 2482.30 Comm: 0.00 Size:   10.0000
+2019-01-03, o  248.23 h  248.57 l  243.67 c  244.21 v     234
+2019-01-04, SPY    Order:   2	Type: Sell 	Status Accepted 	Size:  -10.0000 Price:  244.2100 Position: 0
+2019-01-04, SPY    Order:   2	Type: Sell 	Status Completed 	Size:  -10.0000 Price:  244.2100 Position: 0
+2019-01-04, SPY    SELL  Price: 247.59 Cost: 2482.30 Comm: 0.00 Size:  -10.0000
+2019-01-04, SPY Closed: PnL Gross -6.4, Net -6.4,
+2019-01-04, o  247.59 h  253.11 l  247.17 c  252.39 v     242
+2019-01-07, SPY    Order:   3	Type: Buy  	Status Accepted 	Size:   10.0000 Price:  252.3900 Position: 10
+2019-01-07, SPY    Order:   3	Type: Buy  	Status Completed 	Size:   10.0000 Price:  252.3900 Position: 10
+2019-01-07, SPY    BUY   Price: 252.69 Cost: 2526.90 Comm: 0.00 Size:   10.0000
+2019-01-07, o  252.69 h  255.95 l  251.69 c  254.38 v     243
+2019-01-08, SPY    Order:   4	Type: Sell 	Status Accepted 	Size:  -10.0000 Price:  254.3800 Position: 0
+2019-01-08, SPY    Order:   4	Type: Sell 	Status Completed 	Size:  -10.0000 Price:  254.3800 Position: 0
+2019-01-08, SPY    SELL  Price: 256.82 Cost: 2526.90 Comm: 0.00 Size:  -10.0000
+2019-01-08, SPY Closed: PnL Gross 41.3, Net 41.3,
+2019-01-08, o  256.82 h  257.31 l  254.00 c  256.77 v     246
+2019-01-09, SPY    Order:   5	Type: Buy  	Status Accepted 	Size:   10.0000 Price:  256.7700 Position: 10
+2019-01-09, SPY    Order:   5	Type: Buy  	Status Completed 	Size:   10.0000 Price:  256.7700 Position: 10
+2019-01-09, SPY    BUY   Price: 257.56 Cost: 2575.60 Comm: 0.00 Size:   10.0000
+2019-01-09, o  257.56 h  258.91 l  256.19 c  257.97 v     247
+2019-01-10, SPY    Order:   6	Type: Sell 	Status Accepted 	Size:  -10.0000 Price:  257.9700 Position: 0
+2019-01-10, SPY    Order:   6	Type: Sell 	Status Completed 	Size:  -10.0000 Price:  257.9700 Position: 0
+2019-01-10, SPY    SELL  Price: 256.26 Cost: 2575.60 Comm: 0.00 Size:  -10.0000
+2019-01-10, SPY Closed: PnL Gross -13.0, Net -13.0,
+2019-01-10, o  256.26 h  259.16 l  255.50 c  258.88 v     248
+2019-01-11, SPY    Order:   7	Type: Buy  	Status Accepted 	Size:   10.0000 Price:  258.8800 Position: 10
+2019-01-11, SPY    Order:   7	Type: Buy  	Status Completed 	Size:   10.0000 Price:  258.8800 Position: 10
+2019-01-11, SPY    BUY   Price: 257.68 Cost: 2576.80 Comm: 0.00 Size:   10.0000
+2019-01-11, o  257.68 h  259.01 l  257.03 c  258.98 v     248
+2019-01-14, SPY    Order:   8	Type: Sell 	Status Accepted 	Size:  -10.0000 Price:  258.9800 Position: 0
+2019-01-14, SPY    Order:   8	Type: Sell 	Status Completed 	Size:  -10.0000 Price:  258.9800 Position: 0
+2019-01-14, SPY    SELL  Price: 256.86 Cost: 2576.80 Comm: 0.00 Size:  -10.0000
+2019-01-14, SPY Closed: PnL Gross -8.2, Net -8.2,
+2019-01-14, o  256.86 h  258.30 l  256.41 c  257.40 v     246
+2019-01-15, SPY    Order:   9	Type: Buy  	Status Accepted 	Size:   10.0000 Price:  257.4000 Position: 10
+2019-01-15, SPY    Order:   9	Type: Buy  	Status Completed 	Size:   10.0000 Price:  257.4000 Position: 10
+2019-01-15, SPY    BUY   Price: 257.82 Cost: 2578.20 Comm: 0.00 Size:   10.0000
+2019-01-15, o  257.82 h  260.70 l  257.81 c  260.35 v     249
+2019-01-16, SPY    Order:  10	Type: Sell 	Status Accepted 	Size:  -10.0000 Price:  260.3500 Position: 0
+2019-01-16, SPY    Order:  10	Type: Sell 	Status Completed 	Size:  -10.0000 Price:  260.3500 Position: 0
+2019-01-16, SPY    SELL  Price: 260.83 Cost: 2578.20 Comm: 0.00 Size:  -10.0000
+2019-01-16, SPY Closed: PnL Gross 30.1, Net 30.1,
+2019-01-16, o  260.83 h  261.97 l  260.60 c  260.98 v     250
+2019-01-17, SPY    Order:  11	Type: Buy  	Status Accepted 	Size:   10.0000 Price:  260.9800 Position: 10
+2019-01-17, SPY    Order:  11	Type: Buy  	Status Completed 	Size:   10.0000 Price:  260.9800 Position: 10
+2019-01-17, SPY    BUY   Price: 260.01 Cost: 2600.10 Comm: 0.00 Size:   10.0000
+2019-01-17, o  260.01 h  263.92 l  259.96 c  262.96 v     252
+2019-01-18, SPY    Order:  12	Type: Sell 	Status Accepted 	Size:  -10.0000 Price:  262.9600 Position: 0
+2019-01-18, SPY    Order:  12	Type: Sell 	Status Completed 	Size:  -10.0000 Price:  262.9600 Position: 0
+2019-01-18, SPY    SELL  Price: 264.98 Cost: 2600.10 Comm: 0.00 Size:  -10.0000
+2019-01-18, SPY Closed: PnL Gross 49.7, Net 49.7,
+2019-01-18, o  264.98 h  266.98 l  263.00 c  266.46 v     255
+2019-01-22, SPY    Order:  13	Type: Buy  	Status Accepted 	Size:   10.0000 Price:  266.4600 Position: 10
+2019-01-22, SPY    Order:  13	Type: Buy  	Status Completed 	Size:   10.0000 Price:  266.4600 Position: 10
+2019-01-22, SPY    BUY   Price: 264.82 Cost: 2648.20 Comm: 0.00 Size:   10.0000
+2019-01-22, o  264.82 h  265.06 l  261.06 c  262.86 v     252
+2019-01-23, SPY    Order:  14	Type: Sell 	Status Accepted 	Size:  -10.0000 Price:  262.8600 Position: 0
+2019-01-23, SPY    Order:  14	Type: Sell 	Status Completed 	Size:  -10.0000 Price:  262.8600 Position: 0
+2019-01-23, SPY    SELL  Price: 264.01 Cost: 2648.20 Comm: 0.00 Size:  -10.0000
+2019-01-23, SPY Closed: PnL Gross -8.1, Net -8.1,
+2019-01-23, o  264.01 h  264.79 l  260.66 c  263.41 v     252
+2019-01-24, SPY    Order:  15	Type: Buy  	Status Accepted 	Size:   10.0000 Price:  263.4100 Position: 10
+2019-01-24, SPY    Order:  15	Type: Buy  	Status Completed 	Size:   10.0000 Price:  263.4100 Position: 10
+2019-01-24, SPY    BUY   Price: 263.21 Cost: 2632.10 Comm: 0.00 Size:   10.0000
+2019-01-24, o  263.21 h  264.20 l  262.08 c  263.55 v     252
+2019-01-25, SPY    Order:  16	Type: Sell 	Status Accepted 	Size:  -10.0000 Price:  263.5500 Position: 0
+2019-01-25, SPY    Order:  16	Type: Sell 	Status Completed 	Size:  -10.0000 Price:  263.5500 Position: 0
+2019-01-25, SPY    SELL  Price: 265.61 Cost: 2632.10 Comm: 0.00 Size:  -10.0000
+2019-01-25, SPY Closed: PnL Gross 24.0, Net 24.0,
+2019-01-25, o  265.61 h  266.70 l  263.66 c  265.78 v     254
+2019-01-28, SPY    Order:  17	Type: Buy  	Status Accepted 	Size:   10.0000 Price:  265.7800 Position: 10
+2019-01-28, SPY    Order:  17	Type: Buy  	Status Completed 	Size:   10.0000 Price:  265.7800 Position: 10
+2019-01-28, SPY    BUY   Price: 263.39 Cost: 2633.90 Comm: 0.00 Size:   10.0000
+2019-01-28, o  263.39 h  263.83 l  261.79 c  263.76 v     252
+2019-01-29, SPY    Order:  18	Type: Sell 	Status Accepted 	Size:  -10.0000 Price:  263.7600 Position: 0
+2019-01-29, SPY    Order:  18	Type: Sell 	Status Completed 	Size:  -10.0000 Price:  263.7600 Position: 0
+2019-01-29, SPY    SELL  Price: 263.92 Cost: 2633.90 Comm: 0.00 Size:  -10.0000
+2019-01-29, SPY Closed: PnL Gross 5.3, Net 5.3,
+2019-01-29, o  263.92 h  264.55 l  262.48 c  263.41 v     252
+2019-01-30, SPY    Order:  19	Type: Buy  	Status Accepted 	Size:   10.0000 Price:  263.4100 Position: 10
+2019-01-30, SPY    Order:  19	Type: Buy  	Status Completed 	Size:   10.0000 Price:  263.4100 Position: 10
+2019-01-30, SPY    BUY   Price: 265.10 Cost: 2651.00 Comm: 0.00 Size:   10.0000
+2019-01-30, o  265.10 h  268.52 l  264.25 c  267.58 v     256
+2019-01-31, SPY    Order:  20	Type: Sell 	Status Accepted 	Size:  -10.0000 Price:  267.5800 Position: 0
+2019-01-31, SPY    Order:  20	Type: Sell 	Status Completed 	Size:  -10.0000 Price:  267.5800 Position: 0
+2019-01-31, SPY    SELL  Price: 267.51 Cost: 2651.00 Comm: 0.00 Size:  -10.0000
+2019-01-31, SPY Closed: PnL Gross 24.1, Net 24.1,
+2019-01-31, o  267.51 h  270.47 l  267.27 c  269.93 v     258
+Final Value: 40138.80
+
+Process finished with exit code 0
+
+
+=======================================================================================================
+=======================================================================================================
+Limit orders
+=======================================================================================================
+Lumibot:
+/home/runout/projects/lumibot/lumibot/venv/bin/python3 /home/runout/projects/lumibot/main.py simple
+2021-08-12 17:46:06,711: INFO: Strategy simple: Executing the initialize lifecycle method
+2021-08-12 17:46:06,713: INFO: Current backtesting datetime 2019-01-02 08:30:00-05:00
+2021-08-12 17:46:06,714: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 17:46:06,715: INFO: Current backtesting datetime 2019-01-02 09:30:00-05:00
+2021-08-12 17:46:06,715: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 17:46:06,716: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 17:46:06,718: INFO: Counter is at 0, program thinks it is 2019-01-02 09:30:00-05:00
+Progress ||   4.65% Complete*****  BUY  *****2019-01-02 09:30:00-05:00, Limit price: 249.93 Close Price: 250.18
+Progress ||   7.99% Complete2021-08-12 17:46:06,730: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-01-02 00:00:00-05:00  245.979996  251.210007  245.949997  250.179993
+
+2021-08-12 17:46:06,730: INFO: We have no open positions
+2021-08-12 17:46:06,731: WARNING: Backtest executes limit, stop, stop_limit and trailing orders as market orders
+2021-08-12 17:46:06,732: INFO: Current backtesting datetime 2019-01-02 15:55:00-05:00
+2021-08-12 17:46:06,737: INFO: Current backtesting datetime 2019-01-02 15:55:00-05:00
+2021-08-12 17:46:06,738: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 17:46:06,739: INFO: Current backtesting datetime 2019-01-02 16:00:00-05:00
+2021-08-12 17:46:06,739: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 17:46:06,740: INFO: Current backtesting datetime 2019-01-03 08:30:00-05:00
+2021-08-12 17:46:06,740: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 17:46:06,741: INFO: Current backtesting datetime 2019-01-03 09:30:00-05:00
+2021-08-12 17:46:06,741: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 17:46:06,744: INFO: Filled Transaction: buy 10 of SPY at 248.22999572753903$ per share
+2021-08-12 17:46:06,744: INFO: limit order of | 10 SPY buy | with status unprocessed was filled
+2021-08-12 17:46:06,748: INFO: Strategy simple: Executing the on_filled_order event method
+2021-08-12 17:46:06,751: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 17:46:06,754: INFO: Counter is at 0, program thinks it is 2019-01-03 09:30:00-05:00
+2021-08-12 17:46:06,765: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-01-03 00:00:00-05:00  248.229996  248.570007  243.669998  244.210007
+
+2021-08-12 17:46:06,765: INFO: We own 10 of SPY, about to sell
+2021-08-12 17:46:06,765: INFO: market order of | 10 SPY sell | with status unprocessed was sent to broker backtesting
+2021-08-12 17:46:06,767: INFO: Current backtesting datetime 2019-01-03 15:55:00-05:00
+
+ORDER FILLED: 2019-01-03 09:30:00-05:00, position: 10 shares of SPY, price: 248.22999572753903, side: buy
+Progress ||  11.32% Complete
+2021-08-12 17:46:06,772: INFO: Current backtesting datetime 2019-01-03 15:55:00-05:00
+2021-08-12 17:46:06,773: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 17:46:06,774: INFO: Current backtesting datetime 2019-01-03 16:00:00-05:00
+2021-08-12 17:46:06,774: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 17:46:06,775: INFO: Current backtesting datetime 2019-01-04 08:30:00-05:00
+2021-08-12 17:46:06,775: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 17:46:06,776: INFO: Current backtesting datetime 2019-01-04 09:30:00-05:00
+2021-08-12 17:46:06,778: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 17:46:06,781: INFO: Filled Transaction: sell 10 of SPY at 247.58999633789065$ per share
+2021-08-12 17:46:06,781: INFO: market order of | 10 SPY sell | with status unprocessed was filled
+2021-08-12 17:46:06,781: INFO: Position 0 shares of SPY liquidated
+2021-08-12 17:46:06,785: INFO: Strategy simple: Executing the on_filled_order event method
+2021-08-12 17:46:06,785: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 17:46:06,787: INFO: Counter is at 0, program thinks it is 2019-01-04 09:30:00-05:00
+ORDER FILLED: 2019-01-04 09:30:00-05:00, position: 0 shares of SPY, price: 247.58999633789065, side: sell
+*****  BUY  *****2019-01-04 09:30:00-05:00, Limit price: 252.14 Close Price: 252.39
+Progress ||  21.32% Complete
+2021-08-12 17:46:06,798: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-01-04 00:00:00-05:00  247.589996  253.110001  247.169998  252.389999
+
+2021-08-12 17:46:06,798: INFO: We have no open positions
+2021-08-12 17:46:06,798: WARNING: Backtest executes limit, stop, stop_limit and trailing orders as market orders
+2021-08-12 17:46:06,800: INFO: Current backtesting datetime 2019-01-04 15:55:00-05:00
+2021-08-12 17:46:06,805: INFO: Current backtesting datetime 2019-01-04 15:55:00-05:00
+2021-08-12 17:46:06,805: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 17:46:06,806: INFO: Current backtesting datetime 2019-01-04 16:00:00-05:00
+2021-08-12 17:46:06,806: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 17:46:06,807: INFO: Current backtesting datetime 2019-01-07 08:30:00-05:00
+2021-08-12 17:46:06,808: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 17:46:06,809: INFO: Current backtesting datetime 2019-01-07 09:30:00-05:00
+2021-08-12 17:46:06,809: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 17:46:06,812: INFO: Filled Transaction: buy 10 of SPY at 252.1376093902588$ per share
+2021-08-12 17:46:06,812: INFO: limit order of | 10 SPY buy | with status unprocessed was filled
+2021-08-12 17:46:06,816: INFO: Strategy simple: Executing the on_filled_order event method
+2021-08-12 17:46:06,818: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 17:46:06,819: INFO: Counter is at 0, program thinks it is 2019-01-07 09:30:00-05:00
+ORDER FILLED: 2019-01-07 09:30:00-05:00, position: 10 shares of SPY, price: 252.1376093902588, side: buy
+Progress ||  24.65% Complete2021-08-12 17:46:06,830: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-01-07 00:00:00-05:00  252.690002  255.949997  251.690002  254.380005
+
+2021-08-12 17:46:06,830: INFO: We own 10 of SPY, about to sell
+2021-08-12 17:46:06,830: INFO: market order of | 10 SPY sell | with status unprocessed was sent to broker backtesting
+2021-08-12 17:46:06,832: INFO: Current backtesting datetime 2019-01-07 15:55:00-05:00
+2021-08-12 17:46:06,837: INFO: Current backtesting datetime 2019-01-07 15:55:00-05:00
+2021-08-12 17:46:06,838: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 17:46:06,839: INFO: Current backtesting datetime 2019-01-07 16:00:00-05:00
+2021-08-12 17:46:06,839: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 17:46:06,840: INFO: Current backtesting datetime 2019-01-08 08:30:00-05:00
+2021-08-12 17:46:06,840: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 17:46:06,841: INFO: Current backtesting datetime 2019-01-08 09:30:00-05:00
+2021-08-12 17:46:06,843: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 17:46:06,846: INFO: Filled Transaction: sell 10 of SPY at 256.82000732421875$ per share
+2021-08-12 17:46:06,846: INFO: market order of | 10 SPY sell | with status unprocessed was filled
+2021-08-12 17:46:06,846: INFO: Position 0 shares of SPY liquidated
+2021-08-12 17:46:06,850: INFO: Strategy simple: Executing the on_filled_order event method
+2021-08-12 17:46:06,850: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 17:46:06,852: INFO: Counter is at 0, program thinks it is 2019-01-08 09:30:00-05:00
+2021-08-12 17:46:06,862: INFO: The value of SPY is
+                                 open        high    low       close
+Date
+2019-01-08 00:00:00-05:00  256.820007  257.309998  254.0  256.769989
+
+2021-08-12 17:46:06,862: INFO: We have no open positions
+2021-08-12 17:46:06,863: WARNING: Backtest executes limit, stop, stop_limit and trailing orders as market orders
+2021-08-12 17:46:06,864: INFO: Current backtesting datetime 2019-01-08 15:55:00-05:00
+2021-08-12 17:46:06,869: INFO: Current backtesting datetime 2019-01-08 15:55:00-05:00
+2021-08-12 17:46:06,870: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+
+ORDER FILLED: 2019-01-08 09:30:00-05:00, position: 0 shares of SPY, price: 256.82000732421875, side: sell
+*****  BUY  *****2019-01-08 09:30:00-05:00, Limit price: 256.51 Close Price: 256.77
+Progress ||  27.99% Complete
+ORDER FILLED: 2019-01-09 09:30:00-05:00, position: 10 shares of SPY, price: 256.5132190246582, side: buy
+2021-08-12 17:46:06,871: INFO: Current backtesting datetime 2019-01-08 16:00:00-05:00
+2021-08-12 17:46:06,871: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 17:46:06,872: INFO: Current backtesting datetime 2019-01-09 08:30:00-05:00
+2021-08-12 17:46:06,872: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 17:46:06,873: INFO: Current backtesting datetime 2019-01-09 09:30:00-05:00
+2021-08-12 17:46:06,874: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 17:46:06,876: INFO: Filled Transaction: buy 10 of SPY at 256.5132190246582$ per share
+2021-08-12 17:46:06,876: INFO: limit order of | 10 SPY buy | with status unprocessed was filled
+2021-08-12 17:46:06,880: INFO: Strategy simple: Executing the on_filled_order event method
+2021-08-12 17:46:06,882: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 17:46:06,884: INFO: Counter is at 0, program thinks it is 2019-01-09 09:30:00-05:00
+Progress ||  31.32% Complete2021-08-12 17:46:06,895: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-01-09 00:00:00-05:00  257.559998  258.910004  256.190002  257.970001
+
+2021-08-12 17:46:06,895: INFO: We own 10 of SPY, about to sell
+2021-08-12 17:46:06,895: INFO: market order of | 10 SPY sell | with status unprocessed was sent to broker backtesting
+2021-08-12 17:46:06,896: INFO: Current backtesting datetime 2019-01-09 15:55:00-05:00
+2021-08-12 17:46:06,902: INFO: Current backtesting datetime 2019-01-09 15:55:00-05:00
+2021-08-12 17:46:06,902: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 17:46:06,903: INFO: Current backtesting datetime 2019-01-09 16:00:00-05:00
+2021-08-12 17:46:06,903: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 17:46:06,904: INFO: Current backtesting datetime 2019-01-10 08:30:00-05:00
+2021-08-12 17:46:06,905: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 17:46:06,906: INFO: Current backtesting datetime 2019-01-10 09:30:00-05:00
+2021-08-12 17:46:06,907: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 17:46:06,910: INFO: Filled Transaction: sell 10 of SPY at 256.260009765625$ per share
+2021-08-12 17:46:06,910: INFO: market order of | 10 SPY sell | with status unprocessed was filled
+2021-08-12 17:46:06,910: INFO: Position 0 shares of SPY liquidated
+2021-08-12 17:46:06,914: INFO: Strategy simple: Executing the on_filled_order event method
+2021-08-12 17:46:06,915: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 17:46:06,917: INFO: Counter is at 0, program thinks it is 2019-01-10 09:30:00-05:00
+2021-08-12 17:46:06,929: INFO: The value of SPY is
+                                open        high    low       close
+Date
+2019-01-10 00:00:00-05:00  256.26001  259.160004  255.5  258.880005
+
+2021-08-12 17:46:06,929: INFO: We have no open positions
+2021-08-12 17:46:06,929: WARNING: Backtest executes limit, stop, stop_limit and trailing orders as market orders
+2021-08-12 17:46:06,931: INFO: Current backtesting datetime 2019-01-10 15:55:00-05:00
+
+ORDER FILLED: 2019-01-10 09:30:00-05:00, position: 0 shares of SPY, price: 256.260009765625, side: sell
+*****  BUY  *****2019-01-10 09:30:00-05:00, Limit price: 258.62 Close Price: 258.88
+Progress ||  34.65% Complete
+2021-08-12 17:46:06,936: INFO: Current backtesting datetime 2019-01-10 15:55:00-05:00
+2021-08-12 17:46:06,936: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 17:46:06,938: INFO: Current backtesting datetime 2019-01-10 16:00:00-05:00
+2021-08-12 17:46:06,938: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 17:46:06,939: INFO: Current backtesting datetime 2019-01-11 08:30:00-05:00
+2021-08-12 17:46:06,940: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 17:46:06,941: INFO: Current backtesting datetime 2019-01-11 09:30:00-05:00
+2021-08-12 17:46:06,942: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 17:46:06,944: INFO: Filled Transaction: buy 10 of SPY at 257.67999267578125$ per share
+2021-08-12 17:46:06,944: INFO: limit order of | 10 SPY buy | with status unprocessed was filled
+2021-08-12 17:46:06,948: INFO: Strategy simple: Executing the on_filled_order event method
+2021-08-12 17:46:06,951: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 17:46:06,953: INFO: Counter is at 0, program thinks it is 2019-01-11 09:30:00-05:00
+2021-08-12 17:46:06,964: INFO: The value of SPY is
+                                 open       high         low       close
+Date
+2019-01-11 00:00:00-05:00  257.679993  259.01001  257.029999  258.980011
+
+2021-08-12 17:46:06,964: INFO: We own 10 of SPY, about to sell
+2021-08-12 17:46:06,964: INFO: market order of | 10 SPY sell | with status unprocessed was sent to broker backtesting
+2021-08-12 17:46:06,966: INFO: Current backtesting datetime 2019-01-11 15:55:00-05:00
+ORDER FILLED: 2019-01-11 09:30:00-05:00, position: 10 shares of SPY, price: 257.67999267578125, side: buy
+Progress ||  44.65% Complete
+2021-08-12 17:46:06,971: INFO: Current backtesting datetime 2019-01-11 15:55:00-05:00
+2021-08-12 17:46:06,972: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 17:46:06,973: INFO: Current backtesting datetime 2019-01-11 16:00:00-05:00
+2021-08-12 17:46:06,973: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 17:46:06,974: INFO: Current backtesting datetime 2019-01-14 08:30:00-05:00
+2021-08-12 17:46:06,975: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 17:46:06,976: INFO: Current backtesting datetime 2019-01-14 09:30:00-05:00
+2021-08-12 17:46:06,977: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 17:46:06,980: INFO: Filled Transaction: sell 10 of SPY at 256.8599853515625$ per share
+2021-08-12 17:46:06,980: INFO: market order of | 10 SPY sell | with status unprocessed was filled
+2021-08-12 17:46:06,980: INFO: Position 0 shares of SPY liquidated
+2021-08-12 17:46:06,985: INFO: Strategy simple: Executing the on_filled_order event method
+2021-08-12 17:46:06,985: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 17:46:06,988: INFO: Counter is at 0, program thinks it is 2019-01-14 09:30:00-05:00
+2021-08-12 17:46:06,999: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-01-14 00:00:00-05:00  256.859985  258.299988  256.410004  257.399994
+
+2021-08-12 17:46:06,999: INFO: We have no open positions
+2021-08-12 17:46:06,999: WARNING: Backtest executes limit, stop, stop_limit and trailing orders as market orders
+2021-08-12 17:46:07,001: INFO: Current backtesting datetime 2019-01-14 15:55:00-05:00
+ORDER FILLED: 2019-01-14 09:30:00-05:00, position: 0 shares of SPY, price: 256.8599853515625, side: sell
+*****  BUY  *****2019-01-14 09:30:00-05:00, Limit price: 257.14 Close Price: 257.40
+Progress ||  47.99% Complete2021-08-12 17:46:07,006: INFO: Current backtesting datetime 2019-01-14 15:55:00-05:00
+2021-08-12 17:46:07,006: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 17:46:07,008: INFO: Current backtesting datetime 2019-01-14 16:00:00-05:00
+2021-08-12 17:46:07,008: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 17:46:07,009: INFO: Current backtesting datetime 2019-01-15 08:30:00-05:00
+2021-08-12 17:46:07,009: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 17:46:07,010: INFO: Current backtesting datetime 2019-01-15 09:30:00-05:00
+2021-08-12 17:46:07,010: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 17:46:07,013: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 17:46:07,015: INFO: Counter is at 0, program thinks it is 2019-01-15 09:30:00-05:00
+Progress ||  51.32% Complete2021-08-12 17:46:07,025: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-01-15 00:00:00-05:00  257.820007  260.700012  257.809998  260.350006
+
+2021-08-12 17:46:07,025: INFO: We have no open positions
+2021-08-12 17:46:07,027: INFO: Current backtesting datetime 2019-01-15 15:55:00-05:00
+2021-08-12 17:46:07,032: INFO: Current backtesting datetime 2019-01-15 15:55:00-05:00
+2021-08-12 17:46:07,033: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 17:46:07,034: INFO: Current backtesting datetime 2019-01-15 16:00:00-05:00
+2021-08-12 17:46:07,034: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 17:46:07,035: INFO: Current backtesting datetime 2019-01-16 08:30:00-05:00
+2021-08-12 17:46:07,035: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 17:46:07,037: INFO: Current backtesting datetime 2019-01-16 09:30:00-05:00
+2021-08-12 17:46:07,037: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 17:46:07,039: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 17:46:07,041: INFO: Counter is at 0, program thinks it is 2019-01-16 09:30:00-05:00
+2021-08-12 17:46:07,051: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-01-16 00:00:00-05:00  260.829987  261.970001  260.600006  260.980011
+
+2021-08-12 17:46:07,052: INFO: We have no open positions
+2021-08-12 17:46:07,053: INFO: Current backtesting datetime 2019-01-16 15:55:00-05:00
+2021-08-12 17:46:07,058: INFO: Current backtesting datetime 2019-01-16 15:55:00-05:00
+2021-08-12 17:46:07,059: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 17:46:07,060: INFO: Current backtesting datetime 2019-01-16 16:00:00-05:00
+2021-08-12 17:46:07,060: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 17:46:07,061: INFO: Current backtesting datetime 2019-01-17 08:30:00-05:00
+2021-08-12 17:46:07,061: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 17:46:07,062: INFO: Current backtesting datetime 2019-01-17 09:30:00-05:00
+2021-08-12 17:46:07,062: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+Progress ||  55.54% Complete2021-08-12 17:46:07,065: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 17:46:07,067: INFO: Counter is at 0, program thinks it is 2019-01-17 09:30:00-05:00
+2021-08-12 17:46:07,077: INFO: The value of SPY is
+                                open        high         low       close
+Date
+2019-01-17 00:00:00-05:00  260.01001  263.920013  259.959991  262.959991
+
+2021-08-12 17:46:07,077: INFO: We have no open positions
+2021-08-12 17:46:07,079: INFO: Current backtesting datetime 2019-01-17 15:55:00-05:00
+2021-08-12 17:46:07,084: INFO: Current backtesting datetime 2019-01-17 15:55:00-05:00
+2021-08-12 17:46:07,085: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 17:46:07,086: INFO: Current backtesting datetime 2019-01-17 16:00:00-05:00
+2021-08-12 17:46:07,086: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 17:46:07,087: INFO: Current backtesting datetime 2019-01-18 08:30:00-05:00
+2021-08-12 17:46:07,088: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 17:46:07,089: INFO: Current backtesting datetime 2019-01-18 09:30:00-05:00
+2021-08-12 17:46:07,089: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 17:46:07,091: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 17:46:07,093: INFO: Counter is at 0, program thinks it is 2019-01-18 09:30:00-05:00
+Progress ||  71.32% Complete2021-08-12 17:46:07,104: INFO: The value of SPY is
+                                 open        high    low       close
+Date
+2019-01-18 00:00:00-05:00  264.980011  266.980011  263.0  266.459991
+
+2021-08-12 17:46:07,104: INFO: We have no open positions
+2021-08-12 17:46:07,105: INFO: Current backtesting datetime 2019-01-18 15:55:00-05:00
+2021-08-12 17:46:07,110: INFO: Current backtesting datetime 2019-01-18 15:55:00-05:00
+2021-08-12 17:46:07,111: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 17:46:07,112: INFO: Current backtesting datetime 2019-01-18 16:00:00-05:00
+2021-08-12 17:46:07,112: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 17:46:07,113: INFO: Current backtesting datetime 2019-01-22 08:30:00-05:00
+2021-08-12 17:46:07,114: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 17:46:07,115: INFO: Current backtesting datetime 2019-01-22 09:30:00-05:00
+2021-08-12 17:46:07,115: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 17:46:07,117: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 17:46:07,119: INFO: Counter is at 0, program thinks it is 2019-01-22 09:30:00-05:00
+2021-08-12 17:46:07,131: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-01-22 00:00:00-05:00  264.820007  265.059998  261.059998  262.859985
+
+2021-08-12 17:46:07,131: INFO: We have no open positions
+2021-08-12 17:46:07,133: INFO: Current backtesting datetime 2019-01-22 15:55:00-05:00
+2021-08-12 17:46:07,138: INFO: Current backtesting datetime 2019-01-22 15:55:00-05:00
+2021-08-12 17:46:07,139: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 17:46:07,140: INFO: Current backtesting datetime 2019-01-22 16:00:00-05:00
+2021-08-12 17:46:07,140: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 17:46:07,141: INFO: Current backtesting datetime 2019-01-23 08:30:00-05:00
+2021-08-12 17:46:07,141: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 17:46:07,142: INFO: Current backtesting datetime 2019-01-23 09:30:00-05:00
+2021-08-12 17:46:07,143: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 17:46:07,145: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 17:46:07,147: INFO: Counter is at 0, program thinks it is 2019-01-23 09:30:00-05:00
+Progress ||  77.99% Complete2021-08-12 17:46:07,158: INFO: The value of SPY is
+                                open        high         low       close
+Date
+2019-01-23 00:00:00-05:00  264.01001  264.790009  260.660004  263.410004
+
+2021-08-12 17:46:07,158: INFO: We have no open positions
+2021-08-12 17:46:07,160: INFO: Current backtesting datetime 2019-01-23 15:55:00-05:00
+2021-08-12 17:46:07,165: INFO: Current backtesting datetime 2019-01-23 15:55:00-05:00
+2021-08-12 17:46:07,165: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 17:46:07,167: INFO: Current backtesting datetime 2019-01-23 16:00:00-05:00
+2021-08-12 17:46:07,167: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 17:46:07,168: INFO: Current backtesting datetime 2019-01-24 08:30:00-05:00
+2021-08-12 17:46:07,169: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 17:46:07,170: INFO: Current backtesting datetime 2019-01-24 09:30:00-05:00
+2021-08-12 17:46:07,170: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 17:46:07,173: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 17:46:07,175: INFO: Counter is at 0, program thinks it is 2019-01-24 09:30:00-05:00
+2021-08-12 17:46:07,186: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-01-24 00:00:00-05:00  263.209991  264.200012  262.079987  263.549988
+
+2021-08-12 17:46:07,186: INFO: We have no open positions
+2021-08-12 17:46:07,188: INFO: Current backtesting datetime 2019-01-24 15:55:00-05:00
+2021-08-12 17:46:07,193: INFO: Current backtesting datetime 2019-01-24 15:55:00-05:00
+2021-08-12 17:46:07,194: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 17:46:07,195: INFO: Current backtesting datetime 2019-01-24 16:00:00-05:00
+2021-08-12 17:46:07,195: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 17:46:07,196: INFO: Current backtesting datetime 2019-01-25 08:30:00-05:00
+2021-08-12 17:46:07,196: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 17:46:07,197: INFO: Current backtesting datetime 2019-01-25 09:30:00-05:00
+2021-08-12 17:46:07,197: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 17:46:07,200: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 17:46:07,203: INFO: Counter is at 0, program thinks it is 2019-01-25 09:30:00-05:00
+Progress ||  91.32% Complete2021-08-12 17:46:07,213: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-01-25 00:00:00-05:00  265.609985  266.700012  263.660004  265.779999
+
+2021-08-12 17:46:07,213: INFO: We have no open positions
+2021-08-12 17:46:07,215: INFO: Current backtesting datetime 2019-01-25 15:55:00-05:00
+2021-08-12 17:46:07,220: INFO: Current backtesting datetime 2019-01-25 15:55:00-05:00
+2021-08-12 17:46:07,221: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 17:46:07,222: INFO: Current backtesting datetime 2019-01-25 16:00:00-05:00
+2021-08-12 17:46:07,223: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 17:46:07,224: INFO: Current backtesting datetime 2019-01-28 08:30:00-05:00
+2021-08-12 17:46:07,224: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 17:46:07,225: INFO: Current backtesting datetime 2019-01-28 09:30:00-05:00
+2021-08-12 17:46:07,226: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 17:46:07,228: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 17:46:07,230: INFO: Counter is at 0, program thinks it is 2019-01-28 09:30:00-05:00
+Progress ||  94.65% Complete2021-08-12 17:46:07,241: INFO: The value of SPY is
+                                 open        high         low      close
+Date
+2019-01-28 00:00:00-05:00  263.390015  263.829987  261.790009  263.76001
+
+2021-08-12 17:46:07,241: INFO: We have no open positions
+2021-08-12 17:46:07,243: INFO: Current backtesting datetime 2019-01-28 15:55:00-05:00
+2021-08-12 17:46:07,248: INFO: Current backtesting datetime 2019-01-28 15:55:00-05:00
+2021-08-12 17:46:07,249: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 17:46:07,250: INFO: Current backtesting datetime 2019-01-28 16:00:00-05:00
+2021-08-12 17:46:07,250: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 17:46:07,252: INFO: Current backtesting datetime 2019-01-29 08:30:00-05:00
+2021-08-12 17:46:07,252: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 17:46:07,254: INFO: Current backtesting datetime 2019-01-29 09:30:00-05:00
+2021-08-12 17:46:07,254: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 17:46:07,258: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 17:46:07,260: INFO: Counter is at 0, program thinks it is 2019-01-29 09:30:00-05:00
+2021-08-12 17:46:07,270: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-01-29 00:00:00-05:00  263.920013  264.549988  262.480011  263.410004
+
+2021-08-12 17:46:07,270: INFO: We have no open positions
+2021-08-12 17:46:07,272: INFO: Current backtesting datetime 2019-01-29 15:55:00-05:00
+2021-08-12 17:46:07,277: INFO: Current backtesting datetime 2019-01-29 15:55:00-05:00
+2021-08-12 17:46:07,278: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 17:46:07,279: INFO: Current backtesting datetime 2019-01-29 16:00:00-05:00
+2021-08-12 17:46:07,279: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 17:46:07,280: INFO: Current backtesting datetime 2019-01-30 08:30:00-05:00
+2021-08-12 17:46:07,281: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+Progress ||  97.99% Complete2021-08-12 17:46:07,282: INFO: Current backtesting datetime 2019-01-30 09:30:00-05:00
+2021-08-12 17:46:07,282: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 17:46:07,284: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 17:46:07,286: INFO: Counter is at 0, program thinks it is 2019-01-30 09:30:00-05:00
+2021-08-12 17:46:07,297: INFO: The value of SPY is
+                                 open        high     low       close
+Date
+2019-01-30 00:00:00-05:00  265.100006  268.519989  264.25  267.579987
+
+2021-08-12 17:46:07,297: INFO: We have no open positions
+2021-08-12 17:46:07,298: INFO: Current backtesting datetime 2019-01-30 15:55:00-05:00
+2021-08-12 17:46:07,304: INFO: Current backtesting datetime 2019-01-30 15:55:00-05:00
+2021-08-12 17:46:07,304: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 17:46:07,305: INFO: Current backtesting datetime 2019-01-30 16:00:00-05:00
+2021-08-12 17:46:07,305: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 17:46:07,306: INFO: Current backtesting datetime 2019-01-31 08:30:00-05:00
+2021-08-12 17:46:07,307: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 17:46:07,308: INFO: Current backtesting datetime 2019-01-31 09:30:00-05:00
+2021-08-12 17:46:07,308: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 17:46:07,311: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 17:46:07,313: INFO: Counter is at 0, program thinks it is 2019-01-31 09:30:00-05:00
+Progress || 100.00% Complete2021-08-12 17:46:07,323: INFO: The value of SPY is
+                                open        high         low       close
+Date
+2019-01-31 00:00:00-05:00  267.51001  270.470001  267.269989  269.929993
+
+2021-08-12 17:46:07,323: INFO: We have no open positions
+2021-08-12 17:46:07,325: INFO: Current backtesting datetime 2019-01-31 15:55:00-05:00
+2021-08-12 17:46:07,330: INFO: Current backtesting datetime 2019-01-31 15:55:00-05:00
+2021-08-12 17:46:07,331: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 17:46:07,332: INFO: Current backtesting datetime 2019-01-31 16:00:00-05:00
+2021-08-12 17:46:07,333: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 17:46:07,333: INFO: Strategy simple: Executing the on_strategy_end lifecycle method
+2021-08-12 17:46:07,337: INFO: Strategy simple: --- simple Strategy Performance ---
+2021-08-12 17:46:07,347: INFO: Strategy simple: CAGR 0.94%
+2021-08-12 17:46:07,347: INFO: Strategy simple: Volatility 0.64%
+2021-08-12 17:46:07,348: INFO: Strategy simple: Sharpe 140.11
+2021-08-12 17:46:07,348: INFO: Strategy simple: Max Drawdown 0.06 on 2019-01-14
+2021-08-12 17:46:07,348: INFO: Strategy simple: RoMaD 1486.54%
+2021-08-12 17:46:07,348: INFO: Strategy simple: --- SPY Benchmark Performance ---
+2021-08-12 17:46:07,363: INFO: Strategy simple: SPY CAGR 160.38%
+2021-08-12 17:46:07,363: INFO: Strategy simple: SPY Volatility 18.68%
+2021-08-12 17:46:07,363: INFO: Strategy simple: SPY Sharpe 8.58
+2021-08-12 17:46:07,363: INFO: Strategy simple: SPY Max Drawdown 1.35% on 2019-01-22
+2021-08-12 17:46:07,363: INFO: Strategy simple: SPY RoMaD 11870.89%
+2021-08-12 17:46:07,365: INFO: *** Benchmark Performance for SPY ***
+2021-08-12 17:46:07,374: INFO: Risk Free Rate 0.04%
+2021-08-12 17:46:07,383: INFO: The end
+Elapsed time: 1.4259499159998086
+SPY CAGR 160.38%
+SPY Volatility 18.68%
+SPY Sharpe 8.58
+SPY Max Drawdown 1.35% on 2019-01-22
+SPY RoMaD 11870.89%
+
+Process finished with exit code
+
+=======================================================================================================
+Lumibot Log limit:
+
+datetime,counter,my_custom_stat,portfolio_value,unspent_money,return
+2019-01-02 15:55:00-05:00,0.0,68.0,40000.0,40000.0,
+2019-01-03 15:55:00-05:00,0.0,55.0,39959.80010986328,37517.70004272461,-0.0010049972534179608
+2019-01-04 15:55:00-05:00,0.0,2.0,39993.600006103516,39993.600006103516,0.0008458474804005078
+2019-01-07 15:55:00-05:00,0.0,29.0,40016.02396102905,37472.22391220093,0.0005606885832261099
+2019-01-08 15:55:00-05:00,0.0,38.0,40040.423985443114,40040.423985443114,0.0006097563425548902
+2019-01-09 15:55:00-05:00,0.0,29.0,40054.99180740357,37475.291795196536,0.00036382786470356976
+2019-01-10 15:55:00-05:00,0.0,67.0,40037.891892852786,40037.891892852786,-0.00042691094865288104
+2019-01-11 15:55:00-05:00,0.0,81.0,40050.892075958254,37461.09196609497,0.0003246969930450483
+2019-01-14 15:55:00-05:00,0.0,22.0,40029.6918196106,40029.6918196106,-0.0005293329373899924
+2019-01-15 15:55:00-05:00,0.0,16.0,40029.6918196106,40029.6918196106,0.0
+2019-01-16 15:55:00-05:00,0.0,57.0,40029.6918196106,40029.6918196106,0.0
+2019-01-17 15:55:00-05:00,0.0,96.0,40029.6918196106,40029.6918196106,0.0
+2019-01-18 15:55:00-05:00,0.0,75.0,40029.6918196106,40029.6918196106,0.0
+2019-01-22 15:55:00-05:00,0.0,29.0,40029.6918196106,40029.6918196106,0.0
+2019-01-23 15:55:00-05:00,0.0,42.0,40029.6918196106,40029.6918196106,0.0
+2019-01-24 15:55:00-05:00,0.0,38.0,40029.6918196106,40029.6918196106,0.0
+2019-01-25 15:55:00-05:00,0.0,80.0,40029.6918196106,40029.6918196106,0.0
+2019-01-28 15:55:00-05:00,0.0,76.0,40029.6918196106,40029.6918196106,0.0
+2019-01-29 15:55:00-05:00,0.0,95.0,40029.6918196106,40029.6918196106,0.0
+2019-01-30 15:55:00-05:00,0.0,62.0,40029.6918196106,40029.6918196106,0.0
+2019-01-31 15:55:00-05:00,0.0,56.0,40029.6918196106,40029.6918196106,0.0
+
+
+=======================================================================================================
+Backtrader limit:
+
+/usr/bin/python3.8 /home/runout/projects/scratch/_lumibot_simple.py
+Final Value: 40000.00
+2019-01-02, o  245.98 h  251.21 l  245.95 c  250.18 v     239
+**********Limit price: 249.93 Close Price: 250.18
+2019-01-03, SPY    Order:   1	Type: Buy  	Status Accepted 	Size:   10.0000 Price:  249.9298 Position: 10
+2019-01-03, SPY    Order:   1	Type: Buy  	Status Completed 	Size:   10.0000 Price:  249.9298 Position: 10
+2019-01-03, SPY    BUY   Price: 248.23 Cost: 2482.30 Comm: 0.00 Size:   10.0000
+2019-01-03, o  248.23 h  248.57 l  243.67 c  244.21 v     234
+2019-01-04, SPY    Order:   2	Type: Sell 	Status Accepted 	Size:  -10.0000 Price:  244.2100 Position: 0
+2019-01-04, SPY    Order:   2	Type: Sell 	Status Completed 	Size:  -10.0000 Price:  244.2100 Position: 0
+2019-01-04, SPY    SELL  Price: 247.59 Cost: 2482.30 Comm: 0.00 Size:  -10.0000
+2019-01-04, SPY Closed: PnL Gross -6.4, Net -6.4,
+2019-01-04, o  247.59 h  253.11 l  247.17 c  252.39 v     242
+**********Limit price: 252.14 Close Price: 252.39
+2019-01-07, SPY    Order:   3	Type: Buy  	Status Accepted 	Size:   10.0000 Price:  252.1376 Position: 10
+2019-01-07, SPY    Order:   3	Type: Buy  	Status Completed 	Size:   10.0000 Price:  252.1376 Position: 10
+2019-01-07, SPY    BUY   Price: 252.14 Cost: 2521.38 Comm: 0.00 Size:   10.0000
+2019-01-07, o  252.69 h  255.95 l  251.69 c  254.38 v     243
+2019-01-08, SPY    Order:   4	Type: Sell 	Status Accepted 	Size:  -10.0000 Price:  254.3800 Position: 0
+2019-01-08, SPY    Order:   4	Type: Sell 	Status Completed 	Size:  -10.0000 Price:  254.3800 Position: 0
+2019-01-08, SPY    SELL  Price: 256.82 Cost: 2521.38 Comm: 0.00 Size:  -10.0000
+2019-01-08, SPY Closed: PnL Gross 46.82, Net 46.8,
+2019-01-08, o  256.82 h  257.31 l  254.00 c  256.77 v     246
+**********Limit price: 256.51 Close Price: 256.77
+2019-01-09, SPY    Order:   5	Type: Buy  	Status Accepted 	Size:   10.0000 Price:  256.5132 Position: 10
+2019-01-09, SPY    Order:   5	Type: Buy  	Status Completed 	Size:   10.0000 Price:  256.5132 Position: 10
+2019-01-09, SPY    BUY   Price: 256.51 Cost: 2565.13 Comm: 0.00 Size:   10.0000
+2019-01-09, o  257.56 h  258.91 l  256.19 c  257.97 v     247
+2019-01-10, SPY    Order:   6	Type: Sell 	Status Accepted 	Size:  -10.0000 Price:  257.9700 Position: 0
+2019-01-10, SPY    Order:   6	Type: Sell 	Status Completed 	Size:  -10.0000 Price:  257.9700 Position: 0
+2019-01-10, SPY    SELL  Price: 256.26 Cost: 2565.13 Comm: 0.00 Size:  -10.0000
+2019-01-10, SPY Closed: PnL Gross -2.53, Net -2.5,
+2019-01-10, o  256.26 h  259.16 l  255.50 c  258.88 v     248
+**********Limit price: 258.62 Close Price: 258.88
+2019-01-11, SPY    Order:   7	Type: Buy  	Status Accepted 	Size:   10.0000 Price:  258.6211 Position: 10
+2019-01-11, SPY    Order:   7	Type: Buy  	Status Completed 	Size:   10.0000 Price:  258.6211 Position: 10
+2019-01-11, SPY    BUY   Price: 257.68 Cost: 2576.80 Comm: 0.00 Size:   10.0000
+2019-01-11, o  257.68 h  259.01 l  257.03 c  258.98 v     248
+2019-01-14, SPY    Order:   8	Type: Sell 	Status Accepted 	Size:  -10.0000 Price:  258.9800 Position: 0
+2019-01-14, SPY    Order:   8	Type: Sell 	Status Completed 	Size:  -10.0000 Price:  258.9800 Position: 0
+2019-01-14, SPY    SELL  Price: 256.86 Cost: 2576.80 Comm: 0.00 Size:  -10.0000
+2019-01-14, SPY Closed: PnL Gross -8.2, Net -8.2,
+2019-01-14, o  256.86 h  258.30 l  256.41 c  257.40 v     246
+**********Limit price: 257.14 Close Price: 257.40
+2019-01-15, SPY    Order:   9	Type: Buy  	Status Accepted 	Size:   10.0000 Price:  257.1426 Position: 0
+2019-01-15, o  257.82 h  260.70 l  257.81 c  260.35 v     249
+2019-01-16, o  260.83 h  261.97 l  260.60 c  260.98 v     250
+2019-01-17, o  260.01 h  263.92 l  259.96 c  262.96 v     252
+2019-01-18, o  264.98 h  266.98 l  263.00 c  266.46 v     255
+2019-01-22, o  264.82 h  265.06 l  261.06 c  262.86 v     252
+2019-01-23, o  264.01 h  264.79 l  260.66 c  263.41 v     252
+2019-01-24, o  263.21 h  264.20 l  262.08 c  263.55 v     252
+2019-01-25, o  265.61 h  266.70 l  263.66 c  265.78 v     254
+2019-01-28, o  263.39 h  263.83 l  261.79 c  263.76 v     252
+2019-01-29, o  263.92 h  264.55 l  262.48 c  263.41 v     252
+2019-01-30, o  265.10 h  268.52 l  264.25 c  267.58 v     256
+2019-01-31, o  267.51 h  270.47 l  267.27 c  269.93 v     258
+Final Value: 40029.69
+
+Process finished with exit code 0
+
+=======================================================================================================
+=======================================================================================================
+Stop Orders
+=======================================================================================================
+Lumibot
+/home/runout/projects/lumibot/lumibot/venv/bin/python3 /home/runout/projects/lumibot/main.py simple
+2021-08-12 19:52:48,193: INFO: Strategy simple: Executing the initialize lifecycle method
+2021-08-12 19:52:48,195: INFO: Current backtesting datetime 2019-01-02 08:30:00-05:00
+2021-08-12 19:52:48,195: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 19:52:48,196: INFO: Current backtesting datetime 2019-01-02 09:30:00-05:00
+2021-08-12 19:52:48,197: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 19:52:48,198: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 19:52:48,201: INFO: Counter is at 0, program thinks it is 2019-01-02 09:30:00-05:00
+2021-08-12 19:52:48,214: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-01-02 00:00:00-05:00  245.979996  251.210007  245.949997  250.179993
+
+2021-08-12 19:52:48,214: INFO: We have no open positions
+2021-08-12 19:52:48,214: WARNING: Backtest executes limit, stop, stop_limit and trailing orders as market orders
+2021-08-12 19:52:48,215: INFO: Current backtesting datetime 2019-01-02 15:55:00-05:00
+Progress ||   4.65% Complete*****  BUY  *****2019-01-02 09:30:00-05:00, Stop price: 250.43 Close Price: 250.18
+Progress ||   7.99% Complete2021-08-12 19:52:48,220: INFO: Current backtesting datetime 2019-01-02 15:55:00-05:00
+2021-08-12 19:52:48,221: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 19:52:48,222: INFO: Current backtesting datetime 2019-01-02 16:00:00-05:00
+2021-08-12 19:52:48,222: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 19:52:48,223: INFO: Current backtesting datetime 2019-01-03 08:30:00-05:00
+2021-08-12 19:52:48,224: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 19:52:48,225: INFO: Current backtesting datetime 2019-01-03 09:30:00-05:00
+2021-08-12 19:52:48,225: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 19:52:48,227: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 19:52:48,229: INFO: Counter is at 0, program thinks it is 2019-01-03 09:30:00-05:00
+2021-08-12 19:52:48,240: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-01-03 00:00:00-05:00  248.229996  248.570007  243.669998  244.210007
+
+2021-08-12 19:52:48,240: INFO: We have no open positions
+2021-08-12 19:52:48,241: INFO: Current backtesting datetime 2019-01-03 15:55:00-05:00
+2021-08-12 19:52:48,246: INFO: Current backtesting datetime 2019-01-03 15:55:00-05:00
+2021-08-12 19:52:48,247: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 19:52:48,248: INFO: Current backtesting datetime 2019-01-03 16:00:00-05:00
+2021-08-12 19:52:48,248: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 19:52:48,249: INFO: Current backtesting datetime 2019-01-04 08:30:00-05:00
+2021-08-12 19:52:48,249: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 19:52:48,250: INFO: Current backtesting datetime 2019-01-04 09:30:00-05:00
+2021-08-12 19:52:48,251: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+Progress ||  11.32% Complete
+ORDER FILLED: 2019-01-04 09:30:00-05:00, position: 10 shares of SPY, price: 250.430172668457, side: buy
+2021-08-12 19:52:48,253: INFO: Filled Transaction: buy 10 of SPY at 250.430172668457$ per share
+2021-08-12 19:52:48,253: INFO: stop order of | 10 SPY buy | with status unprocessed was filled
+2021-08-12 19:52:48,257: INFO: Strategy simple: Executing the on_filled_order event method
+2021-08-12 19:52:48,259: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 19:52:48,261: INFO: Counter is at 0, program thinks it is 2019-01-04 09:30:00-05:00
+Progress ||  21.32% Complete
+2021-08-12 19:52:48,272: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-01-04 00:00:00-05:00  247.589996  253.110001  247.169998  252.389999
+
+2021-08-12 19:52:48,272: INFO: We own 10 of SPY, about to sell
+2021-08-12 19:52:48,272: INFO: market order of | 10 SPY sell | with status unprocessed was sent to broker backtesting
+2021-08-12 19:52:48,274: INFO: Current backtesting datetime 2019-01-04 15:55:00-05:00
+2021-08-12 19:52:48,279: INFO: Current backtesting datetime 2019-01-04 15:55:00-05:00
+2021-08-12 19:52:48,279: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 19:52:48,280: INFO: Current backtesting datetime 2019-01-04 16:00:00-05:00
+2021-08-12 19:52:48,280: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 19:52:48,281: INFO: Current backtesting datetime 2019-01-07 08:30:00-05:00
+2021-08-12 19:52:48,282: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 19:52:48,283: INFO: Current backtesting datetime 2019-01-07 09:30:00-05:00
+2021-08-12 19:52:48,285: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 19:52:48,287: INFO: Filled Transaction: sell 10 of SPY at 252.69000244140625$ per share
+2021-08-12 19:52:48,287: INFO: market order of | 10 SPY sell | with status unprocessed was filled
+2021-08-12 19:52:48,287: INFO: Position 0 shares of SPY liquidated
+2021-08-12 19:52:48,291: INFO: Strategy simple: Executing the on_filled_order event method
+2021-08-12 19:52:48,292: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 19:52:48,293: INFO: Counter is at 0, program thinks it is 2019-01-07 09:30:00-05:00
+2021-08-12 19:52:48,304: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-01-07 00:00:00-05:00  252.690002  255.949997  251.690002  254.380005
+
+2021-08-12 19:52:48,304: INFO: We have no open positions
+2021-08-12 19:52:48,304: WARNING: Backtest executes limit, stop, stop_limit and trailing orders as market orders
+ORDER FILLED: 2019-01-07 09:30:00-05:00, position: 0 shares of SPY, price: 252.69000244140625, side: sell
+*****  BUY  *****2019-01-07 09:30:00-05:00, Stop price: 254.63 Close Price: 254.38
+Progress ||  24.65% Complete2021-08-12 19:52:48,306: INFO: Current backtesting datetime 2019-01-07 15:55:00-05:00
+2021-08-12 19:52:48,311: INFO: Current backtesting datetime 2019-01-07 15:55:00-05:00
+2021-08-12 19:52:48,312: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 19:52:48,313: INFO: Current backtesting datetime 2019-01-07 16:00:00-05:00
+2021-08-12 19:52:48,313: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 19:52:48,314: INFO: Current backtesting datetime 2019-01-08 08:30:00-05:00
+2021-08-12 19:52:48,314: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 19:52:48,315: INFO: Current backtesting datetime 2019-01-08 09:30:00-05:00
+2021-08-12 19:52:48,315: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 19:52:48,318: INFO: Filled Transaction: buy 10 of SPY at 256.82000732421875$ per share
+2021-08-12 19:52:48,318: INFO: stop order of | 10 SPY buy | with status unprocessed was filled
+2021-08-12 19:52:48,322: INFO: Strategy simple: Executing the on_filled_order event method
+2021-08-12 19:52:48,324: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 19:52:48,326: INFO: Counter is at 0, program thinks it is 2019-01-08 09:30:00-05:00
+2021-08-12 19:52:48,336: INFO: The value of SPY is
+                                 open        high    low       close
+Date
+2019-01-08 00:00:00-05:00  256.820007  257.309998  254.0  256.769989
+
+2021-08-12 19:52:48,336: INFO: We own 10 of SPY, about to sell
+2021-08-12 19:52:48,336: INFO: market order of | 10 SPY sell | with status unprocessed was sent to broker backtesting
+2021-08-12 19:52:48,338: INFO: Current backtesting datetime 2019-01-08 15:55:00-05:00
+2021-08-12 19:52:48,343: INFO: Current backtesting datetime 2019-01-08 15:55:00-05:00
+2021-08-12 19:52:48,344: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+
+ORDER FILLED: 2019-01-08 09:30:00-05:00, position: 10 shares of SPY, price: 256.82000732421875, side: buy
+Progress ||  27.99% Complete
+2021-08-12 19:52:48,345: INFO: Current backtesting datetime 2019-01-08 16:00:00-05:00
+2021-08-12 19:52:48,345: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 19:52:48,346: INFO: Current backtesting datetime 2019-01-09 08:30:00-05:00
+2021-08-12 19:52:48,347: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 19:52:48,348: INFO: Current backtesting datetime 2019-01-09 09:30:00-05:00
+2021-08-12 19:52:48,350: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 19:52:48,352: INFO: Filled Transaction: sell 10 of SPY at 257.5599975585937$ per share
+2021-08-12 19:52:48,353: INFO: market order of | 10 SPY sell | with status unprocessed was filled
+2021-08-12 19:52:48,353: INFO: Position 0 shares of SPY liquidated
+2021-08-12 19:52:48,357: INFO: Strategy simple: Executing the on_filled_order event method
+2021-08-12 19:52:48,357: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 19:52:48,359: INFO: Counter is at 0, program thinks it is 2019-01-09 09:30:00-05:00
+ORDER FILLED: 2019-01-09 09:30:00-05:00, position: 0 shares of SPY, price: 257.5599975585937, side: sell
+*****  BUY  *****2019-01-09 09:30:00-05:00, Stop price: 258.23 Close Price: 257.97
+Progress ||  31.32% Complete2021-08-12 19:52:48,369: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-01-09 00:00:00-05:00  257.559998  258.910004  256.190002  257.970001
+
+2021-08-12 19:52:48,370: INFO: We have no open positions
+2021-08-12 19:52:48,370: WARNING: Backtest executes limit, stop, stop_limit and trailing orders as market orders
+2021-08-12 19:52:48,371: INFO: Current backtesting datetime 2019-01-09 15:55:00-05:00
+2021-08-12 19:52:48,376: INFO: Current backtesting datetime 2019-01-09 15:55:00-05:00
+2021-08-12 19:52:48,377: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 19:52:48,378: INFO: Current backtesting datetime 2019-01-09 16:00:00-05:00
+2021-08-12 19:52:48,378: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 19:52:48,379: INFO: Current backtesting datetime 2019-01-10 08:30:00-05:00
+2021-08-12 19:52:48,380: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 19:52:48,381: INFO: Current backtesting datetime 2019-01-10 09:30:00-05:00
+2021-08-12 19:52:48,381: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 19:52:48,383: INFO: Filled Transaction: buy 10 of SPY at 258.2279712219238$ per share
+2021-08-12 19:52:48,383: INFO: stop order of | 10 SPY buy | with status unprocessed was filled
+2021-08-12 19:52:48,387: INFO: Strategy simple: Executing the on_filled_order event method
+2021-08-12 19:52:48,389: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 19:52:48,391: INFO: Counter is at 0, program thinks it is 2019-01-10 09:30:00-05:00
+2021-08-12 19:52:48,403: INFO: The value of SPY is
+                                open        high    low       close
+Date
+2019-01-10 00:00:00-05:00  256.26001  259.160004  255.5  258.880005
+
+2021-08-12 19:52:48,403: INFO: We own 10 of SPY, about to sell
+2021-08-12 19:52:48,403: INFO: market order of | 10 SPY sell | with status unprocessed was sent to broker backtesting
+2021-08-12 19:52:48,405: INFO: Current backtesting datetime 2019-01-10 15:55:00-05:00
+
+ORDER FILLED: 2019-01-10 09:30:00-05:00, position: 10 shares of SPY, price: 258.2279712219238, side: buy
+Progress ||  34.65% Complete
+2021-08-12 19:52:48,410: INFO: Current backtesting datetime 2019-01-10 15:55:00-05:00
+2021-08-12 19:52:48,411: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 19:52:48,412: INFO: Current backtesting datetime 2019-01-10 16:00:00-05:00
+2021-08-12 19:52:48,412: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 19:52:48,413: INFO: Current backtesting datetime 2019-01-11 08:30:00-05:00
+2021-08-12 19:52:48,414: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 19:52:48,415: INFO: Current backtesting datetime 2019-01-11 09:30:00-05:00
+2021-08-12 19:52:48,417: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 19:52:48,419: INFO: Filled Transaction: sell 10 of SPY at 257.67999267578125$ per share
+2021-08-12 19:52:48,420: INFO: market order of | 10 SPY sell | with status unprocessed was filled
+2021-08-12 19:52:48,420: INFO: Position 0 shares of SPY liquidated
+2021-08-12 19:52:48,424: INFO: Strategy simple: Executing the on_filled_order event method
+2021-08-12 19:52:48,424: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 19:52:48,426: INFO: Counter is at 0, program thinks it is 2019-01-11 09:30:00-05:00
+ORDER FILLED: 2019-01-11 09:30:00-05:00, position: 0 shares of SPY, price: 257.67999267578125, side: sell
+2021-08-12 19:52:48,438: INFO: The value of SPY is
+                                 open       high         low       close
+Date
+2019-01-11 00:00:00-05:00  257.679993  259.01001  257.029999  258.980011
+
+2021-08-12 19:52:48,438: INFO: We have no open positions
+2021-08-12 19:52:48,438: WARNING: Backtest executes limit, stop, stop_limit and trailing orders as market orders
+2021-08-12 19:52:48,440: INFO: Current backtesting datetime 2019-01-11 15:55:00-05:00
+2021-08-12 19:52:48,445: INFO: Current backtesting datetime 2019-01-11 15:55:00-05:00
+2021-08-12 19:52:48,446: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 19:52:48,447: INFO: Current backtesting datetime 2019-01-11 16:00:00-05:00
+2021-08-12 19:52:48,447: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 19:52:48,448: INFO: Current backtesting datetime 2019-01-14 08:30:00-05:00
+2021-08-12 19:52:48,449: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 19:52:48,450: INFO: Current backtesting datetime 2019-01-14 09:30:00-05:00
+2021-08-12 19:52:48,450: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 19:52:48,453: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 19:52:48,455: INFO: Counter is at 0, program thinks it is 2019-01-14 09:30:00-05:00
+*****  BUY  *****2019-01-11 09:30:00-05:00, Stop price: 259.24 Close Price: 258.98
+Progress ||  47.99% Complete2021-08-12 19:52:48,466: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-01-14 00:00:00-05:00  256.859985  258.299988  256.410004  257.399994
+
+2021-08-12 19:52:48,466: INFO: We have no open positions
+2021-08-12 19:52:48,467: INFO: Current backtesting datetime 2019-01-14 15:55:00-05:00
+2021-08-12 19:52:48,473: INFO: Current backtesting datetime 2019-01-14 15:55:00-05:00
+2021-08-12 19:52:48,474: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 19:52:48,475: INFO: Current backtesting datetime 2019-01-14 16:00:00-05:00
+2021-08-12 19:52:48,475: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 19:52:48,476: INFO: Current backtesting datetime 2019-01-15 08:30:00-05:00
+2021-08-12 19:52:48,476: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 19:52:48,477: INFO: Current backtesting datetime 2019-01-15 09:30:00-05:00
+2021-08-12 19:52:48,477: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 19:52:48,480: INFO: Filled Transaction: buy 10 of SPY at 259.23899099731443$ per share
+2021-08-12 19:52:48,480: INFO: stop order of | 10 SPY buy | with status unprocessed was filled
+2021-08-12 19:52:48,484: INFO: Strategy simple: Executing the on_filled_order event method
+2021-08-12 19:52:48,486: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 19:52:48,488: INFO: Counter is at 0, program thinks it is 2019-01-15 09:30:00-05:00
+2021-08-12 19:52:48,499: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-01-15 00:00:00-05:00  257.820007  260.700012  257.809998  260.350006
+
+2021-08-12 19:52:48,499: INFO: We own 10 of SPY, about to sell
+2021-08-12 19:52:48,499: INFO: market order of | 10 SPY sell | with status unprocessed was sent to broker backtesting
+2021-08-12 19:52:48,501: INFO: Current backtesting datetime 2019-01-15 15:55:00-05:00
+
+ORDER FILLED: 2019-01-15 09:30:00-05:00, position: 10 shares of SPY, price: 259.23899099731443, side: buy
+Progress ||  51.32% Complete
+2021-08-12 19:52:48,506: INFO: Current backtesting datetime 2019-01-15 15:55:00-05:00
+2021-08-12 19:52:48,506: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 19:52:48,507: INFO: Current backtesting datetime 2019-01-15 16:00:00-05:00
+2021-08-12 19:52:48,508: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 19:52:48,509: INFO: Current backtesting datetime 2019-01-16 08:30:00-05:00
+2021-08-12 19:52:48,509: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 19:52:48,510: INFO: Current backtesting datetime 2019-01-16 09:30:00-05:00
+2021-08-12 19:52:48,512: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 19:52:48,514: INFO: Filled Transaction: sell 10 of SPY at 260.8299865722656$ per share
+2021-08-12 19:52:48,514: INFO: market order of | 10 SPY sell | with status unprocessed was filled
+2021-08-12 19:52:48,514: INFO: Position 0 shares of SPY liquidated
+2021-08-12 19:52:48,519: INFO: Strategy simple: Executing the on_filled_order event method
+2021-08-12 19:52:48,519: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 19:52:48,521: INFO: Counter is at 0, program thinks it is 2019-01-16 09:30:00-05:00
+2021-08-12 19:52:48,531: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-01-16 00:00:00-05:00  260.829987  261.970001  260.600006  260.980011
+
+2021-08-12 19:52:48,531: INFO: We have no open positions
+2021-08-12 19:52:48,532: WARNING: Backtest executes limit, stop, stop_limit and trailing orders as market orders
+2021-08-12 19:52:48,533: INFO: Current backtesting datetime 2019-01-16 15:55:00-05:00
+ORDER FILLED: 2019-01-16 09:30:00-05:00, position: 0 shares of SPY, price: 260.8299865722656, side: sell
+*****  BUY  *****2019-01-16 09:30:00-05:00, Stop price: 261.24 Close Price: 260.98
+Progress ||  54.65% Complete
+2021-08-12 19:52:48,538: INFO: Current backtesting datetime 2019-01-16 15:55:00-05:00
+2021-08-12 19:52:48,539: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 19:52:48,540: INFO: Current backtesting datetime 2019-01-16 16:00:00-05:00
+2021-08-12 19:52:48,540: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 19:52:48,541: INFO: Current backtesting datetime 2019-01-17 08:30:00-05:00
+2021-08-12 19:52:48,541: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 19:52:48,542: INFO: Current backtesting datetime 2019-01-17 09:30:00-05:00
+2021-08-12 19:52:48,542: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 19:52:48,545: INFO: Filled Transaction: buy 10 of SPY at 261.24099099731444$ per share
+2021-08-12 19:52:48,545: INFO: stop order of | 10 SPY buy | with status unprocessed was filled
+2021-08-12 19:52:48,549: INFO: Strategy simple: Executing the on_filled_order event method
+2021-08-12 19:52:48,551: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 19:52:48,553: INFO: Counter is at 0, program thinks it is 2019-01-17 09:30:00-05:00
+2021-08-12 19:52:48,563: INFO: The value of SPY is
+                                open        high         low       close
+Date
+2019-01-17 00:00:00-05:00  260.01001  263.920013  259.959991  262.959991
+
+2021-08-12 19:52:48,564: INFO: We own 10 of SPY, about to sell
+2021-08-12 19:52:48,564: INFO: market order of | 10 SPY sell | with status unprocessed was sent to broker backtesting
+2021-08-12 19:52:48,566: INFO: Current backtesting datetime 2019-01-17 15:55:00-05:00
+ORDER FILLED: 2019-01-17 09:30:00-05:00, position: 10 shares of SPY, price: 261.24099099731444, side: buy
+Progress ||  57.99% Complete
+2021-08-12 19:52:48,571: INFO: Current backtesting datetime 2019-01-17 15:55:00-05:00
+2021-08-12 19:52:48,571: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 19:52:48,572: INFO: Current backtesting datetime 2019-01-17 16:00:00-05:00
+2021-08-12 19:52:48,572: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 19:52:48,573: INFO: Current backtesting datetime 2019-01-18 08:30:00-05:00
+2021-08-12 19:52:48,574: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 19:52:48,575: INFO: Current backtesting datetime 2019-01-18 09:30:00-05:00
+2021-08-12 19:52:48,576: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 19:52:48,579: INFO: Filled Transaction: sell 10 of SPY at 264.9800109863281$ per share
+2021-08-12 19:52:48,579: INFO: market order of | 10 SPY sell | with status unprocessed was filled
+2021-08-12 19:52:48,579: INFO: Position 0 shares of SPY liquidated
+2021-08-12 19:52:48,583: INFO: Strategy simple: Executing the on_filled_order event method
+2021-08-12 19:52:48,583: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 19:52:48,585: INFO: Counter is at 0, program thinks it is 2019-01-18 09:30:00-05:00
+2021-08-12 19:52:48,596: INFO: The value of SPY is
+                                 open        high    low       close
+Date
+2019-01-18 00:00:00-05:00  264.980011  266.980011  263.0  266.459991
+
+2021-08-12 19:52:48,596: INFO: We have no open positions
+2021-08-12 19:52:48,596: WARNING: Backtest executes limit, stop, stop_limit and trailing orders as market orders
+2021-08-12 19:52:48,598: INFO: Current backtesting datetime 2019-01-18 15:55:00-05:00
+ORDER FILLED: 2019-01-18 09:30:00-05:00, position: 0 shares of SPY, price: 264.9800109863281, side: sell
+*****  BUY  *****2019-01-18 09:30:00-05:00, Stop price: 266.73 Close Price: 266.46
+Progress ||  71.32% Complete2021-08-12 19:52:48,603: INFO: Current backtesting datetime 2019-01-18 15:55:00-05:00
+2021-08-12 19:52:48,603: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 19:52:48,604: INFO: Current backtesting datetime 2019-01-18 16:00:00-05:00
+2021-08-12 19:52:48,605: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 19:52:48,606: INFO: Current backtesting datetime 2019-01-22 08:30:00-05:00
+2021-08-12 19:52:48,606: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 19:52:48,607: INFO: Current backtesting datetime 2019-01-22 09:30:00-05:00
+2021-08-12 19:52:48,607: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 19:52:48,610: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 19:52:48,612: INFO: Counter is at 0, program thinks it is 2019-01-22 09:30:00-05:00
+2021-08-12 19:52:48,623: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-01-22 00:00:00-05:00  264.820007  265.059998  261.059998  262.859985
+
+2021-08-12 19:52:48,623: INFO: We have no open positions
+2021-08-12 19:52:48,625: INFO: Current backtesting datetime 2019-01-22 15:55:00-05:00
+2021-08-12 19:52:48,630: INFO: Current backtesting datetime 2019-01-22 15:55:00-05:00
+2021-08-12 19:52:48,631: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 19:52:48,632: INFO: Current backtesting datetime 2019-01-22 16:00:00-05:00
+2021-08-12 19:52:48,632: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 19:52:48,633: INFO: Current backtesting datetime 2019-01-23 08:30:00-05:00
+2021-08-12 19:52:48,634: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 19:52:48,635: INFO: Current backtesting datetime 2019-01-23 09:30:00-05:00
+2021-08-12 19:52:48,635: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+Progress ||  74.65% Complete2021-08-12 19:52:48,638: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 19:52:48,640: INFO: Counter is at 0, program thinks it is 2019-01-23 09:30:00-05:00
+2021-08-12 19:52:48,651: INFO: The value of SPY is
+                                open        high         low       close
+Date
+2019-01-23 00:00:00-05:00  264.01001  264.790009  260.660004  263.410004
+
+2021-08-12 19:52:48,651: INFO: We have no open positions
+2021-08-12 19:52:48,652: INFO: Current backtesting datetime 2019-01-23 15:55:00-05:00
+2021-08-12 19:52:48,658: INFO: Current backtesting datetime 2019-01-23 15:55:00-05:00
+2021-08-12 19:52:48,658: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 19:52:48,659: INFO: Current backtesting datetime 2019-01-23 16:00:00-05:00
+2021-08-12 19:52:48,660: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 19:52:48,661: INFO: Current backtesting datetime 2019-01-24 08:30:00-05:00
+2021-08-12 19:52:48,661: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 19:52:48,662: INFO: Current backtesting datetime 2019-01-24 09:30:00-05:00
+2021-08-12 19:52:48,662: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 19:52:48,665: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 19:52:48,667: INFO: Counter is at 0, program thinks it is 2019-01-24 09:30:00-05:00
+Progress ||  81.32% Complete2021-08-12 19:52:48,678: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-01-24 00:00:00-05:00  263.209991  264.200012  262.079987  263.549988
+
+2021-08-12 19:52:48,679: INFO: We have no open positions
+2021-08-12 19:52:48,680: INFO: Current backtesting datetime 2019-01-24 15:55:00-05:00
+2021-08-12 19:52:48,686: INFO: Current backtesting datetime 2019-01-24 15:55:00-05:00
+2021-08-12 19:52:48,686: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 19:52:48,687: INFO: Current backtesting datetime 2019-01-24 16:00:00-05:00
+2021-08-12 19:52:48,687: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 19:52:48,688: INFO: Current backtesting datetime 2019-01-25 08:30:00-05:00
+2021-08-12 19:52:48,689: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 19:52:48,690: INFO: Current backtesting datetime 2019-01-25 09:30:00-05:00
+2021-08-12 19:52:48,690: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 19:52:48,693: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 19:52:48,695: INFO: Counter is at 0, program thinks it is 2019-01-25 09:30:00-05:00
+2021-08-12 19:52:48,707: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-01-25 00:00:00-05:00  265.609985  266.700012  263.660004  265.779999
+
+2021-08-12 19:52:48,707: INFO: We have no open positions
+2021-08-12 19:52:48,709: INFO: Current backtesting datetime 2019-01-25 15:55:00-05:00
+2021-08-12 19:52:48,714: INFO: Current backtesting datetime 2019-01-25 15:55:00-05:00
+2021-08-12 19:52:48,715: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 19:52:48,716: INFO: Current backtesting datetime 2019-01-25 16:00:00-05:00
+2021-08-12 19:52:48,716: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 19:52:48,717: INFO: Current backtesting datetime 2019-01-28 08:30:00-05:00
+2021-08-12 19:52:48,718: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 19:52:48,719: INFO: Current backtesting datetime 2019-01-28 09:30:00-05:00
+2021-08-12 19:52:48,719: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 19:52:48,721: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 19:52:48,723: INFO: Counter is at 0, program thinks it is 2019-01-28 09:30:00-05:00
+Progress ||  94.65% Complete2021-08-12 19:52:48,734: INFO: The value of SPY is
+                                 open        high         low      close
+Date
+2019-01-28 00:00:00-05:00  263.390015  263.829987  261.790009  263.76001
+
+2021-08-12 19:52:48,734: INFO: We have no open positions
+2021-08-12 19:52:48,735: INFO: Current backtesting datetime 2019-01-28 15:55:00-05:00
+2021-08-12 19:52:48,740: INFO: Current backtesting datetime 2019-01-28 15:55:00-05:00
+2021-08-12 19:52:48,741: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 19:52:48,742: INFO: Current backtesting datetime 2019-01-28 16:00:00-05:00
+2021-08-12 19:52:48,742: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 19:52:48,743: INFO: Current backtesting datetime 2019-01-29 08:30:00-05:00
+2021-08-12 19:52:48,743: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 19:52:48,744: INFO: Current backtesting datetime 2019-01-29 09:30:00-05:00
+2021-08-12 19:52:48,745: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 19:52:48,747: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 19:52:48,749: INFO: Counter is at 0, program thinks it is 2019-01-29 09:30:00-05:00
+2021-08-12 19:52:48,759: INFO: The value of SPY is
+                                 open        high         low       close
+Date
+2019-01-29 00:00:00-05:00  263.920013  264.549988  262.480011  263.410004
+
+2021-08-12 19:52:48,759: INFO: We have no open positions
+2021-08-12 19:52:48,761: INFO: Current backtesting datetime 2019-01-29 15:55:00-05:00
+2021-08-12 19:52:48,766: INFO: Current backtesting datetime 2019-01-29 15:55:00-05:00
+2021-08-12 19:52:48,767: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 19:52:48,768: INFO: Current backtesting datetime 2019-01-29 16:00:00-05:00
+2021-08-12 19:52:48,768: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 19:52:48,769: INFO: Current backtesting datetime 2019-01-30 08:30:00-05:00
+2021-08-12 19:52:48,769: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 19:52:48,770: INFO: Current backtesting datetime 2019-01-30 09:30:00-05:00
+2021-08-12 19:52:48,770: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+Progress ||  97.99% Complete
+ORDER FILLED: 2019-01-30 09:30:00-05:00, position: 10 shares of SPY, price: 266.7264514465332, side: buy
+2021-08-12 19:52:48,773: INFO: Filled Transaction: buy 10 of SPY at 266.7264514465332$ per share
+2021-08-12 19:52:48,773: INFO: stop order of | 10 SPY buy | with status unprocessed was filled
+2021-08-12 19:52:48,777: INFO: Strategy simple: Executing the on_filled_order event method
+2021-08-12 19:52:48,779: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 19:52:48,781: INFO: Counter is at 0, program thinks it is 2019-01-30 09:30:00-05:00
+2021-08-12 19:52:48,791: INFO: The value of SPY is
+                                 open        high     low       close
+Date
+2019-01-30 00:00:00-05:00  265.100006  268.519989  264.25  267.579987
+
+2021-08-12 19:52:48,792: INFO: We own 10 of SPY, about to sell
+2021-08-12 19:52:48,792: INFO: market order of | 10 SPY sell | with status unprocessed was sent to broker backtesting
+2021-08-12 19:52:48,793: INFO: Current backtesting datetime 2019-01-30 15:55:00-05:00
+2021-08-12 19:52:48,798: INFO: Current backtesting datetime 2019-01-30 15:55:00-05:00
+2021-08-12 19:52:48,799: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 19:52:48,800: INFO: Current backtesting datetime 2019-01-30 16:00:00-05:00
+2021-08-12 19:52:48,800: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 19:52:48,801: INFO: Current backtesting datetime 2019-01-31 08:30:00-05:00
+2021-08-12 19:52:48,802: INFO: Strategy simple: Executing the before_market_opens lifecycle method
+2021-08-12 19:52:48,803: INFO: Current backtesting datetime 2019-01-31 09:30:00-05:00
+2021-08-12 19:52:48,805: INFO: Strategy simple: Executing the before_starting_trading lifecycle method
+2021-08-12 19:52:48,807: INFO: Filled Transaction: sell 10 of SPY at 267.510009765625$ per share
+2021-08-12 19:52:48,807: INFO: market order of | 10 SPY sell | with status unprocessed was filled
+2021-08-12 19:52:48,808: INFO: Position 0 shares of SPY liquidated
+Progress || 100.00% Complete
+2021-08-12 19:52:48,812: INFO: Strategy simple: Executing the on_filled_order event method
+2021-08-12 19:52:48,812: INFO: Strategy simple: Executing the on_trading_iteration lifecycle method
+2021-08-12 19:52:48,814: INFO: Counter is at 0, program thinks it is 2019-01-31 09:30:00-05:00
+ORDER FILLED: 2019-01-31 09:30:00-05:00, position: 0 shares of SPY, price: 267.510009765625, side: sell
+2021-08-12 19:52:48,825: INFO: The value of SPY is
+                                open        high         low       close
+Date
+2019-01-31 00:00:00-05:00  267.51001  270.470001  267.269989  269.929993
+
+2021-08-12 19:52:48,825: INFO: We have no open positions
+2021-08-12 19:52:48,825: WARNING: Backtest executes limit, stop, stop_limit and trailing orders as market orders
+2021-08-12 19:52:48,827: INFO: Current backtesting datetime 2019-01-31 15:55:00-05:00
+2021-08-12 19:52:48,832: INFO: Current backtesting datetime 2019-01-31 15:55:00-05:00
+2021-08-12 19:52:48,833: INFO: Strategy simple: Executing the before_market_closes lifecycle method
+2021-08-12 19:52:48,834: INFO: Current backtesting datetime 2019-01-31 16:00:00-05:00
+2021-08-12 19:52:48,834: INFO: Strategy simple: Executing the after_market_closes lifecycle method
+2021-08-12 19:52:48,834: INFO: Strategy simple: Executing the on_strategy_end lifecycle method
+2021-08-12 19:52:48,840: INFO: Strategy simple: --- simple Strategy Performance ---
+*****  BUY  *****2019-01-31 09:30:00-05:00, Stop price: 270.20 Close Price: 269.93
+Progress || 100.00% CompleteElapsed time: 1.482452315000046
+2021-08-12 19:52:48,853: INFO: Strategy simple: CAGR 2.73%
+2021-08-12 19:52:48,853: INFO: Strategy simple: Volatility 0.31%
+2021-08-12 19:52:48,853: INFO: Strategy simple: Sharpe 853.51
+2021-08-12 19:52:48,853: INFO: Strategy simple: Max Drawdown 0.03 on 2019-01-11
+2021-08-12 19:52:48,853: INFO: Strategy simple: RoMaD 9110.66%
+2021-08-12 19:52:48,853: INFO: Strategy simple: --- SPY Benchmark Performance ---
+2021-08-12 19:52:48,872: INFO: Strategy simple: SPY CAGR 160.38%
+2021-08-12 19:52:48,872: INFO: Strategy simple: SPY Volatility 18.68%
+2021-08-12 19:52:48,872: INFO: Strategy simple: SPY Sharpe 8.58
+2021-08-12 19:52:48,872: INFO: Strategy simple: SPY Max Drawdown 1.35% on 2019-01-22
+2021-08-12 19:52:48,872: INFO: Strategy simple: SPY RoMaD 11870.89%
+2021-08-12 19:52:48,874: INFO: *** Benchmark Performance for SPY ***
+2021-08-12 19:52:48,883: INFO: Risk Free Rate 0.04%
+2021-08-12 19:52:48,892: INFO: The end
+SPY CAGR 160.38%
+SPY Volatility 18.68%
+SPY Sharpe 8.58
+SPY Max Drawdown 1.35% on 2019-01-22
+SPY RoMaD 11870.89%
+
+Process finished with exit code 0
+
+
+=======================================================================================================
+Lumibot Log
+
+datetime,counter,my_custom_stat,portfolio_value,unspent_money,return
+2019-01-02 15:55:00-05:00,0.0,97.0,40000.0,40000.0,
+2019-01-03 15:55:00-05:00,0.0,57.0,40000.0,40000.0,0.0
+2019-01-04 15:55:00-05:00,0.0,16.0,40019.59826721191,37495.69827331543,0.0004899566802978317
+2019-01-07 15:55:00-05:00,0.0,45.0,40022.59829772949,40022.59829772949,7.496403381024308e-05
+2019-01-08 15:55:00-05:00,0.0,14.0,40022.09811462402,37454.398224487304,-1.2497517071441422e-05
+2019-01-09 15:55:00-05:00,0.0,64.0,40029.99820007324,40029.99820007324,0.00019739308585453585
+2019-01-10 15:55:00-05:00,0.0,60.0,40036.51853668213,37447.71848785401,0.00016288625785843003
+2019-01-11 15:55:00-05:00,0.0,76.0,40024.51841461182,40024.51841461182,-0.00029972940977163187
+2019-01-14 15:55:00-05:00,0.0,61.0,40024.51841461182,40024.51841461182,0.0
+2019-01-15 15:55:00-05:00,0.0,87.0,40035.62856567383,37432.12850463868,0.0002775836287878253
+2019-01-16 15:55:00-05:00,0.0,38.0,40040.42837036133,40040.42837036133,0.0001198883309556642
+2019-01-17 15:55:00-05:00,0.0,13.0,40057.61837493897,37428.018460388186,0.00042931620058195286
+2019-01-18 15:55:00-05:00,0.0,21.0,40077.81857025147,40077.81857025147,0.0005042784901345687
+2019-01-22 15:55:00-05:00,0.0,82.0,40077.81857025147,40077.81857025147,0.0
+2019-01-23 15:55:00-05:00,0.0,82.0,40077.81857025147,40077.81857025147,0.0
+2019-01-24 15:55:00-05:00,0.0,66.0,40077.81857025147,40077.81857025147,0.0
+2019-01-25 15:55:00-05:00,0.0,92.0,40077.81857025147,40077.81857025147,0.0
+2019-01-28 15:55:00-05:00,0.0,66.0,40077.81857025147,40077.81857025147,0.0
+2019-01-29 15:55:00-05:00,0.0,63.0,40077.81857025147,40077.81857025147,0.0
+2019-01-30 15:55:00-05:00,0.0,46.0,40086.353921508795,37410.55405578614,0.00021296945696702707
+2019-01-31 15:55:00-05:00,0.0,62.0,40085.65415344239,40085.65415344239,-1.7456515695513097e-05
+
+
+=======================================================================================================
+Backtrader
+
+/usr/bin/python3.8 /home/runout/projects/scratch/_lumibot_simple.py
+Final Value: 40000.00
+2019-01-02, o  245.98 h  251.21 l  245.95 c  250.18 v     239
+**********Stop price: 250.43 Close Price: 250.18
+2019-01-03, SPY    Order:   1	Type: Buy  	Status Accepted 	Size:   10.0000 Price:  250.4302 Position: 0
+2019-01-03, o  248.23 h  248.57 l  243.67 c  244.21 v     234
+2019-01-04, SPY    Order:   1	Type: Buy  	Status Completed 	Size:   10.0000 Price:  250.4302 Position: 10
+2019-01-04, SPY    BUY   Price: 250.43 Cost: 2504.30 Comm: 0.00 Size:   10.0000
+2019-01-04, o  247.59 h  253.11 l  247.17 c  252.39 v     242
+2019-01-07, SPY    Order:   2	Type: Sell 	Status Accepted 	Size:  -10.0000 Price:  252.3900 Position: 0
+2019-01-07, SPY    Order:   2	Type: Sell 	Status Completed 	Size:  -10.0000 Price:  252.3900 Position: 0
+2019-01-07, SPY    SELL  Price: 252.69 Cost: 2504.30 Comm: 0.00 Size:  -10.0000
+2019-01-07, SPY Closed: PnL Gross 22.6, Net 22.6,
+2019-01-07, o  252.69 h  255.95 l  251.69 c  254.38 v     243
+**********Stop price: 254.63 Close Price: 254.38
+2019-01-08, SPY    Order:   3	Type: Buy  	Status Accepted 	Size:   10.0000 Price:  254.6344 Position: 10
+2019-01-08, SPY    Order:   3	Type: Buy  	Status Completed 	Size:   10.0000 Price:  254.6344 Position: 10
+2019-01-08, SPY    BUY   Price: 256.82 Cost: 2568.20 Comm: 0.00 Size:   10.0000
+2019-01-08, o  256.82 h  257.31 l  254.00 c  256.77 v     246
+2019-01-09, SPY    Order:   4	Type: Sell 	Status Accepted 	Size:  -10.0000 Price:  256.7700 Position: 0
+2019-01-09, SPY    Order:   4	Type: Sell 	Status Completed 	Size:  -10.0000 Price:  256.7700 Position: 0
+2019-01-09, SPY    SELL  Price: 257.56 Cost: 2568.20 Comm: 0.00 Size:  -10.0000
+2019-01-09, SPY Closed: PnL Gross 7.4, Net 7.4,
+2019-01-09, o  257.56 h  258.91 l  256.19 c  257.97 v     247
+**********Stop price: 258.23 Close Price: 257.97
+2019-01-10, SPY    Order:   5	Type: Buy  	Status Accepted 	Size:   10.0000 Price:  258.2280 Position: 10
+2019-01-10, SPY    Order:   5	Type: Buy  	Status Completed 	Size:   10.0000 Price:  258.2280 Position: 10
+2019-01-10, SPY    BUY   Price: 258.23 Cost: 2582.28 Comm: 0.00 Size:   10.0000
+2019-01-10, o  256.26 h  259.16 l  255.50 c  258.88 v     248
+2019-01-11, SPY    Order:   6	Type: Sell 	Status Accepted 	Size:  -10.0000 Price:  258.8800 Position: 0
+2019-01-11, SPY    Order:   6	Type: Sell 	Status Completed 	Size:  -10.0000 Price:  258.8800 Position: 0
+2019-01-11, SPY    SELL  Price: 257.68 Cost: 2582.28 Comm: 0.00 Size:  -10.0000
+2019-01-11, SPY Closed: PnL Gross -5.48, Net -5.5,
+2019-01-11, o  257.68 h  259.01 l  257.03 c  258.98 v     248
+**********Stop price: 259.24 Close Price: 258.98
+2019-01-14, SPY    Order:   7	Type: Buy  	Status Accepted 	Size:   10.0000 Price:  259.2390 Position: 0
+2019-01-14, o  256.86 h  258.30 l  256.41 c  257.40 v     246
+2019-01-15, SPY    Order:   7	Type: Buy  	Status Completed 	Size:   10.0000 Price:  259.2390 Position: 10
+2019-01-15, SPY    BUY   Price: 259.24 Cost: 2592.39 Comm: 0.00 Size:   10.0000
+2019-01-15, o  257.82 h  260.70 l  257.81 c  260.35 v     249
+2019-01-16, SPY    Order:   8	Type: Sell 	Status Accepted 	Size:  -10.0000 Price:  260.3500 Position: 0
+2019-01-16, SPY    Order:   8	Type: Sell 	Status Completed 	Size:  -10.0000 Price:  260.3500 Position: 0
+2019-01-16, SPY    SELL  Price: 260.83 Cost: 2592.39 Comm: 0.00 Size:  -10.0000
+2019-01-16, SPY Closed: PnL Gross 15.91, Net 15.9,
+2019-01-16, o  260.83 h  261.97 l  260.60 c  260.98 v     250
+**********Stop price: 261.24 Close Price: 260.98
+2019-01-17, SPY    Order:   9	Type: Buy  	Status Accepted 	Size:   10.0000 Price:  261.2410 Position: 10
+2019-01-17, SPY    Order:   9	Type: Buy  	Status Completed 	Size:   10.0000 Price:  261.2410 Position: 10
+2019-01-17, SPY    BUY   Price: 261.24 Cost: 2612.41 Comm: 0.00 Size:   10.0000
+2019-01-17, o  260.01 h  263.92 l  259.96 c  262.96 v     252
+2019-01-18, SPY    Order:  10	Type: Sell 	Status Accepted 	Size:  -10.0000 Price:  262.9600 Position: 0
+2019-01-18, SPY    Order:  10	Type: Sell 	Status Completed 	Size:  -10.0000 Price:  262.9600 Position: 0
+2019-01-18, SPY    SELL  Price: 264.98 Cost: 2612.41 Comm: 0.00 Size:  -10.0000
+2019-01-18, SPY Closed: PnL Gross 37.39, Net 37.4,
+2019-01-18, o  264.98 h  266.98 l  263.00 c  266.46 v     255
+**********Stop price: 266.73 Close Price: 266.46
+2019-01-22, SPY    Order:  11	Type: Buy  	Status Accepted 	Size:   10.0000 Price:  266.7265 Position: 0
+2019-01-22, o  264.82 h  265.06 l  261.06 c  262.86 v     252
+2019-01-23, o  264.01 h  264.79 l  260.66 c  263.41 v     252
+2019-01-24, o  263.21 h  264.20 l  262.08 c  263.55 v     252
+2019-01-25, o  265.61 h  266.70 l  263.66 c  265.78 v     254
+2019-01-28, o  263.39 h  263.83 l  261.79 c  263.76 v     252
+2019-01-29, o  263.92 h  264.55 l  262.48 c  263.41 v     252
+2019-01-30, SPY    Order:  11	Type: Buy  	Status Completed 	Size:   10.0000 Price:  266.7265 Position: 10
+2019-01-30, SPY    BUY   Price: 266.73 Cost: 2667.26 Comm: 0.00 Size:   10.0000
+2019-01-30, o  265.10 h  268.52 l  264.25 c  267.58 v     256
+2019-01-31, SPY    Order:  12	Type: Sell 	Status Accepted 	Size:  -10.0000 Price:  267.5800 Position: 0
+2019-01-31, SPY    Order:  12	Type: Sell 	Status Completed 	Size:  -10.0000 Price:  267.5800 Position: 0
+2019-01-31, SPY    SELL  Price: 267.51 Cost: 2667.26 Comm: 0.00 Size:  -10.0000
+2019-01-31, SPY Closed: PnL Gross 7.84, Net 7.8,
+2019-01-31, o  267.51 h  270.47 l  267.27 c  269.93 v     258
+**********Stop price: 270.20 Close Price: 269.93
+Final Value: 40085.65
+
+Process finished with exit code 0

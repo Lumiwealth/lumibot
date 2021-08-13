@@ -311,7 +311,7 @@ class _Strategy:
         auto_adjust=False,
         benchmark_asset="SPY",
         plot_file="backtest_result.jpg",
-        trades_file="trades.csv",
+        trades_file="logs/trades.csv",
         pandas_data=None,
         **kwargs,
     ):

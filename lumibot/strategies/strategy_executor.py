@@ -178,8 +178,6 @@ class StrategyExecutor(Thread):
     @lifecycle_method
     @trace_stats
     def _on_trading_iteration(self):
-        if self.strategy.IS_BACKTESTABLE == True:
-            self.broker.process_pending_orders()
         self._strategy_context = None
         self.strategy.log_message("Executing the on_trading_iteration lifecycle method")
         on_trading_iteration = append_locals(self.strategy.on_trading_iteration)
@@ -281,6 +279,8 @@ class StrategyExecutor(Thread):
 
         time_to_close = self.broker.get_time_to_close()
         while time_to_close > self.minutes_before_closing * 60:
+            if self.broker.IS_BACKTESTING_BROKER:
+                self.broker.process_pending_orders(strategy=self.strategy.name)
             self._on_trading_iteration()
             time_to_close = self.broker.get_time_to_close()
             sleeptime = time_to_close - self.minutes_before_closing * 60

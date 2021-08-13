@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 
 import pandas as pd
+import pytz
 
 from lumibot.data_sources.exceptions import NoDataFound
 from lumibot.entities import Bars
@@ -25,6 +26,18 @@ class PandasData(DataSource):
         self._data_store = {}
         self._date_index = None
         self._date_supply = None
+
+        # Create a unixtime column to improve speed performance
+        for asset in self.pandas_data:
+            self.pandas_data[asset]["datetime"] = pd.to_datetime(
+                self.pandas_data[asset].index, utc=True
+            )
+            self.pandas_data[asset]["unixtime"] = (
+                pd.to_datetime(self.pandas_data[asset]["datetime"], utc=True).astype(
+                    int
+                )
+                / 10 ** 9
+            )
 
     def load_data(self, pandas_data):
         for asset, data in pandas_data.items():
@@ -86,13 +99,22 @@ class PandasData(DataSource):
             raise ValueError(f"Asset {asset} does not have data.")
 
         if timeshift:
+            # TODO: do a speed test and make sure data is accurate between
+            # old and new ways of getting dates
+
+            # New (4x faster)
             now = datetime.now()
             now_local = self.localize_datetime(now)
             end = now_local - timeshift
-            end = pd.Timestamp(self.to_default_timezone(end))
-            data = data.loc[data.index < end, :]
-            # TODO: If this date doesn't exactly match the date (or if some dates are missing)
-            # then do a ffill or something with zero volume? How should we handle missing dates?
+            end_unix = (end - datetime(1970, 1, 1, tzinfo=pytz.utc)).total_seconds()
+            data = data.loc[data["unixtime"] < end_unix, :]
+
+            # Old
+            # now = datetime.now()
+            # now_local = self.localize_datetime(now)
+            # end = now_local - timeshift
+            # end = pd.Timestamp(self.to_default_timezone(end))
+            # data = data.loc[data.index < end, :]
 
         result = data.tail(length)
         return result

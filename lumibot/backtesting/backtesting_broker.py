@@ -276,33 +276,71 @@ class BacktestingBroker(Broker):
             open = ohlc["open"]
             high = ohlc["high"]
             low = ohlc["low"]
-            # close = ohlc["close"]
+            close = ohlc["close"]
+            volume = ohlc["volume"]
 
             # Determine transaction price.
-            if order.type == "market":
-                price = open
-            elif order.type == "limit":
-                price = self.limit_order(order.limit_price, order.side, open, high, low)
-            elif order.type == "stop":
-                price = self.stop_order(order.stop_price, order.side, open, high, low)
-            elif type == "stop_limit":
-                price = self.stop_order(order.stop_price, order.side, open, high, low)
-                if price != 0:
-                    order.type = "limit"
-                    price = 0
-            else:
-                raise ValueError(f"Order type {order.type} is not allowable in backtesting.")
+            if order.order_class == "":
+                if order.type == "market":
+                    price = open
+                elif order.type == "limit":
+                    price = self.limit_order(
+                        order.limit_price, order.side, open, high, low
+                    )
+                elif order.type == "stop":
+                    price = self.stop_order(
+                        order.stop_price, order.side, open, high, low
+                    )
+                elif type == "stop_limit":
+                    price = self.stop_order(
+                        order.stop_price, order.side, open, high, low
+                    )
+                    if price != 0:
+                        order.type = "limit"
+                        price = 0
+                else:
+                    raise ValueError(
+                        f"Order type {order.type} is not allowable in backtesting."
+                    )
 
-            if price != 0:
-                self.stream.dispatch(
-                    self.FILLED_ORDER,
+                if price != 0:
+                    self.stream.dispatch(
+                        self.FILLED_ORDER,
                         order=order,
                         price=price,
                         filled_quantity=filled_quantity,
                     )
-            else:
-                continue
+                else:
+                    continue
 
+            elif order.order_class == "oco":
+                sub_orders = self._flatten_order(order)
+
+                for sub_order in sub_orders:
+                    # Check if result is false so we only process one of them
+                    if sub_order.type == "limit":
+                        price = self.limit_order(
+                            sub_order.limit_price, order.side, open, high, low
+                        )
+                        if price != 0:
+                            self._process_trade_event(
+                                order,
+                                self.FILLED_ORDER,
+                                price=price,
+                                filled_quantity=order.quantity,
+                            )
+
+                    elif sub_order.type == "stop":
+                        price = self.stop_order(
+                            sub_order.stop_price, order.side, open, high, low
+                        )
+                        if price != 0:
+                            self._process_trade_event(
+                                order,
+                                self.FILLED_ORDER,
+                                price=price,
+                                filled_quantity=order.quantity,
+                            )
 
     def limit_order(self, limit_price, side, open, high, low):
         """Limit order logic. """
@@ -349,8 +387,9 @@ class BacktestingBroker(Broker):
 
     def get_last_bar(self, asset):
         """Returns OHLCV dictionary for last bar of the asset. """
-        return self._data_source.get_symbol_bars(asset, 1).df\
-            .to_dict(orient="records")[0]
+        return self._data_source.get_symbol_bars(asset, 1).df.to_dict(orient="records")[
+            0
+        ]
 
     # ==========Processing streams data=======================
 

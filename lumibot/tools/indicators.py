@@ -129,11 +129,11 @@ def performance(_df, risk_free, prefix=""):
     maxdown_adj = max_drawdown(_df)
     romad_adj = romad(_df)
 
-    print(f"{prefix} CAGR {cagr_adj*100:0.2f}%")
-    print(f"{prefix} Volatility {vol_adj*100:0.2f}%")
+    print(f"{prefix} CAGR {cagr_adj*100:,.2f}%")
+    print(f"{prefix} Volatility {vol_adj*100:,.2f}%")
     print(f"{prefix} Sharpe {sharpe_adj:0.2f}")
     print(
-        f"{prefix} Max Drawdown {maxdown_adj['drawdown']*100:0.2f}% on {maxdown_adj['date']:%Y-%m-%d}"
+        f"{prefix} Max Drawdown {maxdown_adj['drawdown']*100:,.2f}% on {maxdown_adj['date']:%Y-%m-%d}"
     )
     print(f"{prefix} RoMaD {romad_adj*100:,.2f}%")
 

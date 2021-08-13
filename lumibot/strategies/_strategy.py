@@ -1,3 +1,4 @@
+import datetime
 import logging
 from copy import deepcopy
 
@@ -348,7 +349,18 @@ class _Strategy:
             **kwargs,
         )
         trader.add_strategy(strategy)
+
+        strategy.log_message("Starting backtest...")
+        start = datetime.datetime.now()
+
         result = trader.run_all()
+
+        end = datetime.datetime.now()
+        backtesting_length = backtesting_end - backtesting_start
+        backtesting_run_time = end - start
+        strategy.log_message(
+            f"Backtest took {backtesting_run_time} for a speed of {backtesting_length/backtesting_run_time:,.3f}"
+        )
 
         backtesting_broker.export_trade_events_to_csv(trades_file)
 

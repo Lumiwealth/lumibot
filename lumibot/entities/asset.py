@@ -5,28 +5,62 @@ from typing import Optional
 
 class Asset(BaseModel, frozen=True, extra='forbid'):
     """
-    This is a base class for Assets.
-    Member attributes:
-      - symbol (string): The symbol used to retrieve stock quotes if stock. The
-          underlying symbol if option.
-      - asset_type (string, default: `stock`): One of the following:
+    This is a base class for Assets including stocks, futures, options
+    and forex.
+
+    Parameters
+    ----------
+    symbol : str
+        Symbol of the stock or underlying in case of futures/options.
+    asset_type : str
+        Asset types are only `stock`, 'option`, `future`, `forex`,
+        default : `stock`
+    expiration : str
+        Option or futures expiration.
+        Format for options "YYYYMMDD", for futures "YYYYMM"
+    strike : str
+        Options strike as string.
+    right : str
+        `CALL` or `PUT`
+        default : ""
+    multiplier : int
+        Price multiplier.
+        default : 1
+    currency=None,
+
+    Attributes
+    ----------
+    symbol : string
+    The symbol used to retrieve stock quotes if stock. The underlying
+    symbol if option. For Forex: The base currency.
+    asset_type (string, default: `stock`): One of the following:
         - `stock`
         - `option`
         - `future`
         - 'forex'
-      If asset_type is `option` then the following fields are mandatory.
-      - expiration (string, "YYYY-MM-DD"): Contract expiration date.
-          For futures:
-          - expiration (string, "YYYYMM"): (use for futures)
-      - strike (float): Contract strike price.
-      - right(string): `CALL` or `PUT`
-      - multiplier (int): Contract leverage over the underlying.
-      If the asset_type if 'forex' then use the following fields:
-      - symbol (string): The base currency.
-      - currency (string): Conversion currency.
-      - asset_type(string): `forex`
-      When ordering forex, use the full dollar value, minimums of 20,000.
+    expiration : string
+        Contract expiration dates for futures and options.
+    strike : float
+        Contract strike price.
+    right : str
+        Option call or put.
+    multiplier : int
+        Contract leverage over the underlying.
+    currency : string
+        Conversion currency.
+    _asset_types : list of str
+        Acceptable asset types.
+    _right : list of str
+        Acceptable values for right.
+
+    Methods
+    -------
+    asset_type_must_be_one_of(@"asset_type")
+        validates asset types.
+    right_must_be_one_of(@"right")
+        validates rights types.
     """
+
     symbol: str
     asset_type: str = "stock"
     expiration: Optional[str] = None

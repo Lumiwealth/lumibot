@@ -90,7 +90,9 @@ class PandasData(DataSource):
             now_local = self.localize_datetime(now)
             end = now_local - timeshift
             end = pd.Timestamp(self.to_default_timezone(end))
-            data = data.loc[:end, :]
+            data = data.loc[data.index < end, :]
+            # TODO: If this date doesn't exactly match the date (or if some dates are missing)
+            # then do a ffill or something with zero volume? How should we handle missing dates?
 
         result = data.tail(length)
         return result

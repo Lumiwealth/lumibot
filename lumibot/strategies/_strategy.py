@@ -219,15 +219,15 @@ class _Strategy:
             self.log_message(f"Volatility {volatility_value*100:,.2f}%")
 
             sharpe_value = self._analysis["sharpe"]
-            self.log_message(f"Sharpe {sharpe_value*100:,.2f}")
+            self.log_message(f"Sharpe {sharpe_value:,.2f}")
 
             max_drawdown_result = self._analysis["max_drawdown"]
             self.log_message(
-                f"Max Drawdown {max_drawdown_result['drawdown']*100:,.2f} on {max_drawdown_result['date']:%Y-%m-%d}"
+                f"Max Drawdown {max_drawdown_result['drawdown']*100:,.2f}% on {max_drawdown_result['date']:%Y-%m-%d}"
             )
 
             romad_value = self._analysis["romad"]
-            self.log_message(f"RoMaD {romad_value*100:0.2f}%")
+            self.log_message(f"RoMaD {romad_value*100:,.2f}%")
 
             # Getting performance for the benchmark asset
             if (

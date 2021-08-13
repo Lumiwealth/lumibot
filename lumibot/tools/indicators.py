@@ -135,7 +135,7 @@ def performance(_df, risk_free, prefix=""):
     print(
         f"{prefix} Max Drawdown {maxdown_adj['drawdown']*100:0.2f}% on {maxdown_adj['date']:%Y-%m-%d}"
     )
-    print(f"{prefix} RoMaD {romad_adj*100:0.2f}%")
+    print(f"{prefix} RoMaD {romad_adj*100:,.2f}%")
 
 
 def get_symbol_returns(symbol, start=datetime(1900, 1, 1), end=datetime.now()):

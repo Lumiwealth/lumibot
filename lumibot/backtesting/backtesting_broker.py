@@ -41,9 +41,7 @@ class BacktestingBroker(Broker):
             @wraps(attr)
             def new_func(order, *args, **kwargs):
                 result = attr(order, *args, **kwargs)
-                if (
-                    result.was_transmitted() and order.type == "market"
-                ):
+                if result.was_transmitted() and order.type == "market":
                     orders = broker._flatten_order(result)
                     for order in orders:
                         logging.info("%r was sent to broker %s" % (order, self.name))
@@ -188,19 +186,42 @@ class BacktestingBroker(Broker):
 
     def _flatten_order(self, order):
         """Some submitted orders may triggers other orders.
-        _flatten_order returns a list containing the main order
-        and all the derived ones"""
-        orders = [order]
-        if order.stop_price:
+        _flatten_order returns a list containing the derived orders"""
+
+        orders = []
+        if order.order_class == "":
+            orders.append(order)
+            if order.stop_price:
+                stop_loss_order = Order(
+                    order.strategy,
+                    order.asset,
+                    order.quantity,
+                    order.side,
+                    stop_price=order.stop_price,
+                )
+                stop_loss_order = self._parse_broker_order(
+                    stop_loss_order, order.strategy
+                )
+                orders.append(stop_loss_order)
+
+        elif order.order_class == "oco":
             stop_loss_order = Order(
                 order.strategy,
                 order.asset,
                 order.quantity,
                 order.side,
-                stop_price=order.stop_price,
+                stop_price=order.stop_loss_price,
             )
-            stop_loss_order = self._parse_broker_order(stop_loss_order, order.strategy)
             orders.append(stop_loss_order)
+
+            limit_order = Order(
+                order.strategy,
+                order.asset,
+                order.quantity,
+                order.side,
+                limit_price=order.take_profit_price,
+            )
+            orders.append(limit_order)
 
         return orders
 

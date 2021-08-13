@@ -552,6 +552,7 @@ class Broker:
                 "price": price,
                 "filled_quantity": filled_quantity,
                 "multiplier": multiplier,
+                "potfolio_value": 0,  # TODO: Add portfolio value
             }
             # append row to the dataframe
             self._trade_event_log_df = self._trade_event_log_df.append(
@@ -612,4 +613,6 @@ class Broker:
                 )
 
     def export_trade_events_to_csv(self, filename):
-        self._trade_event_log_df.to_csv(filename)
+        if len(self._trade_event_log_df) > 0:
+            output_df = self._trade_event_log_df.set_index("time")
+            output_df.to_csv(filename)

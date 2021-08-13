@@ -293,10 +293,6 @@ class BacktestingBroker(Broker):
             else:
                 raise ValueError(f"Order type {order.type} is not allowable in backtesting.")
 
-
-
-
-
             if price != 0:
                 self.stream.dispatch(
                     self.FILLED_ORDER,

@@ -41,7 +41,11 @@ class BacktestingBroker(Broker):
             @wraps(attr)
             def new_func(order, *args, **kwargs):
                 result = attr(order, *args, **kwargs)
-                if result.was_transmitted() and result.order_class and result.order_class == "OCO":
+                if (
+                    result.was_transmitted()
+                    and result.order_class
+                    and result.order_class == "OCO"
+                ):
                     orders = broker._flatten_order(result)
                     for order in orders:
                         logging.info("%r was sent to broker %s" % (order, self.name))
@@ -226,37 +230,41 @@ class BacktestingBroker(Broker):
             stop_loss_order.dependent_order = limit_order
             limit_order.dependent_order = stop_loss_order
 
-        elif order.order_class == "bracket":
+        elif order.order_class in ["bracket", "oto"]:
             side = "sell" if order.side == "buy" else "buy"
-            stop_loss_order = Order(
-                order.strategy,
-                order.asset,
-                order.quantity,
-                side,
-                stop_price=order.stop_loss_price,
-                limit_price=order.stop_loss_limit_price,
-            )
-            orders.append(stop_loss_order)
+            if order.order_class == "bracket" or (
+                order.order_class == "oto" and order.stop_loss_price
+            ):
+                stop_loss_order = Order(
+                    order.strategy,
+                    order.asset,
+                    order.quantity,
+                    side,
+                    stop_price=order.stop_loss_price,
+                    limit_price=order.stop_loss_limit_price,
+                )
+                orders.append(stop_loss_order)
 
-            limit_order = Order(
-                order.strategy,
-                order.asset,
-                order.quantity,
-                side,
-                limit_price=order.take_profit_price,
-            )
-            orders.append(limit_order)
+            if order.order_class == "bracket" or (
+                order.order_class == "oto" and order.take_profit_price
+            ):
+                limit_order = Order(
+                    order.strategy,
+                    order.asset,
+                    order.quantity,
+                    side,
+                    limit_price=order.take_profit_price,
+                )
+                orders.append(limit_order)
 
-            stop_loss_order.dependent_order = limit_order
-            limit_order.dependent_order = stop_loss_order
+            if order.order_class == "bracket":
+                stop_loss_order.dependent_order = limit_order
+                limit_order.dependent_order = stop_loss_order
+
         return orders
 
     def submit_order(self, order):
-        """Submit an order for an asset"""  # todo adjust these messages.
-        if order.order_class:
-            logging.warning(
-                "Backtest executes OTO orders as simple orders"
-            )
+        """Submit an order for an asset"""
         order.set_identifier(token_hex(16))
         order.update_raw(order)
         return order
@@ -328,15 +336,16 @@ class BacktestingBroker(Broker):
                     f"Order type {order.type} is not allowable in backtesting."
                 )
 
-
             if price != 0:
                 if order.dependent_order:
-                   self.cancel_order(order.dependent_order)
+                    self.cancel_order(order.dependent_order)
 
-                if order.order_class in ["bracket"]:
+                if order.order_class in ["bracket", "oto"]:
                     orders = self._flatten_order(order)
                     for flat_order in orders:
-                        logging.info("%r was sent to broker %s" % (flat_order, self.name))
+                        logging.info(
+                            "%r was sent to broker %s" % (flat_order, self.name)
+                        )
                         self._new_orders.append(flat_order)
 
                 self.stream.dispatch(

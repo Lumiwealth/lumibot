@@ -57,6 +57,7 @@ class Order:
         self.transactions = []
         self.order_class = None
         self.type = "market"
+        self.dependent_order = None
 
         # Options:
         self.exchange = exchange
@@ -148,6 +149,7 @@ class Order:
                 # This is a simple order with no legs
                 self.order_class = ""
 
+            # Set pricing of entry order.
             if trail_price is not None or trail_percent is not None:
                 self.type = "trailing_stop"
                 if trail_price is not None:

@@ -41,7 +41,7 @@ class BacktestingBroker(Broker):
             @wraps(attr)
             def new_func(order, *args, **kwargs):
                 result = attr(order, *args, **kwargs)
-                if result.was_transmitted() and order.type == "market":
+                if result.was_transmitted():
                     orders = broker._flatten_order(result)
                     for order in orders:
                         logging.info("%r was sent to broker %s" % (order, self.name))
@@ -223,13 +223,16 @@ class BacktestingBroker(Broker):
             )
             orders.append(limit_order)
 
+            stop_loss_order.dependent_order = limit_order
+            limit_order.dependent_order = stop_loss_order
+
         return orders
 
     def submit_order(self, order):
         """Submit an order for an asset"""  # todo adjust these messages.
         if order.order_class:
             logging.warning(
-                "Backtest executes Bracket, OTO and OCO orders as simple orders"
+                "Backtest executes Bracket, OTO orders as simple orders"
             )
         order.set_identifier(token_hex(16))
         order.update_raw(order)
@@ -302,7 +305,11 @@ class BacktestingBroker(Broker):
                     f"Order type {order.type} is not allowable in backtesting."
                 )
 
+
             if price != 0:
+                if order.dependent_order:
+                   self.cancel_order(order.dependent_order)
+
                 self.stream.dispatch(
                     self.FILLED_ORDER,
                     order=order,

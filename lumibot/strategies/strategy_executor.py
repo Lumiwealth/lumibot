@@ -25,7 +25,6 @@ class StrategyExecutor(Thread):
         self.strategy = strategy
         self._strategy_context = None
         self.broker = self.strategy.broker
-        self.minutes_before_closing = self.strategy.minutes_before_closing
         self.result = {}
 
     @property
@@ -278,12 +277,12 @@ class StrategyExecutor(Thread):
         # in intraday trading.
 
         time_to_close = self.broker.get_time_to_close()
-        while time_to_close > self.minutes_before_closing * 60:
+        while time_to_close > self.strategy.minutes_before_closing * 60:
             if self.broker.IS_BACKTESTING_BROKER:
                 self.broker.process_pending_orders(strategy=self.strategy.name)
             self._on_trading_iteration()
             time_to_close = self.broker.get_time_to_close()
-            sleeptime = time_to_close - self.minutes_before_closing * 60
+            sleeptime = time_to_close - self.strategy.minutes_before_closing * 60
             sleeptime_err_msg = (
                 f"You can set the sleep time as an integer which will be interpreted as "
                 f"minutes. eg: sleeptime = 50 would be 50 minutes. Conversely, you can enter "

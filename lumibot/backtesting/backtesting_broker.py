@@ -44,7 +44,7 @@ class BacktestingBroker(Broker):
                 if (
                     result.was_transmitted()
                     and result.order_class
-                    and result.order_class == "OCO"
+                    and result.order_class == "oco"
                 ):
                     orders = broker._flatten_order(result)
                     for order in orders:

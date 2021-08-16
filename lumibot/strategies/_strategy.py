@@ -3,6 +3,7 @@ from copy import deepcopy
 
 import pandas as pd
 
+from lumibot import LUMIBOT_DEFAULT_PYTZ
 from lumibot.backtesting import BacktestingBroker
 from lumibot.entities import Asset
 from lumibot.tools import (
@@ -11,6 +12,7 @@ from lumibot.tools import (
     get_symbol_returns,
     plot_returns,
     stats_summary,
+    to_datetime_aware,
 )
 from lumibot.traders import Trader
 
@@ -34,6 +36,7 @@ class _Strategy:
         benchmark_asset="SPY",
         backtesting_start=None,
         backtesting_end=None,
+        pandas_data=None,
         filled_order_callback=None,
         **kwargs,
     ):
@@ -46,19 +49,35 @@ class _Strategy:
         self._backtesting_start = backtesting_start
         self._backtesting_end = backtesting_end
 
+        # Hold the asset objects for strings for stocks only.
+        self._asset_mapping = dict()
+
         # Setting the data provider
         if self._is_backtesting:
             self.data_source = self.broker._data_source
-
-            if risk_free_rate is None:
-                # Get risk free rate from US Treasuries by default
-                self._risk_free_rate = get_risk_free_rate()
-            else:
-                self._risk_free_rate = risk_free_rate
+            if self.data_source.SOURCE == "PANDAS":
+                try:
+                    assert pandas_data != None
+                except AssertionError:
+                    raise ValueError(
+                        f"Please add a pandas dataframe as an input parameter. "
+                        f"Use the following: 'pandas_data': your_dataframe "
+                    )
+                pd_asset_keys = dict()
+                for asset, df in pandas_data.items():
+                    new_asset = self._set_asset_mapping(asset)
+                    pd_asset_keys[new_asset] = df
+                self.data_source.load_data(pd_asset_keys)
         elif data_source is None:
             self.data_source = self.broker
         else:
             self.data_source = data_source
+
+        if risk_free_rate is None:
+            # Get risk free rate from US Treasuries by default
+            self._risk_free_rate = get_risk_free_rate()
+        else:
+            self._risk_free_rate = risk_free_rate
 
         # Setting execution parameters
         self._first_iteration = True
@@ -78,9 +97,6 @@ class _Strategy:
 
         # Storing parameters for the initialize method
         self._parameters = kwargs
-
-        # Hold the asset objects for strings for stocks only.
-        self._asset_mapping = dict()
 
         self._strategy_returns_df = None
         self._benchmark_returns_df = None
@@ -119,7 +135,7 @@ class _Strategy:
             return asset
         elif isinstance(asset, str):
             if asset not in self._asset_mapping:
-                self._asset_mapping[asset] = Asset(asset)
+                self._asset_mapping[asset] = Asset(symbol=asset)
             return self._asset_mapping[asset]
         else:
             raise ValueError(
@@ -197,21 +213,21 @@ class _Strategy:
             )
 
             cagr_value = self._analysis["cagr"]
-            self.log_message(f"CAGR {round(100 * cagr_value, 2)}%")
+            self.log_message(f"CAGR {cagr_value*100:,.2f}%")
 
             volatility_value = self._analysis["volatility"]
-            self.log_message(f"Volatility {round(100 * volatility_value, 2)}%")
+            self.log_message(f"Volatility {volatility_value*100:,.2f}%")
 
             sharpe_value = self._analysis["sharpe"]
-            self.log_message(f"Sharpe {round(sharpe_value, 2)}")
+            self.log_message(f"Sharpe {sharpe_value:,.2f}")
 
             max_drawdown_result = self._analysis["max_drawdown"]
             self.log_message(
-                f"Max Drawdown {round(100 * max_drawdown_result['drawdown'], 2)}% on {max_drawdown_result['date']:%Y-%m-%d}"
+                f"Max Drawdown {max_drawdown_result['drawdown']*100:,.2f}% on {max_drawdown_result['date']:%Y-%m-%d}"
             )
 
             romad_value = self._analysis["romad"]
-            self.log_message(f"RoMaD {round(100 * romad_value, 2)}%")
+            self.log_message(f"RoMaD {romad_value*100:,.2f}%")
 
             # Getting performance for the benchmark asset
             if (
@@ -295,15 +311,25 @@ class _Strategy:
         auto_adjust=False,
         benchmark_asset="SPY",
         plot_file="backtest_result.jpg",
+        trades_file="logs/trades.csv",
+        pandas_data=None,
         **kwargs,
     ):
         if not cls.IS_BACKTESTABLE:
             logging.warning(f"Strategy {name} cannot be backtested at the moment")
             return None
 
+        backtesting_start = to_datetime_aware(backtesting_start)
+        backtesting_end = to_datetime_aware(backtesting_end)
+
         trader = Trader(logfile=logfile)
         data_source = datasource_class(
-            backtesting_start, backtesting_end, config=config, auto_adjust=auto_adjust
+            backtesting_start,
+            backtesting_end,
+            config=config,
+            auto_adjust=auto_adjust,
+            pandas_data=pandas_data,
+            **kwargs,
         )
         backtesting_broker = BacktestingBroker(data_source)
         strategy = cls(
@@ -315,14 +341,17 @@ class _Strategy:
             sleeptime=sleeptime,
             risk_free_rate=risk_free_rate,
             stats_file=stats_file,
-            benchmark_asset=benchmark_asset,
+            # benchmark_asset=benchmark_asset,
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
+            pandas_data=pandas_data,
             **kwargs,
         )
         trader.add_strategy(strategy)
         result = trader.run_all()
 
-        strategy.plot_returns_vs_benchmark(plot_file)
+        backtesting_broker.export_trade_events_to_csv(trades_file)
+
+        # strategy.plot_returns_vs_benchmark(plot_file)
 
         return result

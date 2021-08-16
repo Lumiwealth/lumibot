@@ -79,7 +79,7 @@ class Alpaca(AlpacaData, Broker):
         to an order object"""
         order = Order(
             strategy,
-            Asset(response.symbol),
+            Asset(symbol=response.symbol),
             response.qty,
             response.side,
             limit_price=response.limit_price,

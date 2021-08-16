@@ -8,6 +8,7 @@ import pandas as pd
 # import lumibot.data_sources.alpha_vantage as av
 from lumibot import LUMIBOT_DEFAULT_PYTZ
 from lumibot.entities.asset import Asset
+from lumibot.tools import to_datetime_aware
 
 from .yahoo_helper import YahooHelper as yh
 
@@ -134,14 +135,11 @@ def performance(_df, risk_free, prefix=""):
     print(
         f"{prefix} Max Drawdown {maxdown_adj['drawdown']*100:0.2f}% on {maxdown_adj['date']:%Y-%m-%d}"
     )
-    print(f"{prefix} RoMaD {romad_adj*100:0.2f}%")
+    print(f"{prefix} RoMaD {romad_adj*100:,.2f}%")
 
 
 def get_symbol_returns(symbol, start=datetime(1900, 1, 1), end=datetime.now()):
     # Making start and end datetime aware
-    start = LUMIBOT_DEFAULT_PYTZ.localize(start, is_dst=None)
-    end = LUMIBOT_DEFAULT_PYTZ.localize(end, is_dst=None)
-
     returns_df = yh.get_symbol_data(symbol)
     returns_df = returns_df.loc[(returns_df.index >= start) & (returns_df.index <= end)]
     returns_df["pct_change"] = returns_df["Close"].pct_change()
@@ -152,6 +150,8 @@ def get_symbol_returns(symbol, start=datetime(1900, 1, 1), end=datetime.now()):
 
 
 def calculate_returns(symbol, start=datetime(1900, 1, 1), end=datetime.now()):
+    start = to_datetime_aware(start)
+    end = to_datetime_aware(end)
     benchmark_df = get_symbol_returns(symbol, start, end)
 
     risk_free_rate = get_risk_free_rate()

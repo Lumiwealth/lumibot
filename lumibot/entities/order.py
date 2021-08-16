@@ -35,7 +35,7 @@ class Order:
         position_filled=False,
     ):
         if isinstance(asset, str):
-            asset = entities.Asset(asset)
+            asset = entities.Asset(symbol=asset)
 
         # Initialization default values
         self.strategy = strategy
@@ -50,12 +50,14 @@ class Order:
         self.stop_price = None
         self.trail_price = None
         self.trail_percent = None
+        self.price_triggered = False
         self.take_profit_price = None
         self.stop_loss_price = None
         self.stop_loss_limit_price = None
         self.transactions = []
         self.order_class = None
         self.type = "market"
+        self.dependent_order = None
 
         # Options:
         self.exchange = exchange
@@ -147,6 +149,7 @@ class Order:
                 # This is a simple order with no legs
                 self.order_class = ""
 
+            # Set pricing of entry order.
             if trail_price is not None or trail_percent is not None:
                 self.type = "trailing_stop"
                 if trail_price is not None:
@@ -231,10 +234,14 @@ class Order:
             self._raw = raw
 
     def to_position(self, quantity):
+        position_qty = quantity
+        if self.side == self.SELL:
+            position_qty = -quantity
+
         position = entities.Position(
             self.strategy,
             self.asset,
-            quantity,
+            position_qty,
             orders=[self],
         )
         return position
@@ -247,7 +254,7 @@ class Order:
 
     def is_option(self):
         # Return true if this order is an option.
-        if self.sec_type == 'OPT':
+        if self.sec_type == "OPT":
             return True
         else:
             return False

@@ -33,24 +33,30 @@ class BacktestingBroker(Broker):
 
     def __getattribute__(self, name):
         attr = object.__getattribute__(self, name)
-        if name != "submit_order":
-            return attr
 
-        broker = self
+        if name == "submit_order":
 
-        @wraps(attr)
-        def new_func(order, *args, **kwargs):
-            result = attr(order, *args, **kwargs)
-            if result.was_transmitted():
-                orders = broker._flatten_order(result)
-                for order in orders:
-                    logging.info("%r was sent to broker %s" % (order, self.name))
+            broker = self
+
+            @wraps(attr)
+            def new_func(order, *args, **kwargs):
+                result = attr(order, *args, **kwargs)
+                if (
+                    result.was_transmitted()
+                    and result.order_class
+                    and result.order_class == "OCO"
+                ):
+                    orders = broker._flatten_order(result)
+                    for order in orders:
+                        logging.info("%r was sent to broker %s" % (order, self.name))
+                        broker._new_orders.append(order)
+                else:
                     broker._new_orders.append(order)
+                return result
 
-                broker.stream.dispatch(broker.FILLED_ORDER, order=order)
-            return result
-
-        return new_func
+            return new_func
+        else:
+            return attr
 
     @property
     def datetime(self):
@@ -82,14 +88,14 @@ class BacktestingBroker(Broker):
 
     def is_market_open(self):
         """return True if market is open else false"""
-        now = self._data_source.localize_datetime(self.datetime)
+        now = self.datetime
         return (
             (now >= self._trading_days.market_open)
             & (now < self._trading_days.market_close)
         ).any()
 
     def _get_next_trading_day(self):
-        now = self._data_source.localize_datetime(self.datetime)
+        now = self.datetime
         search = self._trading_days[now < self._trading_days.market_open]
         if search.empty:
             raise self.CannotPredictFuture
@@ -98,7 +104,7 @@ class BacktestingBroker(Broker):
 
     def get_time_to_open(self):
         """Return the remaining time for the market to open in seconds"""
-        now = self._data_source.localize_datetime(self.datetime)
+        now = self.datetime
         search = self._trading_days[now < self._trading_days.market_close]
         if search.empty:
             raise self.CannotPredictFuture
@@ -112,7 +118,7 @@ class BacktestingBroker(Broker):
 
     def get_time_to_close(self):
         """Return the remaining time for the market to close in seconds"""
-        now = self._data_source.localize_datetime(self.datetime)
+        now = self.datetime
         search = self._trading_days[now < self._trading_days.market_close]
         if search.empty:
             raise self.CannotPredictFuture
@@ -144,7 +150,7 @@ class BacktestingBroker(Broker):
         orders = []
         quantity = 0
         for position in self._filled_positions:
-            if position.asset.same_as(asset):
+            if position.asset == asset:
                 orders.extend(position.orders)
                 quantity += position.quantity
 
@@ -184,34 +190,81 @@ class BacktestingBroker(Broker):
 
     def _flatten_order(self, order):
         """Some submitted orders may triggers other orders.
-        _flatten_order returns a list containing the main order
-        and all the derived ones"""
-        orders = [order]
-        if order.stop_price:
+        _flatten_order returns a list containing the derived orders"""
+
+        orders = []
+        if order.order_class == "":
+            orders.append(order)
+            if order.stop_price:
+                stop_loss_order = Order(
+                    order.strategy,
+                    order.asset,
+                    order.quantity,
+                    order.side,
+                    stop_price=order.stop_price,
+                )
+                stop_loss_order = self._parse_broker_order(
+                    stop_loss_order, order.strategy
+                )
+                orders.append(stop_loss_order)
+
+        elif order.order_class == "oco":
             stop_loss_order = Order(
                 order.strategy,
                 order.asset,
                 order.quantity,
-                "sell",
-                stop_price=order.stop_price,
+                order.side,
+                stop_price=order.stop_loss_price,
             )
-            stop_loss_order = self._parse_broker_order(stop_loss_order, order.strategy)
             orders.append(stop_loss_order)
+
+            limit_order = Order(
+                order.strategy,
+                order.asset,
+                order.quantity,
+                order.side,
+                limit_price=order.take_profit_price,
+            )
+            orders.append(limit_order)
+
+            stop_loss_order.dependent_order = limit_order
+            limit_order.dependent_order = stop_loss_order
+
+        elif order.order_class in ["bracket", "oto"]:
+            side = "sell" if order.side == "buy" else "buy"
+            if order.order_class == "bracket" or (
+                order.order_class == "oto" and order.stop_loss_price
+            ):
+                stop_loss_order = Order(
+                    order.strategy,
+                    order.asset,
+                    order.quantity,
+                    side,
+                    stop_price=order.stop_loss_price,
+                    limit_price=order.stop_loss_limit_price,
+                )
+                orders.append(stop_loss_order)
+
+            if order.order_class == "bracket" or (
+                order.order_class == "oto" and order.take_profit_price
+            ):
+                limit_order = Order(
+                    order.strategy,
+                    order.asset,
+                    order.quantity,
+                    side,
+                    limit_price=order.take_profit_price,
+                )
+                orders.append(limit_order)
+
+            if order.order_class == "bracket":
+                stop_loss_order.dependent_order = limit_order
+                limit_order.dependent_order = stop_loss_order
 
         return orders
 
     def submit_order(self, order):
         """Submit an order for an asset"""
-        if order.order_class or order.type != "market":
-            if order.order_class:
-                logging.warning(
-                    "Backtest executes Bracket, OTO and OCO orders as simple orders"
-                )
-            else:
-                logging.warning(
-                    "Backtest executes limit, stop, stop_limit and trailing orders as market orders"
-                )
-
         order.set_identifier(token_hex(16))
         order.update_raw(order)
         return order
@@ -224,10 +277,121 @@ class BacktestingBroker(Broker):
 
     def cancel_order(self, order):
         """Cancel an order"""
-        pass
+        self.stream.dispatch(
+            self.CANCELED_ORDER,
+            order=order,
+        )
+
+    def process_pending_orders(self, strategy):
+        """Used to evaluate and execute open orders in backtesting.
+
+        This method will evaluate the open orders at the beginning of every new bar to
+        determine if any of the open orders should have been filled. This method will
+        execute order events as needed, mostly fill events.
+        """
+        pending_orders = [
+            order
+            for order in self.get_tracked_orders(strategy)
+            if order.status in ["unprocessed", "new"]
+        ]
+
+        if len(pending_orders) == 0:
+            return
+
+        for order in pending_orders:
+            # Check validity if current date > valid date, cancel order. todo
+            price = 0
+            filled_quantity = order.quantity
+
+            ohlc = self.get_last_bar(order.asset)
+            open = ohlc["open"]
+            high = ohlc["high"]
+            low = ohlc["low"]
+            close = ohlc["close"]
+            volume = ohlc["volume"]
+
+            # Determine transaction price.
+            if order.type == "market":
+                price = open
+            elif order.type == "limit":
+                price = self.limit_order(order.limit_price, order.side, open, high, low)
+            elif order.type == "stop":
+                price = self.stop_order(order.stop_price, order.side, open, high, low)
+            elif order.type == "stop_limit":
+                if not order.price_triggered:
+                    price = self.stop_order(
+                        order.stop_price, order.side, open, high, low
+                    )
+                    if price != 0:
+                        price = self.limit_order(
+                            order.limit_price, order.side, price, high, low
+                        )
+                        order.price_triggered = True
+                elif order.price_triggered:
+                    price = self.limit_order(
+                        order.limit_price, order.side, open, high, low
+                    )
+            else:
+                raise ValueError(
+                    f"Order type {order.type} is not allowable in backtesting."
+                )
+
+            if price != 0:
+                if order.dependent_order:
+                    self.cancel_order(order.dependent_order)
+
+                if order.order_class in ["bracket", "oto"]:
+                    orders = self._flatten_order(order)
+                    for flat_order in orders:
+                        logging.info(
+                            "%r was sent to broker %s" % (flat_order, self.name)
+                        )
+                        self._new_orders.append(flat_order)
+
+                self.stream.dispatch(
+                    self.FILLED_ORDER,
+                    order=order,
+                    price=price,
+                    filled_quantity=filled_quantity,
+                )
+            else:
+                continue
+
+    def limit_order(self, limit_price, side, open, high, low):
+        """Limit order logic. """
+        if side == "buy":
+            if limit_price >= open:
+                return open
+            elif limit_price < open and limit_price >= low:
+                return limit_price
+            elif limit_price < low:
+                return 0
+        elif side == "sell":
+            if limit_price <= open:
+                return open
+            elif limit_price > open and limit_price <= high:
+                return limit_price
+            elif limit_price > high:
+                return 0
+
+    def stop_order(self, stop_price, side, open, high, low):
+        """Stop order logic. """
+        if side == "buy":
+            if stop_price <= open:
+                return open
+            elif stop_price > open and stop_price <= high:
+                return stop_price
+            elif stop_price > high:
+                return 0
+        elif side == "sell":
+            if stop_price >= open:
+                return open
+            elif stop_price < open and stop_price >= low:
+                return stop_price
+            elif stop_price < low:
+                return 0
 
     # =========Market functions=======================
-
     def get_last_price(self, asset):
         """Takes an asset asset and returns the last known price"""
         return self._data_source.get_last_price(asset)
@@ -235,6 +399,12 @@ class BacktestingBroker(Broker):
     def get_last_prices(self, symbols):
         """Takes a list of symbols and returns the last known prices"""
         return self._data_source.get_last_prices(symbols)
+
+    def get_last_bar(self, asset):
+        """Returns OHLCV dictionary for last bar of the asset. """
+        return self._data_source.get_symbol_bars(asset, 1).df.to_dict(orient="records")[
+            0
+        ]
 
     # ==========Processing streams data=======================
 
@@ -249,18 +419,24 @@ class BacktestingBroker(Broker):
         broker = self
 
         @broker.stream.add_action(broker.FILLED_ORDER)
-        def on_trade_event(order):
+        def on_trade_event(order, price, filled_quantity):
             try:
-                identifier = order.identifier
-                asset = order.asset
-                stored_order = broker.get_tracked_order(identifier)
-                filled_quantity = stored_order.quantity
-                price = broker.get_last_price(asset)
                 broker._process_trade_event(
-                    stored_order,
+                    order,
                     broker.FILLED_ORDER,
                     price=price,
                     filled_quantity=filled_quantity,
+                )
+                return True
+            except:
+                logging.error(traceback.format_exc())
+
+        @broker.stream.add_action(broker.CANCELED_ORDER)
+        def on_trade_event(order):
+            try:
+                broker._process_trade_event(
+                    order,
+                    broker.CANCELED_ORDER,
                 )
                 return True
             except:

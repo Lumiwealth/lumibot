@@ -1,102 +1,94 @@
 from collections import UserDict
+from pydantic import BaseModel, validator
+from typing import Optional
 
 
-class Asset:
+class Asset(BaseModel, frozen=True, extra='forbid'):
     """
-    This is a base class for Assets.
-    Member attributes:
-      - symbol (string): The symbol used to retrieve stock quotes if stock. The
-          underlying symbol if option.
-      - name (string): Long form name. Used only for printing. e.g. `Facebook Inc.`
-      - asset_type (string, default: `stock`): One of the following:
+    This is a base class for Assets including stocks, futures, options
+    and forex.
+
+    Parameters
+    ----------
+    symbol : str
+        Symbol of the stock or underlying in case of futures/options.
+    asset_type : str
+        Asset types are only `stock`, 'option`, `future`, `forex`,
+        default : `stock`
+    expiration : str
+        Option or futures expiration.
+        Format for options "YYYYMMDD", for futures "YYYYMM"
+    strike : str
+        Options strike as string.
+    right : str
+        `CALL` or `PUT`
+        default : ""
+    multiplier : int
+        Price multiplier.
+        default : 1
+    currency=None,
+
+    Attributes
+    ----------
+    symbol : string
+    The symbol used to retrieve stock quotes if stock. The underlying
+    symbol if option. For Forex: The base currency.
+    asset_type (string, default: `stock`): One of the following:
         - `stock`
         - `option`
         - `future`
         - 'forex'
-      If asset_type is `option` then the following fields are mandatory.
-      - expiration (string, "YYYY-MM-DD"): Contract expiration date.
-          For futures:
-          - expiration (string, "YYYYMM"): (use for futures)
-      - strike (float): Contract strike price.
-      - right(string): `call` or `put`
-      - multiplier (int): Contract leverage over the underlying.
-      If the asset_type if 'forex' then use the following fields:
-      - symbol (string): The base currency.
-      - currency (string): Conversion currency.
-      - asset_type(string): `forex`
-      When ordering forex, use the full dallar value, minimums of 20,000.
+    expiration : string
+        Contract expiration dates for futures and options.
+    strike : float
+        Contract strike price.
+    right : str
+        Option call or put.
+    multiplier : int
+        Contract leverage over the underlying.
+    currency : string
+        Conversion currency.
+    _asset_types : list of str
+        Acceptable asset types.
+    _right : list of str
+        Acceptable values for right.
+
+    Methods
+    -------
+    asset_type_must_be_one_of(@"asset_type")
+        validates asset types.
+    right_must_be_one_of(@"right")
+        validates rights types.
     """
 
-    def __init__(
-        self,
-        symbol,
-        asset_type="stock",
-        name="",
-        expiration=None,
-        strike=None,
-        right=None,
-        multiplier=1,
-        currency=None,
-    ):
-        self.asset_types = ["stock", "option", "future", "forex"]
+    symbol: str
+    asset_type: str = "stock"
+    expiration: Optional[str] = None
+    strike: Optional[str] = ""
+    right: Optional[str] = None
+    multiplier: int = 1
+    currency: Optional[str] = "USD"
+    _asset_types: list = ["stock", "option", "future", "forex"]
+    _right: list = ["CALL", "PUT"]
 
-        self.symbol = symbol
-        self.asset_type = asset_type
-        self.name = name
-
-        # Options
-        self.expiration = expiration
-        self.strike = strike
-        self.right = right
-        self.multiplier = int(multiplier)
-
-        # Forex
-        self.currency = currency
-
-    @property
-    def asset_type(self):
-        return self._asset_type
-
-    @asset_type.setter
-    def asset_type(self, value):
-        if not value:
-            value = "stock"
-        if value not in self.asset_types:
-            raise ValueError(f"Asset asset_type must be one of {self.asset_types}")
-        self._asset_type = value
-
-    # Option methods
-    def is_option(self):
-        return self._asset_type == "option"
-
-    @property
-    def strike_str(self):
-        return str(self.strike)
-
-    def __repr__(self):
-        stock_repr = f"{self.symbol.upper()}, Type: {self.asset_type} "
-        option_repr = (
-            f"Exp: {self.expiration} " f"Strike: {self.strike} " f"Right: {self.right} "
-        )
-
-        if self.asset_type == "stock":
-            return stock_repr
-        else:
-            return stock_repr + option_repr
-
-    def same_as(self, other):
-        # Check if an asset is the same as other, return `True` if so.
-        if isinstance(other, Asset):
-            return (
-                self.symbol == other.symbol
-                and self.asset_type == other.asset_type
-                and self.expiration == other.expiration
-                and self.strike == other.strike
-                and self.right == other.right
-                and self.multiplier == other.multiplier
+    @validator("asset_type")
+    def asset_type_must_be_one_of(cls, v):
+        if v not in cls._asset_types:
+            raise ValueError(
+                f"`asset_type` must be one of {', '.join(cls._asset_types)}"
             )
+        return v
 
-        return False
+    @validator("right")
+    def right_must_be_one_of(cls, v):
+        if v is None:
+            return
+
+        v = v.upper()
+        if v not in cls._right:
+            raise ValueError(f"`right` is {v} must be one of {', '.join(cls._right)}, upper case.")
+        return v
+
 
 class AssetsMapping(UserDict):
     def __init__(self, mapping):
@@ -117,6 +109,6 @@ class AssetsMapping(UserDict):
 
     def __setitem__(self, key, value):
         if isinstance(key, str):
-            self.data[Asset(key)] = value
+            self.data[Asset(symbol=key)] = value
         else:
             self.data[key] = value

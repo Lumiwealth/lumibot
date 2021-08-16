@@ -4,3 +4,4 @@ from .data_source import DataSource
 from .exceptions import NoDataFound, UnavailabeTimestep
 from .interactive_brokers_data import InteractiveBrokersData
 from .yahoo import YahooData
+from .pandas import PandasData

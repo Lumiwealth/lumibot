@@ -54,7 +54,10 @@ class DataSource:
 
     @classmethod
     def localize_datetime(cls, dt):
-        return cls.DEFAULT_PYTZ.localize(dt, is_dst=None)
+        if dt.tzinfo is not None and dt.tzinfo.utcoffset(dt) is not None:
+            return cls.to_default_timezone(dt)
+        else:
+            return cls.DEFAULT_PYTZ.localize(dt, is_dst=None)
 
     @classmethod
     def to_default_timezone(cls, dt):
@@ -102,7 +105,7 @@ class DataSource:
     def get_symbol_bars(self, asset, length, timestep="", timeshift=None):
         """Get bars for a given asset"""
         if isinstance(asset, str):
-            asset = Asset(asset)
+            asset = Asset(symbol=asset)
 
         if not timestep:
             timestep = self.MIN_TIMESTEP
@@ -126,7 +129,7 @@ class DataSource:
         max_workers=200,
     ):
         """Get bars for the list of assets"""
-        assets = [Asset(a) if isinstance(a, str) else a for a in assets]
+        assets = [Asset(symbol=a) if isinstance(a, str) else a for a in assets]
 
         if not timestep:
             timestep = self.MIN_TIMESTEP

@@ -114,7 +114,7 @@ class Strategy(_Strategy):
             trail_price=trail_price,
             trail_percent=trail_percent,
             exchange=exchange,
-            sec_type=asset.asset_types,
+            sec_type=asset.asset_type,
             expiration=asset.expiration,
             strike=asset.strike,
             right=asset.right,
@@ -330,22 +330,24 @@ class Strategy(_Strategy):
     def to_default_timezone(self, dt):
         return self.data_source.to_default_timezone(dt)
 
+    def load_pandas(self, asset, df):
+        asset = self._set_asset_mapping(asset)
+        self.data_source.load_pandas(asset, df)
+
     def create_asset(
         self,
         symbol,
-        asset_type=None,
-        name="",
-        expiration="",
+        asset_type='stock',
+        expiration=None,
         strike="",
-        right="",
-        multiplier=100,
-        currency=None,
+        right=None,
+        multiplier=1,
+        currency="USD",
     ):
         """Create an asset object."""
         return Asset(
-            symbol,
+            symbol=symbol,
             asset_type=asset_type,
-            name=name,
             expiration=expiration,
             strike=strike,
             right=right,

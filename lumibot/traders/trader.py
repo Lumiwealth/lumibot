@@ -60,7 +60,7 @@ class Trader:
         if self.debug:
             logger.setLevel(logging.DEBUG)
         elif self.is_backtest:
-            logger.setLevel(logging.DEBUG)  # todo change to ERROR
+            logger.setLevel(logging.CRITICAL)  # todo change to ERROR
         else:
             logger.setLevel(logging.INFO)
 

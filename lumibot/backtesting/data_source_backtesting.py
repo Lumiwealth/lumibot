@@ -13,6 +13,7 @@ class DataSourceBacktesting(DataSource):
         self.datetime_start = datetime_start
         self.datetime_end = datetime_end
         self._datetime = datetime_start
+        self._iter_count = None
 
     def get_datetime(self):
         return self._datetime
@@ -36,25 +37,25 @@ class DataSourceBacktesting(DataSource):
         self._datetime = new_datetime
         print_progress_bar(new_datetime, self.datetime_start, self.datetime_end)
 
-    def _pull_source_symbol_bars(self, asset, length, timestep=None, timeshift=None):
+    def _pull_source_symbol_bars(self, asset, length, timestep=None, timeshift=0):
         if timestep is None:
-            timestep = self.MIN_TIMESTEP
+            timestep = self.get_timestep()
 
-        now = datetime.now()
-        now_local = self.localize_datetime(now)
-        backtesting_timeshift = now_local - self._datetime
-        if timeshift:
-            backtesting_timeshift += timeshift
-
-        if timestep == "day":
-            backtesting_timeshift += timedelta(days=1)
-        elif timestep == "minute":
-            backtesting_timeshift += timedelta(minutes=1)
+        # now = datetime.now()
+        # now_local = self.localize_datetime(now)
+        # backtesting_timeshift = now_local - self._datetime
+        # if timeshift:
+        #     backtesting_timeshift += timeshift
+        #
+        # if timestep == "day":
+        #     backtesting_timeshift += timedelta(days=1)
+        # elif timestep == "minute":
+        #     backtesting_timeshift += timedelta(minutes=1)
 
         result = self.LIVE_DATA_SOURCE._pull_source_symbol_bars(
-            self, asset, length, timestep=timestep, timeshift=backtesting_timeshift
+            self, asset, length, timestep=timestep, timeshift=timeshift
         )
 
-        filter_criteria = result.index < self._datetime
-        result = result[filter_criteria]
+        # filter_criteria = result.index < self._datetime
+        # result = result[filter_criteria]
         return result

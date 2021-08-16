@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 
+import numba
 import pandas as pd
 
 from lumibot.data_sources.exceptions import NoDataFound
@@ -25,13 +26,13 @@ class PandasData(DataSource):
         self._data_store = {}
         self._date_index = None
         self._date_supply = None
-
+        self._timestep = 'day'
     def load_data(self, pandas_data):
         for asset, data in pandas_data.items():
             if "Date" in data.columns:
                 data = data.set_index("Date")
-                data.index = pd.to_datetime(data.index)
-                data.index = data.index.tz_localize(self.DEFAULT_PYTZ)
+            data.index = pd.to_datetime(data.index)
+            data.index = data.index.tz_localize(self.DEFAULT_PYTZ)
             self._append_data(asset, data)
 
     def _append_data(self, asset, data):
@@ -77,25 +78,30 @@ class PandasData(DataSource):
             self._date_index = self._date_index.union(new_date_index)
 
     def _pull_source_symbol_bars(
-        self, asset, length, timestep=MIN_TIMESTEP, timeshift=None
+        self, asset, length, timestep=MIN_TIMESTEP, timeshift=0
     ):
-        self._parse_source_timestep(timestep, reverse=True)  # todo, doing nothing
+        if not timeshift:
+            timeshift = 0
+
+        # self._parse_source_timestep(timestep, reverse=True)  # todo, doing nothing
         if asset in self._data_store:
             data = self._data_store[asset]
         else:
             raise ValueError(f"Asset {asset} does not have data.")
 
-        if timeshift:
-            now = datetime.now()
-            now_local = self.localize_datetime(now)
-            end = now_local - timeshift
-            end = pd.Timestamp(self.to_default_timezone(end))
-            data = data.loc[data.index < end, :]
-            # TODO: If this date doesn't exactly match the date (or if some dates are missing)
-            # then do a ffill or something with zero volume? How should we handle missing dates?
+        # if timeshift:
+        #     now = datetime.now()
+        #     now_local = self.localize_datetime(now)
+        #     end = now_local - timeshift
+        #     end = pd.Timestamp(self.to_default_timezone(end))
+        #     data = data.loc[data.index < end, :]
+        #     # then do a ffill or something with zero volume? How should we handle missing dates?
 
-        result = data.tail(length)
-        return result
+        # todo if timeshift is greater than iter_count there will be an error.
+        # result = data.tail(length)
+        end_row = self._iter_count + 1 - timeshift
+        start_row = end_row - length
+        return data.iloc[start_row: end_row, :]
 
     def _pull_source_bars(self, assets, length, timestep=MIN_TIMESTEP, timeshift=None):
         """pull broker bars for a list assets"""
@@ -115,6 +121,7 @@ class PandasData(DataSource):
                 asset, length, timestep=timestep, timeshift=timeshift
             )
         return result
+
 
     def _parse_source_symbol_bars(self, response, asset):
         bars = Bars(response, self.SOURCE, asset, raw=response)

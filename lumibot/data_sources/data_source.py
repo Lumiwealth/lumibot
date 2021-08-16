@@ -63,6 +63,12 @@ class DataSource:
     def to_default_timezone(cls, dt):
         return dt.astimezone(cls.DEFAULT_PYTZ)
 
+    def get_timestep(self):
+        if self.IS_BACKTESTING_DATA_SOURCE:
+            return self._timestep
+        else:
+            return self.MIN_TIMESTEP
+
     # ========Internal Market Data Methods===================
 
     def _parse_source_timestep(self, timestep, reverse=False):
@@ -108,7 +114,7 @@ class DataSource:
             asset = Asset(symbol=asset)
 
         if not timestep:
-            timestep = self.MIN_TIMESTEP
+            timestep = self.get_timestep()
 
         response = self._pull_source_symbol_bars(
             asset, length, timestep=timestep, timeshift=timeshift
@@ -156,7 +162,10 @@ class DataSource:
     def get_last_price(self, asset, timestep=None):
         """Takes an asset and returns the last known price"""
         if timestep is None:
-            timestep = self.MIN_TIMESTEP
+            timestep = self.get_timestep()
+        if self.IS_BACKTESTING_DATA_SOURCE:
+            last_price = self._data_store[asset]['close'][self._iter_count + 1]
+            return last_price
         bars = self.get_symbol_bars(asset, 1, timestep=timestep)
         if isinstance(bars, float):
             return bars

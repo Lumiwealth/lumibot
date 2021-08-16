@@ -89,8 +89,8 @@ def print_progress_bar(
     decimals=2,
     fill=chr(9608),
 ):
-    if isinstance(value, pd.Timestamp):
-        value = value.tz_localize(None)
+    # if isinstance(value, pd.Timestamp): # todo this remove timestame but needed for daily
+    #     value = value.tz_localize(None)
 
     total_length = end_value - start_value
     current_length = value - start_value

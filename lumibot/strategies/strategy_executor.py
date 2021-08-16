@@ -255,13 +255,34 @@ class StrategyExecutor(Thread):
     # ======Execution methods ====================
     def _run_daily_trading(self):
         """Used for backtesting only, daily data.
+        data_source_backtesting._iter_count = 0
         Update the index,
         Update the date,
+        self.broker._data_source._iter_count
+        self.broker._data_source._date_index
+        _update_datetime(self, input) input can be the next date in the index `backtesting broker`
+            datetime entry
         Outstanding orders evaluated against previous close
         Update cash balances.
-        on_trading_iteration Issue new orders here.
+        # on_trading_iteration Issue new orders here.
         """
-        pass
+        if self.broker._data_source._iter_count is None:
+            self.broker._data_source._iter_count = 0
+        else:
+            self.broker._data_source._iter_count += 1
+
+        datetime = self.broker._data_source._date_index[self.broker._data_source._iter_count]
+
+        self.broker._update_datetime(datetime)
+        # Is this update money dividends in the right place? Maybe after orders. or both
+        if self.broker.IS_BACKTESTING_BROKER:
+            self.broker.process_pending_orders(strategy=self.strategy.name)
+        self.strategy._update_unspent_money_with_dividends()
+        self._on_trading_iteration()
+
+
+
+
 
     def _run_trading_session(self):
         """This is really intraday trading method. Timeframes of less than a day, seconds,
@@ -329,6 +350,7 @@ class StrategyExecutor(Thread):
         self._initialize()
         while self.broker.should_continue() and self.should_continue:
             try:
+                # self._run_daily_trading()
                 self._run_trading_session()
             except Exception as e:
                 logging.error(e)

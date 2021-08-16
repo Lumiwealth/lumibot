@@ -34,7 +34,7 @@ budget = 40000
 
 # Naive
 backtesting_start = datetime(2019, 1, 1)
-backtesting_end = datetime(2019, 1, 31)
+backtesting_end = datetime(2019, 12, 31)
 
 
 logfile = "logs/test.log"
@@ -110,7 +110,7 @@ mapping = {
         "kwargs": {},
         "backtesting_cache": False,
         "config": None,
-        "pandas_data": div_data ,
+        "pandas_data": div_data,
     },
 }
 

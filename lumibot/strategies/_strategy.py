@@ -251,27 +251,27 @@ class _Strategy:
 
                 cagr_value = self._benchmark_analysis["cagr"]
                 self.log_message(
-                    f"{self._benchmark_asset} CAGR {round(100 * cagr_value, 2)}%"
+                    f"{self._benchmark_asset} CAGR {cagr_value*100:,.2f}%"
                 )
 
                 volatility_value = self._benchmark_analysis["volatility"]
                 self.log_message(
-                    f"{self._benchmark_asset} Volatility {round(100 * volatility_value, 2)}%"
+                    f"{self._benchmark_asset} Volatility {volatility_value*100:,.2f}%"
                 )
 
                 sharpe_value = self._benchmark_analysis["sharpe"]
                 self.log_message(
-                    f"{self._benchmark_asset} Sharpe {round(sharpe_value, 2)}"
+                    f"{self._benchmark_asset} Sharpe {sharpe_value:,.2f}"
                 )
 
                 max_drawdown_result = self._benchmark_analysis["max_drawdown"]
                 self.log_message(
-                    f"{self._benchmark_asset} Max Drawdown {round(100 * max_drawdown_result['drawdown'], 2)}% on {max_drawdown_result['date']:%Y-%m-%d}"
+                    f"{self._benchmark_asset} Max Drawdown {max_drawdown_result['drawdown']*100:,.2f}% on {max_drawdown_result['date']:%Y-%m-%d}"
                 )
 
                 romad_value = self._benchmark_analysis["romad"]
                 self.log_message(
-                    f"{self._benchmark_asset} RoMaD {round(100 * romad_value, 2)}%"
+                    f"{self._benchmark_asset} RoMaD {romad_value*100:,.2f}%"
                 )
 
         logger.setLevel(current_level)

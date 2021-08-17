@@ -540,12 +540,16 @@ class Broker:
         else:
             logging.info("Unhandled type event %s for %r" % (type_event, stored_order))
 
-        if hasattr(self, "_data_source") and  self._data_source is not None and hasattr(
-        self._data_source, "get_datetime"):
+        if (
+            hasattr(self, "_data_source")
+            and self._data_source is not None
+            and hasattr(self._data_source, "get_datetime")
+        ):
             new_row = {
                 "time": self._data_source.get_datetime(),
                 "strategy": stored_order.strategy,
                 "exchange": stored_order.exchange,
+                "symbol": stored_order.symbol,
                 "side": stored_order.side,
                 "sec_type": stored_order.sec_type,
                 "type": stored_order.type,

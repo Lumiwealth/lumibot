@@ -250,9 +250,7 @@ class _Strategy:
                 )
 
                 cagr_value = self._benchmark_analysis["cagr"]
-                self.log_message(
-                    f"{self._benchmark_asset} CAGR {cagr_value*100:,.2f}%"
-                )
+                self.log_message(f"{self._benchmark_asset} CAGR {cagr_value*100:,.2f}%")
 
                 volatility_value = self._benchmark_analysis["volatility"]
                 self.log_message(
@@ -260,9 +258,7 @@ class _Strategy:
                 )
 
                 sharpe_value = self._benchmark_analysis["sharpe"]
-                self.log_message(
-                    f"{self._benchmark_asset} Sharpe {sharpe_value:,.2f}"
-                )
+                self.log_message(f"{self._benchmark_asset} Sharpe {sharpe_value:,.2f}")
 
                 max_drawdown_result = self._benchmark_analysis["max_drawdown"]
                 self.log_message(
@@ -366,6 +362,6 @@ class _Strategy:
 
         backtesting_broker.export_trade_events_to_csv(trades_file)
 
-        # strategy.plot_returns_vs_benchmark(plot_file)
+        strategy.plot_returns_vs_benchmark(plot_file)
 
         return result

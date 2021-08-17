@@ -165,13 +165,13 @@ def plot_returns(df1, name1, df2, name2, plot_file="backtest_result.pdf"):
     _df1 = df1.copy()
     _df1 = _df1.sort_index(ascending=True)
     _df1[name1] = (1 + _df1["return"]).cumprod()
-    _df1.index = _df1.index.date
+    _df1 = _df1.resample("1D").mean()
     dfs_concat.append(_df1.loc[:, [name1]])
 
     _df2 = df2.copy()
     _df2 = _df2.sort_index(ascending=True)
     _df2[name2] = (1 + _df2["return"]).cumprod()
-    _df2.index = _df2.index.date
+    _df2 = _df2.resample("1D").mean()
     dfs_concat.append(_df2.loc[:, [name2]])
 
     df_final = pd.concat(dfs_concat, join="outer", axis=1)

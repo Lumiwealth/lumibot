@@ -163,9 +163,7 @@ class DataSource:
         """Takes an asset and returns the last known price"""
         if timestep is None:
             timestep = self.get_timestep()
-        if self.IS_BACKTESTING_DATA_SOURCE:
-            last_price = self._data_store[asset]['close'][self._iter_count + 1]
-            return last_price
+
         bars = self.get_symbol_bars(asset, 1, timestep=timestep)
         if isinstance(bars, float):
             return bars

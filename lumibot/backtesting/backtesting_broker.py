@@ -402,9 +402,7 @@ class BacktestingBroker(Broker):
 
     def get_last_bar(self, asset):
         """Returns OHLCV dictionary for last bar of the asset. """
-        return self._data_source.get_symbol_bars(asset, 1).df.to_dict(orient="records")[
-            0
-        ]
+        return self._data_source.get_symbol_bars(asset, 1)
 
     # ==========Processing streams data=======================
 

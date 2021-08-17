@@ -27,39 +27,10 @@ class PandasData(DataSource):
         self._date_index = None
         self._date_supply = None
         self._timestep = 'day'
+
     def load_data(self, pandas_data):
-        for asset, data in pandas_data.items():
-            if "Date" in data.columns:
-                data = data.set_index("Date")
-            data.index = pd.to_datetime(data.index)
-            data.index = data.index.tz_localize(self.DEFAULT_PYTZ)
-            self._append_data(asset, data)
-
-    def _append_data(self, asset, data):
-        if "Adj Close" in data:
-            del data["Adj Close"]
-        data = data.rename(
-            columns={
-                "Open": "open",
-                "High": "high",
-                "Low": "low",
-                "Close": "close",
-                "Volume": "volume",
-                "Dividends": "dividend",
-                "Stock Splits": "stock_splits",
-            },
-        )
-        data["price_change"] = data["close"].pct_change()
-        if "dividend" in data:
-            data["dividend_yield"] = data["dividend"] / data["close"]
-        else:
-            data["dividend_yield"] = 0
-        data["return"] = data["dividend_yield"] + data["price_change"]
-        self._data_store[asset] = data
-
-        self.update_date_index(data.index)
-
-        return data
+        self._data_store = pandas_data
+        self.update_date_index()
 
     def get_assets(self):
         return list(self._data_store.keys())
@@ -70,12 +41,20 @@ class PandasData(DataSource):
     def get_asset_by_symbol(self, name):
         return [asset for asset in self.get_assets() if asset.name == name]
 
-    def update_date_index(self, new_date_index):
+    def update_date_index(self):
+        for asset, data in self._data_store.items():
+            if self._date_index is None:
+                self._date_index = data.datetime
+            # else:
+                # set([tuple(i) for i in arr.tolist()])
+                # self._date_index = self._date_index.union(new_date_index)
 
-        if self._date_index is None:
-            self._date_index = new_date_index
-        else:
-            self._date_index = self._date_index.union(new_date_index)
+    def get_last_price(self, asset, timestep=None):
+        """Takes an asset and returns the last known price"""
+        if timestep is None:
+            timestep = self.get_timestep()
+        last_price = self._data_store[asset].get_last_price(self._iter_count)
+        return last_price
 
     def _pull_source_symbol_bars(
         self, asset, length, timestep=MIN_TIMESTEP, timeshift=0
@@ -89,31 +68,15 @@ class PandasData(DataSource):
         else:
             raise ValueError(f"Asset {asset} does not have data.")
 
-        # if timeshift:
-        #     now = datetime.now()
-        #     now_local = self.localize_datetime(now)
-        #     end = now_local - timeshift
-        #     end = pd.Timestamp(self.to_default_timezone(end))
-        #     data = data.loc[data.index < end, :]
-        #     # then do a ffill or something with zero volume? How should we handle missing dates?
 
         # todo if timeshift is greater than iter_count there will be an error.
         # result = data.tail(length)
-        end_row = self._iter_count + 1 - timeshift
-        start_row = end_row - length
-        return data.iloc[start_row: end_row, :]
+        res = data.get_bars(self._iter_count, length, timestep, timeshift)
+        return res
 
     def _pull_source_bars(self, assets, length, timestep=MIN_TIMESTEP, timeshift=None):
         """pull broker bars for a list assets"""
         self._parse_source_timestep(timestep, reverse=True)
-        missing_assets = [
-            asset.symbol for asset in assets if asset not in self._data_store
-        ]
-
-        if missing_assets:
-            dfs = yh.get_symbols_data(missing_assets, auto_adjust=self.auto_adjust)
-            for symbol, df in dfs.items():
-                self._append_data(symbol, df)
 
         result = {}
         for asset in assets:
@@ -124,5 +87,12 @@ class PandasData(DataSource):
 
 
     def _parse_source_symbol_bars(self, response, asset):
+        return response
         bars = Bars(response, self.SOURCE, asset, raw=response)
         return bars
+
+    def get_yesterday_dividend(self, asset):
+        pass
+
+    def get_yesterday_dividends(self, assets):
+        pass

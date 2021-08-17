@@ -350,8 +350,8 @@ class StrategyExecutor(Thread):
         self._initialize()
         while self.broker.should_continue() and self.should_continue:
             try:
-                # self._run_daily_trading()
-                self._run_trading_session()
+                self._run_daily_trading()
+                # self._run_trading_session()
             except Exception as e:
                 logging.error(e)
                 logging.error(traceback.format_exc())

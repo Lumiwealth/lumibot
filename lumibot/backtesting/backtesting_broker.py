@@ -299,7 +299,9 @@ class BacktestingBroker(Broker):
             return
 
         for order in pending_orders:
-            # Check validity if current date > valid date, cancel order. todo
+            if order.dependent_order_filled:
+                continue
+
             price = 0
             filled_quantity = order.quantity
 
@@ -338,6 +340,7 @@ class BacktestingBroker(Broker):
 
             if price != 0:
                 if order.dependent_order:
+                    order.dependent_order.dependent_order_filled = True
                     self.cancel_order(order.dependent_order)
 
                 if order.order_class in ["bracket", "oto"]:

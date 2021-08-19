@@ -25,7 +25,6 @@ class StrategyExecutor(Thread):
         self.strategy = strategy
         self._strategy_context = None
         self.broker = self.strategy.broker
-        self.minutes_before_closing = self.strategy.minutes_before_closing
         self.result = {}
 
     @property
@@ -253,21 +252,37 @@ class StrategyExecutor(Thread):
             )
 
     # ======Execution methods ====================
+    def _run_daily_trading(self):
+        """Used for backtesting only, daily data.
+        Update the index,
+        Update the date,
+        Outstanding orders evaluated against previous close
+        Update cash balances.
+        on_trading_iteration Issue new orders here.
+        """
+        pass
 
     def _run_trading_session(self):
-        self.strategy.await_market_to_open()
+        """This is really intraday trading method. Timeframes of less than a day, seconds,
+        minutes, hours.
+        """
+        self.strategy.await_market_to_open()  # set new time and bar length. Check if hit bar max
+        # or date max.
         if not self.broker.is_market_open():
             self._before_market_opens()
 
         self.strategy.await_market_to_open(timedelta=0)
         self.strategy._update_unspent_money_with_dividends()
-        self._before_starting_trading()
+        self._before_starting_trading()  # Can't use this because it will have a different meaning
+        # in intraday trading.
 
         time_to_close = self.broker.get_time_to_close()
-        while time_to_close > self.minutes_before_closing * 60:
+        while time_to_close > self.strategy.minutes_before_closing * 60:
+            if self.broker.IS_BACKTESTING_BROKER:
+                self.broker.process_pending_orders(strategy=self.strategy.name)
             self._on_trading_iteration()
             time_to_close = self.broker.get_time_to_close()
-            sleeptime = time_to_close - self.minutes_before_closing * 60
+            sleeptime = time_to_close - self.strategy.minutes_before_closing * 60
             sleeptime_err_msg = (
                 f"You can set the sleep time as an integer which will be interpreted as "
                 f"minutes. eg: sleeptime = 50 would be 50 minutes. Conversely, you can enter "
@@ -300,7 +315,8 @@ class StrategyExecutor(Thread):
 
         self.strategy.await_market_to_close()
         if self.broker.is_market_open():
-            self._before_market_closes()
+            self._before_market_closes()  # perhaps the user could set the time of day based on
+            # their data that the market closes?
 
         self.strategy.await_market_to_close(timedelta=0)
         self._after_market_closes()

@@ -8,6 +8,7 @@ from lumibot.backtesting import YahooDataBacktesting
 from lumibot.brokers import InteractiveBrokers
 from lumibot.data_sources import InteractiveBrokersData
 from lumibot.strategies.examples import (
+    BuyAndHold,
     DebtTrading,
     Diversification,
     IntradayMomentum,
@@ -33,9 +34,35 @@ trader = Trader(logfile=logfile, debug=debug)
 
 # Strategies mapping
 mapping = {
-    "simple": {
-        "class": Simple,
+    "buy_and_hold": {
+        "class": BuyAndHold,
         "backtesting_datasource": YahooDataBacktesting,
+        "kwargs": {},
+        "backtesting_cache": False,
+        "config": None,
+    },
+    "debt_trading": {
+        "class": DebtTrading,
+        "backtesting_datasource": YahooDataBacktesting,
+        "kwargs": {},
+        "config": None,
+    },
+    "diversification": {
+        "class": Diversification,
+        "backtesting_datasource": YahooDataBacktesting,
+        "kwargs": {},
+        "config": None,
+    },
+    "fast_trading": {
+        "class": FastTrading,
+        "backtesting_datasource": None,
+        "kwargs": {},
+        "backtesting_cache": False,
+        "config": None,
+    },
+    "intraday_momentum": {
+        "class": IntradayMomentum,
+        "backtesting_datasource": None,
         "kwargs": {},
         "config": None,
     },
@@ -45,21 +72,9 @@ mapping = {
         "kwargs": {"symbols": ["SPY", "VEU", "AGG"]},
         "config": None,
     },
-    "diversification": {
-        "class": Diversification,
+    "simple": {
+        "class": Simple,
         "backtesting_datasource": YahooDataBacktesting,
-        "kwargs": {},
-        "config": None,
-    },
-    "debt_trading": {
-        "class": DebtTrading,
-        "backtesting_datasource": YahooDataBacktesting,
-        "kwargs": {},
-        "config": None,
-    },
-    "intraday_momentum": {
-        "class": IntradayMomentum,
-        "backtesting_datasource": None,
         "kwargs": {},
         "config": None,
     },
@@ -67,13 +82,6 @@ mapping = {
         "class": Strangle,
         "backtesting_datasource": None,
         "kwargs": {},
-        "config": None,
-    },
-    "fast_trading": {
-        "class": FastTrading,
-        "backtesting_datasource": None,
-        "kwargs": {},
-        "backtesting_cache": False,
         "config": None,
     },
 }

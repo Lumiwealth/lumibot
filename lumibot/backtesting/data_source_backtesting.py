@@ -1,7 +1,9 @@
 from datetime import datetime, timedelta
 
+import pandas as pd
+
 from lumibot.data_sources import DataSource
-from lumibot.tools import print_progress_bar
+from lumibot.tools import print_progress_bar, to_datetime_aware
 
 
 class DataSourceBacktesting(DataSource):
@@ -13,7 +15,7 @@ class DataSourceBacktesting(DataSource):
         self._datetime = datetime_start
 
     def get_datetime(self):
-        return self.DEFAULT_PYTZ.localize(self._datetime)
+        return self._datetime
 
     def get_datetime_range(self, length, timestep="minute", timeshift=None):
         backtesting_timeshift = datetime.now() - self._datetime
@@ -38,7 +40,9 @@ class DataSourceBacktesting(DataSource):
         if timestep is None:
             timestep = self.MIN_TIMESTEP
 
-        backtesting_timeshift = datetime.now() - self._datetime
+        now = datetime.now()
+        now_local = self.localize_datetime(now)
+        backtesting_timeshift = now_local - self._datetime
         if timeshift:
             backtesting_timeshift += timeshift
 
@@ -51,6 +55,6 @@ class DataSourceBacktesting(DataSource):
             self, asset, length, timestep=timestep, timeshift=backtesting_timeshift
         )
 
-        filter_criteria = result.index < self.localize_datetime(self._datetime)
+        filter_criteria = result.index < self._datetime
         result = result[filter_criteria]
         return result

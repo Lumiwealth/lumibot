@@ -3,8 +3,6 @@ from datetime import datetime
 
 import pandas as pd
 
-from lumibot.data_sources.exceptions import NoDataFound
-
 from .bar import Bar
 
 
@@ -15,7 +13,7 @@ class Bars:
         df index: pd.Timestamp localized at the timezone America/New_York
         """
         if df.shape[0] == 0:
-            raise NoDataFound(source, asset)
+            raise NoBarDataFound(source, asset)
         self.df = df
         self.source = source.upper()
         self.asset = asset
@@ -96,3 +94,34 @@ class Bars:
 
         volume = df_copy["volume"].sum()
         return volume
+
+    def aggregate_bars(self, frequency):
+        """
+        Will convert a set of bars to a different timeframe (eg. 1 min to 15 min)
+        frequency (string): The new timeframe that the bars should be in, eg. "15Min", "1H", or "1D"
+        Returns a new bars object.
+        """
+        new_df = self.df.groupby(pd.Grouper(freq=frequency)).agg(
+            {
+                "open": "first",
+                "close": "last",
+                "low": "min",
+                "high": "max",
+                "volume": "sum",
+            }
+        )
+        new_df.columns = ["open", "close", "low", "high", "volume"]
+        new_df = new_df.dropna()
+
+        new_bars = Bars(new_df, self.source, self.asset)
+
+        return new_bars
+
+
+class NoBarDataFound(Exception):
+    def __init__(self, source, asset):
+        message = (
+            f"{source} did not return data for symbol {asset.symbol}. "
+            f"Make sure there is no symbol typo or use another data source"
+        )
+        super(NoBarDataFound, self).__init__(message)

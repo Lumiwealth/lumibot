@@ -1,12 +1,16 @@
 import argparse
 import logging
 from datetime import datetime
+import pandas as pd
 from time import perf_counter, time
+import pytz
+from finta import TA
 
 from credentials import AlpacaConfig
-from lumibot.backtesting import YahooDataBacktesting
+from lumibot.backtesting import YahooDataBacktesting, PandasDataBacktesting
 from lumibot.brokers import Alpaca
 from lumibot.data_sources import AlpacaData
+from lumibot.entities import Asset
 from lumibot.strategies.examples import (
     BuyAndHold,
     DebtTrading,
@@ -20,10 +24,19 @@ from lumibot.tools import indicators, perf_counters
 from lumibot.traders import Trader
 
 # Global parameters
-debug = False
+debug = True
 budget = 40000
+
+# Time zone aware
+# tz = pytz.timezone("America/New_York")
+# backtesting_start = tz.localize(datetime(2019, 1, 1))
+# backtesting_end = tz.localize(datetime(2020, 12, 31))
+
+# Naive
 backtesting_start = datetime(2019, 1, 1)
-backtesting_end = datetime(2020, 12, 31)
+backtesting_end = datetime(2019, 1, 31)
+
+
 logfile = "logs/test.log"
 
 # Trading objects
@@ -31,25 +44,44 @@ alpaca_broker = Alpaca(AlpacaConfig)
 alpaca_data_source = AlpacaData(AlpacaConfig)
 trader = Trader(logfile=logfile, debug=debug)
 
+# Development: Minute Data
+# asset = "SPY"
+asset = Asset(symbol="SPY")
+df = pd.read_csv("data/dev_min_2019.csv", parse_dates=True)
+df = df.set_index('date')
+# df["SMA15"] = TA.SMA(df, 15)
+# df["SMA100"] = TA.SMA(df, 100)
+minute_df = dict()
+minute_df[asset] = df
+
+# Diversification: Multi Daily data.
+tickers = ["SPY", "TLT", "IEF", "GLD", "DJP",]
+div_data = dict()
+for ticker in tickers:
+    div_data[Asset(symbol=ticker)] = pd.read_csv(f"data/{ticker}.csv")
+
 # Strategies mapping
 mapping = {
     "momentum": {
         "class": Momentum,
-        "backtesting_datasource": YahooDataBacktesting,
-        "kwargs": {"symbols": ["SPY", "VEU", "AGG"]},
+        "backtesting_datasource": PandasDataBacktesting,
+        "kwargs": {"symbols": tickers},  # {"symbols": ["SPY", "VEU", "AGG"]},
         "config": None,
+        "pandas_data": div_data,
     },
     "diversification": {
         "class": Diversification,
         "backtesting_datasource": YahooDataBacktesting,
         "kwargs": {},
         "config": None,
+        "pandas_data": div_data,
     },
     "debt_trading": {
         "class": DebtTrading,
         "backtesting_datasource": YahooDataBacktesting,
         "kwargs": {},
         "config": None,
+        "pandas_data": div_data,
     },
     "intraday_momentum": {
         "class": IntradayMomentum,
@@ -66,17 +98,19 @@ mapping = {
     },
     "buy_and_hold": {
         "class": BuyAndHold,
-        "backtesting_datasource": YahooDataBacktesting,
+        "backtesting_datasource": PandasDataBacktesting,
         "kwargs": {},
         "backtesting_cache": False,
         "config": None,
+        "pandas_data": div_data,
     },
     "simple": {
         "class": Simple,
-        "backtesting_datasource": YahooDataBacktesting,
+        "backtesting_datasource": PandasDataBacktesting,
         "kwargs": {},
         "backtesting_cache": False,
         "config": None,
+        "pandas_data": div_data ,
     },
 }
 
@@ -112,6 +146,7 @@ if __name__ == "__main__":
 
         strategy_class = strategy_params["class"]
         backtesting_datasource = strategy_params["backtesting_datasource"]
+        pandas_data = strategy_params['pandas_data'] if 'pandas_data' in strategy_params else None
         kwargs = strategy_params["kwargs"]
         config = strategy_params["config"]
 
@@ -138,12 +173,13 @@ if __name__ == "__main__":
                 backtesting_datasource,
                 backtesting_start,
                 backtesting_end,
+                pandas_data=pandas_data,
                 stats_file=stats_file,
                 config=config,
                 **kwargs,
             )
             toc = perf_counter()
-            print("Elpased time:", toc - tic)
+            print("Elapsed time:", toc - tic)
 
             logging.info(f"*** Benchmark Performance for {benchmark_asset} ***")
             indicators.calculate_returns(

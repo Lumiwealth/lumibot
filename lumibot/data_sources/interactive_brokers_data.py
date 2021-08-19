@@ -148,6 +148,7 @@ class InteractiveBrokersData(DataSource):
                     ).dt.tz_localize(self.DEFAULT_TIMEZONE)
                 elif parsed_timestep == "1 day":
                     df["date"] = pd.to_datetime(df["date"], format="%Y%m%d")
+                    df["date"] =   df["date"].dt.tz_localize(self.DEFAULT_TIMEZONE)
                 response[asset] = df
         return response
 

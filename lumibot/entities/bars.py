@@ -2,11 +2,7 @@ import logging
 from datetime import datetime
 
 import pandas as pd
-
-from lumibot.data_sources.exceptions import NoDataFound
-
 from .bar import Bar
-
 
 class Bars:
     def __init__(self, df, source, asset, raw=None):
@@ -15,7 +11,7 @@ class Bars:
         df index: pd.Timestamp localized at the timezone America/New_York
         """
         if df.shape[0] == 0:
-            raise NoDataFound(source, asset)
+            raise NoBarDataFound(source, asset)
         self.df = df
         self.source = source.upper()
         self.asset = asset
@@ -96,3 +92,11 @@ class Bars:
 
         volume = df_copy["volume"].sum()
         return volume
+
+class NoBarDataFound(Exception):
+    def __init__(self, source, asset):
+        message = (
+            f"{source} did not return data for symbol {asset.symbol}. "
+            f"Make sure there is no symbol typo or use another data source"
+        )
+        super(NoBarDataFound, self).__init__(message)

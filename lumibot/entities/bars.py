@@ -2,7 +2,9 @@ import logging
 from datetime import datetime
 
 import pandas as pd
+
 from .bar import Bar
+
 
 class Bars:
     def __init__(self, df, source, asset, raw=None):
@@ -92,6 +94,29 @@ class Bars:
 
         volume = df_copy["volume"].sum()
         return volume
+
+    def aggregate_bars(self, frequency):
+        """
+        Will convert a set of bars to a different timeframe (eg. 1 min to 15 min)
+        frequency (string): The new timeframe that the bars should be in, eg. "15Min", "1H", or "1D"
+        Returns a new bars object.
+        """
+        new_df = self.df.groupby(pd.Grouper(freq=frequency)).agg(
+            {
+                "open": "first",
+                "close": "last",
+                "low": "min",
+                "high": "max",
+                "volume": "sum",
+            }
+        )
+        new_df.columns = ["open", "close", "low", "high", "volume"]
+        new_df = new_df.dropna()
+
+        new_bars = Bars(new_df, self.source, self.asset)
+
+        return new_bars
+
 
 class NoBarDataFound(Exception):
     def __init__(self, source, asset):

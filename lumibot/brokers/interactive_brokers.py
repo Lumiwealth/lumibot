@@ -527,6 +527,29 @@ class IBWrapper(EWrapper):
     def historicalDataEnd(self, reqId: int, start: str, end: str):
         self.my_historical_queue.put(self.historical)
 
+    # Real Time Bars (5 sec)
+    def init_realtimeBar(self):
+        self.realtimeBar = list()
+        realtimeBar_queue = queue.Queue()
+        self.my_realtimeBar_queue = realtimeBar_queue
+        return realtimeBar_queue
+
+    def realtimeBar(
+        self, reqId: TickerId, time: int, open_: float, high: float, low: float, close: float,
+        volume: int, wap: float, count: int
+    ):
+        super().realtimeBar(reqId, time, open_, high, low, close, volume, wap, count)
+        if not hasattr(self, "realtimeBar"):
+            self.init_realtimeBar()
+        print(
+            "RealTimeBar. TickerId:", reqId,
+            RealTimeBar(time, -1, open_, high, low, close, volume, wap, count))
+
+        self.realtimeBar.append(vars(RealTimeBar))
+
+    def realtimeBarEnd(self, reqId: int, start: str, end: str):
+        self.my_realtimeBar_queue.put(self.realtimeBar)
+
     # Positions.
     def init_positions(self):
         self.positions = list()
@@ -865,6 +888,37 @@ class IBClient(EClient):
             print(f"Error: {self.get_error(timeout=5)}")
 
         return requested_historical
+
+    def get_real_time_bars(
+            self,
+            symbol=None,
+            bar_size=5,
+            what_to_show="MIDPOINT",
+            useRTH=True,
+    ):
+        real_time_bars_storage = self.wrapper.init_realtimeBar()
+
+        contract = self.create_contract(symbol)
+        # Call the real time bars data.
+        self.reqRealTimeBars(
+            self.get_reqid(),
+            contract,
+            bar_size,
+            what_to_show,
+            useRTH,
+            [],
+        )
+
+        try:
+            requested_real_time_bars = real_time_bars_storage.get(timeout=self.max_wait_time)
+        except queue.Empty:
+            print("The queue was empty or max time reached for real time bars data.")
+            requested_real_time_bars = None
+
+        while self.wrapper.is_error():
+            print(f"Error: {self.get_error(timeout=5)}")
+
+        return requested_real_time_bars
 
     def get_positions(self):
         positions_storage = self.wrapper.init_positions()

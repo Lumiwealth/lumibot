@@ -529,7 +529,7 @@ class IBWrapper(EWrapper):
 
     # Real Time Bars (5 sec)
     def init_realtimeBar(self):
-        self.realtimeBar = list()
+        self.realtimeBarResult = list()
         realtimeBar_queue = queue.Queue()
         self.my_realtimeBar_queue = realtimeBar_queue
         return realtimeBar_queue
@@ -541,14 +541,13 @@ class IBWrapper(EWrapper):
         super().realtimeBar(reqId, time, open_, high, low, close, volume, wap, count)
         if not hasattr(self, "realtimeBar"):
             self.init_realtimeBar()
-        print(
-            "RealTimeBar. TickerId:", reqId,
-            RealTimeBar(time, -1, open_, high, low, close, volume, wap, count))
+        rtb = RealTimeBar(time, -1, open_, high, low, close, volume, wap, count)
+        print("RealTimeBar. TickerId:", reqId, rtb)
 
-        self.realtimeBar.append(vars(RealTimeBar))
+        self.realtimeBarResult.append(rtb)
 
     def realtimeBarEnd(self, reqId: int, start: str, end: str):
-        self.my_realtimeBar_queue.put(self.realtimeBar)
+        self.my_realtimeBar_queue.put(self.realtimeBarResult)
 
     # Positions.
     def init_positions(self):
@@ -906,7 +905,7 @@ class IBClient(EClient):
             bar_size,
             what_to_show,
             useRTH,
-            [],
+            ["XYZ"],
         )
 
         try:

@@ -184,7 +184,8 @@ class InteractiveBrokersData(DataSource):
         return bars
 
     def _pull_real_time_bars(self, asset, bar_size):
-        self.ib.get_real_time_bars(symbol=asset, bar_size=bar_size)
+        x = self.ib.get_real_time_bars(symbol=asset, bar_size=bar_size)
+        return x
 
     def get_yesterday_dividend(self, asset):
         """ Unavailable """

@@ -392,6 +392,15 @@ class Strategy(_Strategy):
             max_workers=max_workers,
         )
 
+    def start_realtime_bars(self, asset, bar_size=5, keep_bars=30):
+        self.broker._start_realtime_bars(asset=asset, bar_size=bar_size, keep_bars=keep_bars)
+
+    def get_realtime_bars(self, asset):
+        return self.broker.ib.realtime_bars[asset]
+
+    def cancel_realtime_bars(self, asset):
+        self.broker._cancel_realtime_bars(asset)
+
     def get_yesterday_dividend(self, asset):
         asset = self._set_asset_mapping(asset)
         return self.data_source.get_yesterday_dividend(asset)

@@ -16,6 +16,7 @@ from lumibot.strategies.examples import (
     Simple,
     Strangle,
 )
+from dev_work_ib_real_time_bars import Dev
 from lumibot.tools import indicators
 from lumibot.traders import Trader
 
@@ -33,9 +34,18 @@ broker = InteractiveBrokers(InteractiveBrokersConfig)
 ####
 # Select our strategy
 ####
-
-strategy_name = "Strangle"
-strategy = Strangle(name=strategy_name, budget=budget, broker=broker)
+kwargs = dict(
+    symbol="SPY",
+    interation_time= "30s",
+    bar_size=5,
+    keep_bars=10,
+    period=6,
+    pfast=3,
+    pslow=3,
+    vwap_on=False,
+)
+strategy_name = "Dev"
+strategy = Dev(name=strategy_name, budget=budget, broker=broker, **kwargs)
 
 
 ####

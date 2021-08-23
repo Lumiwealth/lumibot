@@ -148,7 +148,7 @@ class InteractiveBrokersData(DataSource):
                     ).dt.tz_localize(self.DEFAULT_TIMEZONE)
                 elif parsed_timestep == "1 day":
                     df["date"] = pd.to_datetime(df["date"], format="%Y%m%d")
-                    df["date"] =   df["date"].dt.tz_localize(self.DEFAULT_TIMEZONE)
+                    df["date"] = df["date"].dt.tz_localize(self.DEFAULT_TIMEZONE)
                 response[asset] = df
         return response
 
@@ -183,9 +183,13 @@ class InteractiveBrokersData(DataSource):
         bars = Bars(df, self.SOURCE, asset, raw=response)
         return bars
 
-    def _pull_real_time_bars(self, asset, bar_size):
-        x = self.ib.get_real_time_bars(symbol=asset, bar_size=bar_size)
-        return x
+    def _start_realtime_bars(self, asset, bar_size=5, keep_bars=12):
+        return self.ib.start_realtime_bars(
+            asset=asset, bar_size=bar_size, keep_bars=keep_bars
+        )
+
+    def _cancel_realtime_bars(self, asset):
+        self.ib.cancel_realtime_bars(asset)
 
     def get_yesterday_dividend(self, asset):
         """ Unavailable """

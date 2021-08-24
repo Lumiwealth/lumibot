@@ -271,7 +271,9 @@ class StrategyExecutor(Thread):
         else:
             self.broker._data_source._iter_count += 1
 
-        datetime = self.broker._data_source._date_index[self.broker._data_source._iter_count]
+        datetime = self.broker._data_source._date_index[
+            self.broker._data_source._iter_count
+        ]
 
         self.broker._update_datetime(datetime)
         # Is this update money dividends in the right place? Maybe after orders. or both
@@ -280,15 +282,14 @@ class StrategyExecutor(Thread):
         self.strategy._update_unspent_money_with_dividends()
         self._on_trading_iteration()
 
-
-
-
-
     def _run_trading_session(self):
         """This is really intraday trading method. Timeframes of less than a day, seconds,
         minutes, hours.
         """
-        if self.broker._data_source.SOURCE != "PANDAS":
+        has_data_source = hasattr(self.broker, "_data_source")
+        if not has_data_source or (
+            has_data_source and self.broker._data_source.SOURCE != "PANDAS"
+        ):
             self.strategy.await_market_to_open()  # set new time and bar length. Check if hit bar max
             # or date max.
             if not self.broker.is_market_open():

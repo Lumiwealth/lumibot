@@ -1,6 +1,11 @@
+import datetime
+import logging
+
 from .dataline import Dataline
 from lumibot import LUMIBOT_DEFAULT_PYTZ as DEFAULT_PYTZ
+from lumibot.tools.helpers import to_datetime_aware
 import pandas as pd
+
 
 class Data:
     """Input and manage Pandas dataframes for backtesting.
@@ -36,19 +41,18 @@ class Data:
         self.asset = asset
         self.symbol = self.asset.symbol
 
-        self.date_start = date_start
-        self.date_end = date_end
-
         self.df = self.columns(df)
         self.df = self.set_date_format(self.df)
 
-        iter_index = pd.Series(df.index)
+        self.date_start, self.date_end = self.set_dates(date_start, date_end)
+
+        self.df = self.trim_data(self.df, self.date_start, self.date_end)
+
+        iter_index = pd.Series(self.df.index)
         self.iter_index = pd.Series(iter_index.index, index=iter_index)
 
         self.datalines = dict()
         self.to_datalines()
-        x=1
-
 
     def columns(self, df):
         # Select columns to use, change to lower case, rename `date` if necessary.
@@ -66,6 +70,30 @@ class Data:
         df.index = pd.to_datetime(df.index)
         df.index = df.index.tz_localize(DEFAULT_PYTZ)
         return df
+
+    def set_dates(self, date_start, date_end):
+        # Set the start and end dates of the data.
+        for dt in [date_start, date_end]:
+            if dt and not isinstance(dt, datetime.datetime):
+                raise TypeError(
+                    f"Start and End dates must be enteries as full datetimes. {dt} "
+                    f"was entered"
+                )
+
+        if not date_start:
+            date_start = self.df.index[0]
+        if not date_end:
+            date_end = self.df.index[-1]
+
+        date_start = to_datetime_aware(date_start)
+        date_end = to_datetime_aware(date_end)
+        return (date_start, date_end,)
+
+    def trim_data(self, df, start, end):
+        # Trim the dataframe to match the desired backtesting dates.
+        df = df.loc[start: end, :]
+        return df.between_time(start.time(), end.time())
+
 
     def to_datalines(self):
         self.datalines.update(
@@ -110,9 +138,8 @@ class Data:
         df_dict = {}
 
         for dl_name, dl in self.datalines.items():
-            df_dict[dl_name] = dl.dataline[start_row: end_row]
+            df_dict[dl_name] = dl.dataline[start_row:end_row]
 
-        df = pd.DataFrame(df_dict).set_index('datetime')
+        df = pd.DataFrame(df_dict).set_index("datetime")
 
         return df
-

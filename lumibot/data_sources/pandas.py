@@ -79,10 +79,11 @@ class PandasData(DataSource):
         if asset in self._data_store:
             data = self._data_store[asset]
         else:
-            raise ValueError(f"Asset {asset} does not have data.")
+            raise ValueError(f"The asset: `{asset}` does not exist or does not have data.")
 
         # result = data.tail(length)
-        res = data.get_bars(self._iter_count, length, timestep, timeshift)
+
+        res = data.get_bars(self.get_datetime(), length, timestep, timeshift)
         return res
 
     def _pull_source_bars(self, assets, length, timestep=MIN_TIMESTEP, timeshift=None):

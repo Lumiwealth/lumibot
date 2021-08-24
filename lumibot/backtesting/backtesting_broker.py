@@ -307,11 +307,12 @@ class BacktestingBroker(Broker):
             filled_quantity = order.quantity
 
             ohlc = self.get_last_bar(order.asset)
-            open = ohlc["open"]
-            high = ohlc["high"]
-            low = ohlc["low"]
-            close = ohlc["close"]
-            volume = ohlc["volume"]
+            dt = ohlc.index[-1]
+            open = ohlc["open"][-1]
+            high = ohlc["high"][-1]
+            low = ohlc["low"][-1]
+            close = ohlc["close"][-1]
+            volume = ohlc["volume"][-1]
 
             # Determine transaction price.
             if order.type == "market":

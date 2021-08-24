@@ -288,10 +288,11 @@ class StrategyExecutor(Thread):
         """This is really intraday trading method. Timeframes of less than a day, seconds,
         minutes, hours.
         """
-        self.strategy.await_market_to_open()  # set new time and bar length. Check if hit bar max
-        # or date max.
-        if not self.broker.is_market_open():
-            self._before_market_opens()
+        if self.broker._data_source.SOURCE != "PANDAS":
+            self.strategy.await_market_to_open()  # set new time and bar length. Check if hit bar max
+            # or date max.
+            if not self.broker.is_market_open():
+                self._before_market_opens()
 
         self.strategy.await_market_to_open(timedelta=0)
         self.strategy._update_unspent_money_with_dividends()
@@ -350,8 +351,7 @@ class StrategyExecutor(Thread):
         self._initialize()
         while self.broker.should_continue() and self.should_continue:
             try:
-                self._run_daily_trading()
-                # self._run_trading_session()
+                self._run_trading_session()
             except Exception as e:
                 logging.error(e)
                 logging.error(traceback.format_exc())

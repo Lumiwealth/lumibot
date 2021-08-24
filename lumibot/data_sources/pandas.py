@@ -26,11 +26,27 @@ class PandasData(DataSource):
         self._data_store = {}
         self._date_index = None
         self._date_supply = None
-        self._timestep = 'day'
+        self._timestep = "day"
 
     def load_data(self, pandas_data):
         self._data_store = pandas_data
         self.update_date_index()
+        return self.get_trading_days_pandas()
+
+    def get_trading_days_pandas(self):
+        pcal = pd.DataFrame(self._date_index)
+        pcal.columns = ["datetime"]
+        pcal["date"] = pcal["datetime"].dt.date
+        return pcal.groupby("date").agg(
+            market_open=(
+                "datetime",
+                "first",
+            ),
+            market_close=(
+                "datetime",
+                "last",
+            ),
+        )
 
     def get_assets(self):
         return list(self._data_store.keys())
@@ -38,23 +54,20 @@ class PandasData(DataSource):
     def get_asset_by_name(self, name):
         return [asset for asset in self.get_assets() if asset.name == name]
 
-    def get_asset_by_symbol(self, name):
-        return [asset for asset in self.get_assets() if asset.name == name]
+    def get_asset_by_symbol(self, symbol):
+        return [asset for asset in self.get_assets() if asset.symbol == symbol]
 
     def update_date_index(self):
-        for asset, data in self._data_store.items():
+        for asset, data in self._data_store.items():  # todo add for multiple datas
             if self._date_index is None:
                 self._date_index = data.datetime
             # else:
-                # set([tuple(i) for i in arr.tolist()])
-                # self._date_index = self._date_index.union(new_date_index)
+            #     set([tuple(i) for i in arr.tolist()])
+            #     self._date_index = self._date_index.union(new_date_index)
 
     def get_last_price(self, asset, timestep=None):
         """Takes an asset and returns the last known price"""
-        if timestep is None:
-            timestep = self.get_timestep()
-        last_price = self._data_store[asset].get_last_price(self._iter_count)
-        return last_price
+        return self._data_store[asset].get_last_price(self.get_datetime())
 
     def _pull_source_symbol_bars(
         self, asset, length, timestep=MIN_TIMESTEP, timeshift=0
@@ -68,8 +81,6 @@ class PandasData(DataSource):
         else:
             raise ValueError(f"Asset {asset} does not have data.")
 
-
-        # todo if timeshift is greater than iter_count there will be an error.
         # result = data.tail(length)
         res = data.get_bars(self._iter_count, length, timestep, timeshift)
         return res
@@ -84,7 +95,6 @@ class PandasData(DataSource):
                 asset, length, timestep=timestep, timeshift=timeshift
             )
         return result
-
 
     def _parse_source_symbol_bars(self, response, asset):
         return response

@@ -67,7 +67,7 @@ class _Strategy:
                 for asset, df in pandas_data.items():
                     new_asset = self._set_asset_mapping(asset)
                     pd_asset_keys[new_asset] = df
-                self.data_source.load_data(pd_asset_keys)
+                self.broker._trading_days = self.data_source.load_data(pd_asset_keys)
         elif data_source is None:
             self.data_source = self.broker
         else:

@@ -27,7 +27,8 @@ class BacktestingBroker(Broker):
                 "object %r is not a backteesting data_source" % data_source
             )
         self._data_source = data_source
-        self._trading_days = get_trading_days()
+        if data_source.SOURCE != "PANDAS":
+            self._trading_days = get_trading_days()
 
         Broker.__init__(self, name=self.name, connect_stream=connect_stream)
 
@@ -86,6 +87,7 @@ class BacktestingBroker(Broker):
             return False
         return True
 
+
     def is_market_open(self):
         """return True if market is open else false"""
         now = self.datetime
@@ -105,6 +107,7 @@ class BacktestingBroker(Broker):
     def get_time_to_open(self):
         """Return the remaining time for the market to open in seconds"""
         now = self.datetime
+
         search = self._trading_days[now < self._trading_days.market_close]
         if search.empty:
             raise self.CannotPredictFuture

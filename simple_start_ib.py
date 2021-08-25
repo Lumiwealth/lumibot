@@ -36,13 +36,16 @@ broker = InteractiveBrokers(InteractiveBrokersConfig)
 ####
 kwargs = dict(
     symbol="SPY",
-    interation_time= "30s",
+    iteration_time = "5s",
     bar_size=5,
     keep_bars=10,
     period=6,
     pfast=3,
     pslow=3,
     vwap_on=False,
+    min_days_expiry=2,
+    max_days_expiry=44,
+    spread=2,
 )
 strategy_name = "Dev"
 strategy = Dev(name=strategy_name, budget=budget, broker=broker, **kwargs)

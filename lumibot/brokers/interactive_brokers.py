@@ -58,7 +58,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         clock = self.ib.get_timestamp()
         return clock
 
-    def market_hours(self, market="NASDAQ", close=True, next=False, date=None):
+    def market_hours(self, market="24/7", close=True, next=False, date=None): # todo revert NASDAQ
         """Return if market open or closed.
         params:
           - market (str: default `NASDAQ`): which market to test.
@@ -543,16 +543,15 @@ class IBWrapper(EWrapper):
         super().realtimeBar(reqId, time, open_, high, low, close, volume, wap, count)
         if not hasattr(self, "realtimeBar"):
             self.init_realtimeBar()
-        rtb = RealTimeBar(
-            datetime.fromtimestamp(time).astimezone(tz=tz.tzlocal()),
-            -1,
-            open_,
-            high,
-            low,
-            close,
-            volume,
-            wap,
-            count,
+        rtb = dict(
+            datetime=datetime.datetime.fromtimestamp(time).astimezone(tz=tz.tzlocal()),
+            open=open_,
+            high=high,
+            low=low,
+            close=close,
+            volume=volume,
+            vwap=wap,
+            count=count,
         )
 
         self.realtime_bars[self.map_reqid_asset[reqId]].append(rtb)
@@ -889,9 +888,7 @@ class IBClient(EClient):
         )
 
         try:
-            requested_historical = historical_storage.get(
-                timeout=self.max_wait_time
-            )
+            requested_historical = historical_storage.get(timeout=self.max_wait_time)
         except queue.Empty:
             print("The queue was empty or max time reached for historical data.")
             requested_historical = None
@@ -907,10 +904,11 @@ class IBClient(EClient):
         bar_size=5,
         what_to_show="TRADES",
         useRTH=True,
+        keep_bars=10,
     ):
         reqid = self.get_reqid()
         self.map_reqid_asset[reqid] = asset
-        self.realtime_bars[asset] = deque(maxlen=bar_size)
+        self.realtime_bars[asset] = deque(maxlen=keep_bars)
 
         contract = self.create_contract(asset)
         # Call the realtime bars data.

@@ -396,7 +396,7 @@ class Strategy(_Strategy):
         self.broker._start_realtime_bars(asset=asset, bar_size=bar_size, keep_bars=keep_bars)
 
     def get_realtime_bars(self, asset):
-        return self.broker.ib.realtime_bars[asset]
+        return self.broker._get_realtime_bars(asset)
 
     def cancel_realtime_bars(self, asset):
         self.broker._cancel_realtime_bars(asset)

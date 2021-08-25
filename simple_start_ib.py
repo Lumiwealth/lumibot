@@ -1,6 +1,6 @@
 import logging
+from datetime import time
 from datetime import datetime
-from time import time
 
 from credentials import InteractiveBrokersConfig
 from lumibot.backtesting import YahooDataBacktesting
@@ -36,9 +36,11 @@ broker = InteractiveBrokers(InteractiveBrokersConfig)
 ####
 kwargs = dict(
     symbol="SPY",
-    iteration_time = "5s",
+    time_start=time(9, 30),
+    time_end=time(15, 45),
+    iteration_time="5S",
     bar_size=5,
-    keep_bars=10,
+    keep_bars=15,
     period=6,
     pfast=3,
     pslow=3,

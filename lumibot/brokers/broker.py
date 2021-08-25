@@ -424,11 +424,12 @@ class Broker:
         if cancel_open_orders:
             self.cancel_open_orders(strategy)
 
-        orders_result = self.wait_orders_clear(strategy)
-        if not orders_result:
-            logging.info(
-                "From sell_all, orders were still outstanding before the sell all event"
-            )
+        if not self.IS_BACKTESTING_BROKER:
+            orders_result = self.wait_orders_clear(strategy)
+            if not orders_result:
+                logging.info(
+                    "From sell_all, orders were still outstanding before the sell all event"
+                )
 
         orders = []
         positions = self.get_tracked_positions(strategy)
@@ -437,11 +438,12 @@ class Broker:
             orders.append(order)
         self.submit_orders(orders)
 
-        orders_result = self.wait_orders_clear(strategy)
-        if not orders_result:
-            logging.info(
-                "From sell_all, orders were still outstanding after the sell all event"
-            )
+        if not self.IS_BACKTESTING_BROKER:
+            orders_result = self.wait_orders_clear(strategy)
+            if not orders_result:
+                logging.info(
+                    "From sell_all, orders were still outstanding after the sell all event"
+                )
 
     # =========Market functions=======================
 

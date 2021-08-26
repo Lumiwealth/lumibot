@@ -23,12 +23,12 @@ from lumibot.traders import Trader
 # Choose your budget and log file locations
 budget = 50000
 logfile = "logs/test.log"
-backtesting_start = datetime(2012, 1, 1)
-backtesting_end = datetime(2021, 1, 1)
+# backtesting_start = datetime(2012, 1, 1)
+# backtesting_end = datetime(2021, 1, 1)
 benchmark_asset = "SPY"
 
 # Initialize all our classes
-trader = Trader(logfile=logfile)
+trader = Trader(logfile=logfile)  # debug="debug")
 broker = InteractiveBrokers(InteractiveBrokersConfig)
 
 ####

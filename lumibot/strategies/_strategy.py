@@ -114,9 +114,10 @@ class _Strategy:
                 try:
                     result[key] = deepcopy(self.__dict__[key])
                 except:
-                    logging.warning(
-                        "Cannot perform deepcopy on %r" % self.__dict__[key]
-                    )
+                    pass
+                    # logging.warning(
+                    #     "Cannot perform deepcopy on %r" % self.__dict__[key]
+                    # )
             elif key in [
                 "_name",
                 "_initial_budget",

@@ -142,7 +142,7 @@ class StrategyExecutor(Thread):
     def _trace_stats(self, context, snapshot_before):
         if context is None:
             logging.warning(
-                "on_trading_iteraion context is not available. "
+                "on_trading_iteration context is not available. "
                 "The context is generally unavailable whe debugging "
                 "with IDEs like pycharm etc..."
             )
@@ -253,40 +253,34 @@ class StrategyExecutor(Thread):
             )
 
     # ======Execution methods ====================
-    def _run_daily_trading(self):
-        """Used for backtesting only, daily data.
-        data_source_backtesting._iter_count = 0
-        Update the index,
-        Update the date,
-        self.broker._data_source._iter_count
-        self.broker._data_source._date_index
-        _update_datetime(self, input) input can be the next date in the index `backtesting broker`
-            datetime entry
-        Outstanding orders evaluated against previous close
-        Update cash balances.
-        # on_trading_iteration Issue new orders here.
-        """
-        if self.broker._data_source._iter_count is None:
-            self.broker._data_source._iter_count = 0
-        else:
-            self.broker._data_source._iter_count += 1
-
-        datetime = self.broker._data_source._date_index[
-            self.broker._data_source._iter_count
-        ]
-
-        self.broker._update_datetime(datetime)
-        # Is this update money dividends in the right place? Maybe after orders. or both
-        if self.broker.IS_BACKTESTING_BROKER:
-            self.broker.process_pending_orders(strategy=self.strategy.name)
-        self.strategy._update_unspent_money_with_dividends()
-        self._on_trading_iteration()
-
     def _run_trading_session(self):
         """This is really intraday trading method. Timeframes of less than a day, seconds,
         minutes, hours.
         """
         has_data_source = hasattr(self.broker, "_data_source")
+        # Process pandas daily and get out.
+        if (
+            has_data_source
+            and self.broker._data_source.SOURCE == "PANDAS"
+            and self.broker._data_source._timestep == "day"
+        ):
+            if self.broker._data_source._iter_count is None:
+                self.broker._data_source._iter_count = 0
+            else:
+                self.broker._data_source._iter_count += 1
+
+            datetime = self.broker._data_source._date_index[
+                self.broker._data_source._iter_count
+            ]
+
+            self.broker._update_datetime(datetime)
+            # Is this update money dividends in the right place? Maybe after orders. or both
+            if self.broker.IS_BACKTESTING_BROKER:
+                self.broker.process_pending_orders(strategy=self.strategy.name)
+            self.strategy._update_unspent_money_with_dividends()
+            self._on_trading_iteration()
+            return
+
         if not has_data_source or (
             has_data_source and self.broker._data_source.SOURCE != "PANDAS"
         ):
@@ -294,11 +288,10 @@ class StrategyExecutor(Thread):
             # or date max.
             if not self.broker.is_market_open():
                 self._before_market_opens()
+            self.strategy._update_unspent_money_with_dividends()
 
         self.strategy.await_market_to_open(timedelta=0)
-        self.strategy._update_unspent_money_with_dividends()
-        self._before_starting_trading()  # Can't use this because it will have a different meaning
-        # in intraday trading.
+        self._before_starting_trading()
 
         time_to_close = self.broker.get_time_to_close()
         while time_to_close > self.minutes_before_closing * 60:

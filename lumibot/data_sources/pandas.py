@@ -1,12 +1,6 @@
-from datetime import datetime, timedelta
-
-import numba
 import pandas as pd
 
-from lumibot.data_sources.exceptions import NoDataFound
-from lumibot.entities import Bars
-from lumibot.tools import YahooHelper as yh
-
+from lumibot.entities import Bars, AssetsMapping
 from .data_source import DataSource
 
 
@@ -30,8 +24,30 @@ class PandasData(DataSource):
 
     def load_data(self, pandas_data):
         self._data_store = pandas_data
-        self.update_date_index()
-        return self.get_trading_days_pandas()
+        self._date_index = self.update_date_index()
+        self._timestep = list(self._data_store.values())[0].timestep
+        pcal = self.get_trading_days_pandas()
+        self._date_index = self.clean_trading_times(self._date_index, pcal)
+        for asset, data in self._data_store.items():
+            data.repair_times_and_fill(self._date_index)
+        return pcal
+
+    def clean_trading_times(self, dt_index, pcal):
+        # Used to fill in blanks in the data, on trading days, within market trading hours.
+        df = pd.DataFrame(range(len(dt_index)), index=dt_index)
+        df = df.sort_index()
+        df["dates"] = df.index.date
+        df = df.merge(
+            pcal[["market_open", "market_close"]], left_on="dates", right_index=True
+        )
+        if self._timestep == "minute":
+            df = df.asfreq("1T", method="pad")
+            result_index = df.loc[
+                        (df.index >= df["market_open"]) & (df.index <= df["market_close"]), :
+                        ].index
+        else:
+            result_index = df.index
+        return result_index
 
     def get_trading_days_pandas(self):
         pcal = pd.DataFrame(self._date_index)
@@ -58,16 +74,30 @@ class PandasData(DataSource):
         return [asset for asset in self.get_assets() if asset.symbol == symbol]
 
     def update_date_index(self):
-        for asset, data in self._data_store.items():  # todo add for multiple datas
-            if self._date_index is None:
-                self._date_index = data.datetime
-            # else:
-            #     set([tuple(i) for i in arr.tolist()])
-            #     self._date_index = self._date_index.union(new_date_index)
+        dt_index = None
+        for asset, data in self._data_store.items():
+            if dt_index is None:
+                dt_index = data.df.index
+            else:
+                dt_index = dt_index.join(data.df.index, how="outer")
+
+        return dt_index
+
 
     def get_last_price(self, asset, timestep=None):
-        """Takes an asset and returns the last known price"""
+        # Takes an asset and returns the last known price
         return self._data_store[asset].get_last_price(self.get_datetime())
+
+    def get_last_prices(self, assets, timestep=None):
+        # Takes a list of assets and returns dictionary of last known prices for each.
+        if timestep is None:
+            timestep = self.MIN_TIMESTEP
+        result = {}
+        for asset in assets:
+            result[asset] = self.get_last_price(asset, timestep=timestep)
+
+        return AssetsMapping(result)
+
 
     def _pull_source_symbol_bars(
         self, asset, length, timestep=MIN_TIMESTEP, timeshift=0
@@ -75,7 +105,6 @@ class PandasData(DataSource):
         if not timeshift:
             timeshift = 0
 
-        # self._parse_source_timestep(timestep, reverse=True)  # todo, doing nothing
         if asset in self._data_store:
             data = self._data_store[asset]
         else:
@@ -98,7 +127,6 @@ class PandasData(DataSource):
         return result
 
     def _parse_source_symbol_bars(self, response, asset):
-        return response
         bars = Bars(response, self.SOURCE, asset, raw=response)
         return bars
 

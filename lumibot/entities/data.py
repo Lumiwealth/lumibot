@@ -34,21 +34,48 @@ class Data:
         df,
         date_start=None,
         date_end=None,
-        timestep="day",
+        time_start=datetime.time(9, 30),
+        time_end=datetime.time(16, 0),
+        timestep="minute",
         columns=None,
     ):
         self.strategy = strategy
         self.asset = asset
         self.symbol = self.asset.symbol
 
+        self.timestep = timestep
         self.df = self.columns(df)
         self.df = self.set_date_format(self.df)
 
+        self.time_start, self.time_end = self.set_times(time_start, time_end)
         self.date_start, self.date_end = self.set_dates(date_start, date_end)
 
-        self.df = self.trim_data(self.df, self.date_start, self.date_end)
+        self.df = self.trim_data(
+            self.df, self.date_start, self.date_end, self.time_start, self.time_end
+        )
 
-        iter_index = pd.Series(self.df.index)
+    def set_times(self, time_start, time_end):
+        if self.timestep == 'minute':
+            ts = time_start
+            te = time_end
+        else:
+            ts = datetime.time(0, 0)
+            te = datetime.time(23, 59, 59, 999999)
+        return ts, te
+
+    def repair_times_and_fill(self, idx):
+        # After all time series merged, adjust the local dataframe to reindex and fill nan's.
+        # Create Datalines.
+        df = self.df.reindex(idx)
+        df.loc[df["volume"].isna(), "volume"] = 0
+        df.loc[:, ~df.columns.isin(["open", "high", "low"])] = df.loc[:, ~df.columns.isin(["open",
+                                                                      "high", "low"])].ffill()
+        for col in ['open', 'high', 'low']:
+            df.loc[df[col].isna(), col] = df.loc[df[col].isna(), "close"]
+
+        self.df = df
+
+        iter_index = pd.Series(df.index)
         self.iter_index = pd.Series(iter_index.index, index=iter_index)
 
         self.datalines = dict()
@@ -68,7 +95,10 @@ class Data:
     def set_date_format(self, df):
         df.index.name = "datetime"
         df.index = pd.to_datetime(df.index)
-        df.index = df.index.tz_localize(DEFAULT_PYTZ)
+        if not df.index.tzinfo:
+            df.index = df.index.tz_localize(DEFAULT_PYTZ)
+        elif df.index.tzinfo != DEFAULT_PYTZ:
+            df.index = df.index.tz_convert(DEFAULT_PYTZ)
         return df
 
     def set_dates(self, date_start, date_end):
@@ -76,7 +106,7 @@ class Data:
         for dt in [date_start, date_end]:
             if dt and not isinstance(dt, datetime.datetime):
                 raise TypeError(
-                    f"Start and End dates must be enteries as full datetimes. {dt} "
+                    f"Start and End dates must be entries as full datetimes. {dt} "
                     f"was entered"
                 )
 
@@ -87,13 +117,22 @@ class Data:
 
         date_start = to_datetime_aware(date_start)
         date_end = to_datetime_aware(date_end)
-        return (date_start, date_end,)
 
-    def trim_data(self, df, start, end):
+        if self.timestep == "day":
+            date_start = date_start.replace(hour=0, minute=0, second=0, microsecond=0)
+            date_end = date_end.replace(hour=23, minute=59, second=59, microsecond=999999)
+
+        return (
+            date_start,
+            date_end,
+        )
+
+    def trim_data(self, df, date_start, date_end, time_start, time_end):
         # Trim the dataframe to match the desired backtesting dates.
-        df = df.loc[start: end, :]
-        return df.between_time(start.time(), end.time())
-
+        df = df.loc[date_start:date_end, :]
+        if self.timestep == 'minute':
+            df = df.between_time(time_start, time_end)
+        return df
 
     def to_datalines(self):
         self.datalines.update(
@@ -129,17 +168,20 @@ class Data:
         # Get the last close price.
         return self.datalines["close"].dataline[self.get_iter_count(dt)]
 
-    def get_bars(self, dt, length, timestep=MIN_TIMESTEP, timeshift=0):
+    def _get_bars_dict(self, dt, length, timestep=None, timeshift=0):
         # Get bars.
         end_row = self.get_iter_count(dt) + 1 - timeshift
         start_row = end_row - length
         if start_row < 0:
             start_row = 0
-        df_dict = {}
 
+        df_dict = {}
         for dl_name, dl in self.datalines.items():
             df_dict[dl_name] = dl.dataline[start_row:end_row]
 
-        df = pd.DataFrame(df_dict).set_index("datetime")
+        return df_dict
 
+    def get_bars(self, dt, length, timestep=MIN_TIMESTEP, timeshift=0):
+        df_dict = self._get_bars_dict(dt, length, timestep=self.timestep, timeshift=timeshift)
+        df = pd.DataFrame(df_dict).set_index("datetime")
         return df

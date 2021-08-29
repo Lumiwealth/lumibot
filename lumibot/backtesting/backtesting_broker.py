@@ -45,7 +45,7 @@ class BacktestingBroker(Broker):
                 if (
                     result.was_transmitted()
                     and result.order_class
-                    and result.order_class == "OCO"
+                    and result.order_class == "oco"
                 ):
                     orders = broker._flatten_order(result)
                     for order in orders:
@@ -86,7 +86,6 @@ class BacktestingBroker(Broker):
         if self.datetime >= self._data_source.datetime_end:
             return False
         return True
-
 
     def is_market_open(self):
         """return True if market is open else false"""
@@ -134,19 +133,28 @@ class BacktestingBroker(Broker):
         return delta.total_seconds()
 
     def _await_market_to_open(self, timedelta=None):
+        if (
+            self._data_source.SOURCE == "PANDAS"
+            and self._data_source._timestep == "day"
+        ):
+            return
         time_to_open = self.get_time_to_open()
         if timedelta is not None:
             time_to_open -= 60 * timedelta
         self._update_datetime(time_to_open)
 
     def _await_market_to_close(self, timedelta=None):
+        if (
+            self._data_source.SOURCE == "PANDAS"
+            and self._data_source._timestep == "day"
+        ):
+            return
         time_to_close = self.get_time_to_close()
         if timedelta is not None:
             time_to_close -= 60 * timedelta
         self._update_datetime(time_to_close)
 
     # =========Positions functions==================
-
     def _pull_broker_position(self, asset):
         """Given an asset, get the broker representation
         of the corresponding asset"""
@@ -302,17 +310,29 @@ class BacktestingBroker(Broker):
             return
 
         for order in pending_orders:
-            # Check validity if current date > valid date, cancel order. todo
+            # Check validity if current date > valid date, cancel order. todo valid date
             price = 0
             filled_quantity = order.quantity
 
-            ohlc = self.get_last_bar(order.asset)
-            dt = ohlc.index[-1]
-            open = ohlc["open"][-1]
-            high = ohlc["high"][-1]
-            low = ohlc["low"][-1]
-            close = ohlc["close"][-1]
-            volume = ohlc["volume"][-1]
+            if self._data_source.SOURCE == "YAHOO":
+                ohlc = self.get_last_bar(order.asset)
+                dt = ohlc.df.index[-1]
+                open = ohlc.df.open[-1]
+                high = ohlc.df.high[-1]
+                low = ohlc.df.low[-1]
+                close = ohlc.df.close[-1]
+                volume = ohlc.df.volume[-1]
+
+            elif self._data_source.SOURCE == "PANDAS":
+                ohlc = self._data_source._data_store[order.asset]._get_bars_dict(
+                    self.datetime, 1
+                )
+                dt = ohlc["datetime"][-1]
+                open = ohlc["open"][-1]
+                high = ohlc["high"][-1]
+                low = ohlc["low"][-1]
+                close = ohlc["close"][-1]
+                volume = ohlc["volume"][-1]
 
             # Determine transaction price.
             if order.type == "market":

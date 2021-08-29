@@ -64,7 +64,7 @@ class DataSource:
         return dt.astimezone(cls.DEFAULT_PYTZ)
 
     def get_timestep(self):
-        if self.IS_BACKTESTING_DATA_SOURCE:
+        if self.IS_BACKTESTING_DATA_SOURCE and self.SOURCE == "PANDAS":
             return self._timestep
         else:
             return self.MIN_TIMESTEP

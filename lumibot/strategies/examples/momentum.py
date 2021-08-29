@@ -16,7 +16,7 @@ class Momentum(Strategy):
 
     def initialize(self, symbols=None):
         # Setting the waiting period (in days)
-        self.period = 1
+        self.period = 0
 
         # The counter for the number of days we have been holding the current asset
         self.counter = 0
@@ -89,32 +89,32 @@ class Momentum(Strategy):
         # Sell all positions
         self.sell_all()
 
-    def trace_stats(self, context, snapshot_before):
-        """
-        Add additional stats to the CSV logfile
-        """
-        # Get the values of all our variables from the last iteration
-        row = {
-            "old_best_asset": snapshot_before.get("asset"),
-            "old_asset_quantity": snapshot_before.get("quantity"),
-            "old_unspent_money": snapshot_before.get("unspent_money"),
-            "new_best_asset": self.asset,
-            "new_asset_quantity": self.quantity,
-        }
-
-        # Get the momentums of all the assets from the context of on_trading_iteration
-        # (notice that on_trading_iteration has a variable called momentums, this is what
-        # we are reading here)
-        momentums = context.get("momentums")
-        for item in momentums:
-            symbol = item.get("symbol")
-            for key in item:
-                if key != "symbol":
-                    row[f"{symbol}_{key}"] = item[key]
-
-        # Add all of our values to the row in the CSV file. These automatically get
-        # added to portfolio_value, unspent_money and return
-        return row
+    # def trace_stats(self, context, snapshot_before):
+    #     """
+    #     Add additional stats to the CSV logfile
+    #     """
+    #     # Get the values of all our variables from the last iteration
+    #     row = {
+    #         "old_best_asset": snapshot_before.get("asset"),
+    #         "old_asset_quantity": snapshot_before.get("quantity"),
+    #         "old_unspent_money": snapshot_before.get("unspent_money"),
+    #         "new_best_asset": self.asset,
+    #         "new_asset_quantity": self.quantity,
+    #     }
+    #
+    #     # Get the momentums of all the assets from the context of on_trading_iteration
+    #     # (notice that on_trading_iteration has a variable called momentums, this is what
+    #     # we are reading here)
+    #     momentums = context.get("momentums")
+    #     for item in momentums:
+    #         symbol = item.get("symbol")
+    #         for key in item:
+    #             if key != "symbol":
+    #                 row[f"{symbol}_{key}"] = item[key]
+    #
+    #     # Add all of our values to the row in the CSV file. These automatically get
+    #     # added to portfolio_value, unspent_money and return
+    #     return row
 
     # =============Helper methods====================
 

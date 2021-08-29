@@ -181,7 +181,8 @@ class _Strategy:
             for position in positions:
                 asset = position.asset
                 quantity = position.quantity
-                dividend_per_share = dividends_per_share.get(asset, 0)
+                dividend_per_share = 0 if dividends_per_share is None else dividends_per_share.get(
+                    asset, 0)
                 self._unspent_money += dividend_per_share * quantity
             return self._unspent_money
 

@@ -189,7 +189,11 @@ class InteractiveBrokersData(DataSource):
         )
 
     def _get_realtime_bars(self, asset):
-        return pd.DataFrame(self.ib.realtime_bars[asset]).set_index('datetime')
+        rtb = self.ib.realtime_bars[asset]
+        if len(rtb) == 0:
+            return None
+        else:
+            return rtb.set_index('datetime')
 
     def _cancel_realtime_bars(self, asset):
         self.ib.cancel_realtime_bars(asset)

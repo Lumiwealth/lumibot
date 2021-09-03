@@ -236,9 +236,27 @@ When creating a new security there are two options.
    options, futures, or forex asset objects are mandatory due to the additional details required to 
    identify and trade these securities. 
    
-Assets may be created using the `create_asset` method as follows: 
-  `create_asset(symbol, asset_type=`option`, **kwargs)` 
+Assets may be created using the `self.create_asset` method as follows: 
+  `self.create_asset(symbol, asset_type=`option`, **kwargs)` 
     * see attributes above.
+    
+### Examples:
+
+For stocks:
+
+```asset = self.create_asset('SPY', asset_type="stock")
+order = self.create_order(asset, 10, "buy")
+self.submit_order(order)```
+
+
+For futures:
+
+```asset = self.create_asset(
+  'ES', asset_type="future", expiration="202111"
+)
+order = self.create_order(asset, 10, "buy")
+self.submit_order(order)```
+
 
 ## bars
 

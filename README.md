@@ -244,18 +244,22 @@ Assets may be created using the `self.create_asset` method as follows:
 
 For stocks:
 
-```asset = self.create_asset('SPY', asset_type="stock")
+```python
+asset = self.create_asset('SPY', asset_type="stock")
 order = self.create_order(asset, 10, "buy")
-self.submit_order(order)```
+self.submit_order(order)
+```
 
 
 For futures:
 
-```asset = self.create_asset(
+```python
+asset = self.create_asset(
   'ES', asset_type="future", expiration="202111"
 )
 order = self.create_order(asset, 10, "buy")
-self.submit_order(order)```
+self.submit_order(order)
+```
 
 
 ## bars

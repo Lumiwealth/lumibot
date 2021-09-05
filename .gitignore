@@ -34,3 +34,4 @@ test.csv
 test_strategy.py
 venv
 my_dev
+data/SRNE_Minute.csv

@@ -570,6 +570,7 @@ If you'd like to change the market hours for which the bot operates, then you ca
 def initialize(self, asset_symbol="MNQ", expiration="202109"):
     self.set_market('24/7')
 ```
+Default is `NASDAQ` days and hours.
 
 Possible calendars include:
 ```python

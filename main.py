@@ -3,8 +3,6 @@ import logging
 from datetime import datetime
 import pandas as pd
 from time import perf_counter, time
-import pytz
-from finta import TA
 
 from credentials import AlpacaConfig
 from lumibot.backtesting import YahooDataBacktesting, PandasDataBacktesting
@@ -27,14 +25,8 @@ from lumibot.traders import Trader
 debug = True
 budget = 40000
 
-# Time zone aware
-# tz = pytz.timezone("America/New_York")
-# backtesting_start = tz.localize(datetime(2019, 1, 1))
-# backtesting_end = tz.localize(datetime(2020, 12, 31))
-
-# Naive
-backtesting_start = datetime(2019, 1, 1)
-backtesting_end = datetime(2019, 1, 31)
+backtesting_start = datetime(2019, 1, 4)
+backtesting_end = datetime(2019, 4, 30)
 
 
 logfile = "logs/test.log"
@@ -44,44 +36,42 @@ alpaca_broker = Alpaca(AlpacaConfig)
 alpaca_data_source = AlpacaData(AlpacaConfig)
 trader = Trader(logfile=logfile, debug=debug)
 
-# Development: Minute Data
-# asset = "SPY"
-asset = Asset(symbol="SPY")
-df = pd.read_csv("data/dev_min_2019.csv", parse_dates=True)
-df = df.set_index('date')
-# df["SMA15"] = TA.SMA(df, 15)
-# df["SMA100"] = TA.SMA(df, 100)
-minute_df = dict()
-minute_df[asset] = df
+
+# This file is currenlty supporting Pandas loading of day data: Stage 1
+# development. Load pandas dataframes into dictionaries with `Asset` as key.
+# Columns must be ['datetime', 'open', 'high', 'low', 'close', 'volume']
+# Use "backtesting_datasource": PandasDataBacktesting,
+# Make sure your start and end dates are inside the range of your data.
 
 # Diversification: Multi Daily data.
+# CSV Dates are start 2019-01-02 to end 2019-12-31
 tickers = ["SPY", "TLT", "IEF", "GLD", "DJP",]
-div_data = dict()
+day_data = dict()
 for ticker in tickers:
-    div_data[Asset(symbol=ticker)] = pd.read_csv(f"data/{ticker}.csv")
+    day_data[Asset(symbol=ticker)] = pd.read_csv(f"data/{ticker}.csv")
 
 # Strategies mapping
 mapping = {
     "momentum": {
         "class": Momentum,
         "backtesting_datasource": PandasDataBacktesting,
-        "kwargs": {"symbols": tickers},  # {"symbols": ["SPY", "VEU", "AGG"]},
+        "kwargs": {"symbols": tickers},  # use yahoo-> {"symbols": ["SPY", "VEU", "AGG"]},
         "config": None,
-        "pandas_data": div_data,
+        "pandas_data": day_data,
     },
     "diversification": {
         "class": Diversification,
         "backtesting_datasource": YahooDataBacktesting,
         "kwargs": {},
         "config": None,
-        "pandas_data": div_data,
+        "pandas_data": day_data,
     },
     "debt_trading": {
         "class": DebtTrading,
         "backtesting_datasource": YahooDataBacktesting,
         "kwargs": {},
         "config": None,
-        "pandas_data": div_data,
+        "pandas_data": day_data,
     },
     "intraday_momentum": {
         "class": IntradayMomentum,
@@ -102,15 +92,14 @@ mapping = {
         "kwargs": {},
         "backtesting_cache": False,
         "config": None,
-        "pandas_data": div_data,
+        "pandas_data": day_data,
     },
     "simple": {
         "class": Simple,
-        "backtesting_datasource": PandasDataBacktesting,
+        "backtesting_datasource": YahooDataBacktesting,
         "kwargs": {},
         "backtesting_cache": False,
         "config": None,
-        "pandas_data": div_data ,
     },
 }
 

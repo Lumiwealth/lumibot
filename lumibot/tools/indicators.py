@@ -115,6 +115,7 @@ def stats_summary(_df, risk_free_rate):
         "sharpe": sharpe(_df, risk_free_rate),
         "max_drawdown": max_drawdown(_df),
         "romad": romad(_df),
+        "total_return": total_return(_df),
     }
 
 

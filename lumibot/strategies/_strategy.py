@@ -213,6 +213,9 @@ class _Strategy:
                 self._strategy_returns_df, self._risk_free_rate
             )
 
+            total_return = self._analysis["total_return"]
+            self.log_message(f"Total Return: {total_return*100:,.2f}%")
+
             cagr_value = self._analysis["cagr"]
             self.log_message(f"CAGR {cagr_value*100:,.2f}%")
 
@@ -248,6 +251,9 @@ class _Strategy:
                 self._benchmark_analysis = stats_summary(
                     self._benchmark_returns_df, self._risk_free_rate
                 )
+
+                total_return = self._benchmark_analysis["total_return"]
+                self.log_message(f"Total Return: {total_return*100:,.2f}%")
 
                 cagr_value = self._benchmark_analysis["cagr"]
                 self.log_message(f"{self._benchmark_asset} CAGR {cagr_value*100:,.2f}%")
@@ -303,15 +309,24 @@ class _Strategy:
         sleeptime=1,
         stats_file=None,
         risk_free_rate=None,
-        logfile="logs/test.log",
+        logfile=None,
         config=None,
         auto_adjust=False,
         benchmark_asset="SPY",
-        plot_file="backtest_result.jpg",
-        trades_file="logs/trades.csv",
+        plot_file=None,
+        trades_file=None,
         pandas_data=None,
         **kwargs,
     ):
+        # Filename defaults
+        datestring = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        if plot_file is None:
+            plot_file = f"logs/{name}_{datestring}.jpg"
+        if stats_file is None:
+            stats_file = f"logs/{name}_{datestring}.csv"
+        if trades_file is None:
+            trades_file = f"logs/{name}_trades_{datestring}.csv"
+
         if not cls.IS_BACKTESTABLE:
             logging.warning(f"Strategy {name} cannot be backtested at the moment")
             return None

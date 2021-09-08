@@ -520,6 +520,8 @@ class MyStrategy(Strategy):
         self.my_custom_parameter = my_custom_parameter
 ```
 
+##### Custom Parameters
+
 You can also use the initialize method to define custom parameters 
 like ```my_custom_parameter``` in the example above. You can name these parameters however you'd like, and add as many as you'd like.
 
@@ -559,6 +561,19 @@ for option in options:
         my_last_parameter="SPY"
     )
 # `options` in this example is not referring to trading options contracts.
+```
+
+##### Changing Market Hours
+
+If you'd like to change the market hours for which the bot operates, then you can use the `set_market()` function like this:
+```python
+def initialize(self, asset_symbol="MNQ", expiration="202109"):
+    self.set_market('24/7')
+```
+
+Possible calendars include:
+```python
+['MarketCalendar', 'ASX', 'BMF', 'CFE', 'NYSE', 'stock', 'NASDAQ', 'BATS', 'CME_Equity', 'CBOT_Equity', 'CME_Agriculture', 'CBOT_Agriculture', 'COMEX_Agriculture', 'NYMEX_Agriculture', 'CME_Rate', 'CBOT_Rate', 'CME_InterestRate', 'CBOT_InterestRate', 'CME_Bond', 'CBOT_Bond', 'EUREX', 'HKEX', 'ICE', 'ICEUS', 'NYFE', 'JPX', 'LSE', 'OSE', 'SIX', 'SSE', 'TSX', 'TSXV', 'BSE', 'TASE', 'TradingCalendar', 'ASEX', 'BVMF', 'CMES', 'IEPA', 'XAMS', 'XASX', 'XBKK', 'XBOG', 'XBOM', 'XBRU', 'XBUD', 'XBUE', 'XCBF', 'XCSE', 'XDUB', 'XFRA', 'XETR', 'XHEL', 'XHKG', 'XICE', 'XIDX', 'XIST', 'XJSE', 'XKAR', 'XKLS', 'XKRX', 'XLIM', 'XLIS', 'XLON', 'XMAD', 'XMEX', 'XMIL', 'XMOS', 'XNYS', 'XNZE', 'XOSL', 'XPAR', 'XPHS', 'XPRA', 'XSES', 'XSGO', 'XSHG', 'XSTO', 'XSWX', 'XTAE', 'XTAI', 'XTKS', 'XTSE', 'XWAR', 'XWBO', 'us_futures', '24/7', '24/5']
 ```
 
 #### before_market_opens

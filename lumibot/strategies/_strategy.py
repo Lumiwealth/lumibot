@@ -252,7 +252,7 @@ class _Strategy:
                     self._benchmark_returns_df, self._risk_free_rate
                 )
 
-                total_return = self._analysis["total_return"]
+                total_return = self._benchmark_analysis["total_return"]
                 self.log_message(f"Total Return: {total_return*100:,.2f}%")
 
                 cagr_value = self._benchmark_analysis["cagr"]

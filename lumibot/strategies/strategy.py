@@ -129,6 +129,34 @@ class Strategy(_Strategy):
         """Sleeping for sleeptime seconds"""
         return self.broker.sleep(sleeptime)
 
+    def set_market(self, market):
+        """Set the market for trading hours.
+        `NASDAQ` is default.
+        """
+        markets = [
+            'MarketCalendar', 'ASX', 'BMF', 'CFE', 'NYSE', 'stock', 'NASDAQ', 'BATS', 'CME_Equity',
+            'CBOT_Equity', 'CME_Agriculture', 'CBOT_Agriculture', 'COMEX_Agriculture',
+            'NYMEX_Agriculture', 'CME_Rate', 'CBOT_Rate', 'CME_InterestRate', 'CBOT_InterestRate',
+            'CME_Bond', 'CBOT_Bond', 'EUREX', 'HKEX', 'ICE', 'ICEUS', 'NYFE', 'JPX', 'LSE', 'OSE',
+            'SIX', 'SSE', 'TSX', 'TSXV', 'BSE', 'TASE', 'TradingCalendar', 'ASEX', 'BVMF', 'CMES',
+            'IEPA', 'XAMS', 'XASX', 'XBKK', 'XBOG', 'XBOM', 'XBRU', 'XBUD', 'XBUE', 'XCBF', 'XCSE',
+            'XDUB', 'XFRA', 'XETR', 'XHEL', 'XHKG', 'XICE', 'XIDX', 'XIST', 'XJSE', 'XKAR', 'XKLS',
+            'XKRX', 'XLIM', 'XLIS', 'XLON', 'XMAD', 'XMEX', 'XMIL', 'XMOS', 'XNYS', 'XNZE', 'XOSL',
+            'XPAR', 'XPHS', 'XPRA', 'XSES', 'XSGO', 'XSHG', 'XSTO', 'XSWX', 'XTAE', 'XTAI', 'XTKS',
+            'XTSE', 'XWAR', 'XWBO', 'us_futures', '24/7', '24/5'
+        ]
+
+        if market not in markets:
+            raise ValueError(
+                f"Valid market entries are: {markets}. You entered {market}. Please adjust."
+            )
+        if self.broker.SOURCE == "InteractiveBrokers":
+            self.broker.market = market
+        else:
+            raise ValueError(
+                f"Please only adjust market calendars when using Interactive Brokers"
+            )
+
     def await_market_to_open(self, timedelta=None):
         """Executes infinite loop until market opens"""
         if timedelta is None:

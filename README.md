@@ -236,9 +236,31 @@ When creating a new security there are two options.
    options, futures, or forex asset objects are mandatory due to the additional details required to 
    identify and trade these securities. 
    
-Assets may be created using the `create_asset` method as follows: 
-  `create_asset(symbol, asset_type=`option`, **kwargs)` 
+Assets may be created using the `self.create_asset` method as follows: 
+  `self.create_asset(symbol, asset_type=`option`, **kwargs)` 
     * see attributes above.
+    
+### Examples:
+
+For stocks:
+
+```python
+asset = self.create_asset('SPY', asset_type="stock")
+order = self.create_order(asset, 10, "buy")
+self.submit_order(order)
+```
+
+
+For futures:
+
+```python
+asset = self.create_asset(
+  'ES', asset_type="future", expiration="202111"
+)
+order = self.create_order(asset, 10, "buy")
+self.submit_order(order)
+```
+
 
 ## bars
 
@@ -260,9 +282,10 @@ Bars objects have the following fields:
 - df: the pandas dataframe containing all the datas
 
 Bars objects has the following helper methods:
-- ```get_last_price()```: returns the closing price of the last dataframe row
-- ```get_last_dividend()```: returns the dividend per share value of the last dataframe row
-- ```get_momentum(start=None, end=None)```: calculates the global price momentum of the dataframe.
+- ```get_last_price()```: Returns the closing price of the last dataframe row
+- ```get_last_dividend()```: Returns the dividend per share value of the last dataframe row
+- ```get_momentum(start=None, end=None)```: Calculates the global price momentum of the dataframe.
+- ```aggregate_bars(frequency)```: Will convert a set of bars to a different timeframe (eg. 1 min to 15 min) frequency (string): The new timeframe that the bars should be in, eg. "15Min", "1H", or "1D". Returns a new Bars object.
 
 When specified, start and end will be used to filter the daterange for the momentum calculation.
   If none of ``start`` or ``end`` are specified the momentum will be calculated from the first row untill
@@ -1055,7 +1078,6 @@ Optional Parameters:
 
 Example:
 ```python
-import timedelta
 # Return a midnight rounded datetime object of three minutes ago 
 dt =  self.get_round_minute(timeshift=3)
 print(dt)
@@ -1079,7 +1101,6 @@ Optional Parameters:
 
 Example:
 ```python
-import timedelta
 # Return a midnight rounded datetime object of three days ago 
 dt =  self.get_round_day(timeshift=3)
 print(dt)
@@ -1149,7 +1170,7 @@ Parameters:
 
 Example:
 ```python
-import timedelta
+from datetime import timedelta
 #...
 
 # Extract 10 rows of SPY data with one minute timestep between each row

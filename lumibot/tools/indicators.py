@@ -115,6 +115,7 @@ def stats_summary(_df, risk_free_rate):
         "sharpe": sharpe(_df, risk_free_rate),
         "max_drawdown": max_drawdown(_df),
         "romad": romad(_df),
+        "total_return": total_return(_df),
     }
 
 
@@ -129,11 +130,11 @@ def performance(_df, risk_free, prefix=""):
     maxdown_adj = max_drawdown(_df)
     romad_adj = romad(_df)
 
-    print(f"{prefix} CAGR {cagr_adj*100:0.2f}%")
-    print(f"{prefix} Volatility {vol_adj*100:0.2f}%")
+    print(f"{prefix} CAGR {cagr_adj*100:,.2f}%")
+    print(f"{prefix} Volatility {vol_adj*100:,.2f}%")
     print(f"{prefix} Sharpe {sharpe_adj:0.2f}")
     print(
-        f"{prefix} Max Drawdown {maxdown_adj['drawdown']*100:0.2f}% on {maxdown_adj['date']:%Y-%m-%d}"
+        f"{prefix} Max Drawdown {maxdown_adj['drawdown']*100:,.2f}% on {maxdown_adj['date']:%Y-%m-%d}"
     )
     print(f"{prefix} RoMaD {romad_adj*100:,.2f}%")
 
@@ -165,13 +166,13 @@ def plot_returns(df1, name1, df2, name2, plot_file="backtest_result.pdf"):
     _df1 = df1.copy()
     _df1 = _df1.sort_index(ascending=True)
     _df1[name1] = (1 + _df1["return"]).cumprod()
-    _df1.index = _df1.index.date
+    _df1 = _df1.resample("1D").mean()
     dfs_concat.append(_df1.loc[:, [name1]])
 
     _df2 = df2.copy()
     _df2 = _df2.sort_index(ascending=True)
     _df2[name2] = (1 + _df2["return"]).cumprod()
-    _df2.index = _df2.index.date
+    _df2 = _df2.resample("1D").mean()
     dfs_concat.append(_df2.loc[:, [name2]])
 
     df_final = pd.concat(dfs_concat, join="outer", axis=1)

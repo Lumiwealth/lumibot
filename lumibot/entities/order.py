@@ -58,6 +58,7 @@ class Order:
         self.order_class = None
         self.type = "market"
         self.dependent_order = None
+        self.dependent_order_filled = False
 
         # Options:
         self.exchange = exchange

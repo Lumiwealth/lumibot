@@ -1,3 +1,4 @@
+import datetime
 import logging
 from copy import deepcopy
 
@@ -213,6 +214,9 @@ class _Strategy:
                 self._strategy_returns_df, self._risk_free_rate
             )
 
+            total_return = self._analysis["total_return"]
+            self.log_message(f"Total Return: {total_return*100:,.2f}%")
+
             cagr_value = self._analysis["cagr"]
             self.log_message(f"CAGR {cagr_value*100:,.2f}%")
 
@@ -249,29 +253,28 @@ class _Strategy:
                     self._benchmark_returns_df, self._risk_free_rate
                 )
 
+                total_return = self._benchmark_analysis["total_return"]
+                self.log_message(f"Total Return: {total_return*100:,.2f}%")
+
                 cagr_value = self._benchmark_analysis["cagr"]
-                self.log_message(
-                    f"{self._benchmark_asset} CAGR {round(100 * cagr_value, 2)}%"
-                )
+                self.log_message(f"{self._benchmark_asset} CAGR {cagr_value*100:,.2f}%")
 
                 volatility_value = self._benchmark_analysis["volatility"]
                 self.log_message(
-                    f"{self._benchmark_asset} Volatility {round(100 * volatility_value, 2)}%"
+                    f"{self._benchmark_asset} Volatility {volatility_value*100:,.2f}%"
                 )
 
                 sharpe_value = self._benchmark_analysis["sharpe"]
-                self.log_message(
-                    f"{self._benchmark_asset} Sharpe {round(sharpe_value, 2)}"
-                )
+                self.log_message(f"{self._benchmark_asset} Sharpe {sharpe_value:,.2f}")
 
                 max_drawdown_result = self._benchmark_analysis["max_drawdown"]
                 self.log_message(
-                    f"{self._benchmark_asset} Max Drawdown {round(100 * max_drawdown_result['drawdown'], 2)}% on {max_drawdown_result['date']:%Y-%m-%d}"
+                    f"{self._benchmark_asset} Max Drawdown {max_drawdown_result['drawdown']*100:,.2f}% on {max_drawdown_result['date']:%Y-%m-%d}"
                 )
 
                 romad_value = self._benchmark_analysis["romad"]
                 self.log_message(
-                    f"{self._benchmark_asset} RoMaD {round(100 * romad_value, 2)}%"
+                    f"{self._benchmark_asset} RoMaD {romad_value*100:,.2f}%"
                 )
 
         logger.setLevel(current_level)
@@ -307,15 +310,24 @@ class _Strategy:
         sleeptime=1,
         stats_file=None,
         risk_free_rate=None,
-        logfile="logs/test.log",
+        logfile=None,
         config=None,
         auto_adjust=False,
         benchmark_asset="SPY",
-        plot_file="backtest_result.jpg",
-        trades_file="logs/trades.csv",
+        plot_file=None,
+        trades_file=None,
         pandas_data=None,
         **kwargs,
     ):
+        # Filename defaults
+        datestring = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        if plot_file is None:
+            plot_file = f"logs/{name}_{datestring}.jpg"
+        if stats_file is None:
+            stats_file = f"logs/{name}_{datestring}.csv"
+        if trades_file is None:
+            trades_file = f"logs/{name}_trades_{datestring}.csv"
+
         if not cls.IS_BACKTESTABLE:
             logging.warning(f"Strategy {name} cannot be backtested at the moment")
             return None
@@ -349,10 +361,23 @@ class _Strategy:
             **kwargs,
         )
         trader.add_strategy(strategy)
+
+        logger = logging.getLogger("backtest_stats")
+        logger.setLevel(logging.INFO)
+        logger.info("Starting backtest...")
+        start = datetime.datetime.now()
+
         result = trader.run_all()
+
+        end = datetime.datetime.now()
+        backtesting_length = backtesting_end - backtesting_start
+        backtesting_run_time = end - start
+        logger.info(
+            f"Backtest took {backtesting_run_time} for a speed of {backtesting_run_time/backtesting_length:,.3f}"
+        )
 
         backtesting_broker.export_trade_events_to_csv(trades_file)
 
-        # strategy.plot_returns_vs_benchmark(plot_file)
+        strategy.plot_returns_vs_benchmark(plot_file)
 
         return result

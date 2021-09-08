@@ -394,11 +394,42 @@ class Broker:
         orders = self.get_tracked_orders(strategy)
         self.cancel_orders(orders)
 
+    def wait_orders_clear(self, strategy, max_loop=8):
+        # Returns true if outstanding orders for a strategy are complete.
+
+        out_orders = True
+        while out_orders or max_loop > 0:
+
+            outstanding_orders = [
+                order
+                for order in (
+                    self._unprocessed_orders.get_list()
+                    + self._new_orders.get_list()
+                    + self._partially_filled_orders.get_list()
+                )
+                if order.strategy == strategy
+            ]
+
+            if len(outstanding_orders) > 0:
+                time.sleep(0.25)
+                max_loop -= 1
+                continue
+            else:
+                return 1
+        return 0
+
     def sell_all(self, strategy, cancel_open_orders=True):
         """sell all positions"""
         logging.warning("Strategy %s: sell all" % strategy)
         if cancel_open_orders:
             self.cancel_open_orders(strategy)
+
+        if not self.IS_BACKTESTING_BROKER:
+            orders_result = self.wait_orders_clear(strategy)
+            if not orders_result:
+                logging.info(
+                    "From sell_all, orders were still outstanding before the sell all event"
+                )
 
         orders = []
         positions = self.get_tracked_positions(strategy)
@@ -406,6 +437,13 @@ class Broker:
             order = position.get_selling_order()
             orders.append(order)
         self.submit_orders(orders)
+
+        if not self.IS_BACKTESTING_BROKER:
+            orders_result = self.wait_orders_clear(strategy)
+            if not orders_result:
+                logging.info(
+                    "From sell_all, orders were still outstanding after the sell all event"
+                )
 
     # =========Market functions=======================
 
@@ -540,11 +578,16 @@ class Broker:
         else:
             logging.info("Unhandled type event %s for %r" % (type_event, stored_order))
 
-        if hasattr(self, "_data_source") and hasattr(self._data_source, "get_datetime"):
+        if (
+            hasattr(self, "_data_source")
+            and self._data_source is not None
+            and hasattr(self._data_source, "get_datetime")
+        ):
             new_row = {
                 "time": self._data_source.get_datetime(),
                 "strategy": stored_order.strategy,
                 "exchange": stored_order.exchange,
+                "symbol": stored_order.symbol,
                 "side": stored_order.side,
                 "sec_type": stored_order.sec_type,
                 "type": stored_order.type,

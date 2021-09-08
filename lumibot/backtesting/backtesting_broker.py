@@ -310,6 +310,9 @@ class BacktestingBroker(Broker):
             return
 
         for order in pending_orders:
+            if order.dependent_order_filled:
+                continue
+
             # Check validity if current date > valid date, cancel order. todo valid date
             price = 0
             filled_quantity = order.quantity

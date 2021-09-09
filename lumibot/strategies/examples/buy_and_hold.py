@@ -17,13 +17,14 @@ class BuyAndHold(Strategy):
         # Set the initial variables or constants
 
         # Built in Variables
-        self.sleeptime = 1
+        self.sleeptime = 0
 
         # Our Own Variables
         self.counter = 0
         self.buy_symbol = buy_symbol
 
     def on_trading_iteration(self):
+        """Buys the self.buy_symbol once, then never again"""
         # What to do each iteration
         current_value = self.get_last_price(self.buy_symbol)
         logging.info(f"The value of {self.buy_symbol} is {current_value}")
@@ -41,7 +42,6 @@ class BuyAndHold(Strategy):
         self.sell_all()
 
     def trace_stats(self, context, snapshot_before):
-
         row = {"current_value": context["current_value"]}
 
         return row

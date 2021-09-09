@@ -48,8 +48,6 @@ strategy.backtest(
     YahooDataBacktesting,
     backtesting_start,
     backtesting_end,
-    stats_file=stats_file,
-    plot_file=plot_file,
     config=None,
 )
 

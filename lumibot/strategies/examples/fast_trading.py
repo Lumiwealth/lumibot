@@ -1,5 +1,5 @@
-from lumibot.strategies.strategy import Strategy
 from lumibot.entities.asset import Asset
+from lumibot.strategies.strategy import Strategy
 
 """
 Strategy Description
@@ -11,8 +11,6 @@ increased 0.01% in the past two minutes, then we will buy TSLA.
 
 
 class FastTrading(Strategy):
-    IS_BACKTESTABLE = False
-
     # =====Overloading lifecycle methods=============
     def initialize(self, momentum_length=2, max_assets=3):
         # Setting the momentum period (in minutes)
@@ -69,9 +67,15 @@ class FastTrading(Strategy):
         # Selling assets
         for asset in self.trade_positions:
             if asset not in best_assets:
-                self.log_message(f"Selling {self.assets[asset]['quantity']} shares of {asset.symbol}")
-                self.orders.append(self.create_order(asset, self.assets[asset]["quantity"], "sell"))
-                cash += self.assets[asset]["last_price"] * self.assets[asset]["quantity"]
+                self.log_message(
+                    f"Selling {self.assets[asset]['quantity']} shares of {asset.symbol}"
+                )
+                self.orders.append(
+                    self.create_order(asset, self.assets[asset]["quantity"], "sell")
+                )
+                cash += (
+                    self.assets[asset]["last_price"] * self.assets[asset]["quantity"]
+                )
                 self.trade_positions.remove(asset)
                 self.assets[asset]["quantity"] = 0
         selling_orders = self.orders_sell()
@@ -85,9 +89,15 @@ class FastTrading(Strategy):
             if items_to_trade <= 0:
                 break
             trade_cash = cash / items_to_trade
-            self.assets[asset]["quantity"] = trade_cash // self.assets[asset]["last_price"]
-            self.log_message(f"Buying {self.assets[asset]['quantity'] } shares of {asset.symbol}.")
-            self.orders.append(self.create_order(asset, self.assets[asset]["quantity"], "buy"))
+            self.assets[asset]["quantity"] = (
+                trade_cash // self.assets[asset]["last_price"]
+            )
+            self.log_message(
+                f"Buying {self.assets[asset]['quantity'] } shares of {asset.symbol}."
+            )
+            self.orders.append(
+                self.create_order(asset, self.assets[asset]["quantity"], "buy")
+            )
             cash -= self.assets[asset]["last_price"] * self.assets[asset]["quantity"]
             self.trade_positions.append(asset)
         self.submit_orders(self.orders_buy())
@@ -111,7 +121,9 @@ class FastTrading(Strategy):
             row[f"{asset.symbol}_quantity"] = self.assets[asset]["quantity"]
             row[f"{asset.symbol}_momentum"] = self.assets[asset]["momentum"]
             row[f"{asset.symbol}_last_price"] = self.assets[asset]["last_price"]
-            row[f"{asset.symbol}_mkt_value"] = self.assets[asset]["quantity"] * self.assets[asset]["last_price"]
+            row[f"{asset.symbol}_mkt_value"] = (
+                self.assets[asset]["quantity"] * self.assets[asset]["last_price"]
+            )
 
         # Add all of our values to the row in the CSV file. These automatically get
         # added to portfolio_value, unspent_money and return

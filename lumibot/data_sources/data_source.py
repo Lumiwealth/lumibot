@@ -123,16 +123,13 @@ class DataSource:
         self,
         assets,
         length,
-        timestep="",
+        timestep="minute",
         timeshift=None,
         chunk_size=100,
         max_workers=200,
     ):
         """Get bars for the list of assets"""
         assets = [Asset(symbol=a) if isinstance(a, str) else a for a in assets]
-
-        if not timestep:
-            timestep = self.MIN_TIMESTEP
 
         chunks = get_chunks(assets, chunk_size)
         with ThreadPoolExecutor(

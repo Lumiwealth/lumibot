@@ -121,6 +121,8 @@ class DataSource:
         )
         if isinstance(response, float):
             return response
+        elif response is None:
+            return None
 
         bars = self._parse_source_symbol_bars(response, asset)
         return bars

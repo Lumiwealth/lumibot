@@ -328,7 +328,7 @@ class BacktestingBroker(Broker):
 
             elif self._data_source.SOURCE == "PANDAS":
                 ohlc = self._data_source._data_store[order.asset]._get_bars_dict(
-                    self.datetime, 1
+                    self.datetime, length=1
                 )
                 dt = ohlc["datetime"][-1]
                 open = ohlc["open"][-1]

@@ -12,13 +12,92 @@ class Data:
 
     Parameters
     ----------
+    strategy : str
+        Name of the current strategy object.
+    asset : Asset Object
+        Asset object to which this data is attached.
+    df : dataframe
+        Pandas dataframe containing OHLCV etc trade data. Loaded by user
+        from csv.
+        Index is date and must be pandas datetime64.
+        Columns are strictly ["open", "high", "low", "close", "volume"]
+    date_start : Datetime or None
+        Starting date for this data, if not provided then first date in
+        the dataframe.
+    date_end : Datetime or None
+        Ending date for this data, if not provided then last date in
+        the dataframe.
+    time_start : datetime.time or None
+        If not supplied, then default is 0001 hrs.
+    time_end : datetime.time or None
+        If not supplied, then default is 2359 hrs.
+    timestep : str
+        Either "minute" (default) or "day"
+    columns : list of str
+        For feeding in desired columns (not yet used).
 
     Attributes
     ----------
+    strategy : str
+        Name of the current strategy object.
+    asset : Asset Object
+        Asset object to which this data is attached.
+    sybmol : str
+        The underlying or stock symbol as a string.
+    df : dataframe
+        Pandas dataframe containing OHLCV etc trade data. Loaded by user
+        from csv.
+        Index is date and must be pandas datetime64.
+        Columns are strictly ["open", "high", "low", "close", "volume"]
+    date_start : Datetime or None
+        Starting date for this data, if not provided then first date in
+        the dataframe.
+    date_end : Datetime or None
+        Ending date for this data, if not provided then last date in
+        the dataframe.
+    time_start : datetime.time or None
+        If not supplied, then default is 0001 hrs.
+    time_end : datetime.time or None
+        If not supplied, then default is 2359 hrs.
+    timestep : str
+        Either "minute" (default) or "day"
+    columns : list of str
+        For feeding in desired columns (not yet used).
+    datalines : dict
+        Keys are column names like `datetime` or `close`, values are
+        numpy arrays.
+    iter_index : Pandas Series
+        Datetime in the index, range count in values. Used to retrieve
+        the current df iteration for this data and datetime.
 
     Methods
     -------
+    set_times
+        Sets the start and end time for the data.
+    repair_times_and_fill
+        After all time series merged, adjust the local dataframe to reindex and fill nan's.
+    columns
+        Adjust date and column names to lower case.
+    set_date_format
+        Ensure datetime in local datetime64 format.
+    set_dates
+        Set start and end dates.
+    trim_data
+        Trim the dataframe to match the desired backtesting dates.
 
+    to_datalines
+        Create numpy datalines from existing date index and columns.
+    get_iter_count
+        Returns the current index number (len) given a date.
+    check_data (wrapper)
+        Validates if the provided date, length, timeshift, and timestep
+        will return data. Runs function if data, returns None if no data.
+    get_last_price
+        Gets the last price from the current date.
+    _get_bars_dict
+        Returns bars in the form of a dict.
+    get_bars
+        Returns bars in the form of a dataframe.
     """
 
     MIN_TIMESTEP = "minute"
@@ -53,33 +132,17 @@ class Data:
         self.df = self.trim_data(
             self.df, self.date_start, self.date_end, self.time_start, self.time_end
         )
+        self.datetime_start = self.df.index[0]
+        self.datetime_end = self.df.index[-1]
 
     def set_times(self, time_start, time_end):
-        if self.timestep == 'minute':
+        if self.timestep == "minute":
             ts = time_start
             te = time_end
         else:
             ts = datetime.time(0, 0)
             te = datetime.time(23, 59, 59, 999999)
         return ts, te
-
-    def repair_times_and_fill(self, idx):
-        # After all time series merged, adjust the local dataframe to reindex and fill nan's.
-        # Create Datalines.
-        df = self.df.reindex(idx)
-        df.loc[df["volume"].isna(), "volume"] = 0
-        df.loc[:, ~df.columns.isin(["open", "high", "low"])] = df.loc[:, ~df.columns.isin(["open",
-                                                                      "high", "low"])].ffill()
-        for col in ['open', 'high', 'low']:
-            df.loc[df[col].isna(), col] = df.loc[df[col].isna(), "close"]
-
-        self.df = df
-
-        iter_index = pd.Series(df.index)
-        self.iter_index = pd.Series(iter_index.index, index=iter_index)
-
-        self.datalines = dict()
-        self.to_datalines()
 
     def columns(self, df):
         # Select columns to use, change to lower case, rename `date` if necessary.
@@ -120,7 +183,9 @@ class Data:
 
         if self.timestep == "day":
             date_start = date_start.replace(hour=0, minute=0, second=0, microsecond=0)
-            date_end = date_end.replace(hour=23, minute=59, second=59, microsecond=999999)
+            date_end = date_end.replace(
+                hour=23, minute=59, second=59, microsecond=999999
+            )
 
         return (
             date_start,
@@ -130,9 +195,30 @@ class Data:
     def trim_data(self, df, date_start, date_end, time_start, time_end):
         # Trim the dataframe to match the desired backtesting dates.
         df = df.loc[date_start:date_end, :]
-        if self.timestep == 'minute':
+        if self.timestep == "minute":
             df = df.between_time(time_start, time_end)
         return df
+
+    def repair_times_and_fill(self, idx):
+        # Trim the global index so that it is within the local data.
+        idx = idx[(idx >= self.datetime_start) & (idx <= self.datetime_end)]
+
+        # After all time series merged, adjust the local dataframe to reindex and fill nan's.
+        df = self.df.reindex(idx)
+        df.loc[df["volume"].isna(), "volume"] = 0
+        df.loc[:, ~df.columns.isin(["open", "high", "low"])] = df.loc[
+            :, ~df.columns.isin(["open", "high", "low"])
+        ].ffill()
+        for col in ["open", "high", "low"]:
+            df.loc[df[col].isna(), col] = df.loc[df[col].isna(), "close"]
+
+        self.df = df
+
+        iter_index = pd.Series(df.index)
+        self.iter_index = pd.Series(iter_index.index, index=iter_index)
+
+        self.datalines = dict()
+        self.to_datalines()
 
     def to_datalines(self):
         self.datalines.update(
@@ -164,11 +250,46 @@ class Data:
         # Return the index location for a given datetime.
         return self.iter_index[dt]
 
-    def get_last_price(self, dt):
+    def check_data(func):
+        # Validates if the provided date, length, timeshift, and timestep
+        # will return data. Runs function if data, returns None if no data.
+        def checker(self, *args, **kwargs):
+            # print(f"print datetime from wrapper: {args[0]}")  # , kwargs: {kwargs}")
+
+            dt = args[0]
+
+            # Check if the iter date is outside of this data's date range.
+            if dt < self.datetime_start or dt > self.datetime_end:
+                return None
+
+            data_index = (
+                self.iter_index[dt]
+                + 1
+                - kwargs.get("length", 1)
+                - kwargs.get("timeshift", 0)
+            )
+            is_data = data_index >= 0
+
+            print(
+                f"Iterindex {self.iter_index[dt]}, length: {kwargs.get('length', 1)}, timeshift: "
+                f"{kwargs.get('timeshift', 0)}, total index: {data_index}, is_data: {is_data}"
+            )
+
+            if not is_data:
+                return None
+
+            res = func(self, *args, **kwargs)
+            # print(f"Results last price: {res}")
+            return res
+        return checker
+
+    @check_data
+    def get_last_price(self, dt, length=1, timeshift=0):
         # Get the last close price.
         return self.datalines["close"].dataline[self.get_iter_count(dt)]
 
-    def _get_bars_dict(self, dt, length, timestep=None, timeshift=0):
+    @check_data
+    def _get_bars_dict(self, dt, length=1, timestep=None, timeshift=0):
         # Get bars.
         end_row = self.get_iter_count(dt) + 1 - timeshift
         start_row = end_row - length
@@ -181,7 +302,10 @@ class Data:
 
         return df_dict
 
-    def get_bars(self, dt, length, timestep=MIN_TIMESTEP, timeshift=0):
-        df_dict = self._get_bars_dict(dt, length, timestep=self.timestep, timeshift=timeshift)
-        df = pd.DataFrame(df_dict).set_index("datetime")
-        return df
+    def get_bars(self, dt, length=1, timestep=MIN_TIMESTEP, timeshift=0):
+        df_dict = self._get_bars_dict(
+            dt, length=length, timestep=self.timestep, timeshift=timeshift
+        )
+        if df_dict is not None:
+            return pd.DataFrame(df_dict).set_index("datetime")
+        return None

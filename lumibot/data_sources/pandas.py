@@ -43,8 +43,8 @@ class PandasData(DataSource):
         if self._timestep == "minute":
             df = df.asfreq("1T", method="pad")
             result_index = df.loc[
-                        (df.index >= df["market_open"]) & (df.index <= df["market_close"]), :
-                        ].index
+                (df.index >= df["market_open"]) & (df.index <= df["market_close"]), :
+            ].index
         else:
             result_index = df.index
         return result_index
@@ -83,7 +83,6 @@ class PandasData(DataSource):
 
         return dt_index
 
-
     def get_last_price(self, asset, timestep=None):
         # Takes an asset and returns the last known price
         return self._data_store[asset].get_last_price(self.get_datetime())
@@ -98,7 +97,6 @@ class PandasData(DataSource):
 
         return AssetsMapping(result)
 
-
     def _pull_source_symbol_bars(
         self, asset, length, timestep=MIN_TIMESTEP, timeshift=0
     ):
@@ -108,11 +106,15 @@ class PandasData(DataSource):
         if asset in self._data_store:
             data = self._data_store[asset]
         else:
-            raise ValueError(f"The asset: `{asset}` does not exist or does not have data.")
+            raise ValueError(
+                f"The asset: `{asset}` does not exist or does not have data."
+            )
 
         # result = data.tail(length)
 
-        res = data.get_bars(self.get_datetime(), length, timestep, timeshift)
+        res = data.get_bars(
+            self.get_datetime(), length=length, timestep=timestep, timeshift=timeshift
+        )
         return res
 
     def _pull_source_bars(self, assets, length, timestep=MIN_TIMESTEP, timeshift=None):

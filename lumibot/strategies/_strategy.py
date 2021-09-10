@@ -324,9 +324,9 @@ class _Strategy:
         if plot_file is None:
             plot_file = f"logs/{name}_{datestring}.jpg"
         if stats_file is None:
-            stats_file = f"logs/{name}_{datestring}.csv"
+            stats_file = f"logs/{name}_{datestring}_stats.csv"
         if trades_file is None:
-            trades_file = f"logs/{name}_trades_{datestring}.csv"
+            trades_file = f"logs/{name}_{datestring}_trades.csv"
 
         if not cls.IS_BACKTESTABLE:
             logging.warning(f"Strategy {name} cannot be backtested at the moment")

@@ -12,8 +12,6 @@ increased 0.01% in the past two minutes, then we will buy TSLA.
 
 
 class IntradayMomentum(Strategy):
-    IS_BACKTESTABLE = False
-
     # =====Overloading lifecycle methods=============
 
     def initialize(self):

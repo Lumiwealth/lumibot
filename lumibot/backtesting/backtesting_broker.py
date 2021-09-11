@@ -15,7 +15,8 @@ class BacktestingBroker(Broker):
     IS_BACKTESTING_BROKER = True
 
     CannotPredictFuture = ValueError(
-        "Cannot predict the future. Backtesting datetime already in the present"
+        "Cannot predict the future. Backtesting datetime already in the present. "
+        "Check if your backtesting end time is set after available data."
     )
 
     def __init__(self, data_source, connect_stream=True, max_workers=20):
@@ -330,6 +331,9 @@ class BacktestingBroker(Broker):
                 ohlc = self._data_source._data_store[order.asset]._get_bars_dict(
                     self.datetime, length=1
                 )
+                if ohlc is None:
+                    self.cancel_order(order)
+                    continue
                 dt = ohlc["datetime"][-1]
                 open = ohlc["open"][-1]
                 high = ohlc["high"][-1]

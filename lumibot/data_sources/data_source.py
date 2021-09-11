@@ -100,7 +100,7 @@ class DataSource:
     def _parse_source_bars(self, response):
         result = {}
         for asset, data in response.items():
-            if isinstance(data, float):
+            if isinstance(data, float) or data is None:
                 result[asset] = data
                 continue
             result[asset] = self._parse_source_symbol_bars(data, asset)
@@ -182,6 +182,14 @@ class DataSource:
                 result[asset] = last_value
 
         return AssetsMapping(result)
+
+    def is_tradable(self, asset,  dt, length=1, timestep="minute", timeshift=0):
+        # Check if an asset is tradable at this moment.
+        raise NotImplementedError(self.__class__.__name__ + '.is_tradable')
+
+    def get_tradable_assets(self, dt, length=1, timestep="minute", timeshift=0):
+        # Return a list of tradable assets.
+        raise NotImplementedError(self.__class__.__name__ + '.get_tradable_assets')
 
     def get_yesterday_dividend(self, asset):
         """Return dividend per share for a given

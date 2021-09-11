@@ -357,13 +357,19 @@ class Strategy(_Strategy):
         else:
             return asset_prices
 
-    def get_tradable_assets(self, easy_to_borrow=None, filter_func=None):
+    def is_tradable(self, asset, dt, length=1, timestep="minute", timeshift=0):
         """Get the list of all tradable assets
         within the current broker from the market"""
-        return self.broker.get_tradable_assets(
-            easy_to_borrow=easy_to_borrow, filter_func=filter_func
+        return self.broker._data_source.is_tradable(
+            asset, dt, length=length, timestep=timestep, timeshift=timeshift
         )
 
+    def get_tradable_assets(self, dt, length=1, timestep="minute", timeshift=0):
+        """Get the list of all tradable assets
+        within the current broker from the market"""
+        return self.broker._data_source.get_tradable_assets(
+            dt, length=length, timestep=timestep, timeshift=timeshift
+        )
     # =======Broker methods shortcuts============
     def option_params(self, asset, exchange="", underlyingConId=""):
         """Returns option chain data, list of strikes and list of expiry dates."""

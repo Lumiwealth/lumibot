@@ -254,10 +254,7 @@ class Data:
         # Validates if the provided date, length, timeshift, and timestep
         # will return data. Runs function if data, returns None if no data.
         def checker(self, *args, **kwargs):
-            # print(f"print datetime from wrapper: {args[0]}")  # , kwargs: {kwargs}")
-
             dt = args[0]
-
             # Check if the iter date is outside of this data's date range.
             if dt < self.datetime_start or dt > self.datetime_end:
                 return None
@@ -269,12 +266,6 @@ class Data:
                 - kwargs.get("timeshift", 0)
             )
             is_data = data_index >= 0
-
-            print(
-                f"Iterindex {self.iter_index[dt]}, length: {kwargs.get('length', 1)}, timeshift: "
-                f"{kwargs.get('timeshift', 0)}, total index: {data_index}, is_data: {is_data}"
-            )
-
             if not is_data:
                 return None
 
@@ -282,6 +273,12 @@ class Data:
             # print(f"Results last price: {res}")
             return res
         return checker
+
+    @check_data
+    def is_tradable(self, dt, length=1, timestep="minute", timeshift=0):
+        # Return true if data is available for trading. None if not.
+        return True
+
 
     @check_data
     def get_last_price(self, dt, length=1, timeshift=0):

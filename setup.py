@@ -19,7 +19,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="lumibot",
-    version="1.2.7",
+    version="1.2.8",
     author="Robert Grzesik",
     author_email="rob@lumiwealth.com",
     description="Trading Framework",
@@ -38,6 +38,7 @@ setuptools.setup(
         "pandas",
         "pandas_datareader",
         "pandas_market_calendars",
+        "plotly",
         "flask-socketio",
         "flask-sqlalchemy",
         "flask-marshmallow",

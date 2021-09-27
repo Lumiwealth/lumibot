@@ -194,9 +194,20 @@ class Data:
 
     def trim_data(self, df, date_start, date_end, time_start, time_end):
         # Trim the dataframe to match the desired backtesting dates.
+
         df = df.loc[date_start:date_end, :]
         if self.timestep == "minute":
             df = df.between_time(time_start, time_end)
+        if df.empty:
+            raise ValueError(
+                f"When attempting to load a dataframe for {self.asset}, "
+                f"and empty dataframe was returned. This is likely due"
+                f"to your backtesting start and end dates not being "
+                f"within the start and end dates of the data provided. "
+                f"\nPlease check that your at least one of your start "
+                f"or end dates for backtesting is within the range of "
+                f"your start and end dates for your data. "
+            )
         return df
 
     def repair_times_and_fill(self, idx):

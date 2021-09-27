@@ -23,6 +23,8 @@ class BacktestingBroker(Broker):
         # Calling init methods
         self.name = "backtesting"
         self.max_workers = max_workers
+
+
         if not data_source.IS_BACKTESTING_DATA_SOURCE:
             raise ValueError(
                 "object %r is not a backteesting data_source" % data_source
@@ -294,14 +296,47 @@ class BacktestingBroker(Broker):
             order=order,
         )
 
+    def expired_contracts(self, strategy):
+        """Checks if options or futures contracts have expried and converts
+        to cash.
+
+        Parameters
+        ----------
+        strategy : str
+            Strategy object name.
+
+        Returns
+        --------
+            List of orders
+        """
+        if self._data_source.SOURCE != "PANDAS":
+            return []
+
+        orders_closing_contracts = []
+        for tracked_position in self.get_tracked_positions(strategy):
+            if tracked_position.asset.expiration <= self.datetime.date():
+                orders_closing_contracts.append(tracked_position.get_selling_order())
+
+        return orders_closing_contracts
+
+
     def process_pending_orders(self, strategy):
         """Used to evaluate and execute open orders in backtesting.
 
         This method will evaluate the open orders at the beginning of every new bar to
         determine if any of the open orders should have been filled. This method will
         execute order events as needed, mostly fill events.
+
+        Parameters
+        ----------
+        strategy : Strategy object
+
         """
-        pending_orders = [
+
+        # Process expired contracts.
+        pending_orders = self.expired_contracts(strategy)
+
+        pending_orders += [
             order
             for order in self.get_tracked_orders(strategy)
             if order.status in ["unprocessed", "new"]
@@ -455,6 +490,7 @@ class BacktestingBroker(Broker):
                     broker.FILLED_ORDER,
                     price=price,
                     filled_quantity=filled_quantity,
+                    multiplier=order.asset.multiplier,
                 )
                 return True
             except:

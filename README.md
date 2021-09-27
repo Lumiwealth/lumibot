@@ -212,7 +212,7 @@ that are tracked for assets are:
   - asset_type(str): Asset type can be either `stock`, `option`, `future`, `forex`. default: `stock`
   - name(str): Optional to add in the name of the corporation for logging or printout.  
   #### Options only
-  - expiration (str): Expiration of the options contract. Format is "YYYYMMDD".
+  - expiration (str): Expiration of the options contract. Format is datetime.date().
   - strike(float): Contract strike price.
   - right(str): May enter `call` or `put`.
   - multiplier(float): Contract multiplier to the underlying. (default: 1)
@@ -221,7 +221,7 @@ that are tracked for assets are:
   Set up a futures contract using the following: 
   - symbol(str): Ticker symbol for the contract, > eg: `ES`
   - asset_type(str): "future"
-  - expiration(str): Month formatted as `YYYYMM`. So August 2021 would be `202108`
+  - expiration(str): Expiry added as datetime.date() So June 2021 would be datetime.date(2021, 6, 18)`
   
   #### Forex Only
   - symbol(str): Currency base: eg: `EUR`
@@ -255,7 +255,7 @@ For futures:
 
 ```python
 asset = self.create_asset(
-  'ES', asset_type="future", expiration="202111"
+  'ES', asset_type="future", expiration=datetime.date(2021, 6, 18)
 )
 order = self.create_order(asset, 10, "buy")
 self.submit_order(order)
@@ -567,7 +567,7 @@ for option in options:
 
 If you'd like to change the market hours for which the bot operates, then you can use the `set_market()` function like this:
 ```python
-def initialize(self, asset_symbol="MNQ", expiration="202109"):
+def initialize(self, asset_symbol="MNQ", expiration=datetime.date(2021, 9, 17)):
     self.set_market('24/7')
 ```
 

@@ -1,3 +1,4 @@
+import datetime
 import logging
 
 from lumibot.entities import Asset, Order
@@ -358,45 +359,219 @@ class Strategy(_Strategy):
             return asset_prices
 
     def is_tradable(self, asset, dt, length=1, timestep="minute", timeshift=0):
-        """Get the list of all tradable assets
-        within the current broker from the market"""
+        """Determine if the current asset is tradable at the current bar
+        in backtesting primarily used with Pandas module.
+
+        Some assets datas will start and end at different times, for
+        example options and futures contracts. When backtesting, this
+        method will determine if a given asset will have data for the
+        current bar given the length, timestep and timeshift required.
+
+        Parameter
+        ---------
+        asset : Asset object
+            The Asset to be checked if data is available for backtesting
+            at the current bar.
+        dt : datetime.datetime
+            Datetime of the bar to check, usually current datetime.
+        length : int optional
+            Number of bars to check for data. (default is 1)
+        timestep : str optional
+            Is the timestep `minute` or `day`. (default is `minute`)
+        timeshift : int optional
+            The number of bars back from `dt` is the last bar.
+            (default is 0)
+
+        Returns
+        -------
+        boolean
+            True if is tradable. False or None if not.
+        """
         return self.broker._data_source.is_tradable(
             asset, dt, length=length, timestep=timestep, timeshift=timeshift
         )
 
     def get_tradable_assets(self, dt, length=1, timestep="minute", timeshift=0):
-        """Get the list of all tradable assets
-        within the current broker from the market"""
+        """Get the list of all tradable assets within the current broker
+        from the market
+
+        Some assets datas will start and end at different times, for
+        example options and futures contracts. When backtesting, this
+        method will provide a list of assets for the current bar given
+        the length, timestep and timeshift required.
+
+        Parameter
+        ---------
+        asset : Asset object
+            The Asset to be checked if data is available for backtesting
+            at the current bar.
+        dt : datetime.datetime
+            Datetime of the bar to check, usually current datetime.
+        length : int optional
+            Number of bars to check for data. (default is 1)
+        timestep : str optional
+            Is the timestep `minute` or `day`. (default is `minute`)
+        timeshift : int optional
+            The number of bars back from `dt` is the last bar.
+            (default is 0)
+
+        Returns
+        -------
+        list of Asset objects
+            A list of all the Assets that meet the given criteria.
+            Will return an empty list if no assets are available.
+        """
+
         return self.broker._data_source.get_tradable_assets(
             dt, length=length, timestep=timestep, timeshift=timeshift
         )
+
     # =======Broker methods shortcuts============
-    def option_params(self, asset, exchange="", underlyingConId=""):
-        """Returns option chain data, list of strikes and list of expiry dates."""
-        asset = self._set_asset_mapping(asset)
-        return self.broker.option_params(
-            asset=asset, exchange=exchange, underlyingConId=underlyingConId
-        )
+    def options_expiry_to_datetime_date(self, date):
+        """Converts an IB Options expiry to datetime.date.
+
+        Parameters
+        ----------
+            date : str
+                String in the format of 'YYYYMMDD'
+
+        Returns
+        -------
+            datetime.date
+        """
+        return datetime.datetime.strptime(date, "%Y%m%d").date()
 
     def get_chains(self, asset):
-        """Returns option chain."""
+        """Returns option chains.
+
+        Obtains option chain information for the asset (stock) from each
+        of the exchanges the options trade on and returns a dictionary
+        for each exchange.
+
+        Parameter
+        ---------
+        asset : Asset object
+            The stock whose option chain is being fetched. Represented
+            as an asset object.
+
+        Returns
+        -------
+        dictionary of dictionaries for each exchange. Each exchange
+        dictionary has:
+            - `Underlying conId` (int)
+            - `TradingClass` (str) eg: `FB`
+            - `Multiplier` (str) eg: `100`
+            - `Expirations` (set of str) eg: {`20230616`, ...}
+            - `Strikes` (set of floats)
+    """
         asset = self._set_asset_mapping(asset)
         return self.broker.get_chains(asset)
 
     def get_chain(self, chains, exchange="SMART"):
-        """Returns option chain for a particular exchange."""
+        """Returns option chain for a particular exchange.
+
+        Takes in a full set of chains for all the exchanges and returns
+        on chain for a given exchange. The the full chains are returned
+        from `get_chains` method.
+
+        Parameters
+        ----------
+        chains : dictionary of dictionaries
+            The chains dictionary created by `get_chains` method.
+
+        exchange : str optional
+            The exchange such as `SMART`, `CBOE`. Default is `SMART`
+
+        Returns
+        -------
+        dictionary
+            A dictionary of option chain information for one stock and
+            for one exchange. It will contain:
+                - `Underlying conId` (int)
+                - `TradingClass` (str) eg: `FB`
+                - `Multiplier` (str) eg: `100`
+                - `Expirations` (set of str) eg: {`20230616`, ...}
+                - `Strikes` (set of floats)
+        """
         return self.broker.get_chain(chains, exchange=exchange)
 
     def get_expiration(self, chains, exchange="SMART"):
-        """Returns option chain for a particular exchange."""
+        """Returns expiration dates for an option chain for a particular
+        exchange.
+
+        Using the `chains` dictionary obtained from `get_chains` finds
+        all of the expiry dates for the option chains on a given
+        exchange. The return list is sorted.
+
+        Parameter
+        ---------
+        chains : dictionary of dictionaries
+            The chains dictionary created by `get_chains` method.
+
+        exchange : str optional
+            The exchange such as `SMART`, `CBOE`. Default is `SMART`.
+
+        Returns
+        -------
+        list of str
+            Sorted list of dates in the form of `20221013`.
+        """
         return self.broker.get_expiration(chains, exchange=exchange)
 
     def get_multiplier(self, chains, exchange="SMART"):
-        """Returns option chain for a particular exchange."""
+        """Returns option chain for a particular exchange.
+
+        Using the `chains` dictionary obtained from `get_chains` finds
+        all of the multiplier for the option chains on a given
+        exchange.
+
+        Parameter
+        ---------
+        chains : dictionary of dictionaries
+            The chains dictionary created by `get_chains` method.
+
+        exchange : str optional
+            The exchange such as `SMART`, `CBOE`. Default is `SMART`
+
+        Returns
+        -------
+        list of str
+            Sorted list of dates in the form of `20221013`.
+        """
+
         return self.broker.get_multiplier(chains, exchange=exchange)
 
     def get_strikes(self, asset):
-        """Returns a list of strikes for a give underlying asset."""
+        """Returns a list of strikes for a give underlying asset.
+
+        Using the `chains` dictionary obtained from `get_chains` finds
+        all of the multiplier for the option chains on a given
+        exchange.
+
+        Parameter
+        ---------
+        asset : Asset object
+            Asset object as normally used for an option but without
+            the strike information.
+
+            Example:
+            asset = self.create_asset(
+                "FB",
+                asset_type="option",
+                expiration=self.options_expiry_to_datetime_date("20210924"),
+                right="CALL",
+                multiplier=100,
+            )
+
+            `expiration` can also be expressed as
+            `datetime.datetime.date()`
+
+        Returns
+        -------
+        list of floats
+            Sorted list of strikes as floats.
+        """
+
         asset = self._set_asset_mapping(asset)
         contract_details = self.get_contract_details(asset)
         if not contract_details:

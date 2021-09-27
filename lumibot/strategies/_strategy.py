@@ -158,7 +158,7 @@ class _Strategy:
                 asset = position.asset
                 quantity = position.quantity
                 price = prices.get(asset, 0)
-                multiplier = asset.multiplier if asset.asset_type == "option" else 1
+                multiplier = asset.multiplier if asset.asset_type in ["option", "future"] else 1
                 portfolio_value += quantity * price * multiplier
 
             self._portfolio_value = portfolio_value

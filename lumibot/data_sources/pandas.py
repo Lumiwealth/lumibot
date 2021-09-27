@@ -21,9 +21,11 @@ class PandasData(DataSource):
         self._date_index = None
         self._date_supply = None
         self._timestep = "day"
+        self._expiries_exist = False
 
     def load_data(self, pandas_data):
         self._data_store = pandas_data
+        self._expiries_exist = len([v.asset.expiration for v in self._data_store.values()]) > 0
         self._date_index = self.update_date_index()
         self._timestep = list(self._data_store.values())[0].timestep
         pcal = self.get_trading_days_pandas()
@@ -95,7 +97,18 @@ class PandasData(DataSource):
                 dt_index = data.df.index
             else:
                 dt_index = dt_index.join(data.df.index, how="outer")
-
+        if self.datetime_end < dt_index[0]:
+            raise ValueError(
+                f"The ending date for the backtest was set for {self.datetime_end}. "
+                f"The earliest data entered is {dt_index[0]}. \nNo backtest can "
+                f"be run since there is no data before the backtest end date."
+            )
+        elif self.datetime_start > dt_index[-1]:
+            raise ValueError(
+                f"The starting date for the backtest was set for {self.datetime_start}. "
+                f"The latest data entered is {dt_index[-1]}. \nNo backtest can "
+                f"be run since there is no data after the backtest start date."
+            )
         return dt_index
 
     def get_last_price(self, asset, timestep=None):

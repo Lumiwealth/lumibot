@@ -40,16 +40,12 @@ strategy = DiversifiedLeverage(name=strategy_name, budget=budget, broker=broker)
 # Backtest
 ####
 
-stats_file = f"logs/strategy_{strategy_name}_{int(time())}.csv"
-plot_file = f"logs/strategy_{strategy_name}_{int(time())}.jpg"
 strategy.backtest(
     strategy_name,
     budget,
     YahooDataBacktesting,
     backtesting_start,
     backtesting_end,
-    stats_file=stats_file,
-    plot_file=plot_file,
     config=None,
 )
 

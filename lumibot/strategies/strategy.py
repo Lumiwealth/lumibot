@@ -129,6 +129,113 @@ class Strategy(_Strategy):
         """Sleeping for sleeptime seconds"""
         return self.broker.sleep(sleeptime)
 
+    def set_market(self, market):
+        """Set the market for trading hours.
+        `NASDAQ` is default.
+        """
+        markets = [
+            "MarketCalendar",
+            "ASX",
+            "BMF",
+            "CFE",
+            "NYSE",
+            "stock",
+            "NASDAQ",
+            "BATS",
+            "CME_Equity",
+            "CBOT_Equity",
+            "CME_Agriculture",
+            "CBOT_Agriculture",
+            "COMEX_Agriculture",
+            "NYMEX_Agriculture",
+            "CME_Rate",
+            "CBOT_Rate",
+            "CME_InterestRate",
+            "CBOT_InterestRate",
+            "CME_Bond",
+            "CBOT_Bond",
+            "EUREX",
+            "HKEX",
+            "ICE",
+            "ICEUS",
+            "NYFE",
+            "JPX",
+            "LSE",
+            "OSE",
+            "SIX",
+            "SSE",
+            "TSX",
+            "TSXV",
+            "BSE",
+            "TASE",
+            "TradingCalendar",
+            "ASEX",
+            "BVMF",
+            "CMES",
+            "IEPA",
+            "XAMS",
+            "XASX",
+            "XBKK",
+            "XBOG",
+            "XBOM",
+            "XBRU",
+            "XBUD",
+            "XBUE",
+            "XCBF",
+            "XCSE",
+            "XDUB",
+            "XFRA",
+            "XETR",
+            "XHEL",
+            "XHKG",
+            "XICE",
+            "XIDX",
+            "XIST",
+            "XJSE",
+            "XKAR",
+            "XKLS",
+            "XKRX",
+            "XLIM",
+            "XLIS",
+            "XLON",
+            "XMAD",
+            "XMEX",
+            "XMIL",
+            "XMOS",
+            "XNYS",
+            "XNZE",
+            "XOSL",
+            "XPAR",
+            "XPHS",
+            "XPRA",
+            "XSES",
+            "XSGO",
+            "XSHG",
+            "XSTO",
+            "XSWX",
+            "XTAE",
+            "XTAI",
+            "XTKS",
+            "XTSE",
+            "XWAR",
+            "XWBO",
+            "us_futures",
+            "24/7",
+            "24/5",
+        ]
+
+        if market not in markets:
+            raise ValueError(
+                f"Valid market entries are: {markets}. You entered {market}. Please adjust."
+            )
+
+        if self.broker.SOURCE == "InteractiveBrokers":
+            self.broker.market = market
+        else:
+            raise ValueError(
+                f"Please only adjust market calendars when using a broker that supports assets other than stocks"
+            )
+
     def await_market_to_open(self, timedelta=None):
         """Executes infinite loop until market opens"""
         if timedelta is None:
@@ -223,7 +330,8 @@ class Strategy(_Strategy):
     def sell_all(self, cancel_open_orders=True):
         """sell all strategy positions"""
         self.broker.sell_all(
-            self.name, cancel_open_orders=cancel_open_orders,
+            self.name,
+            cancel_open_orders=cancel_open_orders,
         )
 
     def get_last_price(self, asset):
@@ -290,7 +398,6 @@ class Strategy(_Strategy):
 
         return sorted(list(set(cd.contract.strike for cd in contract_details)))
 
-
     # =======Data source methods=================
 
     @property
@@ -337,7 +444,7 @@ class Strategy(_Strategy):
     def create_asset(
         self,
         symbol,
-        asset_type='stock',
+        asset_type="stock",
         expiration=None,
         strike="",
         right=None,
@@ -374,15 +481,14 @@ class Strategy(_Strategy):
         self,
         assets,
         length,
-        timestep="",
+        timestep="minute",
         timeshift=None,
         chunk_size=100,
         max_workers=200,
     ):
         """Get bars for the list of assets"""
         assets = [self._set_asset_mapping(asset) for asset in assets]
-        if not timestep:
-            timestep = self.data_source.MIN_TIMESTEP
+
         return self.data_source.get_bars(
             assets,
             length,

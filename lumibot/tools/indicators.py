@@ -1,9 +1,12 @@
 import logging
 import math
+import subprocess
 from datetime import datetime, timedelta
 
 import matplotlib.pyplot as plt
 import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
 
 # import lumibot.data_sources.alpha_vantage as av
 from lumibot import LUMIBOT_DEFAULT_PYTZ
@@ -115,6 +118,7 @@ def stats_summary(_df, risk_free_rate):
         "sharpe": sharpe(_df, risk_free_rate),
         "max_drawdown": max_drawdown(_df),
         "romad": romad(_df),
+        "total_return": total_return(_df),
     }
 
 
@@ -159,24 +163,103 @@ def calculate_returns(symbol, start=datetime(1900, 1, 1), end=datetime.now()):
     performance(benchmark_df, risk_free_rate, symbol)
 
 
-def plot_returns(df1, name1, df2, name2, plot_file="backtest_result.pdf"):
+def plot_returns(
+    df1,
+    name1,
+    df2,
+    name2,
+    plot_file="backtest_result.jpg",
+    plot_file_html="backtest_result.html",
+    trades_df=None,
+):
     dfs_concat = []
 
     _df1 = df1.copy()
     _df1 = _df1.sort_index(ascending=True)
     _df1[name1] = (1 + _df1["return"]).cumprod()
-    _df1 = _df1.resample("1D").mean()
+    # _df1 = _df1.resample("1D").mean()
     dfs_concat.append(_df1.loc[:, [name1]])
 
     _df2 = df2.copy()
     _df2 = _df2.sort_index(ascending=True)
     _df2[name2] = (1 + _df2["return"]).cumprod()
-    _df2 = _df2.resample("1D").mean()
+    # _df2 = _df2.resample("1D").mean()
     dfs_concat.append(_df2.loc[:, [name2]])
 
     df_final = pd.concat(dfs_concat, join="outer", axis=1)
     df_final.plot()
     plt.savefig(plot_file)
+
+    if trades_df is not None:
+        trades_df = trades_df.set_index("time")
+        df_final = df_final.merge(
+            trades_df, how="outer", left_index=True, right_index=True
+        )
+
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=df_final.index,
+            y=df_final[name1],
+            mode="lines",
+            name=name1,
+            connectgaps=True,
+            hovertemplate="Value: %{y:$,.2f}<br>%{x|%b %d %Y %I:%M:%S %p}<extra></extra>",
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=df_final.index,
+            y=df_final[name2],
+            mode="lines",
+            name=name2,
+            connectgaps=True,
+            hovertemplate="Value: %{y:$,.2f}<br>%{x|%b %d %Y %I:%M:%S %p}<extra></extra>",
+        )
+    )
+    # Buys
+    buys = df_final.copy()
+    buys[name1] = buys[name1].fillna(method="bfill")
+    buys = buys.loc[df_final["side"] == "buy"]
+    buys["plotly_text"] = buys["filled_quantity"].astype(str) + " " + buys["symbol"]
+    fig.add_trace(
+        go.Scatter(
+            x=buys.index,
+            y=buys[name1],
+            mode="markers",
+            name="buy",
+            marker_symbol="triangle-up",
+            marker_color="green",
+            marker_size=15,
+            hovertemplate="Bought %{text}<br>%{x|%b %d %Y %I:%M:%S %p}<extra></extra>",
+            text=buys["plotly_text"],
+        )
+    )
+    # Sells
+    sells = df_final.copy()
+    sells[name1] = sells[name1].fillna(method="bfill")
+    sells = sells.loc[df_final["side"] == "sell"]
+    sells["plotly_text"] = sells["filled_quantity"].astype(str) + " " + sells["symbol"]
+    fig.add_trace(
+        go.Scatter(
+            x=sells.index,
+            y=sells[name1],
+            mode="markers",
+            name="sell",
+            marker_color="red",
+            marker_size=15,
+            marker_symbol="triangle-down",
+            hovertemplate="Sold %{text}<br>%{x|%b %d %Y %I:%M:%S %p}<extra></extra>",
+            text=buys["plotly_text"],
+        )
+    )
+
+    fig.write_html(plot_file_html)
+
+    try:  # should work on MacOS and most linux versions
+        subprocess.call(["open", plot_file_html])
+    except:
+        logging.error("Could not open plot file {plot_file_html}")
 
 
 def get_risk_free_rate():

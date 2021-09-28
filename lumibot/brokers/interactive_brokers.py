@@ -42,6 +42,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         # Connection to interactive brokers
         self.ib = None
         self.start_ib(config.IP, config.SOCKET_PORT, config.CLIENT_ID)
+        self.market = None
 
     def start_ib(self, ip, socket_port, client_id):
         # Connect to interactive brokers.
@@ -67,6 +68,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
           - date (datetime.date, default `None`) Date to check, `None` for today.
         """
 
+        market = self.market if self.market is not None else market
         mkt_cal = mcal.get_calendar(market)
         date = date if date is not None else datetime.datetime.now()
         trading_hours = mkt_cal.schedule(

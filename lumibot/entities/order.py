@@ -3,7 +3,7 @@ from collections import namedtuple
 from threading import Event
 
 import lumibot.entities as entities
-from lumibot.tools import check_positive, check_price, check_quantity
+from lumibot.tools.types import check_positive, check_price, check_quantity
 
 
 class Order:

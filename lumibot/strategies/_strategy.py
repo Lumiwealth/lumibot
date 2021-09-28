@@ -214,6 +214,9 @@ class _Strategy:
                 self._strategy_returns_df, self._risk_free_rate
             )
 
+            total_return = self._analysis["total_return"]
+            self.log_message(f"Total Return: {total_return*100:,.2f}%")
+
             cagr_value = self._analysis["cagr"]
             self.log_message(f"CAGR {cagr_value*100:,.2f}%")
 
@@ -250,6 +253,9 @@ class _Strategy:
                     self._benchmark_returns_df, self._risk_free_rate
                 )
 
+                total_return = self._benchmark_analysis["total_return"]
+                self.log_message(f"Total Return: {total_return*100:,.2f}%")
+
                 cagr_value = self._benchmark_analysis["cagr"]
                 self.log_message(f"{self._benchmark_asset} CAGR {cagr_value*100:,.2f}%")
 
@@ -273,7 +279,9 @@ class _Strategy:
 
         logger.setLevel(current_level)
 
-    def plot_returns_vs_benchmark(self, plot_file="backtest_result.jpg"):
+    def plot_returns_vs_benchmark(
+        self, plot_file="backtest_result.jpg", plot_file_html="backtest_result.html", trades_df=None
+    ):
         if self._strategy_returns_df is None:
             logging.warning(
                 "Cannot plot returns because the strategy returns are missing"
@@ -289,6 +297,8 @@ class _Strategy:
                 self._benchmark_returns_df,
                 self._benchmark_asset,
                 plot_file,
+                plot_file_html,
+                trades_df,
             )
 
     @classmethod
@@ -304,15 +314,27 @@ class _Strategy:
         sleeptime=1,
         stats_file=None,
         risk_free_rate=None,
-        logfile="logs/test.log",
+        logfile=None,
         config=None,
         auto_adjust=False,
         benchmark_asset="SPY",
-        plot_file="backtest_result.jpg",
-        trades_file="logs/trades.csv",
+        plot_file=None,
+        plot_file_html=None,
+        trades_file=None,
         pandas_data=None,
         **kwargs,
     ):
+        # Filename defaults
+        datestring = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        if plot_file is None:
+            plot_file = f"logs/{name}_{datestring}.jpg"
+        if plot_file_html is None:
+            plot_file_html = f"logs/{name}_{datestring}.html"
+        if stats_file is None:
+            stats_file = f"logs/{name}_{datestring}_stats.csv"
+        if trades_file is None:
+            trades_file = f"logs/{name}_{datestring}_trades.csv"
+
         if not cls.IS_BACKTESTABLE:
             logging.warning(f"Strategy {name} cannot be backtested at the moment")
             return None
@@ -363,6 +385,8 @@ class _Strategy:
 
         backtesting_broker.export_trade_events_to_csv(trades_file)
 
-        strategy.plot_returns_vs_benchmark(plot_file)
+        strategy.plot_returns_vs_benchmark(
+            plot_file, plot_file_html, backtesting_broker._trade_event_log_df
+        )
 
         return result

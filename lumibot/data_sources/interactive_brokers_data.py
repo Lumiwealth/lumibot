@@ -183,9 +183,9 @@ class InteractiveBrokersData(DataSource):
         bars = Bars(df, self.SOURCE, asset, raw=response)
         return bars
 
-    def _start_realtime_bars(self, asset, bar_size=5, keep_bars=12):
+    def _start_realtime_bars(self, asset, keep_bars=12):
         return self.ib.start_realtime_bars(
-            asset=asset, bar_size=bar_size, keep_bars=keep_bars
+            asset=asset, keep_bars=keep_bars
         )
 
     def _get_realtime_bars(self, asset):
@@ -193,7 +193,7 @@ class InteractiveBrokersData(DataSource):
         if len(rtb) == 0:
             return None
         else:
-            return rtb.set_index('datetime')
+            return rtb
 
     def _cancel_realtime_bars(self, asset):
         self.ib.cancel_realtime_bars(asset)

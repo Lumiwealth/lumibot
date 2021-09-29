@@ -925,8 +925,8 @@ class IBClient(EClient):
 
     def cancel_realtime_bars(self, asset):
         self.realtime_bars.pop(asset, None)
-        reqid = [rid for ast, rid in self.map_reqid_asset.items() if ast == asset][0]
-        self.cancelRealTimeBars(self, reqid)
+        reqid = [rid for rid, ast in self.map_reqid_asset.items() if ast == asset][0]
+        self.cancelRealTimeBars(reqid)
         logging.info(f"No longer streaming data for {asset.symbol}.")
 
     def get_positions(self):

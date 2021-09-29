@@ -59,7 +59,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         clock = self.ib.get_timestamp()
         return clock
 
-    def market_hours(self, market="24/7", close=True, next=False, date=None): # todo revert NASDAQ
+    def market_hours(self, market="NASDAQ", close=True, next=False, date=None):
         """Return if market open or closed.
         params:
           - market (str: default `NASDAQ`): which market to test.
@@ -497,22 +497,21 @@ class IBWrapper(EWrapper):
             self.init_time()
         self.my_time_queue.put(server_time)
 
-    # Tick Data. Not implemented
-    # def init_tick(self):
-    #     self.tick = list()
-    #     tick_queue = queue.Queue()
-    #     self.my_tick_queue = tick_queue
-    #     return tick_queue
-    #
-    # def tickPrice(self, reqId, tickType, price, attrib):
-    #     if not hasattr(self, "tick"):
-    #         self.init_tick()
-    #     if tickType == 4:
-    #         self.tick.append(price)
-    #
-    # def tickSnapshotEnd(self, reqId):
-    #     super().tickSnapshotEnd(reqId)
-    #     self.my_tick_queue.put(self.tick)
+    def init_tick(self):
+        self.tick = list()
+        tick_queue = queue.Queue()
+        self.my_tick_queue = tick_queue
+        return tick_queue
+
+    def tickPrice(self, reqId, tickType, price, attrib):
+        if not hasattr(self, "tick"):
+            self.init_tick()
+        if tickType == 4:
+            self.tick.append(price)
+
+    def tickSnapshotEnd(self, reqId):
+        super().tickSnapshotEnd(reqId)
+        self.my_tick_queue.put(self.tick)
 
     # Historical Data.
     def init_historical(self):
@@ -831,34 +830,33 @@ class IBClient(EClient):
 
         return requested_time
 
-    # NOT IMPLEMENTED
-    #     def get_tick(
-    #             self,
-    #             asset="",
-    #     ):
-    #         """
-    #         Bid Price	1	Highest priced bid for the contract.	IBApi.EWrapper.tickPrice	-
-    #         Ask Price	2	Lowest price offer on the contract.	IBApi.EWrapper.tickPrice	-
-    #         Last Price	4	Last price at which the contract traded (does not include some trades in RTVolume).	IBApi.EWrapper.tickPrice	-
-    #         """
-    #         tick_storage = self.wrapper.init_tick()
-    #
-    #         contract = self.create_contract(asset)
-    #         reqId = self.get_reqid()
-    #
-    #         self.reqMktData(reqId, contract, "", True, False, [])
-    #
-    #         try:
-    #             requested_tick = tick_storage.get(timeout=self.max_wait_time)
-    #         except queue.Empty:
-    #             print("The queue was empty or max time reached for tick data.")
-    #             requested_tick = None
-    #
-    #         while self.wrapper.is_error():
-    #             print(f"Error: {self.get_error(timeout=5)}")
-    #
-    #         return requested_tick
-    #
+    def get_tick(
+            self,
+            asset="",
+    ):
+        """
+        Bid Price	1	Highest priced bid for the contract.	IBApi.EWrapper.tickPrice	-
+        Ask Price	2	Lowest price offer on the contract.	IBApi.EWrapper.tickPrice	-
+        Last Price	4	Last price at which the contract traded (does not include some trades in RTVolume).	IBApi.EWrapper.tickPrice	-
+        """
+        tick_storage = self.wrapper.init_tick()
+
+        contract = self.create_contract(asset)
+        reqId = self.get_reqid()
+
+        self.reqMktData(reqId, contract, "", True, False, [])
+
+        try:
+            requested_tick = tick_storage.get(timeout=self.max_wait_time)
+        except queue.Empty:
+            print("The queue was empty or max time reached for tick data.")
+            requested_tick = None
+
+        while self.wrapper.is_error():
+            print(f"Error: {self.get_error(timeout=5)}")
+
+        return requested_tick
+
     def get_historical_data(
         self,
         reqId=0,

@@ -317,26 +317,98 @@ class Strategy(_Strategy):
         return self.broker.wait_for_orders_execution(orders)
 
     def cancel_order(self, order):
-        """Cancel an order"""
+        """Cancel an order.
+
+        Cancels a single open order provided.
+
+        Parameter
+        ---------
+        An order object that the user seeks to cancel.
+
+        Returns
+        -------
+        None
+        
+        """
         return self.broker.cancel_order(order)
 
     def cancel_orders(self, orders):
-        """cancel orders"""
+        """Cancel orders in all strategies.
+
+        Cancels all open orders provided in any of the running
+        strategies.
+
+        Parameters
+        ----------
+        orders : list of Order objects.
+
+        Returns
+        -------
+        None
+
+        """
         return self.broker.cancel_orders(orders)
 
     def cancel_open_orders(self):
-        """cancel all the strategy open orders"""
+        """Cancel all the strategy open orders.
+
+        Cancels all orders that are open and awaiting execution within
+        a given strategy. If running multiple strategies, will only
+        cancel the orders in the current strategy.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        None
+        """
         return self.broker.cancel_open_orders(self.name)
 
     def sell_all(self, cancel_open_orders=True):
-        """sell all strategy positions"""
+        """Sell all strategy positions.
+
+        The system will generate closing market orders for each open
+        position. If `cancel_open_orders` is `True`, then all open
+        orders will also be cancelled.
+
+        Open orders are cancelled before the positions are closed.
+
+        Parameters
+        ----------
+        cancel_open_orders : boolean
+            Cancel all order if True, leave all orders in place if
+            False. Default is True.
+
+        Returns
+        -------
+        None
+
+
+        """
         self.broker.sell_all(
             self.name,
             cancel_open_orders=cancel_open_orders,
         )
 
     def get_last_price(self, asset):
-        """Takes an asset asset and returns the last known price"""
+        """Takes an asset asset and returns the last known price
+
+        Makes an active call to the market to retrieve the last price.
+        In backtesting will provide the close of the last complete bar.
+
+        Parameters
+        ----------
+        asset : Asset object
+            Asset object for which the last closed price will be
+            retrieved.
+
+        Returns
+        -------
+        Float
+            Last closed price.
+        """
         asset = self._set_asset_mapping(asset)
         return self.broker.get_last_price(asset)
 
@@ -367,8 +439,8 @@ class Strategy(_Strategy):
         method will determine if a given asset will have data for the
         current bar given the length, timestep and timeshift required.
 
-        Parameter
-        ---------
+        Parameters
+        ----------
         asset : Asset object
             The Asset to be checked if data is available for backtesting
             at the current bar.
@@ -400,7 +472,7 @@ class Strategy(_Strategy):
         method will provide a list of assets for the current bar given
         the length, timestep and timeshift required.
 
-        Parameter
+        Parameters
         ---------
         asset : Asset object
             The Asset to be checked if data is available for backtesting
@@ -448,8 +520,8 @@ class Strategy(_Strategy):
         of the exchanges the options trade on and returns a dictionary
         for each exchange.
 
-        Parameter
-        ---------
+        Parameters
+        ----------
         asset : Asset object
             The stock whose option chain is being fetched. Represented
             as an asset object.
@@ -503,7 +575,7 @@ class Strategy(_Strategy):
         all of the expiry dates for the option chains on a given
         exchange. The return list is sorted.
 
-        Parameter
+        Parameters
         ---------
         chains : dictionary of dictionaries
             The chains dictionary created by `get_chains` method.
@@ -525,8 +597,8 @@ class Strategy(_Strategy):
         all of the multiplier for the option chains on a given
         exchange.
 
-        Parameter
-        ---------
+        Parameters
+        ----------
         chains : dictionary of dictionaries
             The chains dictionary created by `get_chains` method.
 
@@ -548,8 +620,8 @@ class Strategy(_Strategy):
         all of the multiplier for the option chains on a given
         exchange.
 
-        Parameter
-        ---------
+        Parameters
+        ----------
         asset : Asset object
             Asset object as normally used for an option but without
             the strike information.

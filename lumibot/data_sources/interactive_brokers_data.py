@@ -89,15 +89,17 @@ class InteractiveBrokersData(DataSource):
             # Two attempts to retreive data are possible, one short, then one longer,
             # If no data is returned, than a dataframe with `0` in each row is returned.
             if length == 1:
-                try:
-                    result = self.ib.get_tick(asset)
-                    if result:
-                        response[asset] = result[0]
-                    get_data_attempt = max_attempts
-                    continue
-                except:
-                    get_data_attempt += 1
-                    continue
+                while get_data_attempt < max_attempts:
+                    try:
+                        result = self.ib.get_tick(asset)
+                        if result:
+                            response[asset] = result[0]
+                        get_data_attempt = max_attempts
+                        continue
+                    except:
+                        get_data_attempt += 1
+                if asset not in response:
+                    response[asset] = None
             else:
                 while get_data_attempt < max_attempts:
                     reqId += 1

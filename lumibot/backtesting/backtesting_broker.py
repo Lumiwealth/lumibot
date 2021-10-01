@@ -314,7 +314,7 @@ class BacktestingBroker(Broker):
 
         orders_closing_contracts = []
         for tracked_position in self.get_tracked_positions(strategy):
-            if tracked_position.asset.expiration <= self.datetime.date():
+            if tracked_position.asset.expiration == self.datetime.date():
                 orders_closing_contracts.append(tracked_position.get_selling_order())
 
         return orders_closing_contracts

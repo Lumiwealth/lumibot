@@ -158,7 +158,22 @@ class _Strategy:
                 asset = position.asset
                 quantity = position.quantity
                 price = prices.get(asset, 0)
-                multiplier = asset.multiplier if asset.asset_type in ["option", "future"] else 1
+                if self._is_backtesting and price is None:
+                    raise ValueError(
+                        f"A security as returned a price of none will trying "
+                        f"to set the portfolio value. This is usually due to "
+                        f"a mixup in futures contract dates and when data is \n"
+                        f"actually available. Please ensure data exist for "
+                        f"{self.broker.datetime}. The security that has missing data is: \n"
+                        f"symbol: {asset.symbol}, \n"
+                        f"type: {asset.asset_type}, \n"
+                        f"right: {asset.right}, \n"
+                        f"expiration: {asset.expiration}, \n"
+                        f"strike: {asset.strike}.\n"
+                    )
+                multiplier = (
+                    asset.multiplier if asset.asset_type in ["option", "future"] else 1
+                )
                 portfolio_value += quantity * price * multiplier
 
             self._portfolio_value = portfolio_value
@@ -182,8 +197,11 @@ class _Strategy:
             for position in positions:
                 asset = position.asset
                 quantity = position.quantity
-                dividend_per_share = 0 if dividends_per_share is None else dividends_per_share.get(
-                    asset, 0)
+                dividend_per_share = (
+                    0
+                    if dividends_per_share is None
+                    else dividends_per_share.get(asset, 0)
+                )
                 self._unspent_money += dividend_per_share * quantity
             return self._unspent_money
 

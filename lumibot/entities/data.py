@@ -27,9 +27,9 @@ class Data:
     date_end : Datetime or None
         Ending date for this data, if not provided then last date in
         the dataframe.
-    time_start : datetime.time or None
+    trading_hours_start : datetime.time or None
         If not supplied, then default is 0001 hrs.
-    time_end : datetime.time or None
+    trading_hours_end : datetime.time or None
         If not supplied, then default is 2359 hrs.
     timestep : str
         Either "minute" (default) or "day"
@@ -55,9 +55,9 @@ class Data:
     date_end : Datetime or None
         Ending date for this data, if not provided then last date in
         the dataframe.
-    time_start : datetime.time or None
+    trading_hours_start : datetime.time or None
         If not supplied, then default is 0001 hrs.
-    time_end : datetime.time or None
+    trading_hours_end : datetime.time or None
         If not supplied, then default is 2359 hrs.
     timestep : str
         Either "minute" (default) or "day"
@@ -113,8 +113,8 @@ class Data:
         df,
         date_start=None,
         date_end=None,
-        time_start=datetime.time(9, 30),
-        time_end=datetime.time(16, 0),
+        trading_hours_start=datetime.time(0, 0),
+        trading_hours_end=datetime.time(23, 59),
         timestep="minute",
         columns=None,
     ):
@@ -126,19 +126,19 @@ class Data:
         self.df = self.columns(df)
         self.df = self.set_date_format(self.df)
 
-        self.time_start, self.time_end = self.set_times(time_start, time_end)
+        self.trading_hours_start, self.trading_hours_end = self.set_times(trading_hours_start, trading_hours_end)
         self.date_start, self.date_end = self.set_dates(date_start, date_end)
 
         self.df = self.trim_data(
-            self.df, self.date_start, self.date_end, self.time_start, self.time_end
+            self.df, self.date_start, self.date_end, self.trading_hours_start, self.trading_hours_end
         )
         self.datetime_start = self.df.index[0]
         self.datetime_end = self.df.index[-1]
 
-    def set_times(self, time_start, time_end):
+    def set_times(self, trading_hours_start, trading_hours_end):
         if self.timestep == "minute":
-            ts = time_start
-            te = time_end
+            ts = trading_hours_start
+            te = trading_hours_end
         else:
             ts = datetime.time(0, 0)
             te = datetime.time(23, 59, 59, 999999)
@@ -181,23 +181,22 @@ class Data:
         date_start = to_datetime_aware(date_start)
         date_end = to_datetime_aware(date_end)
 
-        if self.timestep == "day":
-            date_start = date_start.replace(hour=0, minute=0, second=0, microsecond=0)
-            date_end = date_end.replace(
-                hour=23, minute=59, second=59, microsecond=999999
-            )
+        date_start = date_start.replace(hour=0, minute=0, second=0, microsecond=0)
+        date_end = date_end.replace(
+            hour=23, minute=59, second=59, microsecond=999999
+        )
 
         return (
             date_start,
             date_end,
         )
 
-    def trim_data(self, df, date_start, date_end, time_start, time_end):
+    def trim_data(self, df, date_start, date_end, trading_hours_start, trading_hours_end):
         # Trim the dataframe to match the desired backtesting dates.
 
         df = df.loc[date_start:date_end, :]
         if self.timestep == "minute":
-            df = df.between_time(time_start, time_end)
+            df = df.between_time(trading_hours_start, trading_hours_end)
         if df.empty:
             raise ValueError(
                 f"When attempting to load a dataframe for {self.asset}, "

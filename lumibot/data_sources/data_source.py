@@ -166,6 +166,8 @@ class DataSource:
         bars = self.get_symbol_bars(asset, 1, timestep=timestep)
         if isinstance(bars, float):
             return bars
+        elif bars is None:
+            return None  # todo Check this for returning None. What about alpaca
         return bars.df.iloc[0].close
 
     def get_last_prices(self, assets, timestep=None):

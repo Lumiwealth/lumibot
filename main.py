@@ -54,7 +54,7 @@ for ticker in tickers:
 mapping = {
     "momentum": {
         "class": Momentum,
-        "backtesting_datasource": PandasDataBacktesting,
+        "backtesting_datasource": YahooDataBacktesting,
         "kwargs": {"symbols": tickers},  # use yahoo-> {"symbols": ["SPY", "VEU", "AGG"]},
         "config": None,
         "pandas_data": day_data,
@@ -88,7 +88,7 @@ mapping = {
     },
     "buy_and_hold": {
         "class": BuyAndHold,
-        "backtesting_datasource": PandasDataBacktesting,
+        "backtesting_datasource": YahooDataBacktesting,
         "kwargs": {},
         "backtesting_cache": False,
         "config": None,

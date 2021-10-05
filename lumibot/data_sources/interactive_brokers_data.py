@@ -89,15 +89,17 @@ class InteractiveBrokersData(DataSource):
             # Two attempts to retreive data are possible, one short, then one longer,
             # If no data is returned, than a dataframe with `0` in each row is returned.
             if length == 1:
-                try:
-                    result = self.ib.get_tick(asset)
-                    if result:
-                        response[asset] = result[0]
-                    get_data_attempt = max_attempts
-                    continue
-                except:
-                    get_data_attempt += 1
-                    continue
+                while get_data_attempt < max_attempts:
+                    try:
+                        result = self.ib.get_tick(asset)
+                        if result:
+                            response[asset] = result[0]
+                        get_data_attempt = max_attempts
+                        continue
+                    except:
+                        get_data_attempt += 1
+                if asset not in response:
+                    response[asset] = None
             else:
                 while get_data_attempt < max_attempts:
                     reqId += 1
@@ -148,7 +150,7 @@ class InteractiveBrokersData(DataSource):
                     ).dt.tz_localize(self.DEFAULT_TIMEZONE)
                 elif parsed_timestep == "1 day":
                     df["date"] = pd.to_datetime(df["date"], format="%Y%m%d")
-                    df["date"] =   df["date"].dt.tz_localize(self.DEFAULT_TIMEZONE)
+                    df["date"] = df["date"].dt.tz_localize(self.DEFAULT_TIMEZONE)
                 response[asset] = df
         return response
 
@@ -182,6 +184,22 @@ class InteractiveBrokersData(DataSource):
 
         bars = Bars(df, self.SOURCE, asset, raw=response)
         return bars
+
+    def _start_realtime_bars(self, asset, keep_bars=12):
+        return self.ib.start_realtime_bars(
+            asset=asset, keep_bars=keep_bars
+        )
+
+    def _get_realtime_bars(self, asset):
+        rtb = self.ib.realtime_bars[asset]
+        if len(rtb) == 0:
+            return None
+        else:
+            return rtb
+
+    def _cancel_realtime_bars(self, asset):
+        self.ib.cancel_realtime_bars(asset)
+        return 0
 
     def get_yesterday_dividend(self, asset):
         """ Unavailable """

@@ -1210,6 +1210,80 @@ Parameters:
 
 Return type: dict of str/asset:bars
 
+#### start_realtime_bars
+
+Starts a real time stream of tickers for Interactive Broker only.
+
+This allows for real time data to stream to the strategy. Bars
+are fixed at every five seconds.  They will arrive in the strategy
+in the form of a dataframe. The data returned will be: 
+- datetime   
+- open   
+- high   
+- low   
+- close   
+- volume   
+- vwap   
+- count (trade count)   
+
+Parameters:   
+asset : Asset object
+    The asset to stream data.
+    
+keep_bars : int
+    How many bars/rows to keep of data. If running for an 
+    extended period of time, it may be desirable to limit the 
+    size of the data kept. 
+    
+Returns:   
+None
+
+#### get_realtime_bars
+
+Retrieve the real time bars as dataframe. 
+        
+Returns the current set of real time bars as a dataframe. 
+The `datetime` will be in the index. Time intervals will be set at 
+5 secs. The columns of the dataframe are: 
+- open
+- high
+- low
+- close
+- volume
+- vwap
+- count (trade count)
+
+Parameters:   
+asset : Asset object
+    The asset that has a stream active. 
+    
+Returns:   
+dataframe : Pandas Dataframe.   
+Dataframe containing the most recent pricing information for the asset. The data returned will 
+be the `datetime` in the index and the following columns.     
+- open  
+- high  
+- low  
+- close  
+- volume  
+- vwap  
+- count (trade count) 
+
+The length of the dataframe will have been set the initial start of the real time bars. 
+
+#### cancel_realtime_bars
+
+Cancels a stream of real time bars for a given asset. 
+        
+Cancels the real time bars for the given asset. 
+
+Parameters:  
+asset : Asset object  
+    Asset object that has streaming data to cancel. 
+    
+Returns:   
+None 
+
 #### get_yesterday_dividend
 
 Return dividend per share for the day before for a given symbol

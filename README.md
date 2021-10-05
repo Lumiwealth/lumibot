@@ -1215,7 +1215,7 @@ Return type: dict of str/asset:bars
 Starts a real time stream of tickers for Interactive Broker only.
 
 This allows for real time data to stream to the strategy. Bars
-are fixed at every fix seconds.  The will arrive in the strategy
+are fixed at every five seconds.  They will arrive in the strategy
 in the form of a dataframe. The data returned will be: 
 - datetime   
 - open   
@@ -1228,7 +1228,7 @@ in the form of a dataframe. The data returned will be:
 
 Parameters:   
 asset : Asset object
-    The asset to stream.
+    The asset to stream data.
     
 keep_bars : int
     How many bars/rows to keep of data. If running for an 
@@ -1243,8 +1243,8 @@ None
 Retrieve the real time bars as dataframe. 
         
 Returns the current set of real time bars as a dataframe. 
-The `datetime` will be in the index. The columns of the 
-dataframe are: 
+The `datetime` will be in the index. Time intervals will be set at 
+5 secs. The columns of the dataframe are: 
 - open
 - high
 - low
@@ -1269,7 +1269,7 @@ be the `datetime` in the index and the following columns.
 - vwap  
 - count (trade count) 
 
-The length of the dataframe will have been set the intial start of the real time bars. 
+The length of the dataframe will have been set the initial start of the real time bars. 
 
 #### cancel_realtime_bars
 

@@ -4,4 +4,3 @@ class Dataline:
         self.name = name
         self.dataline = dataline
         self.dtype = dtype
-

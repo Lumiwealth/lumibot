@@ -328,7 +328,7 @@ class Strategy(_Strategy):
         Returns
         -------
         None
-        
+
         """
         return self.broker.cancel_order(order)
 
@@ -535,7 +535,7 @@ class Strategy(_Strategy):
             - `Multiplier` (str) eg: `100`
             - `Expirations` (set of str) eg: {`20230616`, ...}
             - `Strikes` (set of floats)
-    """
+        """
         asset = self._set_asset_mapping(asset)
         return self.broker.get_chains(asset)
 

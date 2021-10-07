@@ -267,8 +267,8 @@ class StrategyExecutor(Thread):
                 # Get the first date from _date_index equal or greater than
                 # backtest start date.
                 dates = self.broker._data_source._date_index
-                self.broker._data_source._iter_count = (
-                    dates.get_loc(dates[dates > self.broker.datetime][0])
+                self.broker._data_source._iter_count = dates.get_loc(
+                    dates[dates > self.broker.datetime][0]
                 )
             else:
                 self.broker._data_source._iter_count += 1

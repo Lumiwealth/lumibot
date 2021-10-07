@@ -185,13 +185,13 @@ class DataSource:
 
         return AssetsMapping(result)
 
-    def is_tradable(self, asset,  dt, length=1, timestep="minute", timeshift=0):
+    def is_tradable(self, asset, dt, length=1, timestep="minute", timeshift=0):
         # Check if an asset is tradable at this moment.
-        raise NotImplementedError(self.__class__.__name__ + '.is_tradable')
+        raise NotImplementedError(self.__class__.__name__ + ".is_tradable")
 
     def get_tradable_assets(self, dt, length=1, timestep="minute", timeshift=0):
         # Return a list of tradable assets.
-        raise NotImplementedError(self.__class__.__name__ + '.get_tradable_assets')
+        raise NotImplementedError(self.__class__.__name__ + ".get_tradable_assets")
 
     def get_yesterday_dividend(self, asset):
         """Return dividend per share for a given

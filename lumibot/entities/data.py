@@ -126,11 +126,17 @@ class Data:
         self.df = self.columns(df)
         self.df = self.set_date_format(self.df)
 
-        self.trading_hours_start, self.trading_hours_end = self.set_times(trading_hours_start, trading_hours_end)
+        self.trading_hours_start, self.trading_hours_end = self.set_times(
+            trading_hours_start, trading_hours_end
+        )
         self.date_start, self.date_end = self.set_dates(date_start, date_end)
 
         self.df = self.trim_data(
-            self.df, self.date_start, self.date_end, self.trading_hours_start, self.trading_hours_end
+            self.df,
+            self.date_start,
+            self.date_end,
+            self.trading_hours_start,
+            self.trading_hours_end,
         )
         self.datetime_start = self.df.index[0]
         self.datetime_end = self.df.index[-1]
@@ -182,16 +188,16 @@ class Data:
         date_end = to_datetime_aware(date_end)
 
         date_start = date_start.replace(hour=0, minute=0, second=0, microsecond=0)
-        date_end = date_end.replace(
-            hour=23, minute=59, second=59, microsecond=999999
-        )
+        date_end = date_end.replace(hour=23, minute=59, second=59, microsecond=999999)
 
         return (
             date_start,
             date_end,
         )
 
-    def trim_data(self, df, date_start, date_end, trading_hours_start, trading_hours_end):
+    def trim_data(
+        self, df, date_start, date_end, trading_hours_start, trading_hours_end
+    ):
         # Trim the dataframe to match the desired backtesting dates.
 
         df = df.loc[date_start:date_end, :]
@@ -282,13 +288,13 @@ class Data:
             res = func(self, *args, **kwargs)
             # print(f"Results last price: {res}")
             return res
+
         return checker
 
     @check_data
     def is_tradable(self, dt, length=1, timestep="minute", timeshift=0):
         # Return true if data is available for trading. None if not.
         return True
-
 
     @check_data
     def get_last_price(self, dt, length=1, timeshift=0):

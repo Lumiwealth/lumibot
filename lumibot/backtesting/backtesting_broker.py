@@ -24,7 +24,6 @@ class BacktestingBroker(Broker):
         self.name = "backtesting"
         self.max_workers = max_workers
 
-
         if not data_source.IS_BACKTESTING_DATA_SOURCE:
             raise ValueError(
                 "object %r is not a backteesting data_source" % data_source
@@ -318,7 +317,6 @@ class BacktestingBroker(Broker):
                 orders_closing_contracts.append(tracked_position.get_selling_order())
 
         return orders_closing_contracts
-
 
     def process_pending_orders(self, strategy):
         """Used to evaluate and execute open orders in backtesting.

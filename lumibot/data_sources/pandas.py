@@ -25,7 +25,16 @@ class PandasData(DataSource):
 
     def load_data(self, pandas_data):
         self._data_store = pandas_data
-        self._expiries_exist = len([v.asset.expiration for v in self._data_store.values()]) > 0
+        self._expiries_exist = (
+            len(
+                [
+                    v.asset.expiration
+                    for v in self._data_store.values()
+                    if v.asset.expiration is not None
+                ]
+            )
+            > 0
+        )
         self._date_index = self.update_date_index()
         self._timestep = list(self._data_store.values())[0].timestep
         pcal = self.get_trading_days_pandas()
@@ -77,7 +86,9 @@ class PandasData(DataSource):
 
     def is_tradable(self, asset, dt, length=1, timestep="minute", timeshift=0):
         # Determines is an asset has data over dt, length, timestep, and timeshift.
-        if self._data_store[asset].is_tradable(dt, length=length, timestep=timestep, timeshift=timeshift):
+        if self._data_store[asset].is_tradable(
+            dt, length=length, timestep=timestep, timeshift=timeshift
+        ):
             return True
         else:
             return False
@@ -86,7 +97,9 @@ class PandasData(DataSource):
         # Returns list of assets that can be traded. Empty list if None.
         tradable = list()
         for asset, data in self._data_store.items():
-            if data.is_tradable(dt, length=length, timestep=timestep, timeshift=timeshift):
+            if data.is_tradable(
+                dt, length=length, timestep=timestep, timeshift=timeshift
+            ):
                 tradable.append(asset)
         return tradable
 

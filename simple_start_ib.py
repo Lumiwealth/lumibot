@@ -15,7 +15,7 @@ from lumibot.strategies.examples import (
     Momentum,
     Simple,
     Strangle,
-    Futures,
+
 )
 from lumibot.tools import indicators
 from lumibot.traders import Trader
@@ -35,8 +35,8 @@ broker = InteractiveBrokers(InteractiveBrokersConfig)
 # Select our strategy
 ####
 
-strategy_name = "Futures"  # "Strangle"
-strategy = Futures(name=strategy_name, budget=budget, broker=broker)
+strategy_name = "Simple"
+strategy = Simple(name=strategy_name, budget=budget, broker=broker)
 
 
 ####

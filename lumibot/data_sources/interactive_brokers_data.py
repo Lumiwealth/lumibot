@@ -89,7 +89,7 @@ class InteractiveBrokersData(DataSource):
             # Two attempts to retreive data are possible, one short, then one longer,
             # If no data is returned, than a dataframe with `0` in each row is returned.
             if length == 1:
-                while get_data_attempt < max_attempts: # todo test this.
+                while get_data_attempt < max_attempts:
                     try:
                         result = self.ib.get_tick(asset)
                         if result:
@@ -144,12 +144,14 @@ class InteractiveBrokersData(DataSource):
                     continue
 
                 if parsed_timestep == "1 min":
-                    df["date"] = pd.to_datetime(
-                        df["date"], unit="s", origin="unix"
-                    ).dt.tz_localize(self.DEFAULT_TIMEZONE)
+                    df["date"] = (
+                        pd.to_datetime(df["date"], unit="s", origin="unix")
+                        .dt.tz_localize("UTC")
+                        .dt.tz_convert(self.DEFAULT_TIMEZONE)
+                    )
                 elif parsed_timestep == "1 day":
                     df["date"] = pd.to_datetime(df["date"], format="%Y%m%d")
-                    df["date"] =   df["date"].dt.tz_localize(self.DEFAULT_TIMEZONE)
+                    df["date"] = df["date"].dt.tz_localize(self.DEFAULT_TIMEZONE)
                 response[asset] = df
         return response
 

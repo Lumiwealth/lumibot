@@ -21,9 +21,10 @@ class Simple(Strategy):
         # Built in Variables
         self.sleeptime = 1
 
+
         # Our Own Variables
         self.counter = 0
-        self.buy_symbol = "AGG"
+        self.buy_symbol = "SPY"
 
     def on_trading_iteration(self):
         # What to do each iteration

@@ -288,6 +288,8 @@ The data objects will be collected in a dictionary called `pandas_data` using th
 asset as key and the data object as value. Subsequent assets + data can be added
 and then the dictionary can be passed into Lumibot for backtesting. 
 
+One of the important differences when using Pandas backtester is that you must use an `Asset` object
+for each data csv file loaded. You may not use a `symbol` as you might in Yahoo backtester. 
 For an example, let's assume we have futures data for the ES mini. First step would be 
 to create an asset object: 
 ```python

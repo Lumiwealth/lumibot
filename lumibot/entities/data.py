@@ -200,7 +200,7 @@ class Data:
         if df.empty:
             raise ValueError(
                 f"When attempting to load a dataframe for {self.asset}, "
-                f"and empty dataframe was returned. This is likely due"
+                f"and empty dataframe was returned. This is likely due "
                 f"to your backtesting start and end dates not being "
                 f"within the start and end dates of the data provided. "
                 f"\nPlease check that your at least one of your start "

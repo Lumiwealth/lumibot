@@ -40,22 +40,28 @@ class DataSourceBacktesting(DataSource):
     def _pull_source_symbol_bars(self, asset, length, timestep=None, timeshift=0):
         if timestep is None:
             timestep = self.get_timestep()
+        if self.LIVE_DATA_SOURCE.SOURCE == "YAHOO":
+            now = datetime.now()
+            now_local = self.localize_datetime(now)
+            backtesting_timeshift = now_local - self._datetime
+            if timeshift:
+                backtesting_timeshift += timeshift
 
-        # now = datetime.now()
-        # now_local = self.localize_datetime(now)
-        # backtesting_timeshift = now_local - self._datetime
-        # if timeshift:
-        #     backtesting_timeshift += timeshift
-        #
-        # if timestep == "day":
-        #     backtesting_timeshift += timedelta(days=1)
-        # elif timestep == "minute":
-        #     backtesting_timeshift += timedelta(minutes=1)
-
+            if timestep == "day":
+                backtesting_timeshift += timedelta(days=1)
+            elif timestep == "minute":
+                backtesting_timeshift += timedelta(minutes=1)
+        elif self.LIVE_DATA_SOURCE.SOURCE == "PANDAS":
+            backtesting_timeshift = timeshift
+        else:
+            raise ValueError(
+                f"An incorrect backtester values was received. Received"
+                f" {self.LIVE_DATA_SOURCE.SOURCE}"
+            )
         result = self.LIVE_DATA_SOURCE._pull_source_symbol_bars(
-            self, asset, length, timestep=timestep, timeshift=timeshift
+            self, asset, length, timestep=timestep, timeshift=backtesting_timeshift
         )
 
-        # filter_criteria = result.index < self._datetime
-        # result = result[filter_criteria]
+        filter_criteria = result.index < self._datetime
+        result = result[filter_criteria]
         return result

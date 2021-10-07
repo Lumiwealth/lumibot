@@ -16,7 +16,7 @@ class Momentum(Strategy):
 
     def initialize(self, symbols=None):
         # Setting the waiting period (in days)
-        self.period = 0
+        self.period = 2
 
         # The counter for the number of days we have been holding the current asset
         self.counter = 0

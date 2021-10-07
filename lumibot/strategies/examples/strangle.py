@@ -124,7 +124,9 @@ class Strangle(Strategy):
             options["call"] = self.create_asset(
                 asset.symbol,
                 asset_type="option",
-                expiration=options["expiration_date"],
+                expiration=self.options_expiry_to_datetime_date(
+                    options["expiration_date"]
+                ),
                 strike=options["buy_call_strike"],
                 right="CALL",
                 multiplier=multiplier,
@@ -132,7 +134,9 @@ class Strangle(Strategy):
             options["put"] = self.create_asset(
                 asset.symbol,
                 asset_type="option",
-                expiration=options["expiration_date"],
+                expiration=self.options_expiry_to_datetime_date(
+                    options["expiration_date"]
+                ),
                 strike=options["buy_put_strike"],
                 right="PUT",
                 multiplier=multiplier,
@@ -336,7 +340,7 @@ class Strangle(Strategy):
         asset = self.create_asset(
             symbol,
             asset_type="option",
-            expiration=expiration_date,
+            expiration=self.options_expiry_to_datetime_date(expiration_date),
             right="CALL",
             multiplier=100,
         )

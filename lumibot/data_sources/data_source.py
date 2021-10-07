@@ -63,6 +63,12 @@ class DataSource:
     def to_default_timezone(cls, dt):
         return dt.astimezone(cls.DEFAULT_PYTZ)
 
+    def get_timestep(self):
+        if self.IS_BACKTESTING_DATA_SOURCE and self.SOURCE == "PANDAS":
+            return self._timestep
+        else:
+            return self.MIN_TIMESTEP
+
     # ========Internal Market Data Methods===================
 
     def _parse_source_timestep(self, timestep, reverse=False):
@@ -108,7 +114,7 @@ class DataSource:
             asset = Asset(symbol=asset)
 
         if not timestep:
-            timestep = self.MIN_TIMESTEP
+            timestep = self.get_timestep()
 
         response = self._pull_source_symbol_bars(
             asset, length, timestep=timestep, timeshift=timeshift
@@ -117,6 +123,7 @@ class DataSource:
             return response
         elif response is None:
             return None
+
         bars = self._parse_source_symbol_bars(response, asset)
         return bars
 
@@ -154,7 +161,8 @@ class DataSource:
     def get_last_price(self, asset, timestep=None):
         """Takes an asset and returns the last known price"""
         if timestep is None:
-            timestep = self.MIN_TIMESTEP
+            timestep = self.get_timestep()
+
         bars = self.get_symbol_bars(asset, 1, timestep=timestep)
         if isinstance(bars, float):
             return bars
@@ -176,6 +184,14 @@ class DataSource:
                 result[asset] = last_value
 
         return AssetsMapping(result)
+
+    def is_tradable(self, asset, dt, length=1, timestep="minute", timeshift=0):
+        # Check if an asset is tradable at this moment.
+        raise NotImplementedError(self.__class__.__name__ + ".is_tradable")
+
+    def get_tradable_assets(self, dt, length=1, timestep="minute", timeshift=0):
+        # Return a list of tradable assets.
+        raise NotImplementedError(self.__class__.__name__ + ".get_tradable_assets")
 
     def get_yesterday_dividend(self, asset):
         """Return dividend per share for a given

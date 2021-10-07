@@ -68,7 +68,7 @@ class _Strategy:
                 for asset, df in pandas_data.items():
                     new_asset = self._set_asset_mapping(asset)
                     pd_asset_keys[new_asset] = df
-                self.data_source.load_data(pd_asset_keys)
+                self.broker._trading_days = self.data_source.load_data(pd_asset_keys)
         elif data_source is None:
             self.data_source = self.broker
         else:
@@ -159,7 +159,22 @@ class _Strategy:
                 asset = position.asset
                 quantity = position.quantity
                 price = prices.get(asset, 0)
-                multiplier = asset.multiplier if asset.asset_type == "option" else 1
+                if self._is_backtesting and price is None:
+                    raise ValueError(
+                        f"A security as returned a price of none will trying "
+                        f"to set the portfolio value. This is usually due to "
+                        f"a mixup in futures contract dates and when data is \n"
+                        f"actually available. Please ensure data exist for "
+                        f"{self.broker.datetime}. The security that has missing data is: \n"
+                        f"symbol: {asset.symbol}, \n"
+                        f"type: {asset.asset_type}, \n"
+                        f"right: {asset.right}, \n"
+                        f"expiration: {asset.expiration}, \n"
+                        f"strike: {asset.strike}.\n"
+                    )
+                multiplier = (
+                    asset.multiplier if asset.asset_type in ["option", "future"] else 1
+                )
                 portfolio_value += quantity * price * multiplier
 
             self._portfolio_value = portfolio_value
@@ -183,7 +198,11 @@ class _Strategy:
             for position in positions:
                 asset = position.asset
                 quantity = position.quantity
-                dividend_per_share = dividends_per_share.get(asset, 0)
+                dividend_per_share = (
+                    0
+                    if dividends_per_share is None
+                    else dividends_per_share.get(asset, 0)
+                )
                 self._unspent_money += dividend_per_share * quantity
             return self._unspent_money
 

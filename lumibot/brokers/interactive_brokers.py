@@ -1083,13 +1083,13 @@ class IBApp(IBWrapper, IBClient):
         if asset.asset_type == "stock":
             contract.primaryExchange = primaryExchange
         elif asset.asset_type == "option":
-            contract.lastTradeDateOrContractMonth = asset.expiration
+            contract.lastTradeDateOrContractMonth = asset.expiration.strftime("%Y%m%d")
             contract.strike = str(asset.strike)
             contract.right = asset.right
             contract.multiplier = asset.multiplier
             contract.primaryExchange = "CBOE"
         elif asset.asset_type == "future":
-            contract.lastTradeDateOrContractMonth = asset.expiration
+            contract.lastTradeDateOrContractMonth = asset.expiration.strftime("%Y%m")
             contract.primaryExchange = "GLOBEX"
             contract.currency = "USD"
         elif asset.asset_type == "forex":

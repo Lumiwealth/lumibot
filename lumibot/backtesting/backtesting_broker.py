@@ -15,19 +15,22 @@ class BacktestingBroker(Broker):
     IS_BACKTESTING_BROKER = True
 
     CannotPredictFuture = ValueError(
-        "Cannot predict the future. Backtesting datetime already in the present"
+        "Cannot predict the future. Backtesting datetime already in the present. "
+        "Check if your backtesting end time is set after available data."
     )
 
     def __init__(self, data_source, connect_stream=True, max_workers=20):
         # Calling init methods
         self.name = "backtesting"
         self.max_workers = max_workers
+
         if not data_source.IS_BACKTESTING_DATA_SOURCE:
             raise ValueError(
                 "object %r is not a backteesting data_source" % data_source
             )
         self._data_source = data_source
-        self._trading_days = get_trading_days()
+        if data_source.SOURCE != "PANDAS":
+            self._trading_days = get_trading_days()
 
         Broker.__init__(self, name=self.name, connect_stream=connect_stream)
 
@@ -105,6 +108,7 @@ class BacktestingBroker(Broker):
     def get_time_to_open(self):
         """Return the remaining time for the market to open in seconds"""
         now = self.datetime
+
         search = self._trading_days[now < self._trading_days.market_close]
         if search.empty:
             raise self.CannotPredictFuture
@@ -131,19 +135,28 @@ class BacktestingBroker(Broker):
         return delta.total_seconds()
 
     def _await_market_to_open(self, timedelta=None):
+        if (
+            self._data_source.SOURCE == "PANDAS"
+            and self._data_source._timestep == "day"
+        ):
+            return
         time_to_open = self.get_time_to_open()
         if timedelta is not None:
             time_to_open -= 60 * timedelta
         self._update_datetime(time_to_open)
 
     def _await_market_to_close(self, timedelta=None):
+        if (
+            self._data_source.SOURCE == "PANDAS"
+            and self._data_source._timestep == "day"
+        ):
+            return
         time_to_close = self.get_time_to_close()
         if timedelta is not None:
             time_to_close -= 60 * timedelta
         self._update_datetime(time_to_close)
 
     # =========Positions functions==================
-
     def _pull_broker_position(self, asset):
         """Given an asset, get the broker representation
         of the corresponding asset"""
@@ -282,14 +295,46 @@ class BacktestingBroker(Broker):
             order=order,
         )
 
+    def expired_contracts(self, strategy):
+        """Checks if options or futures contracts have expried and converts
+        to cash.
+
+        Parameters
+        ----------
+        strategy : str
+            Strategy object name.
+
+        Returns
+        --------
+            List of orders
+        """
+        if self._data_source.SOURCE != "PANDAS":
+            return []
+
+        orders_closing_contracts = []
+        for tracked_position in self.get_tracked_positions(strategy):
+            if tracked_position.asset.expiration == self.datetime.date():
+                orders_closing_contracts.append(tracked_position.get_selling_order())
+
+        return orders_closing_contracts
+
     def process_pending_orders(self, strategy):
         """Used to evaluate and execute open orders in backtesting.
 
         This method will evaluate the open orders at the beginning of every new bar to
         determine if any of the open orders should have been filled. This method will
         execute order events as needed, mostly fill events.
+
+        Parameters
+        ----------
+        strategy : Strategy object
+
         """
-        pending_orders = [
+
+        # Process expired contracts.
+        pending_orders = self.expired_contracts(strategy)
+
+        pending_orders += [
             order
             for order in self.get_tracked_orders(strategy)
             if order.status in ["unprocessed", "new"]
@@ -302,15 +347,32 @@ class BacktestingBroker(Broker):
             if order.dependent_order_filled:
                 continue
 
+            # Check validity if current date > valid date, cancel order. todo valid date
             price = 0
             filled_quantity = order.quantity
 
-            ohlc = self.get_last_bar(order.asset)
-            open = ohlc["open"]
-            high = ohlc["high"]
-            low = ohlc["low"]
-            close = ohlc["close"]
-            volume = ohlc["volume"]
+            if self._data_source.SOURCE == "YAHOO":
+                ohlc = self.get_last_bar(order.asset)
+                dt = ohlc.df.index[-1]
+                open = ohlc.df.open[-1]
+                high = ohlc.df.high[-1]
+                low = ohlc.df.low[-1]
+                close = ohlc.df.close[-1]
+                volume = ohlc.df.volume[-1]
+
+            elif self._data_source.SOURCE == "PANDAS":
+                ohlc = self._data_source._data_store[order.asset]._get_bars_dict(
+                    self.datetime, length=1
+                )
+                if ohlc is None:
+                    self.cancel_order(order)
+                    continue
+                dt = ohlc["datetime"][-1]
+                open = ohlc["open"][-1]
+                high = ohlc["high"][-1]
+                low = ohlc["low"][-1]
+                close = ohlc["close"][-1]
+                volume = ohlc["volume"][-1]
 
             # Determine transaction price.
             if order.type == "market":
@@ -340,7 +402,6 @@ class BacktestingBroker(Broker):
 
             if price != 0:
                 if order.dependent_order:
-                    order.dependent_order.dependent_order_filled = True
                     self.cancel_order(order.dependent_order)
 
                 if order.order_class in ["bracket", "oto"]:
@@ -405,9 +466,7 @@ class BacktestingBroker(Broker):
 
     def get_last_bar(self, asset):
         """Returns OHLCV dictionary for last bar of the asset. """
-        return self._data_source.get_symbol_bars(asset, 1).df.to_dict(orient="records")[
-            0
-        ]
+        return self._data_source.get_symbol_bars(asset, 1)
 
     # ==========Processing streams data=======================
 
@@ -429,6 +488,7 @@ class BacktestingBroker(Broker):
                     broker.FILLED_ORDER,
                     price=price,
                     filled_quantity=filled_quantity,
+                    multiplier=order.asset.multiplier,
                 )
                 return True
             except:

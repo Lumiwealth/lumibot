@@ -145,9 +145,11 @@ class InteractiveBrokersData(DataSource):
                     continue
 
                 if parsed_timestep == "1 min":
-                    df["date"] = pd.to_datetime(
-                        df["date"], unit="s", origin="unix"
-                    ).dt.tz_localize(self.DEFAULT_TIMEZONE)
+                    df["date"] = (
+                        pd.to_datetime(df["date"], unit="s", origin="unix")
+                        .dt.tz_localize("UTC")
+                        .dt.tz_convert(self.DEFAULT_TIMEZONE)
+                    )
                 elif parsed_timestep == "1 day":
                     df["date"] = pd.to_datetime(df["date"], format="%Y%m%d")
                     df["date"] = df["date"].dt.tz_localize(self.DEFAULT_TIMEZONE)

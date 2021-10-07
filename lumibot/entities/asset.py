@@ -1,4 +1,5 @@
 from collections import UserDict
+from datetime import date
 from pydantic import BaseModel, validator
 from typing import Optional
 
@@ -15,9 +16,10 @@ class Asset(BaseModel, frozen=True, extra="forbid"):
     asset_type : str
         Asset types are only `stock`, 'option`, `future`, `forex`,
         default : `stock`
-    expiration : str
+    expiration : datetime.date
         Option or futures expiration.
-        Format for options "YYYYMMDD", for futures "YYYYMM"
+        The datetime.date will be converted to broker specific formats.
+        IB Format: for options "YYYYMMDD", for futures "YYYYMM"
     strike : str
         Options strike as string.
     right : str
@@ -31,14 +33,14 @@ class Asset(BaseModel, frozen=True, extra="forbid"):
     Attributes
     ----------
     symbol : string
-    The symbol used to retrieve stock quotes if stock. The underlying
-    symbol if option. For Forex: The base currency.
+        The symbol used to retrieve stock quotes if stock. The underlying
+        symbol if option. For Forex: The base currency.
     asset_type (string, default: `stock`): One of the following:
         - `stock`
         - `option`
         - `future`
         - 'forex'
-    expiration : string
+    expiration : datetime.date
         Contract expiration dates for futures and options.
     strike : float
         Contract strike price.
@@ -63,7 +65,7 @@ class Asset(BaseModel, frozen=True, extra="forbid"):
 
     symbol: str
     asset_type: str = "stock"
-    expiration: Optional[str] = None
+    expiration: Optional[date] = None
     strike: Optional[str] = ""
     right: Optional[str] = None
     multiplier: int = 1

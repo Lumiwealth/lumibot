@@ -98,7 +98,8 @@ class InteractiveBrokersData(DataSource):
                         continue
                     except:
                         get_data_attempt += 1
-                response[asset] = None  # todo Test this
+                if asset not in response:
+                    response[asset] = None
             else:
                 while get_data_attempt < max_attempts:
                     reqId += 1
@@ -185,6 +186,20 @@ class InteractiveBrokersData(DataSource):
 
         bars = Bars(df, self.SOURCE, asset, raw=response)
         return bars
+
+    def _start_realtime_bars(self, asset, keep_bars=12):
+        return self.ib.start_realtime_bars(asset=asset, keep_bars=keep_bars)
+
+    def _get_realtime_bars(self, asset):
+        rtb = self.ib.realtime_bars[asset]
+        if len(rtb) == 0:
+            return None
+        else:
+            return rtb
+
+    def _cancel_realtime_bars(self, asset):
+        self.ib.cancel_realtime_bars(asset)
+        return 0
 
     def get_yesterday_dividend(self, asset):
         """ Unavailable """

@@ -1,6 +1,6 @@
 import datetime
 import logging
-
+import pandas as pd
 from lumibot.entities import Asset, Order
 
 from ._strategy import _Strategy
@@ -750,6 +750,94 @@ class Strategy(_Strategy):
             chunk_size=chunk_size,
             max_workers=max_workers,
         )
+
+    def start_realtime_bars(self, asset, keep_bars=30):
+        """Starts a real time stream of tickers for Interactive Broker
+        only.
+
+        This allows for real time data to stream to the strategy. Bars
+        are fixed at every fix seconds.  The will arrive in the strategy
+        in the form of a dataframe. The data returned will be:
+            - datetime
+            - open
+            - high
+            - low
+            - close
+            - volume
+            - vwap
+            - count (trade count)
+
+        Parameters
+        ----------
+        asset : Asset object
+            The asset to stream.
+
+        keep_bars : int
+            How many bars/rows to keep of data. If running for an
+            extended period of time, it may be desirable to limit the
+            size of the data kept.
+
+        Returns
+        -------
+        None
+        """
+        self.broker._start_realtime_bars(asset=asset, keep_bars=keep_bars)
+
+    def get_realtime_bars(self, asset):
+        """Retrieve the real time bars as dataframe.
+
+        Returns the current set of real time bars as a dataframe.
+        The `datetime` will be in the index. The columns of the
+        dataframe are:
+            - open
+            - high
+            - low
+            - close
+            - volume
+            - vwap
+            - count (trade count)
+
+        Parameters
+        ----------
+        asset : Asset object
+            The asset that has a stream active.
+
+        Returns
+        -------
+        dataframe : Pandas Dataframe.
+            Dataframe containing the most recent pricing information
+            for the asset. The data returned will be the `datetime` in
+            the index and the following columns.
+                - open
+                - high
+                - low
+                - close
+                - volume
+                - vwap
+                - count (trade count)
+            The length of the dataframe will have been set the intial
+            start of the real time bars.
+        """
+        rtb = self.broker._get_realtime_bars(asset)
+        if rtb is not None:
+            return pd.DataFrame(rtb).set_index("datetime")
+        return rtb
+
+    def cancel_realtime_bars(self, asset):
+        """Cancels a stream of real time bars for a given asset.
+
+        Cancels the real time bars for the given asset.
+
+        Parameters
+        ----------
+        asset : Asset object
+            Asset object that has streaming data to cancel.
+
+        Returns
+        -------
+        None
+        """
+        self.broker._cancel_realtime_bars(asset)
 
     def get_yesterday_dividend(self, asset):
         asset = self._set_asset_mapping(asset)

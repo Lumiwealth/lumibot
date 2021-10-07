@@ -114,9 +114,10 @@ class _Strategy:
                 try:
                     result[key] = deepcopy(self.__dict__[key])
                 except:
-                    logging.warning(
-                        "Cannot perform deepcopy on %r" % self.__dict__[key]
-                    )
+                    pass
+                    # logging.warning(
+                    #     "Cannot perform deepcopy on %r" % self.__dict__[key]
+                    # )
             elif key in [
                 "_name",
                 "_initial_budget",
@@ -297,7 +298,12 @@ class _Strategy:
 
         logger.setLevel(current_level)
 
-    def plot_returns_vs_benchmark(self, plot_file="backtest_result.jpg"):
+    def plot_returns_vs_benchmark(
+        self,
+        plot_file="backtest_result.jpg",
+        plot_file_html="backtest_result.html",
+        trades_df=None,
+    ):
         if self._strategy_returns_df is None:
             logging.warning(
                 "Cannot plot returns because the strategy returns are missing"
@@ -313,6 +319,8 @@ class _Strategy:
                 self._benchmark_returns_df,
                 self._benchmark_asset,
                 plot_file,
+                plot_file_html,
+                trades_df,
             )
 
     @classmethod
@@ -333,6 +341,7 @@ class _Strategy:
         auto_adjust=False,
         benchmark_asset="SPY",
         plot_file=None,
+        plot_file_html=None,
         trades_file=None,
         pandas_data=None,
         **kwargs,
@@ -341,6 +350,8 @@ class _Strategy:
         datestring = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         if plot_file is None:
             plot_file = f"logs/{name}_{datestring}.jpg"
+        if plot_file_html is None:
+            plot_file_html = f"logs/{name}_{datestring}.html"
         if stats_file is None:
             stats_file = f"logs/{name}_{datestring}_stats.csv"
         if trades_file is None:
@@ -396,6 +407,8 @@ class _Strategy:
 
         backtesting_broker.export_trade_events_to_csv(trades_file)
 
-        strategy.plot_returns_vs_benchmark(plot_file)
+        strategy.plot_returns_vs_benchmark(
+            plot_file, plot_file_html, backtesting_broker._trade_event_log_df
+        )
 
         return result

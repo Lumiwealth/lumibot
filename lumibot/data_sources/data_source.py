@@ -100,7 +100,7 @@ class DataSource:
     def _parse_source_bars(self, response):
         result = {}
         for asset, data in response.items():
-            if isinstance(data, float) or data is None:
+            if data is None or isinstance(data, float):
                 result[asset] = data
                 continue
             result[asset] = self._parse_source_symbol_bars(data, asset)
@@ -167,7 +167,7 @@ class DataSource:
         if isinstance(bars, float):
             return bars
         elif bars is None:
-            return None  # todo Check this for returning None. What about alpaca
+            return None
         return bars.df.iloc[0].close
 
     def get_last_prices(self, assets, timestep=None):

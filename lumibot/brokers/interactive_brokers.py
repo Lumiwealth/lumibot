@@ -831,14 +831,9 @@ class IBClient(EClient):
         return requested_time
 
     def get_tick(
-            self,
-            asset="",
+        self,
+        asset="",
     ):
-        """
-        Bid Price	1	Highest priced bid for the contract.	IBApi.EWrapper.tickPrice	-
-        Ask Price	2	Lowest price offer on the contract.	IBApi.EWrapper.tickPrice	-
-        Last Price	4	Last price at which the contract traded (does not include some trades in RTVolume).	IBApi.EWrapper.tickPrice	-
-        """
         tick_storage = self.wrapper.init_tick()
 
         contract = self.create_contract(asset)

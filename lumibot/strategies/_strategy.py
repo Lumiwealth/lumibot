@@ -280,7 +280,10 @@ class _Strategy:
         logger.setLevel(current_level)
 
     def plot_returns_vs_benchmark(
-        self, plot_file="backtest_result.jpg", plot_file_html="backtest_result.html", trades_df=None
+        self,
+        plot_file="backtest_result.jpg",
+        plot_file_html="backtest_result.html",
+        trades_df=None,
     ):
         if self._strategy_returns_df is None:
             logging.warning(

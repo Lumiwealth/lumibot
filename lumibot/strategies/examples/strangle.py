@@ -90,14 +90,16 @@ class Strangle(Strategy):
             try:
                 last_price = self.get_last_price(asset)
                 options["price_underlying"] = last_price
-                assert(last_price != 0)
+                assert last_price != 0
             except:
                 logging.warning(f"Unable to get price data for {asset.symbol}.")
                 options["price_underlying"] = 0
                 continue
 
             # Get dates from the options chain.
-            options["expirations"] = self.get_expiration(options["chains"], exchange=self.exchange)
+            options["expirations"] = self.get_expiration(
+                options["chains"], exchange=self.exchange
+            )
 
             # Find the first date that meets the minimum days requirement.
             options["expiration_date"] = self.get_expiration_date(
@@ -107,7 +109,10 @@ class Strangle(Strategy):
             multiplier = self.get_multiplier(options["chains"])
 
             # Get the call and put strikes to buy.
-            options["buy_call_strike"], options["buy_put_strike"] = self.call_put_strike(
+            (
+                options["buy_call_strike"],
+                options["buy_put_strike"],
+            ) = self.call_put_strike(
                 options["price_underlying"], asset.symbol, options["expiration_date"]
             )
 
@@ -211,7 +216,7 @@ class Strangle(Strategy):
                 asset_prices = self.get_last_prices(
                     [asset, options["call"], options["put"]]
                 )
-                assert(len(asset_prices) == 3)
+                assert len(asset_prices) == 3
             except:
                 logging.info(f"Failed to get price data for {asset.symbol}")
                 continue
@@ -273,7 +278,6 @@ class Strangle(Strategy):
             self.total_trades += 1
             options["status"] = 1
 
-
         positions = self.get_tracked_positions()
         filla = [pos.asset for pos in positions]
         print(
@@ -287,7 +291,6 @@ class Strangle(Strategy):
         )
 
         # self.await_market_to_close()
-
 
     def before_market_closes(self):
         self.sell_all()

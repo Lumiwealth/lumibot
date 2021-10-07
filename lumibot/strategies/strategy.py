@@ -498,7 +498,7 @@ class Strategy(_Strategy):
             max_workers=max_workers,
         )
 
-    def start_realtime_bars(self, asset,  keep_bars=30):
+    def start_realtime_bars(self, asset, keep_bars=30):
         """Starts a real time stream of tickers for Interactive Broker
         only.
 

@@ -186,9 +186,7 @@ class InteractiveBrokersData(DataSource):
         return bars
 
     def _start_realtime_bars(self, asset, keep_bars=12):
-        return self.ib.start_realtime_bars(
-            asset=asset, keep_bars=keep_bars
-        )
+        return self.ib.start_realtime_bars(asset=asset, keep_bars=keep_bars)
 
     def _get_realtime_bars(self, asset):
         rtb = self.ib.realtime_bars[asset]

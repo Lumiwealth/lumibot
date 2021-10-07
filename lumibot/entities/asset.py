@@ -3,7 +3,7 @@ from pydantic import BaseModel, validator
 from typing import Optional
 
 
-class Asset(BaseModel, frozen=True, extra='forbid'):
+class Asset(BaseModel, frozen=True, extra="forbid"):
     """
     This is a base class for Assets including stocks, futures, options
     and forex.
@@ -86,7 +86,9 @@ class Asset(BaseModel, frozen=True, extra='forbid'):
 
         v = v.upper()
         if v not in cls._right:
-            raise ValueError(f"`right` is {v} must be one of {', '.join(cls._right)}, upper case.")
+            raise ValueError(
+                f"`right` is {v} must be one of {', '.join(cls._right)}, upper case."
+            )
         return v
 
 

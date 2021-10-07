@@ -1,6 +1,4 @@
-import logging
 from datetime import datetime
-from time import time
 
 from credentials import AlpacaConfig
 from lumibot.backtesting import YahooDataBacktesting
@@ -15,7 +13,6 @@ from lumibot.strategies.examples import (
     Momentum,
     Simple,
 )
-from lumibot.tools import indicators
 from lumibot.traders import Trader
 
 # Choose your budget and log file locations

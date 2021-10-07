@@ -1,5 +1,6 @@
+import datetime
 import logging
-
+import pandas as pd
 from lumibot.entities import Asset, Order
 
 from ._strategy import _Strategy
@@ -316,26 +317,98 @@ class Strategy(_Strategy):
         return self.broker.wait_for_orders_execution(orders)
 
     def cancel_order(self, order):
-        """Cancel an order"""
+        """Cancel an order.
+
+        Cancels a single open order provided.
+
+        Parameter
+        ---------
+        An order object that the user seeks to cancel.
+
+        Returns
+        -------
+        None
+
+        """
         return self.broker.cancel_order(order)
 
     def cancel_orders(self, orders):
-        """cancel orders"""
+        """Cancel orders in all strategies.
+
+        Cancels all open orders provided in any of the running
+        strategies.
+
+        Parameters
+        ----------
+        orders : list of Order objects.
+
+        Returns
+        -------
+        None
+
+        """
         return self.broker.cancel_orders(orders)
 
     def cancel_open_orders(self):
-        """cancel all the strategy open orders"""
+        """Cancel all the strategy open orders.
+
+        Cancels all orders that are open and awaiting execution within
+        a given strategy. If running multiple strategies, will only
+        cancel the orders in the current strategy.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        None
+        """
         return self.broker.cancel_open_orders(self.name)
 
     def sell_all(self, cancel_open_orders=True):
-        """sell all strategy positions"""
+        """Sell all strategy positions.
+
+        The system will generate closing market orders for each open
+        position. If `cancel_open_orders` is `True`, then all open
+        orders will also be cancelled.
+
+        Open orders are cancelled before the positions are closed.
+
+        Parameters
+        ----------
+        cancel_open_orders : boolean
+            Cancel all order if True, leave all orders in place if
+            False. Default is True.
+
+        Returns
+        -------
+        None
+
+
+        """
         self.broker.sell_all(
             self.name,
             cancel_open_orders=cancel_open_orders,
         )
 
     def get_last_price(self, asset):
-        """Takes an asset asset and returns the last known price"""
+        """Takes an asset asset and returns the last known price
+
+        Makes an active call to the market to retrieve the last price.
+        In backtesting will provide the close of the last complete bar.
+
+        Parameters
+        ----------
+        asset : Asset object
+            Asset object for which the last closed price will be
+            retrieved.
+
+        Returns
+        -------
+        Float
+            Last closed price.
+        """
         asset = self._set_asset_mapping(asset)
         return self.broker.get_last_price(asset)
 
@@ -357,40 +430,220 @@ class Strategy(_Strategy):
         else:
             return asset_prices
 
-    def get_tradable_assets(self, easy_to_borrow=None, filter_func=None):
-        """Get the list of all tradable assets
-        within the current broker from the market"""
-        return self.broker.get_tradable_assets(
-            easy_to_borrow=easy_to_borrow, filter_func=filter_func
+    def is_tradable(self, asset, dt, length=1, timestep="minute", timeshift=0):
+        """Determine if the current asset is tradable at the current bar
+        in backtesting primarily used with Pandas module.
+
+        Some assets datas will start and end at different times, for
+        example options and futures contracts. When backtesting, this
+        method will determine if a given asset will have data for the
+        current bar given the length, timestep and timeshift required.
+
+        Parameters
+        ----------
+        asset : Asset object
+            The Asset to be checked if data is available for backtesting
+            at the current bar.
+        dt : datetime.datetime
+            Datetime of the bar to check, usually current datetime.
+        length : int optional
+            Number of bars to check for data. (default is 1)
+        timestep : str optional
+            Is the timestep `minute` or `day`. (default is `minute`)
+        timeshift : int optional
+            The number of bars back from `dt` is the last bar.
+            (default is 0)
+
+        Returns
+        -------
+        boolean
+            True if is tradable. False or None if not.
+        """
+        return self.broker._data_source.is_tradable(
+            asset, dt, length=length, timestep=timestep, timeshift=timeshift
+        )
+
+    def get_tradable_assets(self, dt, length=1, timestep="minute", timeshift=0):
+        """Get the list of all tradable assets within the current broker
+        from the market
+
+        Some assets datas will start and end at different times, for
+        example options and futures contracts. When backtesting, this
+        method will provide a list of assets for the current bar given
+        the length, timestep and timeshift required.
+
+        Parameters
+        ---------
+        asset : Asset object
+            The Asset to be checked if data is available for backtesting
+            at the current bar.
+        dt : datetime.datetime
+            Datetime of the bar to check, usually current datetime.
+        length : int optional
+            Number of bars to check for data. (default is 1)
+        timestep : str optional
+            Is the timestep `minute` or `day`. (default is `minute`)
+        timeshift : int optional
+            The number of bars back from `dt` is the last bar.
+            (default is 0)
+
+        Returns
+        -------
+        list of Asset objects
+            A list of all the Assets that meet the given criteria.
+            Will return an empty list if no assets are available.
+        """
+
+        return self.broker._data_source.get_tradable_assets(
+            dt, length=length, timestep=timestep, timeshift=timeshift
         )
 
     # =======Broker methods shortcuts============
-    def option_params(self, asset, exchange="", underlyingConId=""):
-        """Returns option chain data, list of strikes and list of expiry dates."""
-        asset = self._set_asset_mapping(asset)
-        return self.broker.option_params(
-            asset=asset, exchange=exchange, underlyingConId=underlyingConId
-        )
+    def options_expiry_to_datetime_date(self, date):
+        """Converts an IB Options expiry to datetime.date.
+
+        Parameters
+        ----------
+            date : str
+                String in the format of 'YYYYMMDD'
+
+        Returns
+        -------
+            datetime.date
+        """
+        return datetime.datetime.strptime(date, "%Y%m%d").date()
 
     def get_chains(self, asset):
-        """Returns option chain."""
+        """Returns option chains.
+
+        Obtains option chain information for the asset (stock) from each
+        of the exchanges the options trade on and returns a dictionary
+        for each exchange.
+
+        Parameters
+        ----------
+        asset : Asset object
+            The stock whose option chain is being fetched. Represented
+            as an asset object.
+
+        Returns
+        -------
+        dictionary of dictionaries for each exchange. Each exchange
+        dictionary has:
+            - `Underlying conId` (int)
+            - `TradingClass` (str) eg: `FB`
+            - `Multiplier` (str) eg: `100`
+            - `Expirations` (set of str) eg: {`20230616`, ...}
+            - `Strikes` (set of floats)
+        """
         asset = self._set_asset_mapping(asset)
         return self.broker.get_chains(asset)
 
     def get_chain(self, chains, exchange="SMART"):
-        """Returns option chain for a particular exchange."""
+        """Returns option chain for a particular exchange.
+
+        Takes in a full set of chains for all the exchanges and returns
+        on chain for a given exchange. The the full chains are returned
+        from `get_chains` method.
+
+        Parameters
+        ----------
+        chains : dictionary of dictionaries
+            The chains dictionary created by `get_chains` method.
+
+        exchange : str optional
+            The exchange such as `SMART`, `CBOE`. Default is `SMART`
+
+        Returns
+        -------
+        dictionary
+            A dictionary of option chain information for one stock and
+            for one exchange. It will contain:
+                - `Underlying conId` (int)
+                - `TradingClass` (str) eg: `FB`
+                - `Multiplier` (str) eg: `100`
+                - `Expirations` (set of str) eg: {`20230616`, ...}
+                - `Strikes` (set of floats)
+        """
         return self.broker.get_chain(chains, exchange=exchange)
 
     def get_expiration(self, chains, exchange="SMART"):
-        """Returns option chain for a particular exchange."""
+        """Returns expiration dates for an option chain for a particular
+        exchange.
+
+        Using the `chains` dictionary obtained from `get_chains` finds
+        all of the expiry dates for the option chains on a given
+        exchange. The return list is sorted.
+
+        Parameters
+        ---------
+        chains : dictionary of dictionaries
+            The chains dictionary created by `get_chains` method.
+
+        exchange : str optional
+            The exchange such as `SMART`, `CBOE`. Default is `SMART`.
+
+        Returns
+        -------
+        list of str
+            Sorted list of dates in the form of `20221013`.
+        """
         return self.broker.get_expiration(chains, exchange=exchange)
 
     def get_multiplier(self, chains, exchange="SMART"):
-        """Returns option chain for a particular exchange."""
+        """Returns option chain for a particular exchange.
+
+        Using the `chains` dictionary obtained from `get_chains` finds
+        all of the multiplier for the option chains on a given
+        exchange.
+
+        Parameters
+        ----------
+        chains : dictionary of dictionaries
+            The chains dictionary created by `get_chains` method.
+
+        exchange : str optional
+            The exchange such as `SMART`, `CBOE`. Default is `SMART`
+
+        Returns
+        -------
+        list of str
+            Sorted list of dates in the form of `20221013`.
+        """
+
         return self.broker.get_multiplier(chains, exchange=exchange)
 
     def get_strikes(self, asset):
-        """Returns a list of strikes for a give underlying asset."""
+        """Returns a list of strikes for a give underlying asset.
+
+        Using the `chains` dictionary obtained from `get_chains` finds
+        all of the multiplier for the option chains on a given
+        exchange.
+
+        Parameters
+        ----------
+        asset : Asset object
+            Asset object as normally used for an option but without
+            the strike information.
+
+            Example:
+            asset = self.create_asset(
+                "FB",
+                asset_type="option",
+                expiration=self.options_expiry_to_datetime_date("20210924"),
+                right="CALL",
+                multiplier=100,
+            )
+
+            `expiration` can also be expressed as
+            `datetime.datetime.date()`
+
+        Returns
+        -------
+        list of floats
+            Sorted list of strikes as floats.
+        """
+
         asset = self._set_asset_mapping(asset)
         contract_details = self.get_contract_details(asset)
         if not contract_details:
@@ -497,6 +750,94 @@ class Strategy(_Strategy):
             chunk_size=chunk_size,
             max_workers=max_workers,
         )
+
+    def start_realtime_bars(self, asset, keep_bars=30):
+        """Starts a real time stream of tickers for Interactive Broker
+        only.
+
+        This allows for real time data to stream to the strategy. Bars
+        are fixed at every fix seconds.  The will arrive in the strategy
+        in the form of a dataframe. The data returned will be:
+            - datetime
+            - open
+            - high
+            - low
+            - close
+            - volume
+            - vwap
+            - count (trade count)
+
+        Parameters
+        ----------
+        asset : Asset object
+            The asset to stream.
+
+        keep_bars : int
+            How many bars/rows to keep of data. If running for an
+            extended period of time, it may be desirable to limit the
+            size of the data kept.
+
+        Returns
+        -------
+        None
+        """
+        self.broker._start_realtime_bars(asset=asset, keep_bars=keep_bars)
+
+    def get_realtime_bars(self, asset):
+        """Retrieve the real time bars as dataframe.
+
+        Returns the current set of real time bars as a dataframe.
+        The `datetime` will be in the index. The columns of the
+        dataframe are:
+            - open
+            - high
+            - low
+            - close
+            - volume
+            - vwap
+            - count (trade count)
+
+        Parameters
+        ----------
+        asset : Asset object
+            The asset that has a stream active.
+
+        Returns
+        -------
+        dataframe : Pandas Dataframe.
+            Dataframe containing the most recent pricing information
+            for the asset. The data returned will be the `datetime` in
+            the index and the following columns.
+                - open
+                - high
+                - low
+                - close
+                - volume
+                - vwap
+                - count (trade count)
+            The length of the dataframe will have been set the intial
+            start of the real time bars.
+        """
+        rtb = self.broker._get_realtime_bars(asset)
+        if rtb is not None:
+            return pd.DataFrame(rtb).set_index("datetime")
+        return rtb
+
+    def cancel_realtime_bars(self, asset):
+        """Cancels a stream of real time bars for a given asset.
+
+        Cancels the real time bars for the given asset.
+
+        Parameters
+        ----------
+        asset : Asset object
+            Asset object that has streaming data to cancel.
+
+        Returns
+        -------
+        None
+        """
+        self.broker._cancel_realtime_bars(asset)
 
     def get_yesterday_dividend(self, asset):
         asset = self._set_asset_mapping(asset)

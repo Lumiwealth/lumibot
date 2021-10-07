@@ -41,7 +41,7 @@ self.create_asset(
    "FB",
    asset_type="option",
    name="Facebook, Inc.",
-   expiration="20210625",
+   expiration=datetime.date(2021, 9, 17),
    strike=335,
    right="CALL",
    multiplier=100,
@@ -51,7 +51,7 @@ self.create_asset(
 - `asset_type`: There are only two asset types available in Lumibot. `stock` and `option`. Select `option` to 
 create an option contract.
 - `name`: Optional full name. Not used in the code but can be used for prints and logging. 
-- `expiration`: Expiration dates are in the format of `YYYYMMDD`
+- `expiration`: Expiration dates are in the format of datetime.date().
 - `strike`: is an integer representing the contract strike price. 
 - `right`: Two options, `CALL` or `PUT`
 - `multiplier`: An integer representing the multiple the option contract is multiplied by. Most 
@@ -162,7 +162,7 @@ particular expiration date, we must:
 asset = self.create_asset(
             "FB",
             asset_type="option",
-            expiration="20210625",
+            expiration=datetime.date(2021, 6, 25),
         )
 self.get_strikes(asset)
 ```
@@ -181,7 +181,7 @@ can create an option for trading.
 self.create_asset(
     "FB", # or self.create_asset("FB")
     asset_type="option",
-    expiration="20210625",
+    expiration=datetime.date(2021, 6, 25),
     strike=330,
     right="CALL",
     multiplier=100,

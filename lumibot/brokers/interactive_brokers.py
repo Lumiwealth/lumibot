@@ -1,3 +1,4 @@
+from collections import deque
 import datetime
 import time
 import traceback
@@ -262,9 +263,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
             if size == 0:
                 continue
             side = "sell" if size > 0 else "buy"
-            close_order = OrderLum(
-                strategy, position.asset, size, side
-            )
+            close_order = OrderLum(strategy, position.asset, size, side)
             orders.append(close_order)
         self.submit_orders(orders)
 
@@ -318,11 +317,11 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
             if x == exchange:
                 return p
 
-    def get_expiration(self, chains, exchange='SMART'):
+    def get_expiration(self, chains, exchange="SMART"):
         """Returns expirations and strikes high/low of target price."""
         return sorted(list(self.get_chain(chains, exchange=exchange)["Expirations"]))
 
-    def get_multiplier(self, chains, exchange='SMART'):
+    def get_multiplier(self, chains, exchange="SMART"):
         """Returns the multiplier"""
         return self.get_chain(chains, exchange)["Multiplier"]
 
@@ -434,8 +433,9 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
 
         price = execution.price
         filled_quantity = execution.shares
-        multiplier = stored_order.asset.multiplier if stored_order.asset.multiplier \
-            else 1
+        multiplier = (
+            stored_order.asset.multiplier if stored_order.asset.multiplier else 1
+        )
 
         self._process_trade_event(
             stored_order,
@@ -497,7 +497,6 @@ class IBWrapper(EWrapper):
             self.init_time()
         self.my_time_queue.put(server_time)
 
-    # Tick Data. NOT USED YET
     def init_tick(self):
         self.tick = list()
         tick_queue = queue.Queue()
@@ -528,6 +527,35 @@ class IBWrapper(EWrapper):
 
     def historicalDataEnd(self, reqId: int, start: str, end: str):
         self.my_historical_queue.put(self.historical)
+
+    # Realtime Bars (5 sec)
+    def realtimeBar(
+        self,
+        reqId: TickerId,
+        time: int,
+        open_: float,
+        high: float,
+        low: float,
+        close: float,
+        volume: int,
+        wap: float,
+        count: int,
+    ):
+        super().realtimeBar(reqId, time, open_, high, low, close, volume, wap, count)
+        if not hasattr(self, "realtimeBar"):
+            self.init_realtimeBar()
+        rtb = dict(
+            datetime=datetime.datetime.fromtimestamp(time).astimezone(tz=tz.tzlocal()),
+            open=open_,
+            high=high,
+            low=low,
+            close=close,
+            volume=volume,
+            vwap=wap,
+            count=count,
+        )
+
+        self.realtime_bars[self.map_reqid_asset[reqId]].append(rtb)
 
     # Positions.
     def init_positions(self):
@@ -767,8 +795,10 @@ class IBWrapper(EWrapper):
         super().securityDefinitionOptionParameterEnd(reqId)
         self.my_option_params_queue.put(self.option_params_dict)
 
+
 class IBClient(EClient):
     """Sends data to IB"""
+
     def __init__(self, wrapper):
         ## Set up with a wrapper inside
         EClient.__init__(self, wrapper)
@@ -801,14 +831,9 @@ class IBClient(EClient):
         return requested_time
 
     def get_tick(
-            self,
-            asset="",
+        self,
+        asset="",
     ):
-        """
-        Bid Price	1	Highest priced bid for the contract.	IBApi.EWrapper.tickPrice	-
-        Ask Price	2	Lowest price offer on the contract.	IBApi.EWrapper.tickPrice	-
-        Last Price	4	Last price at which the contract traded (does not include some trades in RTVolume).	IBApi.EWrapper.tickPrice	-
-        """
         tick_storage = self.wrapper.init_tick()
 
         contract = self.create_contract(asset)
@@ -867,6 +892,35 @@ class IBClient(EClient):
             print(f"Error: {self.get_error(timeout=5)}")
 
         return requested_historical
+
+    def start_realtime_bars(
+        self,
+        asset=None,
+        bar_size=5,
+        what_to_show="TRADES",
+        useRTH=True,
+        keep_bars=10,
+    ):
+        reqid = self.get_reqid()
+        self.map_reqid_asset[reqid] = asset
+        self.realtime_bars[asset] = deque(maxlen=keep_bars)
+
+        contract = self.create_contract(asset)
+        # Call the realtime bars data.
+        self.reqRealTimeBars(
+            reqid,
+            contract,
+            bar_size,
+            what_to_show,
+            useRTH,
+            ["XYZ"],
+        )
+
+    def cancel_realtime_bars(self, asset):
+        self.realtime_bars.pop(asset, None)
+        reqid = [rid for rid, ast in self.map_reqid_asset.items() if ast == asset][0]
+        self.cancelRealTimeBars(reqid)
+        logging.info(f"No longer streaming data for {asset.symbol}.")
 
     def get_positions(self):
         positions_storage = self.wrapper.init_positions()
@@ -1008,6 +1062,8 @@ class IBApp(IBWrapper, IBClient):
         setattr(self, "_thread", thread)
 
         self.init_error()
+        self.map_reqid_asset = dict()
+        self.realtime_bars = dict()
 
     def create_contract(
         self,
@@ -1027,16 +1083,16 @@ class IBApp(IBWrapper, IBClient):
         if asset.asset_type == "stock":
             contract.primaryExchange = primaryExchange
         elif asset.asset_type == "option":
-            contract.lastTradeDateOrContractMonth = asset.expiration
+            contract.lastTradeDateOrContractMonth = asset.expiration.strftime("%Y%m%d")
             contract.strike = str(asset.strike)
             contract.right = asset.right
             contract.multiplier = asset.multiplier
             contract.primaryExchange = "CBOE"
-        elif asset.asset_type == 'future':
-            contract.lastTradeDateOrContractMonth = asset.expiration
+        elif asset.asset_type == "future":
+            contract.lastTradeDateOrContractMonth = asset.expiration.strftime("%Y%m")
             contract.primaryExchange = "GLOBEX"
             contract.currency = "USD"
-        elif asset.asset_type == 'forex':
+        elif asset.asset_type == "forex":
             contract.exchange = "IDEALPRO"
         else:
             raise ValueError(
@@ -1052,10 +1108,13 @@ class IBApp(IBWrapper, IBClient):
             if not order.limit_price:
                 logging.info(
                     f"All bracket orders must have limit price for the originating "
-                    f"order. The bracket order for {order.symbol} is cancelled.")
+                    f"order. The bracket order for {order.symbol} is cancelled."
+                )
                 return []
             parent = Order()
-            parent.orderId = order.identifier if order.identifier else self.nextOrderId()
+            parent.orderId = (
+                order.identifier if order.identifier else self.nextOrderId()
+            )
             parent.action = order.side.upper()
             parent.orderType = "LMT"
             parent.totalQuantity = order.quantity
@@ -1088,11 +1147,14 @@ class IBApp(IBWrapper, IBClient):
             if not order.limit_price:
                 logging.info(
                     f"All oto orders must have limit price for the originating order. "
-                    f"The one triggers other order for {order.symbol} is cancelled.")
+                    f"The one triggers other order for {order.symbol} is cancelled."
+                )
                 return []
 
             parent = Order()
-            parent.orderId = order.identifier if order.identifier else self.nextOrderId()
+            parent.orderId = (
+                order.identifier if order.identifier else self.nextOrderId()
+            )
             parent.action = order.side.upper()
             parent.orderType = "LMT"
             parent.totalQuantity = order.quantity
@@ -1123,7 +1185,9 @@ class IBApp(IBWrapper, IBClient):
 
         elif order.order_class == "oco":
             takeProfit = Order()
-            takeProfit.orderId = order.identifier if order.identifier else self.nextOrderId()
+            takeProfit.orderId = (
+                order.identifier if order.identifier else self.nextOrderId()
+            )
             takeProfit.action = order.side.upper()
             takeProfit.orderType = "LMT"
             takeProfit.totalQuantity = order.quantity
@@ -1145,7 +1209,6 @@ class IBApp(IBWrapper, IBClient):
             stopLoss.ocaGroup = oco_Group
             stopLoss.ocaType = 1
 
-
             return [takeProfit, stopLoss]
         else:
             ib_order.action = order.side.upper()
@@ -1153,10 +1216,14 @@ class IBApp(IBWrapper, IBClient):
             ib_order.totalQuantity = order.quantity
             ib_order.lmtPrice = order.limit_price if order.limit_price else 0
             ib_order.auxPrice = order.stop_price if order.stop_price else ""
-            ib_order.trailingPercent = order.trail_percent if order.trail_percent else ""
+            ib_order.trailingPercent = (
+                order.trail_percent if order.trail_percent else ""
+            )
             if order.trail_price:
                 ib_order.auxPrice = order.trail_price
-            ib_order.orderId = order.identifier if order.identifier else self.nextOrderId()
+            ib_order.orderId = (
+                order.identifier if order.identifier else self.nextOrderId()
+            )
 
             return [ib_order]
 

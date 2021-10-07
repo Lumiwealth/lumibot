@@ -217,6 +217,7 @@ def plot_returns(
             hovertemplate="Value: %{y:$,.2f}<br>%{x|%b %d %Y %I:%M:%S %p}<extra></extra>",
         )
     )
+
     # Buys
     buys = df_final.copy()
     buys[name1] = buys[name1].fillna(method="bfill")
@@ -235,6 +236,7 @@ def plot_returns(
             text=buys["plotly_text"],
         )
     )
+
     # Sells
     sells = df_final.copy()
     sells[name1] = sells[name1].fillna(method="bfill")

@@ -1,6 +1,6 @@
 import argparse
 import logging
-from datetime import datetime
+import datetime
 import pandas as pd
 from time import perf_counter, time
 
@@ -8,7 +8,7 @@ from credentials import AlpacaConfig
 from lumibot.backtesting import YahooDataBacktesting, PandasDataBacktesting
 from lumibot.brokers import Alpaca
 from lumibot.data_sources import AlpacaData
-from lumibot.entities import Asset
+from lumibot.entities import Asset, Data
 from lumibot.strategies.examples import (
     BuyAndHold,
     DebtTrading,
@@ -24,11 +24,8 @@ from lumibot.traders import Trader
 # Global parameters
 debug = True
 budget = 40000
-
-backtesting_start = datetime(2019, 1, 4)
-backtesting_end = datetime(2019, 4, 30)
-
-
+backtesting_start = datetime.datetime(2019, 2, 28)
+backtesting_end = datetime.datetime(2019, 12, 1)
 logfile = "logs/test.log"
 
 # Trading objects
@@ -36,42 +33,72 @@ alpaca_broker = Alpaca(AlpacaConfig)
 alpaca_data_source = AlpacaData(AlpacaConfig)
 trader = Trader(logfile=logfile, debug=debug)
 
+# set up pandas
 
-# This file is currenlty supporting Pandas loading of day data: Stage 1
-# development. Load pandas dataframes into dictionaries with `Asset` as key.
-# Columns must be ['datetime', 'open', 'high', 'low', 'close', 'volume']
-# Use "backtesting_datasource": PandasDataBacktesting,
-# Make sure your start and end dates are inside the range of your data.
-
-# Diversification: Multi Daily data.
-# CSV Dates are start 2019-01-02 to end 2019-12-31
-tickers = ["SPY", "TLT", "IEF", "GLD", "DJP",]
-day_data = dict()
+trading_hours_start = datetime.time(9, 30)
+trading_hours_end = datetime.time(11, 0)
+pandas_data = dict()
+tickers = ["SPY", "DJP", "TLT", "GLD", "IEF"]
 for ticker in tickers:
-    day_data[Asset(symbol=ticker)] = pd.read_csv(f"data/{ticker}.csv")
+    asset = Asset(
+        symbol=ticker,
+        asset_type="stock",
+    )
+    df = pd.read_csv(
+        f"data/{ticker}.csv",
+        parse_dates=True,
+        index_col=0,
+        header=0,
+        usecols=[0, 1, 2, 3, 4, 6],
+        names=["Date", "Open", "High", "Low", "Close", "Volume"],
+    )
+    df = df.rename(
+        columns={
+            "Date": "date",
+            "Open": "open",
+            "High": "high",
+            "Low": "low",
+            "Close": "close",
+            "Volume": "volume",
+        }
+    )
+    df = df[["open", "high", "low", "close", "volume"]]
+    df.index.name = "datetime"
+
+    data = Data(
+        "my_strategy",
+        asset,
+        df,
+        date_start=datetime.datetime(2019, 1, 6),
+        date_end=datetime.datetime(2019, 12, 15),
+        # trading_hours_start=datetime.time(9, 30),
+        # trading_hours_end=datetime.time(16, 0),
+        timestep="day",
+    )
+    pandas_data[asset] = data
 
 # Strategies mapping
 mapping = {
-    "momentum": {
+    "momentum_pandas": {
         "class": Momentum,
-        "backtesting_datasource": YahooDataBacktesting,
-        "kwargs": {"symbols": tickers},  # use yahoo-> {"symbols": ["SPY", "VEU", "AGG"]},
+        "backtesting_datasource": PandasDataBacktesting,
+        "kwargs": {"symbols": list(pandas_data)},
         "config": None,
-        "pandas_data": day_data,
+        "pandas_data": pandas_data,
     },
     "diversification": {
         "class": Diversification,
-        "backtesting_datasource": YahooDataBacktesting,
+        "backtesting_datasource": PandasDataBacktesting,
         "kwargs": {},
         "config": None,
-        "pandas_data": day_data,
+        "pandas_data": pandas_data,
     },
     "debt_trading": {
         "class": DebtTrading,
         "backtesting_datasource": YahooDataBacktesting,
         "kwargs": {},
         "config": None,
-        "pandas_data": day_data,
+        "pandas_data": None,
     },
     "intraday_momentum": {
         "class": IntradayMomentum,
@@ -88,18 +115,19 @@ mapping = {
     },
     "buy_and_hold": {
         "class": BuyAndHold,
-        "backtesting_datasource": YahooDataBacktesting,
+        "backtesting_datasource": PandasDataBacktesting,
         "kwargs": {},
         "backtesting_cache": False,
         "config": None,
-        "pandas_data": day_data,
+        "pandas_data": pandas_data,
     },
     "simple": {
         "class": Simple,
-        "backtesting_datasource": YahooDataBacktesting,
+        "backtesting_datasource": PandasDataBacktesting,
         "kwargs": {},
         "backtesting_cache": False,
         "config": None,
+        "pandas_data": pandas_data,
     },
 }
 
@@ -135,7 +163,9 @@ if __name__ == "__main__":
 
         strategy_class = strategy_params["class"]
         backtesting_datasource = strategy_params["backtesting_datasource"]
-        pandas_data = strategy_params['pandas_data'] if 'pandas_data' in strategy_params else None
+        pandas_data = (
+            strategy_params["pandas_data"] if "pandas_data" in strategy_params else None
+        )
         kwargs = strategy_params["kwargs"]
         config = strategy_params["config"]
 
@@ -154,6 +184,10 @@ if __name__ == "__main__":
                 raise ValueError(
                     f"Backtesting is not supported for strategy {strategy_name}"
                 )
+
+            # Replace the strategy name now that it's known.
+            for data in pandas_data.values():
+                data.strategy = strategy_name
 
             tic = perf_counter()
             strategy_class.backtest(

@@ -7,7 +7,7 @@ from credentials import InteractiveBrokersConfig
 from lumibot.backtesting import YahooDataBacktesting
 from lumibot.brokers import InteractiveBrokers
 from lumibot.data_sources import InteractiveBrokersData
-from lumibot.strategies.examples import (
+from getting_started.examples import (
     BuyAndHold,
     DebtTrading,
     Diversification,
@@ -25,7 +25,7 @@ debug = False
 budget = 40000
 backtesting_start = datetime(2010, 1, 1)
 backtesting_end = datetime(2020, 12, 31)
-logfile = "logs/test.log"
+logfile = "../logs/test.log"
 
 # Trading objects
 interactive_brokers = InteractiveBrokers(InteractiveBrokersConfig)

@@ -27,7 +27,7 @@ class AlpacaConfig:
 or import an example from our libraries
    
 ```python
-from lumibot.strategies.examples import Momentum
+from getting_started.examples import Momentum
 ```
 
 5) Create another file meant to be the entrypoint of your code e.g. main.py
@@ -40,7 +40,7 @@ from lumibot.brokers import Alpaca
 # importing the credential class created in step 2
 from credentials import AlpacaConfig
 # importing the strategy class created in step 3
-from lumibot.strategies.examples import Momentum
+from getting_started.examples import Momentum
 ```
 7) In your main.py, define variables for the budget allocated to your strategy. 
    Additionally, define the destination of the logfile.
@@ -73,7 +73,7 @@ Below an example of main.py:
 # main.py
 from lumibot.traders import Trader
 from lumibot.brokers import Alpaca
-from lumibot.strategies.examples import Momentum
+from getting_started.examples import Momentum
 from credentials import AlpacaConfig
 
 budget = 40000
@@ -116,7 +116,7 @@ example of a completed file:
 # main.py
 from lumibot.traders import Trader
 from lumibot.brokers import InteractiveBrokers
-from lumibot.strategies.examples import Strangle 
+from getting_started.examples import Strangle 
 from credentials import InteractiveBrokersConfig
 
 budget = 40000
@@ -418,7 +418,7 @@ strategy_class.backtest(
 ## Example Strategies
 
 Lumibot provides a set of several example strategies that you can copy from to create 
-your own, they are located in `lumibot->strategies->examples`. Here is a breakdown of each example strategy:
+your own, they are located in `getting_started->examples`. Here is a breakdown of each example strategy:
 
 #### Diversification
 Allocates the budget by the percent allocations set in self.portfolio and rebalances every self.

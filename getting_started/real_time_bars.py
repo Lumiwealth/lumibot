@@ -65,8 +65,8 @@ if __name__ == "__main__":
         timeshift=datetime.timedelta(days=0),
     )
     print(kwargs)
-    strategy_name = "Historical"
-    strategy = RealTimeBars(name=strategy_name, budget=0, broker=broker, **kwargs)
+    strategy_name = "RealTimeBars"
+    strategy = RealTimeBars(name=strategy_name, budget=500, broker=broker, **kwargs)
 
     trader.add_strategy(strategy)
     trader.run_all()

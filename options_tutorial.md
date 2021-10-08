@@ -3,7 +3,7 @@
 ## Introduction
 Trading options is more complicated than trading stock strategies. This tutorial will walk 
 through elements of the `strangle` options strategy that is supplied as one of the 
-example strategies in Lumibot.  The `strangle` module can be located in `strategies/exmaples`.
+example strategies in Lumibot.  The `strangle` module can be located in `getting_started/examples`.
 
 #### Nature of Options and Interactive Brokers
 Trading options on Interactive Brokers presents some challenges. First, Interactive Brokers 
@@ -251,5 +251,5 @@ self.submit_order(
 Or the order can be split out if saving the order in the tracking dictionary.
 
 The full example can be followed through in the `strangle.py` located in the 
-`strategies/examples` directory.
+`getting_started/examples` directory.
 

@@ -9,7 +9,7 @@ from lumibot.backtesting import YahooDataBacktesting, PandasDataBacktesting
 from lumibot.brokers import Alpaca
 from lumibot.data_sources import AlpacaData
 from lumibot.entities import Asset
-from lumibot.strategies.examples import (
+from getting_started.examples import (
     BuyAndHold,
     DebtTrading,
     Diversification,
@@ -29,7 +29,7 @@ backtesting_start = datetime(2019, 1, 4)
 backtesting_end = datetime(2019, 4, 30)
 
 
-logfile = "logs/test.log"
+logfile = "../logs/test.log"
 
 # Trading objects
 alpaca_broker = Alpaca(AlpacaConfig)

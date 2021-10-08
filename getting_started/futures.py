@@ -90,7 +90,7 @@ class Futures(Strategy):
 if __name__ == "__main__":
     # Choose your budget and log file locations
     budget = 100000
-    logfile = "logs/test.log"
+    logfile = "../logs/test.log"
     backtesting_start = datetime.datetime(2020, 10, 8)
     backtesting_end = datetime.datetime(2021, 8, 10)
 

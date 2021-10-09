@@ -7,7 +7,7 @@ from credentials import InteractiveBrokersConfig
 from lumibot.backtesting import YahooDataBacktesting
 from lumibot.brokers import InteractiveBrokers
 from lumibot.data_sources import InteractiveBrokersData
-from getting_started.examples import (
+from lumibot.strategies.examples import (
     BuyAndHold,
     DebtTrading,
     Diversification,

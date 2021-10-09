@@ -3,7 +3,7 @@ from datetime import datetime
 from credentials import AlpacaConfig
 from lumibot.backtesting import YahooDataBacktesting
 from lumibot.brokers import Alpaca
-from getting_started.examples import (
+from lumibot.strategies.examples import (
     BuyAndHold,
     DebtTrading,
     Diversification,

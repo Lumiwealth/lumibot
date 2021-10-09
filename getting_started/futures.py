@@ -65,8 +65,6 @@ class Futures(Strategy):
             self.traded = True
             if self.printon:
                 print(f"\nOrder created: {dt} for {self.purchase_order.asset.symbol}.")
-            self.traded = True
-
         return
 
     def on_canceled_order(self, order):

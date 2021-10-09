@@ -1,11 +1,8 @@
-import logging
 from datetime import datetime
-from time import time
 
 from credentials import InteractiveBrokersConfig
-from lumibot.backtesting import YahooDataBacktesting
 from lumibot.brokers import InteractiveBrokers
-from getting_started.examples import (
+from lumibot.strategies.examples import (
     BuyAndHold,
     DebtTrading,
     Diversification,
@@ -15,9 +12,7 @@ from getting_started.examples import (
     Momentum,
     Simple,
     Strangle,
-
 )
-from lumibot.tools import indicators
 from lumibot.traders import Trader
 
 # Choose your budget and log file locations

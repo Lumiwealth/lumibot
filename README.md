@@ -25,13 +25,14 @@ class AlpacaConfig:
 
 4) Create your own strategy class (See strategy section) e.g. ```class MyStrategy(Startegy)```
 or import an example from our libraries
-   
+
 ```python
-from getting_started.examples import Momentum
+from lumibot.strategies.examples import Momentum
 ```
 
 5) Create another file meant to be the entrypoint of your code e.g. main.py
 6) import the following modules in your main.py:
+
 ```python
 # importing the trader class
 from lumibot.traders import Trader
@@ -40,7 +41,7 @@ from lumibot.brokers import Alpaca
 # importing the credential class created in step 2
 from credentials import AlpacaConfig
 # importing the strategy class created in step 3
-from getting_started.examples import Momentum
+from lumibot.strategies.examples import Momentum
 ```
 7) In your main.py, define variables for the budget allocated to your strategy. 
    Additionally, define the destination of the logfile.
@@ -69,11 +70,12 @@ trader.run_all()
 ```
 
 Below an example of main.py:
+
 ```python
 # main.py
 from lumibot.traders import Trader
 from lumibot.brokers import Alpaca
-from getting_started.examples import Momentum
+from lumibot.strategies.examples import Momentum
 from credentials import AlpacaConfig
 
 budget = 40000
@@ -110,13 +112,13 @@ Set up your `credentials.py` file as follows:
         IP = "127.0.0.1"
 
 Set up your entry point file as above, except using Interactive Brokers. Here is an 
-example of a completed file: 
+example of a completed file:
 
 ```python
 # main.py
 from lumibot.traders import Trader
 from lumibot.brokers import InteractiveBrokers
-from getting_started.examples import Strangle 
+from lumibot.strategies.examples import Strangle
 from credentials import InteractiveBrokersConfig
 
 budget = 40000

@@ -9,7 +9,7 @@ from lumibot.backtesting import YahooDataBacktesting, PandasDataBacktesting
 from lumibot.brokers import Alpaca
 from lumibot.data_sources import AlpacaData
 from lumibot.entities import Asset, Data
-from getting_started.examples import (
+from lumibot.strategies.examples import (
     BuyAndHold,
     DebtTrading,
     Diversification,

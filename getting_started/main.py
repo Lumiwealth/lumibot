@@ -5,7 +5,7 @@ import pandas as pd
 from time import perf_counter, time
 
 from credentials import AlpacaConfig
-from lumibot.backtesting import YahooDataBacktesting, PandasDataBacktesting
+from lumibot.backtesting import YahooDataBacktesting
 from lumibot.brokers import Alpaca
 from lumibot.data_sources import AlpacaData
 from lumibot.entities import Asset

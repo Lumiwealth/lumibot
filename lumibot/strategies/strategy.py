@@ -722,7 +722,53 @@ class Strategy(_Strategy):
         timestep="",
         timeshift=None,
     ):
-        """Get bars for a given asset"""
+        """Get bars for a given symbol or asset.
+
+        Return data bars for a given symbol or asset.  Any number of bars can
+        be return limited by the data available. This is set with `length` in
+        number of bars. Bars may be returned as daily or by minute. And the
+        starting point can be shifted backwards by time or bars.
+
+        Parameters
+        ----------
+        asset : str or Asset
+            The symbol string representation (e.g AAPL, GOOG, ...) or asset
+            object.
+        length : int
+            The number of rows (number of timesteps)
+        timestep : str
+            Either ```"minute""``` for minutes data or ```"day"```
+            for days data default value depends on the data_source (minute
+            for alpaca, day for yahoo, ...)
+        timeshift : timedelta
+            ```None``` by default. If specified indicates the time shift from
+            the present. If  backtesting in Pandas, use integer representing
+            number of bars.
+
+        Returns
+        -------
+        Bars
+
+        Example:
+        -------
+        Extract 2 rows of SPY data with one day timestep between each row
+        with the latest data being 24h ago (timedelta(days=1)) (in a backtest)
+        bars =  self.get_symbol_bars("SPY", 2, "day", timedelta(days=1))
+
+                                     open    high     low   close    volume  dividend  \
+        Date
+        2019-12-24 00:00:00-05:00  321.47  321.52  320.90  321.23  20270000       0.0
+        2019-12-26 00:00:00-05:00  321.65  322.95  321.64  322.94  30911200       0.0
+
+                                   stock_splits  price_change  dividend_yield  return
+        Date
+        2019-12-24 00:00:00-05:00             0          0.00             0.0    0.00
+        2019-12-26 00:00:00-05:00             0          0.01             0.0    0.01
+        """
+
+
+
+
         asset = self._set_asset_mapping(asset)
         if not timestep:
             timestep = self.data_source.MIN_TIMESTEP
@@ -739,7 +785,37 @@ class Strategy(_Strategy):
         chunk_size=100,
         max_workers=200,
     ):
-        """Get bars for the list of assets"""
+        """Get bars for the list of assets
+
+        Return data bars for a list of symbols or assets.  Return a dictionary
+        of bars for a given list of symbols. Works the same as get_symbol_bars
+        but take as first parameter a list of symbols. Any number of bars can
+        be return limited by the data available. This is set with `length` in
+        number of bars. Bars may be returned as daily or by minute. And the
+        starting point can be shifted backwards by time or bars.
+
+        Parameters
+        ----------
+        assets : list(str/asset)
+            The symbol string representation (e.g AAPL, GOOG, ...) or asset
+            objects.
+        length : int
+            The number of rows (number of timesteps)
+        timestep : str
+            Either ```"minute""``` for minutes data or ```"day"```
+            for days data default value depends on the data_source (minute
+            for alpaca, day for yahoo, ...)
+        timeshift : timedelta
+            ```None``` by default. If specified indicates the time shift from
+            the present. If  backtesting in Pandas, use integer representing
+            number of bars.
+
+        Returns
+        -------
+        dictionary : Asset : bars
+            Return a dictionary bars for a given list of symbols. Works the
+            same as get_symbol_bars take as first parameter a list of symbols.
+        """
         assets = [self._set_asset_mapping(asset) for asset in assets]
 
         return self.data_source.get_bars(

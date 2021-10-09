@@ -251,5 +251,5 @@ self.submit_order(
 Or the order can be split out if saving the order in the tracking dictionary.
 
 The full example can be followed through in the `strangle.py` located in the 
-`getting_started/examples` directory.
+`strategies/examples` directory.
 

@@ -419,8 +419,11 @@ strategy_class.backtest(
 
 ## Example Strategies
 
-Lumibot provides a set of several example strategies that you can copy from to create 
-your own, they are located in `getting_started->examples`. Here is a breakdown of each example strategy:
+There are two locations for Lumibot examples. 
+1. Single file scripts that run by themselves, and scripts that call the examples in 2. below, can
+be found in `getting_started`. 
+2. Lumibot provides a set of several example strategies that you can copy from to create 
+your own, they are located in `strategies->examples`. Here is a breakdown of each example strategy:
 
 #### Diversification
 Allocates the budget by the percent allocations set in self.portfolio and rebalances every self.

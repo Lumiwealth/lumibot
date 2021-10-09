@@ -26,7 +26,7 @@ debug = True
 budget = 40000
 backtesting_start = datetime.datetime(2019, 2, 28)
 backtesting_end = datetime.datetime(2019, 12, 1)
-logfile = "../logs/test.log"
+logfile = "logs/test.log"
 
 # Trading objects
 alpaca_broker = Alpaca(AlpacaConfig)

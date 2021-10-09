@@ -29,7 +29,7 @@ backtesting_start = datetime(2019, 1, 4)
 backtesting_end = datetime(2019, 4, 30)
 
 
-logfile = "../logs/test.log"
+logfile = "logs/test.log"
 
 # Trading objects
 alpaca_broker = Alpaca(AlpacaConfig)

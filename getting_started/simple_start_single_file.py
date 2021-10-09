@@ -22,7 +22,7 @@ class MyStrategy(Strategy):
         self.submit_order(self.order)
 
 
-logfile = "../logs/test.log"
+logfile = "logs/test.log"
 trader = Trader(logfile=logfile)
 broker = Alpaca(AlpacaConfig)
 

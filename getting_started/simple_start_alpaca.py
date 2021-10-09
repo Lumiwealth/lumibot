@@ -17,7 +17,7 @@ from lumibot.traders import Trader
 
 # Choose your budget and log file locations
 budget = 50000
-logfile = "../logs/test.log"
+logfile = "logs/test.log"
 backtesting_start = datetime(2012, 1, 1)
 backtesting_end = datetime(2021, 1, 1)
 benchmark_asset = "SPY"

@@ -93,7 +93,8 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         close_time = self.utc_to_local(self.market_hours(close=True))
 
         current_time = datetime.datetime.now().astimezone(tz=tz.tzlocal())
-
+        if self.market == "24/7":
+            return True
         return (current_time >= open_time) and (close_time >= current_time)
 
     def get_time_to_open(self):

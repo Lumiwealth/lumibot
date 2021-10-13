@@ -127,7 +127,19 @@ class Strategy(_Strategy):
     # =======Broker methods shortcuts============
 
     def sleep(self, sleeptime):
-        """Sleeping for sleeptime seconds"""
+        """Sleeping for sleeptime seconds
+
+        Use to pause the execution of the program.
+
+        Parameters
+        ----------
+        sleeptime : float
+            Time in seconds the program will be paused.
+
+        Returns
+        -------
+        None
+        """
         return self.broker.sleep(sleeptime)
 
     def set_market(self, market):
@@ -238,7 +250,23 @@ class Strategy(_Strategy):
             )
 
     def await_market_to_open(self, timedelta=None):
-        """Executes infinite loop until market opens"""
+        """Executes infinite loop until market opens
+
+        If the market is closed, pauses code execution until
+        self.minutes_before_opening minutes before market opens again.
+        If an input (float) is passed as parameter, pauses code
+        execution until input minutes before market opens again.
+
+        Parameters
+        ---------
+        timedelta : int
+            Time in minutes before market will open to pause to.
+            Overrides the `self.minutes_before_opening`.
+
+        Returns
+        -------
+        None
+        """
         if timedelta is None:
             timedelta = self.minutes_before_opening
         return self.broker._await_market_to_open(timedelta)
@@ -293,11 +321,39 @@ class Strategy(_Strategy):
         return self.broker.get_asset_potential_total(self.name, asset)
 
     def submit_order(self, order):
-        """Submit an order for an asset"""
+        """Submit an order for an asset
+
+        Submits an order object for processing by the active broker.
+
+        Parameters
+        ---------
+        order : Order object
+            Order object containing the asset and instructions for
+            executing the order.
+
+        Returns
+        -------
+        order object
+            Processed order object.
+        """
         return self.broker.submit_order(order)
 
     def submit_orders(self, orders):
-        """submit orders"""
+        """Submit a list of orders
+
+        Submits a list of orders for processing by the active broker.
+
+        Parameters
+        ---------
+        orders : list of orders
+            A list of order objects containing the asset and
+            instructions for the orders.
+
+        Returns
+        -------
+        list of orders
+            List of processed order object.
+        """
         return self.broker.submit_orders(orders)
 
     def wait_for_order_registration(self, order):
@@ -321,7 +377,7 @@ class Strategy(_Strategy):
 
         Cancels a single open order provided.
 
-        Parameter
+        Parameters
         ---------
         An order object that the user seeks to cancel.
 
@@ -431,7 +487,12 @@ class Strategy(_Strategy):
             return asset_prices
 
     def is_tradable(self, asset, dt, length=1, timestep="minute", timeshift=0):
-        """Determine if the current asset is tradable at the current bar
+        """DEPRICATED
+
+        This will not be implemented as it does not have a basis in real time
+        trading.
+
+        Determine if the current asset is tradable at the current bar
         in backtesting primarily used with Pandas module.
 
         Some assets datas will start and end at different times, for
@@ -464,7 +525,12 @@ class Strategy(_Strategy):
         )
 
     def get_tradable_assets(self, dt, length=1, timestep="minute", timeshift=0):
-        """Get the list of all tradable assets within the current broker
+        """DEPRICATED
+
+        This will not be implemented as it does not have a basis in real time
+        trading.
+
+        Get the list of all tradable assets within the current broker
         from the market
 
         Some assets datas will start and end at different times, for

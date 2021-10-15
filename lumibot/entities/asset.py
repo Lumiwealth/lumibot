@@ -73,6 +73,22 @@ class Asset(BaseModel, frozen=True, extra="forbid"):
     _asset_types: list = ["stock", "option", "future", "forex"]
     _right: list = ["CALL", "PUT"]
 
+    def __repr__(self):
+        if self.asset_type == "future":
+            return f"{self.symbol}, {self.asset_type}, {self.expiration}"
+        elif self.asset_type == 'option':
+            return f"{self.symbol}, {self.asset_type}, {self.expiration} {self.strike} {self.right}"
+        else:
+            return f"{self.symbol}, {self.asset_type}"
+
+    def __str__(self):
+        if self.asset_type == "future":
+            return f"{self.symbol}, {self.asset_type}, {self.expiration}"
+        elif self.asset_type == 'option':
+            return f"{self.symbol}, {self.asset_type}, {self.expiration} {self.strike} {self.right}"
+        else:
+            return f"{self.symbol}, {self.asset_type}"
+
     @validator("asset_type")
     def asset_type_must_be_one_of(cls, v):
         if v not in cls._asset_types:

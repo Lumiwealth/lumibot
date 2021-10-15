@@ -92,8 +92,14 @@ class Strategy(_Strategy):
         message : str
             Strategy name plus the original message.
         """
+        logger = logging.getLogger()
+        current_level = logging.getLevelName(logger.level)
+        logger.setLevel(logging.INFO)
+        logger.propagate = False
+
         message = "Strategy %s: %s" % (self.name, message)
         logging.info(message)
+        logger.setLevel(current_level)
         return message
 
     # ======Order methods shortcuts===============

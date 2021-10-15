@@ -259,9 +259,10 @@ def plot_returns(
     fig.write_html(plot_file_html)
 
     try:  # should work on MacOS and most linux versions
+        # TODO: does not work with linux!
         subprocess.call(["open", plot_file_html])
     except:
-        logging.error("Could not open plot file {plot_file_html}")
+        logging.error(f"Could not open plot file {plot_file_html}")
 
 
 def get_risk_free_rate():

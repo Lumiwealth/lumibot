@@ -1,7 +1,8 @@
 import datetime
 import logging
-import pandas as pd
 from time import perf_counter, time
+
+import pandas as pd
 
 from lumibot.backtesting import PandasDataBacktesting
 from lumibot.entities import Asset, Data
@@ -11,6 +12,7 @@ from lumibot.strategies.strategy import Strategy
 This is a sample module used for demonstrating how to implement futures 
 from csv.
 """
+
 
 class Futures(Strategy):
     def initialize(self, assets, sleep_time=1, printon=True):

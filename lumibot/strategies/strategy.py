@@ -781,6 +781,10 @@ class Strategy(_Strategy):
         """
 
         asset = self._set_asset_mapping(asset)
+
+        if self.data_source.SOURCE == "PANDAS":
+            return self.broker.get_strikes(asset)
+
         contract_details = self.get_contract_details(asset)
         if not contract_details:
             return None

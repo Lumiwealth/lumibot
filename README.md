@@ -639,9 +639,6 @@ order_2 = self.create_order(symbol, quantity, side, trail_percent=my_trail_perce
 self.submit_order(order_2)
 ```
 
-> *** NOTE: Advanced type of orders work as normal in live trading, but will be ignored in 
-backtesting. Meaning that a backtest will assume limit and stop orders were never executed.
-
 ### order with legs
 
 #### bracket order
@@ -705,8 +702,6 @@ order = self.create_order(
 self.submit_order(order)
 ```
 > Interactive Brokers requires the main or parent order to be a limit order. Add `limit_price=my_limit_price`. 
-
-*** NOTE: Orders with legs work as normal in live trading, but will be ignored in backtesting. Meaning that a backtest will never execute the order legs.
 
 ## position
 
@@ -1130,7 +1125,6 @@ Optional Parameters:
 - position_filled (default = None),
 - exhange (default = "SMART")
 
-*** NOTE: Limit and stop orders work as normal in live trading, but will be ignored in backtesting. Meaning that a backtest will assume limit and stop orders were never executed.
 
 Return type: order
 

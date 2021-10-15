@@ -468,6 +468,28 @@ class BacktestingBroker(Broker):
         """Returns OHLCV dictionary for last bar of the asset. """
         return self._data_source.get_symbol_bars(asset, 1)
 
+    def get_chains(self, asset):
+        return self._data_source.get_chains(asset)
+
+    def get_chain(self, chains, exchange="SMART"):
+        """Returns option chain for a particular exchange."""
+        for x, p in chains.items():
+            if x == exchange:
+                return p
+
+    def get_expiration(self, chains, exchange="SMART"):
+        """Returns expirations and strikes high/low of target price."""
+        return sorted(list(self.get_chain(chains, exchange=exchange)["Expirations"]))
+
+    def get_multiplier(self, chains, exchange="SMART"):
+        """Returns the multiplier"""
+        return self.get_chain(chains, exchange)["Multiplier"]
+
+    def get_strikes(self, asset):
+        """Returns the strikes for an option asset with right and
+        expiry."""
+        return self._data_source.get_strikes(asset)
+
     # ==========Processing streams data=======================
 
     def _get_stream_object(self):

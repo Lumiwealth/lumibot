@@ -11,7 +11,7 @@ from lumibot.strategies.strategy import Strategy
 This is a sample module used for demonstrating how to implement options 
 from csv.
 
-Options data for this backtest is in `/data/options` folder. The 
+Options data for this backtest is in `/data/options/AAPL` folder. The 
 underlying 'AAPL' is in `/data`.
 """
 

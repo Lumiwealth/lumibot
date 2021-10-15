@@ -1,7 +1,8 @@
 import datetime
-import pandas as pd
 from pathlib import Path
 from time import perf_counter, time
+
+import pandas as pd
 
 from lumibot.backtesting import PandasDataBacktesting
 from lumibot.entities import Asset, Data
@@ -17,7 +18,7 @@ underlying 'AAPL' is in `/data`.
 
 
 class Options(Strategy):
-    def initialize(self, assets, sleep_time=1, printon=True):
+    def initialize(self, assets, sleep_time=1):
         # Set the initial variables or constants
         self.assets = assets
         self.underlying_asset = assets[0]
@@ -30,7 +31,6 @@ class Options(Strategy):
         # Our Own Variables
         self.purchase_order = None
         self.traded = False
-        self.printon = printon
 
         # Used to make a single order.
         self.call_option_to_buy = None
@@ -46,23 +46,23 @@ class Options(Strategy):
             return
 
         # Get server timestamp
-        print(self.get_datetime())
+        self.log_message(self.get_datetime())
 
         # Get the last price for `SPY`
         last_price = self.get_last_price(self.underlying_asset)
-        print(f"This is the last price: {last_price}")
+        self.log_message(f"This is the last price: {last_price}")
 
         # Run a basic call for bars on `AAPL`.
         bar = self.get_symbol_bars(self.underlying_asset, self.length)
-        print(bar)
+        self.log_message(bar)
 
         # Get the dataframe from the `bar` and create new columns.
-        print(f"Trading bars for {self.underlying_asset.symbol} are \n{bar}.")
+        self.log_message(f"Trading bars for {self.underlying_asset.symbol} are \n{bar}.")
         if bar is not None:
             df = bar.df
             df["range"] = df["high"] - df["low"]
             df["ma"] = df["close"].rolling(2).mean()
-            print(df[["open", "close", "range", "ma"]])
+            self.log_message(df[["open", "close", "range", "ma"]])
 
         # Get an options quote, data is only available after 19th.
         # So `None` is returned before then.
@@ -75,25 +75,25 @@ class Options(Strategy):
             multiplier=100,
         )
         option_bar = self.get_symbol_bars(self.option, self.length)
-        print(f"Option bars: {option_bar}")
+        self.log_message(f"Option bars: {option_bar}")
 
         # Retrieve the option chains.
         chains = self.get_chains(self.underlying_asset)
         for ex, chain in chains.items():
-            print("Full option chains: \n", ex, chains)
+            self.log_message(f"Full option chains: \n,{ex}, {chains}")
 
         # Get a single option chain for `SMART` in backtesting this will
         # be the same as `chains` as there are not multiple exchanges.
         chain = self.get_chain(chains, exchange="SMART")
-        print("Single option chain: \n", chain)
+        self.log_message(f"Single option chain: \n{chain}")
 
         # Get expiration dates for the chain above.
         expirations = self.get_expiration(chains, exchange="SMART")
-        print("Expirations: ", expirations)
+        self.log_message(f"Expirations:{expirations}")
 
         # Retrieve the multiplier for this chain.
         multiplier = self.get_multiplier(chains)
-        print("Multiplier: ", multiplier)
+        self.log_message("Multiplier:{multiplier}")
 
         # Strikes are retrieved by searching one expiry date and one right.
         # Create an option asset without strikes.
@@ -106,7 +106,7 @@ class Options(Strategy):
             currency="USD",
         )
         strikes = self.get_strikes(strike_asset)
-        print(
+        self.log_message(
             f"These are the strikes for: {strike_asset.symbol} {strike_asset.expiration} "
             f"{strike_asset.right}: {strikes}"
         )
@@ -117,32 +117,30 @@ class Options(Strategy):
             return
 
         self.call_option_to_buy = self.create_asset(
-            symbol= "AAPL",
+            symbol="AAPL",
             asset_type="option",
             expiration=datetime.date(2021, 9, 24),
-            right='CALL',
+            right="CALL",
             strike=144,
             multiplier=100,
             currency="USD",
         )
         option_order = self.create_order(self.call_option_to_buy, 10, "buy")
-        print(f"Order for {option_order} submitted.")
+        self.log_message(f"Order for {option_order} submitted.")
         self.submit_order(option_order)
 
     def on_canceled_order(self, order):
-        if self.printon:
-            print(
-                f"ORDER CANCEL: {self.get_datetime()}, "
-                f"Quantity:     0, price:      0, "
-                f"side: {order.side}"
-            )
+        self.log_message(
+            f"ORDER CANCEL: {self.get_datetime()}, "
+            f"Quantity:     0, price:      0, "
+            f"side: {order.side}"
+        )
 
     def on_filled_order(self, position, order, price, quantity, multiplier):
-        if self.printon:
-            print(
-                f"ORDER FILLED: {self.get_datetime()}, Quantity: {quantity:5.0f}, price:"
-                f" {price:5.2f}, side: {order.side}"
-            )
+        self.log_message(
+            f"ORDER FILLED: {self.get_datetime()}, Quantity: {quantity:5.0f}, price:"
+            f" {price:5.2f}, side: {order.side}"
+        )
 
     def on_abrupt_closing(self):
         self.sell_all()
@@ -178,7 +176,7 @@ if __name__ == "__main__":
     )
 
     df = pd.read_csv(
-        "../data/AAPL.csv",
+        "data/AAPL.csv",
         parse_dates=True,
         index_col=0,
         header=0,
@@ -195,7 +193,7 @@ if __name__ == "__main__":
     )
 
     # Load the options data.
-    files = Path("../data/options/AAPL").glob("*.csv")
+    files = Path("data/options/AAPL").glob("*.csv")
     for file in [file for file in files if file.suffix == ".csv"]:
         fn = file.name.split(".")[0]
         filepath = file
@@ -235,8 +233,7 @@ if __name__ == "__main__":
 
     kwargs = {
         "assets": list(pandas_data),
-        "printon": True,
-        "sleep_time": 30,
+        "sleep_time": 10,
     }
     stats_file = f"logs/strategy_{strategy_class.__name__}_{int(time())}.csv"
 
@@ -249,6 +246,7 @@ if __name__ == "__main__":
         backtesting_end,
         pandas_data=pandas_data,
         stats_file=stats_file,
+        logfile=logfile,
         **kwargs,
     )
     toc = perf_counter()

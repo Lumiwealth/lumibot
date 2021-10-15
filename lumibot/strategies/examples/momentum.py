@@ -89,7 +89,7 @@ class Momentum(Strategy):
         # Sell all positions
         self.sell_all()
 
-    # def trace_stats(self, context, snapshot_before):
+    # def trace_stats(self, context, snapshot_before):  todo debug momentum trace stats
     #     """
     #     Add additional stats to the CSV logfile
     #     """

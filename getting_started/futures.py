@@ -15,7 +15,7 @@ from csv.
 
 
 class Futures(Strategy):
-    def initialize(self, assets, sleep_time=1, printon=True):
+    def initialize(self, assets, sleep_time=1):
         # Set the initial variables or constants
         self.assets = assets
 
@@ -26,7 +26,7 @@ class Futures(Strategy):
         # Our Own Variables
         self.purchase_order = None
         self.traded = False
-        self.printon = printon
+
 
     def on_trading_iteration(self):
         # For this example, the futures contracts do not overlap.
@@ -39,15 +39,13 @@ class Futures(Strategy):
             # User defined.
             if datetime.timedelta(days=3) < net_days < datetime.timedelta(days=45):
                 self.trading_asset = asset
-                if self.printon:
-                    print(
-                        f"New iteration: {dt}, asset: {self.trading_asset} "
-                        f"{self.get_last_price(self.trading_asset)}"
-                    )
+                self.log_message(
+                    f"New iteration: {dt}, asset: {self.trading_asset} "
+                    f"{self.get_last_price(self.trading_asset)}"
+                )
 
         all_positions = self.get_tracked_positions()
-        if self.printon and len(all_positions) > 0:
-            print(dt, ": ", all_positions)
+        self.log_message(f"{dt}:  {all_positions}")
 
         if len(all_positions) > 0:
             for position in all_positions:
@@ -65,23 +63,19 @@ class Futures(Strategy):
             self.purchase_order = self.create_order(self.trading_asset, 1, "buy")
             self.submit_order(self.purchase_order)
             self.traded = True
-            if self.printon:
-                print(f"\nOrder created: {dt} for {self.purchase_order.asset.symbol}.")
-        return
+            self.log_message(f"\nOrder created: {dt} for {self.purchase_order.asset.symbol}.")
 
     def on_canceled_order(self, order):
-        if self.printon:
-            print(
-                f"ORDER CANCEL: {self.get_datetime()}, Quantity:     0, price:      0, "
-                f"side: {order.side}"
-            )
+        self.log_message(
+            f"ORDER CANCEL: {self.get_datetime()}, Quantity:     0, price:      0, "
+            f"side: {order.side}"
+        )
 
     def on_filled_order(self, position, order, price, quantity, multiplier):
-        if self.printon:
-            print(
-                f"ORDER FILLED: {self.get_datetime()}, Quantity: {quantity:5.0f}, price:"
-                f" {price:5.2f}, side: {order.side}"
-            )
+        self.log_message(
+            f"ORDER FILLED: {self.get_datetime()}, Quantity: {quantity:5.0f}, price:"
+            f" {price:5.2f}, side: {order.side}"
+        )
 
     def on_abrupt_closing(self):
         self.sell_all()
@@ -156,7 +150,6 @@ if __name__ == "__main__":
 
     kwargs = {
         "assets": list(pandas_data),
-        "printon": True,
         "sleep_time": 30,
     }
     stats_file = f"logs/strategy_{strategy_class.__name__}_{int(time())}.csv"

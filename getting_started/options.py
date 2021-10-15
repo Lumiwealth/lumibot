@@ -1,7 +1,8 @@
 import datetime
-import pandas as pd
 from pathlib import Path
 from time import perf_counter, time
+
+import pandas as pd
 
 from lumibot.backtesting import PandasDataBacktesting
 from lumibot.entities import Asset, Data
@@ -117,10 +118,10 @@ class Options(Strategy):
             return
 
         self.call_option_to_buy = self.create_asset(
-            symbol= "AAPL",
+            symbol="AAPL",
             asset_type="option",
             expiration=datetime.date(2021, 9, 24),
-            right='CALL',
+            right="CALL",
             strike=144,
             multiplier=100,
             currency="USD",
@@ -178,7 +179,7 @@ if __name__ == "__main__":
     )
 
     df = pd.read_csv(
-        "../data/AAPL.csv",
+        "data/AAPL.csv",
         parse_dates=True,
         index_col=0,
         header=0,
@@ -195,7 +196,7 @@ if __name__ == "__main__":
     )
 
     # Load the options data.
-    files = Path("../data/options/AAPL").glob("*.csv")
+    files = Path("data/options/AAPL").glob("*.csv")
     for file in [file for file in files if file.suffix == ".csv"]:
         fn = file.name.split(".")[0]
         filepath = file

@@ -135,7 +135,7 @@ class YahooHelper:
 
         try:
             options = ticker.options
-        except IndexError:
+        except:
             options = ()
 
         return {

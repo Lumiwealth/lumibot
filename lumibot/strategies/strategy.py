@@ -78,6 +78,20 @@ class Strategy(_Strategy):
     # =======Helper methods=======================
 
     def log_message(self, message):
+        """Logs an info message prefixed with the strategy name.
+
+        Uses python logging to log the message at the `info` level.
+
+        Parameters
+        ----------
+        message : str
+            String message for logging.
+
+        Returns
+        -------
+        message : str
+            Strategy name plus the original message.
+        """
         message = "Strategy %s: %s" % (self.name, message)
         logging.info(message)
         return message
@@ -100,6 +114,62 @@ class Strategy(_Strategy):
         position_filled=False,
         exchange="SMART",
     ):
+        """Creates a new order.
+
+        Create an order object attached to this strategy (Check the
+        Entities, order section)
+
+        Parameters
+        ----------
+        asset : str or Asset
+            The asset that will be traded. If this is just a stock, then
+            `str` is sufficient. However, all assets other than stocks
+            must use `Asset`.
+        quantity : float
+            The number of shares or units to trade.
+        side : str
+            Whether the order is `buy` or `sell`.
+        limit_price : float
+            A Limit order is an order to buy or sell at a specified
+            price or better. The Limit order ensures that if the
+            order fills, it will not fill at a price less favorable
+            than your limit price, but it does not guarantee a fill.
+        stop_price : float
+            A Stop order is an instruction to submit a buy or sell
+            market order if and when the user-specified stop trigger
+            price is attained or penetrated.
+        time_in_force : str
+            Amount of time the order is in force. Default: 'day'
+        take_profit_price : float
+            Limit price used for bracket orders and one cancels other
+            orders.
+        stop_loss_price : float
+            Stop price used for bracket orders and one cancels other
+            orders.
+        stop_loss_limit_price : float
+            Stop loss with limit price used for bracket orders and one
+            cancels other orders.
+        trail_price : float
+            Trailing stop orders allow you to continuously and
+            automatically keep updating the stop price threshold based
+            on the stock price movement. `trail_price` sets the
+            trailing price in dollars.
+        trail_percent : float
+            Trailing stop orders allow you to continuously and
+            automatically keep updating the stop price threshold based
+            on the stock price movement. `trail_price` sets the
+            trailing price in percent.
+        position_filled : bool
+            The order has been filled.
+        exchange : str
+            The exchange where the order will be placed.
+            Default = `SMART`
+
+        Returns
+        -------
+        Order
+            Order object ready to be submitted for trading.
+        """
         asset = self._set_asset_mapping(asset)
         order = Order(
             self.name,

@@ -236,7 +236,7 @@ if __name__ == "__main__":
     kwargs = {
         "assets": list(pandas_data),
         "printon": True,
-        "sleep_time": 30,
+        "sleep_time": 10,
     }
     stats_file = f"logs/strategy_{strategy_class.__name__}_{int(time())}.csv"
 

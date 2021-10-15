@@ -4,10 +4,7 @@ import datetime
 import pandas as pd
 from time import perf_counter, time
 
-from credentials import AlpacaConfig
 from lumibot.backtesting import YahooDataBacktesting, PandasDataBacktesting
-from lumibot.brokers import Alpaca
-from lumibot.data_sources import AlpacaData
 from lumibot.entities import Asset, Data
 from lumibot.strategies.examples import (
     BuyAndHold,
@@ -29,14 +26,11 @@ backtesting_end = datetime.datetime(2019, 12, 1)
 logfile = "logs/test.log"
 
 # Trading objects
-alpaca_broker = Alpaca(AlpacaConfig)
-alpaca_data_source = AlpacaData(AlpacaConfig)
 trader = Trader(logfile=logfile, debug=debug)
 
-# set up pandas
 
 trading_hours_start = datetime.time(9, 30)
-trading_hours_end = datetime.time(11, 0)
+trading_hours_end = datetime.time(15, 30)
 pandas_data = dict()
 tickers = ["SPY", "DJP", "TLT", "GLD", "IEF"]
 for ticker in tickers:
@@ -95,23 +89,10 @@ mapping = {
     },
     "debt_trading": {
         "class": DebtTrading,
-        "backtesting_datasource": YahooDataBacktesting,
+        "backtesting_datasource": PandasDataBacktesting,
         "kwargs": {},
         "config": None,
-        "pandas_data": None,
-    },
-    "intraday_momentum": {
-        "class": IntradayMomentum,
-        "backtesting_datasource": None,
-        "kwargs": {},
-        "config": None,
-    },
-    "fast_trading": {
-        "class": FastTrading,
-        "backtesting_datasource": None,
-        "kwargs": {},
-        "backtesting_cache": False,
-        "config": None,
+        "pandas_data": pandas_data,
     },
     "buy_and_hold": {
         "class": BuyAndHold,
@@ -132,9 +113,6 @@ mapping = {
 }
 
 if __name__ == "__main__":
-    # Set the benchmark asset for backtesting to be "SPY" by default
-    benchmark_asset = "SPY"
-
     parser = argparse.ArgumentParser(
         f"\n\
         Running AlgoTrader\n\
@@ -143,18 +121,10 @@ if __name__ == "__main__":
         Example: ‘python main.py momentum’ "
     )
     parser.add_argument("strategies", nargs="+", help="list of strategies")
-    parser.add_argument(
-        "-l",
-        "--live-trading",
-        default=False,
-        action="store_true",
-        help="enable live trading",
-    )
 
     args = parser.parse_args()
 
     strategies = args.strategies
-    live_trading = args.live_trading
 
     for strategy_name in strategies:
         strategy_params = mapping.get(strategy_name)
@@ -170,47 +140,36 @@ if __name__ == "__main__":
         config = strategy_params["config"]
 
         stats_file = f"logs/strategy_{strategy_class.__name__}_{int(time())}.csv"
-        if live_trading:
-            strategy = strategy_class(
-                strategy_name,
-                budget=budget,
-                broker=alpaca_broker,
-                stats_file=stats_file,
-                **kwargs,
-            )
-            trader.add_strategy(strategy)
-        else:
-            if backtesting_datasource is None:
-                raise ValueError(
-                    f"Backtesting is not supported for strategy {strategy_name}"
-                )
 
-            # Replace the strategy name now that it's known.
-            for data in pandas_data.values():
-                data.strategy = strategy_name
-
-            tic = perf_counter()
-            strategy_class.backtest(
-                strategy_name,
-                budget,
-                backtesting_datasource,
-                backtesting_start,
-                backtesting_end,
-                pandas_data=pandas_data,
-                stats_file=stats_file,
-                config=config,
-                **kwargs,
-            )
-            toc = perf_counter()
-            print("Elapsed time:", toc - tic)
-
-            logging.info(f"*** Benchmark Performance for {benchmark_asset} ***")
-            indicators.calculate_returns(
-                benchmark_asset, backtesting_start, backtesting_end
+        if backtesting_datasource is None:
+            raise ValueError(
+                f"Backtesting is not supported for strategy {strategy_name}"
             )
 
-    if live_trading:
-        trader.run_all()
+        # Replace the strategy name now that it's known.
+        for data in pandas_data.values():
+            data.strategy = strategy_name
+
+        tic = perf_counter()
+        strategy_class.backtest(
+            strategy_name,
+            budget,
+            backtesting_datasource,
+            backtesting_start,
+            backtesting_end,
+            pandas_data=pandas_data,
+            stats_file=stats_file,
+            config=config,
+            **kwargs,
+        )
+        toc = perf_counter()
+        print("Elapsed time:", toc - tic)
+
+        # logging.info(f"*** Benchmark Performance for {benchmark_asset} ***")
+        # indicators.calculate_returns(
+        #     benchmark_asset, backtesting_start, backtesting_end
+        # )
+
 
     for counter, values in perf_counters.counters.items():
         print("Count %s spent %fs" % (counter, values[0]))

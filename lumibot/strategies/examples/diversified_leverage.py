@@ -51,7 +51,7 @@ class DiversifiedLeverage(Strategy):
                 "last_price": None,
             },
             {
-                "symbol": "XVZ",  # Barclays VIX ETF
+                "symbol": "VIXM",  # VIX ETF
                 "weight": 0.10,
                 "last_price": None,
             },

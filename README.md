@@ -25,13 +25,14 @@ class AlpacaConfig:
 
 4) Create your own strategy class (See strategy section) e.g. ```class MyStrategy(Startegy)```
 or import an example from our libraries
-   
+
 ```python
 from lumibot.strategies.examples import Momentum
 ```
 
 5) Create another file meant to be the entrypoint of your code e.g. main.py
 6) import the following modules in your main.py:
+
 ```python
 # importing the trader class
 from lumibot.traders import Trader
@@ -69,6 +70,7 @@ trader.run_all()
 ```
 
 Below an example of main.py:
+
 ```python
 # main.py
 from lumibot.traders import Trader
@@ -110,13 +112,13 @@ Set up your `credentials.py` file as follows:
         IP = "127.0.0.1"
 
 Set up your entry point file as above, except using Interactive Brokers. Here is an 
-example of a completed file: 
+example of a completed file:
 
 ```python
 # main.py
 from lumibot.traders import Trader
 from lumibot.brokers import InteractiveBrokers
-from lumibot.strategies.examples import Strangle 
+from lumibot.strategies.examples import Strangle
 from credentials import InteractiveBrokersConfig
 
 budget = 40000
@@ -417,8 +419,11 @@ strategy_class.backtest(
 
 ## Example Strategies
 
-Lumibot provides a set of several example strategies that you can copy from to create 
-your own, they are located in `lumibot->strategies->examples`. Here is a breakdown of each example strategy:
+There are two locations for Lumibot examples. 
+1. Single file scripts that run by themselves, and scripts that call the examples in 2. below, can
+be found in `getting_started`. 
+2. Lumibot provides a set of several example strategies that you can copy from to create 
+your own, they are located in `strategies->examples`. Here is a breakdown of each example strategy:
 
 #### Diversification
 Allocates the budget by the percent allocations set in self.portfolio and rebalances every self.
@@ -634,9 +639,6 @@ order_2 = self.create_order(symbol, quantity, side, trail_percent=my_trail_perce
 self.submit_order(order_2)
 ```
 
-> *** NOTE: Advanced type of orders work as normal in live trading, but will be ignored in 
-backtesting. Meaning that a backtest will assume limit and stop orders were never executed.
-
 ### order with legs
 
 #### bracket order
@@ -700,8 +702,6 @@ order = self.create_order(
 self.submit_order(order)
 ```
 > Interactive Brokers requires the main or parent order to be a limit order. Add `limit_price=my_limit_price`. 
-
-*** NOTE: Orders with legs work as normal in live trading, but will be ignored in backtesting. Meaning that a backtest will never execute the order legs.
 
 ## position
 
@@ -1126,7 +1126,6 @@ Optional Parameters:
 - position_filled (default = None),
 - exhange (default = "SMART")
 
-*** NOTE: Limit and stop orders work as normal in live trading, but will be ignored in backtesting. Meaning that a backtest will assume limit and stop orders were never executed.
 
 Return type: order
 

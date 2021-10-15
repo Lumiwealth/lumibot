@@ -78,6 +78,20 @@ class Strategy(_Strategy):
     # =======Helper methods=======================
 
     def log_message(self, message):
+        """Logs an info message prefixed with the strategy name.
+
+        Uses python logging to log the message at the `info` level.
+
+        Parameters
+        ----------
+        message : str
+            String message for logging.
+
+        Returns
+        -------
+        message : str
+            Strategy name plus the original message.
+        """
         message = "Strategy %s: %s" % (self.name, message)
         logging.info(message)
         return message
@@ -100,6 +114,62 @@ class Strategy(_Strategy):
         position_filled=False,
         exchange="SMART",
     ):
+        """Creates a new order.
+
+        Create an order object attached to this strategy (Check the
+        Entities, order section)
+
+        Parameters
+        ----------
+        asset : str or Asset
+            The asset that will be traded. If this is just a stock, then
+            `str` is sufficient. However, all assets other than stocks
+            must use `Asset`.
+        quantity : float
+            The number of shares or units to trade.
+        side : str
+            Whether the order is `buy` or `sell`.
+        limit_price : float
+            A Limit order is an order to buy or sell at a specified
+            price or better. The Limit order ensures that if the
+            order fills, it will not fill at a price less favorable
+            than your limit price, but it does not guarantee a fill.
+        stop_price : float
+            A Stop order is an instruction to submit a buy or sell
+            market order if and when the user-specified stop trigger
+            price is attained or penetrated.
+        time_in_force : str
+            Amount of time the order is in force. Default: 'day'
+        take_profit_price : float
+            Limit price used for bracket orders and one cancels other
+            orders.
+        stop_loss_price : float
+            Stop price used for bracket orders and one cancels other
+            orders.
+        stop_loss_limit_price : float
+            Stop loss with limit price used for bracket orders and one
+            cancels other orders.
+        trail_price : float
+            Trailing stop orders allow you to continuously and
+            automatically keep updating the stop price threshold based
+            on the stock price movement. `trail_price` sets the
+            trailing price in dollars.
+        trail_percent : float
+            Trailing stop orders allow you to continuously and
+            automatically keep updating the stop price threshold based
+            on the stock price movement. `trail_price` sets the
+            trailing price in percent.
+        position_filled : bool
+            The order has been filled.
+        exchange : str
+            The exchange where the order will be placed.
+            Default = `SMART`
+
+        Returns
+        -------
+        Order
+            Order object ready to be submitted for trading.
+        """
         asset = self._set_asset_mapping(asset)
         order = Order(
             self.name,
@@ -127,7 +197,19 @@ class Strategy(_Strategy):
     # =======Broker methods shortcuts============
 
     def sleep(self, sleeptime):
-        """Sleeping for sleeptime seconds"""
+        """Sleeping for sleeptime seconds
+
+        Use to pause the execution of the program.
+
+        Parameters
+        ----------
+        sleeptime : float
+            Time in seconds the program will be paused.
+
+        Returns
+        -------
+        None
+        """
         return self.broker.sleep(sleeptime)
 
     def set_market(self, market):
@@ -238,7 +320,23 @@ class Strategy(_Strategy):
             )
 
     def await_market_to_open(self, timedelta=None):
-        """Executes infinite loop until market opens"""
+        """Executes infinite loop until market opens
+
+        If the market is closed, pauses code execution until
+        self.minutes_before_opening minutes before market opens again.
+        If an input (float) is passed as parameter, pauses code
+        execution until input minutes before market opens again.
+
+        Parameters
+        ---------
+        timedelta : int
+            Time in minutes before market will open to pause to.
+            Overrides the `self.minutes_before_opening`.
+
+        Returns
+        -------
+        None
+        """
         if timedelta is None:
             timedelta = self.minutes_before_opening
         return self.broker._await_market_to_open(timedelta)
@@ -293,11 +391,39 @@ class Strategy(_Strategy):
         return self.broker.get_asset_potential_total(self.name, asset)
 
     def submit_order(self, order):
-        """Submit an order for an asset"""
+        """Submit an order for an asset
+
+        Submits an order object for processing by the active broker.
+
+        Parameters
+        ---------
+        order : Order object
+            Order object containing the asset and instructions for
+            executing the order.
+
+        Returns
+        -------
+        order object
+            Processed order object.
+        """
         return self.broker.submit_order(order)
 
     def submit_orders(self, orders):
-        """submit orders"""
+        """Submit a list of orders
+
+        Submits a list of orders for processing by the active broker.
+
+        Parameters
+        ---------
+        orders : list of orders
+            A list of order objects containing the asset and
+            instructions for the orders.
+
+        Returns
+        -------
+        list of orders
+            List of processed order object.
+        """
         return self.broker.submit_orders(orders)
 
     def wait_for_order_registration(self, order):
@@ -321,7 +447,7 @@ class Strategy(_Strategy):
 
         Cancels a single open order provided.
 
-        Parameter
+        Parameters
         ---------
         An order object that the user seeks to cancel.
 
@@ -431,7 +557,12 @@ class Strategy(_Strategy):
             return asset_prices
 
     def is_tradable(self, asset, dt, length=1, timestep="minute", timeshift=0):
-        """Determine if the current asset is tradable at the current bar
+        """DEPRICATED
+
+        This will not be implemented as it does not have a basis in real time
+        trading.
+
+        Determine if the current asset is tradable at the current bar
         in backtesting primarily used with Pandas module.
 
         Some assets datas will start and end at different times, for
@@ -464,7 +595,12 @@ class Strategy(_Strategy):
         )
 
     def get_tradable_assets(self, dt, length=1, timestep="minute", timeshift=0):
-        """Get the list of all tradable assets within the current broker
+        """DEPRICATED
+
+        This will not be implemented as it does not have a basis in real time
+        trading.
+
+        Get the list of all tradable assets within the current broker
         from the market
 
         Some assets datas will start and end at different times, for
@@ -645,6 +781,10 @@ class Strategy(_Strategy):
         """
 
         asset = self._set_asset_mapping(asset)
+
+        if self.data_source.SOURCE == "PANDAS":
+            return self.broker.get_strikes(asset)
+
         contract_details = self.get_contract_details(asset)
         if not contract_details:
             return None
@@ -722,7 +862,53 @@ class Strategy(_Strategy):
         timestep="",
         timeshift=None,
     ):
-        """Get bars for a given asset"""
+        """Get bars for a given symbol or asset.
+
+        Return data bars for a given symbol or asset.  Any number of bars can
+        be return limited by the data available. This is set with `length` in
+        number of bars. Bars may be returned as daily or by minute. And the
+        starting point can be shifted backwards by time or bars.
+
+        Parameters
+        ----------
+        asset : str or Asset
+            The symbol string representation (e.g AAPL, GOOG, ...) or asset
+            object.
+        length : int
+            The number of rows (number of timesteps)
+        timestep : str
+            Either ```"minute""``` for minutes data or ```"day"```
+            for days data default value depends on the data_source (minute
+            for alpaca, day for yahoo, ...)
+        timeshift : timedelta
+            ```None``` by default. If specified indicates the time shift from
+            the present. If  backtesting in Pandas, use integer representing
+            number of bars.
+
+        Returns
+        -------
+        Bars
+
+        Example:
+        -------
+        Extract 2 rows of SPY data with one day timestep between each row
+        with the latest data being 24h ago (timedelta(days=1)) (in a backtest)
+        bars =  self.get_symbol_bars("SPY", 2, "day", timedelta(days=1))
+
+                                     open    high     low   close    volume  dividend  \
+        Date
+        2019-12-24 00:00:00-05:00  321.47  321.52  320.90  321.23  20270000       0.0
+        2019-12-26 00:00:00-05:00  321.65  322.95  321.64  322.94  30911200       0.0
+
+                                   stock_splits  price_change  dividend_yield  return
+        Date
+        2019-12-24 00:00:00-05:00             0          0.00             0.0    0.00
+        2019-12-26 00:00:00-05:00             0          0.01             0.0    0.01
+        """
+
+
+
+
         asset = self._set_asset_mapping(asset)
         if not timestep:
             timestep = self.data_source.MIN_TIMESTEP
@@ -739,7 +925,37 @@ class Strategy(_Strategy):
         chunk_size=100,
         max_workers=200,
     ):
-        """Get bars for the list of assets"""
+        """Get bars for the list of assets
+
+        Return data bars for a list of symbols or assets.  Return a dictionary
+        of bars for a given list of symbols. Works the same as get_symbol_bars
+        but take as first parameter a list of symbols. Any number of bars can
+        be return limited by the data available. This is set with `length` in
+        number of bars. Bars may be returned as daily or by minute. And the
+        starting point can be shifted backwards by time or bars.
+
+        Parameters
+        ----------
+        assets : list(str/asset)
+            The symbol string representation (e.g AAPL, GOOG, ...) or asset
+            objects.
+        length : int
+            The number of rows (number of timesteps)
+        timestep : str
+            Either ```"minute""``` for minutes data or ```"day"```
+            for days data default value depends on the data_source (minute
+            for alpaca, day for yahoo, ...)
+        timeshift : timedelta
+            ```None``` by default. If specified indicates the time shift from
+            the present. If  backtesting in Pandas, use integer representing
+            number of bars.
+
+        Returns
+        -------
+        dictionary : Asset : bars
+            Return a dictionary bars for a given list of symbols. Works the
+            same as get_symbol_bars take as first parameter a list of symbols.
+        """
         assets = [self._set_asset_mapping(asset) for asset in assets]
 
         return self.data_source.get_bars(

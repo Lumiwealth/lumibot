@@ -178,3 +178,174 @@ class PandasData(DataSource):
 
     def get_yesterday_dividends(self, assets):
         pass
+
+    # =======Options methods.=================
+    def get_chains(self, asset):
+        """Returns option chains.
+
+        Obtains option chain information for the asset (stock) from each
+        of the exchanges the options trade on and returns a dictionary
+        for each exchange.
+
+        Parameters
+        ----------
+        asset : Asset object
+            The stock whose option chain is being fetched. Represented
+            as an asset object.
+
+        Returns
+        -------
+        dictionary of dictionary for 'SMART' exchange only in
+        backtesting. Each exchange has:
+            - `Underlying conId` (int)
+            - `TradingClass` (str) eg: `FB`
+            - `Multiplier` (str) eg: `100`
+            - `Expirations` (set of str) eg: {`20230616`, ...}
+            - `Strikes` (set of floats)
+        """
+        SMART = dict(
+            TradingClass=asset.symbol,
+            Multiplier=100,
+        )
+
+        expirations = []
+        strikes = []
+        for store_asset, data in self._data_store.items():
+            if store_asset.asset_type != "option":
+                continue
+            if store_asset.symbol != asset.symbol:
+                continue
+            expirations.append(store_asset.expiration)
+            strikes.append(store_asset.strike)
+
+        SMART["Expirations"] = sorted(list(set(expirations)))
+        SMART["Strikes"] = sorted(list(set(strikes)))
+
+        return {"SMART": SMART}
+
+    def get_chain(self, chains, exchange="SMART"):
+        """Returns option chain for a particular exchange.
+
+        Takes in a full set of chains for all the exchanges and returns
+        on chain for a given exchange. The the full chains are returned
+        from `get_chains` method.
+
+        Parameters
+        ----------
+        chains : dictionary of dictionaries
+            The chains dictionary created by `get_chains` method.
+
+        exchange : str optional
+            The exchange such as `SMART`, `CBOE`. Default is `SMART`
+
+        Returns
+        -------
+        dictionary
+            A dictionary of option chain information for one stock and
+            for one exchange. It will contain:
+                - `Underlying conId` (int)
+                - `TradingClass` (str) eg: `FB`
+                - `Multiplier` (str) eg: `100`
+                - `Expirations` (set of str) eg: {`20230616`, ...}
+                - `Strikes` (set of floats)
+        """
+
+        for x, p in chains.items():
+            if x == exchange:
+                return p
+
+        return None
+
+    def get_expiration(self, chains, exchange="SMART"):
+        """Returns expiration dates for an option chain for a particular
+        exchange.
+
+        Using the `chains` dictionary obtained from `get_chains` finds
+        all of the expiry dates for the option chains on a given
+        exchange. The return list is sorted.
+
+        Parameters
+        ---------
+        chains : dictionary of dictionaries
+            The chains dictionary created by `get_chains` method.
+
+        exchange : str optional
+            The exchange such as `SMART`, `CBOE`. Default is `SMART`.
+
+        Returns
+        -------
+        list of str
+            Sorted list of dates in the form of `20221013`.
+        """
+        if exchange != "SMART":
+            raise ValueError(
+                "When getting option expirations in backtesting, only the `SMART`"
+                "exchange may be used. It is the default value. Please delete "
+                "the `exchange` parameter or change the value to `SMART`."
+            )
+        return sorted(list(self.get_chain(chains, exchange=exchange)["Expirations"]))
+
+    def get_multiplier(self, chains, exchange="SMART"):
+        """Returns option chain for a particular exchange.
+
+        Using the `chains` dictionary obtained from `get_chains` finds
+        all of the multiplier for the option chains on a given
+        exchange.
+
+        Parameters
+        ----------
+        chains : dictionary of dictionaries
+            The chains dictionary created by `get_chains` method.
+
+        exchange : str optional
+            The exchange such as `SMART`, `CBOE`. Default is `SMART`
+
+        Returns
+        -------
+        list of str
+            Sorted list of dates in the form of `20221013`.
+        """
+
+        return self.get_chain(chains, exchange)["Multiplier"]
+
+    def get_strikes(self, asset):
+        """Returns a list of strikes for a give underlying asset.
+
+        Using the `chains` dictionary obtained from `get_chains` finds
+        all of the multiplier for the option chains on a given
+        exchange.
+
+        Parameters
+        ----------
+        asset : Asset object
+            Asset object as normally used for an option but without
+            the strike information.
+
+            Example:
+            asset = self.create_asset(
+                "FB",
+                asset_type="option",
+                expiration=self.options_expiry_to_datetime_date("20210924"),
+                right="CALL",
+                multiplier=100,
+            )
+
+            `expiration` can also be expressed as
+            `datetime.datetime.date()`
+
+        Returns
+        -------
+        list of floats
+            Sorted list of strikes as floats.
+        """
+        strikes = []
+        for store_asset, data in self._data_store.items():
+            if (
+                store_asset.asset_type == "option"
+                and store_asset.symbol == asset.symbol
+                and store_asset.expiration == asset.expiration
+                and store_asset.right == asset.right
+            ):
+                strikes.append(store_asset.strike)
+
+        return sorted(list(set(strikes)))

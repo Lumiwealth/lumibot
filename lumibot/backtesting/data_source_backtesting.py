@@ -62,6 +62,9 @@ class DataSourceBacktesting(DataSource):
             self, asset, length, timestep=timestep, timeshift=backtesting_timeshift
         )
 
-        filter_criteria = result.index < self._datetime
-        result = result[filter_criteria]
-        return result
+        if result is None:
+            return result
+        else:
+            filter_criteria = result.index < self._datetime
+            result = result[filter_criteria]
+            return result

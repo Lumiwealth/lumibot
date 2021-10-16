@@ -147,6 +147,7 @@ if __name__ == "__main__":
                 backtesting_end,
                 stats_file=stats_file,
                 config=config,
+                logfile=logfile,
                 **kwargs,
             )
             toc = perf_counter()

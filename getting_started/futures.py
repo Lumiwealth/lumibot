@@ -166,6 +166,7 @@ if __name__ == "__main__":
         backtesting_end,
         pandas_data=pandas_data,
         stats_file=stats_file,
+        logfile=logfile,
         **kwargs,
     )
     toc = perf_counter()

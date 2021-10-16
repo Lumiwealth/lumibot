@@ -1,6 +1,7 @@
 import logging
 import os
 import signal
+import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Overloading time.sleep to warn users against using it
@@ -55,12 +56,22 @@ class Trader:
         logging.getLogger("requests").setLevel(logging.ERROR)
 
         logger = logging.getLogger()
-        if not logger.handlers:
-            logger.addHandler(logging.StreamHandler())
+
+        for handler in logger.handlers:
+            if handler.__class__.__name__ == "StreamHandler":
+                logger.removeHandler(handler)
+
+        stream_handler = logging.StreamHandler(stream=sys.stdout)
+        stream_handler.setLevel(logging.CRITICAL + 1)
+        logger.addHandler(stream_handler)
+
         if self.debug:
             logger.setLevel(logging.DEBUG)
         elif self.is_backtest:
-            logger.setLevel(logging.ERROR)
+            logger.setLevel(logging.INFO)
+            for handler in logger.handlers:
+                if handler.__class__.__name__ == "StreamHandler":
+                    handler.setLevel(logging.ERROR)
         else:
             logger.setLevel(logging.INFO)
 

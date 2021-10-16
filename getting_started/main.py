@@ -165,6 +165,7 @@ if __name__ == "__main__":
                 pandas_data=pandas_data,
                 stats_file=stats_file,
                 config=config,
+                logfile=logfile,
                 **kwargs,
             )
             toc = perf_counter()

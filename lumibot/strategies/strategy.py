@@ -94,6 +94,7 @@ class Strategy(_Strategy):
         """
         message = "Strategy %s: %s" % (self.name, message)
         logging.info(message)
+
         return message
 
     # ======Order methods shortcuts===============
@@ -845,6 +846,37 @@ class Strategy(_Strategy):
         currency="USD",
     ):
         """Create an asset object."""
+        # If backtesting,  return existing asset if in store.
+        if self.broker.IS_BACKTESTING_BROKER:
+            # Check for existing asset.
+            for asset in self.broker._data_source._data_store:
+                is_symbol = asset.symbol == symbol
+                is_asset_type = asset.asset_type == asset_type
+                is_expiration = asset.expiration == expiration
+                if asset.strike != "" and strike != "":
+                    is_strike = float(asset.strike) == float(strike)
+                else:
+                    is_strike = asset.strike == strike
+                is_right = asset.right == right
+                is_multiplier = asset.multiplier == multiplier
+                is_currency = asset.currency == currency
+
+                if asset_type == 'stock' and (
+                    is_symbol and is_asset_type and is_currency and is_multiplier
+                ):
+                    return asset
+                elif asset_type == 'future' and (
+                    is_symbol and is_asset_type and is_expiration and is_currency and is_multiplier
+                ):
+                    return asset
+                elif asset_type == 'option' and (
+                        is_symbol and is_asset_type and is_expiration and is_right and is_strike
+                        and is_currency and is_multiplier
+                ):
+                    return asset
+                else:
+                    pass
+
         return Asset(
             symbol=symbol,
             asset_type=asset_type,
@@ -905,9 +937,6 @@ class Strategy(_Strategy):
         2019-12-24 00:00:00-05:00             0          0.00             0.0    0.00
         2019-12-26 00:00:00-05:00             0          0.01             0.0    0.01
         """
-
-
-
 
         asset = self._set_asset_mapping(asset)
         if not timestep:

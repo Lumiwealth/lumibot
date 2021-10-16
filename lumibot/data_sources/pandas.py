@@ -346,6 +346,6 @@ class PandasData(DataSource):
                 and store_asset.expiration == asset.expiration
                 and store_asset.right == asset.right
             ):
-                strikes.append(store_asset.strike)
+                strikes.append(float(store_asset.strike))
 
         return sorted(list(set(strikes)))

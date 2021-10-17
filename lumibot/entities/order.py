@@ -183,10 +183,16 @@ class Order:
                 )
 
     def __repr__(self):
+        self.rep_asset = self.symbol
+        if self.asset.asset_type == "future":
+            self.rep_asset = f"{self.symbol} {self.asset.expiration}"
+        elif self.asset.asset_type == "option":
+            self.rep_asset = f"{self.symbol} {self.asset.expiration} " \
+                             f"{self.asset.right} {self.asset.strike}"
         repr = "%s order of | %d %s %s |" % (
             self.type,
             self.quantity,
-            self.symbol,
+            self.rep_asset,
             self.side,
         )
         if self.order_class:

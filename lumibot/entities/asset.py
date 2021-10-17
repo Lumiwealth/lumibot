@@ -75,19 +75,19 @@ class Asset(BaseModel, frozen=True, extra="forbid"):
 
     def __repr__(self):
         if self.asset_type == "future":
-            return f"{self.symbol}, {self.asset_type}, {self.expiration}"
+            return f"{self.symbol}, {self.expiration}"
         elif self.asset_type == 'option':
-            return f"{self.symbol}, {self.asset_type}, {self.expiration} {self.strike} {self.right}"
+            return f"{self.symbol}, {self.expiration} {self.strike} {self.right}"
         else:
-            return f"{self.symbol}, {self.asset_type}"
+            return f"{self.symbol}"
 
     def __str__(self):
         if self.asset_type == "future":
-            return f"{self.symbol}, {self.asset_type}, {self.expiration}"
+            return f"{self.symbol}, {self.expiration}"
         elif self.asset_type == 'option':
-            return f"{self.symbol}, {self.asset_type}, {self.expiration} {self.strike} {self.right}"
+            return f"{self.symbol}, {self.expiration} {self.strike} {self.right}"
         else:
-            return f"{self.symbol}, {self.asset_type}"
+            return f"{self.symbol}"
 
     @validator("asset_type")
     def asset_type_must_be_one_of(cls, v):

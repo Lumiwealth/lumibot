@@ -309,7 +309,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         contract_id = contract_details[0].contract.conId
         chains = self.option_params(asset, underlyingConId=contract_id)
         if len(chains) == 0:
-            raise AssertionError(f"No option chain for {asset.symbol}")
+            raise AssertionError(f"No option chain for {asset}")
         return chains
 
     def get_chain(self, chains, exchange="SMART"):

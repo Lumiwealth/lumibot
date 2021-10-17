@@ -120,8 +120,8 @@ class Broker:
 
     def _process_partially_filled_order(self, order, price, quantity):
         logging.info(
-            "Partial Fill Transaction: %s %d of %s at %s$ per share"
-            % (order.side, quantity, order.asset.symbol, price)
+            "Partial Fill Transaction: %s %d of %s at $%s per share"
+            % (order.side, quantity, order.asset, price)
         )
         logging.info("%r was partially filled" % order)
         self._new_orders.remove(order.identifier, key="identifier")
@@ -145,8 +145,8 @@ class Broker:
 
     def _process_filled_order(self, order, price, quantity):
         logging.info(
-            "Filled Transaction: %s %d of %s at %s$ per share"
-            % (order.side, quantity, order.asset.symbol, price)
+            "Filled Transaction: %s %d of %s at $%s per share"
+            % (order.side, quantity, order.asset, price)
         )
         logging.info("%r was filled" % order)
         self._new_orders.remove(order.identifier, key="identifier")

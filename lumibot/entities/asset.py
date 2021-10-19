@@ -28,7 +28,8 @@ class Asset(BaseModel, frozen=True, extra="forbid"):
     multiplier : int
         Price multiplier.
         default : 1
-    currency=None,
+    currency : str
+        Base currency, (default=None)
 
     Attributes
     ----------

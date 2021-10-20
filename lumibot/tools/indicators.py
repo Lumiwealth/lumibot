@@ -256,20 +256,13 @@ def plot_returns(
         )
     )
 
-    fig.write_html(plot_file_html)
-
-    try:  # should work on MacOS and most linux versions
-        # TODO: does not work with linux!
-        subprocess.call(["open", plot_file_html])
-    except:
-        logging.error(f"Could not open plot file {plot_file_html}")
+    fig.write_html(plot_file_html, auto_open=True)
 
 
 def get_risk_free_rate():
-    result = None
     try:
         result = yh.get_risk_free_rate()
     except:
-        pass
+        result = 0
 
     return result

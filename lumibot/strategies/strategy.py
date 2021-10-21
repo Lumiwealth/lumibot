@@ -188,10 +188,6 @@ class Strategy(_Strategy):
             trail_percent=trail_percent,
             exchange=exchange,
             sec_type=asset.asset_type,
-            expiration=asset.expiration,
-            strike=asset.strike,
-            right=asset.right,
-            multiplier=asset.multiplier,
             position_filled=position_filled,
         )
         return order

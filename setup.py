@@ -46,6 +46,7 @@ setuptools.setup(
         "flask-security",
         "email_validator",
         "bcrypt",
+        "pytest",
     ],
     classifiers=[
         "Programming Language :: Python :: 3",

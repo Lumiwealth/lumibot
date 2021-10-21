@@ -28,12 +28,68 @@ class Order:
         time_in_force="day",
         sec_type="STK",
         exchange="SMART",
-        expiration="",
-        strike="",
-        right="",
-        multiplier="",
         position_filled=False,
     ):
+        """Order class for managing individual orders.
+
+        Order class for creating order objects that will track details
+        of each order through the lifecycle of the order from creation
+        through cancel, fill or closed for other reasons.
+
+        Each order must be tied to one asset only. The order will carry
+        instructions for quanity, side (buy/sell), pricing information,
+        order types, valid through period, etc.
+
+        Parameters
+        ----------
+        strategy : str
+            The strategy that created the order.
+        asset : Asset
+            The asset that will be traded. While it is possible to
+            create a string asset when trading stocks in the strategy
+            script, all string stocks are converted to `Asset` inside
+            Lumibot before creating the `Order` object. Therefore all
+            `Order` objects will only have an `Asset` object.
+        quantity : float
+            The number of shares or units to trade.
+        side : str
+            Whether the order is `buy` or `sell`.
+        limit_price : float
+            A Limit order is an order to buy or sell at a specified
+            price or better. The Limit order ensures that if the
+            order fills, it will not fill at a price less favorable
+            than your limit price, but it does not guarantee a fill.
+        stop_price : float
+            A Stop order is an instruction to submit a buy or sell
+            market order if and when the user-specified stop trigger
+            price is attained or penetrated.
+        time_in_force : str (in development)
+            Amount of time the order is in force. Default: 'day'
+        take_profit_price : float
+            Limit price used for bracket orders and one cancels other
+            orders.
+        stop_loss_price : float
+            Stop price used for bracket orders and one cancels other
+            orders.
+        stop_loss_limit_price : float
+            Stop loss with limit price used for bracket orders and one
+            cancels other orders.
+        trail_price : float
+            Trailing stop orders allow you to continuously and
+            automatically keep updating the stop price threshold based
+            on the stock price movement. `trail_price` sets the
+            trailing price in dollars.
+        trail_percent : float
+            Trailing stop orders allow you to continuously and
+            automatically keep updating the stop price threshold based
+            on the stock price movement. `trail_price` sets the
+            trailing price in percent.
+        position_filled : bool
+            The order has been filled.
+        exchange : str
+            The exchange where the order will be placed.
+            Default = `SMART`
+        """
         if isinstance(asset, str):
             asset = entities.Asset(symbol=asset)
 
@@ -63,10 +119,6 @@ class Order:
         # Options:
         self.exchange = exchange
         self.sec_type = sec_type
-        self.expiration = expiration
-        self.strike = strike
-        self.right = right
-        self.multiplier = multiplier
 
         # setting events
         self._new_event = Event()

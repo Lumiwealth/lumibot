@@ -81,6 +81,7 @@ class Strategy(_Strategy):
         """Logs an info message prefixed with the strategy name.
 
         Uses python logging to log the message at the `info` level.
+        Logging goes to the logging file, not the console.
 
         Parameters
         ----------

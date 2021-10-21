@@ -1020,11 +1020,7 @@ class MyStrategy(Strategy):
 
 #### log_message
 
-Logs an info message prefixed with the strategy name
-
-#### safe_sleep(sleeptime)
-
-The way that sleep should be used within a strategy. Using the regular Python sleep() method will throw an error.
+Logs an info message prefixed with the strategy
 
 ## Broker Methods
 
@@ -1035,7 +1031,7 @@ can use either a `symbol` or an `asset` object. Please see [asset](#asset).
 
 #### sleep
 
-Sleeps for `sleeptime` seconds
+Sleeps for `sleeptime` seconds. The way that sleep should be used within a strategy. Using the regular Python sleep() method will throw an error.
 
 Parameters:
 - sleeptime (float): The sleep duration in seconds 

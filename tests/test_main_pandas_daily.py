@@ -118,8 +118,8 @@ mapping = {
 
 def run_test(strategy_name):
     strategy_params = mapping.get(strategy_name)
-    logfile = strategy_params['logfile']
-    trader = Trader(logfile=strategy_params['logfile'], debug=debug)
+    logfile = strategy_params["logfile"]
+    trader = Trader(logfile=strategy_params["logfile"], debug=debug)
     strategy_class = strategy_params["class"]
     backtesting_datasource = strategy_params["backtesting_datasource"]
     pandas_data = (
@@ -146,6 +146,7 @@ def run_test(strategy_name):
         config=config,
         logfile=logfile,
         risk_free_rate=0,
+        show_plot=False,
         **kwargs,
     )
 
@@ -211,10 +212,11 @@ def test_integration():
 @pytest.fixture(scope="session", autouse=True)
 def cleanup(request):
     """Cleanup a testing directory once we are finished."""
-    def remove_test_dir():
-        shutil.rmtree("logs")  #TESTING_DIR)
-    request.addfinalizer(remove_test_dir)
 
+    def remove_test_dir():
+        shutil.rmtree("logs")
+
+    request.addfinalizer(remove_test_dir)
 
 
 if __name__ == "__main__":

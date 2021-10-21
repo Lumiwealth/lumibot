@@ -81,6 +81,7 @@ class Strategy(_Strategy):
         """Logs an info message prefixed with the strategy name.
 
         Uses python logging to log the message at the `info` level.
+        Logging goes to the logging file, not the console.
 
         Parameters
         ----------
@@ -187,10 +188,6 @@ class Strategy(_Strategy):
             trail_percent=trail_percent,
             exchange=exchange,
             sec_type=asset.asset_type,
-            expiration=asset.expiration,
-            strike=asset.strike,
-            right=asset.right,
-            multiplier=asset.multiplier,
             position_filled=position_filled,
         )
         return order

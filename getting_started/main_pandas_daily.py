@@ -161,6 +161,7 @@ if __name__ == "__main__":
             stats_file=stats_file,
             config=config,
             logfile=logfile,
+            show_plot=False,
             **kwargs,
         )
         toc = perf_counter()
@@ -170,7 +171,6 @@ if __name__ == "__main__":
         # indicators.calculate_returns(
         #     benchmark_asset, backtesting_start, backtesting_end
         # )
-
 
     for counter, values in perf_counters.counters.items():
         print("Count %s spent %fs" % (counter, values[0]))

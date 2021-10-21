@@ -303,6 +303,7 @@ class _Strategy:
         plot_file="backtest_result.jpg",
         plot_file_html="backtest_result.html",
         trades_df=None,
+        show_plot=True,
     ):
         if self._strategy_returns_df is None:
             logging.warning(
@@ -321,6 +322,7 @@ class _Strategy:
                 plot_file,
                 plot_file_html,
                 trades_df,
+                show_plot,
             )
 
     @classmethod
@@ -344,6 +346,7 @@ class _Strategy:
         plot_file_html=None,
         trades_file=None,
         pandas_data=None,
+        show_plot=True,
         **kwargs,
     ):
         # Filename defaults
@@ -408,7 +411,10 @@ class _Strategy:
         backtesting_broker.export_trade_events_to_csv(trades_file)
 
         strategy.plot_returns_vs_benchmark(
-            plot_file, plot_file_html, backtesting_broker._trade_event_log_df
+            plot_file,
+            plot_file_html,
+            backtesting_broker._trade_event_log_df,
+            show_plot=show_plot,
         )
 
         return result

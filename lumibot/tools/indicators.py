@@ -171,6 +171,7 @@ def plot_returns(
     plot_file="backtest_result.jpg",
     plot_file_html="backtest_result.html",
     trades_df=None,
+    show_plot=True,
 ):
     dfs_concat = []
 
@@ -256,7 +257,7 @@ def plot_returns(
         )
     )
 
-    fig.write_html(plot_file_html, auto_open=True)
+    fig.write_html(plot_file_html, auto_open=show_plot)
 
 
 def get_risk_free_rate():

@@ -1022,6 +1022,10 @@ class MyStrategy(Strategy):
 
 Logs an info message prefixed with the strategy name
 
+#### safe_sleep(sleeptime)
+
+The way that sleep should be used within a strategy. Using the regular Python sleep() method will throw an error.
+
 ## Broker Methods
 
 When a strategy is instantiated, a broker object is passed to it (Check Quickstart).

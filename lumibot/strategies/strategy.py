@@ -719,7 +719,7 @@ class Strategy(_Strategy):
 
         Returns
         -------
-        list of str
+        list of datetime.dates
             Sorted list of dates in the form of `20221013`.
         """
         return self.broker.get_expiration(chains, exchange=exchange)

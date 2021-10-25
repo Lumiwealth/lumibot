@@ -2,17 +2,19 @@ from datetime import datetime
 
 from credentials import InteractiveBrokersConfig
 from lumibot.brokers import InteractiveBrokers
-from lumibot.strategies.examples import (
-    BuyAndHold,
-    DebtTrading,
-    Diversification,
-    DiversifiedLeverage,
-    FastTrading,
-    IntradayMomentum,
-    Momentum,
-    Simple,
-    Strangle,
-)
+from lumibot.entities import Asset
+from strangle import Strangle
+# from lumibot.strategies.examples import (
+#     BuyAndHold,
+#     DebtTrading,
+#     Diversification,
+#     DiversifiedLeverage,
+#     FastTrading,
+#     IntradayMomentum,
+#     Momentum,
+#     Simple,
+#     Strangle,
+# )
 from lumibot.traders import Trader
 
 # Choose your budget and log file locations
@@ -30,8 +32,20 @@ broker = InteractiveBrokers(InteractiveBrokersConfig)
 # Select our strategy
 ####
 
+assets = [Asset(symbol="AAPL")]
+
+kwargs = {
+    "assets": assets,
+    "take_profit_threshold": 0.03,
+    "stop_loss_threshold": -0.03,
+    "sleeptime": 5,
+    "total_trades": 0,
+    "max_trades": 4,
+    "max_days_expiry": 30,
+    "days_to_earnings_min": 100,  # 15
+}
 strategy_name = "Simple"
-strategy = Simple(name=strategy_name, budget=budget, broker=broker)
+strategy = Strangle(name=strategy_name, budget=budget, broker=broker, **kwargs)
 
 
 ####

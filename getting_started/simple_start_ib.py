@@ -3,18 +3,17 @@ from datetime import datetime
 from credentials import InteractiveBrokersConfig
 from lumibot.brokers import InteractiveBrokers
 from lumibot.entities import Asset
-from strangle import Strangle
-# from lumibot.strategies.examples import (
-#     BuyAndHold,
-#     DebtTrading,
-#     Diversification,
-#     DiversifiedLeverage,
-#     FastTrading,
-#     IntradayMomentum,
-#     Momentum,
-#     Simple,
-#     Strangle,
-# )
+from lumibot.strategies.examples import (
+    BuyAndHold,
+    DebtTrading,
+    Diversification,
+    DiversifiedLeverage,
+    FastTrading,
+    IntradayMomentum,
+    Momentum,
+    Simple,
+    Strangle,
+)
 from lumibot.traders import Trader
 
 # Choose your budget and log file locations

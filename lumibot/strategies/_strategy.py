@@ -219,6 +219,10 @@ class _Strategy:
     def _dump_stats(self):
         logger = logging.getLogger()
         current_level = logging.getLevelName(logger.level)
+        for handler in logger.handlers:
+            if handler.__class__.__name__ == "StreamHandler":
+                current_stream_handler_level = handler.level
+                handler.setLevel(logging.INFO)
         logger.setLevel(logging.INFO)
         if not self._stats.empty:
             self._format_stats()
@@ -296,6 +300,9 @@ class _Strategy:
                     f"{self._benchmark_asset} RoMaD {romad_value*100:,.2f}%"
                 )
 
+        for handler in logger.handlers:
+            if handler.__class__.__name__ == "StreamHandler":
+                handler.setLevel(current_stream_handler_level)
         logger.setLevel(current_level)
 
     def plot_returns_vs_benchmark(

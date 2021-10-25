@@ -188,8 +188,6 @@ def plot_returns(
     dfs_concat.append(_df2.loc[:, [name2]])
 
     df_final = pd.concat(dfs_concat, join="outer", axis=1)
-    df_final.plot()
-    plt.savefig(plot_file)
 
     if trades_df is not None:
         trades_df = trades_df.set_index("time")

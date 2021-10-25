@@ -309,7 +309,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         contract_id = contract_details[0].contract.conId
         chains = self.option_params(asset, underlyingConId=contract_id)
         if len(chains) == 0:
-            raise AssertionError(f"No option chain for {asset.symbol}")
+            raise AssertionError(f"No option chain for {asset}")
         return chains
 
     def get_chain(self, chains, exchange="SMART"):
@@ -319,8 +319,16 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
                 return p
 
     def get_expiration(self, chains, exchange="SMART"):
-        """Returns expirations and strikes high/low of target price."""
-        return sorted(list(self.get_chain(chains, exchange=exchange)["Expirations"]))
+        """Returns expirations and strikes high/low of target price.
+        Return type datetime.date()
+        """
+        expirations = sorted(
+            list(self.get_chain(chains, exchange=exchange)["Expirations"])
+        )
+        return [
+            datetime.datetime.strptime(expiration, "%Y%m%d").date()
+            for expiration in expirations
+        ]
 
     def get_multiplier(self, chains, exchange="SMART"):
         """Returns the multiplier"""

@@ -121,7 +121,7 @@ class Bars:
 class NoBarDataFound(Exception):
     def __init__(self, source, asset):
         message = (
-            f"{source} did not return data for symbol {asset.symbol}. "
+            f"{source} did not return data for symbol {asset}. "
             f"Make sure there is no symbol typo or use another data source"
         )
         super(NoBarDataFound, self).__init__(message)
@@ -152,7 +152,7 @@ class NoBarDataFound(Exception):
 class NoBarDataFound(Exception):
     def __init__(self, source, asset):
         message = (
-            f"{source} did not return data for symbol {asset.symbol}. "
+            f"{source} did not return data for symbol {asset}. "
             f"Make sure there is no symbol typo or use another data source"
         )
         super(NoBarDataFound, self).__init__(message)

@@ -163,6 +163,9 @@ There is a logging function that will save the
 details of your backtest (the portfolio value each day, unspent money, etc) 
 put into a CSV file in the location of `stats_file`.
 
+There is also a returns plot. By default this will show in a browser. You may 
+suppress it using `show_plot=False`
+
 ```python
 from lumibot.backtesting import YahooDataBacktesting
 from my_strategy import MyStrategy
@@ -186,7 +189,9 @@ MyStrategy.backtest(
     backtesting_end,
     stats_file=stats_file,
     plot_file=plot_file,
+    show_plot=True,
     benchmark_asset="SPY",
+    
 )
 ```
 
@@ -345,7 +350,15 @@ Create a path to save your stats to:
 stats_file = f"logs/strategy_{strategy_class.__name__}_{int(time())}.csv"
 ```
 As with Yahoo backtester, data is passed in by using `.backtest()` on your 
-strategy class. 
+strategy class.  
+
+There is a logging function that will save the
+details of your backtest (the portfolio value each day, unspent money, etc)
+put into a CSV file in the location of `stats_file`.
+
+There is also a returns plot. By default this will show in a browser. You may
+suppress it using `show_plot=False`
+
 ```python
 strategy_class.backtest(
         "strategy_name",
@@ -354,7 +367,10 @@ strategy_class.backtest(
         backtesting_start,
         backtesting_end,
         pandas_data=pandas_data,
-        stats_file=stats_file,
+        stats_file=stats_file, 
+        plot_file=plot_file,
+        show_plot=True,
+        benchmark_asset="SPY",
     )
 ```
 

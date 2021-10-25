@@ -171,6 +171,7 @@ def plot_returns(
     plot_file="backtest_result.jpg",
     plot_file_html="backtest_result.html",
     trades_df=None,
+    show_plot=True,
 ):
     dfs_concat = []
 
@@ -187,8 +188,6 @@ def plot_returns(
     dfs_concat.append(_df2.loc[:, [name2]])
 
     df_final = pd.concat(dfs_concat, join="outer", axis=1)
-    df_final.plot()
-    plt.savefig(plot_file)
 
     if trades_df is not None:
         trades_df = trades_df.set_index("time")
@@ -256,20 +255,13 @@ def plot_returns(
         )
     )
 
-    fig.write_html(plot_file_html)
-
-    try:  # should work on MacOS and most linux versions
-        # TODO: does not work with linux!
-        subprocess.call(["open", plot_file_html])
-    except:
-        logging.error(f"Could not open plot file {plot_file_html}")
+    fig.write_html(plot_file_html, auto_open=show_plot)
 
 
 def get_risk_free_rate():
-    result = None
     try:
         result = yh.get_risk_free_rate()
     except:
-        pass
+        result = 0
 
     return result

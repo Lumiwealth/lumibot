@@ -219,6 +219,10 @@ class _Strategy:
     def _dump_stats(self):
         logger = logging.getLogger()
         current_level = logging.getLevelName(logger.level)
+        for handler in logger.handlers:
+            if handler.__class__.__name__ == "StreamHandler":
+                current_stream_handler_level = handler.level
+                handler.setLevel(logging.INFO)
         logger.setLevel(logging.INFO)
         if not self._stats.empty:
             self._format_stats()
@@ -296,6 +300,9 @@ class _Strategy:
                     f"{self._benchmark_asset} RoMaD {romad_value*100:,.2f}%"
                 )
 
+        for handler in logger.handlers:
+            if handler.__class__.__name__ == "StreamHandler":
+                handler.setLevel(current_stream_handler_level)
         logger.setLevel(current_level)
 
     def plot_returns_vs_benchmark(
@@ -303,6 +310,7 @@ class _Strategy:
         plot_file="backtest_result.jpg",
         plot_file_html="backtest_result.html",
         trades_df=None,
+        show_plot=True,
     ):
         if self._strategy_returns_df is None:
             logging.warning(
@@ -321,6 +329,7 @@ class _Strategy:
                 plot_file,
                 plot_file_html,
                 trades_df,
+                show_plot,
             )
 
     @classmethod
@@ -344,6 +353,7 @@ class _Strategy:
         plot_file_html=None,
         trades_file=None,
         pandas_data=None,
+        show_plot=True,
         **kwargs,
     ):
         # Filename defaults
@@ -408,7 +418,10 @@ class _Strategy:
         backtesting_broker.export_trade_events_to_csv(trades_file)
 
         strategy.plot_returns_vs_benchmark(
-            plot_file, plot_file_html, backtesting_broker._trade_event_log_df
+            plot_file,
+            plot_file_html,
+            backtesting_broker._trade_event_log_df,
+            show_plot=show_plot,
         )
 
         return result

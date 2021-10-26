@@ -91,6 +91,7 @@ class InteractiveBrokersData(DataSource):
             if length == 1:
                 while get_data_attempt < max_attempts:
                     try:
+                        # todo needs adjusting for bars length == 1
                         result = self.ib.get_tick(asset)
                         if result:
                             response[asset] = result[0]
@@ -200,6 +201,77 @@ class InteractiveBrokersData(DataSource):
     def _cancel_realtime_bars(self, asset):
         self.ib.cancel_realtime_bars(asset)
         return 0
+
+    def _get_greeks(
+            self,
+            asset,
+            implied_volatility=False,
+            delta=False,
+            option_price=False,
+            pv_dividend=False,
+            gamma=False,
+            vega=False,
+    ):
+        """Returns the greeks for the option asset at the current
+        bar.
+
+        Will return all the greeks available unless any of the
+        individual greeks are selected, then will only return those
+        greeks.
+
+        Parameters
+        ----------
+        asset : Asset
+            Option asset only for with greeks are desired.
+        implied_volatility : boolean
+            True to get the implied volatility. (default: True)
+        delta : boolean
+            True to get the option delta value. (default: True)
+        option_price : boolean
+            True to get the option price. (default: True)
+        pv_dividend : boolean
+            True to get the present value of dividends expected on the
+            option's  underlying. (default: True)
+        gamma : boolean
+            True to get the option gamma value. (default: True)
+        vega : boolean
+            True to get the option vega value. (default: True)
+        theta : boolean
+            True to get the option theta value. (default: True)
+        underlying_price : boolean
+            True to get the price of the underlying. (default: True)
+
+        Returns
+        -------
+        Returns a dictionary with greeks as keys and greek values as
+        values.
+
+        implied_volatility : float
+            The implied volatility.
+        delta : float
+            The option delta value.
+        option_price : float
+            The option price.
+        pv_dividend : float
+            The present value of dividends expected on the option's
+            underlying.
+        gamma : float
+            The option gamma value.
+        vega : float
+            The option vega value.
+        theta : float
+            The option theta value.
+        underlying_price :
+            The price of the underlying.
+        """
+
+        result = self.ib.get_tick(asset, greek=True)
+        greeks = dict()
+        for greek, value in result:
+            if getattr(self, greek):
+                greeks[greek] = value
+
+        return greeks
 
     def get_yesterday_dividend(self, asset):
         """ Unavailable """

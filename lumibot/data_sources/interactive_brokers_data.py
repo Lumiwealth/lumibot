@@ -211,6 +211,8 @@ class InteractiveBrokersData(DataSource):
             pv_dividend=False,
             gamma=False,
             vega=False,
+            theta=False,
+            underlying_price=False,
     ):
         """Returns the greeks for the option asset at the current
         bar.
@@ -267,8 +269,12 @@ class InteractiveBrokersData(DataSource):
 
         result = self.ib.get_tick(asset, greek=True)
         greeks = dict()
-        for greek, value in result:
-            if getattr(self, greek):
+        for greek, value in result.items():
+            if eval(greek):
+                greeks[greek] = value
+
+        if len(greeks) == 0:
+            for greek, value in result.items():
                 greeks[greek] = value
 
         return greeks

@@ -799,6 +799,8 @@ class Strategy(_Strategy):
             pv_dividend=False,
             gamma=False,
             vega=False,
+            theta=False,
+            underlying_price=False,
     ):
         """Returns the greeks for the option asset at the current
         bar.
@@ -853,6 +855,13 @@ class Strategy(_Strategy):
         underlying_price :
             The price of the underlying.
         """
+        if asset.asset_type != "option":
+            self.log_message(
+                f"The greeks method was called using an asset other "
+                f"than an option. Unable to retrieve greeks for non-"
+                f"option assest."
+            )
+            return None
 
         return self.broker._get_greeks(
             asset,
@@ -862,6 +871,8 @@ class Strategy(_Strategy):
             pv_dividend=pv_dividend,
             gamma=gamma,
             vega=vega,
+            theta=theta,
+            underlying_price=underlying_price,
         )
 
     # =======Data source methods=================

@@ -274,8 +274,7 @@ class InteractiveBrokersData(DataSource):
                 greeks[greek] = value
 
         if len(greeks) == 0:
-            for greek, value in result.items():
-                greeks[greek] = value
+            greeks = result
 
         return greeks
 

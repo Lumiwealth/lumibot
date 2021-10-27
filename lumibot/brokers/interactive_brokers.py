@@ -521,8 +521,10 @@ class IBWrapper(EWrapper):
 
     def tickSnapshotEnd(self, reqId):
         super().tickSnapshotEnd(reqId)
-        self.my_tick_queue.put(self.tick)
-        self.my_greek_queue.put(self.greek)
+        if hasattr(self, "my_tick_queue"):
+            self.my_tick_queue.put(self.tick)
+        if hasattr(self, "my_greek_queue"):
+            self.my_greek_queue.put(self.greek)
 
     # Greeks
     def init_greek(self):

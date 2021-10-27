@@ -831,6 +831,92 @@ class Strategy(_Strategy):
 
         return sorted(list(set(cd.contract.strike for cd in contract_details)))
 
+
+    def get_greeks(
+            self,
+            asset,
+            implied_volatility=False,
+            delta=False,
+            option_price=False,
+            pv_dividend=False,
+            gamma=False,
+            vega=False,
+            theta=False,
+            underlying_price=False,
+    ):
+        """Returns the greeks for the option asset at the current
+        bar.
+
+        Will return all the greeks available unless any of the
+        individual greeks are selected, then will only return those
+        greeks.
+
+        Parameters
+        ----------
+        asset : Asset
+            Option asset only for with greeks are desired.
+        **kwargs
+        implied_volatility : boolean
+            True to get the implied volatility. (default: True)
+        delta : boolean
+            True to get the option delta value. (default: True)
+        option_price : boolean
+            True to get the option price. (default: True)
+        pv_dividend : boolean
+            True to get the present value of dividends expected on the
+            option's  underlying. (default: True)
+        gamma : boolean
+            True to get the option gamma value. (default: True)
+        vega : boolean
+            True to get the option vega value. (default: True)
+        theta : boolean
+            True to get the option theta value. (default: True)
+        underlying_price : boolean
+            True to get the price of the underlying. (default: True)
+
+        Returns
+        -------
+        Returns a dictionary with greeks as keys and greek values as
+        values.
+
+        implied_volatility : float
+            The implied volatility.
+        delta : float
+            The option delta value.
+        option_price : float
+            The option price.
+        pv_dividend : float
+            The present value of dividends expected on the option's
+            underlying.
+        gamma : float
+            The option gamma value.
+        vega : float
+            The option vega value.
+        theta : float
+            The option theta value.
+        underlying_price :
+            The price of the underlying.
+        """
+        if asset.asset_type != "option":
+            self.log_message(
+                f"The greeks method was called using an asset other "
+                f"than an option. Unable to retrieve greeks for non-"
+                f"option assest."
+            )
+            return None
+
+        return self.broker._get_greeks(
+            asset,
+            implied_volatility=implied_volatility,
+            delta=delta,
+            option_price=option_price,
+            pv_dividend=pv_dividend,
+            gamma=gamma,
+            vega=vega,
+            theta=theta,
+            underlying_price=underlying_price,
+        )
+
     # =======Data source methods=================
 
     @property

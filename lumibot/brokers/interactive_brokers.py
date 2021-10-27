@@ -506,6 +506,7 @@ class IBWrapper(EWrapper):
             self.init_time()
         self.my_time_queue.put(server_time)
 
+    # Single tick
     def init_tick(self):
         self.tick = list()
         tick_queue = queue.Queue()
@@ -520,7 +521,61 @@ class IBWrapper(EWrapper):
 
     def tickSnapshotEnd(self, reqId):
         super().tickSnapshotEnd(reqId)
-        self.my_tick_queue.put(self.tick)
+        if hasattr(self, "my_tick_queue"):
+            self.my_tick_queue.put(self.tick)
+        if hasattr(self, "my_greek_queue"):
+            self.my_greek_queue.put(self.greek)
+
+    # Greeks
+    def init_greek(self):
+        self.greek = list()
+        greek_queue = queue.Queue()
+        self.my_greek_queue = greek_queue
+        return greek_queue
+
+    def tickOptionComputation(
+        self,
+        reqId: TickerId,
+        tickType: TickType,
+        tickAttrib: int,
+        impliedVol: float,
+        delta: float,
+        optPrice: float,
+        pvDividend: float,
+        gamma: float,
+        vega: float,
+        theta: float,
+        undPrice: float,
+    ):
+        super().tickOptionComputation(
+            reqId,
+            tickType,
+            tickAttrib,
+            impliedVol,
+            delta,
+            optPrice,
+            pvDividend,
+            gamma,
+            vega,
+            theta,
+            undPrice,
+        )
+
+        if not hasattr(self, "greek"):
+            self.init_greek()
+        if tickType == 13:
+            self.greek.append(
+                [
+                    impliedVol,
+                    delta,
+                    optPrice,
+                    pvDividend,
+                    gamma,
+                    vega,
+                    theta,
+                    undPrice,
+                ]
+            )
 
     # Historical Data.
     def init_historical(self):
@@ -842,24 +897,50 @@ class IBClient(EClient):
     def get_tick(
         self,
         asset="",
+        greek=False,
     ):
-        tick_storage = self.wrapper.init_tick()
+        if not greek:
+            tick_storage = self.wrapper.init_tick()
+        elif greek:
+            greek_storage = self.wrapper.init_greek()
 
         contract = self.create_contract(asset)
         reqId = self.get_reqid()
 
-        self.reqMktData(reqId, contract, "", True, False, [])
+        if not greek:
+            self.reqMktData(reqId, contract, "", True, False, [])
+        else:
+            self.reqMktData(reqId, contract, "13", True, False, [])
 
         try:
-            requested_tick = tick_storage.get(timeout=self.max_wait_time)
+            if not greek:
+                requested_tick = tick_storage.get(timeout=self.max_wait_time)
+            elif greek:
+                requested_greek = greek_storage.get(timeout=self.max_wait_time)
         except queue.Empty:
-            print("The queue was empty or max time reached for tick data.")
+            data_type = f"{'tick' if not greek else 'greek'}"
+            print(f"The queue was empty or max time reached for {data_type} data.")
             requested_tick = None
+            requested_greek = None
 
         while self.wrapper.is_error():
             print(f"Error: {self.get_error(timeout=5)}")
 
-        return requested_tick
+        if not greek:
+            return requested_tick
+        else:
+            keys = [
+                "implied_volatility",
+                "delta",
+                "option_price",
+                "pv_dividend",
+                "gamma",
+                "vega",
+                "theta",
+                "underlying_price",
+            ]
+            greeks = dict(zip(keys, requested_greek[0]))
+            return greeks
 
     def get_historical_data(
         self,

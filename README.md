@@ -324,7 +324,6 @@ df = pd.read_csv(
 Third we make a data object. 
 ```python
 data = Data(
-    strategy_name,
     asset,
     df,
     date_start=datetime.datetime(2021, 3, 14), 
@@ -406,7 +405,6 @@ df = df[["open", "high", "low", "close", "volume"]]
 df.index = df.index.tz_localize("America/New_York")
 
 data = Data(
-    "my_strategy",
     asset,
     df,
     date_start=datetime.datetime(2021, 3, 14),
@@ -815,7 +813,6 @@ or just for backtesting
 options = [True, False]
 for option in options:
     MyStrategy.backtest(
-        "my_strategy",
         budget,
         YahooDataBacktesting,
         backtesting_start,

@@ -60,7 +60,6 @@ for ticker in tickers:
     df.index.name = "datetime"
 
     data = Data(
-        "my_strategy",
         asset,
         df,
         date_start=datetime.datetime(2019, 1, 6),
@@ -145,10 +144,6 @@ if __name__ == "__main__":
             raise ValueError(
                 f"Backtesting is not supported for strategy {strategy_name}"
             )
-
-        # Replace the strategy name now that it's known.
-        for data in pandas_data.values():
-            data.strategy = strategy_name
 
         tic = perf_counter()
         strategy_class.backtest(

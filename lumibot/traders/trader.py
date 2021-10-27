@@ -62,7 +62,7 @@ class Trader:
                 logger.removeHandler(handler)
 
         stream_handler = logging.StreamHandler(stream=sys.stdout)
-        stream_handler.setLevel(logging.CRITICAL + 1)
+        stream_handler.setLevel(logging.INFO)
         logger.addHandler(stream_handler)
 
         if self.debug:

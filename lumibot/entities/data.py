@@ -12,8 +12,6 @@ class Data:
 
     Parameters
     ----------
-    strategy : str
-        Name of the current strategy object.
     asset : Asset Object
         Asset object to which this data is attached.
     df : dataframe
@@ -38,8 +36,6 @@ class Data:
 
     Attributes
     ----------
-    strategy : str
-        Name of the current strategy object.
     asset : Asset Object
         Asset object to which this data is attached.
     sybmol : str
@@ -108,7 +104,6 @@ class Data:
 
     def __init__(
         self,
-        strategy,
         asset,
         df,
         date_start=None,
@@ -118,7 +113,6 @@ class Data:
         timestep="minute",
         columns=None,
     ):
-        self.strategy = strategy
         self.asset = asset
         self.symbol = self.asset.symbol
 

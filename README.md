@@ -324,7 +324,6 @@ df = pd.read_csv(
 Third we make a data object. 
 ```python
 data = Data(
-    strategy_name,
     asset,
     df,
     date_start=datetime.datetime(2021, 3, 14), 
@@ -406,7 +405,6 @@ df = df[["open", "high", "low", "close", "volume"]]
 df.index = df.index.tz_localize("America/New_York")
 
 data = Data(
-    "my_strategy",
     asset,
     df,
     date_start=datetime.datetime(2021, 3, 14),
@@ -815,7 +813,6 @@ or just for backtesting
 options = [True, False]
 for option in options:
     MyStrategy.backtest(
-        "my_strategy",
         budget,
         YahooDataBacktesting,
         backtesting_start,
@@ -1315,6 +1312,74 @@ chains = self.get_chains(asset)
 chain = self.get_chain(chains)
 expiration = self.get_expiration(chains)
 ```
+
+#### get_greeks
+Returns the greeks for the option asset at the current bar.
+
+Will return all the greeks available unless any of the
+individual greeks are selected, then will only return those
+greeks.
+
+To return all of the greeks: 
+```python
+mygreeks = self.get_greeks(asset)
+print(mygreeks)
+{
+    'implied_volatility': 0.43082467998525587, 
+    'delta': 0.4261267500109485, 
+    'option_price': 1.5367826121627828, 
+    'pv_dividend': 0.0, 
+    'gamma': 0.07865783808317735, 
+    'vega': 0.04556740333269094, 
+    'theta': -0.44406813241266924, 
+    'underlying_price': 148.98
+ }
+```
+To return only specific greeks, set them as `True` when calling the function.. 
+```python
+mygreeks = self.get_greeks(asset, delta=True, theta=True)
+print(mygreeks)
+{'delta': 0.4192703569137862, 'theta': -0.44151812979314764}
+```
+
+- Parameters  
+asset : Asset  
+&nbsp;&nbsp;&nbsp;&nbsp;   Option asset only for with greeks are desired.  
+**kwargs  
+implied_volatility : boolean   
+&nbsp;&nbsp;&nbsp;&nbsp;True to get the implied volatility. (default: True)   
+delta : boolean   
+&nbsp;&nbsp;&nbsp;&nbsp;True to get the option delta value. (default: True)   
+option_price : boolean   
+&nbsp;&nbsp;&nbsp;&nbsp;True to get the option price. (default: True)   
+pv_dividend : boolean   
+&nbsp;&nbsp;&nbsp;&nbsp;True to get the present value of dividends expected on the option's  underlying. (default: True)   
+gamma : boolean   
+&nbsp;&nbsp;&nbsp;&nbsp;True to get the option gamma value. (default: True)   
+vega : boolean   
+&nbsp;&nbsp;&nbsp;&nbsp;True to get the option vega value. (default: True)   
+theta : boolean   
+&nbsp;&nbsp;&nbsp;&nbsp;True to get the option theta value. (default: True)   
+underlying_price : boolean   
+&nbsp;&nbsp;&nbsp;&nbsp;True to get the price of the underlying. (default: True)   
+<br><br/>
+- Returns: Returns a dictionary with greeks as keys and greek values as values.  
+implied_volatility : float  
+&nbsp;&nbsp;&nbsp;&nbsp;The implied volatility.  
+delta : float  
+&nbsp;&nbsp;&nbsp;&nbsp;The option delta value.  
+option_price : float  
+&nbsp;&nbsp;&nbsp;&nbsp;The option price.  
+pv_dividend : float  
+&nbsp;&nbsp;&nbsp;&nbsp;The present value of dividends expected on the option's underlying.  
+gamma : float  
+&nbsp;&nbsp;&nbsp;&nbsp;The option gamma value.  
+vega : float  
+&nbsp;&nbsp;&nbsp;&nbsp;The option vega value.  
+theta : float  
+&nbsp;&nbsp;&nbsp;&nbsp;The option theta value.  
+underlying_price :  float
+&nbsp;&nbsp;&nbsp;&nbsp;The price of the underlying.  
 
 
 ## Data Source Methods

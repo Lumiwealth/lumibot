@@ -533,7 +533,6 @@ def main(backtest=False):
             )
 
             pandas_data[asset] = Data(
-                strategy_name,
                 asset,
                 df,
                 date_start=backtesting_start,
@@ -574,7 +573,6 @@ def main(backtest=False):
                 # df.index = df.index.tz_localize("America/New_York")
 
                 pandas_data[asset] = Data(
-                    strategy_name,
                     asset,
                     df,
                     date_start=backtesting_start,

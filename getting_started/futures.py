@@ -138,7 +138,6 @@ if __name__ == "__main__":
         df.index = df.index.tz_localize("America/New_York")
 
         pandas_data[asset] = Data(
-            strategy_name,
             asset,
             df,
             date_start=datetime.datetime.strptime(dates["data_start_date"], "%Y-%m-%d"),

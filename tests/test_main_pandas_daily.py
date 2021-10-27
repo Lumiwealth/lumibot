@@ -60,7 +60,6 @@ for ticker in tickers:
     df.index.name = "datetime"
 
     data = Data(
-        "my_strategy",
         asset,
         df,
         date_start=datetime.datetime(2019, 1, 6),

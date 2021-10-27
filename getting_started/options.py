@@ -184,7 +184,6 @@ if __name__ == "__main__":
     )
 
     pandas_data[asset] = Data(
-        strategy_name,
         asset,
         df,
         trading_hours_start=trading_hours_start,
@@ -223,7 +222,6 @@ if __name__ == "__main__":
         df.index = df.index.tz_localize("America/New_York")
 
         pandas_data[asset] = Data(
-            strategy_name,
             asset,
             df,
             trading_hours_start=trading_hours_start,

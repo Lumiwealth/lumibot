@@ -1237,7 +1237,7 @@ class Strategy(_Strategy):
 
     def on_trading_iteration(self):
         """Use this lifecycle method for trading.
-        Will be executed indefinetly until there
+        Will be executed indefinitely until there
         will be only self.minutes_before_closing
         minutes before market closes"""
         pass

@@ -831,6 +831,7 @@ If you'd like to change the market hours for which the bot operates, then you ca
 def initialize(self, asset_symbol="MNQ", expiration=datetime.date(2021, 9, 17)):
     self.set_market('24/7')
 ```
+Default is `NASDAQ` days and hours.
 
 Possible calendars include:
 ```python
@@ -1032,7 +1033,7 @@ class MyStrategy(Strategy):
 
 #### log_message
 
-Logs an info message prefixed with the strategy name
+Logs an info message prefixed with the strategy
 
 ## Broker Methods
 
@@ -1043,7 +1044,7 @@ can use either a `symbol` or an `asset` object. Please see [asset](#asset).
 
 #### sleep
 
-Sleeps for `sleeptime` seconds
+Sleeps for `sleeptime` seconds. The way that sleep should be used within a strategy. Using the regular Python sleep() method will throw an error.
 
 Parameters:
 - sleeptime (float): The sleep duration in seconds 
@@ -1334,6 +1335,8 @@ print(mygreeks)
     'underlying_price': 148.98
  }
 ```
+* Note that `pv_dividend` is only available in live testing. 
+
 To return only specific greeks, set them as `True` when calling the function.. 
 ```python
 mygreeks = self.get_greeks(asset, delta=True, theta=True)

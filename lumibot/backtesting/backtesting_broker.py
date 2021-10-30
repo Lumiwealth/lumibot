@@ -490,6 +490,30 @@ class BacktestingBroker(Broker):
         expiry."""
         return self._data_source.get_strikes(asset)
 
+    def _get_greeks(
+            self,
+            asset,
+            implied_volatility=False,
+            delta=False,
+            option_price=False,
+            pv_dividend=False,
+            gamma=False,
+            vega=False,
+            theta=False,
+            underlying_price=False,
+    ):
+        return self._data_source.get_greeks(
+            asset,
+            implied_volatility=implied_volatility,
+            delta=delta,
+            option_price=option_price,
+            pv_dividend=pv_dividend,
+            gamma=gamma,
+            vega=vega,
+            theta=theta,
+            underlying_price=underlying_price,
+        )
+
     # ==========Processing streams data=======================
 
     def _get_stream_object(self):

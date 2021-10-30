@@ -490,7 +490,7 @@ class BacktestingBroker(Broker):
         expiry."""
         return self._data_source.get_strikes(asset)
 
-    def get_greeks(
+    def _get_greeks(
             self,
             asset,
             implied_volatility=False,

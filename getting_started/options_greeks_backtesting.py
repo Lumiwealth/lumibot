@@ -114,7 +114,7 @@ class Singles(Strategy):
                     multiplier=100,
                 )
                 greek = self.get_greeks(option_asset)
-                # track[option_asset] = itemgetter("delta", "theta")(greek)
+                track[option_asset] = itemgetter("delta", "theta")(greek)
                 delta = greek["delta"]
                 vega = greek["vega"]
                 iv = greek["implied_volatility"]
@@ -122,8 +122,8 @@ class Singles(Strategy):
                     max_delta = delta
                     trading_option = option_asset
                 self.log_message(f"{delta} {vega} {iv} ")
-        # for k, v in track.items():
-        #     self.log_message(f"{k}, {v}")
+        for k, v in track.items():
+            self.log_message(f"{k}, {v}")
         order = self.create_order(trading_option, self.quantity, side=self.side)
         self.submit_order(order)
 

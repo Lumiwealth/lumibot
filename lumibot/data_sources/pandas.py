@@ -1,6 +1,7 @@
 import pandas as pd
 
 from lumibot.entities import Bars, AssetsMapping
+from lumibot.tools.black_scholes import BS
 from .data_source import DataSource
 
 
@@ -81,8 +82,34 @@ class PandasData(DataSource):
     def get_asset_by_name(self, name):
         return [asset for asset in self.get_assets() if asset.name == name]
 
-    def get_asset_by_symbol(self, symbol):
-        return [asset for asset in self.get_assets() if asset.symbol == symbol]
+    def get_asset_by_symbol(self, symbol, asset_type=None):
+        """Finds the assets that match the symbol. If type is specified
+        finds the assets matching symbol and type.
+
+        Parameters
+        ----------
+        symbol : str
+            The symbol of the asset.
+        type : str
+            Asset type. One of:
+            - stock
+            - future
+            - option
+            - forex
+
+        Returns
+        -------
+        list of Asset
+        """
+        store_assets = self.get_assets()
+        if type is None:
+            return [asset for asset in store_assets if asset.symbol == symbol]
+        else:
+            return [
+                asset
+                for asset in store_assets
+                if (asset.symbol == symbol and asset.asset_type == asset_type)
+            ]
 
     def is_tradable(self, asset, dt, length=1, timestep="minute", timeshift=0):
         # Determines is an asset has data over dt, length, timestep, and timeshift.
@@ -349,3 +376,63 @@ class PandasData(DataSource):
                 strikes.append(float(store_asset.strike))
 
         return sorted(list(set(strikes)))
+
+    def get_greeks(
+        self,
+        asset,
+        implied_volatility=False,
+        delta=False,
+        option_price=False,
+        pv_dividend=False,
+        gamma=False,
+        vega=False,
+        theta=False,
+        underlying_price=False,
+    ):
+        """Returns Greeks in backtesting. """
+        underlying_asset = self.get_asset_by_symbol(asset.symbol, asset_type="stock")[0]
+        und_price = self.get_last_price(underlying_asset)
+
+        opt_price = self.get_last_price(asset)
+
+        interest = 1.0
+        days_to_expiration = (asset.expiration - self._datetime.date()).days
+        if asset.right == "CALL":
+            iv = BS(
+                [und_price, float(asset.strike), interest, days_to_expiration],
+                callPrice=opt_price,
+            )
+        elif asset.right == "PUT":
+            iv = BS(
+                [und_price, float(asset.strike), interest, days_to_expiration],
+                putPrice=opt_price,
+            )
+
+        c = BS(
+            [und_price, float(asset.strike), interest, days_to_expiration],
+            volatility=iv.impliedVolatility,
+        )
+
+        is_call = True if asset.right == "CALL" else False
+
+        result = dict(
+            implied_volatility=iv.impliedVolatility,
+            delta=c.callDelta if is_call else c.putDelta,
+            option_price=c.callPrice if is_call else c.putPrice,
+            pv_dividend=None,  # (No equiv )
+            gamma=c.gamma,
+            vega=c.vega,
+            theta=c.callTheta if is_call else c.putTheta,
+            underlying_price=und_price,
+        )
+
+
+        greeks = dict()
+        for greek, value in result.items():
+            if eval(greek):
+                greeks[greek] = value
+
+        if len(greeks) == 0:
+            greeks = result
+
+        return greeks

@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>lumibot.strategies.examples package &mdash; lumibot  documentation</title><link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  <script id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+        <script src="_static/jquery.js"></script>
+        <script src="_static/underscore.js"></script>
+        <script src="_static/doctools.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="lumibot.tests package" href="lumibot.tests.html" />
+    <link rel="prev" title="lumibot.strategies package" href="lumibot.strategies.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="index.html" class="icon icon-home"> lumibot
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="modules.html">lumibot</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="lumibot.html">lumibot package</a><ul class="current">
+<li class="toctree-l3 current"><a class="reference internal" href="lumibot.html#subpackages">Subpackages</a><ul class="current">
+<li class="toctree-l4"><a class="reference internal" href="lumibot.backtesting.html">lumibot.backtesting package</a></li>
+<li class="toctree-l4"><a class="reference internal" href="lumibot.brokers.html">lumibot.brokers package</a></li>
+<li class="toctree-l4"><a class="reference internal" href="lumibot.data_sources.html">lumibot.data_sources package</a></li>
+<li class="toctree-l4"><a class="reference internal" href="lumibot.entities.html">lumibot.entities package</a></li>
+<li class="toctree-l4 current"><a class="reference internal" href="lumibot.strategies.html">lumibot.strategies package</a></li>
+<li class="toctree-l4"><a class="reference internal" href="lumibot.tests.html">lumibot.tests package</a></li>
+<li class="toctree-l4"><a class="reference internal" href="lumibot.tools.html">lumibot.tools package</a></li>
+<li class="toctree-l4"><a class="reference internal" href="lumibot.traders.html">lumibot.traders package</a></li>
+<li class="toctree-l4"><a class="reference internal" href="lumibot.trading_builtins.html">lumibot.trading_builtins package</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="lumibot.html#module-lumibot">Module contents</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">lumibot</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="modules.html">lumibot</a> &raquo;</li>
+          <li><a href="lumibot.html">lumibot package</a> &raquo;</li>
+          <li><a href="lumibot.strategies.html">lumibot.strategies package</a> &raquo;</li>
+      <li>lumibot.strategies.examples package</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/lumibot.strategies.examples.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <div class="section" id="lumibot-strategies-examples-package">
+<h1>lumibot.strategies.examples package<a class="headerlink" href="#lumibot-strategies-examples-package" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this headline">¶</a></h2>
+</div>
+<div class="section" id="module-lumibot.strategies.examples.buy_and_hold">
+<span id="lumibot-strategies-examples-buy-and-hold-module"></span><h2>lumibot.strategies.examples.buy_and_hold module<a class="headerlink" href="#module-lumibot.strategies.examples.buy_and_hold" title="Permalink to this headline">¶</a></h2>
+<dl class="py class">
+<dt id="lumibot.strategies.examples.buy_and_hold.BuyAndHold">
+<em class="property"><span class="pre">class</span> </em><code class="sig-prename descclassname"><span class="pre">lumibot.strategies.examples.buy_and_hold.</span></code><code class="sig-name descname"><span class="pre">BuyAndHold</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">budget</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">broker</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data_source</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">minutes_before_closing</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">minutes_before_opening</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">60</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sleeptime</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stats_file</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">risk_free_rate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">benchmark_asset</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'SPY'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">backtesting_start</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">backtesting_end</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pandas_data</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filled_order_callback</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.buy_and_hold.BuyAndHold" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy" title="lumibot.strategies.strategy.Strategy"><code class="xref py py-class docutils literal notranslate"><span class="pre">lumibot.strategies.strategy.Strategy</span></code></a></p>
+<dl class="py method">
+<dt id="lumibot.strategies.examples.buy_and_hold.BuyAndHold.initialize">
+<code class="sig-name descname"><span class="pre">initialize</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">buy_symbol</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'SPY'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.buy_and_hold.BuyAndHold.initialize" title="Permalink to this definition">¶</a></dt>
+<dd><p>Use this lifecycle method to initialize parameters</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="lumibot.strategies.examples.buy_and_hold.BuyAndHold.on_abrupt_closing">
+<code class="sig-name descname"><span class="pre">on_abrupt_closing</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.buy_and_hold.BuyAndHold.on_abrupt_closing" title="Permalink to this definition">¶</a></dt>
+<dd><p>Use this lifecycle event to execute code
+when the main trader was shut down (Keybord Interuption, …)
+Example: self.sell_all()</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="lumibot.strategies.examples.buy_and_hold.BuyAndHold.on_trading_iteration">
+<code class="sig-name descname"><span class="pre">on_trading_iteration</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.buy_and_hold.BuyAndHold.on_trading_iteration" title="Permalink to this definition">¶</a></dt>
+<dd><p>Buys the self.buy_symbol once, then never again</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="lumibot.strategies.examples.buy_and_hold.BuyAndHold.trace_stats">
+<code class="sig-name descname"><span class="pre">trace_stats</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">context</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">snapshot_before</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.buy_and_hold.BuyAndHold.trace_stats" title="Permalink to this definition">¶</a></dt>
+<dd><p>Lifecycle method that will be executed after
+on_trading_iteration. context is a dictionary containing
+on_trading_iteration locals() in last call. Use this
+method to dump stats</p>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-lumibot.strategies.examples.debt_trading">
+<span id="lumibot-strategies-examples-debt-trading-module"></span><h2>lumibot.strategies.examples.debt_trading module<a class="headerlink" href="#module-lumibot.strategies.examples.debt_trading" title="Permalink to this headline">¶</a></h2>
+<dl class="py class">
+<dt id="lumibot.strategies.examples.debt_trading.DebtTrading">
+<em class="property"><span class="pre">class</span> </em><code class="sig-prename descclassname"><span class="pre">lumibot.strategies.examples.debt_trading.</span></code><code class="sig-name descname"><span class="pre">DebtTrading</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">budget</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">broker</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data_source</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">minutes_before_closing</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">minutes_before_opening</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">60</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sleeptime</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stats_file</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">risk_free_rate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">benchmark_asset</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'SPY'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">backtesting_start</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">backtesting_end</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pandas_data</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filled_order_callback</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.debt_trading.DebtTrading" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy" title="lumibot.strategies.strategy.Strategy"><code class="xref py py-class docutils literal notranslate"><span class="pre">lumibot.strategies.strategy.Strategy</span></code></a></p>
+<dl class="py method">
+<dt id="lumibot.strategies.examples.debt_trading.DebtTrading.get_debt_to_gdp_chng">
+<code class="sig-name descname"><span class="pre">get_debt_to_gdp_chng</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.debt_trading.DebtTrading.get_debt_to_gdp_chng" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="lumibot.strategies.examples.debt_trading.DebtTrading.initialize">
+<code class="sig-name descname"><span class="pre">initialize</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.debt_trading.DebtTrading.initialize" title="Permalink to this definition">¶</a></dt>
+<dd><p>Use this lifecycle method to initialize parameters</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="lumibot.strategies.examples.debt_trading.DebtTrading.on_abrupt_closing">
+<code class="sig-name descname"><span class="pre">on_abrupt_closing</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.debt_trading.DebtTrading.on_abrupt_closing" title="Permalink to this definition">¶</a></dt>
+<dd><p>Use this lifecycle event to execute code
+when the main trader was shut down (Keybord Interuption, …)
+Example: self.sell_all()</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="lumibot.strategies.examples.debt_trading.DebtTrading.on_trading_iteration">
+<code class="sig-name descname"><span class="pre">on_trading_iteration</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.debt_trading.DebtTrading.on_trading_iteration" title="Permalink to this definition">¶</a></dt>
+<dd><p>Use this lifecycle method for trading.
+Will be executed indefinitely until there
+will be only self.minutes_before_closing
+minutes before market closes</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="lumibot.strategies.examples.debt_trading.DebtTrading.rebalance_portfolio">
+<code class="sig-name descname"><span class="pre">rebalance_portfolio</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.debt_trading.DebtTrading.rebalance_portfolio" title="Permalink to this definition">¶</a></dt>
+<dd><p>Rebalance the portfolio and create orders</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="lumibot.strategies.examples.debt_trading.DebtTrading.trace_stats">
+<code class="sig-name descname"><span class="pre">trace_stats</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">context</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">snapshot_before</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.debt_trading.DebtTrading.trace_stats" title="Permalink to this definition">¶</a></dt>
+<dd><p>Lifecycle method that will be executed after
+on_trading_iteration. context is a dictionary containing
+on_trading_iteration locals() in last call. Use this
+method to dump stats</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="lumibot.strategies.examples.debt_trading.DebtTrading.update_prices">
+<code class="sig-name descname"><span class="pre">update_prices</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.debt_trading.DebtTrading.update_prices" title="Permalink to this definition">¶</a></dt>
+<dd><p>Update portfolio assets price</p>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-lumibot.strategies.examples.diversification">
+<span id="lumibot-strategies-examples-diversification-module"></span><h2>lumibot.strategies.examples.diversification module<a class="headerlink" href="#module-lumibot.strategies.examples.diversification" title="Permalink to this headline">¶</a></h2>
+<dl class="py class">
+<dt id="lumibot.strategies.examples.diversification.Diversification">
+<em class="property"><span class="pre">class</span> </em><code class="sig-prename descclassname"><span class="pre">lumibot.strategies.examples.diversification.</span></code><code class="sig-name descname"><span class="pre">Diversification</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">budget</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">broker</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data_source</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">minutes_before_closing</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">minutes_before_opening</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">60</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sleeptime</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stats_file</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">risk_free_rate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">benchmark_asset</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'SPY'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">backtesting_start</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">backtesting_end</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pandas_data</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filled_order_callback</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.diversification.Diversification" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy" title="lumibot.strategies.strategy.Strategy"><code class="xref py py-class docutils literal notranslate"><span class="pre">lumibot.strategies.strategy.Strategy</span></code></a></p>
+<dl class="py method">
+<dt id="lumibot.strategies.examples.diversification.Diversification.initialize">
+<code class="sig-name descname"><span class="pre">initialize</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.diversification.Diversification.initialize" title="Permalink to this definition">¶</a></dt>
+<dd><p>Use this lifecycle method to initialize parameters</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="lumibot.strategies.examples.diversification.Diversification.on_abrupt_closing">
+<code class="sig-name descname"><span class="pre">on_abrupt_closing</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.diversification.Diversification.on_abrupt_closing" title="Permalink to this definition">¶</a></dt>
+<dd><p>Use this lifecycle event to execute code
+when the main trader was shut down (Keybord Interuption, …)
+Example: self.sell_all()</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="lumibot.strategies.examples.diversification.Diversification.on_trading_iteration">
+<code class="sig-name descname"><span class="pre">on_trading_iteration</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.diversification.Diversification.on_trading_iteration" title="Permalink to this definition">¶</a></dt>
+<dd><p>Use this lifecycle method for trading.
+Will be executed indefinitely until there
+will be only self.minutes_before_closing
+minutes before market closes</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="lumibot.strategies.examples.diversification.Diversification.rebalance_portfolio">
+<code class="sig-name descname"><span class="pre">rebalance_portfolio</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.diversification.Diversification.rebalance_portfolio" title="Permalink to this definition">¶</a></dt>
+<dd><p>Rebalance the portfolio and create orders</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="lumibot.strategies.examples.diversification.Diversification.trace_stats">
+<code class="sig-name descname"><span class="pre">trace_stats</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">context</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">snapshot_before</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.diversification.Diversification.trace_stats" title="Permalink to this definition">¶</a></dt>
+<dd><p>Lifecycle method that will be executed after
+on_trading_iteration. context is a dictionary containing
+on_trading_iteration locals() in last call. Use this
+method to dump stats</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="lumibot.strategies.examples.diversification.Diversification.update_prices">
+<code class="sig-name descname"><span class="pre">update_prices</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.diversification.Diversification.update_prices" title="Permalink to this definition">¶</a></dt>
+<dd><p>Update portfolio assets price</p>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-lumibot.strategies.examples.diversified_leverage">
+<span id="lumibot-strategies-examples-diversified-leverage-module"></span><h2>lumibot.strategies.examples.diversified_leverage module<a class="headerlink" href="#module-lumibot.strategies.examples.diversified_leverage" title="Permalink to this headline">¶</a></h2>
+<dl class="py class">
+<dt id="lumibot.strategies.examples.diversified_leverage.DiversifiedLeverage">
+<em class="property"><span class="pre">class</span> </em><code class="sig-prename descclassname"><span class="pre">lumibot.strategies.examples.diversified_leverage.</span></code><code class="sig-name descname"><span class="pre">DiversifiedLeverage</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">budget</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">broker</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data_source</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">minutes_before_closing</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">minutes_before_opening</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">60</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sleeptime</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stats_file</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">risk_free_rate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">benchmark_asset</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'SPY'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">backtesting_start</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">backtesting_end</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pandas_data</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filled_order_callback</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.diversified_leverage.DiversifiedLeverage" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy" title="lumibot.strategies.strategy.Strategy"><code class="xref py py-class docutils literal notranslate"><span class="pre">lumibot.strategies.strategy.Strategy</span></code></a></p>
+<dl class="py method">
+<dt id="lumibot.strategies.examples.diversified_leverage.DiversifiedLeverage.initialize">
+<code class="sig-name descname"><span class="pre">initialize</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.diversified_leverage.DiversifiedLeverage.initialize" title="Permalink to this definition">¶</a></dt>
+<dd><p>Use this lifecycle method to initialize parameters</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="lumibot.strategies.examples.diversified_leverage.DiversifiedLeverage.on_abrupt_closing">
+<code class="sig-name descname"><span class="pre">on_abrupt_closing</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.diversified_leverage.DiversifiedLeverage.on_abrupt_closing" title="Permalink to this definition">¶</a></dt>
+<dd><p>Use this lifecycle event to execute code
+when the main trader was shut down (Keybord Interuption, …)
+Example: self.sell_all()</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="lumibot.strategies.examples.diversified_leverage.DiversifiedLeverage.on_trading_iteration">
+<code class="sig-name descname"><span class="pre">on_trading_iteration</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.diversified_leverage.DiversifiedLeverage.on_trading_iteration" title="Permalink to this definition">¶</a></dt>
+<dd><p>Use this lifecycle method for trading.
+Will be executed indefinitely until there
+will be only self.minutes_before_closing
+minutes before market closes</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="lumibot.strategies.examples.diversified_leverage.DiversifiedLeverage.rebalance_portfolio">
+<code class="sig-name descname"><span class="pre">rebalance_portfolio</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.diversified_leverage.DiversifiedLeverage.rebalance_portfolio" title="Permalink to this definition">¶</a></dt>
+<dd><p>Rebalance the portfolio and create orders</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="lumibot.strategies.examples.diversified_leverage.DiversifiedLeverage.trace_stats">
+<code class="sig-name descname"><span class="pre">trace_stats</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">context</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">snapshot_before</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.diversified_leverage.DiversifiedLeverage.trace_stats" title="Permalink to this definition">¶</a></dt>
+<dd><p>Lifecycle method that will be executed after
+on_trading_iteration. context is a dictionary containing
+on_trading_iteration locals() in last call. Use this
+method to dump stats</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="lumibot.strategies.examples.diversified_leverage.DiversifiedLeverage.update_prices">
+<code class="sig-name descname"><span class="pre">update_prices</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.diversified_leverage.DiversifiedLeverage.update_prices" title="Permalink to this definition">¶</a></dt>
+<dd><p>Update portfolio assets price</p>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-lumibot.strategies.examples.fast_trading">
+<span id="lumibot-strategies-examples-fast-trading-module"></span><h2>lumibot.strategies.examples.fast_trading module<a class="headerlink" href="#module-lumibot.strategies.examples.fast_trading" title="Permalink to this headline">¶</a></h2>
+<dl class="py class">
+<dt id="lumibot.strategies.examples.fast_trading.FastTrading">
+<em class="property"><span class="pre">class</span> </em><code class="sig-prename descclassname"><span class="pre">lumibot.strategies.examples.fast_trading.</span></code><code class="sig-name descname"><span class="pre">FastTrading</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">budget</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">broker</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data_source</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">minutes_before_closing</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">minutes_before_opening</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">60</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sleeptime</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stats_file</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">risk_free_rate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">benchmark_asset</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'SPY'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">backtesting_start</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">backtesting_end</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pandas_data</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filled_order_callback</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.fast_trading.FastTrading" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy" title="lumibot.strategies.strategy.Strategy"><code class="xref py py-class docutils literal notranslate"><span class="pre">lumibot.strategies.strategy.Strategy</span></code></a></p>
+<dl class="py method">
+<dt id="lumibot.strategies.examples.fast_trading.FastTrading.before_market_closes">
+<code class="sig-name descname"><span class="pre">before_market_closes</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.fast_trading.FastTrading.before_market_closes" title="Permalink to this definition">¶</a></dt>
+<dd><p>Use this lifecycle method to execude code
+self.minutes_before_closing minutes before closing.
+Example: self.sell_all()</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="lumibot.strategies.examples.fast_trading.FastTrading.get_assets_momentums">
+<code class="sig-name descname"><span class="pre">get_assets_momentums</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.fast_trading.FastTrading.get_assets_momentums" title="Permalink to this definition">¶</a></dt>
+<dd><p>Gets the momentums (the percentage return) for all the assets we are tracking,
+over the time period set in self.momentum_length</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="lumibot.strategies.examples.fast_trading.FastTrading.initialize">
+<code class="sig-name descname"><span class="pre">initialize</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">momentum_length</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_assets</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.fast_trading.FastTrading.initialize" title="Permalink to this definition">¶</a></dt>
+<dd><p>Use this lifecycle method to initialize parameters</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="lumibot.strategies.examples.fast_trading.FastTrading.on_abrupt_closing">
+<code class="sig-name descname"><span class="pre">on_abrupt_closing</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.fast_trading.FastTrading.on_abrupt_closing" title="Permalink to this definition">¶</a></dt>
+<dd><p>Use this lifecycle event to execute code
+when the main trader was shut down (Keybord Interuption, …)
+Example: self.sell_all()</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="lumibot.strategies.examples.fast_trading.FastTrading.on_trading_iteration">
+<code class="sig-name descname"><span class="pre">on_trading_iteration</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.fast_trading.FastTrading.on_trading_iteration" title="Permalink to this definition">¶</a></dt>
+<dd><p>Use this lifecycle method for trading.
+Will be executed indefinitely until there
+will be only self.minutes_before_closing
+minutes before market closes</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="lumibot.strategies.examples.fast_trading.FastTrading.orders_buy">
+<code class="sig-name descname"><span class="pre">orders_buy</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.fast_trading.FastTrading.orders_buy" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns list of buy orders.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="lumibot.strategies.examples.fast_trading.FastTrading.orders_sell">
+<code class="sig-name descname"><span class="pre">orders_sell</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.fast_trading.FastTrading.orders_sell" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns list of sell orders.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="lumibot.strategies.examples.fast_trading.FastTrading.trace_stats">
+<code class="sig-name descname"><span class="pre">trace_stats</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">context</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">snapshot_before</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.fast_trading.FastTrading.trace_stats" title="Permalink to this definition">¶</a></dt>
+<dd><p>Add additional stats to the CSV logfile</p>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-lumibot.strategies.examples.intraday_momentum">
+<span id="lumibot-strategies-examples-intraday-momentum-module"></span><h2>lumibot.strategies.examples.intraday_momentum module<a class="headerlink" href="#module-lumibot.strategies.examples.intraday_momentum" title="Permalink to this headline">¶</a></h2>
+<dl class="py class">
+<dt id="lumibot.strategies.examples.intraday_momentum.IntradayMomentum">
+<em class="property"><span class="pre">class</span> </em><code class="sig-prename descclassname"><span class="pre">lumibot.strategies.examples.intraday_momentum.</span></code><code class="sig-name descname"><span class="pre">IntradayMomentum</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">budget</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">broker</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data_source</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">minutes_before_closing</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">minutes_before_opening</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">60</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sleeptime</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stats_file</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">risk_free_rate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">benchmark_asset</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'SPY'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">backtesting_start</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">backtesting_end</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pandas_data</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filled_order_callback</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.intraday_momentum.IntradayMomentum" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy" title="lumibot.strategies.strategy.Strategy"><code class="xref py py-class docutils literal notranslate"><span class="pre">lumibot.strategies.strategy.Strategy</span></code></a></p>
+<dl class="py method">
+<dt id="lumibot.strategies.examples.intraday_momentum.IntradayMomentum.before_market_closes">
+<code class="sig-name descname"><span class="pre">before_market_closes</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.intraday_momentum.IntradayMomentum.before_market_closes" title="Permalink to this definition">¶</a></dt>
+<dd><p>Use this lifecycle method to execude code
+self.minutes_before_closing minutes before closing.
+Example: self.sell_all()</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="lumibot.strategies.examples.intraday_momentum.IntradayMomentum.get_assets_momentums">
+<code class="sig-name descname"><span class="pre">get_assets_momentums</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.intraday_momentum.IntradayMomentum.get_assets_momentums" title="Permalink to this definition">¶</a></dt>
+<dd><p>Gets the momentums (the percentage return) for all the assets we are tracking,
+over the time period set in self.momentum_length</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="lumibot.strategies.examples.intraday_momentum.IntradayMomentum.initialize">
+<code class="sig-name descname"><span class="pre">initialize</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.intraday_momentum.IntradayMomentum.initialize" title="Permalink to this definition">¶</a></dt>
+<dd><p>Use this lifecycle method to initialize parameters</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="lumibot.strategies.examples.intraday_momentum.IntradayMomentum.on_abrupt_closing">
+<code class="sig-name descname"><span class="pre">on_abrupt_closing</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.intraday_momentum.IntradayMomentum.on_abrupt_closing" title="Permalink to this definition">¶</a></dt>
+<dd><p>Use this lifecycle event to execute code
+when the main trader was shut down (Keybord Interuption, …)
+Example: self.sell_all()</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="lumibot.strategies.examples.intraday_momentum.IntradayMomentum.on_trading_iteration">
+<code class="sig-name descname"><span class="pre">on_trading_iteration</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.intraday_momentum.IntradayMomentum.on_trading_iteration" title="Permalink to this definition">¶</a></dt>
+<dd><p>Use this lifecycle method for trading.
+Will be executed indefinitely until there
+will be only self.minutes_before_closing
+minutes before market closes</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="lumibot.strategies.examples.intraday_momentum.IntradayMomentum.trace_stats">
+<code class="sig-name descname"><span class="pre">trace_stats</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">context</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">snapshot_before</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.intraday_momentum.IntradayMomentum.trace_stats" title="Permalink to this definition">¶</a></dt>
+<dd><p>Add additional stats to the CSV logfile</p>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-lumibot.strategies.examples.momentum">
+<span id="lumibot-strategies-examples-momentum-module"></span><h2>lumibot.strategies.examples.momentum module<a class="headerlink" href="#module-lumibot.strategies.examples.momentum" title="Permalink to this headline">¶</a></h2>
+<dl class="py class">
+<dt id="lumibot.strategies.examples.momentum.Momentum">
+<em class="property"><span class="pre">class</span> </em><code class="sig-prename descclassname"><span class="pre">lumibot.strategies.examples.momentum.</span></code><code class="sig-name descname"><span class="pre">Momentum</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">budget</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">broker</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data_source</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">minutes_before_closing</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">minutes_before_opening</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">60</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sleeptime</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stats_file</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">risk_free_rate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">benchmark_asset</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'SPY'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">backtesting_start</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">backtesting_end</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pandas_data</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filled_order_callback</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.momentum.Momentum" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy" title="lumibot.strategies.strategy.Strategy"><code class="xref py py-class docutils literal notranslate"><span class="pre">lumibot.strategies.strategy.Strategy</span></code></a></p>
+<dl class="py method">
+<dt id="lumibot.strategies.examples.momentum.Momentum.get_assets_momentums">
+<code class="sig-name descname"><span class="pre">get_assets_momentums</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.momentum.Momentum.get_assets_momentums" title="Permalink to this definition">¶</a></dt>
+<dd><p>Gets the momentums (the percentage return) for all the assets we are tracking,
+over the time period set in self.period</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="lumibot.strategies.examples.momentum.Momentum.initialize">
+<code class="sig-name descname"><span class="pre">initialize</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">symbols</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.momentum.Momentum.initialize" title="Permalink to this definition">¶</a></dt>
+<dd><p>Use this lifecycle method to initialize parameters</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="lumibot.strategies.examples.momentum.Momentum.on_abrupt_closing">
+<code class="sig-name descname"><span class="pre">on_abrupt_closing</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.momentum.Momentum.on_abrupt_closing" title="Permalink to this definition">¶</a></dt>
+<dd><p>Use this lifecycle event to execute code
+when the main trader was shut down (Keybord Interuption, …)
+Example: self.sell_all()</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="lumibot.strategies.examples.momentum.Momentum.on_trading_iteration">
+<code class="sig-name descname"><span class="pre">on_trading_iteration</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.momentum.Momentum.on_trading_iteration" title="Permalink to this definition">¶</a></dt>
+<dd><p>Use this lifecycle method for trading.
+Will be executed indefinitely until there
+will be only self.minutes_before_closing
+minutes before market closes</p>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-lumibot.strategies.examples.simple">
+<span id="lumibot-strategies-examples-simple-module"></span><h2>lumibot.strategies.examples.simple module<a class="headerlink" href="#module-lumibot.strategies.examples.simple" title="Permalink to this headline">¶</a></h2>
+<dl class="py class">
+<dt id="lumibot.strategies.examples.simple.Simple">
+<em class="property"><span class="pre">class</span> </em><code class="sig-prename descclassname"><span class="pre">lumibot.strategies.examples.simple.</span></code><code class="sig-name descname"><span class="pre">Simple</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">budget</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">broker</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data_source</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">minutes_before_closing</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">minutes_before_opening</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">60</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sleeptime</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stats_file</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">risk_free_rate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">benchmark_asset</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'SPY'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">backtesting_start</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">backtesting_end</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pandas_data</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filled_order_callback</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.simple.Simple" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy" title="lumibot.strategies.strategy.Strategy"><code class="xref py py-class docutils literal notranslate"><span class="pre">lumibot.strategies.strategy.Strategy</span></code></a></p>
+<dl class="py method">
+<dt id="lumibot.strategies.examples.simple.Simple.initialize">
+<code class="sig-name descname"><span class="pre">initialize</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.simple.Simple.initialize" title="Permalink to this definition">¶</a></dt>
+<dd><p>Use this lifecycle method to initialize parameters</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="lumibot.strategies.examples.simple.Simple.on_abrupt_closing">
+<code class="sig-name descname"><span class="pre">on_abrupt_closing</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.simple.Simple.on_abrupt_closing" title="Permalink to this definition">¶</a></dt>
+<dd><p>Use this lifecycle event to execute code
+when the main trader was shut down (Keybord Interuption, …)
+Example: self.sell_all()</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="lumibot.strategies.examples.simple.Simple.on_trading_iteration">
+<code class="sig-name descname"><span class="pre">on_trading_iteration</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.simple.Simple.on_trading_iteration" title="Permalink to this definition">¶</a></dt>
+<dd><p>Use this lifecycle method for trading.
+Will be executed indefinitely until there
+will be only self.minutes_before_closing
+minutes before market closes</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="lumibot.strategies.examples.simple.Simple.trace_stats">
+<code class="sig-name descname"><span class="pre">trace_stats</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">context</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">snapshot_before</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.simple.Simple.trace_stats" title="Permalink to this definition">¶</a></dt>
+<dd><p>Lifecycle method that will be executed after
+on_trading_iteration. context is a dictionary containing
+on_trading_iteration locals() in last call. Use this
+method to dump stats</p>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-lumibot.strategies.examples.strangle">
+<span id="lumibot-strategies-examples-strangle-module"></span><h2>lumibot.strategies.examples.strangle module<a class="headerlink" href="#module-lumibot.strategies.examples.strangle" title="Permalink to this headline">¶</a></h2>
+<dl class="py class">
+<dt id="lumibot.strategies.examples.strangle.Strangle">
+<em class="property"><span class="pre">class</span> </em><code class="sig-prename descclassname"><span class="pre">lumibot.strategies.examples.strangle.</span></code><code class="sig-name descname"><span class="pre">Strangle</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">budget</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">broker</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data_source</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">minutes_before_closing</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">minutes_before_opening</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">60</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sleeptime</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stats_file</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">risk_free_rate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">benchmark_asset</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'SPY'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">backtesting_start</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">backtesting_end</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pandas_data</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filled_order_callback</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.strangle.Strangle" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy" title="lumibot.strategies.strategy.Strategy"><code class="xref py py-class docutils literal notranslate"><span class="pre">lumibot.strategies.strategy.Strategy</span></code></a></p>
+<p>Strategy Description: Strangle</p>
+<p>In a long strangle—the more common strategy—the investor simultaneously buys an
+out-of-the-money call and an out-of-the-money put option. The call option’s strike
+price is higher than the underlying asset’s current market price, while the put has a
+strike price that is lower than the asset’s market price. This strategy has large profit
+potential since the call option has theoretically unlimited upside if the underlying
+asset rises in price, while the put option can profit if the underlying asset falls.
+The risk on the trade is limited to the premium paid for the two options.</p>
+<p>Place the strangle two weeks before earnings announcement.</p>
+<dl>
+<dt>params:</dt><dd><ul class="simple">
+<li><p>take_profit_threshold (float): Percentage to take profit.</p></li>
+<li><p>sleeptime (int): Number of minutes to wait between trading iterations.</p></li>
+<li><p>total_trades (int): Tracks the total number of pairs traded.</p></li>
+<li><p>max_trades (int): Maximum trades at any time.</p></li>
+<li><p>max_days_expiry (int): Maximum number of days to to expiry.</p></li>
+<li><p>days_to_earnings_min(int): Minimum number of days to earnings.</p></li>
+<li><p>exchange (str): Exchange, defaults to <cite>SMART</cite></p></li>
+<li><p>symbol_universe (list): is the stock symbols expected to have a sharp</p></li>
+</ul>
+<p>movement in either direction.
+- trading_pairs (dict): Used to track all information for each
+symbol/options.</p>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt id="lumibot.strategies.examples.strangle.Strangle.IS_BACKTESTABLE">
+<code class="sig-name descname"><span class="pre">IS_BACKTESTABLE</span></code><em class="property"> <span class="pre">=</span> <span class="pre">False</span></em><a class="headerlink" href="#lumibot.strategies.examples.strangle.Strangle.IS_BACKTESTABLE" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="lumibot.strategies.examples.strangle.Strangle.asset_cycle">
+<code class="sig-name descname"><span class="pre">asset_cycle</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">assets</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.strangle.Strangle.asset_cycle" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="lumibot.strategies.examples.strangle.Strangle.before_market_closes">
+<code class="sig-name descname"><span class="pre">before_market_closes</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.strangle.Strangle.before_market_closes" title="Permalink to this definition">¶</a></dt>
+<dd><p>Use this lifecycle method to execude code
+self.minutes_before_closing minutes before closing.
+Example: self.sell_all()</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="lumibot.strategies.examples.strangle.Strangle.before_starting_trading">
+<code class="sig-name descname"><span class="pre">before_starting_trading</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.strangle.Strangle.before_starting_trading" title="Permalink to this definition">¶</a></dt>
+<dd><p>Create the option assets object for each underlying.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="lumibot.strategies.examples.strangle.Strangle.call_put_strike">
+<code class="sig-name descname"><span class="pre">call_put_strike</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">last_price</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">symbol</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">expiration_date</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.strangle.Strangle.call_put_strike" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns strikes for pair.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="lumibot.strategies.examples.strangle.Strangle.create_trading_pair">
+<code class="sig-name descname"><span class="pre">create_trading_pair</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">symbol</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.strangle.Strangle.create_trading_pair" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="lumibot.strategies.examples.strangle.Strangle.get_expiration_date">
+<code class="sig-name descname"><span class="pre">get_expiration_date</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">expirations</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.strangle.Strangle.get_expiration_date" title="Permalink to this definition">¶</a></dt>
+<dd><p>Expiration date that is closest to, but less than max days to expriry.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="lumibot.strategies.examples.strangle.Strangle.initialize">
+<code class="sig-name descname"><span class="pre">initialize</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.strangle.Strangle.initialize" title="Permalink to this definition">¶</a></dt>
+<dd><p>Use this lifecycle method to initialize parameters</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="lumibot.strategies.examples.strangle.Strangle.on_abrupt_closing">
+<code class="sig-name descname"><span class="pre">on_abrupt_closing</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.strangle.Strangle.on_abrupt_closing" title="Permalink to this definition">¶</a></dt>
+<dd><p>Use this lifecycle event to execute code
+when the main trader was shut down (Keybord Interuption, …)
+Example: self.sell_all()</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="lumibot.strategies.examples.strangle.Strangle.on_trading_iteration">
+<code class="sig-name descname"><span class="pre">on_trading_iteration</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.examples.strangle.Strangle.on_trading_iteration" title="Permalink to this definition">¶</a></dt>
+<dd><p>Use this lifecycle method for trading.
+Will be executed indefinitely until there
+will be only self.minutes_before_closing
+minutes before market closes</p>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-lumibot.strategies.examples">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-lumibot.strategies.examples" title="Permalink to this headline">¶</a></h2>
+</div>
+</div>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="lumibot.strategies.html" class="btn btn-neutral float-left" title="lumibot.strategies package" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="lumibot.tests.html" class="btn btn-neutral float-right" title="lumibot.tests package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2021, Lumiwealth.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -366,6 +366,8 @@ class _Strategy:
             stats_file = f"logs/{name}_{datestring}_stats.csv"
         if trades_file is None:
             trades_file = f"logs/{name}_{datestring}_trades.csv"
+        if logfile is None:
+            logfile = f"logs/{name}_{datestring}_logs.csv"
 
         if not cls.IS_BACKTESTABLE:
             logging.warning(f"Strategy {name} cannot be backtested at the moment")

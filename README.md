@@ -324,7 +324,6 @@ df = pd.read_csv(
 Third we make a data object. 
 ```python
 data = Data(
-    strategy_name,
     asset,
     df,
     date_start=datetime.datetime(2021, 3, 14), 
@@ -406,7 +405,6 @@ df = df[["open", "high", "low", "close", "volume"]]
 df.index = df.index.tz_localize("America/New_York")
 
 data = Data(
-    "my_strategy",
     asset,
     df,
     date_start=datetime.datetime(2021, 3, 14),
@@ -815,7 +813,6 @@ or just for backtesting
 options = [True, False]
 for option in options:
     MyStrategy.backtest(
-        "my_strategy",
         budget,
         YahooDataBacktesting,
         backtesting_start,
@@ -834,6 +831,7 @@ If you'd like to change the market hours for which the bot operates, then you ca
 def initialize(self, asset_symbol="MNQ", expiration=datetime.date(2021, 9, 17)):
     self.set_market('24/7')
 ```
+Default is `NASDAQ` days and hours.
 
 Possible calendars include:
 ```python
@@ -1035,7 +1033,7 @@ class MyStrategy(Strategy):
 
 #### log_message
 
-Logs an info message prefixed with the strategy name
+Logs an info message prefixed with the strategy
 
 ## Broker Methods
 
@@ -1046,7 +1044,7 @@ can use either a `symbol` or an `asset` object. Please see [asset](#asset).
 
 #### sleep
 
-Sleeps for `sleeptime` seconds
+Sleeps for `sleeptime` seconds. The way that sleep should be used within a strategy. Using the regular Python sleep() method will throw an error.
 
 Parameters:
 - sleeptime (float): The sleep duration in seconds 

@@ -340,19 +340,61 @@ class Strategy(_Strategy):
         return self.broker._await_market_to_open(timedelta)
 
     def await_market_to_close(self, timedelta=None):
-        """Sleep until market closes"""
+        """Sleep until market closes.
+
+        If the market is open, pauses code execution until market is
+        closed. If an input (float) is passed as parameter, pauses code
+        execution starting input minutes before market closes.
+
+        Parameters
+        ---------
+        timedelta : int
+           Time in minutes before market closes to pause.
+           Overrides the `self.minutes_before_closing`.
+
+        Returns
+        -------
+        None
+        """
         if timedelta is None:
             timedelta = self.minutes_before_closing
         return self.broker._await_market_to_close(timedelta)
 
     def get_tracked_position(self, asset):
-        """get a tracked position given
-        an asset for the current strategy"""
+        """Get a tracked position given an asset for the current
+        strategy.
+
+        Seeks out and returns the position object for the given asset
+        in the current strategy.
+
+        Parameters
+        ----------
+        asset : Asset
+            Asset object who's traded positions is sought.
+
+        Returns
+        -------
+        position or None
+            A position object for the assset if there is a tracked
+            position or returns None to indicate no tracked position.
+        """
         asset = self._set_asset_mapping(asset)
         return self.broker.get_tracked_position(self.name, asset)
 
     def get_tracked_positions(self):
-        """get all tracked positions for the current strategy"""
+        """get all tracked positions for the current strategy
+
+        Seeks out and returns the all tracked positions in the current
+        strategy.
+
+        Returns
+        -------
+        list of position objects
+            Position objects for the strategy if there are tracked
+            positions or returns and empty list to indicate no tracked
+            position.
+        """
+
         return self.broker.get_tracked_positions(self.name)
 
     @property
@@ -1195,7 +1237,7 @@ class Strategy(_Strategy):
 
     def on_trading_iteration(self):
         """Use this lifecycle method for trading.
-        Will be executed indefinetly until there
+        Will be executed indefinitely until there
         will be only self.minutes_before_closing
         minutes before market closes"""
         pass

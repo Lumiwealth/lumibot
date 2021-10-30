@@ -90,7 +90,7 @@ class BacktestingBroker(Broker):
         return True
 
     def is_market_open(self):
-        """return True if market is open else false"""
+        """Return True if market is open else false"""
         now = self.datetime
         return (
             (now >= self._trading_days.market_open)

@@ -1,10 +1,7 @@
-lumibot.brokers package
+Brokers
 =======================
 
-Submodules
-----------
-
-lumibot.brokers.alpaca module
+Alpaca
 -----------------------------
 
 .. automodule:: lumibot.brokers.alpaca
@@ -12,7 +9,7 @@ lumibot.brokers.alpaca module
    :undoc-members:
    :show-inheritance:
 
-lumibot.brokers.broker module
+Broker
 -----------------------------
 
 .. automodule:: lumibot.brokers.broker
@@ -20,18 +17,10 @@ lumibot.brokers.broker module
    :undoc-members:
    :show-inheritance:
 
-lumibot.brokers.interactive\_brokers module
+Interactive Brokers
 -------------------------------------------
 
 .. automodule:: lumibot.brokers.interactive_brokers
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-Module contents
----------------
-
-.. automodule:: lumibot.brokers
    :members:
    :undoc-members:
    :show-inheritance:

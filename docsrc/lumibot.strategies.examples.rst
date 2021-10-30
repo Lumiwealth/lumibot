@@ -1,4 +1,4 @@
-lumibot.strategies.examples package
+strategy examples
 ===================================
 
 Submodules

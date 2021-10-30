@@ -2,17 +2,16 @@
 
 ## Prerequisites
 
-All in terminal type
+In terminal enter
 
 1. `pip install sphinx`
-2. `pip install sphinx_rtd_theme`
+2. `pip install furo`
 
 ## Creating New Docs
 
-All in terminal type
+In terminal enter
 
 1. `cd docsrc`
-2. `sphinx-apidoc -o . ../lumibot`
-3. `make github`
+2. `make github`
 
-This will have generated new files in `docs/_build/html`. To see the docs, open `index.html`
+This will have generated new files in `docs/`. To see the docs, open `index.html`

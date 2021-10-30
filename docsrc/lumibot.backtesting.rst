@@ -1,26 +1,7 @@
-lumibot.backtesting package
+Backtesting
 ===========================
 
-Submodules
-----------
-
-lumibot.backtesting.alpaca\_backtesting module
-----------------------------------------------
-
-.. automodule:: lumibot.backtesting.alpaca_backtesting
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-lumibot.backtesting.alpha\_vantage\_backtesting module
-------------------------------------------------------
-
-.. automodule:: lumibot.backtesting.alpha_vantage_backtesting
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-lumibot.backtesting.backtesting\_broker module
+Backtesting Broker
 ----------------------------------------------
 
 .. automodule:: lumibot.backtesting.backtesting_broker
@@ -28,7 +9,7 @@ lumibot.backtesting.backtesting\_broker module
    :undoc-members:
    :show-inheritance:
 
-lumibot.backtesting.data\_source\_backtesting module
+Data Source Backtesting
 ----------------------------------------------------
 
 .. automodule:: lumibot.backtesting.data_source_backtesting
@@ -36,7 +17,7 @@ lumibot.backtesting.data\_source\_backtesting module
    :undoc-members:
    :show-inheritance:
 
-lumibot.backtesting.pandas\_backtesting module
+Pandas Backtesting
 ----------------------------------------------
 
 .. automodule:: lumibot.backtesting.pandas_backtesting
@@ -44,18 +25,10 @@ lumibot.backtesting.pandas\_backtesting module
    :undoc-members:
    :show-inheritance:
 
-lumibot.backtesting.yahoo\_backtesting module
+Yahoo Backtesting
 ---------------------------------------------
 
 .. automodule:: lumibot.backtesting.yahoo_backtesting
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-Module contents
----------------
-
-.. automodule:: lumibot.backtesting
    :members:
    :undoc-members:
    :show-inheritance:

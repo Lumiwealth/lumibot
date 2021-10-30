@@ -1,10 +1,7 @@
-lumibot.entities package
+Entities
 ========================
 
-Submodules
-----------
-
-lumibot.entities.asset module
+Asset
 -----------------------------
 
 .. automodule:: lumibot.entities.asset
@@ -12,7 +9,7 @@ lumibot.entities.asset module
    :undoc-members:
    :show-inheritance:
 
-lumibot.entities.bar module
+Bar
 ---------------------------
 
 .. automodule:: lumibot.entities.bar
@@ -20,7 +17,7 @@ lumibot.entities.bar module
    :undoc-members:
    :show-inheritance:
 
-lumibot.entities.bars module
+Bars
 ----------------------------
 
 .. automodule:: lumibot.entities.bars
@@ -28,7 +25,7 @@ lumibot.entities.bars module
    :undoc-members:
    :show-inheritance:
 
-lumibot.entities.data module
+Data
 ----------------------------
 
 .. automodule:: lumibot.entities.data
@@ -36,7 +33,7 @@ lumibot.entities.data module
    :undoc-members:
    :show-inheritance:
 
-lumibot.entities.dataline module
+Dataline
 --------------------------------
 
 .. automodule:: lumibot.entities.dataline
@@ -44,7 +41,7 @@ lumibot.entities.dataline module
    :undoc-members:
    :show-inheritance:
 
-lumibot.entities.order module
+Order
 -----------------------------
 
 .. automodule:: lumibot.entities.order
@@ -52,18 +49,10 @@ lumibot.entities.order module
    :undoc-members:
    :show-inheritance:
 
-lumibot.entities.position module
+Position
 --------------------------------
 
 .. automodule:: lumibot.entities.position
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-Module contents
----------------
-
-.. automodule:: lumibot.entities
    :members:
    :undoc-members:
    :show-inheritance:

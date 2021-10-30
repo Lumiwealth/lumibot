@@ -1,141 +1,224 @@
-<!DOCTYPE html>
-<html class="writer-html5" lang="en" >
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>lumibot.backtesting package &mdash; lumibot  documentation</title><link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
-    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
-  <!--[if lt IE 9]>
-    <script src="_static/js/html5shiv.min.js"></script>
-  <![endif]-->
-  <script id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
-        <script src="_static/jquery.js"></script>
-        <script src="_static/underscore.js"></script>
-        <script src="_static/doctools.js"></script>
-    <script src="_static/js/theme.js"></script>
-    <link rel="index" title="Index" href="genindex.html" />
-    <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="lumibot.brokers package" href="lumibot.brokers.html" />
-    <link rel="prev" title="lumibot package" href="lumibot.html" /> 
-</head>
+<!doctype html>
+<html class="no-js">
+  <head><meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Brokers" href="lumibot.brokers.html" /><link rel="prev" title="Lumibot" href="lumibot.html" />
 
-<body class="wy-body-for-nav"> 
-  <div class="wy-grid-for-nav">
-    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
-      <div class="wy-side-scroll">
-        <div class="wy-side-nav-search" >
-            <a href="index.html" class="icon icon-home"> lumibot
-          </a>
-<div role="search">
-  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" />
-    <input type="hidden" name="check_keywords" value="yes" />
-    <input type="hidden" name="area" value="default" />
-  </form>
-</div>
-        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
-              <p class="caption"><span class="caption-text">Contents:</span></p>
-<ul class="current">
-<li class="toctree-l1 current"><a class="reference internal" href="modules.html">lumibot</a><ul class="current">
-<li class="toctree-l2 current"><a class="reference internal" href="lumibot.html">lumibot package</a><ul class="current">
-<li class="toctree-l3 current"><a class="reference internal" href="lumibot.html#subpackages">Subpackages</a><ul class="current">
-<li class="toctree-l4 current"><a class="current reference internal" href="#">lumibot.backtesting package</a></li>
-<li class="toctree-l4"><a class="reference internal" href="lumibot.brokers.html">lumibot.brokers package</a></li>
-<li class="toctree-l4"><a class="reference internal" href="lumibot.data_sources.html">lumibot.data_sources package</a></li>
-<li class="toctree-l4"><a class="reference internal" href="lumibot.entities.html">lumibot.entities package</a></li>
-<li class="toctree-l4"><a class="reference internal" href="lumibot.strategies.html">lumibot.strategies package</a></li>
-<li class="toctree-l4"><a class="reference internal" href="lumibot.tests.html">lumibot.tests package</a></li>
-<li class="toctree-l4"><a class="reference internal" href="lumibot.tools.html">lumibot.tools package</a></li>
-<li class="toctree-l4"><a class="reference internal" href="lumibot.traders.html">lumibot.traders package</a></li>
-<li class="toctree-l4"><a class="reference internal" href="lumibot.trading_builtins.html">lumibot.trading_builtins package</a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="lumibot.html#module-lumibot">Module contents</a></li>
-</ul>
-</li>
-</ul>
-</li>
-</ul>
+    <meta name="generator" content="sphinx-4.2.0, furo 2021.10.09"/>
+        <title>Backtesting - Lumibot documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=0254c309f5cadf746f1a613e7677379ac9c8cdcd" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?digest=16fb25fabf47304eee183a5e9af80b1ba98259b1" />
+    
+    
 
-        </div>
+
+<style>
+  body {
+    --color-code-background: #f8f8f8;
+  --color-code-foreground: black;
+  
+  }
+  body[data-theme="dark"] {
+    --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+  }
+  @media (prefers-color-scheme: dark) {
+    body:not([data-theme="light"]) {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+    }
+  }
+</style></head>
+  <body>
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path stroke="none" d="M0 0h24v24H0z" />
+      <line x1="4" y1="6" x2="20" y2="6" />
+      <line x1="10" y1="12" x2="20" y2="12" />
+      <line x1="6" y1="18" x2="20" y2="18" />
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-half" viewBox="0 0 24 24">
+    <title>Auto light/dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-shadow">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M13 12h5" />
+      <path d="M13 15h4" />
+      <path d="M13 18h1" />
+      <path d="M13 9h4" />
+      <path d="M13 6h1" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc">
+<label class="overlay sidebar-overlay" for="__navigation">
+  <div class="visually-hidden">Hide navigation sidebar</div>
+</label>
+<label class="overlay toc-overlay" for="__toc">
+  <div class="visually-hidden">Hide table of contents sidebar</div>
+</label>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <div class="visually-hidden">Toggle site navigation sidebar</div>
+        <i class="icon"><svg><use href="#svg-menu"></use></svg></i>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="index.html"><div class="brand">Lumibot  documentation</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle">
+          <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+          <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
       </div>
-    </nav>
-
-    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
-          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
-          <a href="index.html">lumibot</a>
-      </nav>
-
-      <div class="wy-nav-content">
-        <div class="rst-content">
-          <div role="navigation" aria-label="Page navigation">
-  <ul class="wy-breadcrumbs">
-      <li><a href="index.html" class="icon icon-home"></a> &raquo;</li>
-          <li><a href="modules.html">lumibot</a> &raquo;</li>
-          <li><a href="lumibot.html">lumibot package</a> &raquo;</li>
-      <li>lumibot.backtesting package</li>
-      <li class="wy-breadcrumbs-aside">
-            <a href="_sources/lumibot.backtesting.rst.txt" rel="nofollow"> View page source</a>
-      </li>
-  </ul>
-  <hr/>
-</div>
-          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
-           <div itemprop="articleBody">
-             
-  <div class="section" id="lumibot-backtesting-package">
-<h1>lumibot.backtesting package<a class="headerlink" href="#lumibot-backtesting-package" title="Permalink to this headline">¶</a></h1>
-<div class="section" id="submodules">
-<h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this headline">¶</a></h2>
-</div>
-<div class="section" id="module-lumibot.backtesting.alpaca_backtesting">
-<span id="lumibot-backtesting-alpaca-backtesting-module"></span><h2>lumibot.backtesting.alpaca_backtesting module<a class="headerlink" href="#module-lumibot.backtesting.alpaca_backtesting" title="Permalink to this headline">¶</a></h2>
-<dl class="py class">
-<dt id="lumibot.backtesting.alpaca_backtesting.AlpacaBacktesting">
-<em class="property"><span class="pre">class</span> </em><code class="sig-prename descclassname"><span class="pre">lumibot.backtesting.alpaca_backtesting.</span></code><code class="sig-name descname"><span class="pre">AlpacaBacktesting</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">datetime_start</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">datetime_end</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.alpaca_backtesting.AlpacaBacktesting" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#lumibot.backtesting.data_source_backtesting.DataSourceBacktesting" title="lumibot.backtesting.data_source_backtesting.DataSourceBacktesting"><code class="xref py py-class docutils literal notranslate"><span class="pre">lumibot.backtesting.data_source_backtesting.DataSourceBacktesting</span></code></a>, <a class="reference internal" href="lumibot.data_sources.html#lumibot.data_sources.alpaca_data.AlpacaData" title="lumibot.data_sources.alpaca_data.AlpacaData"><code class="xref py py-class docutils literal notranslate"><span class="pre">lumibot.data_sources.alpaca_data.AlpacaData</span></code></a></p>
-</dd></dl>
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+        <div class="visually-hidden">Toggle table of contents sidebar</div>
+        <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="index.html">
+  
+  
+  <span class="sidebar-brand-text">Lumibot  documentation</span>
+  
+</a><form class="sidebar-search-container" method="get" action="search.html" role="search">
+  <input class="sidebar-search" placeholder=Search name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting Started</a></li>
+<li class="toctree-l1 current has-children"><a class="reference internal" href="lumibot.html">Lumibot</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul class="current">
+<li class="toctree-l2 current current-page"><a class="current reference internal" href="#">Backtesting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lumibot.brokers.html">Brokers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lumibot.data_sources.html">Data Sources</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lumibot.entities.html">Entities</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lumibot.strategies.html">Strategies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lumibot.traders.html">Traders</a></li>
+</ul>
+</li>
+</ul>
 
 </div>
-<div class="section" id="module-lumibot.backtesting.alpha_vantage_backtesting">
-<span id="lumibot-backtesting-alpha-vantage-backtesting-module"></span><h2>lumibot.backtesting.alpha_vantage_backtesting module<a class="headerlink" href="#module-lumibot.backtesting.alpha_vantage_backtesting" title="Permalink to this headline">¶</a></h2>
-<dl class="py class">
-<dt id="lumibot.backtesting.alpha_vantage_backtesting.AlphaVantageBacktesting">
-<em class="property"><span class="pre">class</span> </em><code class="sig-prename descclassname"><span class="pre">lumibot.backtesting.alpha_vantage_backtesting.</span></code><code class="sig-name descname"><span class="pre">AlphaVantageBacktesting</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">datetime_start</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">datetime_end</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.alpha_vantage_backtesting.AlphaVantageBacktesting" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#lumibot.backtesting.data_source_backtesting.DataSourceBacktesting" title="lumibot.backtesting.data_source_backtesting.DataSourceBacktesting"><code class="xref py py-class docutils literal notranslate"><span class="pre">lumibot.backtesting.data_source_backtesting.DataSourceBacktesting</span></code></a>, <a class="reference internal" href="lumibot.data_sources.html#lumibot.data_sources.alpha_vantage_data.AlphaVantageData" title="lumibot.data_sources.alpha_vantage_data.AlphaVantageData"><code class="xref py py-class docutils literal notranslate"><span class="pre">lumibot.data_sources.alpha_vantage_data.AlphaVantageData</span></code></a></p>
-</dd></dl>
-
 </div>
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <div class="content-icon-container">
+          <div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle">
+              <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+              <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+            <div class="visually-hidden">Toggle table of contents sidebar</div>
+            <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+          </label>
+        </div>
+        <article role="main">
+          <div class="section" id="backtesting">
+<h1>Backtesting<a class="headerlink" href="#backtesting" title="Permalink to this headline">¶</a></h1>
 <div class="section" id="module-lumibot.backtesting.backtesting_broker">
-<span id="lumibot-backtesting-backtesting-broker-module"></span><h2>lumibot.backtesting.backtesting_broker module<a class="headerlink" href="#module-lumibot.backtesting.backtesting_broker" title="Permalink to this headline">¶</a></h2>
+<span id="backtesting-broker"></span><h2>Backtesting Broker<a class="headerlink" href="#module-lumibot.backtesting.backtesting_broker" title="Permalink to this headline">¶</a></h2>
 <dl class="py class">
-<dt id="lumibot.backtesting.backtesting_broker.BacktestingBroker">
-<em class="property"><span class="pre">class</span> </em><code class="sig-prename descclassname"><span class="pre">lumibot.backtesting.backtesting_broker.</span></code><code class="sig-name descname"><span class="pre">BacktestingBroker</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_source</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">connect_stream</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_workers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">20</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="lumibot.backtesting.backtesting_broker.BacktestingBroker">
+<em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">lumibot.backtesting.backtesting_broker.</span></span><span class="sig-name descname"><span class="pre">BacktestingBroker</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_source</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">connect_stream</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_workers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">20</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="lumibot.brokers.html#lumibot.brokers.broker.Broker" title="lumibot.brokers.broker.Broker"><code class="xref py py-class docutils literal notranslate"><span class="pre">lumibot.brokers.broker.Broker</span></code></a></p>
 <dl class="py attribute">
-<dt id="lumibot.backtesting.backtesting_broker.BacktestingBroker.CannotPredictFuture">
-<code class="sig-name descname"><span class="pre">CannotPredictFuture</span></code><em class="property"> <span class="pre">=</span> <span class="pre">ValueError('Cannot</span> <span class="pre">predict</span> <span class="pre">the</span> <span class="pre">future.</span> <span class="pre">Backtesting</span> <span class="pre">datetime</span> <span class="pre">already</span> <span class="pre">in</span> <span class="pre">the</span> <span class="pre">present.</span> <span class="pre">Check</span> <span class="pre">if</span> <span class="pre">your</span> <span class="pre">backtesting</span> <span class="pre">end</span> <span class="pre">time</span> <span class="pre">is</span> <span class="pre">set</span> <span class="pre">after</span> <span class="pre">available</span> <span class="pre">data.')</span></em><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.CannotPredictFuture" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="lumibot.backtesting.backtesting_broker.BacktestingBroker.CannotPredictFuture">
+<span class="sig-name descname"><span class="pre">CannotPredictFuture</span></span><em class="property"> <span class="pre">=</span> <span class="pre">ValueError('Cannot</span> <span class="pre">predict</span> <span class="pre">the</span> <span class="pre">future.</span> <span class="pre">Backtesting</span> <span class="pre">datetime</span> <span class="pre">already</span> <span class="pre">in</span> <span class="pre">the</span> <span class="pre">present.</span> <span class="pre">Check</span> <span class="pre">if</span> <span class="pre">your</span> <span class="pre">backtesting</span> <span class="pre">end</span> <span class="pre">time</span> <span class="pre">is</span> <span class="pre">set</span> <span class="pre">after</span> <span class="pre">available</span> <span class="pre">data.')</span></em><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.CannotPredictFuture" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
-
 <dl class="py attribute">
-<dt id="lumibot.backtesting.backtesting_broker.BacktestingBroker.IS_BACKTESTING_BROKER">
-<code class="sig-name descname"><span class="pre">IS_BACKTESTING_BROKER</span></code><em class="property"> <span class="pre">=</span> <span class="pre">True</span></em><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.IS_BACKTESTING_BROKER" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="lumibot.backtesting.backtesting_broker.BacktestingBroker.IS_BACKTESTING_BROKER">
+<span class="sig-name descname"><span class="pre">IS_BACKTESTING_BROKER</span></span><em class="property"> <span class="pre">=</span> <span class="pre">True</span></em><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.IS_BACKTESTING_BROKER" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
-
 <dl class="py method">
-<dt id="lumibot.backtesting.backtesting_broker.BacktestingBroker.cancel_order">
-<code class="sig-name descname"><span class="pre">cancel_order</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">order</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.cancel_order" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="lumibot.backtesting.backtesting_broker.BacktestingBroker.cancel_order">
+<span class="sig-name descname"><span class="pre">cancel_order</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">order</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.cancel_order" title="Permalink to this definition">¶</a></dt>
 <dd><p>Cancel an order</p>
 </dd></dl>
-
-<dl class="py method">
-<dt id="lumibot.backtesting.backtesting_broker.BacktestingBroker.datetime">
-<em class="property"><span class="pre">property</span> </em><code class="sig-name descname"><span class="pre">datetime</span></code><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.datetime" title="Permalink to this definition">¶</a></dt>
+<dl class="py property">
+<dt class="sig sig-object py" id="lumibot.backtesting.backtesting_broker.BacktestingBroker.datetime">
+<em class="property"><span class="pre">property</span> </em><span class="sig-name descname"><span class="pre">datetime</span></span><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.datetime" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
-
 <dl class="py method">
-<dt id="lumibot.backtesting.backtesting_broker.BacktestingBroker.expired_contracts">
-<code class="sig-name descname"><span class="pre">expired_contracts</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">strategy</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.expired_contracts" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="lumibot.backtesting.backtesting_broker.BacktestingBroker.expired_contracts">
+<span class="sig-name descname"><span class="pre">expired_contracts</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">strategy</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.expired_contracts" title="Permalink to this definition">¶</a></dt>
 <dd><p>Checks if options or futures contracts have expried and converts
 to cash.</p>
 <dl class="field-list simple">
@@ -150,82 +233,69 @@ to cash.</p>
 </dd>
 </dl>
 </dd></dl>
-
 <dl class="py method">
-<dt id="lumibot.backtesting.backtesting_broker.BacktestingBroker.get_chain">
-<code class="sig-name descname"><span class="pre">get_chain</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">chains</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exchange</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'SMART'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.get_chain" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="lumibot.backtesting.backtesting_broker.BacktestingBroker.get_chain">
+<span class="sig-name descname"><span class="pre">get_chain</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">chains</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exchange</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'SMART'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.get_chain" title="Permalink to this definition">¶</a></dt>
 <dd><p>Returns option chain for a particular exchange.</p>
 </dd></dl>
-
 <dl class="py method">
-<dt id="lumibot.backtesting.backtesting_broker.BacktestingBroker.get_chains">
-<code class="sig-name descname"><span class="pre">get_chains</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.get_chains" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="lumibot.backtesting.backtesting_broker.BacktestingBroker.get_chains">
+<span class="sig-name descname"><span class="pre">get_chains</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.get_chains" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
-
 <dl class="py method">
-<dt id="lumibot.backtesting.backtesting_broker.BacktestingBroker.get_expiration">
-<code class="sig-name descname"><span class="pre">get_expiration</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">chains</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exchange</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'SMART'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.get_expiration" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="lumibot.backtesting.backtesting_broker.BacktestingBroker.get_expiration">
+<span class="sig-name descname"><span class="pre">get_expiration</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">chains</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exchange</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'SMART'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.get_expiration" title="Permalink to this definition">¶</a></dt>
 <dd><p>Returns expirations and strikes high/low of target price.</p>
 </dd></dl>
-
 <dl class="py method">
-<dt id="lumibot.backtesting.backtesting_broker.BacktestingBroker.get_last_bar">
-<code class="sig-name descname"><span class="pre">get_last_bar</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.get_last_bar" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="lumibot.backtesting.backtesting_broker.BacktestingBroker.get_last_bar">
+<span class="sig-name descname"><span class="pre">get_last_bar</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.get_last_bar" title="Permalink to this definition">¶</a></dt>
 <dd><p>Returns OHLCV dictionary for last bar of the asset.</p>
 </dd></dl>
-
 <dl class="py method">
-<dt id="lumibot.backtesting.backtesting_broker.BacktestingBroker.get_last_price">
-<code class="sig-name descname"><span class="pre">get_last_price</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.get_last_price" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="lumibot.backtesting.backtesting_broker.BacktestingBroker.get_last_price">
+<span class="sig-name descname"><span class="pre">get_last_price</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.get_last_price" title="Permalink to this definition">¶</a></dt>
 <dd><p>Takes an asset asset and returns the last known price</p>
 </dd></dl>
-
 <dl class="py method">
-<dt id="lumibot.backtesting.backtesting_broker.BacktestingBroker.get_last_prices">
-<code class="sig-name descname"><span class="pre">get_last_prices</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">symbols</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.get_last_prices" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="lumibot.backtesting.backtesting_broker.BacktestingBroker.get_last_prices">
+<span class="sig-name descname"><span class="pre">get_last_prices</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">symbols</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.get_last_prices" title="Permalink to this definition">¶</a></dt>
 <dd><p>Takes a list of symbols and returns the last known prices</p>
 </dd></dl>
-
 <dl class="py method">
-<dt id="lumibot.backtesting.backtesting_broker.BacktestingBroker.get_multiplier">
-<code class="sig-name descname"><span class="pre">get_multiplier</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">chains</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exchange</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'SMART'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.get_multiplier" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="lumibot.backtesting.backtesting_broker.BacktestingBroker.get_multiplier">
+<span class="sig-name descname"><span class="pre">get_multiplier</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">chains</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exchange</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'SMART'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.get_multiplier" title="Permalink to this definition">¶</a></dt>
 <dd><p>Returns the multiplier</p>
 </dd></dl>
-
 <dl class="py method">
-<dt id="lumibot.backtesting.backtesting_broker.BacktestingBroker.get_strikes">
-<code class="sig-name descname"><span class="pre">get_strikes</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.get_strikes" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="lumibot.backtesting.backtesting_broker.BacktestingBroker.get_strikes">
+<span class="sig-name descname"><span class="pre">get_strikes</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.get_strikes" title="Permalink to this definition">¶</a></dt>
 <dd><p>Returns the strikes for an option asset with right and
 expiry.</p>
 </dd></dl>
-
 <dl class="py method">
-<dt id="lumibot.backtesting.backtesting_broker.BacktestingBroker.get_time_to_close">
-<code class="sig-name descname"><span class="pre">get_time_to_close</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.get_time_to_close" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="lumibot.backtesting.backtesting_broker.BacktestingBroker.get_time_to_close">
+<span class="sig-name descname"><span class="pre">get_time_to_close</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.get_time_to_close" title="Permalink to this definition">¶</a></dt>
 <dd><p>Return the remaining time for the market to close in seconds</p>
 </dd></dl>
-
 <dl class="py method">
-<dt id="lumibot.backtesting.backtesting_broker.BacktestingBroker.get_time_to_open">
-<code class="sig-name descname"><span class="pre">get_time_to_open</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.get_time_to_open" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="lumibot.backtesting.backtesting_broker.BacktestingBroker.get_time_to_open">
+<span class="sig-name descname"><span class="pre">get_time_to_open</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.get_time_to_open" title="Permalink to this definition">¶</a></dt>
 <dd><p>Return the remaining time for the market to open in seconds</p>
 </dd></dl>
-
 <dl class="py method">
-<dt id="lumibot.backtesting.backtesting_broker.BacktestingBroker.is_market_open">
-<code class="sig-name descname"><span class="pre">is_market_open</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.is_market_open" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="lumibot.backtesting.backtesting_broker.BacktestingBroker.is_market_open">
+<span class="sig-name descname"><span class="pre">is_market_open</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.is_market_open" title="Permalink to this definition">¶</a></dt>
 <dd><p>return True if market is open else false</p>
 </dd></dl>
-
 <dl class="py method">
-<dt id="lumibot.backtesting.backtesting_broker.BacktestingBroker.limit_order">
-<code class="sig-name descname"><span class="pre">limit_order</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">limit_price</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">side</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">open</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">high</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">low</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.limit_order" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="lumibot.backtesting.backtesting_broker.BacktestingBroker.limit_order">
+<span class="sig-name descname"><span class="pre">limit_order</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">limit_price</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">side</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">open</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">high</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">low</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.limit_order" title="Permalink to this definition">¶</a></dt>
 <dd><p>Limit order logic.</p>
 </dd></dl>
-
 <dl class="py method">
-<dt id="lumibot.backtesting.backtesting_broker.BacktestingBroker.process_pending_orders">
-<code class="sig-name descname"><span class="pre">process_pending_orders</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">strategy</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.process_pending_orders" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="lumibot.backtesting.backtesting_broker.BacktestingBroker.process_pending_orders">
+<span class="sig-name descname"><span class="pre">process_pending_orders</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">strategy</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.process_pending_orders" title="Permalink to this definition">¶</a></dt>
 <dd><p>Used to evaluate and execute open orders in backtesting.</p>
 <p>This method will evaluate the open orders at the beginning of every new bar to
 determine if any of the open orders should have been filled. This method will
@@ -236,112 +306,141 @@ execute order events as needed, mostly fill events.</p>
 </dd>
 </dl>
 </dd></dl>
-
 <dl class="py method">
-<dt id="lumibot.backtesting.backtesting_broker.BacktestingBroker.should_continue">
-<code class="sig-name descname"><span class="pre">should_continue</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.should_continue" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="lumibot.backtesting.backtesting_broker.BacktestingBroker.should_continue">
+<span class="sig-name descname"><span class="pre">should_continue</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.should_continue" title="Permalink to this definition">¶</a></dt>
 <dd><p>In production mode always returns True.
 Needs to be overloaded for backtesting to
 check if the limit datetime was reached</p>
 </dd></dl>
-
 <dl class="py method">
-<dt id="lumibot.backtesting.backtesting_broker.BacktestingBroker.stop_order">
-<code class="sig-name descname"><span class="pre">stop_order</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">stop_price</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">side</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">open</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">high</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">low</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.stop_order" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="lumibot.backtesting.backtesting_broker.BacktestingBroker.stop_order">
+<span class="sig-name descname"><span class="pre">stop_order</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">stop_price</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">side</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">open</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">high</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">low</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.stop_order" title="Permalink to this definition">¶</a></dt>
 <dd><p>Stop order logic.</p>
 </dd></dl>
-
 <dl class="py method">
-<dt id="lumibot.backtesting.backtesting_broker.BacktestingBroker.submit_order">
-<code class="sig-name descname"><span class="pre">submit_order</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">order</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.submit_order" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="lumibot.backtesting.backtesting_broker.BacktestingBroker.submit_order">
+<span class="sig-name descname"><span class="pre">submit_order</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">order</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.submit_order" title="Permalink to this definition">¶</a></dt>
 <dd><p>Submit an order for an asset</p>
 </dd></dl>
-
 <dl class="py method">
-<dt id="lumibot.backtesting.backtesting_broker.BacktestingBroker.submit_orders">
-<code class="sig-name descname"><span class="pre">submit_orders</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">orders</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.submit_orders" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="lumibot.backtesting.backtesting_broker.BacktestingBroker.submit_orders">
+<span class="sig-name descname"><span class="pre">submit_orders</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">orders</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.submit_orders" title="Permalink to this definition">¶</a></dt>
 <dd><p>submit orders</p>
 </dd></dl>
-
 </dd></dl>
-
 </div>
 <div class="section" id="module-lumibot.backtesting.data_source_backtesting">
-<span id="lumibot-backtesting-data-source-backtesting-module"></span><h2>lumibot.backtesting.data_source_backtesting module<a class="headerlink" href="#module-lumibot.backtesting.data_source_backtesting" title="Permalink to this headline">¶</a></h2>
+<span id="data-source-backtesting"></span><h2>Data Source Backtesting<a class="headerlink" href="#module-lumibot.backtesting.data_source_backtesting" title="Permalink to this headline">¶</a></h2>
 <dl class="py class">
-<dt id="lumibot.backtesting.data_source_backtesting.DataSourceBacktesting">
-<em class="property"><span class="pre">class</span> </em><code class="sig-prename descclassname"><span class="pre">lumibot.backtesting.data_source_backtesting.</span></code><code class="sig-name descname"><span class="pre">DataSourceBacktesting</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">datetime_start</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">datetime_end</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.data_source_backtesting.DataSourceBacktesting" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="lumibot.backtesting.data_source_backtesting.DataSourceBacktesting">
+<em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">lumibot.backtesting.data_source_backtesting.</span></span><span class="sig-name descname"><span class="pre">DataSourceBacktesting</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">datetime_start</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">datetime_end</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.data_source_backtesting.DataSourceBacktesting" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="lumibot.data_sources.html#lumibot.data_sources.data_source.DataSource" title="lumibot.data_sources.data_source.DataSource"><code class="xref py py-class docutils literal notranslate"><span class="pre">lumibot.data_sources.data_source.DataSource</span></code></a></p>
 <dl class="py attribute">
-<dt id="lumibot.backtesting.data_source_backtesting.DataSourceBacktesting.IS_BACKTESTING_DATA_SOURCE">
-<code class="sig-name descname"><span class="pre">IS_BACKTESTING_DATA_SOURCE</span></code><em class="property"> <span class="pre">=</span> <span class="pre">True</span></em><a class="headerlink" href="#lumibot.backtesting.data_source_backtesting.DataSourceBacktesting.IS_BACKTESTING_DATA_SOURCE" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="lumibot.backtesting.data_source_backtesting.DataSourceBacktesting.IS_BACKTESTING_DATA_SOURCE">
+<span class="sig-name descname"><span class="pre">IS_BACKTESTING_DATA_SOURCE</span></span><em class="property"> <span class="pre">=</span> <span class="pre">True</span></em><a class="headerlink" href="#lumibot.backtesting.data_source_backtesting.DataSourceBacktesting.IS_BACKTESTING_DATA_SOURCE" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
-
 <dl class="py method">
-<dt id="lumibot.backtesting.data_source_backtesting.DataSourceBacktesting.get_datetime">
-<code class="sig-name descname"><span class="pre">get_datetime</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.data_source_backtesting.DataSourceBacktesting.get_datetime" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="lumibot.backtesting.data_source_backtesting.DataSourceBacktesting.get_datetime">
+<span class="sig-name descname"><span class="pre">get_datetime</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.data_source_backtesting.DataSourceBacktesting.get_datetime" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
-
 <dl class="py method">
-<dt id="lumibot.backtesting.data_source_backtesting.DataSourceBacktesting.get_datetime_range">
-<code class="sig-name descname"><span class="pre">get_datetime_range</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">length</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timestep</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'minute'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timeshift</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.data_source_backtesting.DataSourceBacktesting.get_datetime_range" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="lumibot.backtesting.data_source_backtesting.DataSourceBacktesting.get_datetime_range">
+<span class="sig-name descname"><span class="pre">get_datetime_range</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">length</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timestep</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'minute'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timeshift</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.data_source_backtesting.DataSourceBacktesting.get_datetime_range" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
-
 </dd></dl>
-
 </div>
 <div class="section" id="module-lumibot.backtesting.pandas_backtesting">
-<span id="lumibot-backtesting-pandas-backtesting-module"></span><h2>lumibot.backtesting.pandas_backtesting module<a class="headerlink" href="#module-lumibot.backtesting.pandas_backtesting" title="Permalink to this headline">¶</a></h2>
+<span id="pandas-backtesting"></span><h2>Pandas Backtesting<a class="headerlink" href="#module-lumibot.backtesting.pandas_backtesting" title="Permalink to this headline">¶</a></h2>
 <dl class="py class">
-<dt id="lumibot.backtesting.pandas_backtesting.PandasDataBacktesting">
-<em class="property"><span class="pre">class</span> </em><code class="sig-prename descclassname"><span class="pre">lumibot.backtesting.pandas_backtesting.</span></code><code class="sig-name descname"><span class="pre">PandasDataBacktesting</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">datetime_start</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">datetime_end</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pandas_data</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.pandas_backtesting.PandasDataBacktesting" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="lumibot.backtesting.pandas_backtesting.PandasDataBacktesting">
+<em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">lumibot.backtesting.pandas_backtesting.</span></span><span class="sig-name descname"><span class="pre">PandasDataBacktesting</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">datetime_start</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">datetime_end</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pandas_data</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.pandas_backtesting.PandasDataBacktesting" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#lumibot.backtesting.data_source_backtesting.DataSourceBacktesting" title="lumibot.backtesting.data_source_backtesting.DataSourceBacktesting"><code class="xref py py-class docutils literal notranslate"><span class="pre">lumibot.backtesting.data_source_backtesting.DataSourceBacktesting</span></code></a>, <a class="reference internal" href="lumibot.data_sources.html#lumibot.data_sources.pandas.PandasData" title="lumibot.data_sources.pandas.PandasData"><code class="xref py py-class docutils literal notranslate"><span class="pre">lumibot.data_sources.pandas.PandasData</span></code></a></p>
 </dd></dl>
-
 </div>
 <div class="section" id="module-lumibot.backtesting.yahoo_backtesting">
-<span id="lumibot-backtesting-yahoo-backtesting-module"></span><h2>lumibot.backtesting.yahoo_backtesting module<a class="headerlink" href="#module-lumibot.backtesting.yahoo_backtesting" title="Permalink to this headline">¶</a></h2>
+<span id="yahoo-backtesting"></span><h2>Yahoo Backtesting<a class="headerlink" href="#module-lumibot.backtesting.yahoo_backtesting" title="Permalink to this headline">¶</a></h2>
 <dl class="py class">
-<dt id="lumibot.backtesting.yahoo_backtesting.YahooDataBacktesting">
-<em class="property"><span class="pre">class</span> </em><code class="sig-prename descclassname"><span class="pre">lumibot.backtesting.yahoo_backtesting.</span></code><code class="sig-name descname"><span class="pre">YahooDataBacktesting</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">datetime_start</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">datetime_end</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.yahoo_backtesting.YahooDataBacktesting" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="lumibot.backtesting.yahoo_backtesting.YahooDataBacktesting">
+<em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">lumibot.backtesting.yahoo_backtesting.</span></span><span class="sig-name descname"><span class="pre">YahooDataBacktesting</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">datetime_start</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">datetime_end</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.yahoo_backtesting.YahooDataBacktesting" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#lumibot.backtesting.data_source_backtesting.DataSourceBacktesting" title="lumibot.backtesting.data_source_backtesting.DataSourceBacktesting"><code class="xref py py-class docutils literal notranslate"><span class="pre">lumibot.backtesting.data_source_backtesting.DataSourceBacktesting</span></code></a>, <a class="reference internal" href="lumibot.data_sources.html#lumibot.data_sources.yahoo.YahooData" title="lumibot.data_sources.yahoo.YahooData"><code class="xref py py-class docutils literal notranslate"><span class="pre">lumibot.data_sources.yahoo.YahooData</span></code></a></p>
 </dd></dl>
-
-</div>
-<div class="section" id="module-lumibot.backtesting">
-<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-lumibot.backtesting" title="Permalink to this headline">¶</a></h2>
 </div>
 </div>
 
+        </article>
+      </div>
+      <footer>
+        
+        <div class="related-pages">
+          <a class="next-page" href="lumibot.brokers.html">
+              <div class="page-info">
+                <div class="context">
+                  <span>Next</span>
+                </div>
+                <div class="title">Brokers</div>
+              </div>
+              <svg><use href="#svg-arrow-right"></use></svg>
+            </a>
+          <a class="prev-page" href="lumibot.html">
+              <svg><use href="#svg-arrow-right"></use></svg>
+              <div class="page-info">
+                <div class="context">
+                  <span>Previous</span>
+                </div>
+                
+                <div class="title">Lumibot</div>
+                
+              </div>
+            </a>
+        </div>
 
-           </div>
-          </div>
-          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="lumibot.html" class="btn btn-neutral float-left" title="lumibot package" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="lumibot.brokers.html" class="btn btn-neutral float-right" title="lumibot.brokers package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <div class="related-information">
+              Copyright &#169; 2021, Lumiwealth |
+            Built with <a href="https://www.sphinx-doc.org/">Sphinx</a>
+              and
+              <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+              <a href="https://github.com/pradyunsg/furo">Furo theme</a>. |
+            <a class="muted-link" href="_sources/lumibot.backtesting.rst.txt"
+               rel="nofollow">
+              Show Source
+            </a>
+        </div>
+        
+      </footer>
     </div>
+    <aside class="toc-drawer">
+      
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            Contents
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">Backtesting</a><ul>
+<li><a class="reference internal" href="#module-lumibot.backtesting.backtesting_broker">Backtesting Broker</a></li>
+<li><a class="reference internal" href="#module-lumibot.backtesting.data_source_backtesting">Data Source Backtesting</a></li>
+<li><a class="reference internal" href="#module-lumibot.backtesting.pandas_backtesting">Pandas Backtesting</a></li>
+<li><a class="reference internal" href="#module-lumibot.backtesting.yahoo_backtesting">Yahoo Backtesting</a></li>
+</ul>
+</li>
+</ul>
 
-  <hr/>
-
-  <div role="contentinfo">
-    <p>&#169; Copyright 2021, Lumiwealth.</p>
-  </div>
-
-  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
-    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
-    provided by <a href="https://readthedocs.org">Read the Docs</a>.
-   
-
-</footer>
+          </div>
         </div>
       </div>
-    </section>
+      
+      
+    </aside>
   </div>
-  <script>
-      jQuery(function () {
-          SphinxRtdTheme.Navigation.enable(true);
-      });
-  </script> 
-
-</body>
+</div><script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/doctools.js"></script>
+    <script src="_static/scripts/main.js"></script>
+    </body>
 </html>

@@ -1,0 +1,7 @@
+download\_price\_data\_alpaca module
+====================================
+
+.. automodule:: download_price_data_alpaca
+   :members:
+   :undoc-members:
+   :show-inheritance:

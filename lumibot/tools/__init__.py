@@ -5,3 +5,4 @@ from .indicators import *
 from .pandas import *
 from .types import *
 from .yahoo_helper import YahooHelper
+from .black_scholes import BS

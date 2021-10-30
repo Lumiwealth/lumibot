@@ -1,7 +1,7 @@
-from collections import deque
 import datetime
 import time
 import traceback
+from collections import deque
 from datetime import timezone
 from threading import Thread
 
@@ -60,12 +60,23 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         return clock
 
     def market_hours(self, market="NASDAQ", close=True, next=False, date=None):
-        """Return if market open or closed.
-        params:
-          - market (str: default `NASDAQ`): which market to test.
-          - close (bool: default `True`): Choose open or close to check.
-          - next (bool: default `False`): Check current day or next day.
-          - date (datetime.date, default `None`) Date to check, `None` for today.
+        """[summary]
+
+        Parameters
+        ----------
+        market : str, optional
+            Which market to test, by default "NASDAQ"
+        close : bool, optional
+            Choose open or close to check, by default True
+        next : bool, optional
+            Check current day or next day, by default False
+        date : [type], optional
+            Date to check, `None` for today, by default None
+
+        Returns
+        -------
+        [type]
+            [description]
         """
 
         market = self.market if self.market is not None else market
@@ -88,7 +99,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         return self.utc_to_local(self.market_hours(close=True))
 
     def is_market_open(self):
-        """return True if market is open else false"""
+        """Return True if market is open else False"""
         open_time = self.utc_to_local(self.market_hours(close=False))
         close_time = self.utc_to_local(self.market_hours(close=True))
 
@@ -127,7 +138,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
     # =========Positions functions==================
 
     def _parse_broker_position(self, broker_position, strategy, orders=None):
-        """parse a broker position representation
+        """Parse a broker position representation
         into a position object"""
         asset = broker_position.asset
         quantity = int(broker_position.Quantity)
@@ -135,7 +146,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         return position
 
     def _parse_broker_positions(self, broker_positions, strategy):
-        """parse a list of broker positions into a
+        """Parse a list of broker positions into a
         list of position objects"""
         result = []
         for account, broker_position in broker_positions.iterrows():
@@ -178,7 +189,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
     # =======Orders and assets functions=========
 
     def _parse_broker_order(self, response, strategy):
-        """parse a broker order representation
+        """Parse a broker order representation
         to an order object"""
 
         order = OrderLum(
@@ -247,11 +258,11 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         self.ib.cancel_order(order_id)
 
     def cancel_open_orders(self, strategy=None):
-        """cancel all the strategy open orders"""
+        """Cancel all the strategy open orders"""
         self.ib.reqGlobalCancel()
 
     def sell_all(self, strategy, cancel_open_orders=True):
-        """sell all positions"""
+        """Sell all positions"""
         logging.warning("Strategy %s: sell all" % strategy)
         if cancel_open_orders:
             self.cancel_open_orders(strategy)
@@ -269,7 +280,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         self.submit_orders(orders)
 
     def load_positions(self):
-        """ Use to load any existing positions with the broker on start. """
+        """Use to load any existing positions with the broker on start. """
         positions = self.ib.get_positions()
         print("Load Positions", positions)
 
@@ -354,18 +365,18 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         duplicates so a list must be kept for checking.
 
         The following are possible for status:
-          - PendingSubmit
-          - PendingCancel
-          - PreSubmitted
-          - Submitted
-          - ApiCancelled
-          - Cancelled
-          - Filled
-          - Inactive
+        - PendingSubmit
+        - PendingCancel
+        - PreSubmitted
+        - Submitted
+        - ApiCancelled
+        - Cancelled
+        - Filled
+        - Inactive
 
-          Filled is problematic. - Filled indicates that the order has been completely
-          filled. Market orders executions  will not always trigger a Filled status.
-          Therefore this must also be checked using ExecDetails
+        Filled is problematic. - Filled indicates that the order has been completely
+        filled. Market orders executions  will not always trigger a Filled status.
+        Therefore this must also be checked using ExecDetails
         """
         if status in [
             "PendingSubmit",

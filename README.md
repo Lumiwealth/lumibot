@@ -1335,6 +1335,8 @@ print(mygreeks)
     'underlying_price': 148.98
  }
 ```
+* Note that `pv_dividend` is only available in live testing. 
+
 To return only specific greeks, set them as `True` when calling the function.. 
 ```python
 mygreeks = self.get_greeks(asset, delta=True, theta=True)

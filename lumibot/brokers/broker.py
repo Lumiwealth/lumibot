@@ -357,7 +357,7 @@ class Broker:
         self._orders_queue.put(order)
 
     def submit_orders(self, orders):
-        """submit orders"""
+        """Submit orders"""
         self._orders_queue.put(orders)
 
     def wait_for_order_registration(self, order):

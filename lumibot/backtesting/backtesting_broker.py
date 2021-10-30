@@ -90,7 +90,7 @@ class BacktestingBroker(Broker):
         return True
 
     def is_market_open(self):
-        """return True if market is open else false"""
+        """Return True if market is open else false"""
         now = self.datetime
         return (
             (now >= self._trading_days.market_open)
@@ -489,6 +489,30 @@ class BacktestingBroker(Broker):
         """Returns the strikes for an option asset with right and
         expiry."""
         return self._data_source.get_strikes(asset)
+
+    def _get_greeks(
+            self,
+            asset,
+            implied_volatility=False,
+            delta=False,
+            option_price=False,
+            pv_dividend=False,
+            gamma=False,
+            vega=False,
+            theta=False,
+            underlying_price=False,
+    ):
+        return self._data_source.get_greeks(
+            asset,
+            implied_volatility=implied_volatility,
+            delta=delta,
+            option_price=option_price,
+            pv_dividend=pv_dividend,
+            gamma=gamma,
+            vega=vega,
+            theta=theta,
+            underlying_price=underlying_price,
+        )
 
     # ==========Processing streams data=======================
 

@@ -1,4 +1,5 @@
 import datetime
+
 import pandas as pd
 
 from lumibot.entities import Bars
@@ -203,16 +204,16 @@ class InteractiveBrokersData(DataSource):
         return 0
 
     def _get_greeks(
-            self,
-            asset,
-            implied_volatility=False,
-            delta=False,
-            option_price=False,
-            pv_dividend=False,
-            gamma=False,
-            vega=False,
-            theta=False,
-            underlying_price=False,
+        self,
+        asset,
+        implied_volatility=False,
+        delta=False,
+        option_price=False,
+        pv_dividend=False,
+        gamma=False,
+        vega=False,
+        theta=False,
+        underlying_price=False,
     ):
         """Returns the greeks for the option asset at the current
         bar.
@@ -245,8 +246,7 @@ class InteractiveBrokersData(DataSource):
 
         Returns
         -------
-        Returns a dictionary with greeks as keys and greek values as
-        values.
+        Returns a dictionary with greeks as keys and greek values as values.
 
         implied_volatility : float
             The implied volatility.

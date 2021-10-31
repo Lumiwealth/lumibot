@@ -67,6 +67,25 @@ class Singles(Strategy):
         self.chains = None
 
     def on_trading_iteration(self):
+        positions = self.get_tracked_positions()
+        # Generate log of greeks for one option held only.
+        if len(positions) > 0:
+            op = [
+                position
+                for position in positions
+                if position.asset.asset_type == "option"
+            ]
+            if len(op) == 1:
+                op = op[0]
+                op_greeks = self.get_greeks(op.asset)
+                op_greeks = {
+                    k: round(v, 4) for k, v in op_greeks.items() if v is not None
+                }
+                self.log_message(f"{op},{ op_greeks}")
+
+        # Selling criteria.
+        pass
+
         # Get chains
         if not self.chains:
             self.chains = self.get_chains(self.asset)
@@ -103,6 +122,10 @@ class Singles(Strategy):
                 f"Expiry and strikes: {self.asset}, {exp},{selected_strikes}"
             )
 
+            # Do not purchase more than one options.
+            if len(positions) > 0:
+                return
+
             # Get greeks
             for strike in selected_strikes:
                 option_asset = self.create_asset(
@@ -127,23 +150,25 @@ class Singles(Strategy):
         order = self.create_order(trading_option, self.quantity, side=self.side)
         self.submit_order(order)
 
-        stock_order = self.create_order(self.asset, quantity=100, side="buy")
-        self.submit_order(stock_order)
+
+    def before_market_closes(self):
+        self.sell_all()
 
     def on_abrupt_closing(self):
         self.sell_all()
 
 
+# noinspection PyUnboundLocalVariable
 def main(backtest=False):
     # Choose your budget and log file locations
-    budget = 100000
+    budget = 10000
     strategy_class = Singles
 
     symbol = "AAPL"
 
     if backtest:
-        backtesting_start = datetime.datetime(2021, 10, 11)  # Earliest is 5th
-        backtesting_end = datetime.datetime(2021, 10, 15)  # up to 20th
+        backtesting_start = datetime.datetime(2021, 10, 12)  # Earliest is 5th
+        backtesting_end = datetime.datetime(2021, 10, 16)  # up to 20th
 
         trading_hours_start = datetime.time(9, 30)
         trading_hours_end = datetime.time(16, 00)
@@ -178,8 +203,8 @@ def main(backtest=False):
         )
 
         # Load the options data.
-        filesdir =  Path(f"/home/runout/options_course/data/options/{symbol}")
-        files= sorted(list(filesdir.glob("*.csv")))
+        filesdir = Path(f"/home/runout/options_course/data/options/{symbol}")
+        files = sorted(list(filesdir.glob("*.csv")))
         for file in files:  # [file for file in files if file.suffix == ".csv"]:
             fn = file.name.split(".")[0]
             filepath = file
@@ -220,9 +245,9 @@ def main(backtest=False):
     # optimization
     kwargs = {
         "symbol": symbol,
-        "interval": 1,
+        "interval": 30,
         "right": "CALL",
-        "quantity": 1,
+        "quantity": 10,
         "side": "buy",
         "expiry_low": date(2021, 11, 2),
         "expiry_high": date(2021, 11, 15),
@@ -253,6 +278,7 @@ def main(backtest=False):
             pandas_data=pandas_data,
             **kwargs,
         )
+
 
 if __name__ == "__main__":
     main(backtest=True)

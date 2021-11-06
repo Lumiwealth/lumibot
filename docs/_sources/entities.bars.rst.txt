@@ -1,7 +1,7 @@
 Bars
 ----------------------------
 
-This object is a wrapper around pandas dataframe and contains bars data. The raw pandas dataframe object corresponds to bars.df. The dataframe has the following columns
+This object contains all pricing data over time, including open, close, high, low, etc prices. You can get the raw pandas DataFrame by using ``bars.df``. The dataframe has the following columns:
 
 * open
 * high
@@ -11,7 +11,7 @@ This object is a wrapper around pandas dataframe and contains bars data. The raw
 * dividend
 * stock_splits
 
-The dataframe index is of type pd.Timestamp localized at the timezone America/New_York.
+The dataframe index is of type pd. Timestamp localized at the timezone ``America/New_York``.
 
 Bars objects have the following fields:
 
@@ -28,8 +28,8 @@ Bars objects has the following helper methods:
 
 When specified, ``start`` and ``end`` will be used to filter the daterange for the momentum calculation. If none of start or end are specified the momentum will be calculated from the first row untill the last row of the dataframe.
 
-* ``get_total_volume(start=None, end=None)``: returns the sum of the volume column. When ``start`` and/or end is/are specified use them to filter for that given daterange before returning the total volume
-* ``filter(start=None, end=None)``: Filter the bars dataframe. When ``start`` and/or ``end`` is/are specified use them to filter for that given daterange before returning the total volume
+* ``get_total_volume(start = None, end = None)``: returns the sum of the volume column. When ``start`` and/or end is/are specified use them to filter for that given daterange before returning the total volume
+* ``filter(start = None, end = None)``: Filter the bars dataframe. When ``start`` and/or ``end`` is/are specified use them to filter for that given daterange before returning the total volume
 
 When getting historical data from Interactive Brokers, it is important to note that they do not consider themselves a data supplier. If you exceed these data access pacing rates, your data will be throttled. Additionally, with respect to above three mentioned helpers, when using Interactive Brokers live, tick data is called instead of bar data. This allows for more frequent and accurate pricing updates. ``get_last_dividend`` are not available in Interactive Brokers. (see [Interactive Brokers' pacing rules](https://interactivebrokers.github. io/tws-api/historical_limitations.html))
 

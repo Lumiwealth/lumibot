@@ -46,7 +46,7 @@ There is also a returns plot. By default this will show in a browser. You may su
         
     )
 
-Yahoo Backtesting
+Documentation
 """""""""""""""
 
 .. automodule:: lumibot.backtesting.yahoo_backtesting

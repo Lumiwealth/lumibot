@@ -213,7 +213,7 @@
         <article role="main">
           <div class="section" id="bars">
 <h1>Bars<a class="headerlink" href="#bars" title="Permalink to this headline">¶</a></h1>
-<p>This object is a wrapper around pandas dataframe and contains bars data. The raw pandas dataframe object corresponds to bars.df. The dataframe has the following columns</p>
+<p>This object contains all pricing data over time, including open, close, high, low, etc prices. You can get the raw pandas DataFrame by using <code class="docutils literal notranslate"><span class="pre">bars.df</span></code>. The dataframe has the following columns:</p>
 <ul class="simple">
 <li><p>open</p></li>
 <li><p>high</p></li>
@@ -223,7 +223,7 @@
 <li><p>dividend</p></li>
 <li><p>stock_splits</p></li>
 </ul>
-<p>The dataframe index is of type pd.Timestamp localized at the timezone America/New_York.</p>
+<p>The dataframe index is of type pd. Timestamp localized at the timezone <code class="docutils literal notranslate"><span class="pre">America/New_York</span></code>.</p>
 <p>Bars objects have the following fields:</p>
 <ul class="simple">
 <li><p>source: the source of the data e.g. (yahoo, alpaca, …)</p></li>
@@ -239,8 +239,8 @@
 </ul>
 <p>When specified, <code class="docutils literal notranslate"><span class="pre">start</span></code> and <code class="docutils literal notranslate"><span class="pre">end</span></code> will be used to filter the daterange for the momentum calculation. If none of start or end are specified the momentum will be calculated from the first row untill the last row of the dataframe.</p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">get_total_volume(start=None,</span> <span class="pre">end=None)</span></code>: returns the sum of the volume column. When <code class="docutils literal notranslate"><span class="pre">start</span></code> and/or end is/are specified use them to filter for that given daterange before returning the total volume</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">filter(start=None,</span> <span class="pre">end=None)</span></code>: Filter the bars dataframe. When <code class="docutils literal notranslate"><span class="pre">start</span></code> and/or <code class="docutils literal notranslate"><span class="pre">end</span></code> is/are specified use them to filter for that given daterange before returning the total volume</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">get_total_volume(start</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">end</span> <span class="pre">=</span> <span class="pre">None)</span></code>: returns the sum of the volume column. When <code class="docutils literal notranslate"><span class="pre">start</span></code> and/or end is/are specified use them to filter for that given daterange before returning the total volume</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">filter(start</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">end</span> <span class="pre">=</span> <span class="pre">None)</span></code>: Filter the bars dataframe. When <code class="docutils literal notranslate"><span class="pre">start</span></code> and/or <code class="docutils literal notranslate"><span class="pre">end</span></code> is/are specified use them to filter for that given daterange before returning the total volume</p></li>
 </ul>
 <p>When getting historical data from Interactive Brokers, it is important to note that they do not consider themselves a data supplier. If you exceed these data access pacing rates, your data will be throttled. Additionally, with respect to above three mentioned helpers, when using Interactive Brokers live, tick data is called instead of bar data. This allows for more frequent and accurate pricing updates. <code class="docutils literal notranslate"><span class="pre">get_last_dividend</span></code> are not available in Interactive Brokers. (see [Interactive Brokers’ pacing rules](<a class="reference external" href="https://interactivebrokers.github">https://interactivebrokers.github</a>. io/tws-api/historical_limitations.html))</p>
 <div class="section" id="module-lumibot.entities.bars">

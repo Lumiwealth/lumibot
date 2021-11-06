@@ -8,7 +8,7 @@ When building strategies, lifecycle methods needs to be overloaded. Trading logi
 .. image:: lifecycle_methods.png
 
 Initialize
-"""""""""""""""""""
+--------------------------------
 
 .. code-block:: python
 

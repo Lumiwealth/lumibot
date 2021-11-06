@@ -9,7 +9,7 @@ import lumibot.tools.lumibot_time
 
 
 class Trader:
-    def __init__(self, logfile="logs/test.log", debug=False, strategies=None):
+    def __init__(self, logfile="logs/logs.log", debug=False, strategies=None):
         # Setting debug and _logfile parameters and setting global log format
         self.debug = debug
         self.log_format = logging.Formatter("%(asctime)s: %(levelname)s: %(message)s")

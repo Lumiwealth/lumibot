@@ -11,6 +11,11 @@ Welcome to Lumibot's documentation!
    :caption: Contents:
    
    getting_started
+   backtesting
+   brokers
+   entities
+   lifecycle_methods
+   strategy_methods
    lumibot
 
 

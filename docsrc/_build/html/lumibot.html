@@ -2,7 +2,7 @@
 <html class="no-js">
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
-    <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Backtesting" href="lumibot.backtesting.html" /><link rel="prev" title="Getting Started" href="getting_started.html" />
+    <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Backtesting" href="lumibot.backtesting.html" /><link rel="prev" title="Strategy Methods" href="strategy_methods.html" />
 
     <meta name="generator" content="sphinx-4.2.0, furo 2021.10.09"/>
         <title>Lumibot - Lumibot documentation</title>
@@ -156,11 +156,31 @@
   <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting Started</a></li>
-<li class="toctree-l1 current has-children current-page"><a class="current reference internal" href="#">Lumibot</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l1 has-children"><a class="reference internal" href="backtesting.html">Backtesting</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.yahoo.html">Yahoo</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.pandas.html">Pandas (CSV or other data)</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="brokers.html">Brokers</a><input class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="brokers.alpaca.html">Alpaca</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.interactive_brokers.html">Interactive Brokers</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="entities.html">Entities</a><input class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="entities.asset.html">Asset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.bar.html">Bar</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.bars.html">Bars</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.data.html">Data</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.dataline.html">Dataline</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.order.html">Order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.position.html">Position</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="lifecycle_methods.html">Lifecycle Methods</a></li>
+<li class="toctree-l1"><a class="reference internal" href="strategy_methods.html">Strategy Methods</a></li>
+<li class="toctree-l1 current has-children current-page"><a class="current reference internal" href="#">Lumibot</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="lumibot.backtesting.html">Backtesting</a></li>
-<li class="toctree-l2"><a class="reference internal" href="lumibot.brokers.html">Brokers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="lumibot.data_sources.html">Data Sources</a></li>
-<li class="toctree-l2"><a class="reference internal" href="lumibot.entities.html">Entities</a></li>
 <li class="toctree-l2"><a class="reference internal" href="lumibot.strategies.html">Strategies</a></li>
 <li class="toctree-l2"><a class="reference internal" href="lumibot.traders.html">Traders</a></li>
 </ul>
@@ -198,14 +218,6 @@
 <li class="toctree-l1"><a class="reference internal" href="lumibot.backtesting.html">Backtesting</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="lumibot.backtesting.html#module-lumibot.backtesting.backtesting_broker">Backtesting Broker</a></li>
 <li class="toctree-l2"><a class="reference internal" href="lumibot.backtesting.html#module-lumibot.backtesting.data_source_backtesting">Data Source Backtesting</a></li>
-<li class="toctree-l2"><a class="reference internal" href="lumibot.backtesting.html#module-lumibot.backtesting.pandas_backtesting">Pandas Backtesting</a></li>
-<li class="toctree-l2"><a class="reference internal" href="lumibot.backtesting.html#module-lumibot.backtesting.yahoo_backtesting">Yahoo Backtesting</a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="lumibot.brokers.html">Brokers</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="lumibot.brokers.html#module-lumibot.brokers.alpaca">Alpaca</a></li>
-<li class="toctree-l2"><a class="reference internal" href="lumibot.brokers.html#module-lumibot.brokers.broker">Broker</a></li>
-<li class="toctree-l2"><a class="reference internal" href="lumibot.brokers.html#module-lumibot.brokers.interactive_brokers">Interactive Brokers</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="lumibot.data_sources.html">Data Sources</a><ul>
@@ -215,17 +227,10 @@
 <li class="toctree-l2"><a class="reference internal" href="lumibot.data_sources.html#module-lumibot.data_sources">Module contents</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="lumibot.entities.html">Entities</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="lumibot.entities.html#module-lumibot.entities.asset">Asset</a></li>
-<li class="toctree-l2"><a class="reference internal" href="lumibot.entities.html#module-lumibot.entities.bar">Bar</a></li>
-<li class="toctree-l2"><a class="reference internal" href="lumibot.entities.html#module-lumibot.entities.bars">Bars</a></li>
-<li class="toctree-l2"><a class="reference internal" href="lumibot.entities.html#module-lumibot.entities.data">Data</a></li>
-<li class="toctree-l2"><a class="reference internal" href="lumibot.entities.html#module-lumibot.entities.dataline">Dataline</a></li>
-<li class="toctree-l2"><a class="reference internal" href="lumibot.entities.html#module-lumibot.entities.order">Order</a></li>
-<li class="toctree-l2"><a class="reference internal" href="lumibot.entities.html#module-lumibot.entities.position">Position</a></li>
+<li class="toctree-l1"><a class="reference internal" href="lumibot.strategies.html">Strategies</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="lumibot.strategies.html#module-lumibot.strategies.strategy">Documentation</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="lumibot.strategies.html">Strategies</a></li>
 <li class="toctree-l1"><a class="reference internal" href="lumibot.traders.html">Traders</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="lumibot.traders.html#module-lumibot.traders.trader">Trader</a></li>
 </ul>
@@ -248,14 +253,14 @@
               </div>
               <svg><use href="#svg-arrow-right"></use></svg>
             </a>
-          <a class="prev-page" href="getting_started.html">
+          <a class="prev-page" href="strategy_methods.html">
               <svg><use href="#svg-arrow-right"></use></svg>
               <div class="page-info">
                 <div class="context">
                   <span>Previous</span>
                 </div>
                 
-                <div class="title">Getting Started</div>
+                <div class="title">Strategy Methods</div>
                 
               </div>
             </a>

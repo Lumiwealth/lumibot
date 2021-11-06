@@ -2,7 +2,7 @@
 <html class="no-js">
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
-    <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Brokers" href="lumibot.brokers.html" /><link rel="prev" title="Lumibot" href="lumibot.html" />
+    <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Data Sources" href="lumibot.data_sources.html" /><link rel="prev" title="Lumibot" href="lumibot.html" />
 
     <meta name="generator" content="sphinx-4.2.0, furo 2021.10.09"/>
         <title>Backtesting - Lumibot documentation</title>
@@ -156,11 +156,31 @@
   <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting Started</a></li>
-<li class="toctree-l1 current has-children"><a class="reference internal" href="lumibot.html">Lumibot</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul class="current">
+<li class="toctree-l1 has-children"><a class="reference internal" href="backtesting.html">Backtesting</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.yahoo.html">Yahoo</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.pandas.html">Pandas (CSV or other data)</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="brokers.html">Brokers</a><input class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="brokers.alpaca.html">Alpaca</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.interactive_brokers.html">Interactive Brokers</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="entities.html">Entities</a><input class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="entities.asset.html">Asset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.bar.html">Bar</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.bars.html">Bars</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.data.html">Data</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.dataline.html">Dataline</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.order.html">Order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.position.html">Position</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="lifecycle_methods.html">Lifecycle Methods</a></li>
+<li class="toctree-l1"><a class="reference internal" href="strategy_methods.html">Strategy Methods</a></li>
+<li class="toctree-l1 current has-children"><a class="reference internal" href="lumibot.html">Lumibot</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul class="current">
 <li class="toctree-l2 current current-page"><a class="current reference internal" href="#">Backtesting</a></li>
-<li class="toctree-l2"><a class="reference internal" href="lumibot.brokers.html">Brokers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="lumibot.data_sources.html">Data Sources</a></li>
-<li class="toctree-l2"><a class="reference internal" href="lumibot.entities.html">Entities</a></li>
 <li class="toctree-l2"><a class="reference internal" href="lumibot.strategies.html">Strategies</a></li>
 <li class="toctree-l2"><a class="reference internal" href="lumibot.traders.html">Traders</a></li>
 </ul>
@@ -198,7 +218,7 @@
 <dl class="py class">
 <dt class="sig sig-object py" id="lumibot.backtesting.backtesting_broker.BacktestingBroker">
 <em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">lumibot.backtesting.backtesting_broker.</span></span><span class="sig-name descname"><span class="pre">BacktestingBroker</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_source</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">connect_stream</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_workers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">20</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="lumibot.brokers.html#lumibot.brokers.broker.Broker" title="lumibot.brokers.broker.Broker"><code class="xref py py-class docutils literal notranslate"><span class="pre">lumibot.brokers.broker.Broker</span></code></a></p>
+<dd><p>Bases: <a class="reference internal" href="brokers.html#lumibot.brokers.broker.Broker" title="lumibot.brokers.broker.Broker"><code class="xref py py-class docutils literal notranslate"><span class="pre">lumibot.brokers.broker.Broker</span></code></a></p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="lumibot.backtesting.backtesting_broker.BacktestingBroker.CannotPredictFuture">
 <span class="sig-name descname"><span class="pre">CannotPredictFuture</span></span><em class="property"> <span class="pre">=</span> <span class="pre">ValueError('Cannot</span> <span class="pre">predict</span> <span class="pre">the</span> <span class="pre">future.</span> <span class="pre">Backtesting</span> <span class="pre">datetime</span> <span class="pre">already</span> <span class="pre">in</span> <span class="pre">the</span> <span class="pre">present.</span> <span class="pre">Check</span> <span class="pre">if</span> <span class="pre">your</span> <span class="pre">backtesting</span> <span class="pre">end</span> <span class="pre">time</span> <span class="pre">is</span> <span class="pre">set</span> <span class="pre">after</span> <span class="pre">available</span> <span class="pre">data.')</span></em><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.CannotPredictFuture" title="Permalink to this definition">¶</a></dt>
@@ -350,22 +370,6 @@ check if the limit datetime was reached</p>
 <dd></dd></dl>
 </dd></dl>
 </div>
-<div class="section" id="module-lumibot.backtesting.pandas_backtesting">
-<span id="pandas-backtesting"></span><h2>Pandas Backtesting<a class="headerlink" href="#module-lumibot.backtesting.pandas_backtesting" title="Permalink to this headline">¶</a></h2>
-<dl class="py class">
-<dt class="sig sig-object py" id="lumibot.backtesting.pandas_backtesting.PandasDataBacktesting">
-<em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">lumibot.backtesting.pandas_backtesting.</span></span><span class="sig-name descname"><span class="pre">PandasDataBacktesting</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">datetime_start</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">datetime_end</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pandas_data</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.pandas_backtesting.PandasDataBacktesting" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#lumibot.backtesting.data_source_backtesting.DataSourceBacktesting" title="lumibot.backtesting.data_source_backtesting.DataSourceBacktesting"><code class="xref py py-class docutils literal notranslate"><span class="pre">lumibot.backtesting.data_source_backtesting.DataSourceBacktesting</span></code></a>, <a class="reference internal" href="lumibot.data_sources.html#lumibot.data_sources.pandas.PandasData" title="lumibot.data_sources.pandas.PandasData"><code class="xref py py-class docutils literal notranslate"><span class="pre">lumibot.data_sources.pandas.PandasData</span></code></a></p>
-</dd></dl>
-</div>
-<div class="section" id="module-lumibot.backtesting.yahoo_backtesting">
-<span id="yahoo-backtesting"></span><h2>Yahoo Backtesting<a class="headerlink" href="#module-lumibot.backtesting.yahoo_backtesting" title="Permalink to this headline">¶</a></h2>
-<dl class="py class">
-<dt class="sig sig-object py" id="lumibot.backtesting.yahoo_backtesting.YahooDataBacktesting">
-<em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">lumibot.backtesting.yahoo_backtesting.</span></span><span class="sig-name descname"><span class="pre">YahooDataBacktesting</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">datetime_start</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">datetime_end</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.yahoo_backtesting.YahooDataBacktesting" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#lumibot.backtesting.data_source_backtesting.DataSourceBacktesting" title="lumibot.backtesting.data_source_backtesting.DataSourceBacktesting"><code class="xref py py-class docutils literal notranslate"><span class="pre">lumibot.backtesting.data_source_backtesting.DataSourceBacktesting</span></code></a>, <a class="reference internal" href="lumibot.data_sources.html#lumibot.data_sources.yahoo.YahooData" title="lumibot.data_sources.yahoo.YahooData"><code class="xref py py-class docutils literal notranslate"><span class="pre">lumibot.data_sources.yahoo.YahooData</span></code></a></p>
-</dd></dl>
-</div>
 </div>
 
         </article>
@@ -373,12 +377,12 @@ check if the limit datetime was reached</p>
       <footer>
         
         <div class="related-pages">
-          <a class="next-page" href="lumibot.brokers.html">
+          <a class="next-page" href="lumibot.data_sources.html">
               <div class="page-info">
                 <div class="context">
                   <span>Next</span>
                 </div>
-                <div class="title">Brokers</div>
+                <div class="title">Data Sources</div>
               </div>
               <svg><use href="#svg-arrow-right"></use></svg>
             </a>
@@ -424,8 +428,6 @@ check if the limit datetime was reached</p>
 <li><a class="reference internal" href="#">Backtesting</a><ul>
 <li><a class="reference internal" href="#module-lumibot.backtesting.backtesting_broker">Backtesting Broker</a></li>
 <li><a class="reference internal" href="#module-lumibot.backtesting.data_source_backtesting">Data Source Backtesting</a></li>
-<li><a class="reference internal" href="#module-lumibot.backtesting.pandas_backtesting">Pandas Backtesting</a></li>
-<li><a class="reference internal" href="#module-lumibot.backtesting.yahoo_backtesting">Yahoo Backtesting</a></li>
 </ul>
 </li>
 </ul>

@@ -1,15 +1,23 @@
 from datetime import datetime
 
-from credentials import AlpacaConfig
 from lumibot.backtesting import YahooDataBacktesting
 from lumibot.brokers import Alpaca
 from lumibot.strategies.strategy import Strategy
 from lumibot.traders import Trader
 
 
+class AlpacaConfig:
+    # Put your own Alpaca key here:
+    API_KEY = "YOUR_ALPACA_API_KEY"
+    # Put your own Alpaca secret here:
+    API_SECRET = "YOUR_ALPACA_SECRET"
+    # If you want to go live, you must change this. It is currently set for paper trading
+    ENDPOINT = "https://paper-api.alpaca.markets"
+
+
 class MyStrategy(Strategy):
     def initialize(self, symbol=""):
-        # Built in parameters
+        # Will make on_trading_iteration() run every 180 minutes
         self.sleeptime = 180
 
         # Custom parameters
@@ -22,17 +30,16 @@ class MyStrategy(Strategy):
         self.submit_order(self.order)
 
 
-logfile = "logs/test.log"
-trader = Trader(logfile=logfile)
-broker = Alpaca(AlpacaConfig)
-
 budget = 100000
-backtesting_start = datetime(2020, 1, 1)
-backtesting_end = datetime(2020, 12, 31)
-strategy_name = "MyStrategy"
+strategy_name = "My Strategy"
 
+trader = Trader()
+broker = Alpaca(AlpacaConfig)
 strategy = MyStrategy(strategy_name, budget, broker, symbol="SPY")
 
+# Backtest this strategy
+backtesting_start = datetime(2020, 1, 1)
+backtesting_end = datetime(2020, 12, 31)
 strategy.backtest(
     strategy_name,
     budget,
@@ -42,5 +49,6 @@ strategy.backtest(
     symbol="SPY",
 )
 
+# Run the strategy live
 trader.add_strategy(strategy)
 trader.run_all()

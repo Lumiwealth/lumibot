@@ -1,6 +1,29 @@
 Strategy Methods
 ************************
 
+All user defined strategies should inherit from the Strategy class.
+
+from strategies import Strategy
+
+.. code-block:: python
+
+   class MyStrategy(Strategy):
+      pass
+
+The abstract class Strategy has global parameters with default values, and some properties that can be used as helpers to build trading logic.
+
+The methods of this class can be split into several categories:
+
+**Lifecycle Methods** These are executed at different times during the execution of the bot. These represent the main flow of a strategy, some are mandatory.
+
+**Strategy Methods** These are strategy helper methods.
+
+**Broker Methods** How to interact with the broker (buy, sell, get positions, etc)
+
+**Data Methods** How to get price data easily
+
+All the methods in each of these categories are described below.
+
 When a strategy is instantiated, a broker object is passed to it (Check Quickstart). The strategy is run with the passed broker object. The following shortcuts executes broker methods within the strategy. Some methods can use either a symbol or an asset object. Please see asset.
 
 **self.log_message()**
@@ -69,7 +92,7 @@ Return the strategy list of symbols for all tracked positions and orders.
 
 Return type: list(str/asset)
 
-**self.get_asset_potential_total**
+**self.get_asset_potential_total()**
 
 Check the ongoing positions and the tracked orders of the strategy and returns the total number of shares provided all orders went through. In other words, add all outstanding orders and the total value of the position for an asset.
 
@@ -80,7 +103,7 @@ Parameters:
 symbol (str/asset): the string representation of the share/asset
 Return type: int
 
-**self.create_order**
+**self.create_order()**
 
 Create an order object attached to this strategy (Check the Entities, order section)
 
@@ -515,3 +538,11 @@ Parameters:
 
 symbol (str/asset): The symbol string representation (e.g AAPL, GOOG, ...) or asset object.
 Return type: dict of str:float
+
+Documentation
+"""""""""""""""""""
+
+.. automodule:: lumibot.strategies.strategy
+   :members:
+   :undoc-members:
+   :show-inheritance:

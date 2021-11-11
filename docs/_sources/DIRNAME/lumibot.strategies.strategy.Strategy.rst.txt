@@ -1,0 +1,114 @@
+﻿lumibot.strategies.strategy.Strategy
+====================================
+
+.. currentmodule:: lumibot.strategies.strategy
+
+.. autoclass:: Strategy
+
+   
+   .. automethod:: __init__
+
+   
+   .. rubric:: Methods
+
+   .. autosummary::
+   
+      ~Strategy.__init__
+      ~Strategy.after_market_closes
+      ~Strategy.await_market_to_close
+      ~Strategy.await_market_to_open
+      ~Strategy.backtest
+      ~Strategy.before_market_closes
+      ~Strategy.before_market_opens
+      ~Strategy.before_starting_trading
+      ~Strategy.cancel_open_orders
+      ~Strategy.cancel_order
+      ~Strategy.cancel_orders
+      ~Strategy.cancel_realtime_bars
+      ~Strategy.create_asset
+      ~Strategy.create_order
+      ~Strategy.get_asset_potential_total
+      ~Strategy.get_bars
+      ~Strategy.get_chain
+      ~Strategy.get_chains
+      ~Strategy.get_contract_details
+      ~Strategy.get_datetime
+      ~Strategy.get_datetime_range
+      ~Strategy.get_expiration
+      ~Strategy.get_greeks
+      ~Strategy.get_last_day
+      ~Strategy.get_last_minute
+      ~Strategy.get_last_price
+      ~Strategy.get_last_prices
+      ~Strategy.get_multiplier
+      ~Strategy.get_realtime_bars
+      ~Strategy.get_round_day
+      ~Strategy.get_round_minute
+      ~Strategy.get_strikes
+      ~Strategy.get_symbol_bars
+      ~Strategy.get_tick
+      ~Strategy.get_timestamp
+      ~Strategy.get_tracked_assets
+      ~Strategy.get_tracked_order
+      ~Strategy.get_tracked_orders
+      ~Strategy.get_tracked_position
+      ~Strategy.get_tracked_positions
+      ~Strategy.get_tradable_assets
+      ~Strategy.get_yesterday_dividend
+      ~Strategy.get_yesterday_dividends
+      ~Strategy.initialize
+      ~Strategy.is_tradable
+      ~Strategy.load_pandas
+      ~Strategy.localize_datetime
+      ~Strategy.log_message
+      ~Strategy.on_abrupt_closing
+      ~Strategy.on_bot_crash
+      ~Strategy.on_canceled_order
+      ~Strategy.on_filled_order
+      ~Strategy.on_new_order
+      ~Strategy.on_partially_filled_order
+      ~Strategy.on_strategy_end
+      ~Strategy.on_trading_iteration
+      ~Strategy.options_expiry_to_datetime_date
+      ~Strategy.plot_returns_vs_benchmark
+      ~Strategy.sell_all
+      ~Strategy.set_market
+      ~Strategy.sleep
+      ~Strategy.start_realtime_bars
+      ~Strategy.submit_order
+      ~Strategy.submit_orders
+      ~Strategy.to_default_timezone
+      ~Strategy.trace_stats
+      ~Strategy.wait_for_order_execution
+      ~Strategy.wait_for_order_registration
+      ~Strategy.wait_for_orders_execution
+      ~Strategy.wait_for_orders_registration
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~Strategy.IS_BACKTESTABLE
+      ~Strategy.analysis
+      ~Strategy.first_iteration
+      ~Strategy.initial_budget
+      ~Strategy.is_backtesting
+      ~Strategy.minutes_before_closing
+      ~Strategy.minutes_before_opening
+      ~Strategy.name
+      ~Strategy.parameters
+      ~Strategy.portfolio_value
+      ~Strategy.positions
+      ~Strategy.pytz
+      ~Strategy.risk_free_rate
+      ~Strategy.sleeptime
+      ~Strategy.stats
+      ~Strategy.stats_file
+      ~Strategy.timezone
+      ~Strategy.unspent_money
+   
+   

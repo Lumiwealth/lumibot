@@ -1,6 +1,8 @@
 import datetime
 import logging
+
 import pandas as pd
+
 from lumibot.entities import Asset, Order
 
 from ._strategy import _Strategy
@@ -92,6 +94,10 @@ class Strategy(_Strategy):
         -------
         message : str
             Strategy name plus the original message.
+
+        Example
+        --------
+        >>> self.log_message('Sending a buy order')
         """
         message = "Strategy %s: %s" % (self.name, message)
         logging.info(message)
@@ -116,10 +122,7 @@ class Strategy(_Strategy):
         position_filled=False,
         exchange="SMART",
     ):
-        """Creates a new order.
-
-        Create an order object attached to this strategy (Check the
-        Entities, order section)
+        """Creates a new order for this specific strategy. Once created, an order must still be submitted.
 
         Parameters
         ----------
@@ -171,6 +174,20 @@ class Strategy(_Strategy):
         -------
         Order
             Order object ready to be submitted for trading.
+
+        Example
+        -------
+        >>> # For a market buy order
+        >>> order = self.create_order("SPY", 100, "buy")
+        >>> self.submit_order(order)
+
+        >>> # For a limit order where limit price = 100
+        >>> limit_order = self.create_order("SPY", 1, "buy", limit_price=100)
+        >>> self.submit_order(limit_order)
+
+        >>> # Sell 100 shares of TLT
+        >>> order = self.create_order("TLT", 100, "sell")
+        >>> self.submit_order(order)
         """
         asset = self._set_asset_mapping(asset)
         order = Order(
@@ -207,6 +224,11 @@ class Strategy(_Strategy):
         Returns
         -------
         None
+
+        Example
+        -------
+        >>> # Sleep for 5 seconds
+        >>> self.sleep(5)
         """
         return self.broker.sleep(sleeptime)
 
@@ -377,12 +399,19 @@ class Strategy(_Strategy):
         position or None
             A position object for the assset if there is a tracked
             position or returns None to indicate no tracked position.
+
+        Example
+        -------
+        >>> # Get the position for the TLT asset
+        >>> position = self.get_tracked_position("TLT")
+        >>> # Show the quantity of the TLT position
+        >>> self.log_message(position.quantity)
         """
         asset = self._set_asset_mapping(asset)
         return self.broker.get_tracked_position(self.name, asset)
 
     def get_tracked_positions(self):
-        """get all tracked positions for the current strategy
+        """Get all tracked positions for the current strategy
 
         Seeks out and returns the all tracked positions in the current
         strategy.
@@ -393,6 +422,14 @@ class Strategy(_Strategy):
             Position objects for the strategy if there are tracked
             positions or returns and empty list to indicate no tracked
             position.
+
+        Example
+        -------
+        >>> # Get all tracked positions
+        >>> positions = self.get_tracked_positions()
+        >>> for position in positions:
+        >>>     # Show the quantity of each position
+        >>>     self.log_message(position.quantity)
         """
 
         return self.broker.get_tracked_positions(self.name)
@@ -407,7 +444,7 @@ class Strategy(_Strategy):
         return self.broker.get_contract_details(asset)
 
     def get_tracked_order(self, identifier):
-        """get a tracked order given an identifier.
+        """Get a tracked order given an identifier.
         Check that the order belongs to current strategy"""
         order = self.broker.get_tracked_order(identifier)
         if order.strategy == self.name:
@@ -415,7 +452,7 @@ class Strategy(_Strategy):
         return None
 
     def get_tracked_orders(self):
-        """get all tracked orders for a given strategy"""
+        """Get all tracked orders for a given strategy"""
         return self.broker.get_tracked_orders(self.name)
 
     def get_tracked_assets(self):
@@ -424,7 +461,7 @@ class Strategy(_Strategy):
         return self.broker.get_tracked_assets(self.name)
 
     def get_asset_potential_total(self, asset):
-        """given current strategy and a asset, check the ongoing
+        """Given current strategy and a asset, check the ongoing
         position and the tracked order and returns the total
         number of shares provided all orders went through"""
         asset = self._set_asset_mapping(asset)
@@ -443,8 +480,14 @@ class Strategy(_Strategy):
 
         Returns
         -------
-        order object
+        Order object
             Processed order object.
+
+        Example
+        -------
+        >>> # For a market buy order
+        >>> order = self.create_order("SPY", 100, "buy")
+        >>> self.submit_order(order)
         """
         return self.broker.submit_order(order)
 
@@ -463,6 +506,13 @@ class Strategy(_Strategy):
         -------
         list of orders
             List of processed order object.
+
+        Example
+        -------
+        >>> # For 2 market buy orders
+        >>> order1 = self.create_order("SPY", 100, "buy")
+        >>> order2 = self.create_order("TLT", 200, "buy")
+        >>> self.submit_orders([order1, order2])
         """
         return self.broker.submit_orders(orders)
 
@@ -495,6 +545,12 @@ class Strategy(_Strategy):
         -------
         None
 
+        Example
+        -------
+        >>> # Create an order then cancel it
+        >>> order = self.create_order("SPY", 100, "buy")
+        >>> self.submit_order(order)
+        >>> self.cancel_order(order)
         """
         return self.broker.cancel_order(order)
 
@@ -512,6 +568,15 @@ class Strategy(_Strategy):
         -------
         None
 
+        Example
+        -------
+        >>> # Create two orders then cancel them
+        >>> order1 = self.create_order("IBM", 100, "buy")
+        >>> order2 = self.create_order("AAPL", 100, "buy")
+        >>> self.submit_orders([order1, order2])
+        >>>
+        >>> # Cancel all orders
+        >>> self.cancel_orders([order1, order2])
         """
         return self.broker.cancel_orders(orders)
 
@@ -529,6 +594,11 @@ class Strategy(_Strategy):
         Returns
         -------
         None
+
+        Example
+        -------
+        >>> # Cancel all open orders
+        >>> self.cancel_open_orders()
         """
         return self.broker.cancel_open_orders(self.name)
 
@@ -551,7 +621,10 @@ class Strategy(_Strategy):
         -------
         None
 
-
+        Example
+        -------
+        >>> # Will close all positions for the strategy
+        >>> self.sell_all()
         """
         self.broker.sell_all(
             self.name,
@@ -574,6 +647,13 @@ class Strategy(_Strategy):
         -------
         Float
             Last closed price.
+
+        Example
+        -------
+        >>> # Will return the last price for the asset
+        >>> asset = "SPY"
+        >>> last_price = self.get_last_price(asset)
+        >>> self.log_message(f"Last price for {asset} is {last_price}")
         """
         asset = self._set_asset_mapping(asset)
         return self.broker.get_last_price(asset)
@@ -831,18 +911,17 @@ class Strategy(_Strategy):
 
         return sorted(list(set(cd.contract.strike for cd in contract_details)))
 
-
     def get_greeks(
-            self,
-            asset,
-            implied_volatility=False,
-            delta=False,
-            option_price=False,
-            pv_dividend=False,
-            gamma=False,
-            vega=False,
-            theta=False,
-            underlying_price=False,
+        self,
+        asset,
+        implied_volatility=False,
+        delta=False,
+        option_price=False,
+        pv_dividend=False,
+        gamma=False,
+        vega=False,
+        theta=False,
+        underlying_price=False,
     ):
         """Returns the greeks for the option asset at the current
         bar.
@@ -986,17 +1065,26 @@ class Strategy(_Strategy):
                 is_multiplier = asset.multiplier == multiplier
                 is_currency = asset.currency == currency
 
-                if asset_type == 'stock' and (
+                if asset_type == "stock" and (
                     is_symbol and is_asset_type and is_currency and is_multiplier
                 ):
                     return asset
-                elif asset_type == 'future' and (
-                    is_symbol and is_asset_type and is_expiration and is_currency and is_multiplier
+                elif asset_type == "future" and (
+                    is_symbol
+                    and is_asset_type
+                    and is_expiration
+                    and is_currency
+                    and is_multiplier
                 ):
                     return asset
-                elif asset_type == 'option' and (
-                        is_symbol and is_asset_type and is_expiration and is_right and is_strike
-                        and is_currency and is_multiplier
+                elif asset_type == "option" and (
+                    is_symbol
+                    and is_asset_type
+                    and is_expiration
+                    and is_right
+                    and is_strike
+                    and is_currency
+                    and is_multiplier
                 ):
                     return asset
                 else:
@@ -1019,7 +1107,7 @@ class Strategy(_Strategy):
         timestep="",
         timeshift=None,
     ):
-        """Get bars for a given symbol or asset.
+        """Get historical pricing data for a given symbol or asset.
 
         Return data bars for a given symbol or asset.  Any number of bars can
         be return limited by the data available. This is set with `length` in
@@ -1046,21 +1134,15 @@ class Strategy(_Strategy):
         -------
         Bars
 
-        Example:
+        Example
         -------
         Extract 2 rows of SPY data with one day timestep between each row
         with the latest data being 24h ago (timedelta(days=1)) (in a backtest)
-        bars =  self.get_symbol_bars("SPY", 2, "day", timedelta(days=1))
 
-                                     open    high     low   close    volume  dividend  \
-        Date
-        2019-12-24 00:00:00-05:00  321.47  321.52  320.90  321.23  20270000       0.0
-        2019-12-26 00:00:00-05:00  321.65  322.95  321.64  322.94  30911200       0.0
-
-                                   stock_splits  price_change  dividend_yield  return
-        Date
-        2019-12-24 00:00:00-05:00             0          0.00             0.0    0.00
-        2019-12-26 00:00:00-05:00             0          0.01             0.0    0.01
+        >>> # Get the data for SPY for the last 2 days
+        >>> bars =  self.get_symbol_bars("SPY", 2, "day")
+        >>> # To get the DataFrame of SPY data
+        >>> bars.df
         """
 
         asset = self._set_asset_mapping(asset)
@@ -1079,7 +1161,7 @@ class Strategy(_Strategy):
         chunk_size=100,
         max_workers=200,
     ):
-        """Get bars for the list of assets
+        """Get historical pricing data for the list of assets.
 
         Return data bars for a list of symbols or assets.  Return a dictionary
         of bars for a given list of symbols. Works the same as get_symbol_bars
@@ -1109,6 +1191,14 @@ class Strategy(_Strategy):
         dictionary : Asset : bars
             Return a dictionary bars for a given list of symbols. Works the
             same as get_symbol_bars take as first parameter a list of symbols.
+
+        Example
+        -------
+
+        >>> # Get the data for SPY and TLT for the last 2 days
+        >>> bars =  self.get_bars(["SPY", "TLT"], 2, "day")
+        >>> for asset in bars:
+        >>>     self.log_message(asset.df)
         """
         assets = [self._set_asset_mapping(asset) for asset in assets]
 

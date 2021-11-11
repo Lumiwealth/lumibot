@@ -1,8 +1,3 @@
-.. lumibot documentation master file, created by
-   sphinx-quickstart on Thu Oct 28 23:16:23 2021.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
-
 Welcome to Lumibot's documentation!
 ===================================
 
@@ -11,13 +6,12 @@ Welcome to Lumibot's documentation!
    :caption: Contents:
    
    getting_started
+   lifecycle_methods
+   strategy_methods
+   strategy_properties
    backtesting
    brokers
    entities
-   lifecycle_methods
-   strategy_methods
-   lumibot
-
 
 Indices and tables
 ==================

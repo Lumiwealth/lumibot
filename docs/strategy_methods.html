@@ -2,7 +2,7 @@
 <html class="no-js">
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
-    <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Lumibot" href="lumibot.html" /><link rel="prev" title="Lifecycle Methods" href="lifecycle_methods.html" />
+    <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Order Management" href="strategy_methods.orders.html" /><link rel="prev" title="Lifecycle Methods" href="lifecycle_methods.html" />
 
     <meta name="generator" content="sphinx-4.2.0, furo 2021.10.09"/>
         <title>Strategy Methods - Lumibot documentation</title>
@@ -133,7 +133,7 @@
           <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
         </button>
       </div>
-      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+      <label class="toc-overlay-icon toc-header-icon no-toc" for="__toc">
         <div class="visually-hidden">Toggle table of contents sidebar</div>
         <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
       </label>
@@ -156,17 +156,79 @@
   <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting Started</a></li>
-<li class="toctree-l1 has-children"><a class="reference internal" href="backtesting.html">Backtesting</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l1"><a class="reference internal" href="lifecycle_methods.html">Lifecycle Methods</a></li>
+<li class="toctree-l1 current has-children current-page"><a class="current reference internal" href="#">Strategy Methods</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.orders.html">Order Management</a><input class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.create_order.html">self.create_order</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.submit_order.html">self.submit_order</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.submit_orders.html">self.submit_orders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.cancel_order.html">self.cancel_order</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.cancel_orders.html">self.cancel_orders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.cancel_open_orders.html">self.cancel_open_orders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.sell_all.html">self.sell_all</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_tracked_order.html">self.get_tracked_order</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_tracked_orders.html">self.get_tracked_orders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_tracked_position.html">self.get_tracked_position</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_tracked_positions.html">self.get_tracked_positions</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_asset_potential_total.html">self.get_asset_potential_total</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.data.html">Data</a><input class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_last_price.html">self.get_last_price</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_last_prices.html">self.get_last_prices</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_tradable_assets.html">self.get_tradable_assets</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_symbol_bars.html">self.get_symbol_bars</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_bars.html">self.get_bars</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.start_realtime_bars.html">self.start_realtime_bars</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_realtime_bars.html">self.get_realtime_bars</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.cancel_realtime_bars.html">self.cancel_realtime_bars</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_yesterday_dividend.html">self.get_yesterday_dividend</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_yesterday_dividends.html">self.get_yesterday_dividends</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.options.html">Options</a><input class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_chain.html">self.get_chain</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_chains.html">self.get_chains</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_greeks.html">self.get_greeks</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.datetime.html">Date/Time</a><input class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" role="switch" type="checkbox"/><label for="toctree-checkbox-5"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/strategies.strategy.Strategy.get_datetime.html">self.get_datetime</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/strategies.strategy.Strategy.get_timestamp.html">self.get_timestamp</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/strategies.strategy.Strategy.get_round_minute.html">self.get_round_minute</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/strategies.strategy.Strategy.get_last_minute.html">self.get_last_minute</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/strategies.strategy.Strategy.get_round_day.html">self.get_round_day</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/strategies.strategy.Strategy.get_last_day.html">self.get_last_day</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/strategies.strategy.Strategy.get_datetime_range.html">self.get_datetime_range</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/strategies.strategy.Strategy.localize_datetime.html">self.localize_datetime</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/strategies.strategy.Strategy.to_default_timezone.html">self.to_default_timezone</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.misc.html">Miscellaneous</a><input class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.log_message.html">self.log_message</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.sleep.html">self.sleep</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.await_market_to_close.html">self.await_market_to_close</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.await_market_to_open.html">self.await_market_to_open</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.wait_for_order_registration.html">self.wait_for_order_registration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.wait_for_order_execution.html">self.wait_for_order_execution</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.wait_for_orders_registration.html">self.wait_for_orders_registration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.wait_for_orders_execution.html">self.wait_for_orders_execution</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="strategy_properties.html">Strategy Properties</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="backtesting.html">Backtesting</a><input class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.yahoo.html">Yahoo</a></li>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.pandas.html">Pandas (CSV or other data)</a></li>
 </ul>
 </li>
-<li class="toctree-l1 has-children"><a class="reference internal" href="brokers.html">Brokers</a><input class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l1 has-children"><a class="reference internal" href="brokers.html">Brokers</a><input class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="brokers.alpaca.html">Alpaca</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.interactive_brokers.html">Interactive Brokers</a></li>
 </ul>
 </li>
-<li class="toctree-l1 has-children"><a class="reference internal" href="entities.html">Entities</a><input class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l1 has-children"><a class="reference internal" href="entities.html">Entities</a><input class="toctree-checkbox" id="toctree-checkbox-9" name="toctree-checkbox-9" role="switch" type="checkbox"/><label for="toctree-checkbox-9"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="entities.asset.html">Asset</a></li>
 <li class="toctree-l2"><a class="reference internal" href="entities.bar.html">Bar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="entities.bars.html">Bars</a></li>
@@ -174,15 +236,6 @@
 <li class="toctree-l2"><a class="reference internal" href="entities.dataline.html">Dataline</a></li>
 <li class="toctree-l2"><a class="reference internal" href="entities.order.html">Order</a></li>
 <li class="toctree-l2"><a class="reference internal" href="entities.position.html">Position</a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="lifecycle_methods.html">Lifecycle Methods</a></li>
-<li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Strategy Methods</a></li>
-<li class="toctree-l1 has-children"><a class="reference internal" href="lumibot.html">Lumibot</a><input class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
-<li class="toctree-l2"><a class="reference internal" href="lumibot.backtesting.html">Backtesting</a></li>
-<li class="toctree-l2"><a class="reference internal" href="lumibot.data_sources.html">Data Sources</a></li>
-<li class="toctree-l2"><a class="reference internal" href="lumibot.strategies.html">Strategies</a></li>
-<li class="toctree-l2"><a class="reference internal" href="lumibot.traders.html">Traders</a></li>
 </ul>
 </li>
 </ul>
@@ -205,7 +258,7 @@
               <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
             </button>
           </div>
-          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+          <label class="toc-overlay-icon toc-content-icon no-toc" for="__toc">
             <div class="visually-hidden">Toggle table of contents sidebar</div>
             <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
           </label>
@@ -213,1422 +266,67 @@
         <article role="main">
           <div class="section" id="strategy-methods">
 <h1>Strategy Methods<a class="headerlink" href="#strategy-methods" title="Permalink to this headline">¶</a></h1>
-<p>All user defined strategies should inherit from the Strategy class.</p>
-<p>from strategies import Strategy</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">MyStrategy</span><span class="p">(</span><span class="n">Strategy</span><span class="p">):</span>
-   <span class="k">pass</span>
-</pre></div>
-</div>
-<p>The abstract class Strategy has global parameters with default values, and some properties that can be used as helpers to build trading logic.</p>
-<p>The methods of this class can be split into several categories:</p>
-<p><strong>Lifecycle Methods</strong> These are executed at different times during the execution of the bot. These represent the main flow of a strategy, some are mandatory.</p>
-<p><strong>Strategy Methods</strong> These are strategy helper methods.</p>
-<p><strong>Broker Methods</strong> How to interact with the broker (buy, sell, get positions, etc)</p>
-<p><strong>Data Methods</strong> How to get price data easily</p>
-<p>All the methods in each of these categories are described below.</p>
-<p>When a strategy is instantiated, a broker object is passed to it (Check Quickstart). The strategy is run with the passed broker object. The following shortcuts executes broker methods within the strategy. Some methods can use either a symbol or an asset object. Please see asset.</p>
-<p><strong>self.log_message()</strong></p>
-<p>Logs an info message prefixed with the strategy</p>
-<p><strong>self.sleep()</strong></p>
-<p>Sleeps for sleeptime seconds. The way that sleep should be used within a strategy. Using the regular Python sleep() method will throw an error.</p>
-<p>Parameters:</p>
-<p>sleeptime (float): The sleep duration in seconds</p>
-<p><strong>self.await_market_to_open()</strong></p>
-<p>If the market is closed, pauses code execution until self.minutes_before_opening minutes before market opens again. If an input (float) is passed as parameter, pauses code execution until input minutes before market opens again.</p>
-<p>Parameters:</p>
-<p>timedelta (float): Duration in minutes
-Return type: None</p>
-<p><strong>self.await_market_to_close()</strong></p>
-<p>If the market is open, pauses code execution until self.minutes_before_closing minutes before market closes. If an input (float) is passed as parameter, pauses code execution until input minutes before market closes again.</p>
-<p>Parameters:</p>
-<p>timedelta (float): Duration in minutes
-Return type: None</p>
-<p><strong>self.get_tracked_position()</strong></p>
-<p>Return the strategy tracked position for a given symbol if found else None.</p>
-<p>Parameters:</p>
-<p>symbol (str): The share/asset string representation (e.g AAPL, GOOG, …)
-Return type: position</p>
-<p><strong>self.get_tracked_positions()</strong></p>
-<p>Return all the strategy tracked positions.</p>
-<p>Return type: list(position)</p>
-<p><strong>self.get_tracked_order()</strong></p>
-<p>Return the strategy tracked order with the specified identifier if found else None.</p>
-<p>Parameters:</p>
-<p>identifier (str): The broker order identifier
-Return type: order</p>
-<p><strong>self.get_tracked_orders()</strong></p>
-<p>Return all the strategy tracked orders.</p>
-<p>Return type: list(order)</p>
-<p><strong>self.get_tracked_assets()</strong></p>
-<p>Return the strategy list of symbols for all tracked positions and orders.</p>
-<p>Return type: list(str/asset)</p>
-<p><strong>self.get_asset_potential_total()</strong></p>
-<p>Check the ongoing positions and the tracked orders of the strategy and returns the total number of shares provided all orders went through. In other words, add all outstanding orders and the total value of the position for an asset.</p>
-<p>For example, if you own 100 SPY and have an outstanding limit order of 10 shares, we will count all 110 shares.</p>
-<p>Parameters:</p>
-<p>symbol (str/asset): the string representation of the share/asset
-Return type: int</p>
-<p><strong>self.create_order()</strong></p>
-<p>Create an order object attached to this strategy (Check the Entities, order section)</p>
-<p>Required Parameters:</p>
-<p>symbol (str/asset): representation of the asset to buy
-quantity (int): the quantity of the asset to buy
-side (str): either “buy” or “sell”
-Optional Parameters:</p>
-<p>limit_price (default = None)
-stop_price (default = None)
-time_in_force (default = “day”)
-take_profit_price (default = None),
-stop_loss_price (default = None),
-stop_loss_limit_price (default = None),
-trail_price (default = None),
-trail_percent (default = None),
-position_filled (default = None),
-exhange (default = “SMART”)
-Return type: order</p>
-<dl class="simple">
-<dt>class MyStrategy(Strategy):</dt><dd><dl class="simple">
-<dt>def on_trading_iteration(self):</dt><dd><p># Buy 100 shares of SPY
-order = self.create_order(“SPY”, 100, “buy”)
-self.submit_order(order)</p>
-</dd>
-</dl>
-</dd>
-</dl>
-<p>For a limit order:</p>
-<dl class="simple">
-<dt>class MyStrategy(Strategy):</dt><dd><dl class="simple">
-<dt>def on_trading_iteration(self):</dt><dd><p># Buy 100 shares of SPY
-order = self.create_order(“SPY”, 100, “buy”, limit_price=100)
-self.submit_order(order)</p>
-</dd>
-</dl>
-</dd>
-</dl>
-<p>submit_order
-Submit an order. Returns the processed order.</p>
-<p>Parameters:</p>
-<p>order (order): the order object
-Return type: order</p>
-<dl class="simple">
-<dt>class MyStrategy(Strategy):</dt><dd><dl class="simple">
-<dt>def my_function(self):</dt><dd><p># Sell 100 shares of TLT
-order = self.create_order(“TLT”, 100, “sell”)
-self.submit_order(order)</p>
-</dd>
-</dl>
-</dd>
-</dl>
-<p>submit_orders
-Submit a list of orders</p>
-<p>Parameters:</p>
-<p>orders (list(order)): the list of orders
-Return type: list(order)</p>
-<p>wait_for_order_registration
-Wait for the order to be registered by the broker</p>
-<p>Parameters:</p>
-<p>order (order): the order object
-Return type: None</p>
-<p>wait_for_order_execution
-Wait for the order to execute/be canceled</p>
-<p>Parameters:</p>
-<p>order (order): the order object
-Return type: None</p>
-<p>wait_for_orders_registration
-Wait for the orders to be registered by the broker</p>
-<p>Parameters:</p>
-<p>orders (list(order)): the list of orders
-Return type: None</p>
-<p>wait_for_orders_execution
-Wait for the orders to execute/be canceled</p>
-<p>Parameters:</p>
-<p>orders (list(order)): the list of orders
-Return type: None</p>
-<p><strong>self.cancel_order</strong>
-Cancel an order.</p>
-<p>Parameters:</p>
-<p>order (order): the order to cancel
-Return type: None</p>
-<p><strong>self.cancel_orders()</strong>
-Cancel a list of orders</p>
-<p>Parameters:</p>
-<p>orders (list(order)): the list of orders to cancel
-Return type: None</p>
-<p><strong>self.cancel_open_orders()</strong>
-Cancel all the strategy open orders</p>
-<p>Return type: None</p>
-<p><strong>self.sell_all()</strong>
-Sell all strategy current positions</p>
-<p>Return type: None</p>
-<dl>
-<dt>class MyStrategy(Strategy):</dt><dd><p># Will sell all shares that the strategy is tracking on Ctrl + C
-def on_abrupt_closing(self):</p>
-<blockquote>
-<div><p>self.sell_all()</p>
-</div></blockquote>
-</dd>
-</dl>
-<p><strong>self.get_last_price()</strong>
-Return the last known price for a given symbol</p>
-<p>Parameters:</p>
-<p>symbol (str/asset): the string representation of the asset/share
-Return type: float</p>
-<p>symbol = “SPY”
-current_price = self.get_last_price(symbol)
-logging.info(f”The current price of {symbol} is {current_price}”)</p>
-<p><strong>self.get_last_prices()</strong>
-Return the last known prices for a list symbols</p>
-<p>Parameters:</p>
-<p>symbols (list(str/asset)): list of share/asset representations
-Return type: dict of str:float or asset:asset object</p>
-<p><strong>self.get_tradable_assets()</strong></p>
-<p>Return the list of tradable assets for the used broker
-Return type: list(str/asset)</p>
-<div class="section" id="options">
-<h2>Options<a class="headerlink" href="#options" title="Permalink to this headline">¶</a></h2>
-<p><strong>self.get_chains</strong>
-For a given symbol/asset, returns the full options chain for all exchanges.
-Parameters: symbol/asset
-Return type: Dictionary with exchanges as keys, chain dictionary as value.</p>
-<p><strong>self.get_chain</strong>
-Returns an option chain for one symbol on one exchange.
-Parameters: chains, exchange=’SMART’
-Returns: Dictionary with:</p>
-<p>Underlying_conid: Contract ID with Interactive Brokers.
-TradingClass: Stock symbol
-Multiplier: Option leverage multiplier.
-Expiration: Set of expiration dates. Format ‘YYYYMMDD’
-Strikes: Set of strike prices.
-get_expiration
-Retrieves all of the expiration dates for an option chain, sorted by date.
-Parameters: chains, exchange=’SMART’
-Returns: list of expirations date in the format “YYYYMMDD”</p>
-<p>asset = self.create_asset(“FB”)
-chains = self.get_chains(asset)
-chain = self.get_chain(chains)
-expiration = self.get_expiration(chains)
-get_greeks
-Returns the greeks for the option asset at the current bar.</p>
-<p>Will return all the greeks available unless any of the individual greeks are selected, then will only return those greeks.</p>
-<p>To return all of the greeks:</p>
-<p>mygreeks = self.get_greeks(asset)
-print(mygreeks)
-{</p>
-<blockquote>
-<div><blockquote>
-<div><p>‘implied_volatility’: 0.43082467998525587,
-‘delta’: 0.4261267500109485,
-‘option_price’: 1.5367826121627828,
-‘pv_dividend’: 0.0,
-‘gamma’: 0.07865783808317735,
-‘vega’: 0.04556740333269094,
-‘theta’: -0.44406813241266924,
-‘underlying_price’: 148.98</p>
-</div></blockquote>
-<p>}</p>
-</div></blockquote>
-<p>Note that pv_dividend is only available in live testing.
-To return only specific greeks, set them as True when calling the function..</p>
-<p>mygreeks = self.get_greeks(asset, delta=True, theta=True)
-print(mygreeks)
-{‘delta’: 0.4192703569137862, ‘theta’: -0.44151812979314764}
-Parameters
-asset : Asset</p>
-<blockquote>
-<div><p>Option asset only for with greeks are desired.</p>
-</div></blockquote>
-<p><a href="#id1"><span class="problematic" id="id2">**</span></a>kwargs
-implied_volatility : boolean</p>
-<blockquote>
-<div><p>True to get the implied volatility. (default: True)</p>
-</div></blockquote>
-<dl class="simple">
-<dt>delta<span class="classifier">boolean</span></dt><dd><p>True to get the option delta value. (default: True)</p>
-</dd>
-<dt>option_price<span class="classifier">boolean</span></dt><dd><p>True to get the option price. (default: True)</p>
-</dd>
-<dt>pv_dividend<span class="classifier">boolean</span></dt><dd><p>True to get the present value of dividends expected on the option’s underlying. (default: True)</p>
-</dd>
-<dt>gamma<span class="classifier">boolean</span></dt><dd><p>True to get the option gamma value. (default: True)</p>
-</dd>
-<dt>vega<span class="classifier">boolean</span></dt><dd><p>True to get the option vega value. (default: True)</p>
-</dd>
-<dt>theta<span class="classifier">boolean</span></dt><dd><p>True to get the option theta value. (default: True)</p>
-</dd>
-<dt>underlying_price<span class="classifier">boolean</span></dt><dd><p>True to get the price of the underlying. (default: True)</p>
-</dd>
-</dl>
-<p>Returns: Returns a dictionary with greeks as keys and greek values as values.
-implied_volatility : float</p>
-<blockquote>
-<div><p>The implied volatility.</p>
-</div></blockquote>
-<dl class="simple">
-<dt>delta<span class="classifier">float</span></dt><dd><p>The option delta value.</p>
-</dd>
-<dt>option_price<span class="classifier">float</span></dt><dd><p>The option price.</p>
-</dd>
-<dt>pv_dividend<span class="classifier">float</span></dt><dd><p>The present value of dividends expected on the option’s underlying.</p>
-</dd>
-<dt>gamma<span class="classifier">float</span></dt><dd><p>The option gamma value.</p>
-</dd>
-<dt>vega<span class="classifier">float</span></dt><dd><p>The option vega value.</p>
-</dd>
-<dt>theta<span class="classifier">float</span></dt><dd><p>The option theta value.</p>
-</dd>
-</dl>
-<p>underlying_price : float     The price of the underlying.</p>
-<p><strong>self.get_datetime()</strong>
-Return the current datetime localized the datasource timezone e.g. America/New_York. During backtesting this will be the time that the strategy thinks that it is.</p>
-<p>Return type: datetime</p>
-<p>print(f”The current time is {self.get_datetime()}”)</p>
-<p><strong>self.get_timestamp()</strong>
-Return the current UNIX timestamp. During backtesting this will be the UNIX timestamp that the strategy thinks that it is.</p>
-<p>Return type: float</p>
-<p>print(f”The current time is {self.get_timestamp()}”)</p>
-<p><strong>self.get_round_minute()</strong>
-Returns a minute rounded datetime object.</p>
-<p>Optional Parameters:</p>
-<p>timeshift (int): a timeshift in minutes from the present.
-Example:</p>
-<p># Return a midnight rounded datetime object of three minutes ago
-dt =  self.get_round_minute(timeshift=3)
-print(dt)
-# datetime.datetime(2021, 2, 21, 9, 17, tzinfo=&lt;DstTzInfo ‘America/New_York’ EST-1 day, 19:00:00 STD&gt;)
-Return type: datetime</p>
-<p><strong>self.get_last_minute()</strong>
-Returns the last minute rounded datetime object. Shortcut to straregy.get_round_minute(timeshift=1)</p>
-<p>Return type datetime.</p>
-<p><strong>self.get_round_day()</strong>
-Returns a day rounded datetime object.</p>
-<p>Optional Parameters:</p>
-<p>timeshift (int): a timeshift in days from the present.
-Example:</p>
-<p># Return a midnight rounded datetime object of three days ago
-dt =  self.get_round_day(timeshift=3)
-print(dt)
-# datetime.datetime(2021, 2, 21, 0, 0, tzinfo=&lt;DstTzInfo ‘America/New_York’ EST-1 day, 19:00:00 STD&gt;)
-Return type datetime</p>
-<p><strong>self.get_last_day()</strong>
-Returns the last day rounded datetime object. Shortcut to straregy.get_round_day(timeshift=1)</p>
-<p>Return type datetime.</p>
-<p><strong>self.get_datetime_range()</strong>
-Takes as input length, timestep and timeshift and returns a tuple of datetime representing the start date and end date.</p>
-<p>Parameters:</p>
-<p>length (int): represents the number of bars required
-timestep (str): represents the timestep, either minute (default value) or day.
-timeshift (timedelta): None by default. If specified indicates the time shift from the present.
-Return type datetime</p>
-<p><strong>self.localize_datetime()</strong>
-Converts an unaware datetime object (datetime object without a timezone) to an aware datetime object. The default timezone is America/New_York.</p>
-<p>Parameter:</p>
-<p>dt (datetime): the datetime object to convert.
-Example:</p>
-<p>from datetime import datetime
-dt =  datetime(2021, 2, 21)
-print(dt)
-# datetime.datetime(2021, 2, 21, 0, 0)
-dt_aware = self.localize_datetime(dt)
-print(dt_aware)
-# datetime.datetime(2021, 2, 21, 0, 0, tzinfo=&lt;DstTzInfo ‘America/New_York’ EST-1 day, 19:00:00 STD&gt;)
-Return type: datetime</p>
-<p><strong>self.to_default_timezone()</strong></p>
-<p>Transpose an aware datetime object to the default timezone America/New_York.</p>
-<p>Parameter:</p>
-<p>dt (datetime): the datetime object to convert.
-Return type: datetime</p>
-<p><strong>self.get_symbol_bars()</strong>
-Return bars for a given symbol.</p>
-<p>Parameters:</p>
-<p>symbol (str/asset): The symbol string representation (e.g AAPL, GOOG, …) or asset object.
-length (int): The number of rows (number of timestamps)
-timestep (str): Either “minute”” for minutes data or “day”” for days data default value depends on the data_source (minute for alpaca, day for yahoo, …)
-timeshift (timedelta): None by default. If specified indicates the time shift from the present.
-Example:</p>
-<p>from datetime import timedelta
-#…</p>
-<p># Extract 10 rows of SPY data with one minute timestep between each row
-# with the latest data being 24h ago (timedelta(days=1))
-bars =  self.get_symbol_bars(“SPY”,10,”minute”,timedelta(days=1))
-Return type: bars</p>
-<p><strong>self.get_bars()</strong></p>
-<p>Return a dictionary of bars for a given list of symbols. Works the same as get_symbol_bars but take as first parameter a list of symbols.</p>
-<p>Parameters:</p>
-<p>symbol (list(str/asset)): The symbol string representation (e.g AAPL, GOOG, …) or asset object.
-length (int): The number of rows (number of timestamps)
-timestep (str): Either “minute”” for minutes data or “day”” for days data default value depends on the data_source (minute for alpaca, day for yahoo, …)
-timeshift (timedelta): None by default. If specified indicates the time shift from the present.
-Return type: dict of str/asset:bars</p>
-<p><strong>self.start_realtime_bars()</strong></p>
-<p>Starts a real time stream of tickers for Interactive Broker only.</p>
-<p>This allows for real time data to stream to the strategy. Bars are fixed at every five seconds. They will arrive in the strategy in the form of a dataframe. The data returned will be:</p>
-<p>datetime
-open
-high
-low
-close
-volume
-vwap
-count (trade count)
-Parameters:
-asset : Asset object The asset to stream data.</p>
-<p>keep_bars : int How many bars/rows to keep of data. If running for an extended period of time, it may be desirable to limit the size of the data kept.</p>
-<p>Returns:
-None</p>
-<p><strong>self.get_realtime_bars()</strong></p>
-<p>Retrieve the real time bars as dataframe.</p>
-<p>Returns the current set of real time bars as a dataframe. The datetime will be in the index. Time intervals will be set at 5 secs. The columns of the dataframe are:</p>
-<p>open
-high
-low
-close
-volume
-vwap
-count (trade count)
-Parameters:
-asset : Asset object The asset that has a stream active.</p>
-<p>Returns:
-dataframe : Pandas Dataframe.
-Dataframe containing the most recent pricing information for the asset. The data returned will be the datetime in the index and the following columns.</p>
-<p>open
-high
-low
-close
-volume
-vwap
-count (trade count)
-The length of the dataframe will have been set the initial start of the real time bars.</p>
-<p><strong>self.cancel_realtime_bars()</strong>
-Cancels a stream of real time bars for a given asset.</p>
-<p>Cancels the real time bars for the given asset.</p>
-<p>Parameters:
-asset : Asset object
-Asset object that has streaming data to cancel.</p>
-<p>Returns:
-None</p>
-<p><strong>self.get_yesterday_dividend()</strong></p>
-<p>Return dividend per share for the day before for a given symbol</p>
-<p>Parameters:</p>
-<p>symbol (str/asset): The symbol string representation (e.g AAPL, GOOG, …) or asset object.
-Return type: float or asset object</p>
-<p><strong>self.get_yesterday_dividends()</strong></p>
-<p>Return dividend per share for the day before for a given list of symbols. Works the same as get_yesterday_dividend but take as parameter a list of symbols.</p>
-<p>Parameters:</p>
-<p>symbol (str/asset): The symbol string representation (e.g AAPL, GOOG, …) or asset object.
-Return type: dict of str:float</p>
-</div>
-<div class="section" id="module-lumibot.strategies.strategy">
-<span id="documentation"></span><h2>Documentation<a class="headerlink" href="#module-lumibot.strategies.strategy" title="Permalink to this headline">¶</a></h2>
-<dl class="py class">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy">
-<em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">lumibot.strategies.strategy.</span></span><span class="sig-name descname"><span class="pre">Strategy</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">budget</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">broker</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data_source</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">minutes_before_closing</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">minutes_before_opening</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">60</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sleeptime</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stats_file</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">risk_free_rate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">benchmark_asset</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'SPY'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">backtesting_start</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">backtesting_end</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pandas_data</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filled_order_callback</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">lumibot.strategies._strategy._Strategy</span></code></p>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.after_market_closes">
-<span class="sig-name descname"><span class="pre">after_market_closes</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.after_market_closes" title="Permalink to this definition">¶</a></dt>
-<dd><p>Use this lifecycle method to execute code
-after market closes. Exampling: dumping stats/reports</p>
-</dd></dl>
-<dl class="py property">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.analysis">
-<em class="property"><span class="pre">property</span> </em><span class="sig-name descname"><span class="pre">analysis</span></span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.analysis" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.await_market_to_close">
-<span class="sig-name descname"><span class="pre">await_market_to_close</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">timedelta</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.await_market_to_close" title="Permalink to this definition">¶</a></dt>
-<dd><p>Sleep until market closes.</p>
-<p>If the market is open, pauses code execution until market is
-closed. If an input (float) is passed as parameter, pauses code
-execution starting input minutes before market closes.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><p><strong>timedelta</strong> (<em>int</em>) – Time in minutes before market closes to pause.
-Overrides the <cite>self.minutes_before_closing</cite>.</p>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><p></p>
-</dd>
-<dt class="field-odd">Return type</dt>
-<dd class="field-odd"><p>None</p>
-</dd>
-</dl>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.await_market_to_open">
-<span class="sig-name descname"><span class="pre">await_market_to_open</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">timedelta</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.await_market_to_open" title="Permalink to this definition">¶</a></dt>
-<dd><p>Executes infinite loop until market opens</p>
-<p>If the market is closed, pauses code execution until
-self.minutes_before_opening minutes before market opens again.
-If an input (float) is passed as parameter, pauses code
-execution until input minutes before market opens again.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><p><strong>timedelta</strong> (<em>int</em>) – Time in minutes before market will open to pause to.
-Overrides the <cite>self.minutes_before_opening</cite>.</p>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><p></p>
-</dd>
-<dt class="field-odd">Return type</dt>
-<dd class="field-odd"><p>None</p>
-</dd>
-</dl>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.before_market_closes">
-<span class="sig-name descname"><span class="pre">before_market_closes</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.before_market_closes" title="Permalink to this definition">¶</a></dt>
-<dd><p>Use this lifecycle method to execude code
-self.minutes_before_closing minutes before closing.
-Example: self.sell_all()</p>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.before_market_opens">
-<span class="sig-name descname"><span class="pre">before_market_opens</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.before_market_opens" title="Permalink to this definition">¶</a></dt>
-<dd><p>Use this lifecycle method to execude code
-self.minutes_before_opening minutes before opening.
-Example: self.sell_all()</p>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.before_starting_trading">
-<span class="sig-name descname"><span class="pre">before_starting_trading</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.before_starting_trading" title="Permalink to this definition">¶</a></dt>
-<dd><p>Lifecycle method executed after the market opens
-and before entering the trading loop. Use this method
-for daily resetting variables</p>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.cancel_open_orders">
-<span class="sig-name descname"><span class="pre">cancel_open_orders</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.cancel_open_orders" title="Permalink to this definition">¶</a></dt>
-<dd><p>Cancel all the strategy open orders.</p>
-<p>Cancels all orders that are open and awaiting execution within
-a given strategy. If running multiple strategies, will only
-cancel the orders in the current strategy.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><p><strong>None</strong> – </p>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><p></p>
-</dd>
-<dt class="field-odd">Return type</dt>
-<dd class="field-odd"><p>None</p>
-</dd>
-</dl>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.cancel_order">
-<span class="sig-name descname"><span class="pre">cancel_order</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">order</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.cancel_order" title="Permalink to this definition">¶</a></dt>
-<dd><p>Cancel an order.</p>
-<p>Cancels a single open order provided.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><p><strong>cancel.</strong> (<em>An order object that the user seeks to</em>) – </p>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><p></p>
-</dd>
-<dt class="field-odd">Return type</dt>
-<dd class="field-odd"><p>None</p>
-</dd>
-</dl>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.cancel_orders">
-<span class="sig-name descname"><span class="pre">cancel_orders</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">orders</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.cancel_orders" title="Permalink to this definition">¶</a></dt>
-<dd><p>Cancel orders in all strategies.</p>
-<p>Cancels all open orders provided in any of the running
-strategies.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><p><strong>orders</strong> (<em>list of Order objects.</em>) – </p>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><p></p>
-</dd>
-<dt class="field-odd">Return type</dt>
-<dd class="field-odd"><p>None</p>
-</dd>
-</dl>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.cancel_realtime_bars">
-<span class="sig-name descname"><span class="pre">cancel_realtime_bars</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.cancel_realtime_bars" title="Permalink to this definition">¶</a></dt>
-<dd><p>Cancels a stream of real time bars for a given asset.</p>
-<p>Cancels the real time bars for the given asset.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><p><strong>asset</strong> (<em>Asset object</em>) – Asset object that has streaming data to cancel.</p>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><p></p>
-</dd>
-<dt class="field-odd">Return type</dt>
-<dd class="field-odd"><p>None</p>
-</dd>
-</dl>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.create_asset">
-<span class="sig-name descname"><span class="pre">create_asset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">symbol</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">asset_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'stock'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">expiration</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">strike</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">right</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">multiplier</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">currency</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'USD'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.create_asset" title="Permalink to this definition">¶</a></dt>
-<dd><p>Create an asset object.</p>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.create_order">
-<span class="sig-name descname"><span class="pre">create_order</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quantity</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">side</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">limit_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stop_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_in_force</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'day'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">take_profit_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stop_loss_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stop_loss_limit_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">trail_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">trail_percent</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">position_filled</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exchange</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'SMART'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.create_order" title="Permalink to this definition">¶</a></dt>
-<dd><p>Creates a new order.</p>
-<p>Create an order object attached to this strategy (Check the
-Entities, order section)</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>asset</strong> (<em>str</em><em> or </em><a class="reference internal" href="entities.asset.html#lumibot.entities.asset.Asset" title="lumibot.entities.asset.Asset"><em>Asset</em></a>) – The asset that will be traded. If this is just a stock, then
-<cite>str</cite> is sufficient. However, all assets other than stocks
-must use <cite>Asset</cite>.</p></li>
-<li><p><strong>quantity</strong> (<em>float</em>) – The number of shares or units to trade.</p></li>
-<li><p><strong>side</strong> (<em>str</em>) – Whether the order is <cite>buy</cite> or <cite>sell</cite>.</p></li>
-<li><p><strong>limit_price</strong> (<em>float</em>) – A Limit order is an order to buy or sell at a specified
-price or better. The Limit order ensures that if the
-order fills, it will not fill at a price less favorable
-than your limit price, but it does not guarantee a fill.</p></li>
-<li><p><strong>stop_price</strong> (<em>float</em>) – A Stop order is an instruction to submit a buy or sell
-market order if and when the user-specified stop trigger
-price is attained or penetrated.</p></li>
-<li><p><strong>time_in_force</strong> (<em>str</em>) – Amount of time the order is in force. Default: ‘day’</p></li>
-<li><p><strong>take_profit_price</strong> (<em>float</em>) – Limit price used for bracket orders and one cancels other
-orders.</p></li>
-<li><p><strong>stop_loss_price</strong> (<em>float</em>) – Stop price used for bracket orders and one cancels other
-orders.</p></li>
-<li><p><strong>stop_loss_limit_price</strong> (<em>float</em>) – Stop loss with limit price used for bracket orders and one
-cancels other orders.</p></li>
-<li><p><strong>trail_price</strong> (<em>float</em>) – Trailing stop orders allow you to continuously and
-automatically keep updating the stop price threshold based
-on the stock price movement. <cite>trail_price</cite> sets the
-trailing price in dollars.</p></li>
-<li><p><strong>trail_percent</strong> (<em>float</em>) – Trailing stop orders allow you to continuously and
-automatically keep updating the stop price threshold based
-on the stock price movement. <cite>trail_price</cite> sets the
-trailing price in percent.</p></li>
-<li><p><strong>position_filled</strong> (<em>bool</em>) – The order has been filled.</p></li>
-<li><p><strong>exchange</strong> (<em>str</em>) – The exchange where the order will be placed.
-Default = <cite>SMART</cite></p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><p>Order object ready to be submitted for trading.</p>
-</dd>
-<dt class="field-odd">Return type</dt>
-<dd class="field-odd"><p><a class="reference internal" href="entities.order.html#lumibot.entities.order.Order" title="lumibot.entities.order.Order">Order</a></p>
-</dd>
-</dl>
-</dd></dl>
-<dl class="py property">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.first_iteration">
-<em class="property"><span class="pre">property</span> </em><span class="sig-name descname"><span class="pre">first_iteration</span></span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.first_iteration" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.get_asset_potential_total">
-<span class="sig-name descname"><span class="pre">get_asset_potential_total</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.get_asset_potential_total" title="Permalink to this definition">¶</a></dt>
-<dd><p>given current strategy and a asset, check the ongoing
-position and the tracked order and returns the total
-number of shares provided all orders went through</p>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.get_bars">
-<span class="sig-name descname"><span class="pre">get_bars</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">assets</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">length</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timestep</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'minute'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timeshift</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chunk_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">100</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_workers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">200</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.get_bars" title="Permalink to this definition">¶</a></dt>
-<dd><p>Get bars for the list of assets</p>
-<p>Return data bars for a list of symbols or assets.  Return a dictionary
-of bars for a given list of symbols. Works the same as get_symbol_bars
-but take as first parameter a list of symbols. Any number of bars can
-be return limited by the data available. This is set with <cite>length</cite> in
-number of bars. Bars may be returned as daily or by minute. And the
-starting point can be shifted backwards by time or bars.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>assets</strong> (<em>list</em><em>(</em><em>str/asset</em><em>)</em>) – The symbol string representation (e.g AAPL, GOOG, …) or asset
-objects.</p></li>
-<li><p><strong>length</strong> (<em>int</em>) – The number of rows (number of timesteps)</p></li>
-<li><p><strong>timestep</strong> (<em>str</em>) – Either <code class="docutils literal notranslate"><span class="pre">`"minute""`</span></code> for minutes data or <code class="docutils literal notranslate"><span class="pre">`"day"`</span></code>
-for days data default value depends on the data_source (minute
-for alpaca, day for yahoo, …)</p></li>
-<li><p><strong>timeshift</strong> (<em>timedelta</em>) – <code class="docutils literal notranslate"><span class="pre">`None`</span></code> by default. If specified indicates the time shift from
-the present. If  backtesting in Pandas, use integer representing
-number of bars.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><p><strong>dictionary</strong> – Return a dictionary bars for a given list of symbols. Works the
-same as get_symbol_bars take as first parameter a list of symbols.</p>
-</dd>
-<dt class="field-odd">Return type</dt>
-<dd class="field-odd"><p>Asset : bars</p>
-</dd>
-</dl>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.get_chain">
-<span class="sig-name descname"><span class="pre">get_chain</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">chains</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exchange</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'SMART'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.get_chain" title="Permalink to this definition">¶</a></dt>
-<dd><p>Returns option chain for a particular exchange.</p>
-<p>Takes in a full set of chains for all the exchanges and returns
-on chain for a given exchange. The the full chains are returned
-from <cite>get_chains</cite> method.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>chains</strong> (<em>dictionary of dictionaries</em>) – The chains dictionary created by <cite>get_chains</cite> method.</p></li>
-<li><p><strong>exchange</strong> (<em>str optional</em>) – The exchange such as <cite>SMART</cite>, <cite>CBOE</cite>. Default is <cite>SMART</cite></p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><p><p>A dictionary of option chain information for one stock and
-for one exchange. It will contain:</p>
-<blockquote>
-<div><ul class="simple">
-<li><p><cite>Underlying conId</cite> (int)</p></li>
-<li><p><cite>TradingClass</cite> (str) eg: <cite>FB</cite></p></li>
-<li><p><cite>Multiplier</cite> (str) eg: <cite>100</cite></p></li>
-<li><p><cite>Expirations</cite> (set of str) eg: {<cite>20230616</cite>, …}</p></li>
-<li><p><cite>Strikes</cite> (set of floats)</p></li>
-</ul>
-</div></blockquote>
-</p>
-</dd>
-<dt class="field-odd">Return type</dt>
-<dd class="field-odd"><p>dictionary</p>
-</dd>
-</dl>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.get_chains">
-<span class="sig-name descname"><span class="pre">get_chains</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.get_chains" title="Permalink to this definition">¶</a></dt>
-<dd><p>Returns option chains.</p>
-<p>Obtains option chain information for the asset (stock) from each
-of the exchanges the options trade on and returns a dictionary
-for each exchange.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><p><strong>asset</strong> (<em>Asset object</em>) – The stock whose option chain is being fetched. Represented
-as an asset object.</p>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><p><ul class="simple">
-<li><p><em>dictionary of dictionaries for each exchange. Each exchange</em></p></li>
-<li><p><em>dictionary has</em> –</p>
+<div class="toctree-wrapper compound">
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul>
-<li><p><cite>Underlying conId</cite> (int)</p></li>
-<li><p><cite>TradingClass</cite> (str) eg: <cite>FB</cite></p></li>
-<li><p><cite>Multiplier</cite> (str) eg: <cite>100</cite></p></li>
-<li><p><cite>Expirations</cite> (set of str) eg: {<cite>20230616</cite>, …}</p></li>
-<li><p><cite>Strikes</cite> (set of floats)</p></li>
+<li class="toctree-l1"><a class="reference internal" href="strategy_methods.orders.html">Order Management</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.create_order.html">self.create_order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.submit_order.html">self.submit_order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.submit_orders.html">self.submit_orders</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.cancel_order.html">self.cancel_order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.cancel_orders.html">self.cancel_orders</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.cancel_open_orders.html">self.cancel_open_orders</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.sell_all.html">self.sell_all</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_tracked_order.html">self.get_tracked_order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_tracked_orders.html">self.get_tracked_orders</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_tracked_position.html">self.get_tracked_position</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_tracked_positions.html">self.get_tracked_positions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_asset_potential_total.html">self.get_asset_potential_total</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="strategy_methods.data.html">Data</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_last_price.html">self.get_last_price</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_last_prices.html">self.get_last_prices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_tradable_assets.html">self.get_tradable_assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_symbol_bars.html">self.get_symbol_bars</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_bars.html">self.get_bars</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.start_realtime_bars.html">self.start_realtime_bars</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_realtime_bars.html">self.get_realtime_bars</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.cancel_realtime_bars.html">self.cancel_realtime_bars</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_yesterday_dividend.html">self.get_yesterday_dividend</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_yesterday_dividends.html">self.get_yesterday_dividends</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="strategy_methods.options.html">Options</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_chain.html">self.get_chain</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_chains.html">self.get_chains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_greeks.html">self.get_greeks</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="strategy_methods.datetime.html">Date/Time</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="strategy_methods.datetime/strategies.strategy.Strategy.get_datetime.html">self.get_datetime</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_methods.datetime/strategies.strategy.Strategy.get_timestamp.html">self.get_timestamp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_methods.datetime/strategies.strategy.Strategy.get_round_minute.html">self.get_round_minute</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_methods.datetime/strategies.strategy.Strategy.get_last_minute.html">self.get_last_minute</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_methods.datetime/strategies.strategy.Strategy.get_round_day.html">self.get_round_day</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_methods.datetime/strategies.strategy.Strategy.get_last_day.html">self.get_last_day</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_methods.datetime/strategies.strategy.Strategy.get_datetime_range.html">self.get_datetime_range</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_methods.datetime/strategies.strategy.Strategy.localize_datetime.html">self.localize_datetime</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_methods.datetime/strategies.strategy.Strategy.to_default_timezone.html">self.to_default_timezone</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="strategy_methods.misc.html">Miscellaneous</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.log_message.html">self.log_message</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.sleep.html">self.sleep</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.await_market_to_close.html">self.await_market_to_close</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.await_market_to_open.html">self.await_market_to_open</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.wait_for_order_registration.html">self.wait_for_order_registration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.wait_for_order_execution.html">self.wait_for_order_execution</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.wait_for_orders_registration.html">self.wait_for_orders_registration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.wait_for_orders_execution.html">self.wait_for_orders_execution</a></li>
 </ul>
 </li>
 </ul>
-</p>
-</dd>
-</dl>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.get_contract_details">
-<span class="sig-name descname"><span class="pre">get_contract_details</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.get_contract_details" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.get_datetime">
-<span class="sig-name descname"><span class="pre">get_datetime</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.get_datetime" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.get_datetime_range">
-<span class="sig-name descname"><span class="pre">get_datetime_range</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">length</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timestep</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'minute'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timeshift</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.get_datetime_range" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.get_expiration">
-<span class="sig-name descname"><span class="pre">get_expiration</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">chains</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exchange</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'SMART'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.get_expiration" title="Permalink to this definition">¶</a></dt>
-<dd><p>Returns expiration dates for an option chain for a particular
-exchange.</p>
-<p>Using the <cite>chains</cite> dictionary obtained from <cite>get_chains</cite> finds
-all of the expiry dates for the option chains on a given
-exchange. The return list is sorted.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>chains</strong> (<em>dictionary of dictionaries</em>) – The chains dictionary created by <cite>get_chains</cite> method.</p></li>
-<li><p><strong>exchange</strong> (<em>str optional</em>) – The exchange such as <cite>SMART</cite>, <cite>CBOE</cite>. Default is <cite>SMART</cite>.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><p>Sorted list of dates in the form of <cite>20221013</cite>.</p>
-</dd>
-<dt class="field-odd">Return type</dt>
-<dd class="field-odd"><p>list of datetime.dates</p>
-</dd>
-</dl>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.get_greeks">
-<span class="sig-name descname"><span class="pre">get_greeks</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">implied_volatility</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">delta</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">option_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pv_dividend</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gamma</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vega</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">theta</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">underlying_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.get_greeks" title="Permalink to this definition">¶</a></dt>
-<dd><p>Returns the greeks for the option asset at the current
-bar.</p>
-<p>Will return all the greeks available unless any of the
-individual greeks are selected, then will only return those
-greeks.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>asset</strong> (<a class="reference internal" href="entities.asset.html#lumibot.entities.asset.Asset" title="lumibot.entities.asset.Asset"><em>Asset</em></a>) – Option asset only for with greeks are desired.</p></li>
-<li><p><strong>**kwargs</strong> – </p></li>
-<li><p><strong>implied_volatility</strong> (<em>boolean</em>) – True to get the implied volatility. (default: True)</p></li>
-<li><p><strong>delta</strong> (<em>boolean</em>) – True to get the option delta value. (default: True)</p></li>
-<li><p><strong>option_price</strong> (<em>boolean</em>) – True to get the option price. (default: True)</p></li>
-<li><p><strong>pv_dividend</strong> (<em>boolean</em>) – True to get the present value of dividends expected on the
-option’s  underlying. (default: True)</p></li>
-<li><p><strong>gamma</strong> (<em>boolean</em>) – True to get the option gamma value. (default: True)</p></li>
-<li><p><strong>vega</strong> (<em>boolean</em>) – True to get the option vega value. (default: True)</p></li>
-<li><p><strong>theta</strong> (<em>boolean</em>) – True to get the option theta value. (default: True)</p></li>
-<li><p><strong>underlying_price</strong> (<em>boolean</em>) – True to get the price of the underlying. (default: True)</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><p><ul class="simple">
-<li><p><em>Returns a dictionary with greeks as keys and greek values as</em></p></li>
-<li><p><em>values.</em></p></li>
-<li><p><strong>implied_volatility</strong> (<em>float</em>) – The implied volatility.</p></li>
-<li><p><strong>delta</strong> (<em>float</em>) – The option delta value.</p></li>
-<li><p><strong>option_price</strong> (<em>float</em>) – The option price.</p></li>
-<li><p><strong>pv_dividend</strong> (<em>float</em>) – The present value of dividends expected on the option’s
-underlying.</p></li>
-<li><p><strong>gamma</strong> (<em>float</em>) – The option gamma value.</p></li>
-<li><p><strong>vega</strong> (<em>float</em>) – The option vega value.</p></li>
-<li><p><strong>theta</strong> (<em>float</em>) – The option theta value.</p></li>
-<li><p><em>underlying_price</em> – The price of the underlying.</p></li>
-</ul>
-</p>
-</dd>
-</dl>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.get_last_day">
-<span class="sig-name descname"><span class="pre">get_last_day</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.get_last_day" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.get_last_minute">
-<span class="sig-name descname"><span class="pre">get_last_minute</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.get_last_minute" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.get_last_price">
-<span class="sig-name descname"><span class="pre">get_last_price</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.get_last_price" title="Permalink to this definition">¶</a></dt>
-<dd><p>Takes an asset asset and returns the last known price</p>
-<p>Makes an active call to the market to retrieve the last price.
-In backtesting will provide the close of the last complete bar.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><p><strong>asset</strong> (<em>Asset object</em>) – Asset object for which the last closed price will be
-retrieved.</p>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><p>Last closed price.</p>
-</dd>
-<dt class="field-odd">Return type</dt>
-<dd class="field-odd"><p>Float</p>
-</dd>
-</dl>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.get_last_prices">
-<span class="sig-name descname"><span class="pre">get_last_prices</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">assets</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.get_last_prices" title="Permalink to this definition">¶</a></dt>
-<dd><p>Takes a list of assets and returns the last known prices</p>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.get_multiplier">
-<span class="sig-name descname"><span class="pre">get_multiplier</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">chains</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exchange</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'SMART'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.get_multiplier" title="Permalink to this definition">¶</a></dt>
-<dd><p>Returns option chain for a particular exchange.</p>
-<p>Using the <cite>chains</cite> dictionary obtained from <cite>get_chains</cite> finds
-all of the multiplier for the option chains on a given
-exchange.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>chains</strong> (<em>dictionary of dictionaries</em>) – The chains dictionary created by <cite>get_chains</cite> method.</p></li>
-<li><p><strong>exchange</strong> (<em>str optional</em>) – The exchange such as <cite>SMART</cite>, <cite>CBOE</cite>. Default is <cite>SMART</cite></p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><p>Sorted list of dates in the form of <cite>20221013</cite>.</p>
-</dd>
-<dt class="field-odd">Return type</dt>
-<dd class="field-odd"><p>list of str</p>
-</dd>
-</dl>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.get_realtime_bars">
-<span class="sig-name descname"><span class="pre">get_realtime_bars</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.get_realtime_bars" title="Permalink to this definition">¶</a></dt>
-<dd><p>Retrieve the real time bars as dataframe.</p>
-<p>Returns the current set of real time bars as a dataframe.
-The <cite>datetime</cite> will be in the index. The columns of the
-dataframe are:</p>
-<blockquote>
-<div><ul class="simple">
-<li><p>open</p></li>
-<li><p>high</p></li>
-<li><p>low</p></li>
-<li><p>close</p></li>
-<li><p>volume</p></li>
-<li><p>vwap</p></li>
-<li><p>count (trade count)</p></li>
-</ul>
-</div></blockquote>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><p><strong>asset</strong> (<em>Asset object</em>) – The asset that has a stream active.</p>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><p><p><strong>dataframe</strong> – Dataframe containing the most recent pricing information
-for the asset. The data returned will be the <cite>datetime</cite> in
-the index and the following columns.</p>
-<blockquote>
-<div><ul class="simple">
-<li><p>open</p></li>
-<li><p>high</p></li>
-<li><p>low</p></li>
-<li><p>close</p></li>
-<li><p>volume</p></li>
-<li><p>vwap</p></li>
-<li><p>count (trade count)</p></li>
-</ul>
-</div></blockquote>
-<p>The length of the dataframe will have been set the intial
-start of the real time bars.</p>
-</p>
-</dd>
-<dt class="field-odd">Return type</dt>
-<dd class="field-odd"><p>Pandas Dataframe.</p>
-</dd>
-</dl>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.get_round_day">
-<span class="sig-name descname"><span class="pre">get_round_day</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">timeshift</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.get_round_day" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.get_round_minute">
-<span class="sig-name descname"><span class="pre">get_round_minute</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">timeshift</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.get_round_minute" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.get_strikes">
-<span class="sig-name descname"><span class="pre">get_strikes</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.get_strikes" title="Permalink to this definition">¶</a></dt>
-<dd><p>Returns a list of strikes for a give underlying asset.</p>
-<p>Using the <cite>chains</cite> dictionary obtained from <cite>get_chains</cite> finds
-all of the multiplier for the option chains on a given
-exchange.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><p><strong>asset</strong> (<em>Asset object</em>) – <p>Asset object as normally used for an option but without
-the strike information.</p>
-<p>Example:
-asset = self.create_asset(</p>
-<blockquote>
-<div><p>”FB”,
-asset_type=”option”,
-expiration=self.options_expiry_to_datetime_date(“20210924”),
-right=”CALL”,
-multiplier=100,</p>
-</div></blockquote>
-<p>)</p>
-<p><cite>expiration</cite> can also be expressed as
-<cite>datetime.datetime.date()</cite></p>
-</p>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><p>Sorted list of strikes as floats.</p>
-</dd>
-<dt class="field-odd">Return type</dt>
-<dd class="field-odd"><p>list of floats</p>
-</dd>
-</dl>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.get_symbol_bars">
-<span class="sig-name descname"><span class="pre">get_symbol_bars</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">length</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timestep</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timeshift</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.get_symbol_bars" title="Permalink to this definition">¶</a></dt>
-<dd><p>Get bars for a given symbol or asset.</p>
-<p>Return data bars for a given symbol or asset.  Any number of bars can
-be return limited by the data available. This is set with <cite>length</cite> in
-number of bars. Bars may be returned as daily or by minute. And the
-starting point can be shifted backwards by time or bars.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>asset</strong> (<em>str</em><em> or </em><a class="reference internal" href="entities.asset.html#lumibot.entities.asset.Asset" title="lumibot.entities.asset.Asset"><em>Asset</em></a>) – The symbol string representation (e.g AAPL, GOOG, …) or asset
-object.</p></li>
-<li><p><strong>length</strong> (<em>int</em>) – The number of rows (number of timesteps)</p></li>
-<li><p><strong>timestep</strong> (<em>str</em>) – Either <code class="docutils literal notranslate"><span class="pre">`"minute""`</span></code> for minutes data or <code class="docutils literal notranslate"><span class="pre">`"day"`</span></code>
-for days data default value depends on the data_source (minute
-for alpaca, day for yahoo, …)</p></li>
-<li><p><strong>timeshift</strong> (<em>timedelta</em>) – <code class="docutils literal notranslate"><span class="pre">`None`</span></code> by default. If specified indicates the time shift from
-the present. If  backtesting in Pandas, use integer representing
-number of bars.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><p><ul class="simple">
-<li><p><em>Bars</em></p></li>
-<li><p><em>Example</em></p></li>
-<li><p><em>——-</em></p></li>
-<li><p><em>Extract 2 rows of SPY data with one day timestep between each row</em></p></li>
-<li><p><em>with the latest data being 24h ago (timedelta(days=1)) (in a backtest)</em></p></li>
-<li><p><em>bars =  self.get_symbol_bars(“SPY”, 2, “day”, timedelta(days=1))</em> – open    high     low   close    volume  dividend          Date</p></li>
-<li><p><strong>2019-12-24 00</strong> (<em>00:00-05:00  321.47  321.52  320.90  321.23  20270000       0.0</em>)</p></li>
-<li><p><strong>2019-12-26 00</strong> (<em>00:00-05:00  321.65  322.95  321.64  322.94  30911200       0.0</em>) – stock_splits  price_change  dividend_yield  return</p></li>
-<li><p><em>Date</em></p></li>
-<li><p><strong>2019-12-24 00</strong> (<em>00:00-05:00             0          0.00             0.0    0.00</em>)</p></li>
-<li><p><strong>2019-12-26 00</strong> (<em>00:00-05:00             0          0.01             0.0    0.01</em>)</p></li>
-</ul>
-</p>
-</dd>
-</dl>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.get_tick">
-<span class="sig-name descname"><span class="pre">get_tick</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.get_tick" title="Permalink to this definition">¶</a></dt>
-<dd><p>Takes an asset asset and returns the last known price</p>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.get_timestamp">
-<span class="sig-name descname"><span class="pre">get_timestamp</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.get_timestamp" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.get_tracked_assets">
-<span class="sig-name descname"><span class="pre">get_tracked_assets</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.get_tracked_assets" title="Permalink to this definition">¶</a></dt>
-<dd><p>Get the list of assets for positions
-and open orders for the current strategy</p>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.get_tracked_order">
-<span class="sig-name descname"><span class="pre">get_tracked_order</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">identifier</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.get_tracked_order" title="Permalink to this definition">¶</a></dt>
-<dd><p>get a tracked order given an identifier.
-Check that the order belongs to current strategy</p>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.get_tracked_orders">
-<span class="sig-name descname"><span class="pre">get_tracked_orders</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.get_tracked_orders" title="Permalink to this definition">¶</a></dt>
-<dd><p>get all tracked orders for a given strategy</p>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.get_tracked_position">
-<span class="sig-name descname"><span class="pre">get_tracked_position</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.get_tracked_position" title="Permalink to this definition">¶</a></dt>
-<dd><p>Get a tracked position given an asset for the current
-strategy.</p>
-<p>Seeks out and returns the position object for the given asset
-in the current strategy.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><p><strong>asset</strong> (<a class="reference internal" href="entities.asset.html#lumibot.entities.asset.Asset" title="lumibot.entities.asset.Asset"><em>Asset</em></a>) – Asset object who’s traded positions is sought.</p>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><p>A position object for the assset if there is a tracked
-position or returns None to indicate no tracked position.</p>
-</dd>
-<dt class="field-odd">Return type</dt>
-<dd class="field-odd"><p>position or None</p>
-</dd>
-</dl>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.get_tracked_positions">
-<span class="sig-name descname"><span class="pre">get_tracked_positions</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.get_tracked_positions" title="Permalink to this definition">¶</a></dt>
-<dd><p>get all tracked positions for the current strategy</p>
-<p>Seeks out and returns the all tracked positions in the current
-strategy.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Returns</dt>
-<dd class="field-odd"><p>Position objects for the strategy if there are tracked
-positions or returns and empty list to indicate no tracked
-position.</p>
-</dd>
-<dt class="field-even">Return type</dt>
-<dd class="field-even"><p>list of position objects</p>
-</dd>
-</dl>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.get_tradable_assets">
-<span class="sig-name descname"><span class="pre">get_tradable_assets</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dt</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">length</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timestep</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'minute'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timeshift</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.get_tradable_assets" title="Permalink to this definition">¶</a></dt>
-<dd><p>DEPRICATED</p>
-<p>This will not be implemented as it does not have a basis in real time
-trading.</p>
-<p>Get the list of all tradable assets within the current broker
-from the market</p>
-<p>Some assets datas will start and end at different times, for
-example options and futures contracts. When backtesting, this
-method will provide a list of assets for the current bar given
-the length, timestep and timeshift required.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>asset</strong> (<em>Asset object</em>) – The Asset to be checked if data is available for backtesting
-at the current bar.</p></li>
-<li><p><strong>dt</strong> (<em>datetime.datetime</em>) – Datetime of the bar to check, usually current datetime.</p></li>
-<li><p><strong>length</strong> (<em>int optional</em>) – Number of bars to check for data. (default is 1)</p></li>
-<li><p><strong>timestep</strong> (<em>str optional</em>) – Is the timestep <cite>minute</cite> or <cite>day</cite>. (default is <cite>minute</cite>)</p></li>
-<li><p><strong>timeshift</strong> (<em>int optional</em>) – The number of bars back from <cite>dt</cite> is the last bar.
-(default is 0)</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><p>A list of all the Assets that meet the given criteria.
-Will return an empty list if no assets are available.</p>
-</dd>
-<dt class="field-odd">Return type</dt>
-<dd class="field-odd"><p>list of Asset objects</p>
-</dd>
-</dl>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.get_yesterday_dividend">
-<span class="sig-name descname"><span class="pre">get_yesterday_dividend</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.get_yesterday_dividend" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.get_yesterday_dividends">
-<span class="sig-name descname"><span class="pre">get_yesterday_dividends</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">assets</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.get_yesterday_dividends" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-<dl class="py property">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.initial_budget">
-<em class="property"><span class="pre">property</span> </em><span class="sig-name descname"><span class="pre">initial_budget</span></span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.initial_budget" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.initialize">
-<span class="sig-name descname"><span class="pre">initialize</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.initialize" title="Permalink to this definition">¶</a></dt>
-<dd><p>Use this lifecycle method to initialize parameters</p>
-</dd></dl>
-<dl class="py property">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.is_backtesting">
-<em class="property"><span class="pre">property</span> </em><span class="sig-name descname"><span class="pre">is_backtesting</span></span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.is_backtesting" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.is_tradable">
-<span class="sig-name descname"><span class="pre">is_tradable</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">length</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timestep</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'minute'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timeshift</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.is_tradable" title="Permalink to this definition">¶</a></dt>
-<dd><p>DEPRICATED</p>
-<p>This will not be implemented as it does not have a basis in real time
-trading.</p>
-<p>Determine if the current asset is tradable at the current bar
-in backtesting primarily used with Pandas module.</p>
-<p>Some assets datas will start and end at different times, for
-example options and futures contracts. When backtesting, this
-method will determine if a given asset will have data for the
-current bar given the length, timestep and timeshift required.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>asset</strong> (<em>Asset object</em>) – The Asset to be checked if data is available for backtesting
-at the current bar.</p></li>
-<li><p><strong>dt</strong> (<em>datetime.datetime</em>) – Datetime of the bar to check, usually current datetime.</p></li>
-<li><p><strong>length</strong> (<em>int optional</em>) – Number of bars to check for data. (default is 1)</p></li>
-<li><p><strong>timestep</strong> (<em>str optional</em>) – Is the timestep <cite>minute</cite> or <cite>day</cite>. (default is <cite>minute</cite>)</p></li>
-<li><p><strong>timeshift</strong> (<em>int optional</em>) – The number of bars back from <cite>dt</cite> is the last bar.
-(default is 0)</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><p>True if is tradable. False or None if not.</p>
-</dd>
-<dt class="field-odd">Return type</dt>
-<dd class="field-odd"><p>boolean</p>
-</dd>
-</dl>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.load_pandas">
-<span class="sig-name descname"><span class="pre">load_pandas</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">df</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.load_pandas" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.localize_datetime">
-<span class="sig-name descname"><span class="pre">localize_datetime</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dt</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.localize_datetime" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.log_message">
-<span class="sig-name descname"><span class="pre">log_message</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">message</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.log_message" title="Permalink to this definition">¶</a></dt>
-<dd><p>Logs an info message prefixed with the strategy name.</p>
-<p>Uses python logging to log the message at the <cite>info</cite> level.
-Logging goes to the logging file, not the console.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><p><strong>message</strong> (<em>str</em>) – String message for logging.</p>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><p><strong>message</strong> – Strategy name plus the original message.</p>
-</dd>
-<dt class="field-odd">Return type</dt>
-<dd class="field-odd"><p>str</p>
-</dd>
-</dl>
-</dd></dl>
-<dl class="py property">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.minutes_before_closing">
-<em class="property"><span class="pre">property</span> </em><span class="sig-name descname"><span class="pre">minutes_before_closing</span></span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.minutes_before_closing" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-<dl class="py property">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.minutes_before_opening">
-<em class="property"><span class="pre">property</span> </em><span class="sig-name descname"><span class="pre">minutes_before_opening</span></span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.minutes_before_opening" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-<dl class="py property">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.name">
-<em class="property"><span class="pre">property</span> </em><span class="sig-name descname"><span class="pre">name</span></span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.name" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.on_abrupt_closing">
-<span class="sig-name descname"><span class="pre">on_abrupt_closing</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.on_abrupt_closing" title="Permalink to this definition">¶</a></dt>
-<dd><p>Use this lifecycle event to execute code
-when the main trader was shut down (Keybord Interuption, …)
-Example: self.sell_all()</p>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.on_bot_crash">
-<span class="sig-name descname"><span class="pre">on_bot_crash</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">error</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.on_bot_crash" title="Permalink to this definition">¶</a></dt>
-<dd><p>Use this lifecycle event to execute code
-when an exception is raised and the bot crashes</p>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.on_canceled_order">
-<span class="sig-name descname"><span class="pre">on_canceled_order</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">order</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.on_canceled_order" title="Permalink to this definition">¶</a></dt>
-<dd><p>Use this lifecycle event to execute code
-when an order has been canceled by the broker</p>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.on_filled_order">
-<span class="sig-name descname"><span class="pre">on_filled_order</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">position</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">order</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">price</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quantity</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">multiplier</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.on_filled_order" title="Permalink to this definition">¶</a></dt>
-<dd><p>Use this lifecycle event to execute code
-when an order has been filled by the broker</p>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.on_new_order">
-<span class="sig-name descname"><span class="pre">on_new_order</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">order</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.on_new_order" title="Permalink to this definition">¶</a></dt>
-<dd><p>Use this lifecycle event to execute code
-when a new order is being processed by the broker</p>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.on_partially_filled_order">
-<span class="sig-name descname"><span class="pre">on_partially_filled_order</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">position</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">order</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">price</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quantity</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">multiplier</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.on_partially_filled_order" title="Permalink to this definition">¶</a></dt>
-<dd><p>Use this lifecycle event to execute code
-when an order has been partially filled by the broker</p>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.on_strategy_end">
-<span class="sig-name descname"><span class="pre">on_strategy_end</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.on_strategy_end" title="Permalink to this definition">¶</a></dt>
-<dd><p>Use this lifecycle method to execute code
-when strategy reached its end. Used to dump
-statistics when backtesting finishes</p>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.on_trading_iteration">
-<span class="sig-name descname"><span class="pre">on_trading_iteration</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.on_trading_iteration" title="Permalink to this definition">¶</a></dt>
-<dd><p>Use this lifecycle method for trading.
-Will be executed indefinitely until there
-will be only self.minutes_before_closing
-minutes before market closes</p>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.options_expiry_to_datetime_date">
-<span class="sig-name descname"><span class="pre">options_expiry_to_datetime_date</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">date</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.options_expiry_to_datetime_date" title="Permalink to this definition">¶</a></dt>
-<dd><p>Converts an IB Options expiry to datetime.date.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><p><strong>date</strong> (<em>str</em>) – String in the format of ‘YYYYMMDD’</p>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><p></p>
-</dd>
-<dt class="field-odd">Return type</dt>
-<dd class="field-odd"><p>datetime.date</p>
-</dd>
-</dl>
-</dd></dl>
-<dl class="py property">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.parameters">
-<em class="property"><span class="pre">property</span> </em><span class="sig-name descname"><span class="pre">parameters</span></span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.parameters" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-<dl class="py property">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.portfolio_value">
-<em class="property"><span class="pre">property</span> </em><span class="sig-name descname"><span class="pre">portfolio_value</span></span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.portfolio_value" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-<dl class="py property">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.positions">
-<em class="property"><span class="pre">property</span> </em><span class="sig-name descname"><span class="pre">positions</span></span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.positions" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-<dl class="py property">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.pytz">
-<em class="property"><span class="pre">property</span> </em><span class="sig-name descname"><span class="pre">pytz</span></span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.pytz" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-<dl class="py property">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.risk_free_rate">
-<em class="property"><span class="pre">property</span> </em><span class="sig-name descname"><span class="pre">risk_free_rate</span></span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.risk_free_rate" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.sell_all">
-<span class="sig-name descname"><span class="pre">sell_all</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cancel_open_orders</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.sell_all" title="Permalink to this definition">¶</a></dt>
-<dd><p>Sell all strategy positions.</p>
-<p>The system will generate closing market orders for each open
-position. If <cite>cancel_open_orders</cite> is <cite>True</cite>, then all open
-orders will also be cancelled.</p>
-<p>Open orders are cancelled before the positions are closed.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><p><strong>cancel_open_orders</strong> (<em>boolean</em>) – Cancel all order if True, leave all orders in place if
-False. Default is True.</p>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><p></p>
-</dd>
-<dt class="field-odd">Return type</dt>
-<dd class="field-odd"><p>None</p>
-</dd>
-</dl>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.set_market">
-<span class="sig-name descname"><span class="pre">set_market</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">market</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.set_market" title="Permalink to this definition">¶</a></dt>
-<dd><p>Set the market for trading hours.
-<cite>NASDAQ</cite> is default.</p>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.sleep">
-<span class="sig-name descname"><span class="pre">sleep</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sleeptime</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.sleep" title="Permalink to this definition">¶</a></dt>
-<dd><p>Sleeping for sleeptime seconds</p>
-<p>Use to pause the execution of the program.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><p><strong>sleeptime</strong> (<em>float</em>) – Time in seconds the program will be paused.</p>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><p></p>
-</dd>
-<dt class="field-odd">Return type</dt>
-<dd class="field-odd"><p>None</p>
-</dd>
-</dl>
-</dd></dl>
-<dl class="py property">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.sleeptime">
-<em class="property"><span class="pre">property</span> </em><span class="sig-name descname"><span class="pre">sleeptime</span></span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.sleeptime" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.start_realtime_bars">
-<span class="sig-name descname"><span class="pre">start_realtime_bars</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">keep_bars</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">30</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.start_realtime_bars" title="Permalink to this definition">¶</a></dt>
-<dd><p>Starts a real time stream of tickers for Interactive Broker
-only.</p>
-<p>This allows for real time data to stream to the strategy. Bars
-are fixed at every fix seconds.  The will arrive in the strategy
-in the form of a dataframe. The data returned will be:</p>
-<blockquote>
-<div><ul class="simple">
-<li><p>datetime</p></li>
-<li><p>open</p></li>
-<li><p>high</p></li>
-<li><p>low</p></li>
-<li><p>close</p></li>
-<li><p>volume</p></li>
-<li><p>vwap</p></li>
-<li><p>count (trade count)</p></li>
-</ul>
-</div></blockquote>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>asset</strong> (<em>Asset object</em>) – The asset to stream.</p></li>
-<li><p><strong>keep_bars</strong> (<em>int</em>) – How many bars/rows to keep of data. If running for an
-extended period of time, it may be desirable to limit the
-size of the data kept.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><p></p>
-</dd>
-<dt class="field-odd">Return type</dt>
-<dd class="field-odd"><p>None</p>
-</dd>
-</dl>
-</dd></dl>
-<dl class="py property">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.stats">
-<em class="property"><span class="pre">property</span> </em><span class="sig-name descname"><span class="pre">stats</span></span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.stats" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-<dl class="py property">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.stats_file">
-<em class="property"><span class="pre">property</span> </em><span class="sig-name descname"><span class="pre">stats_file</span></span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.stats_file" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.submit_order">
-<span class="sig-name descname"><span class="pre">submit_order</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">order</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.submit_order" title="Permalink to this definition">¶</a></dt>
-<dd><p>Submit an order for an asset</p>
-<p>Submits an order object for processing by the active broker.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><p><strong>order</strong> (<em>Order object</em>) – Order object containing the asset and instructions for
-executing the order.</p>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><p>Processed order object.</p>
-</dd>
-<dt class="field-odd">Return type</dt>
-<dd class="field-odd"><p>order object</p>
-</dd>
-</dl>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.submit_orders">
-<span class="sig-name descname"><span class="pre">submit_orders</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">orders</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.submit_orders" title="Permalink to this definition">¶</a></dt>
-<dd><p>Submit a list of orders</p>
-<p>Submits a list of orders for processing by the active broker.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><p><strong>orders</strong> (<em>list of orders</em>) – A list of order objects containing the asset and
-instructions for the orders.</p>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><p>List of processed order object.</p>
-</dd>
-<dt class="field-odd">Return type</dt>
-<dd class="field-odd"><p>list of orders</p>
-</dd>
-</dl>
-</dd></dl>
-<dl class="py property">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.timezone">
-<em class="property"><span class="pre">property</span> </em><span class="sig-name descname"><span class="pre">timezone</span></span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.timezone" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.to_default_timezone">
-<span class="sig-name descname"><span class="pre">to_default_timezone</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dt</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.to_default_timezone" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.trace_stats">
-<span class="sig-name descname"><span class="pre">trace_stats</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">context</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">snapshot_before</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.trace_stats" title="Permalink to this definition">¶</a></dt>
-<dd><p>Lifecycle method that will be executed after
-on_trading_iteration. context is a dictionary containing
-on_trading_iteration locals() in last call. Use this
-method to dump stats</p>
-</dd></dl>
-<dl class="py property">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.unspent_money">
-<em class="property"><span class="pre">property</span> </em><span class="sig-name descname"><span class="pre">unspent_money</span></span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.unspent_money" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.wait_for_order_execution">
-<span class="sig-name descname"><span class="pre">wait_for_order_execution</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">order</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.wait_for_order_execution" title="Permalink to this definition">¶</a></dt>
-<dd><p>Wait for the order to execute/be canceled</p>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.wait_for_order_registration">
-<span class="sig-name descname"><span class="pre">wait_for_order_registration</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">order</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.wait_for_order_registration" title="Permalink to this definition">¶</a></dt>
-<dd><p>Wait for the order to be registered by the broker</p>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.wait_for_orders_execution">
-<span class="sig-name descname"><span class="pre">wait_for_orders_execution</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">orders</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.wait_for_orders_execution" title="Permalink to this definition">¶</a></dt>
-<dd><p>Wait for the orders to execute/be canceled</p>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.wait_for_orders_registration">
-<span class="sig-name descname"><span class="pre">wait_for_orders_registration</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">orders</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.wait_for_orders_registration" title="Permalink to this definition">¶</a></dt>
-<dd><p>Wait for the orders to be registered by the broker</p>
-</dd></dl>
-</dd></dl>
 </div>
 </div>
 
@@ -1637,12 +335,12 @@ method to dump stats</p>
       <footer>
         
         <div class="related-pages">
-          <a class="next-page" href="lumibot.html">
+          <a class="next-page" href="strategy_methods.orders.html">
               <div class="page-info">
                 <div class="context">
                   <span>Next</span>
                 </div>
-                <div class="title">Lumibot</div>
+                <div class="title">Order Management</div>
               </div>
               <svg><use href="#svg-arrow-right"></use></svg>
             </a>
@@ -1673,28 +371,8 @@ method to dump stats</p>
         
       </footer>
     </div>
-    <aside class="toc-drawer">
+    <aside class="toc-drawer no-toc">
       
-      
-      <div class="toc-sticky toc-scroll">
-        <div class="toc-title-container">
-          <span class="toc-title">
-            Contents
-          </span>
-        </div>
-        <div class="toc-tree-container">
-          <div class="toc-tree">
-            <ul>
-<li><a class="reference internal" href="#">Strategy Methods</a><ul>
-<li><a class="reference internal" href="#options">Options</a></li>
-<li><a class="reference internal" href="#module-lumibot.strategies.strategy">Documentation</a></li>
-</ul>
-</li>
-</ul>
-
-          </div>
-        </div>
-      </div>
       
       
     </aside>

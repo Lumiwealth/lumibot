@@ -1,7 +1,18 @@
+# Getting Started
+
+**This readme file is depricated and will be deleted by November 20 or sooner. Check out our brand new documentation here: http://lumibot.lumiwealth.com/**
+
+
+
+
+
+# Old Documentation Below (This Will Be Deleted Soon)
+
 README
 -------
 
 This library is covered by the MIT license for open sourced software which can be found here: https://github.com/Lumiwealth/lumibot/blob/master/LICENSE
+
 
 # Quickstart
 

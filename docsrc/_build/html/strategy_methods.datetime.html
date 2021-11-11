@@ -5,7 +5,7 @@
     <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="self.get_datetime" href="strategy_methods.datetime/strategies.strategy.Strategy.get_datetime.html" /><link rel="prev" title="self.get_greeks" href="strategy_methods.options/strategies.strategy.Strategy.get_greeks.html" />
 
     <meta name="generator" content="sphinx-4.2.0, furo 2021.10.09"/>
-        <title>Date/Time - Lumibot documentation</title>
+        <title>DateTime - Lumibot documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=0254c309f5cadf746f1a613e7677379ac9c8cdcd" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?digest=16fb25fabf47304eee183a5e9af80b1ba98259b1" />
@@ -192,7 +192,7 @@
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_greeks.html">self.get_greeks</a></li>
 </ul>
 </li>
-<li class="toctree-l2 current has-children current-page"><a class="current reference internal" href="#">Date/Time</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" role="switch" type="checkbox"/><label for="toctree-checkbox-5"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2 current has-children current-page"><a class="current reference internal" href="#">DateTime</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" role="switch" type="checkbox"/><label for="toctree-checkbox-5"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/strategies.strategy.Strategy.get_datetime.html">self.get_datetime</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/strategies.strategy.Strategy.get_timestamp.html">self.get_timestamp</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/strategies.strategy.Strategy.get_round_minute.html">self.get_round_minute</a></li>
@@ -264,8 +264,9 @@
           </label>
         </div>
         <article role="main">
-          <div class="section" id="date-time">
-<h1>Date/Time<a class="headerlink" href="#date-time" title="Permalink to this headline">¶</a></h1>
+          <div class="section" id="datetime">
+<h1>DateTime<a class="headerlink" href="#datetime" title="Permalink to this headline">¶</a></h1>
+<p>DataTime functions are made so that you can get the current date and time that your strategy thinks it is, regardless of whether you are backtesting or trading live. These can be especially useful when you’re backtesting so that you can see what date/time it is according to the backtest (eg. if you’re backtesting in the 1990s it can tell you that the strategy thinks it is Jan 10, 1991 rather than today’s date). You can see a list of them below:</p>
 <div class="table-wrapper"><table class="longtable docutils align-default">
 <colgroup>
 <col style="width: 10%"/>

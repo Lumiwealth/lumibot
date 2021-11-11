@@ -1,5 +1,8 @@
 Order Management
 ~~~~~~~~~~~
+
+Order Management functions are used to create, submit, cancel orders and more. You can see a list of them below:
+
 .. currentmodule:: strategies.strategy.Strategy
 
 .. autosummary::

@@ -45,11 +45,3 @@ Set up your entry point file as above, except using Interactive Brokers. Here is
     trader.run_all()
 
 You can also see the file simple_start_ib.py for a working bot here: https://github.com/Lumiwealth/lumibot/blob/master/getting_started/simple_start_ib.py
-
-Documentation
-"""""""""""""""""""
-
-.. automodule:: lumibot.brokers.interactive_brokers
-   :members:
-   :undoc-members:
-   :show-inheritance:

@@ -1,6 +1,8 @@
 Options
 ~~~~~~~~~~~
 
+Options methods are meant for managing options, including getting option chains, greeks and more. You can see a list of them below:
+
 .. currentmodule:: strategies.strategy.Strategy
 
 

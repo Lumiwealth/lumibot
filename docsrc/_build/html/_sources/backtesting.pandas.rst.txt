@@ -227,11 +227,3 @@ Putting all of this together, and adding in budget and strategy information, the
         pandas_data=pandas_data,
         stats_file=stats_file,
     )
-
-Documentation
-""""""""""""""""""""""
-
-.. automodule:: lumibot.backtesting.pandas_backtesting
-   :members:
-   :undoc-members:
-   :show-inheritance:

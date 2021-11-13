@@ -102,6 +102,7 @@ Table of Contents
 .. toctree::
    :maxdepth: 2
    
+   Home <self>
    getting_started
    lifecycle_methods
    strategy_methods

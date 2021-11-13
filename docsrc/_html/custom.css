@@ -16,7 +16,6 @@
 }
 
 .lib-feature {
-    background-color: #f5f5f5;
     border: 1px solid #e3e3e3;
     border-radius: 4px;
     margin-bottom: 20px;
@@ -30,7 +29,6 @@
     border-radius: 6px;
     text-align: center;
     padding: 8px;
-    background-color: #f5f5f5;
     margin: 14px;
 }
 
@@ -40,5 +38,5 @@
 
 .course-button {
     margin: 25px;
-    box-shadow: 5px 10px 18px #888888;
+    box-shadow: 5px 10px 18px #9b9b9b;
 }

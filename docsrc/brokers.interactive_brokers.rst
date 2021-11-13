@@ -1,5 +1,5 @@
 Interactive Brokers
-************************
+===================================
 
 To trade in your interactive brokers account, you must install Trader Workstation (or Gateway). Instructions for installation can be found here: https://interactivebrokers.github.io/tws-api/initial_setup.html
 

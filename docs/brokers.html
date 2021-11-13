@@ -133,7 +133,7 @@
           <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
         </button>
       </div>
-      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+      <label class="toc-overlay-icon toc-header-icon no-toc" for="__toc">
         <div class="visually-hidden">Toggle table of contents sidebar</div>
         <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
       </label>
@@ -287,7 +287,7 @@
               <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
             </button>
           </div>
-          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+          <label class="toc-overlay-icon toc-content-icon no-toc" for="__toc">
             <div class="visually-hidden">Toggle table of contents sidebar</div>
             <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
           </label>
@@ -295,174 +295,16 @@
         <article role="main">
           <div class="section" id="brokers">
 <h1>Brokers<a class="headerlink" href="#brokers" title="Permalink to this headline">¶</a></h1>
+<p>There are several different brokers that you can use to trade with Lumibot, and we’re adding more as we speak! Learn more about how they work and how to set them up here.</p>
 <div class="toctree-wrapper compound">
 <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="brokers.alpaca.html">Alpaca</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="brokers.alpaca.html#module-lumibot.brokers.alpaca">Documentation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.alpaca.html#documentation">Documentation</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="brokers.interactive_brokers.html">Interactive Brokers</a></li>
 </ul>
-</div>
-<div class="section" id="module-lumibot.brokers.broker">
-<span id="documentation"></span><h2>Documentation<a class="headerlink" href="#module-lumibot.brokers.broker" title="Permalink to this headline">¶</a></h2>
-<dl class="py class">
-<dt class="sig sig-object py" id="lumibot.brokers.broker.Broker">
-<em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">lumibot.brokers.broker.</span></span><span class="sig-name descname"><span class="pre">Broker</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">connect_stream</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.broker.Broker" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
-<dl class="py attribute">
-<dt class="sig sig-object py" id="lumibot.brokers.broker.Broker.CANCELED_ORDER">
-<span class="sig-name descname"><span class="pre">CANCELED_ORDER</span></span><em class="property"> <span class="pre">=</span> <span class="pre">'canceled'</span></em><a class="headerlink" href="#lumibot.brokers.broker.Broker.CANCELED_ORDER" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-<dl class="py attribute">
-<dt class="sig sig-object py" id="lumibot.brokers.broker.Broker.FILLED_ORDER">
-<span class="sig-name descname"><span class="pre">FILLED_ORDER</span></span><em class="property"> <span class="pre">=</span> <span class="pre">'fill'</span></em><a class="headerlink" href="#lumibot.brokers.broker.Broker.FILLED_ORDER" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-<dl class="py attribute">
-<dt class="sig sig-object py" id="lumibot.brokers.broker.Broker.IS_BACKTESTING_BROKER">
-<span class="sig-name descname"><span class="pre">IS_BACKTESTING_BROKER</span></span><em class="property"> <span class="pre">=</span> <span class="pre">False</span></em><a class="headerlink" href="#lumibot.brokers.broker.Broker.IS_BACKTESTING_BROKER" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-<dl class="py attribute">
-<dt class="sig sig-object py" id="lumibot.brokers.broker.Broker.NEW_ORDER">
-<span class="sig-name descname"><span class="pre">NEW_ORDER</span></span><em class="property"> <span class="pre">=</span> <span class="pre">'new'</span></em><a class="headerlink" href="#lumibot.brokers.broker.Broker.NEW_ORDER" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-<dl class="py attribute">
-<dt class="sig sig-object py" id="lumibot.brokers.broker.Broker.PARTIALLY_FILLED_ORDER">
-<span class="sig-name descname"><span class="pre">PARTIALLY_FILLED_ORDER</span></span><em class="property"> <span class="pre">=</span> <span class="pre">'partial_fill'</span></em><a class="headerlink" href="#lumibot.brokers.broker.Broker.PARTIALLY_FILLED_ORDER" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.broker.Broker.cancel_open_orders">
-<span class="sig-name descname"><span class="pre">cancel_open_orders</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">strategy</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.broker.Broker.cancel_open_orders" title="Permalink to this definition">¶</a></dt>
-<dd><p>cancel all open orders for a given strategy</p>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.broker.Broker.cancel_order">
-<span class="sig-name descname"><span class="pre">cancel_order</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">order</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.broker.Broker.cancel_order" title="Permalink to this definition">¶</a></dt>
-<dd><p>Cancel an order</p>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.broker.Broker.cancel_orders">
-<span class="sig-name descname"><span class="pre">cancel_orders</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">orders</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.broker.Broker.cancel_orders" title="Permalink to this definition">¶</a></dt>
-<dd><p>cancel orders</p>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.broker.Broker.export_trade_events_to_csv">
-<span class="sig-name descname"><span class="pre">export_trade_events_to_csv</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filename</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.broker.Broker.export_trade_events_to_csv" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.broker.Broker.get_asset_potential_total">
-<span class="sig-name descname"><span class="pre">get_asset_potential_total</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">strategy</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">asset</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.broker.Broker.get_asset_potential_total" title="Permalink to this definition">¶</a></dt>
-<dd><p>given a strategy and a asset, check the ongoing
-position and the tracked order and returns the total
-number of shares provided all orders went through</p>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.broker.Broker.get_last_price">
-<span class="sig-name descname"><span class="pre">get_last_price</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.broker.Broker.get_last_price" title="Permalink to this definition">¶</a></dt>
-<dd><p>Takes an asset asset and returns the last known price</p>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.broker.Broker.get_last_prices">
-<span class="sig-name descname"><span class="pre">get_last_prices</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">assets</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.broker.Broker.get_last_prices" title="Permalink to this definition">¶</a></dt>
-<dd><p>Takes a list of assets and returns the last known prices</p>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.broker.Broker.get_time_to_close">
-<span class="sig-name descname"><span class="pre">get_time_to_close</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.broker.Broker.get_time_to_close" title="Permalink to this definition">¶</a></dt>
-<dd><p>Return the remaining time for the market to close in seconds</p>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.broker.Broker.get_time_to_open">
-<span class="sig-name descname"><span class="pre">get_time_to_open</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.broker.Broker.get_time_to_open" title="Permalink to this definition">¶</a></dt>
-<dd><p>Return the remaining time for the market to open in seconds</p>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.broker.Broker.get_tracked_assets">
-<span class="sig-name descname"><span class="pre">get_tracked_assets</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">strategy</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.broker.Broker.get_tracked_assets" title="Permalink to this definition">¶</a></dt>
-<dd><p>Get the list of assets for positions
-and open orders for a given strategy</p>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.broker.Broker.get_tracked_order">
-<span class="sig-name descname"><span class="pre">get_tracked_order</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">identifier</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.broker.Broker.get_tracked_order" title="Permalink to this definition">¶</a></dt>
-<dd><p>get a tracked order given an identifier</p>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.broker.Broker.get_tracked_orders">
-<span class="sig-name descname"><span class="pre">get_tracked_orders</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">strategy</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">asset</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.broker.Broker.get_tracked_orders" title="Permalink to this definition">¶</a></dt>
-<dd><p>get all tracked orders for a given strategy</p>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.broker.Broker.get_tracked_position">
-<span class="sig-name descname"><span class="pre">get_tracked_position</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">strategy</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">asset</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.broker.Broker.get_tracked_position" title="Permalink to this definition">¶</a></dt>
-<dd><p>get a tracked position given an asset and
-a strategy</p>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.broker.Broker.get_tracked_positions">
-<span class="sig-name descname"><span class="pre">get_tracked_positions</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">strategy</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.broker.Broker.get_tracked_positions" title="Permalink to this definition">¶</a></dt>
-<dd><p>get all tracked positions for a given strategy</p>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.broker.Broker.is_market_open">
-<span class="sig-name descname"><span class="pre">is_market_open</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.broker.Broker.is_market_open" title="Permalink to this definition">¶</a></dt>
-<dd><p>return True if market is open else false</p>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.broker.Broker.sell_all">
-<span class="sig-name descname"><span class="pre">sell_all</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">strategy</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cancel_open_orders</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.broker.Broker.sell_all" title="Permalink to this definition">¶</a></dt>
-<dd><p>sell all positions</p>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.broker.Broker.should_continue">
-<span class="sig-name descname"><span class="pre">should_continue</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.broker.Broker.should_continue" title="Permalink to this definition">¶</a></dt>
-<dd><p>In production mode always returns True.
-Needs to be overloaded for backtesting to
-check if the limit timestamp was reached</p>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.broker.Broker.sleep">
-<span class="sig-name descname"><span class="pre">sleep</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sleeptime</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.broker.Broker.sleep" title="Permalink to this definition">¶</a></dt>
-<dd><p>The broker custom method for sleeping.
-Needs to be overloaded depending whether strategy is
-running live or in backtesting mode</p>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.broker.Broker.submit_order">
-<span class="sig-name descname"><span class="pre">submit_order</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">order</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.broker.Broker.submit_order" title="Permalink to this definition">¶</a></dt>
-<dd><p>Submit an order for an asset</p>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.broker.Broker.submit_orders">
-<span class="sig-name descname"><span class="pre">submit_orders</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">orders</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.broker.Broker.submit_orders" title="Permalink to this definition">¶</a></dt>
-<dd><p>submit orders</p>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.broker.Broker.wait_for_order_execution">
-<span class="sig-name descname"><span class="pre">wait_for_order_execution</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">order</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.broker.Broker.wait_for_order_execution" title="Permalink to this definition">¶</a></dt>
-<dd><p>Wait for the order to execute/be canceled</p>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.broker.Broker.wait_for_order_registration">
-<span class="sig-name descname"><span class="pre">wait_for_order_registration</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">order</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.broker.Broker.wait_for_order_registration" title="Permalink to this definition">¶</a></dt>
-<dd><p>Wait for the order to be registered by the broker</p>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.broker.Broker.wait_for_orders_execution">
-<span class="sig-name descname"><span class="pre">wait_for_orders_execution</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">orders</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.broker.Broker.wait_for_orders_execution" title="Permalink to this definition">¶</a></dt>
-<dd><p>Wait for the orders to execute/be canceled</p>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.broker.Broker.wait_for_orders_registration">
-<span class="sig-name descname"><span class="pre">wait_for_orders_registration</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">orders</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.broker.Broker.wait_for_orders_registration" title="Permalink to this definition">¶</a></dt>
-<dd><p>Wait for the orders to be registered by the broker</p>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.broker.Broker.wait_orders_clear">
-<span class="sig-name descname"><span class="pre">wait_orders_clear</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">strategy</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_loop</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">8</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.broker.Broker.wait_orders_clear" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-</dd></dl>
 </div>
 </div>
 
@@ -507,27 +349,8 @@ running live or in backtesting mode</p>
         
       </footer>
     </div>
-    <aside class="toc-drawer">
+    <aside class="toc-drawer no-toc">
       
-      
-      <div class="toc-sticky toc-scroll">
-        <div class="toc-title-container">
-          <span class="toc-title">
-            Contents
-          </span>
-        </div>
-        <div class="toc-tree-container">
-          <div class="toc-tree">
-            <ul>
-<li><a class="reference internal" href="#">Brokers</a><ul>
-<li><a class="reference internal" href="#module-lumibot.brokers.broker">Documentation</a></li>
-</ul>
-</li>
-</ul>
-
-          </div>
-        </div>
-      </div>
       
       
     </aside>

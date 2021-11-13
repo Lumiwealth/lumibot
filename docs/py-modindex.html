@@ -155,9 +155,24 @@
   <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting Started</a></li>
-<li class="toctree-l1"><a class="reference internal" href="lifecycle_methods.html">Lifecycle Methods</a></li>
-<li class="toctree-l1 has-children"><a class="reference internal" href="strategy_methods.html">Strategy Methods</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
-<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.orders.html">Order Management</a><input class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l1 has-children"><a class="reference internal" href="lifecycle_methods.html">Lifecycle Methods</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.initialize.html">def initialize</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_trading_iteration.html">def on_trading_iteration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.before_market_opens.html">def before_market_opens</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.before_starting_trading.html">def before_starting_trading</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.before_market_closes.html">def before_market_closes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.after_market_closes.html">def after_market_closes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_abrupt_closing.html">def on_abrupt_closing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_bot_crash.html">def on_bot_crash</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.trace_stats.html">def trace_stats</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_new_order.html">def on_new_order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_partially_filled_order.html">def on_partially_filled_order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_filled_order.html">def on_filled_order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_canceled_order.html">def on_canceled_order</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="strategy_methods.html">Strategy Methods</a><input class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.orders.html">Order Management</a><input class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.create_order.html">self.create_order</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.submit_order.html">self.submit_order</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.submit_orders.html">self.submit_orders</a></li>
@@ -172,7 +187,7 @@
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_asset_potential_total.html">self.get_asset_potential_total</a></li>
 </ul>
 </li>
-<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.data.html">Data</a><input class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.data.html">Data</a><input class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_last_price.html">self.get_last_price</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_last_prices.html">self.get_last_prices</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_tradable_assets.html">self.get_tradable_assets</a></li>
@@ -185,13 +200,13 @@
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_yesterday_dividends.html">self.get_yesterday_dividends</a></li>
 </ul>
 </li>
-<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.options.html">Options</a><input class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.options.html">Options</a><input class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" role="switch" type="checkbox"/><label for="toctree-checkbox-5"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_chain.html">self.get_chain</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_chains.html">self.get_chains</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_greeks.html">self.get_greeks</a></li>
 </ul>
 </li>
-<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.datetime.html">DateTime</a><input class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" role="switch" type="checkbox"/><label for="toctree-checkbox-5"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.datetime.html">DateTime</a><input class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/strategies.strategy.Strategy.get_datetime.html">self.get_datetime</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/strategies.strategy.Strategy.get_timestamp.html">self.get_timestamp</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/strategies.strategy.Strategy.get_round_minute.html">self.get_round_minute</a></li>
@@ -203,7 +218,7 @@
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/strategies.strategy.Strategy.to_default_timezone.html">self.to_default_timezone</a></li>
 </ul>
 </li>
-<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.misc.html">Miscellaneous</a><input class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.misc.html">Miscellaneous</a><input class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.log_message.html">self.log_message</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.sleep.html">self.sleep</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.await_market_to_close.html">self.await_market_to_close</a></li>
@@ -216,18 +231,32 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="strategy_properties.html">Strategy Properties</a></li>
-<li class="toctree-l1 has-children"><a class="reference internal" href="backtesting.html">Backtesting</a><input class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l1 has-children"><a class="reference internal" href="strategy_properties.html">Strategy Properties</a><input class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.name.html">self.name</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.initial_budget.html">self.initial_budget</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.minutes_before_closing.html">self.minutes_before_closing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.minutes_before_opening.html">self.minutes_before_opening</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.sleeptime.html">self.sleeptime</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.parameters.html">self.parameters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.is_backtesting.html">self.is_backtesting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.portfolio_value.html">self.portfolio_value</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.unspent_money.html">self.unspent_money</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.first_iteration.html">self.first_iteration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.timezone.html">self.timezone</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.pytz.html">self.pytz</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="backtesting.html">Backtesting</a><input class="toctree-checkbox" id="toctree-checkbox-9" name="toctree-checkbox-9" role="switch" type="checkbox"/><label for="toctree-checkbox-9"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.yahoo.html">Yahoo</a></li>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.pandas.html">Pandas (CSV or other data)</a></li>
 </ul>
 </li>
-<li class="toctree-l1 has-children"><a class="reference internal" href="brokers.html">Brokers</a><input class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l1 has-children"><a class="reference internal" href="brokers.html">Brokers</a><input class="toctree-checkbox" id="toctree-checkbox-10" name="toctree-checkbox-10" role="switch" type="checkbox"/><label for="toctree-checkbox-10"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="brokers.alpaca.html">Alpaca</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.interactive_brokers.html">Interactive Brokers</a></li>
 </ul>
 </li>
-<li class="toctree-l1 has-children"><a class="reference internal" href="entities.html">Entities</a><input class="toctree-checkbox" id="toctree-checkbox-9" name="toctree-checkbox-9" role="switch" type="checkbox"/><label for="toctree-checkbox-9"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l1 has-children"><a class="reference internal" href="entities.html">Entities</a><input class="toctree-checkbox" id="toctree-checkbox-11" name="toctree-checkbox-11" role="switch" type="checkbox"/><label for="toctree-checkbox-11"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="entities.asset.html">Asset</a></li>
 <li class="toctree-l2"><a class="reference internal" href="entities.bar.html">Bar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="entities.bars.html">Bars</a></li>
@@ -266,9 +295,64 @@
           
 <section class="domainindex-section">
   <h1>Python Module Index</h1>
-  <div class="domainindex-jumpbox"><a href="#cap-l"><strong>l</strong></a></div>
+  <div class="domainindex-jumpbox"><a href="#cap-e"><strong>e</strong></a> | <a href="#cap-l"><strong>l</strong></a></div>
 </section>
 <table class="domainindex-table">
+  <tr class="pcap">
+    <td></td><td>&#160;</td><td></td>
+  </tr>
+  <tr class="cap" id="cap-e">
+    <td></td><td><strong>e</strong></td><td></td>
+  </tr>
+  <tr>
+    <td><img src="_static/minus.png" class="toggler"
+              id="toggle-1" style="display: none" alt="-" /></td>
+    <td>
+        <code class="xref">entities</code></td><td>
+    <em></em></td>
+  </tr>
+  <tr class="cg-1">
+    <td></td>
+    <td>&#160;&#160;&#160;
+        <a href="entities.asset.html#module-entities.asset"><code class="xref">entities.asset</code></a></td><td>
+    <em></em></td>
+  </tr>
+  <tr class="cg-1">
+    <td></td>
+    <td>&#160;&#160;&#160;
+        <a href="entities.bar.html#module-entities.bar"><code class="xref">entities.bar</code></a></td><td>
+    <em></em></td>
+  </tr>
+  <tr class="cg-1">
+    <td></td>
+    <td>&#160;&#160;&#160;
+        <a href="entities.bars.html#module-entities.bars"><code class="xref">entities.bars</code></a></td><td>
+    <em></em></td>
+  </tr>
+  <tr class="cg-1">
+    <td></td>
+    <td>&#160;&#160;&#160;
+        <a href="entities.data.html#module-entities.data"><code class="xref">entities.data</code></a></td><td>
+    <em></em></td>
+  </tr>
+  <tr class="cg-1">
+    <td></td>
+    <td>&#160;&#160;&#160;
+        <a href="entities.dataline.html#module-entities.dataline"><code class="xref">entities.dataline</code></a></td><td>
+    <em></em></td>
+  </tr>
+  <tr class="cg-1">
+    <td></td>
+    <td>&#160;&#160;&#160;
+        <a href="entities.order.html#module-entities.order"><code class="xref">entities.order</code></a></td><td>
+    <em></em></td>
+  </tr>
+  <tr class="cg-1">
+    <td></td>
+    <td>&#160;&#160;&#160;
+        <a href="entities.position.html#module-entities.position"><code class="xref">entities.position</code></a></td><td>
+    <em></em></td>
+  </tr>
   <tr class="pcap">
     <td></td><td>&#160;</td><td></td>
   </tr>
@@ -277,168 +361,66 @@
   </tr>
   <tr>
     <td><img src="_static/minus.png" class="toggler"
-              id="toggle-1" style="display: none" alt="-" /></td>
+              id="toggle-2" style="display: none" alt="-" /></td>
     <td>
         <code class="xref">lumibot</code></td><td>
     <em></em></td>
   </tr>
-  <tr class="cg-1">
+  <tr class="cg-2">
     <td></td>
     <td>&#160;&#160;&#160;
         <a href="lumibot.backtesting.html#module-lumibot.backtesting.backtesting_broker"><code class="xref">lumibot.backtesting.backtesting_broker</code></a></td><td>
     <em></em></td>
   </tr>
-  <tr class="cg-1">
+  <tr class="cg-2">
     <td></td>
     <td>&#160;&#160;&#160;
         <a href="lumibot.backtesting.html#module-lumibot.backtesting.data_source_backtesting"><code class="xref">lumibot.backtesting.data_source_backtesting</code></a></td><td>
     <em></em></td>
   </tr>
-  <tr class="cg-1">
+  <tr class="cg-2">
     <td></td>
     <td>&#160;&#160;&#160;
         <a href="brokers.alpaca.html#module-lumibot.brokers.alpaca"><code class="xref">lumibot.brokers.alpaca</code></a></td><td>
     <em></em></td>
   </tr>
-  <tr class="cg-1">
+  <tr class="cg-2">
     <td></td>
     <td>&#160;&#160;&#160;
         <a href="brokers.html#module-lumibot.brokers.broker"><code class="xref">lumibot.brokers.broker</code></a></td><td>
     <em></em></td>
   </tr>
-  <tr class="cg-1">
+  <tr class="cg-2">
     <td></td>
     <td>&#160;&#160;&#160;
         <a href="lumibot.data_sources.html#module-lumibot.data_sources"><code class="xref">lumibot.data_sources</code></a></td><td>
     <em></em></td>
   </tr>
-  <tr class="cg-1">
+  <tr class="cg-2">
     <td></td>
     <td>&#160;&#160;&#160;
         <a href="lumibot.data_sources.html#module-lumibot.data_sources.data_source"><code class="xref">lumibot.data_sources.data_source</code></a></td><td>
     <em></em></td>
   </tr>
-  <tr class="cg-1">
+  <tr class="cg-2">
     <td></td>
     <td>&#160;&#160;&#160;
         <a href="lumibot.data_sources.html#module-lumibot.data_sources.pandas"><code class="xref">lumibot.data_sources.pandas</code></a></td><td>
     <em></em></td>
   </tr>
-  <tr class="cg-1">
+  <tr class="cg-2">
     <td></td>
     <td>&#160;&#160;&#160;
         <a href="lumibot.data_sources.html#module-lumibot.data_sources.yahoo"><code class="xref">lumibot.data_sources.yahoo</code></a></td><td>
     <em></em></td>
   </tr>
-  <tr class="cg-1">
-    <td></td>
-    <td>&#160;&#160;&#160;
-        <a href="entities.asset.html#module-lumibot.entities.asset"><code class="xref">lumibot.entities.asset</code></a></td><td>
-    <em></em></td>
-  </tr>
-  <tr class="cg-1">
-    <td></td>
-    <td>&#160;&#160;&#160;
-        <a href="entities.bar.html#module-lumibot.entities.bar"><code class="xref">lumibot.entities.bar</code></a></td><td>
-    <em></em></td>
-  </tr>
-  <tr class="cg-1">
-    <td></td>
-    <td>&#160;&#160;&#160;
-        <a href="entities.bars.html#module-lumibot.entities.bars"><code class="xref">lumibot.entities.bars</code></a></td><td>
-    <em></em></td>
-  </tr>
-  <tr class="cg-1">
-    <td></td>
-    <td>&#160;&#160;&#160;
-        <a href="entities.data.html#module-lumibot.entities.data"><code class="xref">lumibot.entities.data</code></a></td><td>
-    <em></em></td>
-  </tr>
-  <tr class="cg-1">
-    <td></td>
-    <td>&#160;&#160;&#160;
-        <a href="entities.dataline.html#module-lumibot.entities.dataline"><code class="xref">lumibot.entities.dataline</code></a></td><td>
-    <em></em></td>
-  </tr>
-  <tr class="cg-1">
-    <td></td>
-    <td>&#160;&#160;&#160;
-        <a href="entities.order.html#module-lumibot.entities.order"><code class="xref">lumibot.entities.order</code></a></td><td>
-    <em></em></td>
-  </tr>
-  <tr class="cg-1">
-    <td></td>
-    <td>&#160;&#160;&#160;
-        <a href="entities.position.html#module-lumibot.entities.position"><code class="xref">lumibot.entities.position</code></a></td><td>
-    <em></em></td>
-  </tr>
-  <tr class="cg-1">
-    <td></td>
-    <td>&#160;&#160;&#160;
-        <a href="lumibot.strategies.examples.html#module-lumibot.strategies.examples"><code class="xref">lumibot.strategies.examples</code></a></td><td>
-    <em></em></td>
-  </tr>
-  <tr class="cg-1">
-    <td></td>
-    <td>&#160;&#160;&#160;
-        <a href="lumibot.strategies.examples.html#module-lumibot.strategies.examples.buy_and_hold"><code class="xref">lumibot.strategies.examples.buy_and_hold</code></a></td><td>
-    <em></em></td>
-  </tr>
-  <tr class="cg-1">
-    <td></td>
-    <td>&#160;&#160;&#160;
-        <a href="lumibot.strategies.examples.html#module-lumibot.strategies.examples.debt_trading"><code class="xref">lumibot.strategies.examples.debt_trading</code></a></td><td>
-    <em></em></td>
-  </tr>
-  <tr class="cg-1">
-    <td></td>
-    <td>&#160;&#160;&#160;
-        <a href="lumibot.strategies.examples.html#module-lumibot.strategies.examples.diversification"><code class="xref">lumibot.strategies.examples.diversification</code></a></td><td>
-    <em></em></td>
-  </tr>
-  <tr class="cg-1">
-    <td></td>
-    <td>&#160;&#160;&#160;
-        <a href="lumibot.strategies.examples.html#module-lumibot.strategies.examples.diversified_leverage"><code class="xref">lumibot.strategies.examples.diversified_leverage</code></a></td><td>
-    <em></em></td>
-  </tr>
-  <tr class="cg-1">
-    <td></td>
-    <td>&#160;&#160;&#160;
-        <a href="lumibot.strategies.examples.html#module-lumibot.strategies.examples.fast_trading"><code class="xref">lumibot.strategies.examples.fast_trading</code></a></td><td>
-    <em></em></td>
-  </tr>
-  <tr class="cg-1">
-    <td></td>
-    <td>&#160;&#160;&#160;
-        <a href="lumibot.strategies.examples.html#module-lumibot.strategies.examples.intraday_momentum"><code class="xref">lumibot.strategies.examples.intraday_momentum</code></a></td><td>
-    <em></em></td>
-  </tr>
-  <tr class="cg-1">
-    <td></td>
-    <td>&#160;&#160;&#160;
-        <a href="lumibot.strategies.examples.html#module-lumibot.strategies.examples.momentum"><code class="xref">lumibot.strategies.examples.momentum</code></a></td><td>
-    <em></em></td>
-  </tr>
-  <tr class="cg-1">
-    <td></td>
-    <td>&#160;&#160;&#160;
-        <a href="lumibot.strategies.examples.html#module-lumibot.strategies.examples.simple"><code class="xref">lumibot.strategies.examples.simple</code></a></td><td>
-    <em></em></td>
-  </tr>
-  <tr class="cg-1">
-    <td></td>
-    <td>&#160;&#160;&#160;
-        <a href="lumibot.strategies.examples.html#module-lumibot.strategies.examples.strangle"><code class="xref">lumibot.strategies.examples.strangle</code></a></td><td>
-    <em></em></td>
-  </tr>
-  <tr class="cg-1">
+  <tr class="cg-2">
     <td></td>
     <td>&#160;&#160;&#160;
         <a href="lumibot.strategies.html#module-lumibot.strategies.strategy"><code class="xref">lumibot.strategies.strategy</code></a></td><td>
     <em></em></td>
   </tr>
-  <tr class="cg-1">
+  <tr class="cg-2">
     <td></td>
     <td>&#160;&#160;&#160;
         <a href="lumibot.traders.html#module-lumibot.traders.trader"><code class="xref">lumibot.traders.trader</code></a></td><td>

@@ -13,6 +13,7 @@ Welcome to Lumibot's documentation!
    brokers
    entities
 
+
 Indices and tables
 ==================
 

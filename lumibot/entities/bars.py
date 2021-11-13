@@ -41,6 +41,16 @@ class Bars:
         return bars
 
     def split(self):
+        """Return a list of Bars objects, each with a single bar
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        list of Bars objects
+        """
         result = []
         for index, row in self.df.iterrows():
             item = {
@@ -59,9 +69,30 @@ class Bars:
         return result
 
     def get_last_price(self):
+        """Return the last price of the last bar
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        float
+
+        """
         return self.df["close"][-1]
 
     def get_last_dividend(self):
+        """Return the last dividend of the last bar
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        float
+        """
         if "dividend" in self.df.columns:
             return self.df["dividend"][-1]
         else:
@@ -69,6 +100,20 @@ class Bars:
             return 0
 
     def filter(self, start=None, end=None):
+        """Return a Bars object with only the bars between start and end
+
+        Parameters
+        ----------
+        start : datetime.datetime
+            The start of the range to filter on
+
+        end : datetime.datetime
+            The end of the range to filter on
+
+        Returns
+        -------
+        Bars object
+        """
         df_copy = self.df
         if isinstance(start, datetime):
             df_copy = df_copy[df_copy.index >= start]
@@ -78,6 +123,20 @@ class Bars:
         return df_copy
 
     def get_momentum(self, start=None, end=None):
+        """Return the momentum (return based on closing prices) of the bars between start and end
+
+        Parameters
+        ----------
+        start : datetime.datetime
+            The start of the range to filter on (inclusive) (default: None)
+
+        end : datetime.datetime
+            The end of the range to filter on (inclusive) (default: None)
+
+        Returns
+        -------
+        float
+        """
         df_copy = self.filter(start=start, end=end)
         n_rows = df_copy.shape[0]
         if n_rows == 0:
@@ -87,6 +146,20 @@ class Bars:
         return momentum
 
     def get_total_volume(self, start=None, end=None):
+        """Return the total volume of the bars between start and end
+
+        Parameters
+        ----------
+        start : datetime.datetime
+            The start of the range to filter on (inclusive) (default: None)
+
+        end : datetime.datetime
+            The end of the range to filter on (inclusive) (default: None)
+
+        Returns
+        -------
+        float
+        """
         df_copy = self.filter(start=start, end=end)
         n_rows = df_copy.shape[0]
         if n_rows == 0:
@@ -100,6 +173,21 @@ class Bars:
         Will convert a set of bars to a different timeframe (eg. 1 min to 15 min)
         frequency (string): The new timeframe that the bars should be in, eg. "15Min", "1H", or "1D"
         Returns a new bars object.
+
+        Parameters
+        ----------
+        frequency : str
+            The new timeframe that the bars should be in, eg. "15Min", "1H", or "1D"
+
+        Returns
+        -------
+        Bars object
+
+        Examples
+        --------
+        >>> # Get the 15 minute bars for the last hour
+        >>> bars = self.get_symbol_bars("AAPL", 60, "minute")
+        >>> bars_agg = bars.aggregate_bars("15Min")
         """
         new_df = self.df.groupby(pd.Grouper(freq=frequency)).agg(
             {

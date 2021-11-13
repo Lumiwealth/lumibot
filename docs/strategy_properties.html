@@ -2,7 +2,7 @@
 <html class="no-js">
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
-    <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Backtesting" href="backtesting.html" /><link rel="prev" title="self.wait_for_orders_execution" href="strategy_methods.misc/strategies.strategy.Strategy.wait_for_orders_execution.html" />
+    <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="self.name" href="strategy_properties/strategies.strategy.Strategy.name.html" /><link rel="prev" title="self.wait_for_orders_execution" href="strategy_methods.misc/strategies.strategy.Strategy.wait_for_orders_execution.html" />
 
     <meta name="generator" content="sphinx-4.2.0, furo 2021.10.09"/>
         <title>Strategy Properties - Lumibot documentation</title>
@@ -156,9 +156,24 @@
   <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting Started</a></li>
-<li class="toctree-l1"><a class="reference internal" href="lifecycle_methods.html">Lifecycle Methods</a></li>
-<li class="toctree-l1 has-children"><a class="reference internal" href="strategy_methods.html">Strategy Methods</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
-<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.orders.html">Order Management</a><input class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l1 has-children"><a class="reference internal" href="lifecycle_methods.html">Lifecycle Methods</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.initialize.html">def initialize</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_trading_iteration.html">def on_trading_iteration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.before_market_opens.html">def before_market_opens</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.before_starting_trading.html">def before_starting_trading</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.before_market_closes.html">def before_market_closes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.after_market_closes.html">def after_market_closes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_abrupt_closing.html">def on_abrupt_closing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_bot_crash.html">def on_bot_crash</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.trace_stats.html">def trace_stats</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_new_order.html">def on_new_order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_partially_filled_order.html">def on_partially_filled_order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_filled_order.html">def on_filled_order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_canceled_order.html">def on_canceled_order</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="strategy_methods.html">Strategy Methods</a><input class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.orders.html">Order Management</a><input class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.create_order.html">self.create_order</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.submit_order.html">self.submit_order</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.submit_orders.html">self.submit_orders</a></li>
@@ -173,7 +188,7 @@
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_asset_potential_total.html">self.get_asset_potential_total</a></li>
 </ul>
 </li>
-<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.data.html">Data</a><input class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.data.html">Data</a><input class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_last_price.html">self.get_last_price</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_last_prices.html">self.get_last_prices</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_tradable_assets.html">self.get_tradable_assets</a></li>
@@ -186,13 +201,13 @@
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_yesterday_dividends.html">self.get_yesterday_dividends</a></li>
 </ul>
 </li>
-<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.options.html">Options</a><input class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.options.html">Options</a><input class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" role="switch" type="checkbox"/><label for="toctree-checkbox-5"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_chain.html">self.get_chain</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_chains.html">self.get_chains</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_greeks.html">self.get_greeks</a></li>
 </ul>
 </li>
-<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.datetime.html">DateTime</a><input class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" role="switch" type="checkbox"/><label for="toctree-checkbox-5"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.datetime.html">DateTime</a><input class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/strategies.strategy.Strategy.get_datetime.html">self.get_datetime</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/strategies.strategy.Strategy.get_timestamp.html">self.get_timestamp</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/strategies.strategy.Strategy.get_round_minute.html">self.get_round_minute</a></li>
@@ -204,7 +219,7 @@
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/strategies.strategy.Strategy.to_default_timezone.html">self.to_default_timezone</a></li>
 </ul>
 </li>
-<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.misc.html">Miscellaneous</a><input class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.misc.html">Miscellaneous</a><input class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.log_message.html">self.log_message</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.sleep.html">self.sleep</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.await_market_to_close.html">self.await_market_to_close</a></li>
@@ -217,18 +232,32 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Strategy Properties</a></li>
-<li class="toctree-l1 has-children"><a class="reference internal" href="backtesting.html">Backtesting</a><input class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l1 current has-children current-page"><a class="current reference internal" href="#">Strategy Properties</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.name.html">self.name</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.initial_budget.html">self.initial_budget</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.minutes_before_closing.html">self.minutes_before_closing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.minutes_before_opening.html">self.minutes_before_opening</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.sleeptime.html">self.sleeptime</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.parameters.html">self.parameters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.is_backtesting.html">self.is_backtesting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.portfolio_value.html">self.portfolio_value</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.unspent_money.html">self.unspent_money</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.first_iteration.html">self.first_iteration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.timezone.html">self.timezone</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.pytz.html">self.pytz</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="backtesting.html">Backtesting</a><input class="toctree-checkbox" id="toctree-checkbox-9" name="toctree-checkbox-9" role="switch" type="checkbox"/><label for="toctree-checkbox-9"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.yahoo.html">Yahoo</a></li>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.pandas.html">Pandas (CSV or other data)</a></li>
 </ul>
 </li>
-<li class="toctree-l1 has-children"><a class="reference internal" href="brokers.html">Brokers</a><input class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l1 has-children"><a class="reference internal" href="brokers.html">Brokers</a><input class="toctree-checkbox" id="toctree-checkbox-10" name="toctree-checkbox-10" role="switch" type="checkbox"/><label for="toctree-checkbox-10"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="brokers.alpaca.html">Alpaca</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.interactive_brokers.html">Interactive Brokers</a></li>
 </ul>
 </li>
-<li class="toctree-l1 has-children"><a class="reference internal" href="entities.html">Entities</a><input class="toctree-checkbox" id="toctree-checkbox-9" name="toctree-checkbox-9" role="switch" type="checkbox"/><label for="toctree-checkbox-9"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l1 has-children"><a class="reference internal" href="entities.html">Entities</a><input class="toctree-checkbox" id="toctree-checkbox-11" name="toctree-checkbox-11" role="switch" type="checkbox"/><label for="toctree-checkbox-11"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="entities.asset.html">Asset</a></li>
 <li class="toctree-l2"><a class="reference internal" href="entities.bar.html">Bar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="entities.bars.html">Bars</a></li>
@@ -267,36 +296,50 @@
           <div class="section" id="strategy-properties">
 <h1>Strategy Properties<a class="headerlink" href="#strategy-properties" title="Permalink to this headline">¶</a></h1>
 <p>Inside your strategy you can also get a lot of information about the state of the strategy and set specific variables to determine how the strategy works. Here is a list of those properties that you can use:</p>
-<ul class="simple">
-<li><p><strong>self.name</strong>: indicates the name of the strategy.</p></li>
-<li><p><strong>self.initial_budget</strong>: indicates the initial budget</p></li>
-<li><p><strong>self.minutes_before_closing</strong>: The lifecycle method on_trading_iteration is executed inside a loop that stops only when there is only minutes_before_closing minutes remaining before market closes. By default equals to 5 minutes. This value can be overloaded when creating a strategy class in order to change the default behaviour. Another option is to specify it when creating an instance the strategy class</p></li>
-</ul>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">my_strategy</span> <span class="o">=</span> <span class="n">MyStrategy</span><span class="p">(</span><span class="s2">"my_strategy"</span><span class="p">,</span> <span class="n">budget</span><span class="p">,</span> <span class="n">broker</span><span class="p">,</span> <span class="n">minutes_before_closing</span><span class="o">=</span><span class="mi">15</span><span class="p">)</span>
-</pre></div>
-</div>
-<ul class="simple">
-<li><p><strong>self.minutes_before_opening</strong>: The lifecycle method before_market_opens is executed minutes_before_opening minutes before the market opens. By default equals to 60 minutes. This value can be overloaded when creating a strategy class in order to change the default behaviour. Another option is to specify it when creating an instance the strategy class</p></li>
-</ul>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">my_strategy</span> <span class="o">=</span> <span class="n">MyStrategy</span><span class="p">(</span><span class="s2">"my_strategy"</span><span class="p">,</span> <span class="n">budget</span><span class="p">,</span> <span class="n">broker</span><span class="p">,</span> <span class="n">minutes_before_opening</span><span class="o">=</span><span class="mi">15</span><span class="p">)</span>
-</pre></div>
-</div>
-<ul class="simple">
-<li><p><strong>self.sleeptime</strong>: Sleeptime in seconds or minutes after executing the lifecycle method on_trading_iteration. By default equals 1 minute. You can set the sleep time as an integer which will be interpreted as minutes. eg: sleeptime = 50 would be 50 minutes. Conversely, you can enter the time as a string with the duration numbers first, followed by the time units: ‘M’ for minutes, ‘S’ for seconds eg: ‘300S’ is 300 seconds, ‘10M’ is 10 minutes. Only “S” and “M” are allowed.</p></li>
-</ul>
-<p>This value can be overloaded when creating a strategy class in order to change the default behaviour. Another option is to specify it when instantiating the strategy class</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">my_strategy</span> <span class="o">=</span> <span class="n">MyStrategy</span><span class="p">(</span><span class="s2">"my_strategy"</span><span class="p">,</span> <span class="n">budget</span><span class="p">,</span> <span class="n">broker</span><span class="p">,</span> <span class="n">sleeptime</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
-</pre></div>
-</div>
-<ul class="simple">
-<li><p><strong>self.parameters</strong>: a dictionary that contains keyword arguments passed to the constructor. These keyords arguments will be passed to the self.initialize() lifecycle method</p></li>
-<li><p><strong>self.is_backtesting</strong>: A boolean that indicates whether the strategy is run in live trading or in backtesting mode.</p></li>
-<li><p><strong>self.portfolio_value</strong>: indicates the actual values of shares held by the current strategy plus the total unspent money.</p></li>
-<li><p><strong>self.unspent_money</strong>: indicates the amount of unspent money from the initial budget allocated to the strategy. This property is updated whenever a transaction was filled by the broker or when dividends are paid.</p></li>
-<li><p><strong>self.first_iteration</strong>: is True if the lifecycle method on_trading_iteration is being excuted for the first time.</p></li>
-<li><p><strong>self.timezone</strong>: The string representation of the timezone used by the trading data_source. By default America/New_York.</p></li>
-<li><p><strong>self.pytz</strong>: the pytz object representation of the timezone property.</p></li>
-</ul>
+<div class="table-wrapper"><table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%"/>
+<col style="width: 90%"/>
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.name.html#strategies.strategy.Strategy.name" title="strategies.strategy.Strategy.name"><code class="xref py py-obj docutils literal notranslate"><span class="pre">name</span></code></a></p></td>
+<td><p>Returns the name of the strategy.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.initial_budget.html#strategies.strategy.Strategy.initial_budget" title="strategies.strategy.Strategy.initial_budget"><code class="xref py py-obj docutils literal notranslate"><span class="pre">initial_budget</span></code></a></p></td>
+<td><p>Returns the initial budget for the strategy.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.minutes_before_closing.html#strategies.strategy.Strategy.minutes_before_closing" title="strategies.strategy.Strategy.minutes_before_closing"><code class="xref py py-obj docutils literal notranslate"><span class="pre">minutes_before_closing</span></code></a></p></td>
+<td><p>Get or set the number of minutes that the strategy will stop executing before market closes.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.minutes_before_opening.html#strategies.strategy.Strategy.minutes_before_opening" title="strategies.strategy.Strategy.minutes_before_opening"><code class="xref py py-obj docutils literal notranslate"><span class="pre">minutes_before_opening</span></code></a></p></td>
+<td><p>Get or set the number of minutes that the strategy will start executing before the market opens.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.sleeptime.html#strategies.strategy.Strategy.sleeptime" title="strategies.strategy.Strategy.sleeptime"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sleeptime</span></code></a></p></td>
+<td><p>Get or set the current sleep time for the strategy.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.parameters.html#strategies.strategy.Strategy.parameters" title="strategies.strategy.Strategy.parameters"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parameters</span></code></a></p></td>
+<td><p>Returns the parameters of the strategy.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.is_backtesting.html#strategies.strategy.Strategy.is_backtesting" title="strategies.strategy.Strategy.is_backtesting"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_backtesting</span></code></a></p></td>
+<td><p>Returns True if the strategy is running in backtesting mode.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.portfolio_value.html#strategies.strategy.Strategy.portfolio_value" title="strategies.strategy.Strategy.portfolio_value"><code class="xref py py-obj docutils literal notranslate"><span class="pre">portfolio_value</span></code></a></p></td>
+<td><p>Returns the current portfolio value (cash + positions value).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.unspent_money.html#strategies.strategy.Strategy.unspent_money" title="strategies.strategy.Strategy.unspent_money"><code class="xref py py-obj docutils literal notranslate"><span class="pre">unspent_money</span></code></a></p></td>
+<td><p>Returns the current unspent money.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.first_iteration.html#strategies.strategy.Strategy.first_iteration" title="strategies.strategy.Strategy.first_iteration"><code class="xref py py-obj docutils literal notranslate"><span class="pre">first_iteration</span></code></a></p></td>
+<td><p>Returns True if this is the first iteration of the strategy (is True if the lifecycle method on_trading_iteration is being excuted for the first time).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.timezone.html#strategies.strategy.Strategy.timezone" title="strategies.strategy.Strategy.timezone"><code class="xref py py-obj docutils literal notranslate"><span class="pre">timezone</span></code></a></p></td>
+<td><p>Returns the timezone of the data source.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.pytz.html#strategies.strategy.Strategy.pytz" title="strategies.strategy.Strategy.pytz"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pytz</span></code></a></p></td>
+<td><p>Returns the pytz object of the data source.</p></td>
+</tr>
+</tbody>
+</table></div>
 </div>
 
         </article>
@@ -304,12 +347,12 @@
       <footer>
         
         <div class="related-pages">
-          <a class="next-page" href="backtesting.html">
+          <a class="next-page" href="strategy_properties/strategies.strategy.Strategy.name.html">
               <div class="page-info">
                 <div class="context">
                   <span>Next</span>
                 </div>
-                <div class="title">Backtesting</div>
+                <div class="title">self.name</div>
               </div>
               <svg><use href="#svg-arrow-right"></use></svg>
             </a>

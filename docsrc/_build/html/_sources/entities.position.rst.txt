@@ -15,7 +15,7 @@ Position objects have also the following helper methods
 Documentation
 """""""""""""""""""
 
-.. automodule:: lumibot.entities.position
+.. automodule:: entities.position
    :members:
    :undoc-members:
    :show-inheritance:

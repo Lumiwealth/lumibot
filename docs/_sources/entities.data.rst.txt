@@ -4,7 +4,7 @@ Data
 Documentation
 """""""""""""""""""
 
-.. automodule:: lumibot.entities.data
+.. automodule:: entities.data
    :members:
    :undoc-members:
    :show-inheritance:

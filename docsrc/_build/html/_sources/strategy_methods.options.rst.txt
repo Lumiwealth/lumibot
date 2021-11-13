@@ -1,5 +1,5 @@
 Options
-~~~~~~~~~~~
+===================================
 
 Options methods are meant for managing options, including getting option chains, greeks and more. You can see a list of them below:
 
@@ -8,7 +8,7 @@ Options methods are meant for managing options, including getting option chains,
 
 .. autosummary::
     :toctree: strategy_methods.options
-    :template: startegy_methods_template.rst
+    :template: strategy_methods_template.rst
 
     get_chain
     get_chains

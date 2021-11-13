@@ -61,6 +61,7 @@ A stop_limit order is a stop order with a limit price (combining stop orders and
 To create a stop_limit order object, add the keyword parameters stop_price and limit_price.
 
 .. code-block:: python
+
    my_limit_price = 405
    my_stop_price = 400
    order = self.create_order(symbol, quantity, side, stop_price=my_stop_price,               limit_price=my_limit_price)
@@ -141,7 +142,7 @@ Interactive Brokers requires the main or parent order to be a limit order. Add l
 Documentation
 """""""""""""""""""
 
-.. automodule:: lumibot.entities.order
+.. automodule:: entities.order
    :members:
    :undoc-members:
    :show-inheritance:

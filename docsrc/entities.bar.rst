@@ -4,7 +4,7 @@ Bar
 Documentation
 """""""""""""""""""
 
-.. automodule:: lumibot.entities.bar
+.. automodule:: entities.bar
    :members:
    :undoc-members:
    :show-inheritance:

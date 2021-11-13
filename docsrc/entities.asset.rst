@@ -61,7 +61,7 @@ For futures:
 Documentation
 """""""""""""""""""
 
-.. automodule:: lumibot.entities.asset
+.. automodule:: entities.asset
    :members:
    :undoc-members:
    :show-inheritance:

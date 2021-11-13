@@ -1,10 +1,12 @@
 import datetime
 import logging
 
-from .dataline import Dataline
+import pandas as pd
+
 from lumibot import LUMIBOT_DEFAULT_PYTZ as DEFAULT_PYTZ
 from lumibot.tools.helpers import to_datetime_aware
-import pandas as pd
+
+from .dataline import Dataline
 
 
 class Data:
@@ -136,6 +138,25 @@ class Data:
         self.datetime_end = self.df.index[-1]
 
     def set_times(self, trading_hours_start, trading_hours_end):
+        """Set the start and end times for the data. The default is 0001 hrs to 2359 hrs.
+
+        Parameters
+        ----------
+        trading_hours_start : datetime.time
+            The start time of the trading hours.
+
+        trading_hours_end : datetime.time
+            The end time of the trading hours.
+
+        Returns
+        -------
+        trading_hours_start : datetime.time
+            The start time of the trading hours.
+
+        trading_hours_end : datetime.time
+            The end time of the trading hours.
+        """
+        # Set the trading hours start and end times.
         if self.timestep == "minute":
             ts = trading_hours_start
             te = trading_hours_end
@@ -287,16 +308,68 @@ class Data:
 
     @check_data
     def is_tradable(self, dt, length=1, timestep="minute", timeshift=0):
+        """Returns True if the data is tradeable.
+
+        Parameters
+        ----------
+        dt : datetime.datetime
+            The datetime to check for tradeability.
+        length : int
+            The number of periods to check for tradeability.
+        timestep : str
+            The frequency of the data to check for tradeability.
+        timeshift : int
+            The number of periods to shift the data.
+
+        Returns
+        -------
+        bool
+        """
         # Return true if data is available for trading. None if not.
         return True
 
     @check_data
     def get_last_price(self, dt, length=1, timeshift=0):
+        """Returns the last price of the data.
+
+        Parameters
+        ----------
+        dt : datetime.datetime
+            The datetime to get the last price.
+        length : int
+            The number of periods to get the last price.
+        timestep : str
+            The frequency of the data to get the last price.
+        timeshift : int
+            The number of periods to shift the data.
+
+        Returns
+        -------
+        float
+        """
         # Get the last close price.
         return self.datalines["close"].dataline[self.get_iter_count(dt)]
 
     @check_data
     def _get_bars_dict(self, dt, length=1, timestep=None, timeshift=0):
+        """Returns a dictionary of the data.
+
+        Parameters
+        ----------
+        dt : datetime.datetime
+            The datetime to get the data.
+        length : int
+            The number of periods to get the data.
+        timestep : str
+            The frequency of the data to get the data.
+        timeshift : int
+            The number of periods to shift the data.
+
+        Returns
+        -------
+        dict
+
+        """
         # Get bars.
         end_row = self.get_iter_count(dt) + 1 - timeshift
         start_row = end_row - length
@@ -310,6 +383,24 @@ class Data:
         return df_dict
 
     def get_bars(self, dt, length=1, timestep=MIN_TIMESTEP, timeshift=0):
+        """Returns a dictionary of the data.
+
+        Parameters
+        ----------
+        dt : datetime.datetime
+            The datetime to get the data.
+        length : int
+            The number of periods to get the data.
+        timestep : str
+            The frequency of the data to get the data.
+        timeshift : int
+            The number of periods to shift the data.
+
+        Returns
+        -------
+        pandas.DataFrame
+
+        """
         df_dict = self._get_bars_dict(
             dt, length=length, timestep=self.timestep, timeshift=timeshift
         )

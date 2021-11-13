@@ -1,6 +1,0 @@
-﻿lumibot.strategies.strategy.Strategy.log\_message
-=================================================
-
-.. currentmodule:: lumibot.strategies.strategy
-
-.. automethod:: Strategy.log_message

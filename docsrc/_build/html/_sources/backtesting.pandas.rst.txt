@@ -1,5 +1,5 @@
 Pandas (CSV or other data)
-************************
+===================================
 
 Pandas backtester is named after the python dataframe library because the user must provide a strictly formatted dataframe. You can have any csv or parquet or database data you wish, but Lumibot will only accept one format of dataframe for the time being.
 
@@ -43,20 +43,17 @@ Pandas backtester will receive a dataframe in the following format:
 
 Your dataframe should look like this:
 
-                        high	low	open    close	volume
-datetime					
-2020-01-02 09:31:00	3237.00	3234.75	3235.25	3237.00	16808
-2020-01-02 09:32:00	3237.00	3234.00	3237.00	3234.75	10439
-2020-01-02 09:33:00	3235.50	3233.75	3234.50	3234.75	8203
-2020-01-02 09:34:00	3238.00	3234.75	3234.75	3237.50	8664
-2020-01-02 09:35:00	3238.25	3236.25	3237.25	3236.25	7889
-...	...	...	...	...	...
-2020-04-22 15:56:00	2800.75	2796.25	2800.75	2796.25	8272
-2020-04-22 15:57:00	2796.50	2794.00	2796.25	2794.00	7440
-2020-04-22 15:58:00	2794.75	2793.00	2794.25	2793.25	7569
-2020-04-22 15:59:00	2793.50	2790.75	2793.50	2790.75	10601
-2020-04-22 16:00:00	2791.00	2787.75	2790.75	2789.00	57342
-30397 rows × 5 columns
+.. csv-table:: Example Dataframe
+   :header: "datetime (the DataFrame.index)", "open", "high", "low", "close", "volume"
+
+    2020-01-02 09:31:00,	3237.00,	3234.75,	3235.25,	3237.00,	16808
+    2020-01-02 09:32:00,	3237.00,	3234.00,	3237.00,	3234.75,	10439
+    2020-01-02 09:33:00,	3235.50,	3233.75,	3234.50,	3234.75,	8203
+    ...,	...,	...,	...,	...,	...
+    2020-04-22 15:56:00,	2800.75,	2796.25,	2800.75,	2796.25,	8272
+    2020-04-22 15:57:00,	2796.50,	2794.00,	2796.25,	2794.00,	7440
+    2020-04-22 15:58:00,	2794.75,	2793.00,	2794.25,	2793.25,	7569
+
 Any other formats for dataframes will not work.
 
 Every asset with data will have its own Data object to keep track of the information needed for backtesting that asset. Each Data has the following parameters:
@@ -97,10 +94,8 @@ One of the important differences when using Pandas backtester is that you must u
 .. code-block:: python
 
     asset = Asset(
-        symbol='ES',
-        asset_type="future",
-        expiration=datetime.date(2021, 6, 11),
-        multiplier=50,
+        symbol="AAPL",
+        asset_type="stock",
     )
 
 Next step will be to load the dataframe from csv.
@@ -109,15 +104,9 @@ Next step will be to load the dataframe from csv.
 
     # The names of the columns are important. Also important that all dates in the 
     # dataframe are time aware before going into lumibot. 
-    df = pd.read_csv(
-                f"es_data.csv",
-                parse_dates=True,
-                index_col=0,
-                header=0,
-                names=["datetime", "high", "low", "open", "close", "volume"],
-            )
-            df = df[["open", "high", "low", "close", "volume"]]
-            df.index = df.index.tz_localize("America/New_York")
+    df = pd.read_csv(f"data/AAPL.csv")
+    df = df.set_index("time")
+    df.index = pd.to_datetime(df.index)
 
 Third we make a data object.
 
@@ -126,10 +115,6 @@ Third we make a data object.
     data = Data(
         asset,
         df,
-        date_start=datetime.datetime(2021, 3, 14), 
-        date_end=datetime.datetime(2021, 6, 11), 
-        trading_hours_start=datetime.time(9, 30),
-        trading_hours_end=datetime.time(16, 0),
         timestep="minute",
     )
 
@@ -139,15 +124,9 @@ Finally, we create or add to the dictionary that will be passed into Lumibot.
 
 .. code-block:: python
 
-    pandas_data = dict(
-        asset = data
-    )
-
-Create a path to save your stats to:
-
-.. code-block:: python
-
-    stats_file = f"logs/strategy_{strategy_class.__name__}_{int(time())}.csv"
+    pandas_data = {
+        asset: data
+    }
 
 As with Yahoo backtester, data is passed in by using ``.backtest()`` on your strategy class.
 
@@ -164,66 +143,63 @@ There is also a returns plot. By default this will show in a browser. You may su
             backtesting_start,
             backtesting_end,
             pandas_data=pandas_data,
-            stats_file=stats_file, 
-            plot_file=plot_file,
-            show_plot=True,
-            benchmark_asset="SPY",
         )
 
 Putting all of this together, and adding in budget and strategy information, the code would look like the following:
 
 .. code-block:: python
 
-    from lumibot.backtesting import PandasDataBacktesting
+    import datetime
 
-    strategy_name = "Futures"
-    strategy_class = Futures
+    import pandas as pd
+    from lumibot.backtesting import PandasDataBacktesting
+    from lumibot.entities import Asset, Data
+    from lumibot.strategies import Strategy
+
+
+    # A simple strategy that buys SPY on the first day
+    class MyStrategy(Strategy):
+        def on_trading_iteration(self):
+            if self.first_iteration:
+                order = self.create_order("AAPL", 100, "buy")
+                self.submit_order(order)
+
+
+    # Set your strategy name and budget
+    strategy_name = "MyStrategy"
     budget = 50000
 
-    backtesting_start = datetime.datetime(2021, 1, 8)
-    backtesting_end = datetime.datetime(2021, 3, 10)
-
-    trading_hours_start = datetime.time(9, 30)
-    trading_hours_end = datetime.time(16, 0)
-    
+    # Read the data from the CSV file (in this example you must have a file named "AAPL.csv"
+    # in a folder named "data" in the same directory as this script)
+    df = pd.read_csv(f"data/AAPL.csv")
+    df = df.set_index("time")
+    df.index = pd.to_datetime(df.index)
     asset = Asset(
-        symbol='ES',
-        asset_type="future",
-        expiration=datetime.date(2021, 6, 11),
-        multiplier=50,
+        symbol="AAPL",
+        asset_type="stock",
     )
-    df = pd.read_csv(
-        f"es_data.csv",
-        parse_dates=True,
-        index_col=0,
-        header=0,
-        names=["datetime", "high", "low", "open", "close", "volume"],
-    )
-    df = df[["open", "high", "low", "close", "volume"]]
-    df.index = df.index.tz_localize("America/New_York")
-
-    data = Data(
+    pandas_data = {}
+    pandas_data[asset] = Data(
         asset,
         df,
-        date_start=datetime.datetime(2021, 3, 14),
-        date_end=datetime.datetime(2021, 6, 11),
-        trading_hours_start=datetime.time(9, 30),
-        trading_hours_end=datetime.time(16, 0),
         timestep="minute",
     )
-    pandas_data = dict(
-        asset=data
-    )
 
-    stats_file = f"logs/strategy_{strategy_class.__name__}_{int(time())}.csv"
+    # Pick the date range you want to backtest
+    backtesting_start = datetime.datetime(2021, 7, 2)
+    backtesting_end = datetime.datetime(2021, 7, 20)
 
-
-    strategy_class.backtest(
+    # Run the backtesting
+    MyStrategy.backtest(
         strategy_name,
         budget,
         PandasDataBacktesting,
         backtesting_start,
         backtesting_end,
         pandas_data=pandas_data,
-        stats_file=stats_file,
     )
+
+Getting Data
+-----------
+
+If you would like an easy way to download pricing data from Alpaca then you can use this code: https://github.com/Lumiwealth/lumibot/blob/master/download_price_data_alpaca.py

@@ -4,7 +4,7 @@ Dataline
 Documentation
 """""""""""""""""""
 
-.. automodule:: lumibot.entities.dataline
+.. automodule:: entities.dataline
    :members:
    :undoc-members:
    :show-inheritance:

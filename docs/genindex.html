@@ -155,9 +155,24 @@
   <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting Started</a></li>
-<li class="toctree-l1"><a class="reference internal" href="lifecycle_methods.html">Lifecycle Methods</a></li>
-<li class="toctree-l1 has-children"><a class="reference internal" href="strategy_methods.html">Strategy Methods</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
-<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.orders.html">Order Management</a><input class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l1 has-children"><a class="reference internal" href="lifecycle_methods.html">Lifecycle Methods</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.initialize.html">def initialize</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_trading_iteration.html">def on_trading_iteration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.before_market_opens.html">def before_market_opens</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.before_starting_trading.html">def before_starting_trading</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.before_market_closes.html">def before_market_closes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.after_market_closes.html">def after_market_closes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_abrupt_closing.html">def on_abrupt_closing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_bot_crash.html">def on_bot_crash</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.trace_stats.html">def trace_stats</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_new_order.html">def on_new_order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_partially_filled_order.html">def on_partially_filled_order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_filled_order.html">def on_filled_order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_canceled_order.html">def on_canceled_order</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="strategy_methods.html">Strategy Methods</a><input class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.orders.html">Order Management</a><input class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.create_order.html">self.create_order</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.submit_order.html">self.submit_order</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.submit_orders.html">self.submit_orders</a></li>
@@ -172,7 +187,7 @@
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_asset_potential_total.html">self.get_asset_potential_total</a></li>
 </ul>
 </li>
-<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.data.html">Data</a><input class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.data.html">Data</a><input class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_last_price.html">self.get_last_price</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_last_prices.html">self.get_last_prices</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_tradable_assets.html">self.get_tradable_assets</a></li>
@@ -185,13 +200,13 @@
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_yesterday_dividends.html">self.get_yesterday_dividends</a></li>
 </ul>
 </li>
-<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.options.html">Options</a><input class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.options.html">Options</a><input class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" role="switch" type="checkbox"/><label for="toctree-checkbox-5"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_chain.html">self.get_chain</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_chains.html">self.get_chains</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_greeks.html">self.get_greeks</a></li>
 </ul>
 </li>
-<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.datetime.html">DateTime</a><input class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" role="switch" type="checkbox"/><label for="toctree-checkbox-5"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.datetime.html">DateTime</a><input class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/strategies.strategy.Strategy.get_datetime.html">self.get_datetime</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/strategies.strategy.Strategy.get_timestamp.html">self.get_timestamp</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/strategies.strategy.Strategy.get_round_minute.html">self.get_round_minute</a></li>
@@ -203,7 +218,7 @@
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/strategies.strategy.Strategy.to_default_timezone.html">self.to_default_timezone</a></li>
 </ul>
 </li>
-<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.misc.html">Miscellaneous</a><input class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.misc.html">Miscellaneous</a><input class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.log_message.html">self.log_message</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.sleep.html">self.sleep</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.await_market_to_close.html">self.await_market_to_close</a></li>
@@ -216,18 +231,32 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="strategy_properties.html">Strategy Properties</a></li>
-<li class="toctree-l1 has-children"><a class="reference internal" href="backtesting.html">Backtesting</a><input class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l1 has-children"><a class="reference internal" href="strategy_properties.html">Strategy Properties</a><input class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.name.html">self.name</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.initial_budget.html">self.initial_budget</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.minutes_before_closing.html">self.minutes_before_closing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.minutes_before_opening.html">self.minutes_before_opening</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.sleeptime.html">self.sleeptime</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.parameters.html">self.parameters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.is_backtesting.html">self.is_backtesting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.portfolio_value.html">self.portfolio_value</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.unspent_money.html">self.unspent_money</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.first_iteration.html">self.first_iteration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.timezone.html">self.timezone</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.pytz.html">self.pytz</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="backtesting.html">Backtesting</a><input class="toctree-checkbox" id="toctree-checkbox-9" name="toctree-checkbox-9" role="switch" type="checkbox"/><label for="toctree-checkbox-9"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.yahoo.html">Yahoo</a></li>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.pandas.html">Pandas (CSV or other data)</a></li>
 </ul>
 </li>
-<li class="toctree-l1 has-children"><a class="reference internal" href="brokers.html">Brokers</a><input class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l1 has-children"><a class="reference internal" href="brokers.html">Brokers</a><input class="toctree-checkbox" id="toctree-checkbox-10" name="toctree-checkbox-10" role="switch" type="checkbox"/><label for="toctree-checkbox-10"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="brokers.alpaca.html">Alpaca</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.interactive_brokers.html">Interactive Brokers</a></li>
 </ul>
 </li>
-<li class="toctree-l1 has-children"><a class="reference internal" href="entities.html">Entities</a><input class="toctree-checkbox" id="toctree-checkbox-9" name="toctree-checkbox-9" role="switch" type="checkbox"/><label for="toctree-checkbox-9"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l1 has-children"><a class="reference internal" href="entities.html">Entities</a><input class="toctree-checkbox" id="toctree-checkbox-11" name="toctree-checkbox-11" role="switch" type="checkbox"/><label for="toctree-checkbox-11"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="entities.asset.html">Asset</a></li>
 <li class="toctree-l2"><a class="reference internal" href="entities.bar.html">Bar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="entities.bars.html">Bars</a></li>
@@ -272,13 +301,13 @@
   <h2>_</h2>
   <table style="width: 100%" class="indextable genindextable"><tr>
     <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="entities.asset.html#lumibot.entities.asset.Asset._asset_types">_asset_types (lumibot.entities.asset.Asset attribute)</a>
+        <li><a href="entities.asset.html#entities.asset.Asset._asset_types">_asset_types (entities.asset.Asset attribute)</a>
 </li>
     </ul></td>
     <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="entities.data.html#lumibot.entities.data.Data._get_bars_dict">_get_bars_dict() (lumibot.entities.data.Data method)</a>
+        <li><a href="entities.data.html#entities.data.Data._get_bars_dict">_get_bars_dict() (entities.data.Data method)</a>
 </li>
-        <li><a href="entities.asset.html#lumibot.entities.asset.Asset._right">_right (lumibot.entities.asset.Asset attribute)</a>
+        <li><a href="entities.asset.html#entities.asset.Asset._right">_right (entities.asset.Asset attribute)</a>
 </li>
     </ul></td>
   </tr></table>
@@ -288,37 +317,39 @@
   <h2>A</h2>
   <table style="width: 100%" class="indextable genindextable"><tr>
     <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="entities.position.html#lumibot.entities.position.Position.add_order">add_order() (lumibot.entities.position.Position method)</a>
+        <li><a href="entities.position.html#entities.position.Position.add_order">add_order() (entities.position.Position method)</a>
 </li>
         <li><a href="lumibot.traders.html#lumibot.traders.trader.Trader.add_strategy">add_strategy() (lumibot.traders.trader.Trader method)</a>
 </li>
-        <li><a href="entities.order.html#lumibot.entities.order.Order.add_transaction">add_transaction() (lumibot.entities.order.Order method)</a>
+        <li><a href="entities.order.html#entities.order.Order.add_transaction">add_transaction() (entities.order.Order method)</a>
 </li>
-        <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.after_market_closes">after_market_closes() (lumibot.strategies.strategy.Strategy method)</a>
+        <li><a href="lifecycle_methods.after_market_closes.html#strategies.strategy.Strategy.after_market_closes">after_market_closes() (in module strategies.strategy.Strategy)</a>
+
+        <ul>
+          <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.after_market_closes">(lumibot.strategies.strategy.Strategy method)</a>
 </li>
-        <li><a href="entities.bars.html#lumibot.entities.bars.Bars.aggregate_bars">aggregate_bars() (lumibot.entities.bars.Bars method)</a>
+        </ul></li>
+        <li><a href="entities.bars.html#entities.bars.Bars.aggregate_bars">aggregate_bars() (entities.bars.Bars method)</a>
 </li>
         <li><a href="brokers.alpaca.html#lumibot.brokers.alpaca.Alpaca">Alpaca (class in lumibot.brokers.alpaca)</a>
 </li>
         <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.analysis">analysis (lumibot.strategies.strategy.Strategy property)</a>
 </li>
-        <li><a href="entities.asset.html#lumibot.entities.asset.Asset">Asset (class in lumibot.entities.asset)</a>
-</li>
-        <li><a href="entities.data.html#lumibot.entities.data.Data.asset">asset (lumibot.entities.data.Data attribute)</a>
+        <li><a href="entities.asset.html#entities.asset.Asset">Asset (class in entities.asset)</a>
 </li>
     </ul></td>
     <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.strangle.Strangle.asset_cycle">asset_cycle() (lumibot.strategies.examples.strangle.Strangle method)</a>
+        <li><a href="entities.data.html#entities.data.Data.asset">asset (entities.data.Data attribute)</a>
 </li>
-        <li><a href="entities.asset.html#lumibot.entities.asset.Asset.asset_type">asset_type (lumibot.entities.asset.Asset attribute)</a>
+        <li><a href="entities.asset.html#entities.asset.Asset.asset_type">asset_type (entities.asset.Asset attribute)</a>
 </li>
-        <li><a href="entities.asset.html#id0">asset_type_must_be_one_of() (lumibot.entities.asset.Asset class method)</a>
+        <li><a href="entities.asset.html#id0">asset_type_must_be_one_of() (entities.asset.Asset class method)</a>
 
         <ul>
-          <li><a href="entities.asset.html#lumibot.entities.asset.Asset.asset_type_must_be_one_of">(lumibot.entities.asset.Asset method)</a>
+          <li><a href="entities.asset.html#entities.asset.Asset.asset_type_must_be_one_of">(entities.asset.Asset method)</a>
 </li>
         </ul></li>
-        <li><a href="entities.asset.html#lumibot.entities.asset.AssetsMapping">AssetsMapping (class in lumibot.entities.asset)</a>
+        <li><a href="entities.asset.html#entities.asset.AssetsMapping">AssetsMapping (class in entities.asset)</a>
 </li>
         <li><a href="strategy_methods.misc/strategies.strategy.Strategy.await_market_to_close.html#strategies.strategy.Strategy.await_market_to_close">await_market_to_close() (in module strategies.strategy.Strategy)</a>
 
@@ -342,25 +373,25 @@
     <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="lumibot.backtesting.html#lumibot.backtesting.backtesting_broker.BacktestingBroker">BacktestingBroker (class in lumibot.backtesting.backtesting_broker)</a>
 </li>
-        <li><a href="entities.bar.html#lumibot.entities.bar.Bar">Bar (class in lumibot.entities.bar)</a>
+        <li><a href="entities.bar.html#entities.bar.Bar">Bar (class in entities.bar)</a>
 </li>
-        <li><a href="entities.bars.html#lumibot.entities.bars.Bars">Bars (class in lumibot.entities.bars)</a>
+        <li><a href="entities.bars.html#entities.bars.Bars">Bars (class in entities.bars)</a>
 </li>
-        <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.fast_trading.FastTrading.before_market_closes">before_market_closes() (lumibot.strategies.examples.fast_trading.FastTrading method)</a>
+        <li><a href="lifecycle_methods.before_market_closes.html#strategies.strategy.Strategy.before_market_closes">before_market_closes() (in module strategies.strategy.Strategy)</a>
 
         <ul>
-          <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.intraday_momentum.IntradayMomentum.before_market_closes">(lumibot.strategies.examples.intraday_momentum.IntradayMomentum method)</a>
-</li>
-          <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.strangle.Strangle.before_market_closes">(lumibot.strategies.examples.strangle.Strangle method)</a>
-</li>
           <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.before_market_closes">(lumibot.strategies.strategy.Strategy method)</a>
 </li>
         </ul></li>
     </ul></td>
     <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.before_market_opens">before_market_opens() (lumibot.strategies.strategy.Strategy method)</a>
+        <li><a href="lifecycle_methods.before_market_opens.html#strategies.strategy.Strategy.before_market_opens">before_market_opens() (in module strategies.strategy.Strategy)</a>
+
+        <ul>
+          <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.before_market_opens">(lumibot.strategies.strategy.Strategy method)</a>
 </li>
-        <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.strangle.Strangle.before_starting_trading">before_starting_trading() (lumibot.strategies.examples.strangle.Strangle method)</a>
+        </ul></li>
+        <li><a href="lifecycle_methods.before_starting_trading.html#strategies.strategy.Strategy.before_starting_trading">before_starting_trading() (in module strategies.strategy.Strategy)</a>
 
         <ul>
           <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.before_starting_trading">(lumibot.strategies.strategy.Strategy method)</a>
@@ -368,9 +399,7 @@
         </ul></li>
         <li><a href="brokers.html#lumibot.brokers.broker.Broker">Broker (class in lumibot.brokers.broker)</a>
 </li>
-        <li><a href="entities.order.html#lumibot.entities.order.Order.BUY">BUY (lumibot.entities.order.Order attribute)</a>
-</li>
-        <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.buy_and_hold.BuyAndHold">BuyAndHold (class in lumibot.strategies.examples.buy_and_hold)</a>
+        <li><a href="entities.order.html#entities.order.Order.BUY">BUY (entities.order.Order attribute)</a>
 </li>
     </ul></td>
   </tr></table>
@@ -380,8 +409,6 @@
   <h2>C</h2>
   <table style="width: 100%" class="indextable genindextable"><tr>
     <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.strangle.Strangle.call_put_strike">call_put_strike() (lumibot.strategies.examples.strangle.Strangle method)</a>
-</li>
         <li><a href="strategy_methods.orders/strategies.strategy.Strategy.cancel_open_orders.html#strategies.strategy.Strategy.cancel_open_orders">cancel_open_orders() (in module strategies.strategy.Strategy)</a>
 
         <ul>
@@ -422,19 +449,19 @@
 </li>
         <li><a href="lumibot.backtesting.html#lumibot.backtesting.backtesting_broker.BacktestingBroker.CannotPredictFuture">CannotPredictFuture (lumibot.backtesting.backtesting_broker.BacktestingBroker attribute)</a>
 </li>
-        <li><a href="entities.order.html#lumibot.entities.order.Order.cash_pending">cash_pending() (lumibot.entities.order.Order method)</a>
+        <li><a href="entities.order.html#entities.order.Order.cash_pending">cash_pending() (entities.order.Order method)</a>
 </li>
-        <li><a href="entities.data.html#id1">check_data() (lumibot.entities.data.Data method)</a>, <a href="entities.data.html#lumibot.entities.data.Data.check_data">[1]</a>
+        <li><a href="entities.data.html#entities.data.Data.check_data">check_data() (entities.data.Data method)</a>, <a href="entities.data.html#id1">[1]</a>
 </li>
         <li><a href="lumibot.data_sources.html#lumibot.data_sources.pandas.PandasData.clean_trading_times">clean_trading_times() (lumibot.data_sources.pandas.PandasData method)</a>
 </li>
-        <li><a href="entities.bar.html#lumibot.entities.bar.Bar.close">close (lumibot.entities.bar.Bar property)</a>
+        <li><a href="entities.bar.html#entities.bar.Bar.close">close (entities.bar.Bar property)</a>
 </li>
-        <li><a href="entities.data.html#lumibot.entities.data.Data.columns">columns (lumibot.entities.data.Data attribute)</a>
+        <li><a href="entities.data.html#entities.data.Data.columns">columns (entities.data.Data attribute)</a>
 </li>
-        <li><a href="entities.data.html#id0">columns() (lumibot.entities.data.Data method)</a>, <a href="entities.data.html#id2">[1]</a>
+        <li><a href="entities.data.html#id0">columns() (entities.data.Data method)</a>, <a href="entities.data.html#id2">[1]</a>
 </li>
-        <li><a href="entities.bar.html#lumibot.entities.bar.Bar.COMPARAISON_PROP">COMPARAISON_PROP (lumibot.entities.bar.Bar attribute)</a>
+        <li><a href="entities.bar.html#entities.bar.Bar.COMPARAISON_PROP">COMPARAISON_PROP (entities.bar.Bar attribute)</a>
 </li>
         <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.create_asset">create_asset() (lumibot.strategies.strategy.Strategy method)</a>
 </li>
@@ -444,9 +471,7 @@
           <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.create_order">(lumibot.strategies.strategy.Strategy method)</a>
 </li>
         </ul></li>
-        <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.strangle.Strangle.create_trading_pair">create_trading_pair() (lumibot.strategies.examples.strangle.Strangle method)</a>
-</li>
-        <li><a href="entities.asset.html#id1">currency (lumibot.entities.asset.Asset attribute)</a>, <a href="entities.asset.html#lumibot.entities.asset.Asset.currency">[1]</a>
+        <li><a href="entities.asset.html#entities.asset.Asset.currency">currency (entities.asset.Asset attribute)</a>, <a href="entities.asset.html#id1">[1]</a>
 </li>
     </ul></td>
   </tr></table>
@@ -456,49 +481,43 @@
   <h2>D</h2>
   <table style="width: 100%" class="indextable genindextable"><tr>
     <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="entities.data.html#lumibot.entities.data.Data">Data (class in lumibot.entities.data)</a>
+        <li><a href="entities.data.html#entities.data.Data">Data (class in entities.data)</a>
 </li>
-        <li><a href="entities.dataline.html#lumibot.entities.dataline.Dataline">Dataline (class in lumibot.entities.dataline)</a>
+        <li><a href="entities.dataline.html#entities.dataline.Dataline">Dataline (class in entities.dataline)</a>
 </li>
-        <li><a href="entities.data.html#lumibot.entities.data.Data.datalines">datalines (lumibot.entities.data.Data attribute)</a>
+        <li><a href="entities.data.html#entities.data.Data.datalines">datalines (entities.data.Data attribute)</a>
 </li>
         <li><a href="lumibot.data_sources.html#lumibot.data_sources.data_source.DataSource">DataSource (class in lumibot.data_sources.data_source)</a>
 </li>
         <li><a href="lumibot.backtesting.html#lumibot.backtesting.data_source_backtesting.DataSourceBacktesting">DataSourceBacktesting (class in lumibot.backtesting.data_source_backtesting)</a>
 </li>
-        <li><a href="entities.data.html#lumibot.entities.data.Data.date_end">date_end (lumibot.entities.data.Data attribute)</a>
+        <li><a href="entities.data.html#entities.data.Data.date_end">date_end (entities.data.Data attribute)</a>
 </li>
-        <li><a href="entities.data.html#lumibot.entities.data.Data.date_start">date_start (lumibot.entities.data.Data attribute)</a>
+        <li><a href="entities.data.html#entities.data.Data.date_start">date_start (entities.data.Data attribute)</a>
 </li>
-        <li><a href="lumibot.backtesting.html#lumibot.backtesting.backtesting_broker.BacktestingBroker.datetime">datetime (lumibot.backtesting.backtesting_broker.BacktestingBroker property)</a>
-
-        <ul>
-          <li><a href="entities.bar.html#lumibot.entities.bar.Bar.datetime">(lumibot.entities.bar.Bar property)</a>
-</li>
-        </ul></li>
     </ul></td>
     <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.debt_trading.DebtTrading">DebtTrading (class in lumibot.strategies.examples.debt_trading)</a>
-</li>
-        <li><a href="lumibot.data_sources.html#lumibot.data_sources.data_source.DataSource.DEFAULT_PYTZ">DEFAULT_PYTZ (lumibot.data_sources.data_source.DataSource attribute)</a>
+        <li><a href="entities.bar.html#entities.bar.Bar.datetime">datetime (entities.bar.Bar property)</a>
 
         <ul>
-          <li><a href="entities.bar.html#lumibot.entities.bar.Bar.DEFAULT_PYTZ">(lumibot.entities.bar.Bar attribute)</a>
+          <li><a href="lumibot.backtesting.html#lumibot.backtesting.backtesting_broker.BacktestingBroker.datetime">(lumibot.backtesting.backtesting_broker.BacktestingBroker property)</a>
 </li>
         </ul></li>
-        <li><a href="lumibot.data_sources.html#lumibot.data_sources.data_source.DataSource.DEFAULT_TIMEZONE">DEFAULT_TIMEZONE (lumibot.data_sources.data_source.DataSource attribute)</a>
+        <li><a href="entities.bar.html#entities.bar.Bar.DEFAULT_PYTZ">DEFAULT_PYTZ (entities.bar.Bar attribute)</a>
 
         <ul>
-          <li><a href="entities.bar.html#lumibot.entities.bar.Bar.DEFAULT_TIMEZONE">(lumibot.entities.bar.Bar attribute)</a>
+          <li><a href="lumibot.data_sources.html#lumibot.data_sources.data_source.DataSource.DEFAULT_PYTZ">(lumibot.data_sources.data_source.DataSource attribute)</a>
 </li>
         </ul></li>
-        <li><a href="entities.data.html#lumibot.entities.data.Data.df">df (lumibot.entities.data.Data attribute)</a>
+        <li><a href="entities.bar.html#entities.bar.Bar.DEFAULT_TIMEZONE">DEFAULT_TIMEZONE (entities.bar.Bar attribute)</a>
+
+        <ul>
+          <li><a href="lumibot.data_sources.html#lumibot.data_sources.data_source.DataSource.DEFAULT_TIMEZONE">(lumibot.data_sources.data_source.DataSource attribute)</a>
 </li>
-        <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.diversification.Diversification">Diversification (class in lumibot.strategies.examples.diversification)</a>
+        </ul></li>
+        <li><a href="entities.data.html#entities.data.Data.df">df (entities.data.Data attribute)</a>
 </li>
-        <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.diversified_leverage.DiversifiedLeverage">DiversifiedLeverage (class in lumibot.strategies.examples.diversified_leverage)</a>
-</li>
-        <li><a href="entities.bar.html#lumibot.entities.bar.Bar.dividend">dividend (lumibot.entities.bar.Bar property)</a>
+        <li><a href="entities.bar.html#entities.bar.Bar.dividend">dividend (entities.bar.Bar property)</a>
 </li>
     </ul></td>
   </tr></table>
@@ -508,10 +527,59 @@
   <h2>E</h2>
   <table style="width: 100%" class="indextable genindextable"><tr>
     <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="entities.asset.html#id2">expiration (lumibot.entities.asset.Asset attribute)</a>, <a href="entities.asset.html#lumibot.entities.asset.Asset.expiration">[1]</a>
+        <li>
+    entities.asset
+
+        <ul>
+          <li><a href="entities.asset.html#module-entities.asset">module</a>
 </li>
+        </ul></li>
+        <li>
+    entities.bar
+
+        <ul>
+          <li><a href="entities.bar.html#module-entities.bar">module</a>
+</li>
+        </ul></li>
+        <li>
+    entities.bars
+
+        <ul>
+          <li><a href="entities.bars.html#module-entities.bars">module</a>
+</li>
+        </ul></li>
+        <li>
+    entities.data
+
+        <ul>
+          <li><a href="entities.data.html#module-entities.data">module</a>
+</li>
+        </ul></li>
     </ul></td>
     <td style="width: 33%; vertical-align: top;"><ul>
+        <li>
+    entities.dataline
+
+        <ul>
+          <li><a href="entities.dataline.html#module-entities.dataline">module</a>
+</li>
+        </ul></li>
+        <li>
+    entities.order
+
+        <ul>
+          <li><a href="entities.order.html#module-entities.order">module</a>
+</li>
+        </ul></li>
+        <li>
+    entities.position
+
+        <ul>
+          <li><a href="entities.position.html#module-entities.position">module</a>
+</li>
+        </ul></li>
+        <li><a href="entities.asset.html#entities.asset.Asset.expiration">expiration (entities.asset.Asset attribute)</a>, <a href="entities.asset.html#id2">[1]</a>
+</li>
         <li><a href="lumibot.backtesting.html#lumibot.backtesting.backtesting_broker.BacktestingBroker.expired_contracts">expired_contracts() (lumibot.backtesting.backtesting_broker.BacktestingBroker method)</a>
 </li>
         <li><a href="brokers.html#lumibot.brokers.broker.Broker.export_trade_events_to_csv">export_trade_events_to_csv() (lumibot.brokers.broker.Broker method)</a>
@@ -524,16 +592,18 @@
   <h2>F</h2>
   <table style="width: 100%" class="indextable genindextable"><tr>
     <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.fast_trading.FastTrading">FastTrading (class in lumibot.strategies.examples.fast_trading)</a>
-</li>
         <li><a href="brokers.html#lumibot.brokers.broker.Broker.FILLED_ORDER">FILLED_ORDER (lumibot.brokers.broker.Broker attribute)</a>
+</li>
+        <li><a href="entities.bars.html#entities.bars.Bars.filter">filter() (entities.bars.Bars method)</a>
 </li>
     </ul></td>
     <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="entities.bars.html#lumibot.entities.bars.Bars.filter">filter() (lumibot.entities.bars.Bars method)</a>
-</li>
         <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.first_iteration">first_iteration (lumibot.strategies.strategy.Strategy property)</a>
+
+        <ul>
+          <li><a href="strategy_properties/strategies.strategy.Strategy.first_iteration.html#strategies.strategy.Strategy.first_iteration">(strategies.strategy.Strategy property)</a>
 </li>
+        </ul></li>
     </ul></td>
   </tr></table>
 </section>
@@ -556,20 +626,12 @@
         </ul></li>
         <li><a href="lumibot.data_sources.html#lumibot.data_sources.pandas.PandasData.get_assets">get_assets() (lumibot.data_sources.pandas.PandasData method)</a>
 </li>
-        <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.fast_trading.FastTrading.get_assets_momentums">get_assets_momentums() (lumibot.strategies.examples.fast_trading.FastTrading method)</a>
+        <li><a href="entities.data.html#entities.data.Data.get_bars">get_bars() (entities.data.Data method)</a>, <a href="entities.data.html#id3">[1]</a>
 
         <ul>
-          <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.intraday_momentum.IntradayMomentum.get_assets_momentums">(lumibot.strategies.examples.intraday_momentum.IntradayMomentum method)</a>
+          <li><a href="strategy_methods.data/strategies.strategy.Strategy.get_bars.html#strategies.strategy.Strategy.get_bars">(in module strategies.strategy.Strategy)</a>
 </li>
-          <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.momentum.Momentum.get_assets_momentums">(lumibot.strategies.examples.momentum.Momentum method)</a>
-</li>
-        </ul></li>
-        <li><a href="strategy_methods.data/strategies.strategy.Strategy.get_bars.html#strategies.strategy.Strategy.get_bars">get_bars() (in module strategies.strategy.Strategy)</a>
-
-        <ul>
           <li><a href="lumibot.data_sources.html#lumibot.data_sources.data_source.DataSource.get_bars">(lumibot.data_sources.data_source.DataSource method)</a>
-</li>
-          <li><a href="entities.data.html#id3">(lumibot.entities.data.Data method)</a>, <a href="entities.data.html#lumibot.entities.data.Data.get_bars">[1]</a>
 </li>
           <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.get_bars">(lumibot.strategies.strategy.Strategy method)</a>
 </li>
@@ -616,9 +678,7 @@
           <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.get_datetime_range">(lumibot.strategies.strategy.Strategy method)</a>
 </li>
         </ul></li>
-        <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.debt_trading.DebtTrading.get_debt_to_gdp_chng">get_debt_to_gdp_chng() (lumibot.strategies.examples.debt_trading.DebtTrading method)</a>
-</li>
-        <li><a href="entities.bar.html#lumibot.entities.bar.Bar.get_empty_bar">get_empty_bar() (lumibot.entities.bar.Bar class method)</a>
+        <li><a href="entities.bar.html#entities.bar.Bar.get_empty_bar">get_empty_bar() (entities.bar.Bar class method)</a>
 </li>
         <li><a href="lumibot.backtesting.html#lumibot.backtesting.backtesting_broker.BacktestingBroker.get_expiration">get_expiration() (lumibot.backtesting.backtesting_broker.BacktestingBroker method)</a>
 
@@ -628,17 +688,15 @@
           <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.get_expiration">(lumibot.strategies.strategy.Strategy method)</a>
 </li>
         </ul></li>
-        <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.strangle.Strangle.get_expiration_date">get_expiration_date() (lumibot.strategies.examples.strangle.Strangle method)</a>
-</li>
         <li><a href="strategy_methods.options/strategies.strategy.Strategy.get_greeks.html#strategies.strategy.Strategy.get_greeks">get_greeks() (in module strategies.strategy.Strategy)</a>
 
         <ul>
           <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.get_greeks">(lumibot.strategies.strategy.Strategy method)</a>
 </li>
         </ul></li>
-        <li><a href="entities.order.html#lumibot.entities.order.Order.get_increment">get_increment() (lumibot.entities.order.Order method)</a>
+        <li><a href="entities.order.html#entities.order.Order.get_increment">get_increment() (entities.order.Order method)</a>
 </li>
-        <li><a href="entities.data.html#id4">get_iter_count() (lumibot.entities.data.Data method)</a>, <a href="entities.data.html#lumibot.entities.data.Data.get_iter_count">[1]</a>
+        <li><a href="entities.data.html#entities.data.Data.get_iter_count">get_iter_count() (entities.data.Data method)</a>, <a href="entities.data.html#id4">[1]</a>
 </li>
         <li><a href="lumibot.backtesting.html#lumibot.backtesting.backtesting_broker.BacktestingBroker.get_last_bar">get_last_bar() (lumibot.backtesting.backtesting_broker.BacktestingBroker method)</a>
 </li>
@@ -650,7 +708,7 @@
           <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.get_last_day">(lumibot.strategies.strategy.Strategy method)</a>
 </li>
         </ul></li>
-        <li><a href="entities.bars.html#lumibot.entities.bars.Bars.get_last_dividend">get_last_dividend() (lumibot.entities.bars.Bars method)</a>
+        <li><a href="entities.bars.html#entities.bars.Bars.get_last_dividend">get_last_dividend() (entities.bars.Bars method)</a>
 </li>
         <li><a href="strategy_methods.datetime/strategies.strategy.Strategy.get_last_minute.html#strategies.strategy.Strategy.get_last_minute">get_last_minute() (in module strategies.strategy.Strategy)</a>
 
@@ -660,9 +718,13 @@
           <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.get_last_minute">(lumibot.strategies.strategy.Strategy method)</a>
 </li>
         </ul></li>
-        <li><a href="strategy_methods.data/strategies.strategy.Strategy.get_last_price.html#strategies.strategy.Strategy.get_last_price">get_last_price() (in module strategies.strategy.Strategy)</a>
+        <li><a href="entities.bars.html#entities.bars.Bars.get_last_price">get_last_price() (entities.bars.Bars method)</a>
 
         <ul>
+          <li><a href="entities.data.html#entities.data.Data.get_last_price">(entities.data.Data method)</a>, <a href="entities.data.html#id5">[1]</a>
+</li>
+          <li><a href="strategy_methods.data/strategies.strategy.Strategy.get_last_price.html#strategies.strategy.Strategy.get_last_price">(in module strategies.strategy.Strategy)</a>
+</li>
           <li><a href="lumibot.backtesting.html#lumibot.backtesting.backtesting_broker.BacktestingBroker.get_last_price">(lumibot.backtesting.backtesting_broker.BacktestingBroker method)</a>
 </li>
           <li><a href="brokers.html#lumibot.brokers.broker.Broker.get_last_price">(lumibot.brokers.broker.Broker method)</a>
@@ -670,10 +732,6 @@
           <li><a href="lumibot.data_sources.html#lumibot.data_sources.data_source.DataSource.get_last_price">(lumibot.data_sources.data_source.DataSource method)</a>
 </li>
           <li><a href="lumibot.data_sources.html#lumibot.data_sources.pandas.PandasData.get_last_price">(lumibot.data_sources.pandas.PandasData method)</a>
-</li>
-          <li><a href="entities.bars.html#lumibot.entities.bars.Bars.get_last_price">(lumibot.entities.bars.Bars method)</a>
-</li>
-          <li><a href="entities.data.html#id5">(lumibot.entities.data.Data method)</a>, <a href="entities.data.html#lumibot.entities.data.Data.get_last_price">[1]</a>
 </li>
           <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.get_last_price">(lumibot.strategies.strategy.Strategy method)</a>
 </li>
@@ -692,10 +750,10 @@
           <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.get_last_prices">(lumibot.strategies.strategy.Strategy method)</a>
 </li>
         </ul></li>
+        <li><a href="entities.bars.html#entities.bars.Bars.get_momentum">get_momentum() (entities.bars.Bars method)</a>
+</li>
     </ul></td>
     <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="entities.bars.html#lumibot.entities.bars.Bars.get_momentum">get_momentum() (lumibot.entities.bars.Bars method)</a>
-</li>
         <li><a href="lumibot.backtesting.html#lumibot.backtesting.backtesting_broker.BacktestingBroker.get_multiplier">get_multiplier() (lumibot.backtesting.backtesting_broker.BacktestingBroker method)</a>
 
         <ul>
@@ -726,7 +784,7 @@
           <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.get_round_minute">(lumibot.strategies.strategy.Strategy method)</a>
 </li>
         </ul></li>
-        <li><a href="entities.position.html#lumibot.entities.position.Position.get_selling_order">get_selling_order() (lumibot.entities.position.Position method)</a>
+        <li><a href="entities.position.html#entities.position.Position.get_selling_order">get_selling_order() (entities.position.Position method)</a>
 </li>
         <li><a href="lumibot.backtesting.html#lumibot.backtesting.backtesting_broker.BacktestingBroker.get_strikes">get_strikes() (lumibot.backtesting.backtesting_broker.BacktestingBroker method)</a>
 
@@ -774,7 +832,7 @@
         </ul></li>
         <li><a href="lumibot.data_sources.html#lumibot.data_sources.data_source.DataSource.get_timestep">get_timestep() (lumibot.data_sources.data_source.DataSource method)</a>
 </li>
-        <li><a href="entities.bars.html#lumibot.entities.bars.Bars.get_total_volume">get_total_volume() (lumibot.entities.bars.Bars method)</a>
+        <li><a href="entities.bars.html#entities.bars.Bars.get_total_volume">get_total_volume() (entities.bars.Bars method)</a>
 </li>
         <li><a href="brokers.html#lumibot.brokers.broker.Broker.get_tracked_assets">get_tracked_assets() (lumibot.brokers.broker.Broker method)</a>
 
@@ -854,7 +912,7 @@
   <h2>H</h2>
   <table style="width: 100%" class="indextable genindextable"><tr>
     <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="entities.bar.html#lumibot.entities.bar.Bar.high">high (lumibot.entities.bar.Bar property)</a>
+        <li><a href="entities.bar.html#entities.bar.Bar.high">high (entities.bar.Bar property)</a>
 </li>
     </ul></td>
   </tr></table>
@@ -865,39 +923,27 @@
   <table style="width: 100%" class="indextable genindextable"><tr>
     <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.initial_budget">initial_budget (lumibot.strategies.strategy.Strategy property)</a>
-</li>
-        <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.buy_and_hold.BuyAndHold.initialize">initialize() (lumibot.strategies.examples.buy_and_hold.BuyAndHold method)</a>
 
         <ul>
-          <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.debt_trading.DebtTrading.initialize">(lumibot.strategies.examples.debt_trading.DebtTrading method)</a>
+          <li><a href="strategy_properties/strategies.strategy.Strategy.initial_budget.html#strategies.strategy.Strategy.initial_budget">(strategies.strategy.Strategy property)</a>
 </li>
-          <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.diversification.Diversification.initialize">(lumibot.strategies.examples.diversification.Diversification method)</a>
-</li>
-          <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.diversified_leverage.DiversifiedLeverage.initialize">(lumibot.strategies.examples.diversified_leverage.DiversifiedLeverage method)</a>
-</li>
-          <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.fast_trading.FastTrading.initialize">(lumibot.strategies.examples.fast_trading.FastTrading method)</a>
-</li>
-          <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.intraday_momentum.IntradayMomentum.initialize">(lumibot.strategies.examples.intraday_momentum.IntradayMomentum method)</a>
-</li>
-          <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.momentum.Momentum.initialize">(lumibot.strategies.examples.momentum.Momentum method)</a>
-</li>
-          <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.simple.Simple.initialize">(lumibot.strategies.examples.simple.Simple method)</a>
-</li>
-          <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.strangle.Strangle.initialize">(lumibot.strategies.examples.strangle.Strangle method)</a>
+        </ul></li>
+        <li><a href="strategy_methods.data/lumibot.strategies.strategy.Strategy.initialize.html#lumibot.strategies.strategy.Strategy.initialize">initialize() (in module lumibot.strategies.strategy.Strategy)</a>
+
+        <ul>
+          <li><a href="lifecycle_methods.initialize.html#strategies.strategy.Strategy.initialize">(in module strategies.strategy.Strategy)</a>, <a href="strategy_methods.data/strategies.strategy.Strategy.initialize.html#strategies.strategy.Strategy.initialize">[1]</a>
 </li>
           <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.initialize">(lumibot.strategies.strategy.Strategy method)</a>
 </li>
         </ul></li>
-        <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.intraday_momentum.IntradayMomentum">IntradayMomentum (class in lumibot.strategies.examples.intraday_momentum)</a>
-</li>
         <li><a href="lumibot.traders.html#lumibot.traders.trader.Trader.is_backtest">is_backtest (lumibot.traders.trader.Trader property)</a>
 </li>
-        <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.strangle.Strangle.IS_BACKTESTABLE">IS_BACKTESTABLE (lumibot.strategies.examples.strangle.Strangle attribute)</a>
-</li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.is_backtesting">is_backtesting (lumibot.strategies.strategy.Strategy property)</a>
+
+        <ul>
+          <li><a href="strategy_properties/strategies.strategy.Strategy.is_backtesting.html#strategies.strategy.Strategy.is_backtesting">(strategies.strategy.Strategy property)</a>
 </li>
+        </ul></li>
         <li><a href="lumibot.backtesting.html#lumibot.backtesting.backtesting_broker.BacktestingBroker.IS_BACKTESTING_BROKER">IS_BACKTESTING_BROKER (lumibot.backtesting.backtesting_broker.BacktestingBroker attribute)</a>
 
         <ul>
@@ -912,6 +958,8 @@
           <li><a href="lumibot.data_sources.html#lumibot.data_sources.pandas.PandasData.IS_BACKTESTING_DATA_SOURCE">(lumibot.data_sources.pandas.PandasData attribute)</a>
 </li>
         </ul></li>
+    </ul></td>
+    <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="lumibot.backtesting.html#lumibot.backtesting.backtesting_broker.BacktestingBroker.is_market_open">is_market_open() (lumibot.backtesting.backtesting_broker.BacktestingBroker method)</a>
 
         <ul>
@@ -920,19 +968,19 @@
           <li><a href="brokers.html#lumibot.brokers.broker.Broker.is_market_open">(lumibot.brokers.broker.Broker method)</a>
 </li>
         </ul></li>
-        <li><a href="entities.order.html#lumibot.entities.order.Order.is_option">is_option() (lumibot.entities.order.Order method)</a>
+        <li><a href="entities.order.html#entities.order.Order.is_option">is_option() (entities.order.Order method)</a>
 </li>
-        <li><a href="lumibot.data_sources.html#lumibot.data_sources.data_source.DataSource.is_tradable">is_tradable() (lumibot.data_sources.data_source.DataSource method)</a>
+        <li><a href="entities.data.html#entities.data.Data.is_tradable">is_tradable() (entities.data.Data method)</a>
 
         <ul>
-          <li><a href="lumibot.data_sources.html#lumibot.data_sources.pandas.PandasData.is_tradable">(lumibot.data_sources.pandas.PandasData method)</a>
+          <li><a href="lumibot.data_sources.html#lumibot.data_sources.data_source.DataSource.is_tradable">(lumibot.data_sources.data_source.DataSource method)</a>
 </li>
-          <li><a href="entities.data.html#lumibot.entities.data.Data.is_tradable">(lumibot.entities.data.Data method)</a>
+          <li><a href="lumibot.data_sources.html#lumibot.data_sources.pandas.PandasData.is_tradable">(lumibot.data_sources.pandas.PandasData method)</a>
 </li>
           <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.is_tradable">(lumibot.strategies.strategy.Strategy method)</a>
 </li>
         </ul></li>
-        <li><a href="entities.data.html#lumibot.entities.data.Data.iter_index">iter_index (lumibot.entities.data.Data attribute)</a>
+        <li><a href="entities.data.html#entities.data.Data.iter_index">iter_index (entities.data.Data attribute)</a>
 </li>
     </ul></td>
   </tr></table>
@@ -962,7 +1010,7 @@
           <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.log_message">(lumibot.strategies.strategy.Strategy method)</a>
 </li>
         </ul></li>
-        <li><a href="entities.bar.html#lumibot.entities.bar.Bar.low">low (lumibot.entities.bar.Bar property)</a>
+        <li><a href="entities.bar.html#entities.bar.Bar.low">low (entities.bar.Bar property)</a>
 </li>
         <li>
     lumibot.backtesting.backtesting_broker
@@ -985,6 +1033,8 @@
           <li><a href="brokers.alpaca.html#module-lumibot.brokers.alpaca">module</a>
 </li>
         </ul></li>
+    </ul></td>
+    <td style="width: 33%; vertical-align: top;"><ul>
         <li>
     lumibot.brokers.broker
 
@@ -1021,127 +1071,6 @@
 </li>
         </ul></li>
         <li>
-    lumibot.entities.asset
-
-        <ul>
-          <li><a href="entities.asset.html#module-lumibot.entities.asset">module</a>
-</li>
-        </ul></li>
-        <li>
-    lumibot.entities.bar
-
-        <ul>
-          <li><a href="entities.bar.html#module-lumibot.entities.bar">module</a>
-</li>
-        </ul></li>
-        <li>
-    lumibot.entities.bars
-
-        <ul>
-          <li><a href="entities.bars.html#module-lumibot.entities.bars">module</a>
-</li>
-        </ul></li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li>
-    lumibot.entities.data
-
-        <ul>
-          <li><a href="entities.data.html#module-lumibot.entities.data">module</a>
-</li>
-        </ul></li>
-        <li>
-    lumibot.entities.dataline
-
-        <ul>
-          <li><a href="entities.dataline.html#module-lumibot.entities.dataline">module</a>
-</li>
-        </ul></li>
-        <li>
-    lumibot.entities.order
-
-        <ul>
-          <li><a href="entities.order.html#module-lumibot.entities.order">module</a>
-</li>
-        </ul></li>
-        <li>
-    lumibot.entities.position
-
-        <ul>
-          <li><a href="entities.position.html#module-lumibot.entities.position">module</a>
-</li>
-        </ul></li>
-        <li>
-    lumibot.strategies.examples
-
-        <ul>
-          <li><a href="lumibot.strategies.examples.html#module-lumibot.strategies.examples">module</a>
-</li>
-        </ul></li>
-        <li>
-    lumibot.strategies.examples.buy_and_hold
-
-        <ul>
-          <li><a href="lumibot.strategies.examples.html#module-lumibot.strategies.examples.buy_and_hold">module</a>
-</li>
-        </ul></li>
-        <li>
-    lumibot.strategies.examples.debt_trading
-
-        <ul>
-          <li><a href="lumibot.strategies.examples.html#module-lumibot.strategies.examples.debt_trading">module</a>
-</li>
-        </ul></li>
-        <li>
-    lumibot.strategies.examples.diversification
-
-        <ul>
-          <li><a href="lumibot.strategies.examples.html#module-lumibot.strategies.examples.diversification">module</a>
-</li>
-        </ul></li>
-        <li>
-    lumibot.strategies.examples.diversified_leverage
-
-        <ul>
-          <li><a href="lumibot.strategies.examples.html#module-lumibot.strategies.examples.diversified_leverage">module</a>
-</li>
-        </ul></li>
-        <li>
-    lumibot.strategies.examples.fast_trading
-
-        <ul>
-          <li><a href="lumibot.strategies.examples.html#module-lumibot.strategies.examples.fast_trading">module</a>
-</li>
-        </ul></li>
-        <li>
-    lumibot.strategies.examples.intraday_momentum
-
-        <ul>
-          <li><a href="lumibot.strategies.examples.html#module-lumibot.strategies.examples.intraday_momentum">module</a>
-</li>
-        </ul></li>
-        <li>
-    lumibot.strategies.examples.momentum
-
-        <ul>
-          <li><a href="lumibot.strategies.examples.html#module-lumibot.strategies.examples.momentum">module</a>
-</li>
-        </ul></li>
-        <li>
-    lumibot.strategies.examples.simple
-
-        <ul>
-          <li><a href="lumibot.strategies.examples.html#module-lumibot.strategies.examples.simple">module</a>
-</li>
-        </ul></li>
-        <li>
-    lumibot.strategies.examples.strangle
-
-        <ul>
-          <li><a href="lumibot.strategies.examples.html#module-lumibot.strategies.examples.strangle">module</a>
-</li>
-        </ul></li>
-        <li>
     lumibot.strategies.strategy
 
         <ul>
@@ -1163,24 +1092,46 @@
   <h2>M</h2>
   <table style="width: 100%" class="indextable genindextable"><tr>
     <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="lumibot.data_sources.html#lumibot.data_sources.data_source.DataSource.MIN_TIMESTEP">MIN_TIMESTEP (lumibot.data_sources.data_source.DataSource attribute)</a>
+        <li><a href="entities.data.html#entities.data.Data.MIN_TIMESTEP">MIN_TIMESTEP (entities.data.Data attribute)</a>
 
         <ul>
+          <li><a href="lumibot.data_sources.html#lumibot.data_sources.data_source.DataSource.MIN_TIMESTEP">(lumibot.data_sources.data_source.DataSource attribute)</a>
+</li>
           <li><a href="lumibot.data_sources.html#lumibot.data_sources.pandas.PandasData.MIN_TIMESTEP">(lumibot.data_sources.pandas.PandasData attribute)</a>
 </li>
           <li><a href="lumibot.data_sources.html#lumibot.data_sources.yahoo.YahooData.MIN_TIMESTEP">(lumibot.data_sources.yahoo.YahooData attribute)</a>
 </li>
-          <li><a href="entities.data.html#lumibot.entities.data.Data.MIN_TIMESTEP">(lumibot.entities.data.Data attribute)</a>
-</li>
         </ul></li>
         <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.minutes_before_closing">minutes_before_closing (lumibot.strategies.strategy.Strategy property)</a>
+
+        <ul>
+          <li><a href="strategy_properties/strategies.strategy.Strategy.minutes_before_closing.html#strategies.strategy.Strategy.minutes_before_closing">(strategies.strategy.Strategy property)</a>
 </li>
+        </ul></li>
         <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.minutes_before_opening">minutes_before_opening (lumibot.strategies.strategy.Strategy property)</a>
+
+        <ul>
+          <li><a href="strategy_properties/strategies.strategy.Strategy.minutes_before_opening.html#strategies.strategy.Strategy.minutes_before_opening">(strategies.strategy.Strategy property)</a>
 </li>
+        </ul></li>
         <li>
     module
 
         <ul>
+          <li><a href="entities.asset.html#module-entities.asset">entities.asset</a>
+</li>
+          <li><a href="entities.bar.html#module-entities.bar">entities.bar</a>
+</li>
+          <li><a href="entities.bars.html#module-entities.bars">entities.bars</a>
+</li>
+          <li><a href="entities.data.html#module-entities.data">entities.data</a>
+</li>
+          <li><a href="entities.dataline.html#module-entities.dataline">entities.dataline</a>
+</li>
+          <li><a href="entities.order.html#module-entities.order">entities.order</a>
+</li>
+          <li><a href="entities.position.html#module-entities.position">entities.position</a>
+</li>
           <li><a href="lumibot.backtesting.html#module-lumibot.backtesting.backtesting_broker">lumibot.backtesting.backtesting_broker</a>
 </li>
           <li><a href="lumibot.backtesting.html#module-lumibot.backtesting.data_source_backtesting">lumibot.backtesting.data_source_backtesting</a>
@@ -1197,40 +1148,6 @@
 </li>
           <li><a href="lumibot.data_sources.html#module-lumibot.data_sources.yahoo">lumibot.data_sources.yahoo</a>
 </li>
-          <li><a href="entities.asset.html#module-lumibot.entities.asset">lumibot.entities.asset</a>
-</li>
-          <li><a href="entities.bar.html#module-lumibot.entities.bar">lumibot.entities.bar</a>
-</li>
-          <li><a href="entities.bars.html#module-lumibot.entities.bars">lumibot.entities.bars</a>
-</li>
-          <li><a href="entities.data.html#module-lumibot.entities.data">lumibot.entities.data</a>
-</li>
-          <li><a href="entities.dataline.html#module-lumibot.entities.dataline">lumibot.entities.dataline</a>
-</li>
-          <li><a href="entities.order.html#module-lumibot.entities.order">lumibot.entities.order</a>
-</li>
-          <li><a href="entities.position.html#module-lumibot.entities.position">lumibot.entities.position</a>
-</li>
-          <li><a href="lumibot.strategies.examples.html#module-lumibot.strategies.examples">lumibot.strategies.examples</a>
-</li>
-          <li><a href="lumibot.strategies.examples.html#module-lumibot.strategies.examples.buy_and_hold">lumibot.strategies.examples.buy_and_hold</a>
-</li>
-          <li><a href="lumibot.strategies.examples.html#module-lumibot.strategies.examples.debt_trading">lumibot.strategies.examples.debt_trading</a>
-</li>
-          <li><a href="lumibot.strategies.examples.html#module-lumibot.strategies.examples.diversification">lumibot.strategies.examples.diversification</a>
-</li>
-          <li><a href="lumibot.strategies.examples.html#module-lumibot.strategies.examples.diversified_leverage">lumibot.strategies.examples.diversified_leverage</a>
-</li>
-          <li><a href="lumibot.strategies.examples.html#module-lumibot.strategies.examples.fast_trading">lumibot.strategies.examples.fast_trading</a>
-</li>
-          <li><a href="lumibot.strategies.examples.html#module-lumibot.strategies.examples.intraday_momentum">lumibot.strategies.examples.intraday_momentum</a>
-</li>
-          <li><a href="lumibot.strategies.examples.html#module-lumibot.strategies.examples.momentum">lumibot.strategies.examples.momentum</a>
-</li>
-          <li><a href="lumibot.strategies.examples.html#module-lumibot.strategies.examples.simple">lumibot.strategies.examples.simple</a>
-</li>
-          <li><a href="lumibot.strategies.examples.html#module-lumibot.strategies.examples.strangle">lumibot.strategies.examples.strangle</a>
-</li>
           <li><a href="lumibot.strategies.html#module-lumibot.strategies.strategy">lumibot.strategies.strategy</a>
 </li>
           <li><a href="lumibot.traders.html#module-lumibot.traders.trader">lumibot.traders.trader</a>
@@ -1238,9 +1155,7 @@
         </ul></li>
     </ul></td>
     <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.momentum.Momentum">Momentum (class in lumibot.strategies.examples.momentum)</a>
-</li>
-        <li><a href="entities.asset.html#id3">multiplier (lumibot.entities.asset.Asset attribute)</a>, <a href="entities.asset.html#lumibot.entities.asset.Asset.multiplier">[1]</a>
+        <li><a href="entities.asset.html#entities.asset.Asset.multiplier">multiplier (entities.asset.Asset attribute)</a>, <a href="entities.asset.html#id3">[1]</a>
 </li>
     </ul></td>
   </tr></table>
@@ -1251,12 +1166,16 @@
   <table style="width: 100%" class="indextable genindextable"><tr>
     <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.name">name (lumibot.strategies.strategy.Strategy property)</a>
+
+        <ul>
+          <li><a href="strategy_properties/strategies.strategy.Strategy.name.html#strategies.strategy.Strategy.name">(strategies.strategy.Strategy property)</a>
 </li>
+        </ul></li>
     </ul></td>
     <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="brokers.html#lumibot.brokers.broker.Broker.NEW_ORDER">NEW_ORDER (lumibot.brokers.broker.Broker attribute)</a>
 </li>
-        <li><a href="entities.bars.html#lumibot.entities.bars.NoBarDataFound">NoBarDataFound</a>
+        <li><a href="entities.bars.html#entities.bars.NoBarDataFound">NoBarDataFound</a>
 </li>
     </ul></td>
   </tr></table>
@@ -1266,75 +1185,59 @@
   <h2>O</h2>
   <table style="width: 100%" class="indextable genindextable"><tr>
     <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.buy_and_hold.BuyAndHold.on_abrupt_closing">on_abrupt_closing() (lumibot.strategies.examples.buy_and_hold.BuyAndHold method)</a>
+        <li><a href="lifecycle_methods.on_abrupt_closing.html#strategies.strategy.Strategy.on_abrupt_closing">on_abrupt_closing() (in module strategies.strategy.Strategy)</a>
 
         <ul>
-          <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.debt_trading.DebtTrading.on_abrupt_closing">(lumibot.strategies.examples.debt_trading.DebtTrading method)</a>
-</li>
-          <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.diversification.Diversification.on_abrupt_closing">(lumibot.strategies.examples.diversification.Diversification method)</a>
-</li>
-          <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.diversified_leverage.DiversifiedLeverage.on_abrupt_closing">(lumibot.strategies.examples.diversified_leverage.DiversifiedLeverage method)</a>
-</li>
-          <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.fast_trading.FastTrading.on_abrupt_closing">(lumibot.strategies.examples.fast_trading.FastTrading method)</a>
-</li>
-          <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.intraday_momentum.IntradayMomentum.on_abrupt_closing">(lumibot.strategies.examples.intraday_momentum.IntradayMomentum method)</a>
-</li>
-          <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.momentum.Momentum.on_abrupt_closing">(lumibot.strategies.examples.momentum.Momentum method)</a>
-</li>
-          <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.simple.Simple.on_abrupt_closing">(lumibot.strategies.examples.simple.Simple method)</a>
-</li>
-          <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.strangle.Strangle.on_abrupt_closing">(lumibot.strategies.examples.strangle.Strangle method)</a>
-</li>
           <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.on_abrupt_closing">(lumibot.strategies.strategy.Strategy method)</a>
 </li>
         </ul></li>
-        <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.on_bot_crash">on_bot_crash() (lumibot.strategies.strategy.Strategy method)</a>
-</li>
-        <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.on_canceled_order">on_canceled_order() (lumibot.strategies.strategy.Strategy method)</a>
-</li>
-        <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.on_filled_order">on_filled_order() (lumibot.strategies.strategy.Strategy method)</a>
-</li>
-        <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.on_new_order">on_new_order() (lumibot.strategies.strategy.Strategy method)</a>
-</li>
-        <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.on_partially_filled_order">on_partially_filled_order() (lumibot.strategies.strategy.Strategy method)</a>
-</li>
-        <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.on_strategy_end">on_strategy_end() (lumibot.strategies.strategy.Strategy method)</a>
-</li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.buy_and_hold.BuyAndHold.on_trading_iteration">on_trading_iteration() (lumibot.strategies.examples.buy_and_hold.BuyAndHold method)</a>
+        <li><a href="lifecycle_methods.on_bot_crash.html#strategies.strategy.Strategy.on_bot_crash">on_bot_crash() (in module strategies.strategy.Strategy)</a>
 
         <ul>
-          <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.debt_trading.DebtTrading.on_trading_iteration">(lumibot.strategies.examples.debt_trading.DebtTrading method)</a>
+          <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.on_bot_crash">(lumibot.strategies.strategy.Strategy method)</a>
 </li>
-          <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.diversification.Diversification.on_trading_iteration">(lumibot.strategies.examples.diversification.Diversification method)</a>
+        </ul></li>
+        <li><a href="lifecycle_methods.on_canceled_order.html#strategies.strategy.Strategy.on_canceled_order">on_canceled_order() (in module strategies.strategy.Strategy)</a>
+
+        <ul>
+          <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.on_canceled_order">(lumibot.strategies.strategy.Strategy method)</a>
 </li>
-          <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.diversified_leverage.DiversifiedLeverage.on_trading_iteration">(lumibot.strategies.examples.diversified_leverage.DiversifiedLeverage method)</a>
+        </ul></li>
+        <li><a href="lifecycle_methods.on_filled_order.html#strategies.strategy.Strategy.on_filled_order">on_filled_order() (in module strategies.strategy.Strategy)</a>
+
+        <ul>
+          <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.on_filled_order">(lumibot.strategies.strategy.Strategy method)</a>
 </li>
-          <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.fast_trading.FastTrading.on_trading_iteration">(lumibot.strategies.examples.fast_trading.FastTrading method)</a>
+        </ul></li>
+        <li><a href="lifecycle_methods.on_new_order.html#strategies.strategy.Strategy.on_new_order">on_new_order() (in module strategies.strategy.Strategy)</a>
+
+        <ul>
+          <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.on_new_order">(lumibot.strategies.strategy.Strategy method)</a>
 </li>
-          <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.intraday_momentum.IntradayMomentum.on_trading_iteration">(lumibot.strategies.examples.intraday_momentum.IntradayMomentum method)</a>
+        </ul></li>
+    </ul></td>
+    <td style="width: 33%; vertical-align: top;"><ul>
+        <li><a href="lifecycle_methods.on_partially_filled_order.html#strategies.strategy.Strategy.on_partially_filled_order">on_partially_filled_order() (in module strategies.strategy.Strategy)</a>
+
+        <ul>
+          <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.on_partially_filled_order">(lumibot.strategies.strategy.Strategy method)</a>
 </li>
-          <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.momentum.Momentum.on_trading_iteration">(lumibot.strategies.examples.momentum.Momentum method)</a>
+        </ul></li>
+        <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.on_strategy_end">on_strategy_end() (lumibot.strategies.strategy.Strategy method)</a>
 </li>
-          <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.simple.Simple.on_trading_iteration">(lumibot.strategies.examples.simple.Simple method)</a>
-</li>
-          <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.strangle.Strangle.on_trading_iteration">(lumibot.strategies.examples.strangle.Strangle method)</a>
-</li>
+        <li><a href="lifecycle_methods.on_trading_iteration.html#strategies.strategy.Strategy.on_trading_iteration">on_trading_iteration() (in module strategies.strategy.Strategy)</a>
+
+        <ul>
           <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.on_trading_iteration">(lumibot.strategies.strategy.Strategy method)</a>
 </li>
         </ul></li>
-        <li><a href="entities.bar.html#lumibot.entities.bar.Bar.open">open (lumibot.entities.bar.Bar property)</a>
+        <li><a href="entities.bar.html#entities.bar.Bar.open">open (entities.bar.Bar property)</a>
 </li>
         <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.options_expiry_to_datetime_date">options_expiry_to_datetime_date() (lumibot.strategies.strategy.Strategy method)</a>
 </li>
-        <li><a href="entities.order.html#lumibot.entities.order.Order">Order (class in lumibot.entities.order)</a>
+        <li><a href="entities.order.html#entities.order.Order">Order (class in entities.order)</a>
 </li>
-        <li><a href="entities.order.html#lumibot.entities.order.Order.Transaction">Order.Transaction (class in lumibot.entities.order)</a>
-</li>
-        <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.fast_trading.FastTrading.orders_buy">orders_buy() (lumibot.strategies.examples.fast_trading.FastTrading method)</a>
-</li>
-        <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.fast_trading.FastTrading.orders_sell">orders_sell() (lumibot.strategies.examples.fast_trading.FastTrading method)</a>
+        <li><a href="entities.order.html#entities.order.Order.Transaction">Order.Transaction (class in entities.order)</a>
 </li>
     </ul></td>
   </tr></table>
@@ -1347,25 +1250,37 @@
         <li><a href="lumibot.data_sources.html#lumibot.data_sources.pandas.PandasData">PandasData (class in lumibot.data_sources.pandas)</a>
 </li>
         <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.parameters">parameters (lumibot.strategies.strategy.Strategy property)</a>
+
+        <ul>
+          <li><a href="strategy_properties/strategies.strategy.Strategy.parameters.html#strategies.strategy.Strategy.parameters">(strategies.strategy.Strategy property)</a>
 </li>
-        <li><a href="entities.bars.html#lumibot.entities.bars.Bars.parse_bar_list">parse_bar_list() (lumibot.entities.bars.Bars class method)</a>
+        </ul></li>
+        <li><a href="entities.bars.html#entities.bars.Bars.parse_bar_list">parse_bar_list() (entities.bars.Bars class method)</a>
 </li>
         <li><a href="brokers.html#lumibot.brokers.broker.Broker.PARTIALLY_FILLED_ORDER">PARTIALLY_FILLED_ORDER (lumibot.brokers.broker.Broker attribute)</a>
 </li>
         <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.portfolio_value">portfolio_value (lumibot.strategies.strategy.Strategy property)</a>
+
+        <ul>
+          <li><a href="strategy_properties/strategies.strategy.Strategy.portfolio_value.html#strategies.strategy.Strategy.portfolio_value">(strategies.strategy.Strategy property)</a>
 </li>
+        </ul></li>
     </ul></td>
     <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="entities.position.html#lumibot.entities.position.Position">Position (class in lumibot.entities.position)</a>
+        <li><a href="entities.position.html#entities.position.Position">Position (class in entities.position)</a>
 </li>
         <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.positions">positions (lumibot.strategies.strategy.Strategy property)</a>
 </li>
-        <li><a href="entities.order.html#lumibot.entities.order.Order.Transaction.price">price (lumibot.entities.order.Order.Transaction attribute)</a>
+        <li><a href="entities.order.html#entities.order.Order.Transaction.price">price (entities.order.Order.Transaction attribute)</a>
 </li>
         <li><a href="lumibot.backtesting.html#lumibot.backtesting.backtesting_broker.BacktestingBroker.process_pending_orders">process_pending_orders() (lumibot.backtesting.backtesting_broker.BacktestingBroker method)</a>
 </li>
         <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.pytz">pytz (lumibot.strategies.strategy.Strategy property)</a>
+
+        <ul>
+          <li><a href="strategy_properties/strategies.strategy.Strategy.pytz.html#strategies.strategy.Strategy.pytz">(strategies.strategy.Strategy property)</a>
 </li>
+        </ul></li>
     </ul></td>
   </tr></table>
 </section>
@@ -1374,7 +1289,7 @@
   <h2>Q</h2>
   <table style="width: 100%" class="indextable genindextable"><tr>
     <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="entities.order.html#lumibot.entities.order.Order.Transaction.quantity">quantity (lumibot.entities.order.Order.Transaction attribute)</a>
+        <li><a href="entities.order.html#entities.order.Order.Transaction.quantity">quantity (entities.order.Order.Transaction attribute)</a>
 </li>
     </ul></td>
   </tr></table>
@@ -1384,26 +1299,18 @@
   <h2>R</h2>
   <table style="width: 100%" class="indextable genindextable"><tr>
     <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="entities.bar.html#lumibot.entities.bar.Bar.raw">raw (lumibot.entities.bar.Bar property)</a>
+        <li><a href="entities.bar.html#entities.bar.Bar.raw">raw (entities.bar.Bar property)</a>
 </li>
-        <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.debt_trading.DebtTrading.rebalance_portfolio">rebalance_portfolio() (lumibot.strategies.examples.debt_trading.DebtTrading method)</a>
-
-        <ul>
-          <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.diversification.Diversification.rebalance_portfolio">(lumibot.strategies.examples.diversification.Diversification method)</a>
+        <li><a href="entities.data.html#entities.data.Data.repair_times_and_fill">repair_times_and_fill() (entities.data.Data method)</a>, <a href="entities.data.html#id6">[1]</a>
 </li>
-          <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.diversified_leverage.DiversifiedLeverage.rebalance_portfolio">(lumibot.strategies.examples.diversified_leverage.DiversifiedLeverage method)</a>
-</li>
-        </ul></li>
-        <li><a href="entities.data.html#id6">repair_times_and_fill() (lumibot.entities.data.Data method)</a>, <a href="entities.data.html#lumibot.entities.data.Data.repair_times_and_fill">[1]</a>
+        <li><a href="entities.asset.html#entities.asset.Asset.right">right (entities.asset.Asset attribute)</a>, <a href="entities.asset.html#id4">[1]</a>
 </li>
     </ul></td>
     <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="entities.asset.html#id4">right (lumibot.entities.asset.Asset attribute)</a>, <a href="entities.asset.html#lumibot.entities.asset.Asset.right">[1]</a>
-</li>
-        <li><a href="entities.asset.html#id5">right_must_be_one_of() (lumibot.entities.asset.Asset class method)</a>
+        <li><a href="entities.asset.html#id5">right_must_be_one_of() (entities.asset.Asset class method)</a>
 
         <ul>
-          <li><a href="entities.asset.html#lumibot.entities.asset.Asset.right_must_be_one_of">(lumibot.entities.asset.Asset method)</a>
+          <li><a href="entities.asset.html#entities.asset.Asset.right_must_be_one_of">(entities.asset.Asset method)</a>
 </li>
         </ul></li>
         <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.risk_free_rate">risk_free_rate (lumibot.strategies.strategy.Strategy property)</a>
@@ -1418,7 +1325,7 @@
   <h2>S</h2>
   <table style="width: 100%" class="indextable genindextable"><tr>
     <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="entities.order.html#lumibot.entities.order.Order.SELL">SELL (lumibot.entities.order.Order attribute)</a>
+        <li><a href="entities.order.html#entities.order.Order.SELL">SELL (entities.order.Order attribute)</a>
 </li>
         <li><a href="strategy_methods.orders/strategies.strategy.Strategy.sell_all.html#strategies.strategy.Strategy.sell_all">sell_all() (in module strategies.strategy.Strategy)</a>
 
@@ -1428,25 +1335,25 @@
           <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.sell_all">(lumibot.strategies.strategy.Strategy method)</a>
 </li>
         </ul></li>
-        <li><a href="entities.order.html#lumibot.entities.order.Order.set_canceled">set_canceled() (lumibot.entities.order.Order method)</a>
+        <li><a href="entities.order.html#entities.order.Order.set_canceled">set_canceled() (entities.order.Order method)</a>
 </li>
-        <li><a href="entities.data.html#id7">set_date_format() (lumibot.entities.data.Data method)</a>, <a href="entities.data.html#lumibot.entities.data.Data.set_date_format">[1]</a>
+        <li><a href="entities.data.html#entities.data.Data.set_date_format">set_date_format() (entities.data.Data method)</a>, <a href="entities.data.html#id7">[1]</a>
 </li>
-        <li><a href="entities.data.html#id8">set_dates() (lumibot.entities.data.Data method)</a>, <a href="entities.data.html#lumibot.entities.data.Data.set_dates">[1]</a>
+        <li><a href="entities.data.html#entities.data.Data.set_dates">set_dates() (entities.data.Data method)</a>, <a href="entities.data.html#id8">[1]</a>
 </li>
-        <li><a href="entities.order.html#lumibot.entities.order.Order.set_error">set_error() (lumibot.entities.order.Order method)</a>
+        <li><a href="entities.order.html#entities.order.Order.set_error">set_error() (entities.order.Order method)</a>
 </li>
-        <li><a href="entities.order.html#lumibot.entities.order.Order.set_filled">set_filled() (lumibot.entities.order.Order method)</a>
+        <li><a href="entities.order.html#entities.order.Order.set_filled">set_filled() (entities.order.Order method)</a>
 </li>
-        <li><a href="entities.order.html#lumibot.entities.order.Order.set_identifier">set_identifier() (lumibot.entities.order.Order method)</a>
+        <li><a href="entities.order.html#entities.order.Order.set_identifier">set_identifier() (entities.order.Order method)</a>
 </li>
         <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.set_market">set_market() (lumibot.strategies.strategy.Strategy method)</a>
 </li>
-        <li><a href="entities.order.html#lumibot.entities.order.Order.set_new">set_new() (lumibot.entities.order.Order method)</a>
+        <li><a href="entities.order.html#entities.order.Order.set_new">set_new() (entities.order.Order method)</a>
 </li>
-        <li><a href="entities.order.html#lumibot.entities.order.Order.set_partially_filled">set_partially_filled() (lumibot.entities.order.Order method)</a>
+        <li><a href="entities.order.html#entities.order.Order.set_partially_filled">set_partially_filled() (entities.order.Order method)</a>
 </li>
-        <li><a href="entities.data.html#id9">set_times() (lumibot.entities.data.Data method)</a>, <a href="entities.data.html#lumibot.entities.data.Data.set_times">[1]</a>
+        <li><a href="entities.data.html#entities.data.Data.set_times">set_times() (entities.data.Data method)</a>, <a href="entities.data.html#id9">[1]</a>
 </li>
         <li><a href="lumibot.backtesting.html#lumibot.backtesting.backtesting_broker.BacktestingBroker.should_continue">should_continue() (lumibot.backtesting.backtesting_broker.BacktestingBroker method)</a>
 
@@ -1454,8 +1361,6 @@
           <li><a href="brokers.html#lumibot.brokers.broker.Broker.should_continue">(lumibot.brokers.broker.Broker method)</a>
 </li>
         </ul></li>
-        <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.simple.Simple">Simple (class in lumibot.strategies.examples.simple)</a>
-</li>
         <li><a href="strategy_methods.misc/strategies.strategy.Strategy.sleep.html#strategies.strategy.Strategy.sleep">sleep() (in module strategies.strategy.Strategy)</a>
 
         <ul>
@@ -1465,7 +1370,13 @@
 </li>
         </ul></li>
         <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.sleeptime">sleeptime (lumibot.strategies.strategy.Strategy property)</a>
+
+        <ul>
+          <li><a href="strategy_properties/strategies.strategy.Strategy.sleeptime.html#strategies.strategy.Strategy.sleeptime">(strategies.strategy.Strategy property)</a>
 </li>
+        </ul></li>
+    </ul></td>
+    <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="lumibot.data_sources.html#lumibot.data_sources.data_source.DataSource.SOURCE">SOURCE (lumibot.data_sources.data_source.DataSource attribute)</a>
 
         <ul>
@@ -1474,9 +1385,7 @@
           <li><a href="lumibot.data_sources.html#lumibot.data_sources.yahoo.YahooData.SOURCE">(lumibot.data_sources.yahoo.YahooData attribute)</a>
 </li>
         </ul></li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="entities.bars.html#lumibot.entities.bars.Bars.split">split() (lumibot.entities.bars.Bars method)</a>
+        <li><a href="entities.bars.html#entities.bars.Bars.split">split() (entities.bars.Bars method)</a>
 </li>
         <li><a href="strategy_methods.data/strategies.strategy.Strategy.start_realtime_bars.html#strategies.strategy.Strategy.start_realtime_bars">start_realtime_bars() (in module strategies.strategy.Strategy)</a>
 
@@ -1488,15 +1397,13 @@
 </li>
         <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.stats_file">stats_file (lumibot.strategies.strategy.Strategy property)</a>
 </li>
-        <li><a href="entities.bar.html#lumibot.entities.bar.Bar.stock_splits">stock_splits (lumibot.entities.bar.Bar property)</a>
+        <li><a href="entities.bar.html#entities.bar.Bar.stock_splits">stock_splits (entities.bar.Bar property)</a>
 </li>
         <li><a href="lumibot.backtesting.html#lumibot.backtesting.backtesting_broker.BacktestingBroker.stop_order">stop_order() (lumibot.backtesting.backtesting_broker.BacktestingBroker method)</a>
 </li>
-        <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.strangle.Strangle">Strangle (class in lumibot.strategies.examples.strangle)</a>
-</li>
         <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy">Strategy (class in lumibot.strategies.strategy)</a>
 </li>
-        <li><a href="entities.asset.html#id6">strike (lumibot.entities.asset.Asset attribute)</a>, <a href="entities.asset.html#lumibot.entities.asset.Asset.strike">[1]</a>
+        <li><a href="entities.asset.html#entities.asset.Asset.strike">strike (entities.asset.Asset attribute)</a>, <a href="entities.asset.html#id6">[1]</a>
 </li>
         <li><a href="strategy_methods.orders/strategies.strategy.Strategy.submit_order.html#strategies.strategy.Strategy.submit_order">submit_order() (in module strategies.strategy.Strategy)</a>
 
@@ -1518,9 +1425,9 @@
           <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.submit_orders">(lumibot.strategies.strategy.Strategy method)</a>
 </li>
         </ul></li>
-        <li><a href="entities.data.html#lumibot.entities.data.Data.sybmol">sybmol (lumibot.entities.data.Data attribute)</a>
+        <li><a href="entities.data.html#entities.data.Data.sybmol">sybmol (entities.data.Data attribute)</a>
 </li>
-        <li><a href="entities.asset.html#id7">symbol (lumibot.entities.asset.Asset attribute)</a>, <a href="entities.asset.html#lumibot.entities.asset.Asset.symbol">[1]</a>
+        <li><a href="entities.asset.html#entities.asset.Asset.symbol">symbol (entities.asset.Asset attribute)</a>, <a href="entities.asset.html#id7">[1]</a>
 </li>
     </ul></td>
   </tr></table>
@@ -1530,24 +1437,30 @@
   <h2>T</h2>
   <table style="width: 100%" class="indextable genindextable"><tr>
     <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="entities.bar.html#lumibot.entities.bar.Bar.timestamp">timestamp (lumibot.entities.bar.Bar property)</a>
+        <li><a href="entities.bar.html#entities.bar.Bar.timestamp">timestamp (entities.bar.Bar property)</a>
 </li>
-        <li><a href="entities.data.html#lumibot.entities.data.Data.timestep">timestep (lumibot.entities.data.Data attribute)</a>
+        <li><a href="entities.data.html#entities.data.Data.timestep">timestep (entities.data.Data attribute)</a>
 </li>
-        <li><a href="lumibot.data_sources.html#lumibot.data_sources.data_source.DataSource.TIMESTEP_MAPPING">TIMESTEP_MAPPING (lumibot.data_sources.data_source.DataSource attribute)</a>
+        <li><a href="entities.data.html#entities.data.Data.TIMESTEP_MAPPING">TIMESTEP_MAPPING (entities.data.Data attribute)</a>
 
         <ul>
+          <li><a href="lumibot.data_sources.html#lumibot.data_sources.data_source.DataSource.TIMESTEP_MAPPING">(lumibot.data_sources.data_source.DataSource attribute)</a>
+</li>
           <li><a href="lumibot.data_sources.html#lumibot.data_sources.pandas.PandasData.TIMESTEP_MAPPING">(lumibot.data_sources.pandas.PandasData attribute)</a>
 </li>
           <li><a href="lumibot.data_sources.html#lumibot.data_sources.yahoo.YahooData.TIMESTEP_MAPPING">(lumibot.data_sources.yahoo.YahooData attribute)</a>
 </li>
-          <li><a href="entities.data.html#lumibot.entities.data.Data.TIMESTEP_MAPPING">(lumibot.entities.data.Data attribute)</a>
-</li>
         </ul></li>
         <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.timezone">timezone (lumibot.strategies.strategy.Strategy property)</a>
+
+        <ul>
+          <li><a href="strategy_properties/strategies.strategy.Strategy.timezone.html#strategies.strategy.Strategy.timezone">(strategies.strategy.Strategy property)</a>
 </li>
-        <li><a href="entities.data.html#id10">to_datalines() (lumibot.entities.data.Data method)</a>, <a href="entities.data.html#lumibot.entities.data.Data.to_datalines">[1]</a>
+        </ul></li>
+        <li><a href="entities.data.html#entities.data.Data.to_datalines">to_datalines() (entities.data.Data method)</a>, <a href="entities.data.html#id10">[1]</a>
 </li>
+    </ul></td>
+    <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="strategy_methods.datetime/strategies.strategy.Strategy.to_default_timezone.html#strategies.strategy.Strategy.to_default_timezone">to_default_timezone() (in module strategies.strategy.Strategy)</a>
 
         <ul>
@@ -1556,35 +1469,21 @@
           <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.to_default_timezone">(lumibot.strategies.strategy.Strategy method)</a>
 </li>
         </ul></li>
-        <li><a href="entities.order.html#lumibot.entities.order.Order.to_position">to_position() (lumibot.entities.order.Order method)</a>
+        <li><a href="entities.order.html#entities.order.Order.to_position">to_position() (entities.order.Order method)</a>
 </li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.buy_and_hold.BuyAndHold.trace_stats">trace_stats() (lumibot.strategies.examples.buy_and_hold.BuyAndHold method)</a>
+        <li><a href="lifecycle_methods.trace_stats.html#strategies.strategy.Strategy.trace_stats">trace_stats() (in module strategies.strategy.Strategy)</a>
 
         <ul>
-          <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.debt_trading.DebtTrading.trace_stats">(lumibot.strategies.examples.debt_trading.DebtTrading method)</a>
-</li>
-          <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.diversification.Diversification.trace_stats">(lumibot.strategies.examples.diversification.Diversification method)</a>
-</li>
-          <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.diversified_leverage.DiversifiedLeverage.trace_stats">(lumibot.strategies.examples.diversified_leverage.DiversifiedLeverage method)</a>
-</li>
-          <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.fast_trading.FastTrading.trace_stats">(lumibot.strategies.examples.fast_trading.FastTrading method)</a>
-</li>
-          <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.intraday_momentum.IntradayMomentum.trace_stats">(lumibot.strategies.examples.intraday_momentum.IntradayMomentum method)</a>
-</li>
-          <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.simple.Simple.trace_stats">(lumibot.strategies.examples.simple.Simple method)</a>
-</li>
           <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.trace_stats">(lumibot.strategies.strategy.Strategy method)</a>
 </li>
         </ul></li>
         <li><a href="lumibot.traders.html#lumibot.traders.trader.Trader">Trader (class in lumibot.traders.trader)</a>
 </li>
-        <li><a href="entities.data.html#lumibot.entities.data.Data.trading_hours_end">trading_hours_end (lumibot.entities.data.Data attribute)</a>
+        <li><a href="entities.data.html#entities.data.Data.trading_hours_end">trading_hours_end (entities.data.Data attribute)</a>
 </li>
-        <li><a href="entities.data.html#lumibot.entities.data.Data.trading_hours_start">trading_hours_start (lumibot.entities.data.Data attribute)</a>
+        <li><a href="entities.data.html#entities.data.Data.trading_hours_start">trading_hours_start (entities.data.Data attribute)</a>
 </li>
-        <li><a href="entities.data.html#id11">trim_data() (lumibot.entities.data.Data method)</a>, <a href="entities.data.html#lumibot.entities.data.Data.trim_data">[1]</a>
+        <li><a href="entities.data.html#entities.data.Data.trim_data">trim_data() (entities.data.Data method)</a>, <a href="entities.data.html#id11">[1]</a>
 </li>
     </ul></td>
   </tr></table>
@@ -1595,28 +1494,24 @@
   <table style="width: 100%" class="indextable genindextable"><tr>
     <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.unspent_money">unspent_money (lumibot.strategies.strategy.Strategy property)</a>
-</li>
-        <li><a href="entities.bar.html#lumibot.entities.bar.Bar.update">update() (lumibot.entities.bar.Bar method)</a>
-</li>
-        <li><a href="lumibot.data_sources.html#lumibot.data_sources.pandas.PandasData.update_date_index">update_date_index() (lumibot.data_sources.pandas.PandasData method)</a>
-</li>
-        <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.debt_trading.DebtTrading.update_prices">update_prices() (lumibot.strategies.examples.debt_trading.DebtTrading method)</a>
 
         <ul>
-          <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.diversification.Diversification.update_prices">(lumibot.strategies.examples.diversification.Diversification method)</a>
-</li>
-          <li><a href="lumibot.strategies.examples.html#lumibot.strategies.examples.diversified_leverage.DiversifiedLeverage.update_prices">(lumibot.strategies.examples.diversified_leverage.DiversifiedLeverage method)</a>
+          <li><a href="strategy_properties/strategies.strategy.Strategy.unspent_money.html#strategies.strategy.Strategy.unspent_money">(strategies.strategy.Strategy property)</a>
 </li>
         </ul></li>
+        <li><a href="entities.bar.html#entities.bar.Bar.update">update() (entities.bar.Bar method)</a>
+</li>
     </ul></td>
     <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="entities.order.html#lumibot.entities.order.Order.update_raw">update_raw() (lumibot.entities.order.Order method)</a>
+        <li><a href="lumibot.data_sources.html#lumibot.data_sources.pandas.PandasData.update_date_index">update_date_index() (lumibot.data_sources.pandas.PandasData method)</a>
+</li>
+        <li><a href="entities.order.html#entities.order.Order.update_raw">update_raw() (entities.order.Order method)</a>
 
         <ul>
-          <li><a href="entities.position.html#lumibot.entities.position.Position.update_raw">(lumibot.entities.position.Position method)</a>
+          <li><a href="entities.position.html#entities.position.Position.update_raw">(entities.position.Position method)</a>
 </li>
         </ul></li>
-        <li><a href="entities.order.html#lumibot.entities.order.Order.update_status">update_status() (lumibot.entities.order.Order method)</a>
+        <li><a href="entities.order.html#entities.order.Order.update_status">update_status() (entities.order.Order method)</a>
 </li>
     </ul></td>
   </tr></table>
@@ -1626,7 +1521,7 @@
   <h2>V</h2>
   <table style="width: 100%" class="indextable genindextable"><tr>
     <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="entities.bar.html#lumibot.entities.bar.Bar.volume">volume (lumibot.entities.bar.Bar property)</a>
+        <li><a href="entities.bar.html#entities.bar.Bar.volume">volume (entities.bar.Bar property)</a>
 </li>
     </ul></td>
   </tr></table>
@@ -1672,11 +1567,11 @@
         </ul></li>
         <li><a href="brokers.html#lumibot.brokers.broker.Broker.wait_orders_clear">wait_orders_clear() (lumibot.brokers.broker.Broker method)</a>
 </li>
-        <li><a href="entities.order.html#lumibot.entities.order.Order.wait_to_be_closed">wait_to_be_closed() (lumibot.entities.order.Order method)</a>
+        <li><a href="entities.order.html#entities.order.Order.wait_to_be_closed">wait_to_be_closed() (entities.order.Order method)</a>
 </li>
-        <li><a href="entities.order.html#lumibot.entities.order.Order.wait_to_be_registered">wait_to_be_registered() (lumibot.entities.order.Order method)</a>
+        <li><a href="entities.order.html#entities.order.Order.wait_to_be_registered">wait_to_be_registered() (entities.order.Order method)</a>
 </li>
-        <li><a href="entities.order.html#lumibot.entities.order.Order.was_transmitted">was_transmitted() (lumibot.entities.order.Order method)</a>
+        <li><a href="entities.order.html#entities.order.Order.was_transmitted">was_transmitted() (entities.order.Order method)</a>
 </li>
     </ul></td>
   </tr></table>

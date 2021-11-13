@@ -1,5 +1,5 @@
 Order Management
-~~~~~~~~~~~
+===================================
 
 Order Management functions are used to create, submit, cancel orders and more. You can see a list of them below:
 
@@ -7,7 +7,7 @@ Order Management functions are used to create, submit, cancel orders and more. Y
 
 .. autosummary::
     :toctree: strategy_methods.orders
-    :template: startegy_methods_template.rst
+    :template: strategy_methods_template.rst
 
     create_order
     submit_order

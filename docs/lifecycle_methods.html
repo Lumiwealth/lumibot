@@ -2,7 +2,7 @@
 <html class="no-js">
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
-    <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Strategy Methods" href="strategy_methods.html" /><link rel="prev" title="Getting Started" href="getting_started.html" />
+    <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="def initialize" href="lifecycle_methods.initialize.html" /><link rel="prev" title="Getting Started" href="getting_started.html" />
 
     <meta name="generator" content="sphinx-4.2.0, furo 2021.10.09"/>
         <title>Lifecycle Methods - Lumibot documentation</title>
@@ -133,7 +133,7 @@
           <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
         </button>
       </div>
-      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+      <label class="toc-overlay-icon toc-header-icon no-toc" for="__toc">
         <div class="visually-hidden">Toggle table of contents sidebar</div>
         <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
       </label>
@@ -156,9 +156,24 @@
   <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting Started</a></li>
-<li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Lifecycle Methods</a></li>
-<li class="toctree-l1 has-children"><a class="reference internal" href="strategy_methods.html">Strategy Methods</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
-<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.orders.html">Order Management</a><input class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l1 current has-children current-page"><a class="current reference internal" href="#">Lifecycle Methods</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.initialize.html">def initialize</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_trading_iteration.html">def on_trading_iteration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.before_market_opens.html">def before_market_opens</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.before_starting_trading.html">def before_starting_trading</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.before_market_closes.html">def before_market_closes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.after_market_closes.html">def after_market_closes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_abrupt_closing.html">def on_abrupt_closing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_bot_crash.html">def on_bot_crash</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.trace_stats.html">def trace_stats</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_new_order.html">def on_new_order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_partially_filled_order.html">def on_partially_filled_order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_filled_order.html">def on_filled_order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_canceled_order.html">def on_canceled_order</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="strategy_methods.html">Strategy Methods</a><input class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.orders.html">Order Management</a><input class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.create_order.html">self.create_order</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.submit_order.html">self.submit_order</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.submit_orders.html">self.submit_orders</a></li>
@@ -173,7 +188,7 @@
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_asset_potential_total.html">self.get_asset_potential_total</a></li>
 </ul>
 </li>
-<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.data.html">Data</a><input class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.data.html">Data</a><input class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_last_price.html">self.get_last_price</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_last_prices.html">self.get_last_prices</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_tradable_assets.html">self.get_tradable_assets</a></li>
@@ -186,13 +201,13 @@
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_yesterday_dividends.html">self.get_yesterday_dividends</a></li>
 </ul>
 </li>
-<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.options.html">Options</a><input class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.options.html">Options</a><input class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" role="switch" type="checkbox"/><label for="toctree-checkbox-5"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_chain.html">self.get_chain</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_chains.html">self.get_chains</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_greeks.html">self.get_greeks</a></li>
 </ul>
 </li>
-<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.datetime.html">DateTime</a><input class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" role="switch" type="checkbox"/><label for="toctree-checkbox-5"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.datetime.html">DateTime</a><input class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/strategies.strategy.Strategy.get_datetime.html">self.get_datetime</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/strategies.strategy.Strategy.get_timestamp.html">self.get_timestamp</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/strategies.strategy.Strategy.get_round_minute.html">self.get_round_minute</a></li>
@@ -204,7 +219,7 @@
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/strategies.strategy.Strategy.to_default_timezone.html">self.to_default_timezone</a></li>
 </ul>
 </li>
-<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.misc.html">Miscellaneous</a><input class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.misc.html">Miscellaneous</a><input class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.log_message.html">self.log_message</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.sleep.html">self.sleep</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.await_market_to_close.html">self.await_market_to_close</a></li>
@@ -217,18 +232,32 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="strategy_properties.html">Strategy Properties</a></li>
-<li class="toctree-l1 has-children"><a class="reference internal" href="backtesting.html">Backtesting</a><input class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l1 has-children"><a class="reference internal" href="strategy_properties.html">Strategy Properties</a><input class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.name.html">self.name</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.initial_budget.html">self.initial_budget</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.minutes_before_closing.html">self.minutes_before_closing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.minutes_before_opening.html">self.minutes_before_opening</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.sleeptime.html">self.sleeptime</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.parameters.html">self.parameters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.is_backtesting.html">self.is_backtesting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.portfolio_value.html">self.portfolio_value</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.unspent_money.html">self.unspent_money</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.first_iteration.html">self.first_iteration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.timezone.html">self.timezone</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.pytz.html">self.pytz</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="backtesting.html">Backtesting</a><input class="toctree-checkbox" id="toctree-checkbox-9" name="toctree-checkbox-9" role="switch" type="checkbox"/><label for="toctree-checkbox-9"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.yahoo.html">Yahoo</a></li>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.pandas.html">Pandas (CSV or other data)</a></li>
 </ul>
 </li>
-<li class="toctree-l1 has-children"><a class="reference internal" href="brokers.html">Brokers</a><input class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l1 has-children"><a class="reference internal" href="brokers.html">Brokers</a><input class="toctree-checkbox" id="toctree-checkbox-10" name="toctree-checkbox-10" role="switch" type="checkbox"/><label for="toctree-checkbox-10"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="brokers.alpaca.html">Alpaca</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.interactive_brokers.html">Interactive Brokers</a></li>
 </ul>
 </li>
-<li class="toctree-l1 has-children"><a class="reference internal" href="entities.html">Entities</a><input class="toctree-checkbox" id="toctree-checkbox-9" name="toctree-checkbox-9" role="switch" type="checkbox"/><label for="toctree-checkbox-9"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l1 has-children"><a class="reference internal" href="entities.html">Entities</a><input class="toctree-checkbox" id="toctree-checkbox-11" name="toctree-checkbox-11" role="switch" type="checkbox"/><label for="toctree-checkbox-11"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="entities.asset.html">Asset</a></li>
 <li class="toctree-l2"><a class="reference internal" href="entities.bar.html">Bar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="entities.bars.html">Bars</a></li>
@@ -258,7 +287,7 @@
               <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
             </button>
           </div>
-          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+          <label class="toc-overlay-icon toc-content-icon no-toc" for="__toc">
             <div class="visually-hidden">Toggle table of contents sidebar</div>
             <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
           </label>
@@ -269,249 +298,62 @@
 <p>The abstract class Strategy defines a design pattern that needs to be followed by user-defined strategies. The design pattern was greatly influenced by React.js components and their lifecycle methods.</p>
 <p>When building strategies, lifecycle methods needs to be overloaded. Trading logics should be implemented in these methods.</p>
 <img alt="_images/lifecycle_methods.png" src="_images/lifecycle_methods.png"/>
-<div class="section" id="initialize">
-<h2>Initialize<a class="headerlink" href="#initialize" title="Permalink to this headline">¶</a></h2>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">initialize</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</pre></div>
-</div>
-<p>This lifecycle methods is executed only once, when the strategy execution starts. Use this lifecycle method to initialize parameters like:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="bp">self</span><span class="o">.</span><span class="n">sleeptime</span><span class="p">:</span> <span class="n">the</span> <span class="n">sleeptime</span> <span class="n">duration</span> <span class="n">between</span> <span class="n">each</span> <span class="n">trading</span> <span class="n">iteration</span> <span class="ow">in</span> <span class="n">minutes</span>
-<span class="bp">self</span><span class="o">.</span><span class="n">minutes_before_closing</span><span class="p">:</span> <span class="n">number</span> <span class="n">of</span> <span class="n">minutes</span> <span class="n">before</span> <span class="n">the</span> <span class="n">market</span> <span class="n">closes</span> <span class="n">to</span> <span class="n">stop</span> <span class="n">trading</span>
-<span class="k">class</span> <span class="nc">MyStrategy</span><span class="p">(</span><span class="n">Strategy</span><span class="p">):</span>
-    <span class="k">def</span> <span class="nf">initialize</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">my_custom_parameter</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">sleeptime</span> <span class="o">=</span> <span class="mi">5</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">minutes_before_closing</span> <span class="o">=</span> <span class="mi">15</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">my_custom_parameter</span> <span class="o">=</span> <span class="n">my_custom_parameter</span>
-</pre></div>
-</div>
-<p><strong>Custom Parameters</strong></p>
-<p>You can also use the initialize method to define custom parameters like my_custom_parameter in the example above. You can name these parameters however you’d like, and add as many as you’d like.</p>
-<p>These parameters can easily be set using the strategy constructor later on.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">strategy_1</span> <span class="o">=</span> <span class="n">MyStrategy</span><span class="p">(</span>
-<span class="n">name</span><span class="o">=</span><span class="s2">"strategy_1"</span><span class="p">,</span>
-<span class="n">budget</span><span class="o">=</span><span class="n">budget</span><span class="p">,</span>
-<span class="n">broker</span><span class="o">=</span><span class="n">broker</span><span class="p">,</span>
-<span class="n">my_custom_parameter</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
-<span class="n">my_other_parameter</span><span class="o">=</span><span class="mi">50</span>
-<span class="p">)</span>
-</pre></div>
-</div>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">strategy_2</span> <span class="o">=</span> <span class="n">MyStrategy</span><span class="p">(</span>
-<span class="n">name</span><span class="o">=</span><span class="s2">"strategy_2"</span><span class="p">,</span>
-<span class="n">budget</span><span class="o">=</span><span class="n">budget</span><span class="p">,</span>
-<span class="n">broker</span><span class="o">=</span><span class="n">broker</span><span class="p">,</span>
-<span class="n">my_custom_parameter</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-<span class="n">my_last_parameter</span><span class="o">=</span><span class="s2">"SPY"</span>
-<span class="p">)</span>
-</pre></div>
-</div>
-<p>or just for backtesting</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">options</span> <span class="o">=</span> <span class="p">[</span><span class="kc">True</span><span class="p">,</span> <span class="kc">False</span><span class="p">]</span>
-<span class="k">for</span> <span class="n">option</span> <span class="ow">in</span> <span class="n">options</span><span class="p">:</span>
-    <span class="n">MyStrategy</span><span class="o">.</span><span class="n">backtest</span><span class="p">(</span>
-        <span class="n">budget</span><span class="p">,</span>
-        <span class="n">YahooDataBacktesting</span><span class="p">,</span>
-        <span class="n">backtesting_start</span><span class="p">,</span>
-        <span class="n">backtesting_end</span><span class="p">,</span>
-        <span class="n">stats_file</span><span class="o">=</span><span class="n">stats_file</span><span class="p">,</span>
-        <span class="n">my_custom_parameter</span><span class="o">=</span><span class="n">option</span><span class="p">,</span>
-        <span class="n">my_last_parameter</span><span class="o">=</span><span class="s2">"SPY"</span>
-    <span class="p">)</span>
-
-<span class="c1"># `options` in this example is not referring to trading options contracts.</span>
-</pre></div>
-</div>
-<p><strong>Changing Market Hours</strong></p>
-<p>If you’d like to change the market hours for which the bot operates, then you can use the set_market() function like this:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">initialize</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">asset_symbol</span><span class="o">=</span><span class="s2">"MNQ"</span><span class="p">,</span> <span class="n">expiration</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">date</span><span class="p">(</span><span class="mi">2021</span><span class="p">,</span> <span class="mi">9</span><span class="p">,</span> <span class="mi">17</span><span class="p">)):</span>
-    <span class="bp">self</span><span class="o">.</span><span class="n">set_market</span><span class="p">(</span><span class="s1">'24/7'</span><span class="p">)</span>
-</pre></div>
-</div>
-<p>Default is NASDAQ days and hours.</p>
-<p>Possible calendars include:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="p">[</span><span class="s1">'MarketCalendar'</span><span class="p">,</span> <span class="s1">'ASX'</span><span class="p">,</span> <span class="s1">'BMF'</span><span class="p">,</span> <span class="s1">'CFE'</span><span class="p">,</span> <span class="s1">'NYSE'</span><span class="p">,</span> <span class="s1">'stock'</span><span class="p">,</span> <span class="s1">'NASDAQ'</span><span class="p">,</span> <span class="s1">'BATS'</span><span class="p">,</span> <span class="s1">'CME_Equity'</span><span class="p">,</span> <span class="s1">'CBOT_Equity'</span><span class="p">,</span> <span class="s1">'CME_Agriculture'</span><span class="p">,</span> <span class="s1">'CBOT_Agriculture'</span><span class="p">,</span> <span class="s1">'COMEX_Agriculture'</span><span class="p">,</span> <span class="s1">'NYMEX_Agriculture'</span><span class="p">,</span> <span class="s1">'CME_Rate'</span><span class="p">,</span> <span class="s1">'CBOT_Rate'</span><span class="p">,</span> <span class="s1">'CME_InterestRate'</span><span class="p">,</span> <span class="s1">'CBOT_InterestRate'</span><span class="p">,</span> <span class="s1">'CME_Bond'</span><span class="p">,</span> <span class="s1">'CBOT_Bond'</span><span class="p">,</span> <span class="s1">'EUREX'</span><span class="p">,</span> <span class="s1">'HKEX'</span><span class="p">,</span> <span class="s1">'ICE'</span><span class="p">,</span> <span class="s1">'ICEUS'</span><span class="p">,</span> <span class="s1">'NYFE'</span><span class="p">,</span> <span class="s1">'JPX'</span><span class="p">,</span> <span class="s1">'LSE'</span><span class="p">,</span> <span class="s1">'OSE'</span><span class="p">,</span> <span class="s1">'SIX'</span><span class="p">,</span> <span class="s1">'SSE'</span><span class="p">,</span> <span class="s1">'TSX'</span><span class="p">,</span> <span class="s1">'TSXV'</span><span class="p">,</span> <span class="s1">'BSE'</span><span class="p">,</span> <span class="s1">'TASE'</span><span class="p">,</span> <span class="s1">'TradingCalendar'</span><span class="p">,</span> <span class="s1">'ASEX'</span><span class="p">,</span> <span class="s1">'BVMF'</span><span class="p">,</span> <span class="s1">'CMES'</span><span class="p">,</span> <span class="s1">'IEPA'</span><span class="p">,</span> <span class="s1">'XAMS'</span><span class="p">,</span> <span class="s1">'XASX'</span><span class="p">,</span> <span class="s1">'XBKK'</span><span class="p">,</span> <span class="s1">'XBOG'</span><span class="p">,</span> <span class="s1">'XBOM'</span><span class="p">,</span> <span class="s1">'XBRU'</span><span class="p">,</span> <span class="s1">'XBUD'</span><span class="p">,</span> <span class="s1">'XBUE'</span><span class="p">,</span> <span class="s1">'XCBF'</span><span class="p">,</span> <span class="s1">'XCSE'</span><span class="p">,</span> <span class="s1">'XDUB'</span><span class="p">,</span> <span class="s1">'XFRA'</span><span class="p">,</span> <span class="s1">'XETR'</span><span class="p">,</span> <span class="s1">'XHEL'</span><span class="p">,</span> <span class="s1">'XHKG'</span><span class="p">,</span> <span class="s1">'XICE'</span><span class="p">,</span> <span class="s1">'XIDX'</span><span class="p">,</span> <span class="s1">'XIST'</span><span class="p">,</span> <span class="s1">'XJSE'</span><span class="p">,</span> <span class="s1">'XKAR'</span><span class="p">,</span> <span class="s1">'XKLS'</span><span class="p">,</span> <span class="s1">'XKRX'</span><span class="p">,</span> <span class="s1">'XLIM'</span><span class="p">,</span> <span class="s1">'XLIS'</span><span class="p">,</span> <span class="s1">'XLON'</span><span class="p">,</span> <span class="s1">'XMAD'</span><span class="p">,</span> <span class="s1">'XMEX'</span><span class="p">,</span> <span class="s1">'XMIL'</span><span class="p">,</span> <span class="s1">'XMOS'</span><span class="p">,</span> <span class="s1">'XNYS'</span><span class="p">,</span> <span class="s1">'XNZE'</span><span class="p">,</span> <span class="s1">'XOSL'</span><span class="p">,</span> <span class="s1">'XPAR'</span><span class="p">,</span> <span class="s1">'XPHS'</span><span class="p">,</span> <span class="s1">'XPRA'</span><span class="p">,</span> <span class="s1">'XSES'</span><span class="p">,</span> <span class="s1">'XSGO'</span><span class="p">,</span> <span class="s1">'XSHG'</span><span class="p">,</span> <span class="s1">'XSTO'</span><span class="p">,</span> <span class="s1">'XSWX'</span><span class="p">,</span> <span class="s1">'XTAE'</span><span class="p">,</span> <span class="s1">'XTAI'</span><span class="p">,</span> <span class="s1">'XTKS'</span><span class="p">,</span> <span class="s1">'XTSE'</span><span class="p">,</span> <span class="s1">'XWAR'</span><span class="p">,</span> <span class="s1">'XWBO'</span><span class="p">,</span> <span class="s1">'us_futures'</span><span class="p">,</span> <span class="s1">'24/7'</span><span class="p">,</span> <span class="s1">'24/5'</span><span class="p">]</span>
-</pre></div>
-</div>
-<div class="section" id="before-market-opens">
-<h3>Before Market Opens<a class="headerlink" href="#before-market-opens" title="Permalink to this headline">¶</a></h3>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">before_market_opens</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</pre></div>
-</div>
-<p>This lifecycle method is executed each day before market opens. If the strategy is first run when the market is already open, this method will be skipped the first day. Use this lifecycle methods to execute business logic before starting trading like canceling all open orders.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">MyStrategy</span><span class="p">(</span><span class="n">Strategy</span><span class="p">):</span>
-    <span class="k">def</span> <span class="nf">before_market_opens</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">cancel_open_orders</span><span class="p">()</span>
-</pre></div>
-</div>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">before_starting_trading</span><span class="p">()</span>
-</pre></div>
-</div>
-<p>This lifecycle method is similar to before_market_opens. However, unlike before_market_opens, this method will always be executed before starting trading even if the market is already open when the strategy was first launched. After the first execution, both methods will be executed in the following order</p>
-</div>
-<div class="section" id="before-starting-trading">
-<h3>Before Starting Trading<a class="headerlink" href="#before-starting-trading" title="Permalink to this headline">¶</a></h3>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">before_starting_trading</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</pre></div>
-</div>
-<p>Use this lifecycle method to reinitialize variables for day trading like resetting the list of blacklisted shares.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">MyStrategy</span><span class="p">(</span><span class="n">Strategy</span><span class="p">):</span>
-    <span class="k">def</span> <span class="nf">before_starting_trading</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">blacklist</span> <span class="o">=</span> <span class="p">[]</span>
-</pre></div>
-</div>
-</div>
-<div class="section" id="on-trading-iteration">
-<h3>On Trading Iteration<a class="headerlink" href="#on-trading-iteration" title="Permalink to this headline">¶</a></h3>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">on_trading_iteration</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</pre></div>
-</div>
-<p>This lifecycle method contains the main trading logic. When the market opens, it will be executed in a loop. After each iteration, the strategy will sleep for self.sleeptime minutes. If no crash or interuption, the loop will be stopped self.minutes_before_closing minutes before market closes and will restart on the next day when market opens again.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">MyStrategy</span><span class="p">(</span><span class="n">Strategy</span><span class="p">):</span>
-    <span class="k">def</span> <span class="nf">on_trading_iteration</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="c1"># pull data</span>
-        <span class="c1"># check if should buy an asset based on data</span>
-        <span class="c1"># if condition, buy/sell asset</span>
-        <span class="k">pass</span>
-</pre></div>
-</div>
-</div>
-<div class="section" id="before-market-closes">
-<h3>Before Market Closes<a class="headerlink" href="#before-market-closes" title="Permalink to this headline">¶</a></h3>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">before_market_closes</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</pre></div>
-</div>
-<p>This lifecycle method is executed self.minutes_before_closing minutes before the market closes. Use this lifecycle method to execute business logic like selling shares and closing open orders.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">MyStrategy</span><span class="p">(</span><span class="n">Strategy</span><span class="p">):</span>
-    <span class="k">def</span> <span class="nf">before_market_closes</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">sell_all</span><span class="p">()</span>
-</pre></div>
-</div>
-</div>
-<div class="section" id="after-market-closes">
-<h3>After Market Closes<a class="headerlink" href="#after-market-closes" title="Permalink to this headline">¶</a></h3>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">after_market_closes</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</pre></div>
-</div>
-<p>This lifecycle method is executed right after the market closes.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">MyStrategy</span><span class="p">(</span><span class="n">Strategy</span><span class="p">):</span>
-    <span class="k">def</span> <span class="nf">after_market_closes</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">pass</span>
-</pre></div>
-</div>
-</div>
-<div class="section" id="trace-stats">
-<h3>Trace Stats<a class="headerlink" href="#trace-stats" title="Permalink to this headline">¶</a></h3>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">trace_stats</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</pre></div>
-</div>
-<p>Lifecycle method that will be executed after on_trading_iteration. context is a dictionary containing the result of locals() of on_trading_iteration() at the end of its execution.</p>
-<p>locals() returns a dictionary of the variables defined in the scope where it is called.</p>
-<p>Use this method to dump stats</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">random</span>
-<span class="k">class</span> <span class="nc">MyStrategy</span><span class="p">(</span><span class="n">Strategy</span><span class="p">):</span>
-<span class="k">def</span> <span class="nf">on_trading_iteration</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-    <span class="n">google_symbol</span> <span class="o">=</span> <span class="s2">"GOOG"</span>
-
-<span class="k">def</span> <span class="nf">trace_stats</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">context</span><span class="p">,</span> <span class="n">snapshot_before</span><span class="p">):</span>
-    <span class="nb">print</span><span class="p">(</span><span class="n">context</span><span class="p">)</span>
-    <span class="c1"># printing</span>
-    <span class="c1"># { "google_symbol":"GOOG"}</span>
-    <span class="n">random_number</span> <span class="o">=</span> <span class="n">random</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">100</span><span class="p">)</span>
-    <span class="n">row</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"my_custom_stat"</span><span class="p">:</span> <span class="n">random_number</span><span class="p">}</span>
-
-    <span class="k">return</span> <span class="n">row</span>
-</pre></div>
-</div>
-</div>
-<div class="section" id="on-abrupt-closing">
-<h3>On Abrupt Closing<a class="headerlink" href="#on-abrupt-closing" title="Permalink to this headline">¶</a></h3>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">on_abrupt_closing</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</pre></div>
-</div>
-<p>This lifecycle method runs when the strategy execution gets interrupted. Use this lifecycle method to execute code to stop trading gracefully like selling all assets</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">MyStrategy</span><span class="p">(</span><span class="n">Strategy</span><span class="p">):</span>
-    <span class="k">def</span> <span class="nf">on_abrupt_closing</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">sell_all</span><span class="p">()</span>
-</pre></div>
-</div>
-</div>
-<div class="section" id="on-bot-crash">
-<h3>On Bot Crash<a class="headerlink" href="#on-bot-crash" title="Permalink to this headline">¶</a></h3>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">on_bot_crash</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</pre></div>
-</div>
-<p>This lifecycle method runs when the strategy crashes. By default, if not overloaded, it calls on_abrupt_closing.</p>
-</div>
-<div class="section" id="on-new-order">
-<h3>On New Order<a class="headerlink" href="#on-new-order" title="Permalink to this headline">¶</a></h3>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">on_new_order</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</pre></div>
-</div>
-<p>This lifecycle method runs when a new order has been successfully submitted to the broker. Use this lifecycle event to execute code when the broker processes a new order.</p>
-<p>Parameters:</p>
-<p>order (Order): The corresponding order object processed</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">MyStrategy</span><span class="p">(</span><span class="n">Strategy</span><span class="p">):</span>
-    <span class="k">def</span> <span class="nf">on_new_order</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">order</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">log_message</span><span class="p">(</span><span class="s2">"</span><span class="si">%r</span><span class="s2"> is currently being processed by the broker"</span> <span class="o">%</span> <span class="n">order</span><span class="p">)</span>
-</pre></div>
-</div>
-</div>
-<div class="section" id="on-canceled-order">
-<h3>On Canceled Order<a class="headerlink" href="#on-canceled-order" title="Permalink to this headline">¶</a></h3>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">on_canceled_order</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</pre></div>
-</div>
-<p>The lifecycle method called when an order has been successfully canceled by the broker. Use this lifecycle event to execute code when an order has been canceled by the broker</p>
-<p>Parameters:</p>
-<p>order (Order): The corresponding order object that has been canceled</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">MyStrategy</span><span class="p">(</span><span class="n">Strategy</span><span class="p">):</span>
-    <span class="k">def</span> <span class="nf">on_canceled_order</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">order</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">log_message</span><span class="p">(</span><span class="s2">"</span><span class="si">%r</span><span class="s2"> has been canceled by the broker"</span> <span class="o">%</span> <span class="n">order</span><span class="p">)</span>
-</pre></div>
-</div>
-</div>
-<div class="section" id="on-partially-filled-order">
-<h3>On Partially Filled Order<a class="headerlink" href="#on-partially-filled-order" title="Permalink to this headline">¶</a></h3>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">on_partially_filled_order</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</pre></div>
-</div>
-<p>The lifecycle method called when an order has been partially filled by the broker. Use this lifecycle event to execute code when an order has been partially filled by the broker.</p>
-<p>Parameters:</p>
-<p>order (Order): The order object that is being processed by the broker
-price (float): The filled price
-quantity (int): The filled quantity
-multiplier (int): Options multiplier</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">MyStrategy</span><span class="p">(</span><span class="n">Strategy</span><span class="p">):</span>
-    <span class="k">def</span> <span class="nf">on_partially_filled_order</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="n">price</span><span class="p">,</span> <span class="n">quantity</span><span class="p">,</span> <span class="n">multiplier</span><span class="p">):</span>
-        <span class="n">missing</span> <span class="o">=</span> <span class="n">order</span><span class="o">.</span><span class="n">quantity</span> <span class="o">-</span> <span class="n">quantity</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">log_message</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">quantity</span><span class="si">}</span><span class="s2"> has been filled"</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">log_message</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">quantity</span><span class="si">}</span><span class="s2"> waiting for the remaining </span><span class="si">{</span><span class="n">missing</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-</pre></div>
-</div>
-</div>
-<div class="section" id="on-filled-order">
-<h3>On Filled Order<a class="headerlink" href="#on-filled-order" title="Permalink to this headline">¶</a></h3>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">on_filled_order</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</pre></div>
-</div>
-<p>The lifecycle method called when an order has been successfully filled by the broker. Use this lifecycle event to execute code when an order has been filled by the broker</p>
-<p>Parameters:</p>
-<p>position (Position): The updated position object related to the order symbol. If the strategy already holds 200 shares of SPY and 300 has just been filled, then position.quantity will be 500 shares otherwise if it is a new position, a new position object will be created and passed to this method.
-order (Order): The corresponding order object that has been filled
-price (float): The filled price
-quantity (int): The filled quantity
-multiplier (int): Options multiplier</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">MyStrategy</span><span class="p">(</span><span class="n">Strategy</span><span class="p">):</span>
-    <span class="k">def</span> <span class="nf">on_filled_order</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">position</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="n">price</span><span class="p">,</span> <span class="n">quantity</span><span class="p">,</span> <span class="n">multiplier</span><span class="p">):</span>
-        <span class="k">if</span> <span class="n">order</span><span class="o">.</span><span class="n">side</span> <span class="o">==</span> <span class="s2">"sell"</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">log_message</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">quantity</span><span class="si">}</span><span class="s2"> shares of </span><span class="si">{</span><span class="n">order</span><span class="o">.</span><span class="n">symbol</span><span class="si">}</span><span class="s2"> has been sold at </span><span class="si">{</span><span class="n">price</span><span class="si">}</span><span class="s2">$"</span><span class="p">)</span>
-        <span class="k">elif</span> <span class="n">order</span><span class="o">.</span><span class="n">side</span> <span class="o">==</span> <span class="s2">"buy"</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">log_message</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">quantity</span><span class="si">}</span><span class="s2"> shares of </span><span class="si">{</span><span class="n">order</span><span class="o">.</span><span class="n">symbol</span><span class="si">}</span><span class="s2"> has been bought at </span><span class="si">{</span><span class="n">price</span><span class="si">}</span><span class="s2">$"</span><span class="p">)</span>
-
-        <span class="bp">self</span><span class="o">.</span><span class="n">log_message</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Currently holding </span><span class="si">{</span><span class="n">position</span><span class="o">.</span><span class="n">quantity</span><span class="si">}</span><span class="s2"> of </span><span class="si">{</span><span class="n">position</span><span class="o">.</span><span class="n">symbol</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-</pre></div>
-</div>
-</div>
+<div class="toctree-wrapper compound">
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="lifecycle_methods.initialize.html">def initialize</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.initialize.html#reference">Reference</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="lifecycle_methods.on_trading_iteration.html">def on_trading_iteration</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_trading_iteration.html#reference">Reference</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="lifecycle_methods.before_market_opens.html">def before_market_opens</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.before_market_opens.html#reference">Reference</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="lifecycle_methods.before_starting_trading.html">def before_starting_trading</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.before_starting_trading.html#reference">Reference</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="lifecycle_methods.before_market_closes.html">def before_market_closes</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.before_market_closes.html#reference">Reference</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="lifecycle_methods.after_market_closes.html">def after_market_closes</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.after_market_closes.html#reference">Reference</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="lifecycle_methods.on_abrupt_closing.html">def on_abrupt_closing</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_abrupt_closing.html#reference">Reference</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="lifecycle_methods.on_bot_crash.html">def on_bot_crash</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_bot_crash.html#reference">Reference</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="lifecycle_methods.trace_stats.html">def trace_stats</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.trace_stats.html#reference">Reference</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="lifecycle_methods.on_new_order.html">def on_new_order</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_new_order.html#reference">Reference</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="lifecycle_methods.on_partially_filled_order.html">def on_partially_filled_order</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_partially_filled_order.html#reference">Reference</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="lifecycle_methods.on_filled_order.html">def on_filled_order</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_filled_order.html#reference">Reference</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="lifecycle_methods.on_canceled_order.html">def on_canceled_order</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_canceled_order.html#reference">Reference</a></li>
+</ul>
+</li>
+</ul>
 </div>
 </div>
 
@@ -520,12 +362,12 @@ multiplier (int): Options multiplier</p>
       <footer>
         
         <div class="related-pages">
-          <a class="next-page" href="strategy_methods.html">
+          <a class="next-page" href="lifecycle_methods.initialize.html">
               <div class="page-info">
                 <div class="context">
                   <span>Next</span>
                 </div>
-                <div class="title">Strategy Methods</div>
+                <div class="title">def initialize</div>
               </div>
               <svg><use href="#svg-arrow-right"></use></svg>
             </a>
@@ -556,41 +398,8 @@ multiplier (int): Options multiplier</p>
         
       </footer>
     </div>
-    <aside class="toc-drawer">
+    <aside class="toc-drawer no-toc">
       
-      
-      <div class="toc-sticky toc-scroll">
-        <div class="toc-title-container">
-          <span class="toc-title">
-            Contents
-          </span>
-        </div>
-        <div class="toc-tree-container">
-          <div class="toc-tree">
-            <ul>
-<li><a class="reference internal" href="#">Lifecycle Methods</a><ul>
-<li><a class="reference internal" href="#initialize">Initialize</a><ul>
-<li><a class="reference internal" href="#before-market-opens">Before Market Opens</a></li>
-<li><a class="reference internal" href="#before-starting-trading">Before Starting Trading</a></li>
-<li><a class="reference internal" href="#on-trading-iteration">On Trading Iteration</a></li>
-<li><a class="reference internal" href="#before-market-closes">Before Market Closes</a></li>
-<li><a class="reference internal" href="#after-market-closes">After Market Closes</a></li>
-<li><a class="reference internal" href="#trace-stats">Trace Stats</a></li>
-<li><a class="reference internal" href="#on-abrupt-closing">On Abrupt Closing</a></li>
-<li><a class="reference internal" href="#on-bot-crash">On Bot Crash</a></li>
-<li><a class="reference internal" href="#on-new-order">On New Order</a></li>
-<li><a class="reference internal" href="#on-canceled-order">On Canceled Order</a></li>
-<li><a class="reference internal" href="#on-partially-filled-order">On Partially Filled Order</a></li>
-<li><a class="reference internal" href="#on-filled-order">On Filled Order</a></li>
-</ul>
-</li>
-</ul>
-</li>
-</ul>
-
-          </div>
-        </div>
-      </div>
       
       
     </aside>

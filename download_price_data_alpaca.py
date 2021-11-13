@@ -1,23 +1,33 @@
 import datetime
-import json
-import math
+import os
 import time
 
 import alpaca_trade_api as tradeapi
-import numpy as np
 import pandas as pd
 
-from credentials import AlpacaConfig
+"""
+    This function will download the historical data for the given stock symbol 
+    and write it to a csv file in the data folder.
+"""
 
-# Put your Alpaca secret keys here:
-APCA_API_KEY_ID = AlpacaConfig.API_KEY
-APCA_API_SECRET_KEY = AlpacaConfig.API_SECRET
-ASSET_TO_DOWNLOAD = "SPY"
-START_DATE = "2021-07-1"
-END_DATE = "2021-08-16"
+###############################################################################
+# Change the following settings to match your account,
+# symbol and desired timeframe:
+###############################################################################
+
+APCA_API_KEY_ID = "PKN2NQZY2PPIV3TC835A"  # Add your Alpaca API key here
+APCA_API_SECRET_KEY = (
+    "fP9LxZKGl7TXCNxdksaSG3wPLBBJQ5wjYLzhKKdHG"  # Put your Alpaca secret key here
+)
+APCA_ENDPOINT = "https://paper-api.alpaca.markets"
+ASSET_TO_DOWNLOAD = "SPY"  # The asset to download
+START_DATE = "2021-07-1"  # The start date of the data to download
+END_DATE = "2021-08-16"  # The end date of the data to download
+
+###############################################################################
 
 # Initialize API
-api = tradeapi.REST(APCA_API_KEY_ID, APCA_API_SECRET_KEY, AlpacaConfig.ENDPOINT)
+api = tradeapi.REST(APCA_API_KEY_ID, APCA_API_SECRET_KEY, APCA_ENDPOINT)
 
 
 def get_barset(api, symbol, timeframe, start, end, limit=None):
@@ -89,6 +99,10 @@ downloaded_data = get_barset(
 )
 
 downloaded_data_est = downloaded_data.tz_convert("US/Eastern")
+
+# Create data directory if it does not exist
+if not os.path.exists("data"):
+    os.makedirs("data")
 
 filename = f"data/{ASSET_TO_DOWNLOAD}.csv"
 downloaded_data_est.to_csv(filename)

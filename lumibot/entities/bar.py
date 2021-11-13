@@ -15,6 +15,12 @@ class Bar(ComparaisonMixin):
 
     @classmethod
     def get_empty_bar(cls):
+        """Return an empty bar object
+
+        Returns
+        -------
+        Bar
+        """
         item = {
             "timestamp": 0,
             "open": 0,
@@ -33,6 +39,7 @@ class Bar(ComparaisonMixin):
 
     @property
     def timestamp(self):
+        """Return the timestamp of the bar"""
         return self._timestamp
 
     @timestamp.setter

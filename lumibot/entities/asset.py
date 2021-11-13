@@ -1,7 +1,8 @@
 from collections import UserDict
 from datetime import date
-from pydantic import BaseModel, validator
 from typing import Optional
+
+from pydantic import BaseModel, validator
 
 
 class Asset(BaseModel, frozen=True, extra="forbid"):
@@ -14,8 +15,8 @@ class Asset(BaseModel, frozen=True, extra="forbid"):
     symbol : str
         Symbol of the stock or underlying in case of futures/options.
     asset_type : str
-        Asset types are only `stock`, 'option`, `future`, `forex`,
-        default : `stock`
+        Type of the asset. Asset types are only 'stock', 'option', 'future', 'forex'
+        default : 'stock'
     expiration : datetime.date
         Option or futures expiration.
         The datetime.date will be converted to broker specific formats.
@@ -23,7 +24,7 @@ class Asset(BaseModel, frozen=True, extra="forbid"):
     strike : str
         Options strike as string.
     right : str
-        `CALL` or `PUT`
+        'CALL' or 'PUT'
         default : ""
     multiplier : int
         Price multiplier.
@@ -37,9 +38,9 @@ class Asset(BaseModel, frozen=True, extra="forbid"):
         The symbol used to retrieve stock quotes if stock. The underlying
         symbol if option. For Forex: The base currency.
     asset_type (string, default: `stock`): One of the following:
-        - `stock`
-        - `option`
-        - `future`
+        - 'stock'
+        - 'option'
+        - 'future'
         - 'forex'
     expiration : datetime.date
         Contract expiration dates for futures and options.
@@ -77,7 +78,7 @@ class Asset(BaseModel, frozen=True, extra="forbid"):
     def __repr__(self):
         if self.asset_type == "future":
             return f"{self.symbol}, {self.expiration}"
-        elif self.asset_type == 'option':
+        elif self.asset_type == "option":
             return f"{self.symbol}, {self.expiration} {self.strike} {self.right}"
         else:
             return f"{self.symbol}"
@@ -85,7 +86,7 @@ class Asset(BaseModel, frozen=True, extra="forbid"):
     def __str__(self):
         if self.asset_type == "future":
             return f"{self.symbol}, {self.expiration}"
-        elif self.asset_type == 'option':
+        elif self.asset_type == "option":
             return f"{self.symbol}, {self.expiration} {self.strike} {self.right}"
         else:
             return f"{self.symbol}"

@@ -40,6 +40,17 @@ class Position:
         self._raw = raw
 
     def get_selling_order(self):
+        """Returns an order that can be used to sell this position.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        order : Order
+            An order that can be used to sell this position.
+        """
         order = None
         if self.quantity < 0:
             order = entities.Order(self.strategy, self.asset, abs(self.quantity), "buy")

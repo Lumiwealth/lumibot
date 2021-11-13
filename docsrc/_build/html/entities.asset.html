@@ -156,9 +156,24 @@
   <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting Started</a></li>
-<li class="toctree-l1"><a class="reference internal" href="lifecycle_methods.html">Lifecycle Methods</a></li>
-<li class="toctree-l1 has-children"><a class="reference internal" href="strategy_methods.html">Strategy Methods</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
-<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.orders.html">Order Management</a><input class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l1 has-children"><a class="reference internal" href="lifecycle_methods.html">Lifecycle Methods</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.initialize.html">def initialize</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_trading_iteration.html">def on_trading_iteration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.before_market_opens.html">def before_market_opens</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.before_starting_trading.html">def before_starting_trading</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.before_market_closes.html">def before_market_closes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.after_market_closes.html">def after_market_closes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_abrupt_closing.html">def on_abrupt_closing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_bot_crash.html">def on_bot_crash</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.trace_stats.html">def trace_stats</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_new_order.html">def on_new_order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_partially_filled_order.html">def on_partially_filled_order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_filled_order.html">def on_filled_order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_canceled_order.html">def on_canceled_order</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="strategy_methods.html">Strategy Methods</a><input class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.orders.html">Order Management</a><input class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.create_order.html">self.create_order</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.submit_order.html">self.submit_order</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.submit_orders.html">self.submit_orders</a></li>
@@ -173,7 +188,7 @@
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_asset_potential_total.html">self.get_asset_potential_total</a></li>
 </ul>
 </li>
-<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.data.html">Data</a><input class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.data.html">Data</a><input class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_last_price.html">self.get_last_price</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_last_prices.html">self.get_last_prices</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_tradable_assets.html">self.get_tradable_assets</a></li>
@@ -186,13 +201,13 @@
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_yesterday_dividends.html">self.get_yesterday_dividends</a></li>
 </ul>
 </li>
-<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.options.html">Options</a><input class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.options.html">Options</a><input class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" role="switch" type="checkbox"/><label for="toctree-checkbox-5"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_chain.html">self.get_chain</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_chains.html">self.get_chains</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_greeks.html">self.get_greeks</a></li>
 </ul>
 </li>
-<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.datetime.html">DateTime</a><input class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" role="switch" type="checkbox"/><label for="toctree-checkbox-5"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.datetime.html">DateTime</a><input class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/strategies.strategy.Strategy.get_datetime.html">self.get_datetime</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/strategies.strategy.Strategy.get_timestamp.html">self.get_timestamp</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/strategies.strategy.Strategy.get_round_minute.html">self.get_round_minute</a></li>
@@ -204,7 +219,7 @@
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/strategies.strategy.Strategy.to_default_timezone.html">self.to_default_timezone</a></li>
 </ul>
 </li>
-<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.misc.html">Miscellaneous</a><input class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.misc.html">Miscellaneous</a><input class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.log_message.html">self.log_message</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.sleep.html">self.sleep</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.await_market_to_close.html">self.await_market_to_close</a></li>
@@ -217,18 +232,32 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="strategy_properties.html">Strategy Properties</a></li>
-<li class="toctree-l1 has-children"><a class="reference internal" href="backtesting.html">Backtesting</a><input class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l1 has-children"><a class="reference internal" href="strategy_properties.html">Strategy Properties</a><input class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.name.html">self.name</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.initial_budget.html">self.initial_budget</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.minutes_before_closing.html">self.minutes_before_closing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.minutes_before_opening.html">self.minutes_before_opening</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.sleeptime.html">self.sleeptime</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.parameters.html">self.parameters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.is_backtesting.html">self.is_backtesting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.portfolio_value.html">self.portfolio_value</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.unspent_money.html">self.unspent_money</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.first_iteration.html">self.first_iteration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.timezone.html">self.timezone</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.pytz.html">self.pytz</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="backtesting.html">Backtesting</a><input class="toctree-checkbox" id="toctree-checkbox-9" name="toctree-checkbox-9" role="switch" type="checkbox"/><label for="toctree-checkbox-9"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.yahoo.html">Yahoo</a></li>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.pandas.html">Pandas (CSV or other data)</a></li>
 </ul>
 </li>
-<li class="toctree-l1 has-children"><a class="reference internal" href="brokers.html">Brokers</a><input class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l1 has-children"><a class="reference internal" href="brokers.html">Brokers</a><input class="toctree-checkbox" id="toctree-checkbox-10" name="toctree-checkbox-10" role="switch" type="checkbox"/><label for="toctree-checkbox-10"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="brokers.alpaca.html">Alpaca</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.interactive_brokers.html">Interactive Brokers</a></li>
 </ul>
 </li>
-<li class="toctree-l1 current has-children"><a class="reference internal" href="entities.html">Entities</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-9" name="toctree-checkbox-9" role="switch" type="checkbox"/><label for="toctree-checkbox-9"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul class="current">
+<li class="toctree-l1 current has-children"><a class="reference internal" href="entities.html">Entities</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-11" name="toctree-checkbox-11" role="switch" type="checkbox"/><label for="toctree-checkbox-11"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul class="current">
 <li class="toctree-l2 current current-page"><a class="current reference internal" href="#">Asset</a></li>
 <li class="toctree-l2"><a class="reference internal" href="entities.bar.html">Bar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="entities.bars.html">Bars</a></li>
@@ -313,11 +342,11 @@
 <span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
 </pre></div>
 </div>
-<div class="section" id="module-lumibot.entities.asset">
-<span id="documentation"></span><h2>Documentation<a class="headerlink" href="#module-lumibot.entities.asset" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="module-entities.asset">
+<span id="documentation"></span><h2>Documentation<a class="headerlink" href="#module-entities.asset" title="Permalink to this headline">¶</a></h2>
 <dl class="py class">
-<dt class="sig sig-object py" id="lumibot.entities.asset.Asset">
-<em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">lumibot.entities.asset.</span></span><span class="sig-name descname"><span class="pre">Asset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">symbol</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">asset_type</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span> <span class="o"><span class="pre">=</span></span> <span class="default_value"><span class="pre">'stock'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">expiration</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">datetime.date</span></span> <span class="o"><span class="pre">=</span></span> <span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">strike</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span> <span class="o"><span class="pre">=</span></span> <span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">right</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span> <span class="o"><span class="pre">=</span></span> <span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">multiplier</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">int</span></span> <span class="o"><span class="pre">=</span></span> <span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">currency</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span> <span class="o"><span class="pre">=</span></span> <span class="default_value"><span class="pre">'USD'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.entities.asset.Asset" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="entities.asset.Asset">
+<em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">entities.asset.</span></span><span class="sig-name descname"><span class="pre">Asset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">symbol</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">asset_type</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span> <span class="o"><span class="pre">=</span></span> <span class="default_value"><span class="pre">'stock'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">expiration</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">datetime.date</span></span> <span class="o"><span class="pre">=</span></span> <span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">strike</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span> <span class="o"><span class="pre">=</span></span> <span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">right</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span> <span class="o"><span class="pre">=</span></span> <span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">multiplier</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">int</span></span> <span class="o"><span class="pre">=</span></span> <span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">currency</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span> <span class="o"><span class="pre">=</span></span> <span class="default_value"><span class="pre">'USD'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.asset.Asset" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">pydantic.main.BaseModel</span></code></p>
 <p>This is a base class for Assets including stocks, futures, options
 and forex.</p>
@@ -325,13 +354,13 @@ and forex.</p>
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>symbol</strong> (<em>str</em>) – Symbol of the stock or underlying in case of futures/options.</p></li>
-<li><p><strong>asset_type</strong> (<em>str</em>) – Asset types are only <cite>stock</cite>, ‘option`, <cite>future</cite>, <cite>forex</cite>,
-default : <cite>stock</cite></p></li>
+<li><p><strong>asset_type</strong> (<em>str</em>) – Type of the asset. Asset types are only ‘stock’, ‘option’, ‘future’, ‘forex’
+default : ‘stock’</p></li>
 <li><p><strong>expiration</strong> (<em>datetime.date</em>) – Option or futures expiration.
 The datetime.date will be converted to broker specific formats.
 IB Format: for options “YYYYMMDD”, for futures “YYYYMM”</p></li>
 <li><p><strong>strike</strong> (<em>str</em>) – Options strike as string.</p></li>
-<li><p><strong>right</strong> (<em>str</em>) – <cite>CALL</cite> or <cite>PUT</cite>
+<li><p><strong>right</strong> (<em>str</em>) – ‘CALL’ or ‘PUT’
 default : “”</p></li>
 <li><p><strong>multiplier</strong> (<em>int</em>) – Price multiplier.
 default : 1</p></li>
@@ -340,8 +369,8 @@ default : 1</p></li>
 </dd>
 </dl>
 <dl class="py attribute">
-<dt class="sig sig-object py" id="lumibot.entities.asset.Asset.symbol">
-<span class="sig-name descname"><span class="pre">symbol</span></span><a class="headerlink" href="#lumibot.entities.asset.Asset.symbol" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="entities.asset.Asset.symbol">
+<span class="sig-name descname"><span class="pre">symbol</span></span><a class="headerlink" href="#entities.asset.Asset.symbol" title="Permalink to this definition">¶</a></dt>
 <dd><p>The symbol used to retrieve stock quotes if stock. The underlying
 symbol if option. For Forex: The base currency.</p>
 <dl class="field-list simple">
@@ -354,9 +383,9 @@ symbol if option. For Forex: The base currency.</p>
 <dt class="sig sig-object py">
 <span class="sig-name descname"><span class="pre">asset_type</span> <span class="pre">(string,</span> <span class="pre">default</span></span></dt>
 <dd><ul class="simple">
-<li><p><cite>stock</cite></p></li>
-<li><p><cite>option</cite></p></li>
-<li><p><cite>future</cite></p></li>
+<li><p>‘stock’</p></li>
+<li><p>‘option’</p></li>
+<li><p>‘future’</p></li>
 <li><p>‘forex’</p></li>
 </ul>
 <dl class="field-list simple">
@@ -366,8 +395,8 @@ symbol if option. For Forex: The base currency.</p>
 </dl>
 </dd></dl>
 <dl class="py attribute">
-<dt class="sig sig-object py" id="lumibot.entities.asset.Asset.expiration">
-<span class="sig-name descname"><span class="pre">expiration</span></span><a class="headerlink" href="#lumibot.entities.asset.Asset.expiration" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="entities.asset.Asset.expiration">
+<span class="sig-name descname"><span class="pre">expiration</span></span><a class="headerlink" href="#entities.asset.Asset.expiration" title="Permalink to this definition">¶</a></dt>
 <dd><p>Contract expiration dates for futures and options.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Type</dt>
@@ -376,8 +405,8 @@ symbol if option. For Forex: The base currency.</p>
 </dl>
 </dd></dl>
 <dl class="py attribute">
-<dt class="sig sig-object py" id="lumibot.entities.asset.Asset.strike">
-<span class="sig-name descname"><span class="pre">strike</span></span><a class="headerlink" href="#lumibot.entities.asset.Asset.strike" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="entities.asset.Asset.strike">
+<span class="sig-name descname"><span class="pre">strike</span></span><a class="headerlink" href="#entities.asset.Asset.strike" title="Permalink to this definition">¶</a></dt>
 <dd><p>Contract strike price.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Type</dt>
@@ -386,8 +415,8 @@ symbol if option. For Forex: The base currency.</p>
 </dl>
 </dd></dl>
 <dl class="py attribute">
-<dt class="sig sig-object py" id="lumibot.entities.asset.Asset.right">
-<span class="sig-name descname"><span class="pre">right</span></span><a class="headerlink" href="#lumibot.entities.asset.Asset.right" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="entities.asset.Asset.right">
+<span class="sig-name descname"><span class="pre">right</span></span><a class="headerlink" href="#entities.asset.Asset.right" title="Permalink to this definition">¶</a></dt>
 <dd><p>Option call or put.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Type</dt>
@@ -396,8 +425,8 @@ symbol if option. For Forex: The base currency.</p>
 </dl>
 </dd></dl>
 <dl class="py attribute">
-<dt class="sig sig-object py" id="lumibot.entities.asset.Asset.multiplier">
-<span class="sig-name descname"><span class="pre">multiplier</span></span><a class="headerlink" href="#lumibot.entities.asset.Asset.multiplier" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="entities.asset.Asset.multiplier">
+<span class="sig-name descname"><span class="pre">multiplier</span></span><a class="headerlink" href="#entities.asset.Asset.multiplier" title="Permalink to this definition">¶</a></dt>
 <dd><p>Contract leverage over the underlying.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Type</dt>
@@ -406,8 +435,8 @@ symbol if option. For Forex: The base currency.</p>
 </dl>
 </dd></dl>
 <dl class="py attribute">
-<dt class="sig sig-object py" id="lumibot.entities.asset.Asset.currency">
-<span class="sig-name descname"><span class="pre">currency</span></span><a class="headerlink" href="#lumibot.entities.asset.Asset.currency" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="entities.asset.Asset.currency">
+<span class="sig-name descname"><span class="pre">currency</span></span><a class="headerlink" href="#entities.asset.Asset.currency" title="Permalink to this definition">¶</a></dt>
 <dd><p>Conversion currency.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Type</dt>
@@ -416,8 +445,8 @@ symbol if option. For Forex: The base currency.</p>
 </dl>
 </dd></dl>
 <dl class="py attribute">
-<dt class="sig sig-object py" id="lumibot.entities.asset.Asset._asset_types">
-<span class="sig-name descname"><span class="pre">_asset_types</span></span><a class="headerlink" href="#lumibot.entities.asset.Asset._asset_types" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="entities.asset.Asset._asset_types">
+<span class="sig-name descname"><span class="pre">_asset_types</span></span><a class="headerlink" href="#entities.asset.Asset._asset_types" title="Permalink to this definition">¶</a></dt>
 <dd><p>Acceptable asset types.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Type</dt>
@@ -426,8 +455,8 @@ symbol if option. For Forex: The base currency.</p>
 </dl>
 </dd></dl>
 <dl class="py attribute">
-<dt class="sig sig-object py" id="lumibot.entities.asset.Asset._right">
-<span class="sig-name descname"><span class="pre">_right</span></span><a class="headerlink" href="#lumibot.entities.asset.Asset._right" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="entities.asset.Asset._right">
+<span class="sig-name descname"><span class="pre">_right</span></span><a class="headerlink" href="#entities.asset.Asset._right" title="Permalink to this definition">¶</a></dt>
 <dd><p>Acceptable values for right.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Type</dt>
@@ -436,18 +465,18 @@ symbol if option. For Forex: The base currency.</p>
 </dl>
 </dd></dl>
 <dl class="py method">
-<dt class="sig sig-object py" id="lumibot.entities.asset.Asset.asset_type_must_be_one_of">
-<span class="sig-name descname"><span class="pre">asset_type_must_be_one_of</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="pre">@"asset_type"</span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.entities.asset.Asset.asset_type_must_be_one_of" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="entities.asset.Asset.asset_type_must_be_one_of">
+<span class="sig-name descname"><span class="pre">asset_type_must_be_one_of</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="pre">@"asset_type"</span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.asset.Asset.asset_type_must_be_one_of" title="Permalink to this definition">¶</a></dt>
 <dd><p>validates asset types.</p>
 </dd></dl>
 <dl class="py method">
-<dt class="sig sig-object py" id="lumibot.entities.asset.Asset.right_must_be_one_of">
-<span class="sig-name descname"><span class="pre">right_must_be_one_of</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="pre">@"right"</span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.entities.asset.Asset.right_must_be_one_of" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="entities.asset.Asset.right_must_be_one_of">
+<span class="sig-name descname"><span class="pre">right_must_be_one_of</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="pre">@"right"</span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.asset.Asset.right_must_be_one_of" title="Permalink to this definition">¶</a></dt>
 <dd><p>validates rights types.</p>
 </dd></dl>
 <dl class="py attribute">
-<dt class="sig sig-object py" id="lumibot.entities.asset.Asset.asset_type">
-<span class="sig-name descname"><span class="pre">asset_type</span></span><em class="property"><span class="pre">:</span> <span class="pre">str</span></em><a class="headerlink" href="#lumibot.entities.asset.Asset.asset_type" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="entities.asset.Asset.asset_type">
+<span class="sig-name descname"><span class="pre">asset_type</span></span><em class="property"><span class="pre">:</span> <span class="pre">str</span></em><a class="headerlink" href="#entities.asset.Asset.asset_type" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 <dl class="py method">
 <dt class="sig sig-object py" id="id0">
@@ -483,8 +512,8 @@ symbol if option. For Forex: The base currency.</p>
 <dd></dd></dl>
 </dd></dl>
 <dl class="py class">
-<dt class="sig sig-object py" id="lumibot.entities.asset.AssetsMapping">
-<em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">lumibot.entities.asset.</span></span><span class="sig-name descname"><span class="pre">AssetsMapping</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mapping</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.entities.asset.AssetsMapping" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="entities.asset.AssetsMapping">
+<em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">entities.asset.</span></span><span class="sig-name descname"><span class="pre">AssetsMapping</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mapping</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.asset.AssetsMapping" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">collections.UserDict</span></code></p>
 </dd></dl>
 </div>
@@ -544,7 +573,7 @@ symbol if option. For Forex: The base currency.</p>
           <div class="toc-tree">
             <ul>
 <li><a class="reference internal" href="#">Asset</a><ul>
-<li><a class="reference internal" href="#module-lumibot.entities.asset">Documentation</a></li>
+<li><a class="reference internal" href="#module-entities.asset">Documentation</a></li>
 </ul>
 </li>
 </ul>

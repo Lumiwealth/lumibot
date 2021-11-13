@@ -25,7 +25,7 @@ There is also a returns plot. By default this will show in a browser. You may su
     from lumibot.strategies import Strategy
 
 
-    # A simple strategy that buys SPY on the first day
+    # A simple strategy that buys AAPL on the first day
     class MyStrategy(Strategy):
         def on_trading_iteration(self):
             if self.first_iteration:

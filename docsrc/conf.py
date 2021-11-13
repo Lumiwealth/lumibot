@@ -18,9 +18,9 @@ sys.path.insert(0, os.path.abspath("../lumibot/"))
 
 # -- Project information -----------------------------------------------------
 
-project = "Lumibot"
+project = "Lumibot Backtesting and Algorithmic Trading"
 copyright = "2021, Lumiwealth"
-author = "Lumiwealth"
+author = "Lumiwealth Inc."
 
 source_paths = ["lumibot.brokers", "backtesting"]
 
@@ -55,4 +55,5 @@ html_theme = "furo"
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ["_static"]
+html_static_path = ["_static", "_html"]
+html_css_files = ["custom.css", "bootstrap/css/bootstrap.css"]

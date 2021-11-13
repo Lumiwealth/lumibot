@@ -5,10 +5,12 @@
     <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Getting Started" href="getting_started.html" />
 
     <meta name="generator" content="sphinx-4.2.0, furo 2021.10.09"/>
-        <title>Lumibot documentation</title>
+        <title>Lumibot Backtesting and Algorithmic Trading documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=0254c309f5cadf746f1a613e7677379ac9c8cdcd" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?digest=16fb25fabf47304eee183a5e9af80b1ba98259b1" />
+    <link rel="stylesheet" type="text/css" href="_static/custom.css" />
+    <link rel="stylesheet" type="text/css" href="_static/bootstrap/css/bootstrap.css" />
     
     
 
@@ -122,7 +124,7 @@
       </label>
     </div>
     <div class="header-center">
-      <a href="#"><div class="brand">Lumibot  documentation</div></a>
+      <a href="#"><div class="brand">Lumibot Backtesting and Algorithmic Trading  documentation</div></a>
     </div>
     <div class="header-right">
       <div class="theme-toggle-container theme-toggle-header">
@@ -145,7 +147,7 @@
       <div class="sidebar-sticky"><a class="sidebar-brand" href="#">
   
   
-  <span class="sidebar-brand-text">Lumibot  documentation</span>
+  <span class="sidebar-brand-text">Lumibot Backtesting and Algorithmic Trading  documentation</span>
   
 </a><form class="sidebar-search-container" method="get" action="search.html" role="search">
   <input class="sidebar-search" placeholder=Search name="q" aria-label="Search">
@@ -153,8 +155,7 @@
   <input type="hidden" name="area" value="default">
 </form>
 <div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
-  <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
-<ul>
+  <ul>
 <li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting Started</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="lifecycle_methods.html">Lifecycle Methods</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.initialize.html">def initialize</a></li>
@@ -293,10 +294,219 @@
           </label>
         </div>
         <article role="main">
-          <div class="section" id="welcome-to-lumibot-s-documentation">
-<h1>Welcome to Lumibot’s documentation!<a class="headerlink" href="#welcome-to-lumibot-s-documentation" title="Permalink to this headline">¶</a></h1>
+          <div class="section" id="lumibot-documentation">
+<h1>Lumibot Documentation<a class="headerlink" href="#lumibot-documentation" title="Permalink to this headline">¶</a></h1>
+<p><strong>The Most Powerful Backtesting + Trading Library in the World</strong></p>
+<p>
+    Looking for a library that makes it easy for you to backtest your trading strategies and easily create algorithmic trading robots? Well you've found us!
+</p>
+<p>
+    Lumibot is a full featured, super fast library that will allow you to easily create trading robots that are profitable in many different asset classes, including Stocks, Options, Futures, FOREX, and more. It is in active development and is constantly being updated to include new features and bug fixes.
+</p>
+<p>
+    If you want to make a fortune with trading, then you need a library that will make it easy for you to check your trading strategies against historical data to make sure they are profitable before you invest in them. Lumibot makes it easy for you to do this (backtest) your trading strategies and easily convert them to algorithmic trading robots.
+</p>
+<div>
+<img class="data-image" src="_static/images/data-conversion-to-profit.gif"/>
+</div>
+<div class="container">
+<div class="row gy-2 title">
+<div class="col">
+<h2>Features</h2>
+</div>
+</div>
+<div class="row gy-2 lib-feature">
+<div class="col-2">
+<img alt="Backtesting and algorithmic trading for Forex, Options, Stocks, FOREX and more!" src="_static/images/asset.png"/>
+</div>
+<div class="col">
+<h6>Works with Options, Futures, Stocks, FOREX and More!</h6>
+            We're one of the few libraries that supports Algorithmic Options trading and backtesting, as well as many other asset classes.
+            </div>
+</div>
+<div class="row gy-2 lib-feature">
+<div class="col-2">
+<img alt="Live Algorithmic Trading Is Built In" src="_static/images/stock.png"/>
+</div>
+<div class="col">
+<h6>Built in Live Trading</h6>
+            It's very easy to switch between live trading and backtesting, just a few lines of code to go from backtesting to live trading.
+        </div>
+</div>
+<div class="row gy-2 lib-feature">
+<div class="col-2">
+<img alt="Supporting the Top Algorithmic Trading Brokers" src="_static/images/broker.png"/>
+</div>
+<div class="col">
+<h6>Support For Top Brokers</h6>
+            We support many of the top brokers in the industry, including: Alpaca, Interactive Brokers and TradeStation. We will also support more brokers in the future, including the top crypto brokers. 
+        </div>
+</div>
+<div class="row gy-2 lib-feature">
+<div class="col-2">
+<img alt="Easy to Use Algorithmic Trading and Backtesting, Including Algorithmic Options Trading" src="_static/images/easy-to-use.png"/>
+</div>
+<div class="col">
+<h6>Easy to Use and Get Started</h6>
+            We've built the library to be easy to use and get started in minutes. We also offer courses and tutorials to help you with building your own trading bot. (<a href="https://www.lumiwealth.com/algorithmic-trading-landing-page/">see our Algorithmic Trading course here</a>)
+        </div>
+</div>
+<div class="row gy-2 lib-feature">
+<div class="col-2">
+<img alt="Advanced Backtesting and Algo Trading Analytics" src="_static/images/analytics.png"/>
+</div>
+<div class="col">
+<h6>Advanced Analyics Out of the Box</h6>
+            We've built a suite of advanced analytics tools that can be used to analyze and optimize your trading strategies, including interactive charts and more.
+        </div>
+</div>
+<div class="row gy-2 lib-feature">
+<div class="col-2">
+<img alt="Backtesting and algorithmic trading for Forex, Options, Stocks, FOREX and more!" src="_static/images/planner.png"/>
+</div>
+<div class="col">
+<h6>Event Based Backtesting</h6>
+            Our backtesting engine is event-based so that you can see your strategies run as if they were live trading. You don't have to deal with complicated and confusing vector math to see your strategies run.
+        </div>
+</div>
+</div>
+<div class="container">
+<div class="row gy-2 title">
+<div class="col">
+<h2>Getting Started</h2>
+</div>
+</div>
+<div class="row gy-2">
+<div class="col">
+            To get started with the library, first install it on your computer by typing this into your Terminal (on a Mac) or Powershell (on a Windows):
+        </div>
+</div>
+<div class="row gy-2">
+<div class="col">
+<div class="bash">
+                pip install lumibot
+            </div>
+</div>
+</div>
+</div>
+<p>After you have installed Lumibot on your computer, you can then create a strategy and backtest it using free data available from Yahoo Finance, or use your own data (see the Backtesting section to get more details on this). Here’s some code to get you started:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">datetime</span>
+
+<span class="kn">from</span> <span class="nn">lumibot.backtesting</span> <span class="kn">import</span> <span class="n">YahooDataBacktesting</span>
+<span class="kn">from</span> <span class="nn">lumibot.strategies</span> <span class="kn">import</span> <span class="n">Strategy</span>
+
+
+<span class="c1"># A simple strategy that buys AAPL on the first day and hold it</span>
+<span class="k">class</span> <span class="nc">MyStrategy</span><span class="p">(</span><span class="n">Strategy</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">on_trading_iteration</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">first_iteration</span><span class="p">:</span>
+            <span class="n">aapl_price</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_last_price</span><span class="p">(</span><span class="s2">"AAPL"</span><span class="p">)</span>
+            <span class="n">quantity</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">portfolio_value</span> <span class="o">//</span> <span class="n">aapl_price</span>
+            <span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="s2">"AAPL"</span><span class="p">,</span> <span class="n">quantity</span><span class="p">,</span> <span class="s2">"buy"</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+
+
+<span class="c1"># Pick the dates that you want to start and end your backtest</span>
+<span class="c1"># and the allocated budget</span>
+<span class="n">backtesting_start</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">2020</span><span class="p">,</span> <span class="mi">11</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+<span class="n">backtesting_end</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">2020</span><span class="p">,</span> <span class="mi">12</span><span class="p">,</span> <span class="mi">31</span><span class="p">)</span>
+<span class="n">budget</span> <span class="o">=</span> <span class="mi">100000</span>
+
+<span class="c1"># Run the backtest</span>
+<span class="n">MyStrategy</span><span class="o">.</span><span class="n">backtest</span><span class="p">(</span>
+    <span class="s2">"My Strategy"</span><span class="p">,</span>
+    <span class="n">budget</span><span class="p">,</span>
+    <span class="n">YahooDataBacktesting</span><span class="p">,</span>
+    <span class="n">backtesting_start</span><span class="p">,</span>
+    <span class="n">backtesting_end</span><span class="p">,</span>
+    <span class="n">show_plot</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>Once you have backtested your strategy and found it to be profitable on historical data, you can then very easily take your bot live. Notice here how the strategy code is exactly the same, it only takes a few lines of code to switch from backtesting to live trading. Here’s an example using Alpaca (you can create a free Paper Trading account here in minutes: <a class="reference external" href="https://alpaca.markets/">https://alpaca.markets/</a>)</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">lumibot.backtesting</span> <span class="kn">import</span> <span class="n">YahooDataBacktesting</span>
+<span class="kn">from</span> <span class="nn">lumibot.brokers</span> <span class="kn">import</span> <span class="n">Alpaca</span>
+<span class="kn">from</span> <span class="nn">lumibot.strategies.strategy</span> <span class="kn">import</span> <span class="n">Strategy</span>
+<span class="kn">from</span> <span class="nn">lumibot.traders</span> <span class="kn">import</span> <span class="n">Trader</span>
+
+<span class="k">class</span> <span class="nc">AlpacaConfig</span><span class="p">:</span>
+   <span class="c1"># Put your own Alpaca key here (you can find it when you log into Alpaca)</span>
+   <span class="n">API_KEY</span> <span class="o">=</span> <span class="s2">"YOUR_ALPACA_API_KEY"</span>
+   <span class="c1"># Put your own Alpaca secret here (you can find it when you log into Alpaca)</span>
+   <span class="n">API_SECRET</span> <span class="o">=</span> <span class="s2">"YOUR_ALPACA_SECRET"</span>
+   <span class="c1"># If you want to go live, you must change this. It is currently set for paper trading</span>
+   <span class="n">ENDPOINT</span> <span class="o">=</span> <span class="s2">"https://paper-api.alpaca.markets"</span>
+
+
+<span class="c1"># A simple strategy that buys AAPL on the first day and hold it</span>
+<span class="k">class</span> <span class="nc">MyStrategy</span><span class="p">(</span><span class="n">Strategy</span><span class="p">):</span>
+   <span class="k">def</span> <span class="nf">on_trading_iteration</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+      <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">first_iteration</span><span class="p">:</span>
+            <span class="n">aapl_price</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_last_price</span><span class="p">(</span><span class="s2">"AAPL"</span><span class="p">)</span>
+            <span class="n">quantity</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">portfolio_value</span> <span class="o">//</span> <span class="n">aapl_price</span>
+            <span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="s2">"AAPL"</span><span class="p">,</span> <span class="n">quantity</span><span class="p">,</span> <span class="s2">"buy"</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+
+
+<span class="n">budget</span> <span class="o">=</span> <span class="mi">100000</span>
+<span class="n">strategy_name</span> <span class="o">=</span> <span class="s2">"My Strategy"</span>
+
+<span class="n">trader</span> <span class="o">=</span> <span class="n">Trader</span><span class="p">()</span>
+<span class="n">broker</span> <span class="o">=</span> <span class="n">Alpaca</span><span class="p">(</span><span class="n">AlpacaConfig</span><span class="p">)</span>
+<span class="n">strategy</span> <span class="o">=</span> <span class="n">MyStrategy</span><span class="p">(</span><span class="n">strategy_name</span><span class="p">,</span> <span class="n">budget</span><span class="p">,</span> <span class="n">broker</span><span class="p">,</span> <span class="n">symbol</span><span class="o">=</span><span class="s2">"SPY"</span><span class="p">)</span>
+
+<span class="c1"># Run the strategy live</span>
+<span class="n">trader</span><span class="o">.</span><span class="n">add_strategy</span><span class="p">(</span><span class="n">strategy</span><span class="p">)</span>
+<span class="n">trader</span><span class="o">.</span><span class="n">run_all</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>And that’s it! Easy-peasy.</p>
+<p>If you would like to learn how to modify your strategies we suggest that you first learn about Lifecycle Methods, then Strategy Methods and Strategy Properties. You can find the documentation for these in the menu, with the main pages describing what they are, then the sub-pages describing each method and property individually.</p>
+<p>We also have some ore sample code that you can check out here: <a class="reference external" href="https://github.com/Lumiwealth/lumibot/tree/master/getting_started">https://github.com/Lumiwealth/lumibot/tree/master/getting_started</a></p>
+<p>We wish you good luck with your trading strategies, don’t forget us when you’re swimming in cash!</p>
+<div class="section" id="need-extra-help">
+<h2>Need Extra Help?<a class="headerlink" href="#need-extra-help" title="Permalink to this headline">¶</a></h2>
+<div class="container course-list">
+<div class="row gy-2">
+<div class="col">
+            If you need some extra help building your stratgeies and making them profitable, then we also have courses that can help you out. We have taught thousands of students to create their own algorithms and have a library of profitable strategies that you get access to when you become a student.
+        </div>
+</div>
+<div class="row gy-2">
+<div class="col d-grid">
+<a class="btn btn-primary btn-lg center course-button" href="https://lumiwealth.com/algorithmic-trading-landing-page">
+                See Our Algorithmic Trading Course Here
+            </a>
+</div>
+</div>
+<div class="row gy-2">
+<div class="col">
+            We also have a course that will teach you how to use Lumibot to Algorithmically trade Options, which can be very profitable but can be very difficult to learn. Our course makes this easy for you.
+        </div>
+</div>
+<div class="row gy-2">
+<div class="col d-grid">
+<a class="btn btn-primary btn-lg center course-button" href="https://www.lumiwealth.com/product-category/options-trading-purchase/">
+                See Our Options Trading Course Here
+            </a>
+</div>
+</div>
+<div class="row gy-2">
+<div class="col">
+            Lastly, we also have a course that will teach you how to use Machine Learning (the backbone of Artificial Intelligence) to really make money. This can be difficult to learn, but it is very profitable when you get it working right.
+        </div>
+</div>
+<div class="row gy-2">
+<div class="col d-grid">
+<a class="btn btn-primary btn-lg center course-button" href="https://www.lumiwealth.com/product-category/machine-learning-purchase/">
+                See Our Machine Learning for Trading Course Here
+            </a>
+</div>
+</div>
+</div></div>
+<div class="section" id="table-of-contents">
+<h2>Table of Contents<a class="headerlink" href="#table-of-contents" title="Permalink to this headline">¶</a></h2>
 <div class="toctree-wrapper compound">
-<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting Started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="lifecycle_methods.html">Lifecycle Methods</a><ul>
@@ -361,6 +571,7 @@
 </ul>
 </div>
 </div>
+</div>
 <div class="section" id="indices-and-tables">
 <h1>Indices and tables<a class="headerlink" href="#indices-and-tables" title="Permalink to this headline">¶</a></h1>
 <ul class="simple">
@@ -413,7 +624,11 @@
         <div class="toc-tree-container">
           <div class="toc-tree">
             <ul>
-<li><a class="reference internal" href="#">Welcome to Lumibot’s documentation!</a></li>
+<li><a class="reference internal" href="#">Lumibot Documentation</a><ul>
+<li><a class="reference internal" href="#need-extra-help">Need Extra Help?</a></li>
+<li><a class="reference internal" href="#table-of-contents">Table of Contents</a></li>
+</ul>
+</li>
 <li><a class="reference internal" href="#indices-and-tables">Indices and tables</a></li>
 </ul>
 

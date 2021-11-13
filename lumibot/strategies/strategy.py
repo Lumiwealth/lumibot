@@ -886,7 +886,7 @@ class Strategy(_Strategy):
         return self.broker.wait_for_order_registration(order)
 
     def wait_for_order_execution(self, order):
-        """Wait for the order to execute/be canceled
+        """Wait for one specific order to be executed or canceled by the broker
 
         Parameters
         ----------
@@ -929,7 +929,7 @@ class Strategy(_Strategy):
         return self.broker.wait_for_orders_registration(orders)
 
     def wait_for_orders_execution(self, orders):
-        """Wait for the orders to execute/be canceled
+        """Wait for a list of orders to be executed or canceled by the broker
 
         Parameters
         ----------

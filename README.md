@@ -15,3 +15,6 @@ If you want to learn more about Lumibot or Algorithmic Trading then you will lov
 To join/view our forum: https://community.lumiwealth.com/c/lumibot/
 
 To join us on Discord: https://discord.gg/TmMsJCKY3T
+
+
+[watch this repo](https://github.com/Lumiwealth/lumibot/subscription)

@@ -1,3 +1,5 @@
+The best backtesting and live algorithmic trading library in the world.
+
 # Documentation
 
 **Check out the documentation for the project here: http://lumibot.lumiwealth.com/**

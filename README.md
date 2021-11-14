@@ -16,9 +16,9 @@ If you need extra help building your algorithm, we have courses to help you out.
 
 **For our Algorithmic Trading course: https://lumiwealth.com/algorithmic-trading-landing-page**
 
-**For our Machine Learning for Trading course: https://www.lumiwealth.com/product-category/options-trading-purchase/**
+**For our Machine Learning for Trading course: https://www.lumiwealth.com/product-category/machine-learning-purchase/**
 
-**For our Options Trading course: https://www.lumiwealth.com/product-category/machine-learning-purchase/**
+**For our Options Trading course: https://www.lumiwealth.com/product-category/options-trading-purchase/**
 
 # License
 

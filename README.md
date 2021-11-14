@@ -10,6 +10,16 @@ If you want to learn more about Lumibot or Algorithmic Trading then you will lov
 
 **To join us on Discord: https://discord.gg/TmMsJCKY3T**
 
+# Courses
+
+If you need extra help building your algorithm, we have courses to help you out.
+
+**For our Algorithmic Trading course: https://lumiwealth.com/algorithmic-trading-landing-page**
+
+**For our Machine Learning for Trading course: https://www.lumiwealth.com/product-category/options-trading-purchase/**
+
+**For our Options Trading course: https://www.lumiwealth.com/product-category/machine-learning-purchase/**
+
 # License
 
 This library is covered by the MIT license for open sourced software which can be found here: https://github.com/Lumiwealth/lumibot/blob/master/LICENSE

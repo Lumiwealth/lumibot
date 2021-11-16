@@ -56,6 +56,55 @@ class StrategyExecutor(Thread):
             self.process_queue()
             self.broker._update_datetime(sleeptime)
 
+    def _process_held_trades(self):
+        """Processes any held trade notifications."""
+        while len(self.broker._held_trades) > 0:
+            th = self.broker._held_trades.pop(0)
+            self.broker._process_trade_event(
+                th[0],
+                th[1],
+                price=th[2],
+                filled_quantity=th[3],
+                multiplier=th[4],
+            )
+
+    @staticdecorator
+    @staticmethod
+    def get_broker_values(func_input):
+        @wraps(func_input)
+        def func_output(self, *args, **kwargs):
+            # Only audit the broker position during live trading.
+            if self.broker.IS_BACKTESTING_BROKER:
+                return func_input(self, *args, **kwargs)
+
+            # Ensure that the orders are submitted to the broker before auditing.
+            orders_queue_len = 1
+            while orders_queue_len > 0:
+                orders_queue_len = len(self.broker._orders_queue.queue)
+                print(f"Orders queue length is {orders_queue_len}")
+            self.broker._hold_trade_events = True
+
+            # Get the  snapshot.
+            # If the _held_trades list is not empty, process these and then snapshot again.
+            held_trades_len = 1
+            while held_trades_len > 0:
+                # Get for broker and lumibot:
+                # cash
+                # positions = self.broker._pull_broker_positions()
+                # orders = self.broker._pull_open_orders(self.strategy.name)
+                held_trades_len = len(self.broker._held_trades)
+                print(f"Held Trades are {held_trades_len}")
+                if held_trades_len > 0:
+                    self._process_held_trades()
+
+            # DO ALL THE AUDIT HERE
+
+            self.broker._hold_trade_events = False
+
+            return func_input(self, *args, **kwargs)
+
+        return func_output
+
     def add_event(self, event_name, payload):
         self.queue.put((event_name, payload))
 
@@ -176,6 +225,7 @@ class StrategyExecutor(Thread):
 
     @lifecycle_method
     @trace_stats
+    @get_broker_values
     def _on_trading_iteration(self):
         self._strategy_context = None
         self.strategy.log_message("Executing the on_trading_iteration lifecycle method")

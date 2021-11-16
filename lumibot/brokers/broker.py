@@ -37,6 +37,8 @@ class Broker:
         self._subscribers = SafeList(self._lock)
         self._is_stream_subscribed = False
         self._trade_event_log_df = pd.DataFrame()
+        self._hold_trade_events = False
+        self._held_trades = []
 
         # setting the orders queue and threads
         if not self.IS_BACKTESTING_BROKER:
@@ -523,6 +525,9 @@ class Broker:
     ):
         """process an occurred trading event and update the
         corresponding order"""
+        if self._hold_trade_events and not self.IS_BACKTESTING_BROKER:
+           self._held_trades.append((stored_order, type_event, price, filled_quantity, multiplier,))
+
         # for fill and partial_fill events, price and filled_quantity must be specified
         if type_event in [self.FILLED_ORDER, self.PARTIALLY_FILLED_ORDER] and (
             price is None or filled_quantity is None

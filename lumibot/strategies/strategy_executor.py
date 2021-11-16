@@ -88,10 +88,17 @@ class StrategyExecutor(Thread):
             # If the _held_trades list is not empty, process these and then snapshot again.
             held_trades_len = 1
             while held_trades_len > 0:
-                # Get for broker and lumibot:
-                # cash
-                # positions = self.broker._pull_broker_positions()
-                # orders = self.broker._pull_open_orders(self.strategy.name)
+                # Snapshot for the broker and lumibot:
+                cash_broker = 10
+                positions_broker = self.broker._pull_broker_positions()
+                orders_broker = self.broker._pull_broker_open_orders()
+
+                # cash_lumi = self._unspent_money
+                positions_lumi = self.broker._filled_positions
+                orders_lumi = self.broker._tracked_orders
+
+                # positions = k
+                # orders = k
                 held_trades_len = len(self.broker._held_trades)
                 print(f"Held Trades are {held_trades_len}")
                 if held_trades_len > 0:

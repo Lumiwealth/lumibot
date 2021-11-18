@@ -434,16 +434,43 @@ class Strategy(_Strategy):
 
     def set_market(self, market):
         """Set the market for trading hours.
+
+        Setting the market will determine the trading hours for live
+        trading and for Yahoo backtesting. Not applicable to Pandas
+        backtesting.
         `NASDAQ` is default.
 
         Parameters
         ----------
         market : str
+        
+            Short form for the markets.
+            List of markets available are:
+
+            "MarketCalendar", "ASX", "BMF", "CFE", "NYSE", "stock",
+            "NASDAQ", "BATS", "CME_Equity", "CBOT_Equity",
+            "CME_Agriculture", "CBOT_Agriculture", "COMEX_Agriculture",
+            "NYMEX_Agriculture", "CME_Rate", "CBOT_Rate",
+            "CME_InterestRate", "CBOT_InterestRate", "CME_Bond",
+            "CBOT_Bond", "EUREX", "HKEX", "ICE", "ICEUS", "NYFE", "JPX",
+            "LSE", "OSE", "SIX", "SSE", "TSX", "TSXV", "BSE", "TASE",
+            "TradingCalendar", "ASEX", "BVMF", "CMES", "IEPA", "XAMS",
+            "XASX", "XBKK", "XBOG", "XBOM", "XBRU", "XBUD", "XBUE",
+            "XCBF", "XCSE", "XDUB", "XFRA", "XETR", "XHEL", "XHKG",
+            "XICE", "XIDX", "XIST", "XJSE", "XKAR", "XKLS", "XKRX",
+            "XLIM", "XLIS", "XLON", "XMAD", "XMEX", "XMIL", "XMOS",
+            "XNYS", "XNZE", "XOSL", "XPAR", "XPHS", "XPRA", "XSES",
+            "XSGO", "XSHG", "XSTO", "XSWX", "XTAE", "XTAI", "XTKS",
+            "XTSE", "XWAR", "XWBO", "us_futures", "24/7", "24/5",
+
+            (default: `NASDAQ`)
+
             The market to set.
 
         Returns
         -------
         None
+        
 
         Example
         -------
@@ -461,6 +488,7 @@ class Strategy(_Strategy):
 
         >>> # Set the market to us_futures
         >>> self.set_market('us_futures')
+
         """
         markets = [
             "MarketCalendar",
@@ -675,8 +703,24 @@ class Strategy(_Strategy):
     def positions(self):
         return self.get_tracked_positions()
 
-    def get_contract_details(self, asset):
-        # Used for Interactive Brokers. Convert an asset into a IB Contract.
+    def _get_contract_details(self, asset):
+        """Convert an asset into a IB Contract.
+
+        Used internally to create an IB Contract from an asset. Used
+        only with Interactive Brokers.
+
+        Parameters
+        ----------
+        asset : Asset
+            Asset to be converted into and Interactive Brokers contract.
+
+        Returns
+        -------
+        list of ContractDetails
+            ContractDetails is a complete contract definition with
+            Interactive Brokers.
+        """
+
         asset = self._set_asset_mapping(asset)
         return self.broker.get_contract_details(asset)
 
@@ -1113,84 +1157,6 @@ class Strategy(_Strategy):
         else:
             return asset_prices
 
-    def is_tradable(self, asset, dt, length=1, timestep="minute", timeshift=0):
-        """DEPRICATED
-
-        This will not be implemented as it does not have a basis in real time
-        trading.
-
-        Determine if the current asset is tradable at the current bar
-        in backtesting primarily used with Pandas module.
-
-        Some assets datas will start and end at different times, for
-        example options and futures contracts. When backtesting, this
-        method will determine if a given asset will have data for the
-        current bar given the length, timestep and timeshift required.
-
-        Parameters
-        ----------
-        asset : Asset object
-            The Asset to be checked if data is available for backtesting
-            at the current bar.
-        dt : datetime.datetime
-            Datetime of the bar to check, usually current datetime.
-        length : int optional
-            Number of bars to check for data. (default is 1)
-        timestep : str optional
-            Is the timestep `minute` or `day`. (default is `minute`)
-        timeshift : int optional
-            The number of bars back from `dt` is the last bar.
-            (default is 0)
-
-        Returns
-        -------
-        boolean
-            True if is tradable. False or None if not.
-        """
-        return self.broker._data_source.is_tradable(
-            asset, dt, length=length, timestep=timestep, timeshift=timeshift
-        )
-
-    def get_tradable_assets(self, dt, length=1, timestep="minute", timeshift=0):
-        """DEPRICATED
-
-        This will not be implemented as it does not have a basis in real time
-        trading.
-
-        Get the list of all tradable assets within the current broker
-        from the market
-
-        Some assets datas will start and end at different times, for
-        example options and futures contracts. When backtesting, this
-        method will provide a list of assets for the current bar given
-        the length, timestep and timeshift required.
-
-        Parameters
-        ---------
-        asset : Asset object
-            The Asset to be checked if data is available for backtesting
-            at the current bar.
-        dt : datetime.datetime
-            Datetime of the bar to check, usually current datetime.
-        length : int optional
-            Number of bars to check for data. (default is 1)
-        timestep : str optional
-            Is the timestep `minute` or `day`. (default is `minute`)
-        timeshift : int optional
-            The number of bars back from `dt` is the last bar.
-            (default is 0)
-
-        Returns
-        -------
-        list of Asset objects
-            A list of all the Assets that meet the given criteria.
-            Will return an empty list if no assets are available.
-        """
-
-        return self.broker._data_source.get_tradable_assets(
-            dt, length=length, timestep=timestep, timeshift=timeshift
-        )
-
     # =======Broker methods shortcuts============
     def options_expiry_to_datetime_date(self, date):
         """Converts an IB Options expiry to datetime.date.
@@ -1369,7 +1335,7 @@ class Strategy(_Strategy):
         if self.data_source.SOURCE == "PANDAS":
             return self.broker.get_strikes(asset)
 
-        contract_details = self.get_contract_details(asset)
+        contract_details = self._get_contract_details(asset)
         if not contract_details:
             return None
 

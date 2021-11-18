@@ -165,26 +165,26 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         """Get the broker representation of all positions"""
         current_positions = self.ib.get_positions()
 
-        current_positions_df = pd.DataFrame(
-            data=current_positions,
-        )
-        current_positions_df.columns = [
-            "Account",
-            "Symbol",
-            "Quantity",
-            "Average_Cost",
-            "Sec_Type",
-        ]
+        # current_positions_df = pd.DataFrame(
+        #     data=current_positions,
+        # )
+        # current_positions_df.columns = [
+        #     "Account",
+        #     "Symbol",
+        #     "Quantity",
+        #     "Average_Cost",
+        #     "Sec_Type",
+        # ]
+        #
+        # current_positions_df = current_positions_df.set_index("Account", drop=True)
+        # current_positions_df["Quantity"] = current_positions_df["Quantity"].astype(
+        #     "int"
+        # )
+        # current_positions_df = current_positions_df[
+        #     current_positions_df["Quantity"] != 0
+        # ]
 
-        current_positions_df = current_positions_df.set_index("Account", drop=True)
-        current_positions_df["Quantity"] = current_positions_df["Quantity"].astype(
-            "int"
-        )
-        current_positions_df = current_positions_df[
-            current_positions_df["Quantity"] != 0
-        ]
-
-        return current_positions_df
+        return current_positions
 
     # =======Orders and assets functions=========
 
@@ -280,6 +280,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         self.submit_orders(orders)
 
     def load_positions(self):
+        # todo prob delete
         """Use to load any existing positions with the broker on start. """
         positions = self.ib.get_positions()
         print("Load Positions", positions)
@@ -646,10 +647,28 @@ class IBWrapper(EWrapper):
         positionsdict = {
             "account": account,
             "symbol": contract.symbol,
+            "asset_type": contract.secType,
+            "expiration": contract.lastTradeDateOrContractMonth,
+            "strike": contract.strike,
+            "right": contract.right,
+            "multiplier": contract.multiplier,
+            "currency": contract.currency,
             "position": pos,
             "cost": avgCost,
             "type": contract.secType,
         }
+        for k, v in TYPE_MAP.items():
+            if positionsdict["asset_type"] == v:
+                positionsdict["asset_type"] = k
+
+        date_map = dict(
+            future="%Y%M%D",
+            option="%Y%M",
+        )
+        if positionsdict['asset_type'] in date_map:
+            positionsdict["expiration"] = datetime.datetime.strptime(
+                    positionsdict["expiration"], date_map[positionsdict["asset_type"]]
+                )
 
         self.positions.append(positionsdict)
 

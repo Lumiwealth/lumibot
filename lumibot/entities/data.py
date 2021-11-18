@@ -194,7 +194,7 @@ class Data:
     ):
         # Trim the dataframe to match the desired backtesting dates.
 
-        df = df.loc[date_start:date_end, :]
+        df = df.loc[(df.index > date_start) & (df.index < date_end), :]
         if self.timestep == "minute":
             df = df.between_time(trading_hours_start, trading_hours_end)
         if df.empty:

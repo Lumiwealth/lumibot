@@ -89,6 +89,7 @@ class Order:
         exchange : str
             The exchange where the order will be placed.
             Default = `SMART`
+
         """
         if isinstance(asset, str):
             asset = entities.Asset(symbol=asset)
@@ -239,8 +240,10 @@ class Order:
         if self.asset.asset_type == "future":
             self.rep_asset = f"{self.symbol} {self.asset.expiration}"
         elif self.asset.asset_type == "option":
-            self.rep_asset = f"{self.symbol} {self.asset.expiration} " \
-                             f"{self.asset.right} {self.asset.strike}"
+            self.rep_asset = (
+                f"{self.symbol} {self.asset.expiration} "
+                f"{self.asset.right} {self.asset.strike}"
+            )
         repr = "%s order of | %d %s %s |" % (
             self.type,
             self.quantity,

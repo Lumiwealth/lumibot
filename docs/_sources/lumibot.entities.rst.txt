@@ -1,58 +1,18 @@
 Entities
 ========================
 
-Asset
------------------------------
+Entities are the main object types that are passed around within Lumibot to place orders, get to know your positions, load data and more.
 
-.. automodule:: lumibot.entities.asset
-   :members:
-   :undoc-members:
-   :show-inheritance:
+Here's a list of the main entities in Lumibot:
 
-Bar
----------------------------
-
-.. automodule:: lumibot.entities.bar
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-Bars
-----------------------------
-
-.. automodule:: lumibot.entities.bars
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-Data
-----------------------------
-
-.. automodule:: lumibot.entities.data
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-Dataline
---------------------------------
-
-.. automodule:: lumibot.entities.dataline
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-Order
------------------------------
-
-.. automodule:: lumibot.entities.order
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-Position
---------------------------------
-
-.. automodule:: lumibot.entities.position
-   :members:
-   :undoc-members:
-   :show-inheritance:
+.. toctree::
+   :maxdepth: 2
+   :caption: Contents:
+   
+   lumibot.entities.asset
+   lumibot.entities.bar
+   lumibot.entities.bars
+   lumibot.entities.data
+   lumibot.entities.dataline
+   lumibot.entities.order
+   lumibot.entities.position

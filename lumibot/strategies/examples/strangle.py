@@ -1,10 +1,10 @@
-from itertools import cycle
 import datetime
 import logging
 import time
+from itertools import cycle
 
-from yfinance import Ticker, download
 import pandas as pd
+from yfinance import Ticker, download
 
 from lumibot.strategies.strategy import Strategy
 
@@ -23,18 +23,16 @@ class Strangle(Strategy):
     Place the strangle two weeks before earnings announcement.
 
     params:
-      - take_profit_threshold (float): Percentage to take profit.
-      - sleeptime (int): Number of minutes to wait between trading iterations.
-      - total_trades (int): Tracks the total number of pairs traded.
-      - max_trades (int): Maximum trades at any time.
-      - max_days_expiry (int): Maximum number of days to to expiry.
-      - days_to_earnings_min(int): Minimum number of days to earnings.
-      - exchange (str): Exchange, defaults to `SMART`
+    - take_profit_threshold (float): Percentage to take profit.
+    - sleeptime (int): Number of minutes to wait between trading iterations.
+    - total_trades (int): Tracks the total number of pairs traded.
+    - max_trades (int): Maximum trades at any time.
+    - max_days_expiry (int): Maximum number of days to to expiry.
+    - days_to_earnings_min(int): Minimum number of days to earnings.
+    - exchange (str): Exchange, defaults to `SMART`
 
-      - symbol_universe (list): is the stock symbols expected to have a sharp
-      movement in either direction.
-      - trading_pairs (dict): Used to track all information for each
-      symbol/options.
+    - symbol_universe (list): is the stock symbols expected to have a sharp movement in either direction.
+    - trading_pairs (dict): Used to track all information for each symbol/options.
     """
 
     IS_BACKTESTABLE = False

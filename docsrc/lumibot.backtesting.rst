@@ -17,18 +17,3 @@ Data Source Backtesting
    :undoc-members:
    :show-inheritance:
 
-Pandas Backtesting
-----------------------------------------------
-
-.. automodule:: lumibot.backtesting.pandas_backtesting
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-Yahoo Backtesting
----------------------------------------------
-
-.. automodule:: lumibot.backtesting.yahoo_backtesting
-   :members:
-   :undoc-members:
-   :show-inheritance:

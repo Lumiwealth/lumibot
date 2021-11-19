@@ -17,7 +17,7 @@ from lumibot.data_sources import InteractiveBrokersData
 
 # Naming conflict on Order between IB and Lumibot.
 from lumibot.entities import Order as OrderLum
-from lumibot.entities import Position
+from lumibot.entities import Asset, Position
 
 from .broker import Broker
 
@@ -192,9 +192,34 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         """Parse a broker order representation
         to an order object"""
 
+        expiration = ""
+        multiplier = 1
+        if response.contract.secType in ["OPT", "FUT"]:
+            expiration = datetime.datetime.strptime(
+                response.contract.lastTradeDateOrContractMonth,
+                DATE_MAP[response.contract.secType],
+            )
+            multiplier = response.contract.multiplier
+
+        right = None
+        strike = ""
+        if response.contract.secType == "OPT":
+            right = response.contract.right
+            strike = response.contract.strike
+
         order = OrderLum(
             strategy,
-            response.contract.localSymbol,
+            Asset(
+                symbol=response.contract.localSymbol,
+                asset_type=[
+                    k for k, v in TYPE_MAP.items() if v == response.contract["secType"]
+                ][0],
+                expiration=expiration,
+                strike=strike,
+                right=right,
+                multiplier=multiplier,
+                currency=response.contract.currency,
+            ),
             response.totalQuantity,
             response.action.lower(),
             limit_price=response.lmtPrice,
@@ -304,7 +329,9 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
 
     def _get_cash_balance_at_broker(self):
         summary = self.ib.get_account_summary()
-        total_cash_value = [float(c['Value']) for c in summary if c["Tag"] =="TotalCashValue"][0]
+        total_cash_value = [
+            float(c["Value"]) for c in summary if c["Tag"] == "TotalCashValue"
+        ][0]
         return total_cash_value
 
     def get_contract_details(self, asset):
@@ -471,13 +498,20 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         return True
 
 
+# ===================INTERACTIVE BROKERS CLASSES===================
 TYPE_MAP = dict(
     stock="STK",
     option="OPT",
     future="FUT",
     forex="CASH",
 )
-# ===================INTERACTIVE BROKERS CLASSES===================
+
+DATE_MAP = dict(
+    future="%Y%m",
+    option="%Y%m%d",
+)
+
+
 class IBWrapper(EWrapper):
     """Listens and collects data from IB."""
 
@@ -663,14 +697,10 @@ class IBWrapper(EWrapper):
             if positionsdict["asset_type"] == v:
                 positionsdict["asset_type"] = k
 
-        date_map = dict(
-            future="%Y%m",
-            option="%Y%m%d",
-        )
-        if positionsdict['asset_type'] in date_map:
+        if positionsdict["asset_type"] in DATE_MAP:
             positionsdict["expiration"] = datetime.datetime.strptime(
-                    positionsdict["expiration"], date_map[positionsdict["asset_type"]]
-                ).date()
+                positionsdict["expiration"], DATE_MAP[positionsdict["asset_type"]]
+            ).date()
 
         self.positions.append(positionsdict)
 

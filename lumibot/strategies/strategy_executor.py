@@ -92,7 +92,8 @@ class StrategyExecutor(Thread):
                 # Snapshot for the broker and lumibot:
                 cash_broker = self.broker. _get_cash_balance_at_broker()
                 positions_broker = self.broker._pull_broker_positions()
-                orders_broker = self.broker._pull_broker_open_orders()
+                # orders_broker = self.broker._pull_broker_open_orders()
+                orders_broker = self.broker._pull_open_orders(self.name)
 
                 # cash_lumi = self._unspent_money
                 positions_lumi = self.broker._filled_positions

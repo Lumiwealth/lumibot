@@ -302,8 +302,10 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
     def _close_connection(self):
         self.ib.disconnect()
 
-    def get_account_summary(self):
-        return self.ib.get_account_summary()
+    def _get_cash_balance_at_broker(self):
+        summary = self.ib.get_account_summary()
+        total_cash_value = [float(c['Value']) for c in summary if c["Tag"] =="TotalCashValue"][0]
+        return total_cash_value
 
     def get_contract_details(self, asset):
         # Used for Interactive Brokers. Convert an asset into a IB Contract.
@@ -662,13 +664,13 @@ class IBWrapper(EWrapper):
                 positionsdict["asset_type"] = k
 
         date_map = dict(
-            future="%Y%M%D",
-            option="%Y%M",
+            future="%Y%m",
+            option="%Y%m%d",
         )
         if positionsdict['asset_type'] in date_map:
             positionsdict["expiration"] = datetime.datetime.strptime(
                     positionsdict["expiration"], date_map[positionsdict["asset_type"]]
-                )
+                ).date()
 
         self.positions.append(positionsdict)
 

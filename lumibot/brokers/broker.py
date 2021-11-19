@@ -224,6 +224,10 @@ class Broker:
 
     # =========Positions functions==================
 
+    def _get_cash_balance_at_broker(self):
+        """Get the actual cash balance at the broker. """
+        pass
+
     def get_tracked_position(self, strategy, asset):
         """get a tracked position given an asset and
         a strategy"""
@@ -635,7 +639,7 @@ class Broker:
                     break
         return
 
-    def _poll(self):
+    def _poll(self):  # todo dead code.
         """Check every minute orders in the '_new_orders' and
         '_partially_filled' lists and update their status
         if necessary"""

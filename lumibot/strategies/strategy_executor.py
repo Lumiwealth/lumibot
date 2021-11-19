@@ -73,6 +73,7 @@ class StrategyExecutor(Thread):
     def get_broker_values(func_input):
         @wraps(func_input)
         def func_output(self, *args, **kwargs):
+            time_start = time.time()
             # Only audit the broker position during live trading.
             if self.broker.IS_BACKTESTING_BROKER:
                 return func_input(self, *args, **kwargs)
@@ -89,7 +90,7 @@ class StrategyExecutor(Thread):
             held_trades_len = 1
             while held_trades_len > 0:
                 # Snapshot for the broker and lumibot:
-                cash_broker = 10
+                cash_broker = self.broker. _get_cash_balance_at_broker()
                 positions_broker = self.broker._pull_broker_positions()
                 orders_broker = self.broker._pull_broker_open_orders()
 
@@ -100,14 +101,14 @@ class StrategyExecutor(Thread):
                 # positions = k
                 # orders = k
                 held_trades_len = len(self.broker._held_trades)
-                print(f"Held Trades are {held_trades_len}")
+                # print(f"Held Trades are {held_trades_len}")
                 if held_trades_len > 0:
                     self._process_held_trades()
 
             # DO ALL THE AUDIT HERE
 
             self.broker._hold_trade_events = False
-
+            # print(f"This is the elapsed time: {(time.time() - time_start):0.6f}")
             return func_input(self, *args, **kwargs)
 
         return func_output

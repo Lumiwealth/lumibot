@@ -140,19 +140,48 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
     def _parse_broker_position(self, broker_position, strategy, orders=None):
         """Parse a broker position representation
         into a position object"""
-        asset = broker_position.asset
-        quantity = int(broker_position.Quantity)
+        if broker_position["asset_type"] == "stock":
+            asset = Asset(
+                symbol=broker_position["symbol"],
+                currency=broker_position["currency"],
+            )
+        elif broker_position["asset_type"] == "future":
+            asset = Asset(
+                symbol=broker_position["symbol"],
+                asset_type='future',
+                expiration=broker_position["expiration"],
+                multiplier=broker_position["multiplier"],
+                currency=broker_position["currency"],
+            )
+        elif broker_position["asset_type"] == "option":
+            asset = Asset(
+                symbol=broker_position["symbol"],
+                asset_type='option',
+                expiration=broker_position["expiration"],
+                strike=broker_position["strike"],
+                right=broker_position["right"],
+                multiplier=broker_position["multiplier"],
+                currency=broker_position["currency"],
+            )
+        else: # Unreachable code.
+            raise ValueError(
+                f"From Interactive Brokers, asset type can only be `stock`, "
+                f"`future`, or `option`. A value of {broker_position['asset_type']} "
+                f"was received."
+            )
+
+        quantity = broker_position["position"]
         position = Position(strategy, asset, quantity, orders=orders)
         return position
 
-    def _parse_broker_positions(self, broker_positions, strategy):
-        """Parse a list of broker positions into a
-        list of position objects"""
-        result = []
-        for account, broker_position in broker_positions.iterrows():
-            result.append(self._parse_broker_position(broker_position, strategy))
-
-        return result
+    # def _parse_broker_positions(self, broker_positions, strategy):
+    #     """Parse a list of broker positions into a
+    #     list of position objects"""
+    #     result = []
+    #     for broker_position in broker_positions:
+    #         result.append(self._parse_broker_position(broker_position, strategy))
+    #
+    #     return result
 
     def _pull_broker_position(self, asset):
         """Given a asset, get the broker representation
@@ -163,28 +192,9 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
 
     def _pull_broker_positions(self):
         """Get the broker representation of all positions"""
-        current_positions = self.ib.get_positions()
+        return self.ib.get_positions()
 
-        # current_positions_df = pd.DataFrame(
-        #     data=current_positions,
-        # )
-        # current_positions_df.columns = [
-        #     "Account",
-        #     "Symbol",
-        #     "Quantity",
-        #     "Average_Cost",
-        #     "Sec_Type",
-        # ]
-        #
-        # current_positions_df = current_positions_df.set_index("Account", drop=True)
-        # current_positions_df["Quantity"] = current_positions_df["Quantity"].astype(
-        #     "int"
-        # )
-        # current_positions_df = current_positions_df[
-        #     current_positions_df["Quantity"] != 0
-        # ]
 
-        return current_positions
 
     # =======Orders and assets functions=========
 
@@ -304,12 +314,6 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
             orders.append(close_order)
         self.submit_orders(orders)
 
-    def load_positions(self):
-        # todo prob delete
-        """Use to load any existing positions with the broker on start. """
-        positions = self.ib.get_positions()
-        print("Load Positions", positions)
-
     # =========Market functions=======================
 
     def get_tradable_assets(self, easy_to_borrow=None, filter_func=None):
@@ -328,6 +332,11 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         self.ib.disconnect()
 
     def _get_cash_balance_at_broker(self):
+        """Get's the current actual cash value from interactive Brokers.
+        Returns
+        -------
+            float
+        """
         summary = self.ib.get_account_summary()
         total_cash_value = [
             float(c["Value"]) for c in summary if c["Tag"] == "TotalCashValue"
@@ -699,8 +708,13 @@ class IBWrapper(EWrapper):
 
         if positionsdict["asset_type"] in DATE_MAP:
             positionsdict["expiration"] = datetime.datetime.strptime(
-                positionsdict["expiration"], DATE_MAP[positionsdict["asset_type"]]
+                positionsdict["expiration"], "%Y%m%d"
             ).date()
+
+        if positionsdict["right"] == 'C':
+            positionsdict["right"] = 'CALL'
+        elif positionsdict["right"] == 'P':
+            positionsdict["right"] = 'PUT'
 
         self.positions.append(positionsdict)
 

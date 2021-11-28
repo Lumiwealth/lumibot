@@ -202,7 +202,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         """Parse a broker order representation
         to an order object"""
 
-        expiration = ""
+        expiration = None
         multiplier = 1
         if response.contract.secType in ["OPT", "FUT"]:
             expiration = datetime.datetime.strptime(
@@ -222,7 +222,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
             Asset(
                 symbol=response.contract.localSymbol,
                 asset_type=[
-                    k for k, v in TYPE_MAP.items() if v == response.contract["secType"]
+                    k for k, v in TYPE_MAP.items() if v == response.contract.secType
                 ][0],
                 expiration=expiration,
                 strike=strike,
@@ -784,10 +784,10 @@ class IBWrapper(EWrapper):
         self.my_new_orders_queue = new_orders_queue
         return new_orders_queue
 
-    def init_order_updates(self):
-        order_updates_queue = queue.Queue()
-        self.my_order_updates_queue = order_updates_queue
-        return order_updates_queue
+    # def init_order_updates(self):  todo dead code
+    #     order_updates_queue = queue.Queue()
+    #     self.my_order_updates_queue = order_updates_queue
+    #     return order_updates_queue
 
     def openOrder(
         self, orderId: OrderId, contract: Contract, order: Order, orderState: OrderState
@@ -823,6 +823,12 @@ class IBWrapper(EWrapper):
             self.init_new_orders()
         if orderState.status == "PreSubmitted":
             self.my_new_orders_queue.put(order)
+
+        # Use when recovering data from a restart.
+        if not hasattr(self, "my_orders_queue"):
+            self.init_orders()
+        # if orderState.status == "PreSubmitted":
+        self.my_orders_queue.put(order)
 
     def openOrderEnd(self):
         super().openOrderEnd()
@@ -1139,6 +1145,9 @@ class IBClient(EClient):
 
         while self.wrapper.is_error():
             print(f"Error: {self.get_error(timeout=5)}")
+
+        if isinstance(requested_orders, Order):
+            requested_orders = [requested_orders]
 
         return requested_orders
 

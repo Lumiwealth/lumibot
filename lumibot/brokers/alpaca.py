@@ -67,8 +67,11 @@ class Alpaca(AlpacaData, Broker):
     def _parse_broker_position(self, broker_position, strategy, orders=None):
         """parse a broker position representation
         into a position object"""
-        asset = broker_position.asset
-        quantity = broker_position.qty
+        position = broker_position._raw
+        asset = Asset(
+            symbol=position["symbol"],
+        )
+        quantity = position["qty"]
         position = Position(strategy, asset, quantity, orders=orders)
         return position
 

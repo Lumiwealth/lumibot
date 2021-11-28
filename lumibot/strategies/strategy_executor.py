@@ -90,23 +90,38 @@ class StrategyExecutor(Thread):
             held_trades_len = 1
             while held_trades_len > 0:
                 # Snapshot for the broker and lumibot:
-                cash_broker = self.broker. _get_cash_balance_at_broker()
+                cash_broker = self.broker._get_cash_balance_at_broker()
                 positions_broker = self.broker._pull_positions(self.name)
-                # orders_broker = self.broker._pull_broker_open_orders()
+                orders_broker = self.broker._pull_broker_open_orders()
                 orders_broker = self.broker._pull_open_orders(self.name)
 
                 # cash_lumi = self._unspent_money
                 positions_lumi = self.broker._filled_positions
                 orders_lumi = self.broker._tracked_orders
 
-                # positions = k
-                # orders = k
                 held_trades_len = len(self.broker._held_trades)
                 # print(f"Held Trades are {held_trades_len}")
                 if held_trades_len > 0:
                     self._process_held_trades()
 
-            # DO ALL THE AUDIT HERE
+            # if the length of the positions_lumi and orders_lumi are 0,
+            # then reset the orders and positions to whatever is at the broker.
+            if self.strategy._first_iteration:
+                self.strategy._unspent_money = cash_broker
+                self.strategy._portfolio_value = cash_broker
+                if len(positions_broker) > 0:
+                    # Add to positions in lumibot.
+                    for position in positions_broker:
+                        self.broker._filled_positions.append(position)
+                        last_price = self.strategy.get_last_price(position.asset)
+                        self.strategy._portfolio_value += (
+                            position.quantity * position.asset.multiplier * last_price
+                        )
+
+                if len(orders_broker) > 0:
+                    # Add to open orders.
+                    for order in orders_broker:
+                        self.broker._process_new_order(order)
 
             self.broker._hold_trade_events = False
             # print(f"This is the elapsed time: {(time.time() - time_start):0.6f}")

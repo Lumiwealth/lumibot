@@ -2166,6 +2166,20 @@ class Strategy(_Strategy):
         """Use this lifecycle method to execute code
         when strategy reached its end. Used to dump
         statistics when backtesting finishes
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        None
+
+        Example
+        -------
+        >>> # Log end of strategy
+        >>> def on_strategy_end(self):
+        >>>     self.log_message("The strategy is complete")
         """
         pass
 
@@ -2188,7 +2202,6 @@ class Strategy(_Strategy):
         -------
         >>> def on_bot_crash(self, error):
         >>>     self.log_message(error)
-
         """
         self.on_abrupt_closing()
 
@@ -2283,7 +2296,7 @@ class Strategy(_Strategy):
         -------
         >>> def on_partially_filled_order(self, position, order, price, quantity, multiplier):
         >>>     if order.asset == "AAPL":
-        >>>         self.log_message("Order for AAPL partially filled")
+        >>>         self.log_message(f"{quantity} shares of AAPL partially filled")
         >>>         self.log_message(f"Price: {price}")
         """
         pass

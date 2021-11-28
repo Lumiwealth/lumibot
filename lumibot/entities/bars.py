@@ -7,6 +7,24 @@ from .bar import Bar
 
 
 class Bars:
+    """Pricing and financial data for given Symbol.
+
+    The OHLCV, and if available, dividends, stock splits for a given
+    financial instrument. Price change, dividend yield and return
+    are calculated if appropriate.
+
+    Parameters
+    ----------
+
+
+    Attributes
+    ----------
+
+    Methods
+    -------
+
+    """
+
     def __init__(self, df, source, asset, raw=None):
         """
         df columns: open, high, low, close, volume, dividend, stock_splits

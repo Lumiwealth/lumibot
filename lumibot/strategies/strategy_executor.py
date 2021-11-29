@@ -56,6 +56,70 @@ class StrategyExecutor(Thread):
             self.process_queue()
             self.broker._update_datetime(sleeptime)
 
+    def _process_held_trades(self):
+        """Processes any held trade notifications."""
+        while len(self.broker._held_trades) > 0:
+            th = self.broker._held_trades.pop(0)
+            self.broker._process_trade_event(
+                th[0],
+                th[1],
+                price=th[2],
+                filled_quantity=th[3],
+                multiplier=th[4],
+            )
+
+    @staticdecorator
+    @staticmethod
+    def get_broker_values(func_input):
+        @wraps(func_input)
+        def func_output(self, *args, **kwargs):
+            # Only audit the broker position during live trading.
+            if self.broker.IS_BACKTESTING_BROKER or not self.strategy._first_iteration:
+                return func_input(self, *args, **kwargs)
+
+            # Ensure that the orders are submitted to the broker before auditing.
+            orders_queue_len = 1
+            while orders_queue_len > 0:
+                orders_queue_len = len(self.broker._orders_queue.queue)
+            self.broker._hold_trade_events = True
+
+            # Get the  snapshot.
+            # If the _held_trades list is not empty, process these and then snapshot again.
+            held_trades_len = 1
+            while held_trades_len > 0:
+                # Snapshot for the broker and lumibot:
+                cash_broker = self.broker._get_cash_balance_at_broker()
+                positions_broker = self.broker._pull_positions(self.name)
+                orders_broker = self.broker._pull_open_orders(self.name)
+
+                held_trades_len = len(self.broker._held_trades)
+                if held_trades_len > 0:
+                    self._process_held_trades()
+
+            # If the length of the positions_lumi and orders_lumi are 0,
+            # then reset the orders and positions to whatever is at the broker.
+            if self.strategy._first_iteration:
+                self.strategy._unspent_money = cash_broker
+                self.strategy._portfolio_value = cash_broker
+                if len(positions_broker) > 0:
+                    # Add to positions in lumibot.
+                    for position in positions_broker:
+                        self.broker._filled_positions.append(position)
+                        last_price = self.strategy.get_last_price(position.asset)
+                        self.strategy._portfolio_value += (
+                            position.quantity * position.asset.multiplier * last_price
+                        )
+
+                if len(orders_broker) > 0:
+                    # Add to open orders.
+                    for order in orders_broker:
+                        self.broker._process_new_order(order)
+
+            self.broker._hold_trade_events = False
+            return func_input(self, *args, **kwargs)
+
+        return func_output
+
     def add_event(self, event_name, payload):
         self.queue.put((event_name, payload))
 
@@ -176,6 +240,7 @@ class StrategyExecutor(Thread):
 
     @lifecycle_method
     @trace_stats
+    @get_broker_values
     def _on_trading_iteration(self):
         self._strategy_context = None
         self.strategy.log_message("Executing the on_trading_iteration lifecycle method")

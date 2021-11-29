@@ -198,9 +198,11 @@ class Strategy(_Strategy):
 
     @property
     def unspent_money(self):
-        """Returns the current unspent money. This is the money that is not used for positions or orders (in other words, the money that is available to buy new assets, or cash).
+        """Returns the current unspent money. This is the money that is not used for positions or
+        orders (in other words, the money that is available to buy new assets, or cash).
 
-        This property is updated whenever a transaction was filled by the broker or when dividends are paid.
+        This property is updated whenever a transaction was filled by the broker or when dividends
+        are paid.
 
         Returns
         -------
@@ -216,7 +218,8 @@ class Strategy(_Strategy):
 
     @property
     def first_iteration(self):
-        """Returns True if this is the first iteration of the strategy (is True if the lifecycle method on_trading_iteration is being excuted for the first time).
+        """Returns True if this is the first iteration of the strategy (is True if the lifecycle
+        method on_trading_iteration is being excuted for the first time).
 
         Returns
         -------
@@ -2166,6 +2169,20 @@ class Strategy(_Strategy):
         """Use this lifecycle method to execute code
         when strategy reached its end. Used to dump
         statistics when backtesting finishes
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        None
+
+        Example
+        -------
+        >>> # Log end of strategy
+        >>> def on_strategy_end(self):
+        >>>     self.log_message("The strategy is complete")
         """
         pass
 
@@ -2188,7 +2205,6 @@ class Strategy(_Strategy):
         -------
         >>> def on_bot_crash(self, error):
         >>>     self.log_message(error)
-
         """
         self.on_abrupt_closing()
 
@@ -2283,7 +2299,7 @@ class Strategy(_Strategy):
         -------
         >>> def on_partially_filled_order(self, position, order, price, quantity, multiplier):
         >>>     if order.asset == "AAPL":
-        >>>         self.log_message("Order for AAPL partially filled")
+        >>>         self.log_message(f"{quantity} shares of AAPL partially filled")
         >>>         self.log_message(f"Price: {price}")
         """
         pass

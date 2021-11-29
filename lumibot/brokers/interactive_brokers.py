@@ -17,7 +17,7 @@ from lumibot.data_sources import InteractiveBrokersData
 
 # Naming conflict on Order between IB and Lumibot.
 from lumibot.entities import Order as OrderLum
-from lumibot.entities import Position
+from lumibot.entities import Asset, Position
 
 from .broker import Broker
 
@@ -140,19 +140,48 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
     def _parse_broker_position(self, broker_position, strategy, orders=None):
         """Parse a broker position representation
         into a position object"""
-        asset = broker_position.asset
-        quantity = int(broker_position.Quantity)
+        if broker_position["asset_type"] == "stock":
+            asset = Asset(
+                symbol=broker_position["symbol"],
+                currency=broker_position["currency"],
+            )
+        elif broker_position["asset_type"] == "future":
+            asset = Asset(
+                symbol=broker_position["symbol"],
+                asset_type='future',
+                expiration=broker_position["expiration"],
+                multiplier=broker_position["multiplier"],
+                currency=broker_position["currency"],
+            )
+        elif broker_position["asset_type"] == "option":
+            asset = Asset(
+                symbol=broker_position["symbol"],
+                asset_type='option',
+                expiration=broker_position["expiration"],
+                strike=broker_position["strike"],
+                right=broker_position["right"],
+                multiplier=broker_position["multiplier"],
+                currency=broker_position["currency"],
+            )
+        else: # Unreachable code.
+            raise ValueError(
+                f"From Interactive Brokers, asset type can only be `stock`, "
+                f"`future`, or `option`. A value of {broker_position['asset_type']} "
+                f"was received."
+            )
+
+        quantity = broker_position["position"]
         position = Position(strategy, asset, quantity, orders=orders)
         return position
 
-    def _parse_broker_positions(self, broker_positions, strategy):
-        """Parse a list of broker positions into a
-        list of position objects"""
-        result = []
-        for account, broker_position in broker_positions.iterrows():
-            result.append(self._parse_broker_position(broker_position, strategy))
-
-        return result
+    # def _parse_broker_positions(self, broker_positions, strategy):
+    #     """Parse a list of broker positions into a
+    #     list of position objects"""
+    #     result = []
+    #     for broker_position in broker_positions:
+    #         result.append(self._parse_broker_position(broker_position, strategy))
+    #
+    #     return result
 
     def _pull_broker_position(self, asset):
         """Given a asset, get the broker representation
@@ -163,28 +192,9 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
 
     def _pull_broker_positions(self):
         """Get the broker representation of all positions"""
-        current_positions = self.ib.get_positions()
+        return self.ib.get_positions()
 
-        current_positions_df = pd.DataFrame(
-            data=current_positions,
-        )
-        current_positions_df.columns = [
-            "Account",
-            "Symbol",
-            "Quantity",
-            "Average_Cost",
-            "Sec_Type",
-        ]
 
-        current_positions_df = current_positions_df.set_index("Account", drop=True)
-        current_positions_df["Quantity"] = current_positions_df["Quantity"].astype(
-            "int"
-        )
-        current_positions_df = current_positions_df[
-            current_positions_df["Quantity"] != 0
-        ]
-
-        return current_positions_df
 
     # =======Orders and assets functions=========
 
@@ -192,9 +202,34 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         """Parse a broker order representation
         to an order object"""
 
+        expiration = None
+        multiplier = 1
+        if response.contract.secType in ["OPT", "FUT"]:
+            expiration = datetime.datetime.strptime(
+                response.contract.lastTradeDateOrContractMonth,
+                DATE_MAP[response.contract.secType],
+            )
+            multiplier = response.contract.multiplier
+
+        right = None
+        strike = ""
+        if response.contract.secType == "OPT":
+            right = response.contract.right
+            strike = response.contract.strike
+
         order = OrderLum(
             strategy,
-            response.contract.localSymbol,
+            Asset(
+                symbol=response.contract.localSymbol,
+                asset_type=[
+                    k for k, v in TYPE_MAP.items() if v == response.contract.secType
+                ][0],
+                expiration=expiration,
+                strike=strike,
+                right=right,
+                multiplier=multiplier,
+                currency=response.contract.currency,
+            ),
             response.totalQuantity,
             response.action.lower(),
             limit_price=response.lmtPrice,
@@ -279,11 +314,6 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
             orders.append(close_order)
         self.submit_orders(orders)
 
-    def load_positions(self):
-        """Use to load any existing positions with the broker on start. """
-        positions = self.ib.get_positions()
-        print("Load Positions", positions)
-
     # =========Market functions=======================
 
     def get_tradable_assets(self, easy_to_borrow=None, filter_func=None):
@@ -301,8 +331,23 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
     def _close_connection(self):
         self.ib.disconnect()
 
-    def get_account_summary(self):
-        return self.ib.get_account_summary()
+    def _get_cash_balance_at_broker(self):
+        """Get's the current actual cash value from interactive Brokers.
+        Returns
+        -------
+            float
+        """
+        try:
+            summary = self.ib.get_account_summary()
+        except:
+            return None
+        finally:
+            if summary is None:
+                return None
+        total_cash_value = [
+            float(c["Value"]) for c in summary if c["Tag"] == "TotalCashValue"
+        ][0]
+        return total_cash_value
 
     def get_contract_details(self, asset):
         # Used for Interactive Brokers. Convert an asset into a IB Contract.
@@ -468,13 +513,20 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         return True
 
 
+# ===================INTERACTIVE BROKERS CLASSES===================
 TYPE_MAP = dict(
     stock="STK",
     option="OPT",
     future="FUT",
     forex="CASH",
 )
-# ===================INTERACTIVE BROKERS CLASSES===================
+
+DATE_MAP = dict(
+    future="%Y%m",
+    option="%Y%m%d",
+)
+
+
 class IBWrapper(EWrapper):
     """Listens and collects data from IB."""
 
@@ -646,10 +698,29 @@ class IBWrapper(EWrapper):
         positionsdict = {
             "account": account,
             "symbol": contract.symbol,
+            "asset_type": contract.secType,
+            "expiration": contract.lastTradeDateOrContractMonth,
+            "strike": contract.strike,
+            "right": contract.right,
+            "multiplier": contract.multiplier,
+            "currency": contract.currency,
             "position": pos,
             "cost": avgCost,
             "type": contract.secType,
         }
+        for k, v in TYPE_MAP.items():
+            if positionsdict["asset_type"] == v:
+                positionsdict["asset_type"] = k
+
+        if positionsdict["asset_type"] in DATE_MAP:
+            positionsdict["expiration"] = datetime.datetime.strptime(
+                positionsdict["expiration"], "%Y%m%d"
+            ).date()
+
+        if positionsdict["right"] == 'C':
+            positionsdict["right"] = 'CALL'
+        elif positionsdict["right"] == 'P':
+            positionsdict["right"] = 'PUT'
 
         self.positions.append(positionsdict)
 
@@ -719,10 +790,10 @@ class IBWrapper(EWrapper):
         self.my_new_orders_queue = new_orders_queue
         return new_orders_queue
 
-    def init_order_updates(self):
-        order_updates_queue = queue.Queue()
-        self.my_order_updates_queue = order_updates_queue
-        return order_updates_queue
+    # def init_order_updates(self):  todo dead code
+    #     order_updates_queue = queue.Queue()
+    #     self.my_order_updates_queue = order_updates_queue
+    #     return order_updates_queue
 
     def openOrder(
         self, orderId: OrderId, contract: Contract, order: Order, orderState: OrderState
@@ -758,6 +829,7 @@ class IBWrapper(EWrapper):
             self.init_new_orders()
         if orderState.status == "PreSubmitted":
             self.my_new_orders_queue.put(order)
+
 
     def openOrderEnd(self):
         super().openOrderEnd()
@@ -1047,13 +1119,17 @@ class IBClient(EClient):
             f"AccountType, TotalCashValue, AccruedCash, "
             f"NetLiquidation, BuyingPower, GrossPositionValue"
         )
-        self.reqAccountSummary(self.get_reqid(), "All", tags)
+
+        as_reqid = self.get_reqid()
+        self.reqAccountSummary(as_reqid, "All", tags)
 
         try:
             requested_accounts = accounts_storage.get(timeout=self.max_wait_time)
         except queue.Empty:
             print("The queue was empty or max time reached for account summary")
             requested_accounts = None
+
+        self.cancelAccountSummary(as_reqid)
 
         while self.wrapper.is_error():
             print(f"Error: {self.get_error(timeout=5)}")
@@ -1064,7 +1140,7 @@ class IBClient(EClient):
         orders_storage = self.wrapper.init_orders()
 
         # Call the orders data.
-        self.reqOpenOrders()
+        self.reqAllOpenOrders()
 
         try:
             requested_orders = orders_storage.get(timeout=self.max_wait_time)
@@ -1074,6 +1150,9 @@ class IBClient(EClient):
 
         while self.wrapper.is_error():
             print(f"Error: {self.get_error(timeout=5)}")
+
+        if isinstance(requested_orders, Order):
+            requested_orders = [requested_orders]
 
         return requested_orders
 

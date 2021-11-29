@@ -7,6 +7,48 @@ from .bar import Bar
 
 
 class Bars:
+    """Pricing and financial data for given Symbol.
+
+    The OHLCV, and if available, dividends, stock splits for a given
+    financial instrument. Price change, dividend yield and return
+    are calculated if appropriate.
+
+    Parameters
+    ----------
+    df : Pandas Dataframe
+        Dataframe with:
+            datetime.datetime index time zone aware.
+            columns = ['open', 'high', 'low', 'close', 'volume']
+            optional columns ['dividend', 'stock_splits']
+
+    source :
+            The source of the data e.g. (yahoo, alpaca, …)
+
+    asset : Asset
+        The asset for which the bars are holding data.
+
+            source: the source of the data e.g. (yahoo, alpaca, …)
+    symbol : str
+        The ticker symbol. eg: "AAPL"
+
+    Methods
+    -------
+    get_last_price
+        Returns the closing price of the last dataframe row
+
+    get_last_dividend
+        Returns the dividend per share value of the last dataframe row
+
+    get_momentum(start=None, end=None)
+        Calculates the global price momentum of the dataframe.
+
+    aggregate_bars(frequency)
+        Will convert a set of bars to a different timeframe (eg. 1 min
+        to 15 min) frequency (string): The new timeframe that the bars
+        should be in, eg. “15Min”, “1H”, or “1D”. Returns a new Bars
+        object.
+    """
+
     def __init__(self, df, source, asset, raw=None):
         """
         df columns: open, high, low, close, volume, dividend, stock_splits

@@ -16,6 +16,13 @@ class Alpaca(AlpacaData, Broker):
     """Inherit AlpacaData first and all the price market
     methods than inherits broker"""
 
+    ASSET_TYPE_MAP = dict(
+        stock=['us_equity'],
+        option=[],
+        future=[],
+        forex=[],
+    )
+
     def __init__(self, config, max_workers=20, chunk_size=100, connect_stream=True):
         # Calling init methods
         AlpacaData.__init__(
@@ -53,11 +60,18 @@ class Alpaca(AlpacaData, Broker):
 
     # =========Positions functions==================
 
+    def _get_cash_balance_at_broker(self):
+        response = self.api.get_account()
+        return float(response._raw['cash'])
+
     def _parse_broker_position(self, broker_position, strategy, orders=None):
         """parse a broker position representation
         into a position object"""
-        asset = broker_position.asset
-        quantity = broker_position.qty
+        position = broker_position._raw
+        asset = Asset(
+            symbol=position["symbol"],
+        )
+        quantity = position["qty"]
         position = Position(strategy, asset, quantity, orders=orders)
         return position
 
@@ -73,13 +87,21 @@ class Alpaca(AlpacaData, Broker):
         return response
 
     # =======Orders and assets functions=========
+    def map_asset_type(self, type):
+        for k, v in self.ASSET_TYPE_MAP.items():
+            if type in v:
+                return k
+        raise ValueError(f"The type {type} is not in the ASSET_TYPE_MAP in the Alpaca Module.")
 
     def _parse_broker_order(self, response, strategy):
         """parse a broker order representation
         to an order object"""
         order = Order(
             strategy,
-            Asset(symbol=response.symbol),
+            Asset(
+                symbol=response.symbol,
+                asset_type='stock',
+            ),
             response.qty,
             response.side,
             limit_price=response.limit_price,

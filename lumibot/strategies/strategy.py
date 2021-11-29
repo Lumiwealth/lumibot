@@ -198,9 +198,11 @@ class Strategy(_Strategy):
 
     @property
     def unspent_money(self):
-        """Returns the current unspent money. This is the money that is not used for positions or orders (in other words, the money that is available to buy new assets, or cash).
+        """Returns the current unspent money. This is the money that is not used for positions or
+        orders (in other words, the money that is available to buy new assets, or cash).
 
-        This property is updated whenever a transaction was filled by the broker or when dividends are paid.
+        This property is updated whenever a transaction was filled by the broker or when dividends
+        are paid.
 
         Returns
         -------
@@ -216,7 +218,8 @@ class Strategy(_Strategy):
 
     @property
     def first_iteration(self):
-        """Returns True if this is the first iteration of the strategy (is True if the lifecycle method on_trading_iteration is being excuted for the first time).
+        """Returns True if this is the first iteration of the strategy (is True if the lifecycle
+        method on_trading_iteration is being excuted for the first time).
 
         Returns
         -------

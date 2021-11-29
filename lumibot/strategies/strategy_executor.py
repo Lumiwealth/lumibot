@@ -73,16 +73,14 @@ class StrategyExecutor(Thread):
     def get_broker_values(func_input):
         @wraps(func_input)
         def func_output(self, *args, **kwargs):
-            time_start = time.time()
             # Only audit the broker position during live trading.
-            if self.broker.IS_BACKTESTING_BROKER:
+            if self.broker.IS_BACKTESTING_BROKER or not self.strategy._first_iteration:
                 return func_input(self, *args, **kwargs)
 
             # Ensure that the orders are submitted to the broker before auditing.
             orders_queue_len = 1
             while orders_queue_len > 0:
                 orders_queue_len = len(self.broker._orders_queue.queue)
-                print(f"Orders queue length is {orders_queue_len}")
             self.broker._hold_trade_events = True
 
             # Get the  snapshot.
@@ -92,19 +90,13 @@ class StrategyExecutor(Thread):
                 # Snapshot for the broker and lumibot:
                 cash_broker = self.broker._get_cash_balance_at_broker()
                 positions_broker = self.broker._pull_positions(self.name)
-                orders_broker = self.broker._pull_broker_open_orders()
                 orders_broker = self.broker._pull_open_orders(self.name)
 
-                # cash_lumi = self._unspent_money
-                positions_lumi = self.broker._filled_positions
-                orders_lumi = self.broker._tracked_orders
-
                 held_trades_len = len(self.broker._held_trades)
-                # print(f"Held Trades are {held_trades_len}")
                 if held_trades_len > 0:
                     self._process_held_trades()
 
-            # if the length of the positions_lumi and orders_lumi are 0,
+            # If the length of the positions_lumi and orders_lumi are 0,
             # then reset the orders and positions to whatever is at the broker.
             if self.strategy._first_iteration:
                 self.strategy._unspent_money = cash_broker
@@ -124,7 +116,6 @@ class StrategyExecutor(Thread):
                         self.broker._process_new_order(order)
 
             self.broker._hold_trade_events = False
-            # print(f"This is the elapsed time: {(time.time() - time_start):0.6f}")
             return func_input(self, *args, **kwargs)
 
         return func_output

@@ -337,7 +337,13 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         -------
             float
         """
-        summary = self.ib.get_account_summary()
+        try:
+            summary = self.ib.get_account_summary()
+        except:
+            return None
+        finally:
+            if summary is None:
+                return None
         total_cash_value = [
             float(c["Value"]) for c in summary if c["Tag"] == "TotalCashValue"
         ][0]
@@ -824,11 +830,6 @@ class IBWrapper(EWrapper):
         if orderState.status == "PreSubmitted":
             self.my_new_orders_queue.put(order)
 
-        # Use when recovering data from a restart.
-        if not hasattr(self, "my_orders_queue"):
-            self.init_orders()
-        # if orderState.status == "PreSubmitted":
-        self.my_orders_queue.put(order)
 
     def openOrderEnd(self):
         super().openOrderEnd()
@@ -1118,13 +1119,17 @@ class IBClient(EClient):
             f"AccountType, TotalCashValue, AccruedCash, "
             f"NetLiquidation, BuyingPower, GrossPositionValue"
         )
-        self.reqAccountSummary(self.get_reqid(), "All", tags)
+
+        as_reqid = self.get_reqid()
+        self.reqAccountSummary(as_reqid, "All", tags)
 
         try:
             requested_accounts = accounts_storage.get(timeout=self.max_wait_time)
         except queue.Empty:
             print("The queue was empty or max time reached for account summary")
             requested_accounts = None
+
+        self.cancelAccountSummary(as_reqid)
 
         while self.wrapper.is_error():
             print(f"Error: {self.get_error(timeout=5)}")
@@ -1135,7 +1140,7 @@ class IBClient(EClient):
         orders_storage = self.wrapper.init_orders()
 
         # Call the orders data.
-        self.reqOpenOrders()
+        self.reqAllOpenOrders()
 
         try:
             requested_orders = orders_storage.get(timeout=self.max_wait_time)

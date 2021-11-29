@@ -63,8 +63,26 @@ class Asset(BaseModel, frozen=True, extra="forbid"):
         validates asset types.
     right_must_be_one_of(@"right")
         validates rights types.
-    """
 
+    Example
+    -------
+    >>> # Create an Asset object for a stock.
+    >>> asset = Asset(symbol="AAPL")
+
+    >>> # Create an Asset object for a futures contract.
+    >>> asset = Asset(symbol="ES", asset_type='future', expiration=datetime.date(2021, 12, 17))
+
+    >>> # Create an Asset object for an options contract.
+    >>> asset = Asset(
+    >>>     symbol="AAPL",
+    >>>     asset_type='option',
+    >>>     expiration=datetime.date(2021, 11, 26),
+    >>>     strike=155,
+    >>>     right= 'CALL',
+    >>>     multiplier=100,
+    >>>     currency="USD"
+    >>> )
+    """
     symbol: str
     asset_type: str = "stock"
     expiration: Optional[date] = None

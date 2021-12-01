@@ -165,41 +165,40 @@ def test_integration():
     expected_result = {
         "buy_and_hold": {
             "cagr": 0.1476027590432618,
-            "romad": 2.2315656039426397,
-            "sharpe": 1.1054491560945578,
-            "total_return": 0.09509502182006835,
             "volatility": 0.13352288364371973,
-        },
-        "debt_trading": {
-            "cagr": 0.20554760657213134,
-            "romad": 8.00686191195888,
-            "sharpe": 2.929003968617979,
-            "total_return": 0.13127250881195174,
-            "volatility": 0.07017662276132623,
-        },
-        "diversification": {
-            "cagr": 0.19794477299026614,
-            "romad": 6.443675455209815,
-            "sharpe": 3.4684687162644363,
-            "total_return": 0.1265600008964547,
-            "volatility": 0.0570697876160907,
-        },
-        "momentum": {
-            "cagr": 0.4848441103037764,
-            "romad": 14.722161562758469,
-            "sharpe": 4.175720386980683,
-            "total_return": 0.2980123232841483,
-            "volatility": 0.11611029124829647,
+            "sharpe": 1.1054491560945578,
+            "romad": 2.2315656039426397,
+            "total_return": 0.09509502182006835,
         },
         "simple": {
             "cagr": 0.005829326013952141,
-            "romad": 1.6573403606987755,
-            "sharpe": 0.8998186734744613,
-            "total_return": 0.003842514038087108,
             "volatility": 0.006478334119743725,
+            "sharpe": 0.8998186734744613,
+            "romad": 1.6573403606987755,
+            "total_return": 0.003842514038087108,
+        },
+        "debt_trading": {
+            "cagr": 0.20554760657213134,
+            "volatility": 0.07017662276132623,
+            "sharpe": 2.929003968617979,
+            "romad": 8.00686191195888,
+            "total_return": 0.13127250881195174,
+        },
+        "momentum": {
+            "cagr": 0.48736434348385216,
+            "volatility": 0.11638046363125136,
+            "sharpe": 4.187681748957919,
+            "romad": 14.647567392415182,
+            "total_return": 0.29946557283401365,
+        },
+        "diversification": {
+            "cagr": 0.19794477299026614,
+            "volatility": 0.0570697876160907,
+            "sharpe": 3.4684687162644363,
+            "romad": 6.443675455209815,
+            "total_return": 0.1265600008964547,
         },
     }
-
     for strategy, results in agg_results.items():
         assert results["cagr"] == expected_result[strategy]["cagr"]
         assert results["romad"] == expected_result[strategy]["romad"]
@@ -216,7 +215,6 @@ def cleanup(request):
         shutil.rmtree("logs")
 
     request.addfinalizer(remove_test_dir)
-
 
 if __name__ == "__main__":
     test_integration()

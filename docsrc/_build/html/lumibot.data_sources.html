@@ -194,7 +194,6 @@
 <li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.data.html">Data</a><input class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_last_price.html">self.get_last_price</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_last_prices.html">self.get_last_prices</a></li>
-<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_tradable_assets.html">self.get_tradable_assets</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_symbol_bars.html">self.get_symbol_bars</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_bars.html">self.get_bars</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.start_realtime_bars.html">self.start_realtime_bars</a></li>
@@ -442,8 +441,28 @@ assets for the day before</p>
 <dd></dd></dl>
 <dl class="py method">
 <dt class="sig sig-object py" id="lumibot.data_sources.pandas.PandasData.get_asset_by_symbol">
-<span class="sig-name descname"><span class="pre">get_asset_by_symbol</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">symbol</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.data_sources.pandas.PandasData.get_asset_by_symbol" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<span class="sig-name descname"><span class="pre">get_asset_by_symbol</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">symbol</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">asset_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.data_sources.pandas.PandasData.get_asset_by_symbol" title="Permalink to this definition">¶</a></dt>
+<dd><p>Finds the assets that match the symbol. If type is specified
+finds the assets matching symbol and type.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>symbol</strong> (<em>str</em>) – The symbol of the asset.</p></li>
+<li><p><strong>type</strong> (<em>str</em>) – Asset type. One of:
+- stock
+- future
+- option
+- forex</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p></p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>list of Asset</p>
+</dd>
+</dl>
+</dd></dl>
 <dl class="py method">
 <dt class="sig sig-object py" id="lumibot.data_sources.pandas.PandasData.get_assets">
 <span class="sig-name descname"><span class="pre">get_assets</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.data_sources.pandas.PandasData.get_assets" title="Permalink to this definition">¶</a></dt>
@@ -532,6 +551,11 @@ exchange. The return list is sorted.</p>
 <dd class="field-odd"><p>list of str</p>
 </dd>
 </dl>
+</dd></dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="lumibot.data_sources.pandas.PandasData.get_greeks">
+<span class="sig-name descname"><span class="pre">get_greeks</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">implied_volatility</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">delta</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">option_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pv_dividend</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gamma</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vega</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">theta</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">underlying_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.data_sources.pandas.PandasData.get_greeks" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns Greeks in backtesting.</p>
 </dd></dl>
 <dl class="py method">
 <dt class="sig sig-object py" id="lumibot.data_sources.pandas.PandasData.get_last_price">

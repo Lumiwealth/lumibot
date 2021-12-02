@@ -194,7 +194,6 @@
 <li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.data.html">Data</a><input class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_last_price.html">self.get_last_price</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_last_prices.html">self.get_last_prices</a></li>
-<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_tradable_assets.html">self.get_tradable_assets</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_symbol_bars.html">self.get_symbol_bars</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_bars.html">self.get_bars</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.start_realtime_bars.html">self.start_realtime_bars</a></li>
@@ -338,7 +337,7 @@ when an order has been partially filled by the broker</p>
 <p class="rubric">Example</p>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">def</span> <span class="nf">on_partially_filled_order</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">position</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="n">price</span><span class="p">,</span> <span class="n">quantity</span><span class="p">,</span> <span class="n">multiplier</span><span class="p">):</span>
 <span class="gp">&gt;&gt;&gt; </span>    <span class="k">if</span> <span class="n">order</span><span class="o">.</span><span class="n">asset</span> <span class="o">==</span> <span class="s2">"AAPL"</span><span class="p">:</span>
-<span class="gp">&gt;&gt;&gt; </span>        <span class="bp">self</span><span class="o">.</span><span class="n">log_message</span><span class="p">(</span><span class="s2">"Order for AAPL partially filled"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span>        <span class="bp">self</span><span class="o">.</span><span class="n">log_message</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">quantity</span><span class="si">}</span><span class="s2"> shares of AAPL partially filled"</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span>        <span class="bp">self</span><span class="o">.</span><span class="n">log_message</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Price: </span><span class="si">{</span><span class="n">price</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 </pre></div>
 </div>

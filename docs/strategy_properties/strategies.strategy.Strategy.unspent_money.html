@@ -194,7 +194,6 @@
 <li class="toctree-l2 has-children"><a class="reference internal" href="../strategy_methods.data.html">Data</a><input class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l3"><a class="reference internal" href="../strategy_methods.data/strategies.strategy.Strategy.get_last_price.html">self.get_last_price</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../strategy_methods.data/strategies.strategy.Strategy.get_last_prices.html">self.get_last_prices</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../strategy_methods.data/strategies.strategy.Strategy.get_tradable_assets.html">self.get_tradable_assets</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../strategy_methods.data/strategies.strategy.Strategy.get_symbol_bars.html">self.get_symbol_bars</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../strategy_methods.data/strategies.strategy.Strategy.get_bars.html">self.get_bars</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../strategy_methods.data/strategies.strategy.Strategy.start_realtime_bars.html">self.start_realtime_bars</a></li>
@@ -301,8 +300,10 @@
 <dl class="py property">
 <dt class="sig sig-object py" id="strategies.strategy.Strategy.unspent_money">
 <em class="property"><span class="pre">property</span> </em><span class="sig-prename descclassname"><span class="pre">Strategy.</span></span><span class="sig-name descname"><span class="pre">unspent_money</span></span><a class="headerlink" href="#strategies.strategy.Strategy.unspent_money" title="Permalink to this definition">¶</a></dt>
-<dd><p>Returns the current unspent money. This is the money that is not used for positions or orders (in other words, the money that is available to buy new assets, or cash).</p>
-<p>This property is updated whenever a transaction was filled by the broker or when dividends are paid.</p>
+<dd><p>Returns the current unspent money. This is the money that is not used for positions or
+orders (in other words, the money that is available to buy new assets, or cash).</p>
+<p>This property is updated whenever a transaction was filled by the broker or when dividends
+are paid.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Returns</dt>
 <dd class="field-odd"><p><strong>unspent_money</strong> – The current unspent money.</p>

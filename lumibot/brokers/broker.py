@@ -524,13 +524,26 @@ class Broker:
     def _stream_established(self):
         self._is_stream_subscribed = True
 
+    def process_held_trades(self):
+        """Processes any held trade notifications."""
+        while len(self._held_trades) > 0:
+            th = self._held_trades.pop(0)
+            self._process_trade_event(
+                th[0],
+                th[1],
+                price=th[2],
+                filled_quantity=th[3],
+                multiplier=th[4],
+            )
+
     def _process_trade_event(
         self, stored_order, type_event, price=None, filled_quantity=None, multiplier=1
     ):
         """process an occurred trading event and update the
         corresponding order"""
         if self._hold_trade_events and not self.IS_BACKTESTING_BROKER:
-           self._held_trades.append((stored_order, type_event, price, filled_quantity, multiplier,))
+            self._held_trades.append((stored_order, type_event, price, filled_quantity,
+                                      multiplier,))
 
         # for fill and partial_fill events, price and filled_quantity must be specified
         if type_event in [self.FILLED_ORDER, self.PARTIALLY_FILLED_ORDER] and (

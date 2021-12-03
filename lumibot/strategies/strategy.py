@@ -1126,7 +1126,7 @@ class Strategy(_Strategy):
     def get_tick(self, asset):
         """Takes an asset asset and returns the last known price"""
         asset = self._set_asset_mapping(asset)
-        return self.broker.get_tick(asset)
+        return self.broker._get_tick(asset)
 
     def get_last_prices(self, assets):
         """Takes a list of assets and returns the last known prices

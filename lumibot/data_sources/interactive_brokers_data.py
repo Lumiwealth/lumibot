@@ -89,54 +89,40 @@ class InteractiveBrokersData(DataSource):
             max_attempts = 2
             # Two attempts to retreive data are possible, one short, then one longer,
             # If no data is returned, than a dataframe with `0` in each row is returned.
-            if length == 1:
-                while get_data_attempt < max_attempts:
-                    try:
-                        # todo needs adjusting for bars length == 1
-                        result = self.ib.get_tick(asset)
-                        if result:
-                            response[asset] = result[0]
-                        get_data_attempt = max_attempts
-                        continue
-                    except:
-                        get_data_attempt += 1
-                if asset not in response:
-                    response[asset] = None
-            else:
-                while get_data_attempt < max_attempts:
-                    reqId += 1
-                    result = self.ib.get_historical_data(
-                        reqId,
-                        asset,
-                        end_date_time,
-                        self._parse_duration(length, timestep),
-                        parsed_timestep,
-                        type,
-                        1,
-                        2,
-                        False,
-                        [],
-                    )
+            while get_data_attempt < max_attempts:
+                reqId += 1
+                result = self.ib.get_historical_data(
+                    reqId,
+                    asset,
+                    end_date_time,
+                    self._parse_duration(length, timestep),
+                    parsed_timestep,
+                    type,
+                    1,
+                    2,
+                    False,
+                    [],
+                )
 
-                    df = pd.DataFrame(result)
-                    cols = [
-                        "date",
-                        "open",
-                        "high",
-                        "low",
-                        "close",
-                        "volume",
-                        "barCount",
-                        "average",
-                    ]
-                    try:
-                        df = df[cols]
-                        get_data_attempt = max_attempts
-                    except:
-                        get_data_attempt += 1
-                        # Add one day in minutes.
-                        length += 1339
-                        continue
+                df = pd.DataFrame(result)
+                cols = [
+                    "date",
+                    "open",
+                    "high",
+                    "low",
+                    "close",
+                    "volume",
+                    "barCount",
+                    "average",
+                ]
+                try:
+                    df = df[cols]
+                    get_data_attempt = max_attempts
+                except:
+                    get_data_attempt += 1
+                    # Add one day in minutes.
+                    length += 1339
+                    continue
 
                 # Return dataframe with zeros if no historical data.
                 if df.empty:
@@ -152,6 +138,7 @@ class InteractiveBrokersData(DataSource):
                         .dt.tz_localize("UTC")
                         .dt.tz_convert(self.DEFAULT_TIMEZONE)
                     )
+                    df = df.iloc[-length:, :]
                 elif parsed_timestep == "1 day":
                     df["date"] = pd.to_datetime(df["date"], format="%Y%m%d")
                     df["date"] = df["date"].dt.tz_localize(self.DEFAULT_TIMEZONE)
@@ -202,6 +189,27 @@ class InteractiveBrokersData(DataSource):
     def _cancel_realtime_bars(self, asset):
         self.ib.cancel_realtime_bars(asset)
         return 0
+
+    def get_last_price(self, asset, timestep=None):
+        response = dict()
+        get_data_attempt = 0
+        max_attempts = 2
+        while get_data_attempt < max_attempts:
+            try:
+                result = self.ib.get_tick(asset)
+                if result:
+                    response[asset] = result[0]
+                get_data_attempt = max_attempts
+                continue
+            except:
+                get_data_attempt += 1
+        if asset not in response:
+            response[asset] = None
+        return response[asset]
+
+    def _get_tick(self, asset):
+        result = self.ib.get_tick(asset, greek=False)
+        return result
 
     def _get_greeks(
         self,

@@ -58,7 +58,7 @@ class StrategyExecutor(Thread):
 
     @staticdecorator
     @staticmethod
-    def get_broker_values(func_input):
+    def sync_broker(func_input):
         @wraps(func_input)
         def func_output(self, *args, **kwargs):
             # Only audit the broker position during live trading.
@@ -69,10 +69,14 @@ class StrategyExecutor(Thread):
             orders_queue_len = 1
             while orders_queue_len > 0:
                 orders_queue_len = len(self.broker._orders_queue.queue)
+
+            # Traps all new trade/order notifications to list broker._held_trades
+            # Trapped at the broker._process_trade_event method
             self.broker._hold_trade_events = True
 
             # Get the snapshot.
-            # If the _held_trades list is not empty, process these and then snapshot again.
+            # If the _held_trades list is not empty, process these and then snapshot again
+            # ensuring that the lumibot broker and the real broker should match.
             held_trades_len = 1
             while held_trades_len > 0:
                 # Snapshot for the broker and lumibot:
@@ -86,13 +90,16 @@ class StrategyExecutor(Thread):
 
             self.strategy._unspent_money = cash_broker
 
+            # POSITIONS
             # Update Lumibot positions to match broker positions.
+            # Any new trade notifications will not affect the sync as they
+            # are being held pending the completion of the sync.
             if len(positions_broker) > 0:
                 for position in positions_broker:
                     if self.strategy._first_iteration:
                         self.broker._filled_positions.append(position)
                     else:
-                        # check against existing positions
+                        # Check against existing position.
                         position_lumi = [
                             pos_lumi
                             for pos_lumi in self.broker._filled_positions.get_list()
@@ -103,29 +110,35 @@ class StrategyExecutor(Thread):
                         )
 
                         if position_lumi:
-                            # Compare the positions.
+                            # Compare to existing lumi position.
                             if position_lumi.quantity != position.quantity:
                                 position_lumi.quantity = position.quantity
                         else:
-                            # Add to positions in lumibot.
+                            # Add to positions in lumibot, position does not exist
+                            # in lumibot.
                             self.broker._filled_positions.append(position)
             else:
+                # There are no positions at the broker, remove any positions
+                # in lumibot.
                 self.broker._filled_positions.remove_all()
 
+            # Now iterate through lumibot positions.
             # Remove lumibot position if not at the broker.
             if len(positions_broker) < len(self.broker._filled_positions.get_list()):
                 for position in self.broker._filled_positions.get_list():
                     if position not in positions_broker:
                         self.broker._filled_positions.remove(position)
 
+            # ORDERS
             if len(orders_broker) > 0:
                 orders_lumi = self.broker._tracked_orders
 
+                # Check orders at the broker against those in lumibot.
                 for order in orders_broker:
                     if self.strategy._first_iteration:
                         self.broker._process_new_order(order)
                     else:
-                        # check against existing orders.
+                        # Check against existing orders.
                         order_lumi = [
                             ord_lumi
                             for ord_lumi in orders_lumi
@@ -135,29 +148,27 @@ class StrategyExecutor(Thread):
 
                         if order_lumi:
                             # Compare the orders.
+                            if order_lumi.quantity != order.quantity:
+                                order_lumi.quantity = order.quantity
                             order_attrs = [
                                 "quantity",
-                                # "Transaction.quantity",
                                 "position_filled",
                                 "status",
                             ]
-                            order_lumi.quantity = order.quantity
                             for order_attr in order_attrs:
                                 olumi = getattr(order_lumi, order_attr)
                                 obroker = getattr(order, order_attr)
                                 if olumi != obroker:
-                                    # setattr(order_lumi, order_attr, obroker)
+                                    # setattr(order_lumi, order_attr, obroker)  todo review this.
                                     logging.warning(f"We would adjust {order_lumi}, {order_attr}, to be {obroker} her.")
                         else:
                             # Add to order in lumibot.
                             self.broker._process_new_order(order)
 
                 for order_lumi in orders_lumi:
-                    # Need to do deal with orders_lumi not in broker.
+                    # Remove lumibot orders if not in broker.
                     if order_lumi.identifier not in [order.identifier for order in orders_broker]:
-                        # self.broker._process_canceled_order(order_lumi)
                         self.broker._process_trade_event(order_lumi, "canceled")
-                        logging.warning(f"We would delete/cancel {order_lumi} here.")
 
             self.broker._hold_trade_events = False
             return func_input(self, *args, **kwargs)
@@ -284,7 +295,7 @@ class StrategyExecutor(Thread):
 
     @lifecycle_method
     @trace_stats
-    @get_broker_values
+    @sync_broker
     def _on_trading_iteration(self):
         self._strategy_context = None
         self.strategy.log_message("Executing the on_trading_iteration lifecycle method")

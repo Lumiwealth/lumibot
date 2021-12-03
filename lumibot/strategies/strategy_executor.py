@@ -96,7 +96,7 @@ class StrategyExecutor(Thread):
             # are being held pending the completion of the sync.
             if len(positions_broker) > 0:
                 for position in positions_broker:
-                    if self.strategy._first_iteration:
+                    if self.strategy._first_iteration and position.quantity != 0:
                         self.broker._filled_positions.append(position)
                     else:
                         # Check against existing position.
@@ -116,7 +116,8 @@ class StrategyExecutor(Thread):
                         else:
                             # Add to positions in lumibot, position does not exist
                             # in lumibot.
-                            self.broker._filled_positions.append(position)
+                            if position.quantity != 0:
+                                self.broker._filled_positions.append(position)
             else:
                 # There are no positions at the broker, remove any positions
                 # in lumibot.

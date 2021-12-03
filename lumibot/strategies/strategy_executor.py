@@ -86,7 +86,9 @@ class StrategyExecutor(Thread):
 
                 held_trades_len = len(self.broker._held_trades)
                 if held_trades_len > 0:
+                    self.broker._hold_trade_events = False
                     self.broker.process_held_trades()
+                    self.broker._hold_trade_events = True
 
             self.strategy._unspent_money = cash_broker
 
@@ -172,6 +174,7 @@ class StrategyExecutor(Thread):
                         self.broker._process_trade_event(order_lumi, "canceled")
 
             self.broker._hold_trade_events = False
+            self.broker.process_held_trades()
             return func_input(self, *args, **kwargs)
 
         return func_output

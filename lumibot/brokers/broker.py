@@ -544,6 +544,7 @@ class Broker:
         if self._hold_trade_events and not self.IS_BACKTESTING_BROKER:
             self._held_trades.append((stored_order, type_event, price, filled_quantity,
                                       multiplier,))
+            return
 
         # for fill and partial_fill events, price and filled_quantity must be specified
         if type_event in [self.FILLED_ORDER, self.PARTIALLY_FILLED_ORDER] and (

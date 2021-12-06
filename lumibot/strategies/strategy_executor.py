@@ -154,15 +154,15 @@ class StrategyExecutor(Thread):
                             if order_lumi.quantity != order.quantity:
                                 order_lumi.quantity = order.quantity
                             order_attrs = [
-                                "quantity",
-                                "position_filled",
-                                "status",
+                                # "position_filled",
+                                # "status",
+                                "limit_price"
                             ]
                             for order_attr in order_attrs:
                                 olumi = getattr(order_lumi, order_attr)
                                 obroker = getattr(order, order_attr)
                                 if olumi != obroker:
-                                    # setattr(order_lumi, order_attr, obroker)  todo review this.
+                                    setattr(order_lumi, order_attr, obroker)
                                     logging.warning(f"We would adjust {order_lumi}, {order_attr}, to be {obroker} her.")
                         else:
                             # Add to order in lumibot.

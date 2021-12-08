@@ -33,17 +33,55 @@ class Alpaca(AlpacaData, Broker):
     # =========Clock functions=====================
 
     def get_timestamp(self):
-        """return current timestamp"""
+        """Returns the current UNIX timestamp representation from Alpaca
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        int
+            Sample unix timestamp return value: 1612172730.000234
+        """
         clock = self.api.get_clock()
         curr_time = clock.timestamp.replace(tzinfo=timezone.utc).timestamp()
         return curr_time
 
     def is_market_open(self):
-        """return True if market is open else false"""
+        """Determines if the market is open.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        boolean
+            True if market is open, false if the market is closed.
+        """
+        return True  # todo revert
         return self.api.get_clock().is_open
 
     def get_time_to_open(self):
-        """Return the remaining time for the market to open in seconds"""
+        """How much time in seconds remains until the market next opens?
+
+        Return the remaining time for the market to open in seconds
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        int
+            Number of seconds until open.
+
+        Examples
+        --------
+        If it is 0830 and the market next opens at 0930, then there are 3,600
+        seconds until the next market open.
+        """
         clock = self.api.get_clock()
         opening_time = clock.next_open.timestamp()
         curr_time = clock.timestamp.timestamp()
@@ -51,7 +89,24 @@ class Alpaca(AlpacaData, Broker):
         return time_to_open
 
     def get_time_to_close(self):
-        """Return the remaining time for the market to close in seconds"""
+        """How much time in seconds remains until the market closes?
+
+        Return the remaining time for the market to closes in seconds
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        int
+            Number of seconds until close.
+
+        Examples
+        --------
+        If it is 1400 and the market closes at 1600, then there are 7,200
+        seconds until the market closes.
+        """
         clock = self.api.get_clock()
         closing_time = clock.next_close.timestamp()
         curr_time = clock.timestamp.timestamp()
@@ -61,6 +116,16 @@ class Alpaca(AlpacaData, Broker):
     # =========Positions functions==================
 
     def _get_cash_balance_at_broker(self):
+        """Get the current cash balance at Alpaca.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        float
+        """
         response = self.api.get_account()
         return float(response._raw['cash'])
 

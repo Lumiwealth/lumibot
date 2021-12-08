@@ -88,3 +88,13 @@ def test__parse_broker_position(symbol, qty):
     assert result.quantity == position.quantity
     assert result.asset.symbol == position.asset.symbol
     assert result.strategy == position.strategy
+
+@pytest.mark.parametrize("type", [("us_equity", ), ("options",), ("USD",)])
+def test_map_asset_type(type):
+    try:
+        alpaca.map_asset_type(type) == 'stock'
+    except:
+        if type != "us_equity":
+            assert True
+        else:
+            assert False

@@ -7,7 +7,7 @@ from lumibot.brokers.alpaca import Alpaca
 from lumibot.data_sources.alpaca_data import AlpacaData
 from lumibot.entities.asset import Asset
 from lumibot.entities.position import Position
-
+from lumibot.entities.order import Order
 
 alpaca = Alpaca(AlpacaConfig)
 
@@ -89,12 +89,74 @@ def test__parse_broker_position(symbol, qty):
     assert result.asset.symbol == position.asset.symbol
     assert result.strategy == position.strategy
 
-@pytest.mark.parametrize("type", [("us_equity", ), ("options",), ("USD",)])
+
+@pytest.mark.parametrize("type", [("us_equity",), ("options",), ("USD",)])
 def test_map_asset_type(type):
     try:
-        alpaca.map_asset_type(type) == 'stock'
+        alpaca.map_asset_type(type) == "stock"
     except:
         if type != "us_equity":
             assert True
         else:
             assert False
+
+
+vars = "symbol, qty, side, limit_price, stop_price, time_in_force, id, status,"
+params = [
+    ("MSFT", 10, "buy", None, None, None, "100", "new"),
+    ("FB", 100, "sell", "250", "255", "day", "101", "fill"),
+]
+
+
+@pytest.mark.parametrize(vars, params)
+def test__parse_broker_order(
+    symbol,
+    qty,
+    side,
+    limit_price,
+    stop_price,
+    time_in_force,
+    id,
+    status,
+):
+    class BOrder:
+        pass
+
+
+    border = BOrder()
+    params = dict(
+        symbol = symbol,
+        qty = str(qty),
+        side = side,
+        limit_price = limit_price,
+        stop_price = stop_price,
+        time_in_force = time_in_force,
+        id = id,
+        status = status,
+    )
+    for k, v in params.items():
+        setattr(border, k, v)
+
+    # Expected result.
+    order = Order(
+        "AlpacaTest",
+        Asset(symbol=symbol, asset_type="stock"),
+        quantity=qty,
+        side=side,
+        limit_price=limit_price,
+        stop_price=stop_price,
+        time_in_force=time_in_force,
+    )
+    order.identifier = id
+    order.status = status
+
+    result = alpaca._parse_broker_order(border, "AlpacaTest", )
+    assert result.strategy == order.strategy
+    assert result.asset == order.asset
+    assert result.quantity == order.quantity
+    assert result.side == order.side
+    assert result.limit_price == order.limit_price
+    assert result.stop_price == order.stop_price
+    assert result.time_in_force == order.time_in_force
+    assert result.identifier == order.identifier
+    assert result.status == order.status

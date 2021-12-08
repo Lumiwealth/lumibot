@@ -65,6 +65,6 @@ class DataSourceBacktesting(DataSource):
         if result is None:
             return result
         else:
-            filter_criteria = result.index < self._datetime
+            filter_criteria = result.index <= self._datetime
             result = result[filter_criteria]
             return result

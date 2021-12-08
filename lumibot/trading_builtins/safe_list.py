@@ -61,3 +61,8 @@ class SafeList:
     def get_list(self):
         with self.__lock:
             return self.__items
+
+    def remove_all(self):
+        with self.__lock:
+            for item in self.__items:
+                self.remove(item)

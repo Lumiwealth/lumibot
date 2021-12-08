@@ -56,35 +56,27 @@ class StrategyExecutor(Thread):
             self.process_queue()
             self.broker._update_datetime(sleeptime)
 
-    def _process_held_trades(self):
-        """Processes any held trade notifications."""
-        while len(self.broker._held_trades) > 0:
-            th = self.broker._held_trades.pop(0)
-            self.broker._process_trade_event(
-                th[0],
-                th[1],
-                price=th[2],
-                filled_quantity=th[3],
-                multiplier=th[4],
-            )
-
     @staticdecorator
     @staticmethod
-    def get_broker_values(func_input):
+    def sync_broker(func_input):
         @wraps(func_input)
         def func_output(self, *args, **kwargs):
             # Only audit the broker position during live trading.
-            if self.broker.IS_BACKTESTING_BROKER or not self.strategy._first_iteration:
+            if self.broker.IS_BACKTESTING_BROKER:
                 return func_input(self, *args, **kwargs)
 
             # Ensure that the orders are submitted to the broker before auditing.
             orders_queue_len = 1
             while orders_queue_len > 0:
                 orders_queue_len = len(self.broker._orders_queue.queue)
+
+            # Traps all new trade/order notifications to list broker._held_trades
+            # Trapped at the broker._process_trade_event method
             self.broker._hold_trade_events = True
 
-            # Get the  snapshot.
-            # If the _held_trades list is not empty, process these and then snapshot again.
+            # Get the snapshot.
+            # If the _held_trades list is not empty, process these and then snapshot again
+            # ensuring that the lumibot broker and the real broker should match.
             held_trades_len = 1
             while held_trades_len > 0:
                 # Snapshot for the broker and lumibot:
@@ -94,28 +86,95 @@ class StrategyExecutor(Thread):
 
                 held_trades_len = len(self.broker._held_trades)
                 if held_trades_len > 0:
-                    self._process_held_trades()
+                    self.broker._hold_trade_events = False
+                    self.broker.process_held_trades()
+                    self.broker._hold_trade_events = True
 
-            # If the length of the positions_lumi and orders_lumi are 0,
-            # then reset the orders and positions to whatever is at the broker.
-            if self.strategy._first_iteration:
-                self.strategy._unspent_money = cash_broker
-                self.strategy._portfolio_value = cash_broker
-                if len(positions_broker) > 0:
-                    # Add to positions in lumibot.
-                    for position in positions_broker:
+            self.strategy._unspent_money = cash_broker
+
+            # POSITIONS
+            # Update Lumibot positions to match broker positions.
+            # Any new trade notifications will not affect the sync as they
+            # are being held pending the completion of the sync.
+            if len(positions_broker) > 0:
+                for position in positions_broker:
+                    if self.strategy._first_iteration and position.quantity != 0:
                         self.broker._filled_positions.append(position)
-                        last_price = self.strategy.get_last_price(position.asset)
-                        self.strategy._portfolio_value += (
-                            position.quantity * position.asset.multiplier * last_price
+                    else:
+                        # Check against existing position.
+                        position_lumi = [
+                            pos_lumi
+                            for pos_lumi in self.broker._filled_positions.get_list()
+                            if pos_lumi.asset == position.asset
+                        ]
+                        position_lumi = (
+                            position_lumi[0] if len(position_lumi) > 0 else None
                         )
 
-                if len(orders_broker) > 0:
-                    # Add to open orders.
-                    for order in orders_broker:
+                        if position_lumi:
+                            # Compare to existing lumi position.
+                            if position_lumi.quantity != position.quantity:
+                                position_lumi.quantity = position.quantity
+                        else:
+                            # Add to positions in lumibot, position does not exist
+                            # in lumibot.
+                            if position.quantity != 0:
+                                self.broker._filled_positions.append(position)
+            else:
+                # There are no positions at the broker, remove any positions
+                # in lumibot.
+                self.broker._filled_positions.remove_all()
+
+            # Now iterate through lumibot positions.
+            # Remove lumibot position if not at the broker.
+            if len(positions_broker) < len(self.broker._filled_positions.get_list()):
+                for position in self.broker._filled_positions.get_list():
+                    if position not in positions_broker:
+                        self.broker._filled_positions.remove(position)
+
+            # ORDERS
+            if len(orders_broker) > 0:
+                orders_lumi = self.broker._tracked_orders
+
+                # Check orders at the broker against those in lumibot.
+                for order in orders_broker:
+                    if self.strategy._first_iteration:
                         self.broker._process_new_order(order)
+                    else:
+                        # Check against existing orders.
+                        order_lumi = [
+                            ord_lumi
+                            for ord_lumi in orders_lumi
+                            if ord_lumi.identifier == order.identifier
+                        ]
+                        order_lumi = order_lumi[0] if len(order_lumi) > 0 else None
+
+                        if order_lumi:
+                            # Compare the orders.
+                            if order_lumi.quantity != order.quantity:
+                                order_lumi.quantity = order.quantity
+                            order_attrs = [
+                                # "position_filled",
+                                # "status",
+                                "limit_price"
+                            ]
+                            for order_attr in order_attrs:
+                                olumi = getattr(order_lumi, order_attr)
+                                obroker = getattr(order, order_attr)
+                                if olumi != obroker:
+                                    setattr(order_lumi, order_attr, obroker)
+                                    logging.warning(f"We would adjust {order_lumi}, {order_attr}, to be {obroker} her.")
+                        else:
+                            # Add to order in lumibot.
+                            self.broker._process_new_order(order)
+
+                for order_lumi in orders_lumi:
+                    # Remove lumibot orders if not in broker.
+                    if order_lumi.identifier not in [order.identifier for order in orders_broker]:
+                        self.broker._process_trade_event(order_lumi, "canceled")
 
             self.broker._hold_trade_events = False
+            self.broker.process_held_trades()
             return func_input(self, *args, **kwargs)
 
         return func_output
@@ -240,7 +299,7 @@ class StrategyExecutor(Thread):
 
     @lifecycle_method
     @trace_stats
-    @get_broker_values
+    @sync_broker
     def _on_trading_iteration(self):
         self._strategy_context = None
         self.strategy.log_message("Executing the on_trading_iteration lifecycle method")

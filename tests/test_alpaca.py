@@ -69,7 +69,9 @@ def test__get_cash_balance_at_broker(monkeypatch):
     assert alpaca._get_cash_balance_at_broker() == 123456.78
 
 
-@pytest.mark.parametrize("symbol, qty", [("MSFT", 9), ("GM", 100), ("FB", 500)])
+@pytest.mark.parametrize(
+    "symbol, qty", [("MSFT", 9), ("GM", 100), ("FB", 500), ("TSLA", 1)]
+)
 def test__parse_broker_position(symbol, qty):
     class BPosition:
         _raw = {"symbol": symbol, "qty": str(qty)}
@@ -122,17 +124,16 @@ def test__parse_broker_order(
     class BOrder:
         pass
 
-
     border = BOrder()
     params = dict(
-        symbol = symbol,
-        qty = str(qty),
-        side = side,
-        limit_price = limit_price,
-        stop_price = stop_price,
-        time_in_force = time_in_force,
-        id = id,
-        status = status,
+        symbol=symbol,
+        qty=str(qty),
+        side=side,
+        limit_price=limit_price,
+        stop_price=stop_price,
+        time_in_force=time_in_force,
+        id=id,
+        status=status,
     )
     for k, v in params.items():
         setattr(border, k, v)
@@ -150,7 +151,10 @@ def test__parse_broker_order(
     order.identifier = id
     order.status = status
 
-    result = alpaca._parse_broker_order(border, "AlpacaTest", )
+    result = alpaca._parse_broker_order(
+        border,
+        "AlpacaTest",
+    )
     assert result.strategy == order.strategy
     assert result.asset == order.asset
     assert result.quantity == order.quantity
@@ -160,3 +164,17 @@ def test__parse_broker_order(
     assert result.time_in_force == order.time_in_force
     assert result.identifier == order.identifier
     assert result.status == order.status
+
+
+def test__pull_source_symbol_bars():
+    pass
+
+def test_get_barset_from_api():
+    pass
+
+def test__pull_source_bars():
+    pass
+
+def test__parse_source_symbol_bars():
+    pass
+

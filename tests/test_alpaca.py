@@ -1,4 +1,5 @@
 import datetime
+import pandas as pd
 from pandas import Timestamp
 import pytest
 
@@ -166,15 +167,31 @@ def test__parse_broker_order(
     assert result.status == order.status
 
 
-def test__pull_source_symbol_bars():
-    pass
+def test__pull_source_symbol_bars(monkeypatch):
+    """Dataframe results will be mocked in _pull_source_bars"""
+    asset = Asset(symbol="MSFT", asset_type="stock")
+    def mock_pull_source_bars(asset, length, timestep="1m", timeshift=None):
+        df = "dataframe"
+        return {asset[0]: df}
 
-def test_get_barset_from_api():
-    pass
+    monkeypatch.setattr(alpaca, "_pull_source_bars", mock_pull_source_bars)
+
+    expected = {asset: "dataframe"}
+
+    result = alpaca._pull_source_symbol_bars(
+        asset, length=10, timestep="1D", timeshift=0
+    )
+
+    assert result == expected[asset]
+
 
 def test__pull_source_bars():
     pass
 
-def test__parse_source_symbol_bars():
+
+def test_get_barset_from_api():
     pass
 
+
+def test__parse_source_symbol_bars():
+    pass

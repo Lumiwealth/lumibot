@@ -391,6 +391,81 @@ class Strategy(_Strategy):
         >>>                stop_loss_price=stop_loss,
         >>>                position_filled=True,
         >>>            )
+
+        >>> # For a bracket order
+        >>> order = self.create_order(
+        >>>                "SPY",
+        >>>                100,
+        >>>                "sell",
+        >>>                take_profit_price=limit,
+        >>>                stop_loss_price=stop_loss,
+        >>>                stop_loss_limit_price=stop_loss_limit,
+        >>>            )
+
+        >>> # For a bracket order with a trailing stop
+        >>> order = self.create_order(
+        >>>                "SPY",
+        >>>                100,
+        >>>                "sell",
+        >>>                trail_percent=trail_percent,
+        >>>                take_profit_price=limit,
+        >>>                stop_loss_price=stop_loss,
+        >>>                stop_loss_limit_price=stop_loss_limit,
+        >>>            )
+
+        >>> # For an OTO order
+        >>> order = self.create_order(
+        >>>                "SPY",
+        >>>                100,
+        >>>                "sell",
+        >>>                take_profit_price=limit,
+        >>>                stop_loss_price=stop_loss,
+        >>>            )
+
+        >>> # For a futures order
+        >>> asset = Asset("ES", asset_type="future", expiration="2019-01-01")
+        >>> order = self.create_order(asset, 100, "buy", limit_price=100.00)
+        >>> self.submit_order(order)
+
+        >>> # For a futures order with a trailing stop
+        >>> asset = Asset("ES", asset_type="future", expiration="2019-01-01")
+        >>> order = self.create_order(
+        >>>                asset,
+        >>>                100,
+        >>>                "buy",
+        >>>                trail_percent=trail_percent,
+        >>>                limit_price=limit,
+        >>>                stop_price=stop_loss,
+        >>>            )
+        >>> self.submit_order(order)
+
+        >>> # For an option order
+        >>> asset = Asset("SPY", asset_type="option", expiration="2019-01-01", strike=100.00)
+        >>> order = self.create_order(asset, 100, "buy", limit_price=100.00)
+        >>> self.submit_order(order)
+
+        >>> # For an option order with a trailing stop
+        >>> asset = Asset("SPY", asset_type="option", expiration="2019-01-01", strike=100.00)
+        >>> order = self.create_order(
+        >>>                asset,
+        >>>                100,
+        >>>                "buy",
+        >>>                trail_percent=trail_percent,
+        >>>                limit_price=limit,
+        >>>                stop_price=stop_loss,
+        >>>            )
+        >>> self.submit_order(order)
+
+        >>> # For a FOREX order
+        >>> asset = Asset(
+            symbol="CHF",
+            currency="EUR",
+            asset_type="forex",
+        )
+        >>> order = self.create_order(asset, 100, "buy", limit_price=100.00)
+        >>> self.submit_order(order)
+
+
         """
         asset = self._set_asset_mapping(asset)
         order = Order(
@@ -446,7 +521,7 @@ class Strategy(_Strategy):
         Parameters
         ----------
         market : str
-        
+
             Short form for the markets.
             List of markets available are:
 
@@ -473,7 +548,7 @@ class Strategy(_Strategy):
         Returns
         -------
         None
-        
+
 
         Example
         -------
@@ -674,6 +749,7 @@ class Strategy(_Strategy):
         >>> position = self.get_tracked_position("TLT")
         >>> # Show the quantity of the TLT position
         >>> self.log_message(position.quantity)
+
         """
         asset = self._set_asset_mapping(asset)
         return self.broker.get_tracked_position(self.name, asset)
@@ -683,6 +759,10 @@ class Strategy(_Strategy):
 
         Seeks out and returns the all tracked positions in the current
         strategy.
+
+        Parameters
+        ----------
+        None
 
         Returns
         -------
@@ -760,6 +840,17 @@ class Strategy(_Strategy):
         >>> for order in orders:
         >>>     # Show the status of each order
         >>>     self.log_message(order.status)
+
+        >>> # Get all open orders
+        >>> orders = self.get_tracked_orders()
+        >>> for order in orders:
+        >>>     # Show the status of each order
+        >>>     self.log_message(order.status)
+        >>>     # Check if the order is open
+        >>>     if order.status == "open":
+        >>>         # Cancel the order
+        >>>         self.cancel_order(order)
+
         """
         return self.broker.get_tracked_orders(self.name)
 
@@ -779,6 +870,7 @@ class Strategy(_Strategy):
         >>> for asset in assets:
         >>>     # Show the asset name
         >>>     self.log_message(asset.symbol)
+
         """
         return self.broker.get_tracked_assets(self.name)
 
@@ -883,6 +975,61 @@ class Strategy(_Strategy):
         >>>    multiplier=100)
         >>> order = self.create_order(asset, 10, "buy")
         >>> self.submit_order(order)
+
+        >>> # For selling an option
+        >>> asset = Asset(
+        >>>    "SPY",
+        >>>    asset_type="option",
+        >>>    expiration_date="2020-01-01",
+        >>>    strike_price=100.00,
+        >>>    right="call",
+        >>>    multiplier=100)
+        >>> order = self.create_order(asset, 10, "sell")
+        >>> self.submit_order(order)
+
+        >>> # For buying a stock
+        >>> asset = Asset("SPY")
+        >>> order = self.create_order(asset, 10, "buy")
+        >>> self.submit_order(order)
+
+        >>> # For selling a stock
+        >>> asset = Asset("SPY")
+        >>> order = self.create_order(asset, 10, "sell")
+        >>> self.submit_order(order)
+
+        >>> # For buying a stock with a limit price
+        >>> asset = Asset("SPY")
+        >>> order = self.create_order(asset, 10, "buy", limit_price=100.00)
+        >>> self.submit_order(order)
+
+        >>> # For selling a stock with a limit price
+        >>> asset = Asset("SPY")
+        >>> order = self.create_order(asset, 10, "sell", limit_price=100.00)
+        >>> self.submit_order(order)
+
+        >>> # For buying a stock with a stop price
+        >>> asset = Asset("SPY")
+        >>> order = self.create_order(asset, 10, "buy", stop_price=100.00)
+        >>> self.submit_order(order)
+
+        >>> # For buying FOREX
+        >>> asset = Asset(
+            symbol=symbol,
+            currency=currency,
+            asset_type="forex",
+        )
+        >>> order = self.create_order(asset, 10, "buy")
+        >>> self.submit_order(order)
+
+        >>> # For selling FOREX
+        >>> asset = Asset(
+            symbol="EUR",
+            currency="USD",
+            asset_type="forex",
+        )
+        >>> order = self.create_order(asset, 10, "sell")
+        >>> self.submit_order(order)
+
         """
         return self.broker.submit_order(order)
 
@@ -908,6 +1055,64 @@ class Strategy(_Strategy):
         >>> order1 = self.create_order("SPY", 100, "buy")
         >>> order2 = self.create_order("TLT", 200, "buy")
         >>> self.submit_orders([order1, order2])
+
+        >>> # For 2 limit buy orders
+        >>> order1 = self.create_order("SPY", 100, "buy", limit_price=100.00)
+        >>> order2 = self.create_order("TLT", 200, "buy", limit_price=100.00)
+        >>> self.submit_orders([order1, order2])
+
+        >>> # For 2 stop loss orders
+        >>> order1 = self.create_order("SPY", 100, "buy", stop_price=100.00)
+        >>> order2 = self.create_order("TLT", 200, "buy", stop_price=100.00)
+        >>> self.submit_orders([order1, order2])
+
+        >>> # For 2 stop limit orders
+        >>> order1 = self.create_order("SPY", 100, "buy", limit_price=100.00, stop_price=100.00)
+        >>> order2 = self.create_order("TLT", 200, "buy", limit_price=100.00, stop_price=100.00)
+        >>> self.submit_orders([order1, order2])
+
+        >>> # For 2 market sell orders
+        >>> order1 = self.create_order("SPY", 100, "sell")
+        >>> order2 = self.create_order("TLT", 200, "sell")
+        >>> self.submit_orders([order1, order2])
+
+        >>> # For 2 limit sell orders
+        >>> order1 = self.create_order("SPY", 100, "sell", limit_price=100.00)
+        >>> order2 = self.create_order("TLT", 200, "sell", limit_price=100.00)
+        >>> self.submit_orders([order1, order2])
+
+        >>> # For 2 stop loss orders
+        >>> order1 = self.create_order("SPY", 100, "sell", stop_price=100.00)
+        >>> order2 = self.create_order("TLT", 200, "sell", stop_price=100.00)
+        >>> self.submit_orders([order1, order2])
+
+        >>> # For 2 stop limit orders
+        >>> order1 = self.create_order("SPY", 100, "sell", limit_price=100.00, stop_price=100.00)
+        >>> order2 = self.create_order("TLT", 200, "sell", limit_price=100.00, stop_price=100.00)
+        >>> self.submit_orders([order1, order2])
+
+        >>> # For 2 FOREX buy orders
+        >>> asset = Asset(
+            symbol="EUR",
+            currency="USD",
+            asset_type="forex",
+        )
+        >>> order1 = self.create_order(asset, 100, "buy")
+        >>> order2 = self.create_order(asset, 200, "buy")
+        >>> self.submit_orders([order1, order2])
+
+        >>> # For 2 FOREX sell orders
+        >>> asset = Asset(
+            symbol="EUR",
+            currency="USD",
+            asset_type="forex",
+        )
+        >>> order1 = self.create_order(asset, 100, "sell")
+        >>> order2 = self.create_order(asset, 200, "sell")
+        >>> self.submit_orders([order1, order2])
+
+
+
         """
         return self.broker.submit_orders(orders)
 
@@ -929,6 +1134,13 @@ class Strategy(_Strategy):
         >>> order = self.create_order("SPY", 100, "buy")
         >>> self.submit_order(order)
         >>> self.wait_for_order_registration(order)
+
+        >>> # For a limit buy order
+        >>> order = self.create_order("SPY", 100, "buy", limit_price=100.00)
+        >>> self.submit_order(order)
+        >>> self.wait_for_order_registration(order)
+
+
         """
         return self.broker.wait_for_order_registration(order)
 
@@ -950,6 +1162,8 @@ class Strategy(_Strategy):
         >>> order = self.create_order("SPY", 100, "buy")
         >>> self.submit_order(order)
         >>> self.wait_for_order_execution(order)
+
+
         """
         return self.broker.wait_for_order_execution(order)
 
@@ -1016,6 +1230,7 @@ class Strategy(_Strategy):
         >>> order = self.create_order("SPY", 100, "buy")
         >>> self.submit_order(order)
         >>> self.cancel_order(order)
+
         """
         return self.broker.cancel_order(order)
 
@@ -1064,6 +1279,7 @@ class Strategy(_Strategy):
         -------
         >>> # Cancel all open orders
         >>> self.cancel_open_orders()
+
         """
         return self.broker.cancel_open_orders(self.name)
 
@@ -1119,6 +1335,7 @@ class Strategy(_Strategy):
         >>> asset = "SPY"
         >>> last_price = self.get_last_price(asset)
         >>> self.log_message(f"Last price for {asset} is {last_price}")
+
         """
         asset = self._set_asset_mapping(asset)
         return self.broker.get_last_price(asset)
@@ -1179,6 +1396,8 @@ class Strategy(_Strategy):
         >>> date = "20200101"
         >>> expiry_date = self.options_expiry_to_datetime_date(date)
         >>> self.log_message(f"Expiry date for {date} is {expiry_date}")
+
+
         """
         return datetime.datetime.strptime(date, "%Y%m%d").date()
 
@@ -1419,6 +1638,8 @@ class Strategy(_Strategy):
         >>> gamma = greeks["gamma"]
         >>> vega = greeks["vega"]
         >>> theta = greeks["theta"]
+
+
         """
         if asset.asset_type != "option":
             self.log_message(
@@ -1708,6 +1929,15 @@ class Strategy(_Strategy):
 
         >>> # Will create a stock object with a different currency
         >>> asset = self.create_asset("AAPL", asset_type="stock", currency="EUR")
+
+        >>> # Will create an option object with a different currency
+        >>> asset = self.create_asset("AAPL", asset_type="option", expiration=datetime.datetime(2020, 1, 1), strike=100, right="call", currency="EUR")
+
+        >>> # Will create a future object with a different currency
+        >>> asset = self.create_asset("AAPL", asset_type="future", multiplier=100, currency="EUR")
+
+        >>> # Will create a FOREX asset
+        >>> asset = self.create_asset(currency="USD", symbol="EUR", asset_type="forex")
         """
         # If backtesting,  return existing asset if in store.
         if self.broker.IS_BACKTESTING_BROKER:
@@ -1807,6 +2037,14 @@ class Strategy(_Strategy):
         >>> bars =  self.get_symbol_bars("AAPL", 30, "minute")
         >>> # To get the DataFrame of AAPL data
         >>> bars.df
+
+        >>> # Get the historical data for an AAPL option for the last 30 minutes
+        >>> asset = self.create_asset("AAPL", asset_type="option", expiration=datetime.datetime(2020, 1, 1), strike=100, right="call")
+        >>> bars =  self.get_symbol_bars(asset, 30, "minute")
+        >>> # To get the DataFrame of AAPL data
+        >>> bars.df
+
+
         """
 
         asset = self._set_asset_mapping(asset)
@@ -1868,6 +2106,8 @@ class Strategy(_Strategy):
         >>> bars =  self.get_bars(["AAPL", "GOOG"], 30, "minute")
         >>> for asset in bars:
         >>>     self.log_message(asset.df)
+
+
         """
         assets = [self._set_asset_mapping(asset) for asset in assets]
 
@@ -1910,6 +2150,7 @@ class Strategy(_Strategy):
         Returns
         -------
         None
+
         """
         self.broker._start_realtime_bars(asset=asset, keep_bars=keep_bars)
 
@@ -1969,6 +2210,13 @@ class Strategy(_Strategy):
         Returns
         -------
         None
+
+        Example
+        -------
+        >>> # Cancel the real time bars for SPY
+        >>> asset = self.create_asset("SPY")
+        >>> self.cancel_realtime_bars(asset)
+
         """
         self.broker._cancel_realtime_bars(asset)
 
@@ -1984,6 +2232,14 @@ class Strategy(_Strategy):
         -------
         dividend : float
             The dividend amount.
+
+        Example
+        -------
+        >>> # Get the dividend for SPY
+        >>> asset = self.create_asset("SPY")
+        >>> self.get_yesterday_dividend(asset)
+
+
         """
         asset = self._set_asset_mapping(asset)
         return self.data_source.get_yesterday_dividend(asset)
@@ -2000,6 +2256,13 @@ class Strategy(_Strategy):
         -------
         dividends : list(float)
             The dividend amount for each asset.
+
+        Example
+        -------
+        >>> # Get the dividends for SPY and TLT
+        >>> assets = [self.create_asset("SPY"), self.create_asset("TLT")]
+        >>> self.get_yesterday_dividends(assets)
+
         """
         assets = [self._set_asset_mapping(asset) for asset in assets]
         return self.data_source.get_yesterday_dividends(assets)
@@ -2023,6 +2286,13 @@ class Strategy(_Strategy):
         >>>   self.ticker = "AAPL"
         >>>   self.minutes_before_closing = 5
         >>>   self.max_bars = 100
+
+        >>> # Initialize the strategy
+        >>> def initialize(self):
+        >>>   self.sleeptime = "2S"
+        >>>   self.count = 0
+
+
         """
         pass
 
@@ -2045,6 +2315,8 @@ class Strategy(_Strategy):
         >>>     bars =  self.get_bars(["SPY", "TLT"], 2, "day")
         >>>     for asset in bars:
         >>>         self.log_message(asset.df)
+
+        >
         """
         pass
 
@@ -2066,6 +2338,8 @@ class Strategy(_Strategy):
         >>> # Get pricing data for the last day
         >>> def before_starting_trading(self):
         >>>     self.get_bars("SPY", 1, "day")
+
+
         """
         pass
 
@@ -2086,6 +2360,8 @@ class Strategy(_Strategy):
         >>>     self.log_message("Hello")
         >>>     order = self.create_order("SPY", 10, "buy")
         >>>     self.submit_order(order)
+
+
         """
         pass
 
@@ -2120,6 +2396,8 @@ class Strategy(_Strategy):
         >>>         "portfolio_value": self.portfolio_value,
         >>>         "unspent_money": self.unspent_money,
         >>>     }
+
+
         """
         return {}
 
@@ -2139,6 +2417,7 @@ class Strategy(_Strategy):
         >>> # Execute code before market closes
         >>> def before_market_closes(self):
         >>>     self.sell_all()
+
 
         """
         pass
@@ -2205,6 +2484,11 @@ class Strategy(_Strategy):
         -------
         >>> def on_bot_crash(self, error):
         >>>     self.log_message(error)
+
+        >>> # Sell all assets on crash
+        >>> def on_bot_crash(self, error):
+        >>>     self.sell_all()
+
         """
         self.on_abrupt_closing()
 
@@ -2225,6 +2509,8 @@ class Strategy(_Strategy):
         >>> def on_abrupt_closing(self):
         >>>     self.log_message("Abrupt closing")
         >>>     self.sell_all()
+
+
         """
         pass
 
@@ -2246,6 +2532,8 @@ class Strategy(_Strategy):
         >>> def on_new_order(self, order):
         >>>     if order.asset == "AAPL":
         >>>         self.log_message("Order for AAPL")
+
+
         """
         pass
 
@@ -2266,6 +2554,7 @@ class Strategy(_Strategy):
         >>> def on_canceled_order(self, order):
         >>>     if order.asset == "AAPL":
         >>>         self.log_message("Order for AAPL canceled")
+
 
         """
         pass
@@ -2301,6 +2590,8 @@ class Strategy(_Strategy):
         >>>     if order.asset == "AAPL":
         >>>         self.log_message(f"{quantity} shares of AAPL partially filled")
         >>>         self.log_message(f"Price: {price}")
+
+
         """
         pass
 
@@ -2334,6 +2625,14 @@ class Strategy(_Strategy):
         >>>     if order.asset == "AAPL":
         >>>         self.log_message("Order for AAPL filled")
         >>>         self.log_message(f"Price: {price}")
+
+        >>> # Update dictionary with new position
+        >>> def on_filled_order(self, position, order, price, quantity, multiplier):
+        >>>     if order.asset == "AAPL":
+        >>>         self.log_message("Order for AAPL filled")
+        >>>         self.log_message(f"Price: {price}")
+        >>>         self.positions["AAPL"] = position
+
 
         """
         pass

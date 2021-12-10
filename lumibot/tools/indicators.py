@@ -34,6 +34,13 @@ def cagr(_df):
     """Calculate the Compound Annual Growth Rate
     The dataframe _df must include a column "return" that
     has the return for that time period (eg. daily)
+
+    Example:
+    >>> df = pd.DataFrame({"return": [0.1, 0.2, 0.3, 0.4, 0.5]})
+    >>> cagr(df)
+    0.3125
+
+
     """
     df = _df.copy()
     df = df.sort_index(ascending=True)

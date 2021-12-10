@@ -34,23 +34,24 @@ class Asset(BaseModel, frozen=True, extra="forbid"):
 
     Attributes
     ----------
-    symbol : string
+    symbol : string (required)
         The symbol used to retrieve stock quotes if stock. The underlying
         symbol if option. For Forex: The base currency.
-    asset_type (string, default: `stock`): One of the following:
+    asset_type (string, default: `stock`)
+        One of the following:
         - 'stock'
         - 'option'
         - 'future'
         - 'forex'
-    expiration : datetime.date
+    expiration : datetime.date (required if asset_type is 'option' or 'future')
         Contract expiration dates for futures and options.
-    strike : float
+    strike : float (required if asset_type is 'option')
         Contract strike price.
-    right : str
+    right : str (required if asset_type is 'option')
         Option call or put.
-    multiplier : int
+    multiplier : int  (required if asset_type is 'forex')
         Contract leverage over the underlying.
-    currency : string
+    currency : string (required if asset_type is 'forex')
         Conversion currency.
     _asset_types : list of str
         Acceptable asset types.
@@ -82,7 +83,10 @@ class Asset(BaseModel, frozen=True, extra="forbid"):
     >>>     multiplier=100,
     >>>     currency="USD"
     >>> )
+    >>> order = self.create_order(asset, 100, 'BUY')
+    >>> self.submit_order(order)
     """
+
     symbol: str
     asset_type: str = "stock"
     expiration: Optional[date] = None

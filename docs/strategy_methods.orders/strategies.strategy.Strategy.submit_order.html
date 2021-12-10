@@ -377,6 +377,100 @@ executing the order.</p>
 <span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
 </pre></div>
 </div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For selling an option</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="s2">"SPY"</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="n">asset_type</span><span class="o">=</span><span class="s2">"option"</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="n">expiration_date</span><span class="o">=</span><span class="s2">"2020-01-01"</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="n">strike_price</span><span class="o">=</span><span class="mf">100.00</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="n">right</span><span class="o">=</span><span class="s2">"call"</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="n">multiplier</span><span class="o">=</span><span class="mi">100</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="s2">"sell"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For buying a stock</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">"SPY"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="s2">"buy"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For selling a stock</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">"SPY"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="s2">"sell"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For buying a stock with a limit price</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">"SPY"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="s2">"buy"</span><span class="p">,</span> <span class="n">limit_price</span><span class="o">=</span><span class="mf">100.00</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For selling a stock with a limit price</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">"SPY"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="s2">"sell"</span><span class="p">,</span> <span class="n">limit_price</span><span class="o">=</span><span class="mf">100.00</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For buying a stock with a stop price</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">"SPY"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="s2">"buy"</span><span class="p">,</span> <span class="n">stop_price</span><span class="o">=</span><span class="mf">100.00</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For buying FOREX</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span>
+<span class="go">    symbol=symbol,</span>
+<span class="go">    currency=currency,</span>
+<span class="go">    asset_type="forex",</span>
+<span class="go">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="s2">"buy"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For selling FOREX</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span>
+<span class="go">    symbol="EUR",</span>
+<span class="go">    currency="USD",</span>
+<span class="go">    asset_type="forex",</span>
+<span class="go">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="s2">"sell"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For buying an option with a limit price</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="s2">"SPY"</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="n">asset_type</span><span class="o">=</span><span class="s2">"option"</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="n">expiration_date</span><span class="o">=</span><span class="s2">"2020-01-01"</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="n">strike_price</span><span class="o">=</span><span class="mf">100.00</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="n">right</span><span class="o">=</span><span class="s2">"call"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="s2">"buy"</span><span class="p">,</span> <span class="n">limit_price</span><span class="o">=</span><span class="mf">100.00</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For selling an option with a limit price</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="s2">"SPY"</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="n">asset_type</span><span class="o">=</span><span class="s2">"option"</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="n">expiration_date</span><span class="o">=</span><span class="s2">"2020-01-01"</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="n">strike_price</span><span class="o">=</span><span class="mf">100.00</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="n">right</span><span class="o">=</span><span class="s2">"call"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="s2">"sell"</span><span class="p">,</span> <span class="n">limit_price</span><span class="o">=</span><span class="mf">100.00</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For buying an option with a stop price</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="s2">"SPY"</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="n">asset_type</span><span class="o">=</span><span class="s2">"option"</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="n">expiration_date</span><span class="o">=</span><span class="s2">"2020-01-01"</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="n">strike_price</span><span class="o">=</span><span class="mf">100.00</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="n">right</span><span class="o">=</span><span class="s2">"call"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="s2">"buy"</span><span class="p">,</span> <span class="n">stop_price</span><span class="o">=</span><span class="mf">100.00</span><span class="p">)</span>
+</pre></div>
+</div>
 </dd></dl>
 </div>
 

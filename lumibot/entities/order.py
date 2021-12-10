@@ -95,17 +95,14 @@ class Order:
         >>> from lumibot.entities import Asset
         >>> from lumibot.order import Order
         >>> asset = Asset("MSFT", "stock")
-        >>> order = Order(
-        ...     strategy="test",
-        ...     asset=asset,
+        >>> order = self.create_order(
+        ...     asset,
         ...     quantity=100,
         ...     side="buy",
         ...     limit_price=100,
         ...     take_profit_price=110,
         ...     stop_loss_price=90,
         ...     stop_loss_limit_price=80,
-        ...     trail_price=10,
-        ...     trail_percent=0.1,
         ... )
         >>> order.asset
         Asset(symbol='MSFT', asset_type='stock')
@@ -121,10 +118,6 @@ class Order:
         90
         >>> order.stop_loss_limit_price
         80
-        >>> order.trail_price
-        10
-        >>> order.trail_percent
-        0.1
         >>> order.time_in_force
         'day'
         >>> order.exchange

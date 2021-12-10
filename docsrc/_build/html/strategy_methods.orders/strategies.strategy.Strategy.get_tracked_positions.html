@@ -304,13 +304,16 @@
 <p>Seeks out and returns the all tracked positions in the current
 strategy.</p>
 <dl class="field-list simple">
-<dt class="field-odd">Returns</dt>
-<dd class="field-odd"><p>A list of Position objects for the strategy if there are tracked
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>None</strong> – </p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>A list of Position objects for the strategy if there are tracked
 positions or returns and empty list to indicate no tracked
 position.</p>
 </dd>
-<dt class="field-even">Return type</dt>
-<dd class="field-even"><p>list</p>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>list</p>
 </dd>
 </dl>
 <p class="rubric">Example</p>
@@ -319,6 +322,8 @@ position.</p>
 <span class="gp">&gt;&gt;&gt; </span><span class="k">for</span> <span class="n">position</span> <span class="ow">in</span> <span class="n">positions</span><span class="p">:</span>
 <span class="gp">&gt;&gt;&gt; </span>    <span class="c1"># Show the quantity of each position</span>
 <span class="gp">&gt;&gt;&gt; </span>    <span class="bp">self</span><span class="o">.</span><span class="n">log_message</span><span class="p">(</span><span class="n">position</span><span class="o">.</span><span class="n">quantity</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="c1"># Show the asset of each position</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="bp">self</span><span class="o">.</span><span class="n">log_message</span><span class="p">(</span><span class="n">position</span><span class="o">.</span><span class="n">asset</span><span class="p">)</span>
 </pre></div>
 </div>
 </dd></dl>

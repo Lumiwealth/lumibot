@@ -395,6 +395,106 @@ Default = <cite>SMART</cite></p></li>
 <span class="gp">&gt;&gt;&gt; </span>           <span class="p">)</span>
 </pre></div>
 </div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For a bracket order</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="s2">"SPY"</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="mi">100</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="s2">"sell"</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="n">take_profit_price</span><span class="o">=</span><span class="n">limit</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="n">stop_loss_price</span><span class="o">=</span><span class="n">stop_loss</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="n">stop_loss_limit_price</span><span class="o">=</span><span class="n">stop_loss_limit</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>           <span class="p">)</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For a bracket order with a trailing stop</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="s2">"SPY"</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="mi">100</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="s2">"sell"</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="n">trail_percent</span><span class="o">=</span><span class="n">trail_percent</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="n">take_profit_price</span><span class="o">=</span><span class="n">limit</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="n">stop_loss_price</span><span class="o">=</span><span class="n">stop_loss</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="n">stop_loss_limit_price</span><span class="o">=</span><span class="n">stop_loss_limit</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>           <span class="p">)</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For an OTO order</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="s2">"SPY"</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="mi">100</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="s2">"sell"</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="n">take_profit_price</span><span class="o">=</span><span class="n">limit</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="n">stop_loss_price</span><span class="o">=</span><span class="n">stop_loss</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>           <span class="p">)</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For a futures order</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">"ES"</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s2">"future"</span><span class="p">,</span> <span class="n">expiration</span><span class="o">=</span><span class="s2">"2019-01-01"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="s2">"buy"</span><span class="p">,</span> <span class="n">limit_price</span><span class="o">=</span><span class="mf">100.00</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For a futures order with a trailing stop</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">"ES"</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s2">"future"</span><span class="p">,</span> <span class="n">expiration</span><span class="o">=</span><span class="s2">"2019-01-01"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="n">asset</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="mi">100</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="s2">"buy"</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="n">trail_percent</span><span class="o">=</span><span class="n">trail_percent</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="n">limit_price</span><span class="o">=</span><span class="n">limit</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="n">stop_price</span><span class="o">=</span><span class="n">stop_loss</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>           <span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For an option order</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">"SPY"</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s2">"option"</span><span class="p">,</span> <span class="n">expiration</span><span class="o">=</span><span class="s2">"2019-01-01"</span><span class="p">,</span> <span class="n">strike</span><span class="o">=</span><span class="mf">100.00</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="s2">"buy"</span><span class="p">,</span> <span class="n">limit_price</span><span class="o">=</span><span class="mf">100.00</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For an option order with a trailing stop</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">"SPY"</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s2">"option"</span><span class="p">,</span> <span class="n">expiration</span><span class="o">=</span><span class="s2">"2019-01-01"</span><span class="p">,</span> <span class="n">strike</span><span class="o">=</span><span class="mf">100.00</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="n">asset</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="mi">100</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="s2">"buy"</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="n">trail_percent</span><span class="o">=</span><span class="n">trail_percent</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="n">limit_price</span><span class="o">=</span><span class="n">limit</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="n">stop_price</span><span class="o">=</span><span class="n">stop_loss</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>           <span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For a FOREX order</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span>
+<span class="go">    symbol="CHF",</span>
+<span class="go">    currency="EUR",</span>
+<span class="go">    asset_type="forex",</span>
+<span class="go">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="s2">"buy"</span><span class="p">,</span> <span class="n">limit_price</span><span class="o">=</span><span class="mf">100.00</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For a options order with a limit price</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">"SPY"</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s2">"option"</span><span class="p">,</span> <span class="n">expiration</span><span class="o">=</span><span class="s2">"2019-01-01"</span><span class="p">,</span> <span class="n">strike</span><span class="o">=</span><span class="mf">100.00</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="s2">"buy"</span><span class="p">,</span> <span class="n">limit_price</span><span class="o">=</span><span class="mf">100.00</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For a options order with a trailing stop</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">"SPY"</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s2">"option"</span><span class="p">,</span> <span class="n">expiration</span><span class="o">=</span><span class="s2">"2019-01-01"</span><span class="p">,</span> <span class="n">strike</span><span class="o">=</span><span class="mf">100.00</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="n">asset</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="mi">100</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="s2">"buy"</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="n">trail_percent</span><span class="o">=</span><span class="n">trail_percent</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="n">limit_price</span><span class="o">=</span><span class="n">limit</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="n">stop_price</span><span class="o">=</span><span class="n">stop_loss</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>           <span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+</pre></div>
+</div>
 </dd></dl>
 </div>
 

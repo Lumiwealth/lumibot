@@ -377,22 +377,21 @@ default : 1</p></li>
 symbol if option. For Forex: The base currency.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Type</dt>
-<dd class="field-odd"><p>string</p>
+<dd class="field-odd"><p>string (required)</p>
 </dd>
 </dl>
 </dd></dl>
 <dl class="py attribute">
 <dt class="sig sig-object py">
 <span class="sig-name descname"><span class="pre">asset_type</span> <span class="pre">(string,</span> <span class="pre">default</span></span></dt>
-<dd><ul class="simple">
-<li><p>‘stock’</p></li>
-<li><p>‘option’</p></li>
-<li><p>‘future’</p></li>
-<li><p>‘forex’</p></li>
-</ul>
+<dd><p>One of the following:
+- ‘stock’
+- ‘option’
+- ‘future’
+- ‘forex’</p>
 <dl class="field-list simple">
 <dt class="field-odd">Type</dt>
-<dd class="field-odd"><p><cite>stock</cite>): One of the following:</p>
+<dd class="field-odd"><p><cite>stock</cite>)</p>
 </dd>
 </dl>
 </dd></dl>
@@ -402,7 +401,7 @@ symbol if option. For Forex: The base currency.</p>
 <dd><p>Contract expiration dates for futures and options.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Type</dt>
-<dd class="field-odd"><p>datetime.date</p>
+<dd class="field-odd"><p>datetime.date (required if asset_type is ‘option’ or ‘future’)</p>
 </dd>
 </dl>
 </dd></dl>
@@ -412,7 +411,7 @@ symbol if option. For Forex: The base currency.</p>
 <dd><p>Contract strike price.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Type</dt>
-<dd class="field-odd"><p>float</p>
+<dd class="field-odd"><p>float (required if asset_type is ‘option’)</p>
 </dd>
 </dl>
 </dd></dl>
@@ -422,7 +421,7 @@ symbol if option. For Forex: The base currency.</p>
 <dd><p>Option call or put.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Type</dt>
-<dd class="field-odd"><p>str</p>
+<dd class="field-odd"><p>str (required if asset_type is ‘option’)</p>
 </dd>
 </dl>
 </dd></dl>
@@ -432,7 +431,7 @@ symbol if option. For Forex: The base currency.</p>
 <dd><p>Contract leverage over the underlying.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Type</dt>
-<dd class="field-odd"><p>int</p>
+<dd class="field-odd"><p>int  (required if asset_type is ‘forex’)</p>
 </dd>
 </dl>
 </dd></dl>
@@ -442,7 +441,7 @@ symbol if option. For Forex: The base currency.</p>
 <dd><p>Conversion currency.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Type</dt>
-<dd class="field-odd"><p>string</p>
+<dd class="field-odd"><p>string (required if asset_type is ‘forex’)</p>
 </dd>
 </dl>
 </dd></dl>
@@ -495,6 +494,8 @@ symbol if option. For Forex: The base currency.</p>
 <span class="gp">&gt;&gt;&gt; </span>    <span class="n">multiplier</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
 <span class="gp">&gt;&gt;&gt; </span>    <span class="n">currency</span><span class="o">=</span><span class="s2">"USD"</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="s1">'BUY'</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
 </pre></div>
 </div>
 <dl class="py attribute">

@@ -465,6 +465,22 @@ class Strategy(_Strategy):
         >>> order = self.create_order(asset, 100, "buy", limit_price=100.00)
         >>> self.submit_order(order)
 
+        >>> # For a options order with a limit price
+        >>> asset = Asset("SPY", asset_type="option", expiration="2019-01-01", strike=100.00)
+        >>> order = self.create_order(asset, 100, "buy", limit_price=100.00)
+        >>> self.submit_order(order)
+
+        >>> # For a options order with a trailing stop
+        >>> asset = Asset("SPY", asset_type="option", expiration="2019-01-01", strike=100.00)
+        >>> order = self.create_order(
+        >>>                asset,
+        >>>                100,
+        >>>                "buy",
+        >>>                trail_percent=trail_percent,
+        >>>                limit_price=limit,
+        >>>                stop_price=stop_loss,
+        >>>            )
+        >>> self.submit_order(order)
 
         """
         asset = self._set_asset_mapping(asset)
@@ -567,6 +583,14 @@ class Strategy(_Strategy):
         >>> # Set the market to us_futures
         >>> self.set_market('us_futures')
 
+        >>> # Set the market to stock
+        >>> self.set_market('stock')
+
+        >>> # Set the market to BATS
+        >>> self.set_market('BATS')
+
+        >>> # Set the market to CME_Equity
+        >>> self.set_market('CME_Equity')
         """
         markets = [
             "MarketCalendar",
@@ -778,6 +802,9 @@ class Strategy(_Strategy):
         >>> for position in positions:
         >>>     # Show the quantity of each position
         >>>     self.log_message(position.quantity)
+        >>>     # Show the asset of each position
+        >>>     self.log_message(position.asset)
+
         """
 
         return self.broker.get_tracked_positions(self.name)
@@ -819,6 +846,8 @@ class Strategy(_Strategy):
         -------
         >>> # Get the order object for the order id
         >>> order = self.get_tracked_order(order_id)
+        >>> # Show the status of the order
+        >>> self.log_message(order.status)
         """
         order = self.broker.get_tracked_order(identifier)
         if order.strategy == self.name:
@@ -870,6 +899,9 @@ class Strategy(_Strategy):
         >>> for asset in assets:
         >>>     # Show the asset name
         >>>     self.log_message(asset.symbol)
+        >>>     # Show the quantity of the asset
+        >>>     self.log_message(asset.quantity)
+
 
         """
         return self.broker.get_tracked_assets(self.name)
@@ -1030,6 +1062,34 @@ class Strategy(_Strategy):
         >>> order = self.create_order(asset, 10, "sell")
         >>> self.submit_order(order)
 
+        >>> # For buying an option with a limit price
+        >>> asset = Asset(
+        >>>    "SPY",
+        >>>    asset_type="option",
+        >>>    expiration_date="2020-01-01",
+        >>>    strike_price=100.00,
+        >>>    right="call")
+        >>> order = self.create_order(asset, 10, "buy", limit_price=100.00)
+        >>> self.submit_order(order)
+
+        >>> # For selling an option with a limit price
+        >>> asset = Asset(
+        >>>    "SPY",
+        >>>    asset_type="option",
+        >>>    expiration_date="2020-01-01",
+        >>>    strike_price=100.00,
+        >>>    right="call")
+        >>> order = self.create_order(asset, 10, "sell", limit_price=100.00)
+        >>> self.submit_order(order)
+
+        >>> # For buying an option with a stop price
+        >>> asset = Asset(
+        >>>    "SPY",
+        >>>    asset_type="option",
+        >>>    expiration_date="2020-01-01",
+        >>>    strike_price=100.00,
+        >>>    right="call")
+        >>> order = self.create_order(asset, 10, "buy", stop_price=100.00)
         """
         return self.broker.submit_order(order)
 
@@ -1466,6 +1526,8 @@ class Strategy(_Strategy):
         >>> # Will return the option chains for SPY
         >>> asset = "SPY"
         >>> chain = self.get_chain(asset)
+
+
         """
         return self.broker.get_chain(chains, exchange=exchange)
 

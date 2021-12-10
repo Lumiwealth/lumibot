@@ -1,14 +1,15 @@
 import datetime
 import pandas as pd
 from pandas import Timestamp
+from pathlib import Path
 import pytest
 
 from credentials import AlpacaConfig
 from lumibot.brokers.alpaca import Alpaca
-from lumibot.data_sources.alpaca_data import AlpacaData
 from lumibot.entities.asset import Asset
-from lumibot.entities.position import Position
+from lumibot.entities.bars import Bars
 from lumibot.entities.order import Order
+from lumibot.entities.position import Position
 
 alpaca = Alpaca(AlpacaConfig)
 
@@ -190,12 +191,15 @@ vars = "length, timestep, timeshift"
 params = [(10, "minute", 0), (20, "minute", 1), (30, "day", 4), (40, "day", 5)]
 @pytest.mark.parametrize(vars, params)
 def test__pull_source_bars(length, timestep, timeshift, monkeypatch):
+    """Only returning dummy dataframe, testing get_barset_from_api separately"""
     symbols = ["MSFT", "FB", "GM"]
     assets = []
     for symbol in symbols:
         assets.append(Asset(symbol=symbol, asset_type="stock"))
 
-    def mock_pull_source_bars(method_assets, length, timestep="minute", timeshift=None):
+    def mock_get_barset_from_api(
+        method_assets, length, timestep="minute", timeshift=None
+    ):
         result = {}
         for asset in method_assets:
             df = pd.DataFrame(
@@ -205,7 +209,7 @@ def test__pull_source_bars(length, timestep, timeshift, monkeypatch):
             result[asset] = df
         return result
 
-    monkeypatch.setattr(alpaca, "_pull_source_bars", mock_pull_source_bars)
+    monkeypatch.setattr(alpaca, "_pull_source_bars", mock_get_barset_from_api)
 
     expected = {}
     for symbol in symbols:
@@ -222,15 +226,93 @@ def test__pull_source_bars(length, timestep, timeshift, monkeypatch):
         timeshift=timeshift,
     )
     for asset in assets:
-        assert result[asset]['length'][0] == expected[asset]['length'][0]
-        assert result[asset]['timestep'][0] == expected[asset]['timestep'][0]
-        assert result[asset]['timeshift'][0] == expected[asset]['timeshift'][0]
+        assert result[asset]["length"][0] == expected[asset]["length"][0]
+        assert result[asset]["timestep"][0] == expected[asset]["timestep"][0]
+        assert result[asset]["timeshift"][0] == expected[asset]["timeshift"][0]
 
 
+vars = "symbol, freq, limit, end"
+params = [
+    ("XYZ", "1D", 150, datetime.datetime(2019, 11, 1)),
+    ("XYZ", "1D", 100, datetime.datetime(2019, 9, 1)),
+    ("XYZ", "1D", 50, datetime.datetime(2019, 4, 1)),
+    ("XYZ", "1D", 5, datetime.datetime(2019, 12, 18)),
+    ("XYZ", "1Min", 500, datetime.datetime(2020, 4, 18)),
+    ("XYZ", "1Min", 1500, datetime.datetime(2020, 4, 18)),
+]
 
-def test_get_barset_from_api():
-    pass
+
+@pytest.mark.parametrize(vars, params)
+def test_get_barset_from_api(symbol, freq, limit, end):
+    """Testing _get_barset_from_api"""
+
+    class API:
+        barset = None
+
+        def get_barset(self, symbol, freq, limit=None, end=None):
+
+            barset = dict()
+            path = Path("data/")
+            filename = f"XYZ_{freq}.csv"
+            filepath = path / filename
+            df = pd.read_csv(filepath, index_col=0, parse_dates=True)
+            if freq == "1Min":
+                df.index = df.index.tz_localize("US/Eastern")
+            df = df.loc[:end]
+            df = df.iloc[-limit:]
+
+            class BS:
+                df = None
+
+            bs = BS()
+            bs.df = df
+            barset[symbol] = bs
+            return barset
+
+    api = API()
+
+    path = Path("data/")
+    filename = f"XYZ_{freq}.csv"
+    filepath = path / filename
+    expected = pd.read_csv(filepath, index_col=0, parse_dates=True)
+    if freq == "1Min":
+        expected.index = expected.index.tz_localize("US/Eastern")
+    expected = expected.loc[:end]
+    expected = expected.iloc[-limit:]
+
+    result = alpaca.get_barset_from_api(api, symbol, freq, limit, end)
+    assert result.shape[0] == limit
+    assert result.shape[1] == expected.shape[1]
+    assert result.index.name == expected.index.name
+    assert result.index.values[0] == expected.index.values[0]
+    assert result.index.values[-1] == expected.index.values[-1]
+    assert result["close"].values[0] == expected["close"].values[0]
+    assert result["close"].values[-1] == expected["close"].values[-1]
 
 
 def test__parse_source_symbol_bars():
-    pass
+    asset = Asset(symbol="XYZ", asset_type="stock")
+    response = pd.DataFrame(
+        [
+            [
+                datetime.datetime(2021, 12, 10, 11, 5, 0),
+                175.82,
+                175.885,
+                175.655,
+                175.73,
+                4250,
+            ],
+        ],
+        columns=["time", "open", "high", "low", "close", "volume"],
+    )
+    response = response.set_index("time")
+    response["returns"] = response["close"].pct_change()
+    response_bars = Bars(response, "Alpaca", asset, raw=response)
+    result = alpaca._parse_source_symbol_bars(response, asset)
+    assert result.asset == response_bars.asset
+    assert result.source == response_bars.source
+    assert result.symbol == response_bars.symbol
+    assert result.df.shape == response_bars.df.shape
+    assert result.df.index.name == response_bars.df.index.name
+    assert result.df.index.values[0] == response_bars.df.index.values[0]
+    assert result.df["close"].values[0] == response_bars.df["close"].values[0]

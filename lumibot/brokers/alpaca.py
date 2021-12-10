@@ -14,10 +14,12 @@ from .broker import Broker
 
 class Alpaca(AlpacaData, Broker):
     """Inherit AlpacaData first and all the price market
-    methods than inherits broker"""
+    methods than inherits broker
+
+    """
 
     ASSET_TYPE_MAP = dict(
-        stock=['us_equity'],
+        stock=["us_equity"],
         option=[],
         future=[],
         forex=[],
@@ -43,6 +45,7 @@ class Alpaca(AlpacaData, Broker):
         -------
         int
             Sample unix timestamp return value: 1612172730.000234
+
         """
         clock = self.api.get_clock()
         curr_time = clock.timestamp.replace(tzinfo=timezone.utc).timestamp()
@@ -59,6 +62,11 @@ class Alpaca(AlpacaData, Broker):
         -------
         boolean
             True if market is open, false if the market is closed.
+
+        Examples
+        --------
+        >>> self.is_market_open()
+        True
         """
         return True  # todo revert
         return self.api.get_clock().is_open
@@ -81,6 +89,8 @@ class Alpaca(AlpacaData, Broker):
         --------
         If it is 0830 and the market next opens at 0930, then there are 3,600
         seconds until the next market open.
+
+        >>> self.get_time_to_open()
         """
         clock = self.api.get_clock()
         opening_time = clock.next_open.timestamp()
@@ -127,7 +137,7 @@ class Alpaca(AlpacaData, Broker):
         float
         """
         response = self.api.get_account()
-        return float(response._raw['cash'])
+        return float(response._raw["cash"])
 
     def _parse_broker_position(self, broker_position, strategy, orders=None):
         """parse a broker position representation
@@ -156,7 +166,9 @@ class Alpaca(AlpacaData, Broker):
         for k, v in self.ASSET_TYPE_MAP.items():
             if type in v:
                 return k
-        raise ValueError(f"The type {type} is not in the ASSET_TYPE_MAP in the Alpaca Module.")
+        raise ValueError(
+            f"The type {type} is not in the ASSET_TYPE_MAP in the Alpaca Module."
+        )
 
     def _parse_broker_order(self, response, strategy):
         """parse a broker order representation
@@ -165,7 +177,7 @@ class Alpaca(AlpacaData, Broker):
             strategy,
             Asset(
                 symbol=response.symbol,
-                asset_type='stock',
+                asset_type="stock",
             ),
             response.qty,
             response.side,

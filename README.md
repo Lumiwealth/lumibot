@@ -8,7 +8,7 @@ The best backtesting and live algorithmic trading library in the world.
 
 If you want to learn more about Lumibot or Algorithmic Trading then you will love out communities! You can join us on our forum or Discord.
 
-**To join/view our forum: https://community.lumiwealth.com/c/lumibot/**
+**To join/view our forum: https://lumiwealth.circle.so/home**
 
 **To join us on Discord: https://discord.gg/TmMsJCKY3T**
 

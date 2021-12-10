@@ -170,7 +170,8 @@ def test__parse_broker_order(
 def test__pull_source_symbol_bars(monkeypatch):
     """Dataframe results will be mocked in _pull_source_bars"""
     asset = Asset(symbol="MSFT", asset_type="stock")
-    def mock_pull_source_bars(asset, length, timestep="1m", timeshift=None):
+
+    def mock_pull_source_bars(asset, length, timestep="minute", timeshift=None):
         df = "dataframe"
         return {asset[0]: df}
 
@@ -179,14 +180,52 @@ def test__pull_source_symbol_bars(monkeypatch):
     expected = {asset: "dataframe"}
 
     result = alpaca._pull_source_symbol_bars(
-        asset, length=10, timestep="1D", timeshift=0
+        asset, length=10, timestep="day", timeshift=0
     )
 
     assert result == expected[asset]
 
 
-def test__pull_source_bars():
-    pass
+vars = "length, timestep, timeshift"
+params = [(10, "minute", 0), (20, "minute", 1), (30, "day", 4), (40, "day", 5)]
+@pytest.mark.parametrize(vars, params)
+def test__pull_source_bars(length, timestep, timeshift, monkeypatch):
+    symbols = ["MSFT", "FB", "GM"]
+    assets = []
+    for symbol in symbols:
+        assets.append(Asset(symbol=symbol, asset_type="stock"))
+
+    def mock_pull_source_bars(method_assets, length, timestep="minute", timeshift=None):
+        result = {}
+        for asset in method_assets:
+            df = pd.DataFrame(
+                [[length, timestep, timeshift]],
+                columns=["length", "timestep", "timeshift"],
+            )
+            result[asset] = df
+        return result
+
+    monkeypatch.setattr(alpaca, "_pull_source_bars", mock_pull_source_bars)
+
+    expected = {}
+    for symbol in symbols:
+        df = pd.DataFrame(
+            [[length, timestep, timeshift]], columns=["length", "timestep", "timeshift"]
+        )
+        asset = Asset(symbol=symbol, asset_type="stock")
+        expected[asset] = df
+
+    result = alpaca._pull_source_bars(
+        [Asset(symbol=symbol) for symbol in symbols],
+        length,
+        timestep=timestep,
+        timeshift=timeshift,
+    )
+    for asset in assets:
+        assert result[asset]['length'][0] == expected[asset]['length'][0]
+        assert result[asset]['timestep'][0] == expected[asset]['timestep'][0]
+        assert result[asset]['timeshift'][0] == expected[asset]['timeshift'][0]
+
 
 
 def test_get_barset_from_api():

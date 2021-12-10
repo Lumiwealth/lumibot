@@ -34,22 +34,18 @@ class Alpaca(AlpacaData, Broker):
     get_time_to_close()
         How much time in seconds remains until the market closes?
 
-    get_cash_balance_at_broker()
-        Get the current cash balance at Alpaca
-
     Examples
     --------
     >>> # Connect to Alpaca
     >>> from lumibot.brokers import Alpaca
     >>> class AlpacaConfig:
-    ...     api_key = 'your_api_key'
-    ...     secret_key = 'your_secret_key'
-    ...     base_url = 'https://paper-api.alpaca.markets'
+    ...     API_KEY = 'your_api_key'
+    ...     SECRET_KEY = 'your_secret_key'
+    ...     ENDPOINT = 'https://paper-api.alpaca.markets'
     >>> alpaca = Alpaca(AlpacaConfig)
-    >>> alpaca.get_cash_balance_at_broker()
-    >>> alpaca.get_time_to_open()
-    >>> alpaca.get_time_to_close()
-    >>> alpaca.is_market_open()
+    >>> print(alpaca.get_time_to_open())
+    >>> print(alpaca.get_time_to_close())
+    >>> print(alpaca.is_market_open())
 
     >>> # Run a strategy on Alpaca
     >>> from lumibot.strategies import Strategy
@@ -57,9 +53,12 @@ class Alpaca(AlpacaData, Broker):
     >>> from lumibot.traders import Trader
     >>>
     >>> class AlpacaConfig:
-    ...     api_key = 'your_api_key'
-    ...     secret_key = 'your_secret_key'
-    ...     base_url = 'https://paper-api.alpaca.markets'
+    ...     # Put your own Alpaca key here:
+    ...     API_KEY = "YOUR_API_KEY"
+    ...     # Put your own Alpaca secret here:
+    ...     API_SECRET = "YOUR_API_SECRET"
+    ...     # If you want to go live, you must change this
+    ...     ENDPOINT = "https://paper-api.alpaca.markets"
     >>>
     >>> class AlpacaStrategy(Strategy):
     ...     def on_trading_interation(self):
@@ -314,7 +313,18 @@ class Alpaca(AlpacaData, Broker):
         return order
 
     def cancel_order(self, order):
-        """Cancel an order"""
+        """Cancel an order
+
+        Parameters
+        ----------
+        order : Order
+            The order to cancel
+
+        Returns
+        -------
+        Order
+            The order that was cancelled
+        """
         self.api.cancel_order(order.identifier)
 
     # =======Stream functions=========

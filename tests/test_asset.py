@@ -1,4 +1,5 @@
-from collections import Hashable
+from collections.abc import Hashable
+
 import datetime
 import pytest
 

@@ -201,7 +201,7 @@ class Alpaca(AlpacaData, Broker):
         return orders
 
     def _flatten_order(self, order):
-        """Some submitted orders may triggers other orders.
+        """Some submitted orders may trigger other orders.
         _flatten_order returns a list containing the main order
         and all the derived ones"""
         orders = [order]

@@ -468,10 +468,10 @@ Default = <cite>SMART</cite></p></li>
 </div>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For a FOREX order</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span>
-<span class="go">    symbol="CHF",</span>
-<span class="go">    currency="EUR",</span>
-<span class="go">    asset_type="forex",</span>
-<span class="go">)</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="n">symbol</span><span class="o">=</span><span class="s2">"CHF"</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="n">currency</span><span class="o">=</span><span class="s2">"EUR"</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="n">asset_type</span><span class="o">=</span><span class="s2">"forex"</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span> <span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="s2">"buy"</span><span class="p">,</span> <span class="n">limit_price</span><span class="o">=</span><span class="mf">100.00</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
 </pre></div>

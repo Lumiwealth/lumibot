@@ -13,11 +13,74 @@ from .broker import Broker
 
 
 class Alpaca(AlpacaData, Broker):
-    """Inherit AlpacaData first and all the price market
-    methods than inherits broker"""
+    """A broker class that connects to Alpaca
+
+    Attributes
+    ----------
+    api : tradeapi.REST
+        Alpaca API object
+
+    Methods
+    -------
+    get_timestamp()
+        Returns the current UNIX timestamp representation from Alpaca
+
+    is_market_open()
+        Determines if the market is open.
+
+    get_time_to_open()
+        How much time in seconds remains until the market next opens?
+
+    get_time_to_close()
+        How much time in seconds remains until the market closes?
+
+    get_cash_balance_at_broker()
+        Get the current cash balance at Alpaca
+
+    Examples
+    --------
+    >>> # Connect to Alpaca
+    >>> from lumibot.brokers import Alpaca
+    >>> class AlpacaConfig:
+    ...     api_key = 'your_api_key'
+    ...     secret_key = 'your_secret_key'
+    ...     base_url = 'https://paper-api.alpaca.markets'
+    >>> alpaca = Alpaca(AlpacaConfig)
+    >>> alpaca.get_cash_balance_at_broker()
+    >>> alpaca.get_time_to_open()
+    >>> alpaca.get_time_to_close()
+    >>> alpaca.is_market_open()
+
+    >>> # Run a strategy on Alpaca
+    >>> from lumibot.strategies import Strategy
+    >>> from lumibot.brokers import Alpaca
+    >>> from lumibot.traders import Trader
+    >>>
+    >>> class AlpacaConfig:
+    ...     api_key = 'your_api_key'
+    ...     secret_key = 'your_secret_key'
+    ...     base_url = 'https://paper-api.alpaca.markets'
+    >>>
+    >>> class AlpacaStrategy(Strategy):
+    ...     def on_trading_interation(self):
+    ...         if self.broker.is_market_open():
+    ...             self.create_order(
+    ...                 asset=Asset(symbol="AAPL"),
+    ...                 quantity=1,
+    ...                 order_type="market",
+    ...                 side="buy",
+    ...             )
+    >>>
+    >>> alpaca = Alpaca(AlpacaConfig)
+    >>> strategy = AlpacaStrategy(broker=alpaca)
+    >>> trader = Trader()
+    >>> trader.add_strategy(strategy)
+    >>> trader.run()
+
+    """
 
     ASSET_TYPE_MAP = dict(
-        stock=['us_equity'],
+        stock=["us_equity"],
         option=[],
         future=[],
         forex=[],
@@ -127,7 +190,7 @@ class Alpaca(AlpacaData, Broker):
         float
         """
         response = self.api.get_account()
-        return float(response._raw['cash'])
+        return float(response._raw["cash"])
 
     def _parse_broker_position(self, broker_position, strategy, orders=None):
         """parse a broker position representation
@@ -156,7 +219,9 @@ class Alpaca(AlpacaData, Broker):
         for k, v in self.ASSET_TYPE_MAP.items():
             if type in v:
                 return k
-        raise ValueError(f"The type {type} is not in the ASSET_TYPE_MAP in the Alpaca Module.")
+        raise ValueError(
+            f"The type {type} is not in the ASSET_TYPE_MAP in the Alpaca Module."
+        )
 
     def _parse_broker_order(self, response, strategy):
         """parse a broker order representation
@@ -165,7 +230,7 @@ class Alpaca(AlpacaData, Broker):
             strategy,
             Asset(
                 symbol=response.symbol,
-                asset_type='stock',
+                asset_type="stock",
             ),
             response.qty,
             response.side,

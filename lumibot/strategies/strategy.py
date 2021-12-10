@@ -458,10 +458,10 @@ class Strategy(_Strategy):
 
         >>> # For a FOREX order
         >>> asset = Asset(
-            symbol="CHF",
-            currency="EUR",
-            asset_type="forex",
-        )
+        >>>    symbol="CHF",
+        >>>    currency="EUR",
+        >>>    asset_type="forex",
+        >>>  )
         >>> order = self.create_order(asset, 100, "buy", limit_price=100.00)
         >>> self.submit_order(order)
 
@@ -1090,6 +1090,21 @@ class Strategy(_Strategy):
         >>>    strike_price=100.00,
         >>>    right="call")
         >>> order = self.create_order(asset, 10, "buy", stop_price=100.00)
+
+        >>> # For selling a stock with a stop price
+        >>> asset = Asset("SPY")
+        >>> order = self.create_order(asset, 10, "sell", stop_price=100.00)
+        >>> self.submit_order(order)
+
+        >>> # For buying a stock with a trailing stop price
+        >>> asset = Asset("SPY")
+        >>> order = self.create_order(asset, 10, "buy", trailing_stop_price=100.00)
+        >>> self.submit_order(order)
+
+        >>> # For selling a stock with a trailing stop price
+        >>> asset = Asset("SPY")
+        >>> order = self.create_order(asset, 10, "sell", trailing_stop_price=100.00)
+        >>> self.submit_order(order)
         """
         return self.broker.submit_order(order)
 

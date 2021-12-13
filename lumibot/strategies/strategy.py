@@ -446,7 +446,7 @@ class Strategy(_Strategy):
         Parameters
         ----------
         market : str
-        
+
             Short form for the markets.
             List of markets available are:
 
@@ -473,18 +473,20 @@ class Strategy(_Strategy):
         Returns
         -------
         None
-        
+
 
         Example
         -------
-        >>> # Set the market to NYSE
-        >>> self.set_market('NYSE')
+        >>> # Set the market to 24/7
+        >>> def initialize(self):
+        >>>    # Set the market to 24/7
+        >>>    self.set_market('24/7')
 
         >>> # Set the market to NASDAQ
         >>> self.set_market('NASDAQ')
 
-        >>> # Set the market to 24/7
-        >>> self.set_market('24/7')
+        >>> # Set the market to NYSE
+        >>> self.set_market('NYSE')
 
         >>> # Set the market to 24/5
         >>> self.set_market('24/5')
@@ -589,12 +591,7 @@ class Strategy(_Strategy):
                 f"Valid market entries are: {markets}. You entered {market}. Please adjust."
             )
 
-        if self.broker.SOURCE == "InteractiveBrokers":
-            self.broker.market = market
-        else:
-            raise ValueError(
-                f"Please only adjust market calendars when using a broker that supports assets other than stocks"
-            )
+        self.broker.market = market
 
     def await_market_to_open(self, timedelta=None):
         """Executes infinite loop until market opens
@@ -651,6 +648,14 @@ class Strategy(_Strategy):
         return self.broker._await_market_to_close(timedelta)
 
     def get_tracked_position(self, asset):
+        """Deprecated, will be removed in the future. Please use `get_position()` instead."""
+
+        self.log_message(
+            "Warning: get_tracked_position() is deprecated, please use get_position() instead."
+        )
+        self.get_position(asset)
+
+    def get_position(self, asset):
         """Get a tracked position given an asset for the current
         strategy.
 
@@ -671,7 +676,7 @@ class Strategy(_Strategy):
         Example
         -------
         >>> # Get the position for the TLT asset
-        >>> position = self.get_tracked_position("TLT")
+        >>> position = self.get_position("TLT")
         >>> # Show the quantity of the TLT position
         >>> self.log_message(position.quantity)
         """
@@ -679,10 +684,15 @@ class Strategy(_Strategy):
         return self.broker.get_tracked_position(self.name, asset)
 
     def get_tracked_positions(self):
-        """Get all tracked positions for the current strategy
+        """Deprecated, will be removed in the future. Please use `get_positions()` instead."""
 
-        Seeks out and returns the all tracked positions in the current
-        strategy.
+        self.log_message(
+            "Warning: get_tracked_positions() is deprecated, please use get_positions() instead."
+        )
+        return self.get_positions()
+
+    def get_positions(self):
+        """Get all positions for the account.
 
         Returns
         -------
@@ -694,7 +704,7 @@ class Strategy(_Strategy):
         Example
         -------
         >>> # Get all tracked positions
-        >>> positions = self.get_tracked_positions()
+        >>> positions = self.get_positions()
         >>> for position in positions:
         >>>     # Show the quantity of each position
         >>>     self.log_message(position.quantity)
@@ -728,6 +738,14 @@ class Strategy(_Strategy):
         return self.broker.get_contract_details(asset)
 
     def get_tracked_order(self, identifier):
+        """Deprecated, will be removed in the future. Please use `get_order()` instead."""
+
+        self.log_message(
+            "Warning: get_tracked_order() is deprecated, please use get_order() instead."
+        )
+        return self.get_order()
+
+    def get_order(self, identifier):
         """Get a tracked order given an identifier. Check the details of the order including status, etc.
 
         Returns
@@ -738,14 +756,22 @@ class Strategy(_Strategy):
         Example
         -------
         >>> # Get the order object for the order id
-        >>> order = self.get_tracked_order(order_id)
+        >>> order = self.get_order(order_id)
         """
         order = self.broker.get_tracked_order(identifier)
         if order.strategy == self.name:
             return order
         return None
 
-    def get_tracked_orders(self):
+    def get_tracked_orders(self, identifier):
+        """Deprecated, will be removed in the future. Please use `get_orders()` instead."""
+
+        self.log_message(
+            "Warning: get_tracked_orders() is deprecated, please use get_orders() instead."
+        )
+        return self.get_orders()
+
+    def get_orders(self):
         """Get all the current open orders.
 
         Returns
@@ -756,7 +782,7 @@ class Strategy(_Strategy):
         Example
         -------
         >>> # Get all tracked orders
-        >>> orders = self.get_tracked_orders()
+        >>> orders = self.get_orders()
         >>> for order in orders:
         >>>     # Show the status of each order
         >>>     self.log_message(order.status)
@@ -879,8 +905,7 @@ class Strategy(_Strategy):
         >>>    asset_type="option",
         >>>    expiration_date="2020-01-01",
         >>>    strike_price=100.00,
-        >>>    right="call",
-        >>>    multiplier=100)
+        >>>    right="call")
         >>> order = self.create_order(asset, 10, "buy")
         >>> self.submit_order(order)
         """

@@ -184,6 +184,10 @@
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.cancel_orders.html">self.cancel_orders</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.cancel_open_orders.html">self.cancel_open_orders</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.sell_all.html">self.sell_all</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_order.html">self.get_order</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_orders.html">self.get_orders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_position.html">self.get_position</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_positions.html">self.get_positions</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_tracked_order.html">self.get_tracked_order</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_tracked_orders.html">self.get_tracked_orders</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_tracked_position.html">self.get_tracked_position</a></li>
@@ -194,7 +198,6 @@
 <li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.data.html">Data</a><input class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_last_price.html">self.get_last_price</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_last_prices.html">self.get_last_prices</a></li>
-<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_tradable_assets.html">self.get_tradable_assets</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_symbol_bars.html">self.get_symbol_bars</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_bars.html">self.get_bars</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.start_realtime_bars.html">self.start_realtime_bars</a></li>
@@ -225,6 +228,7 @@
 <li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.misc.html">Miscellaneous</a><input class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.log_message.html">self.log_message</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.sleep.html">self.sleep</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.set_market.html">self.set_market</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.await_market_to_close.html">self.await_market_to_close</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.await_market_to_open.html">self.await_market_to_open</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.wait_for_order_registration.html">self.wait_for_order_registration</a></li>
@@ -334,9 +338,56 @@
 <dt class="sig sig-object py" id="entities.bars.Bars">
 <em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">entities.bars.</span></span><span class="sig-name descname"><span class="pre">Bars</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">source</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">raw</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.bars.Bars" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Pricing and financial data for given Symbol.</p>
+<p>The OHLCV, and if available, dividends, stock splits for a given
+financial instrument. Price change, dividend yield and return
+are calculated if appropriate.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>df</strong> (<em>Pandas Dataframe</em>) – <dl class="simple">
+<dt>Dataframe with:</dt><dd><p>datetime.datetime index time zone aware.
+columns = [‘open’, ‘high’, ‘low’, ‘close’, ‘volume’]
+optional columns [‘dividend’, ‘stock_splits’]</p>
+</dd>
+</dl>
+</p></li>
+<li><p><strong>source</strong> – The source of the data e.g. (yahoo, alpaca, …)</p></li>
+<li><p><strong>asset</strong> (<a class="reference internal" href="entities.asset.html#entities.asset.Asset" title="entities.asset.Asset"><em>Asset</em></a>) – <p>The asset for which the bars are holding data.</p>
+<blockquote>
+<div><p>source: the source of the data e.g. (yahoo, alpaca, …)</p>
+</div></blockquote>
+</p></li>
+<li><p><strong>symbol</strong> (<em>str</em>) – The ticker symbol. eg: “AAPL”</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="entities.bars.Bars.get_last_price">
+<span class="sig-name descname"><span class="pre">get_last_price</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#entities.bars.Bars.get_last_price" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns the closing price of the last dataframe row</p>
+</dd></dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="entities.bars.Bars.get_last_dividend">
+<span class="sig-name descname"><span class="pre">get_last_dividend</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#entities.bars.Bars.get_last_dividend" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns the dividend per share value of the last dataframe row</p>
+</dd></dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="entities.bars.Bars.get_momentum">
+<span class="sig-name descname"><span class="pre">get_momentum</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">start</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">end</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.bars.Bars.get_momentum" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculates the global price momentum of the dataframe.</p>
+</dd></dl>
 <dl class="py method">
 <dt class="sig sig-object py" id="entities.bars.Bars.aggregate_bars">
 <span class="sig-name descname"><span class="pre">aggregate_bars</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">frequency</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.bars.Bars.aggregate_bars" title="Permalink to this definition">¶</a></dt>
+<dd><p>Will convert a set of bars to a different timeframe (eg. 1 min
+to 15 min) frequency (string): The new timeframe that the bars
+should be in, eg. “15Min”, “1H”, or “1D”. Returns a new Bars
+object.</p>
+</dd></dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="id0">
+<span class="sig-name descname"><span class="pre">aggregate_bars</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">frequency</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#id0" title="Permalink to this definition">¶</a></dt>
 <dd><p>Will convert a set of bars to a different timeframe (eg. 1 min to 15 min)
 frequency (string): The new timeframe that the bars should be in, eg. “15Min”, “1H”, or “1D”
 Returns a new bars object.</p>
@@ -378,8 +429,8 @@ Returns a new bars object.</p>
 </dl>
 </dd></dl>
 <dl class="py method">
-<dt class="sig sig-object py" id="entities.bars.Bars.get_last_dividend">
-<span class="sig-name descname"><span class="pre">get_last_dividend</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#entities.bars.Bars.get_last_dividend" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="id1">
+<span class="sig-name descname"><span class="pre">get_last_dividend</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#id1" title="Permalink to this definition">¶</a></dt>
 <dd><p>Return the last dividend of the last bar</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
@@ -394,8 +445,8 @@ Returns a new bars object.</p>
 </dl>
 </dd></dl>
 <dl class="py method">
-<dt class="sig sig-object py" id="entities.bars.Bars.get_last_price">
-<span class="sig-name descname"><span class="pre">get_last_price</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#entities.bars.Bars.get_last_price" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="id2">
+<span class="sig-name descname"><span class="pre">get_last_price</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#id2" title="Permalink to this definition">¶</a></dt>
 <dd><p>Return the last price of the last bar</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
@@ -410,8 +461,8 @@ Returns a new bars object.</p>
 </dl>
 </dd></dl>
 <dl class="py method">
-<dt class="sig sig-object py" id="entities.bars.Bars.get_momentum">
-<span class="sig-name descname"><span class="pre">get_momentum</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">start</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">end</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.bars.Bars.get_momentum" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="id3">
+<span class="sig-name descname"><span class="pre">get_momentum</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">start</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">end</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#id3" title="Permalink to this definition">¶</a></dt>
 <dd><p>Return the momentum (return based on closing prices) of the bars between start and end</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>

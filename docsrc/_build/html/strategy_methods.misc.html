@@ -184,6 +184,10 @@
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.cancel_orders.html">self.cancel_orders</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.cancel_open_orders.html">self.cancel_open_orders</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.sell_all.html">self.sell_all</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_order.html">self.get_order</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_orders.html">self.get_orders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_position.html">self.get_position</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_positions.html">self.get_positions</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_tracked_order.html">self.get_tracked_order</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_tracked_orders.html">self.get_tracked_orders</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_tracked_position.html">self.get_tracked_position</a></li>
@@ -194,7 +198,6 @@
 <li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.data.html">Data</a><input class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_last_price.html">self.get_last_price</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_last_prices.html">self.get_last_prices</a></li>
-<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_tradable_assets.html">self.get_tradable_assets</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_symbol_bars.html">self.get_symbol_bars</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_bars.html">self.get_bars</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.start_realtime_bars.html">self.start_realtime_bars</a></li>
@@ -225,6 +228,7 @@
 <li class="toctree-l2 current has-children current-page"><a class="current reference internal" href="#">Miscellaneous</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.log_message.html">self.log_message</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.sleep.html">self.sleep</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.set_market.html">self.set_market</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.await_market_to_close.html">self.await_market_to_close</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.await_market_to_open.html">self.await_market_to_open</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.wait_for_order_registration.html">self.wait_for_order_registration</a></li>
@@ -311,22 +315,25 @@
 <tr class="row-even"><td><p><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.sleep.html#strategies.strategy.Strategy.sleep" title="strategies.strategy.Strategy.sleep"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sleep</span></code></a>(sleeptime)</p></td>
 <td><p>Sleep for sleeptime seconds.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.await_market_to_close.html#strategies.strategy.Strategy.await_market_to_close" title="strategies.strategy.Strategy.await_market_to_close"><code class="xref py py-obj docutils literal notranslate"><span class="pre">await_market_to_close</span></code></a>([timedelta])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.set_market.html#strategies.strategy.Strategy.set_market" title="strategies.strategy.Strategy.set_market"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_market</span></code></a>(market)</p></td>
+<td><p>Set the market for trading hours.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.await_market_to_close.html#strategies.strategy.Strategy.await_market_to_close" title="strategies.strategy.Strategy.await_market_to_close"><code class="xref py py-obj docutils literal notranslate"><span class="pre">await_market_to_close</span></code></a>([timedelta])</p></td>
 <td><p>Sleep until market closes.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.await_market_to_open.html#strategies.strategy.Strategy.await_market_to_open" title="strategies.strategy.Strategy.await_market_to_open"><code class="xref py py-obj docutils literal notranslate"><span class="pre">await_market_to_open</span></code></a>([timedelta])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.await_market_to_open.html#strategies.strategy.Strategy.await_market_to_open" title="strategies.strategy.Strategy.await_market_to_open"><code class="xref py py-obj docutils literal notranslate"><span class="pre">await_market_to_open</span></code></a>([timedelta])</p></td>
 <td><p>Executes infinite loop until market opens</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.wait_for_order_registration.html#strategies.strategy.Strategy.wait_for_order_registration" title="strategies.strategy.Strategy.wait_for_order_registration"><code class="xref py py-obj docutils literal notranslate"><span class="pre">wait_for_order_registration</span></code></a>(order)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.wait_for_order_registration.html#strategies.strategy.Strategy.wait_for_order_registration" title="strategies.strategy.Strategy.wait_for_order_registration"><code class="xref py py-obj docutils literal notranslate"><span class="pre">wait_for_order_registration</span></code></a>(order)</p></td>
 <td><p>Wait for the order to be registered by the broker</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.wait_for_order_execution.html#strategies.strategy.Strategy.wait_for_order_execution" title="strategies.strategy.Strategy.wait_for_order_execution"><code class="xref py py-obj docutils literal notranslate"><span class="pre">wait_for_order_execution</span></code></a>(order)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.wait_for_order_execution.html#strategies.strategy.Strategy.wait_for_order_execution" title="strategies.strategy.Strategy.wait_for_order_execution"><code class="xref py py-obj docutils literal notranslate"><span class="pre">wait_for_order_execution</span></code></a>(order)</p></td>
 <td><p>Wait for one specific order to be executed or canceled by the broker</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.wait_for_orders_registration.html#strategies.strategy.Strategy.wait_for_orders_registration" title="strategies.strategy.Strategy.wait_for_orders_registration"><code class="xref py py-obj docutils literal notranslate"><span class="pre">wait_for_orders_registration</span></code></a>(orders)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.wait_for_orders_registration.html#strategies.strategy.Strategy.wait_for_orders_registration" title="strategies.strategy.Strategy.wait_for_orders_registration"><code class="xref py py-obj docutils literal notranslate"><span class="pre">wait_for_orders_registration</span></code></a>(orders)</p></td>
 <td><p>Wait for the orders to be registered by the broker</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.wait_for_orders_execution.html#strategies.strategy.Strategy.wait_for_orders_execution" title="strategies.strategy.Strategy.wait_for_orders_execution"><code class="xref py py-obj docutils literal notranslate"><span class="pre">wait_for_orders_execution</span></code></a>(orders)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.wait_for_orders_execution.html#strategies.strategy.Strategy.wait_for_orders_execution" title="strategies.strategy.Strategy.wait_for_orders_execution"><code class="xref py py-obj docutils literal notranslate"><span class="pre">wait_for_orders_execution</span></code></a>(orders)</p></td>
 <td><p>Wait for a list of orders to be executed or canceled by the broker</p></td>
 </tr>
 </tbody>

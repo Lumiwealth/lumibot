@@ -30,6 +30,7 @@ class Trader:
         """Adds a strategy to the trader"""
         self._strategies.append(strategy)
 
+    # TODO: Make an asyn version of this
     def run_all(self):
         """run all strategies"""
         if self.is_backtest:
@@ -49,6 +50,25 @@ class Trader:
         result = self._collect_analysis()
 
         return result
+
+    # Async version of run_all
+    def run_all_async(self):
+        """run all strategies"""
+        if self.is_backtest:
+            if len(self._strategies) > 1:
+                raise Exception(
+                    "Received %d strategies for backtesting."
+                    "You can only backtest one at a time." % len(self._strategies)
+                )
+
+            logging.info("Backtesting starting...")
+
+        signal.signal(signal.SIGINT, self._stop_pool)
+        self._set_logger()
+        self._init_pool()
+        self._start_pool()
+
+        return self._strategies
 
     def _set_logger(self):
         """Setting Logging to both console and a file if logfile is specified"""

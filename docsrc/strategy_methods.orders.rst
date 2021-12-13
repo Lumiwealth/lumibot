@@ -16,6 +16,10 @@ Order Management functions are used to create, submit, cancel orders and more. Y
     cancel_orders
     cancel_open_orders
     sell_all
+    get_order
+    get_orders
+    get_position
+    get_positions
     get_tracked_order
     get_tracked_orders
     get_tracked_position

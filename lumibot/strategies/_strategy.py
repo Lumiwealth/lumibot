@@ -25,8 +25,6 @@ class _Strategy:
 
     def __init__(
         self,
-        name,
-        budget,
         broker,
         data_source=None,
         minutes_before_closing=5,
@@ -39,6 +37,8 @@ class _Strategy:
         backtesting_end=None,
         pandas_data=None,
         filled_order_callback=None,
+        name="StratName",
+        budget=10000,
         **kwargs,
     ):
         # Setting the broker object
@@ -230,7 +230,10 @@ class _Strategy:
                 self._stats.to_csv(self._stats_file)
 
             # Getting the performance of the strategy
-            self.log_message(f"--- {self._name} Strategy Performance ---")
+            self.log_message(
+                f"--- {self._name + ' ' if self._name != 'StratName' else ''}"
+                f"Strategy Performance  ---"
+            )
 
             self._strategy_returns_df = day_deduplicate(self._stats)
             self._analysis = stats_summary(
@@ -323,7 +326,7 @@ class _Strategy:
         else:
             plot_returns(
                 self._strategy_returns_df,
-                f"{self._name} Strategy",
+                f"{self._name + ' ' if self._name != 'StratName' else ''}Strategy",
                 self._benchmark_returns_df,
                 self._benchmark_asset,
                 plot_file,
@@ -335,8 +338,6 @@ class _Strategy:
     @classmethod
     def backtest(
         cls,
-        name,
-        budget,
         datasource_class,
         backtesting_start,
         backtesting_end,
@@ -348,6 +349,8 @@ class _Strategy:
         logfile=None,
         config=None,
         auto_adjust=False,
+        name="StratName",
+        budget=10000,
         benchmark_asset="SPY",
         plot_file=None,
         plot_file_html=None,
@@ -359,18 +362,19 @@ class _Strategy:
         # Filename defaults
         datestring = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         if plot_file is None:
-            plot_file = f"logs/{name}_{datestring}.jpg"
+            plot_file = f"logs/{name + '_' if name != 'StratName' else ''}{datestring}.jpg"
         if plot_file_html is None:
-            plot_file_html = f"logs/{name}_{datestring}.html"
+            plot_file_html = f"logs/{name + '_' if name != 'StratName' else ''}{datestring}.html"
         if stats_file is None:
-            stats_file = f"logs/{name}_{datestring}_stats.csv"
+            stats_file = f"logs/{name + '_' if name != 'StratName' else ''}{datestring}_stats.csv"
         if trades_file is None:
-            trades_file = f"logs/{name}_{datestring}_trades.csv"
+            trades_file = f"logs/{name + '_' if name != 'StratName' else ''}{datestring}_trades.csv"
         if logfile is None:
-            logfile = f"logs/{name}_{datestring}_logs.csv"
+            logfile = f"logs/{name + '_' if name != 'StratName' else ''}{datestring}_logs.csv"
 
         if not cls.IS_BACKTESTABLE:
-            logging.warning(f"Strategy {name} cannot be backtested at the moment")
+            logging.warning(f"Strategy {name + ' ' if name != 'StratName' else ''}cannot be "
+                            f"backtested at the moment")
             return None
 
         backtesting_start = to_datetime_aware(backtesting_start)
@@ -399,6 +403,8 @@ class _Strategy:
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             pandas_data=pandas_data,
+            name="StratName",
+            budget=10000,
             **kwargs,
         )
         trader.add_strategy(strategy)

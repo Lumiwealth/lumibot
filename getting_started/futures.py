@@ -158,8 +158,6 @@ if __name__ == "__main__":
     ####
     tic = perf_counter()
     strategy_class.backtest(
-        strategy_name,
-        budget,
         backtesting_datasource,
         backtesting_start,
         backtesting_end,

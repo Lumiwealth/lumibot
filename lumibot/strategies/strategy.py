@@ -1146,7 +1146,12 @@ class Strategy(_Strategy):
         >>> self.log_message(f"Last price for {asset} is {last_price}")
         """
         asset = self._set_asset_mapping(asset)
-        return self.broker.get_last_price(asset)
+        try:
+            return self.broker.get_last_price(asset)
+        except Exception as e:
+            self.log_message(f"Could not get last price for {asset}")
+            self.log_message(f"{e}")
+            return None
 
     def get_tick(self, asset):
         """Takes an asset asset and returns the last known price"""
@@ -2031,7 +2036,7 @@ class Strategy(_Strategy):
 
     # =======Lifecycle methods====================
 
-    def initialize(self):
+    def initialize(self, parameters=None):
         """Initialize the strategy. Use this lifecycle method to initialize parameters.
 
         This method is called once before the first time the strategy is run.

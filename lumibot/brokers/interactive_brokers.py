@@ -16,8 +16,9 @@ from ibapi.wrapper import *
 from lumibot.data_sources import InteractiveBrokersData
 
 # Naming conflict on Order between IB and Lumibot.
+from lumibot.entities import Asset
 from lumibot.entities import Order as OrderLum
-from lumibot.entities import Asset, Position
+from lumibot.entities import Position
 
 from .broker import Broker
 
@@ -148,7 +149,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         elif broker_position["asset_type"] == "future":
             asset = Asset(
                 symbol=broker_position["symbol"],
-                asset_type='future',
+                asset_type="future",
                 expiration=broker_position["expiration"],
                 multiplier=broker_position["multiplier"],
                 currency=broker_position["currency"],
@@ -156,14 +157,20 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         elif broker_position["asset_type"] == "option":
             asset = Asset(
                 symbol=broker_position["symbol"],
-                asset_type='option',
+                asset_type="option",
                 expiration=broker_position["expiration"],
                 strike=broker_position["strike"],
                 right=broker_position["right"],
                 multiplier=broker_position["multiplier"],
                 currency=broker_position["currency"],
             )
-        else: # Unreachable code.
+        elif broker_position["asset_type"] == "forex":
+            asset = Asset(
+                symbol=broker_position["symbol"],
+                asset_type="forex",
+                currency=broker_position["currency"],
+            )
+        else:  # Unreachable code.
             raise ValueError(
                 f"From Interactive Brokers, asset type can only be `stock`, "
                 f"`future`, or `option`. A value of {broker_position['asset_type']} "
@@ -193,8 +200,6 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
     def _pull_broker_positions(self):
         """Get the broker representation of all positions"""
         return self.ib.get_positions()
-
-
 
     # =======Orders and assets functions=========
 
@@ -717,10 +722,10 @@ class IBWrapper(EWrapper):
                 positionsdict["expiration"], "%Y%m%d"
             ).date()
 
-        if positionsdict["right"] == 'C':
-            positionsdict["right"] = 'CALL'
-        elif positionsdict["right"] == 'P':
-            positionsdict["right"] = 'PUT'
+        if positionsdict["right"] == "C":
+            positionsdict["right"] = "CALL"
+        elif positionsdict["right"] == "P":
+            positionsdict["right"] = "PUT"
 
         self.positions.append(positionsdict)
 
@@ -829,7 +834,6 @@ class IBWrapper(EWrapper):
             self.init_new_orders()
         if orderState.status == "PreSubmitted":
             self.my_new_orders_queue.put(order)
-
 
     def openOrderEnd(self):
         super().openOrderEnd()
@@ -1252,7 +1256,7 @@ class IBApp(IBWrapper, IBClient):
         currency="USD",
         primaryExchange="ISLAND",
     ):
-        """Creates new contract objects. """
+        """Creates new contract objects."""
         contract = Contract()
 
         contract.symbol = str(asset.symbol)

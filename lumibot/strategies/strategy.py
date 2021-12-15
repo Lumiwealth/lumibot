@@ -2034,6 +2034,33 @@ class Strategy(_Strategy):
         assets = [self._set_asset_mapping(asset) for asset in assets]
         return self.data_source.get_yesterday_dividends(assets)
 
+    def update_parameters(self, parameters):
+        """Update the parameters of the strategy.
+
+        Parameters
+        ----------
+        parameters : dict
+            The parameters to update.
+
+        Returns
+        -------
+        None
+        """
+        for key, value in parameters.items():
+            self.parameters[key] = value
+
+        self.on_parameters_updated(parameters)
+
+    def get_parameters(self):
+        """Get the parameters of the strategy.
+
+        Returns
+        -------
+        parameters : dict
+            The parameters of the strategy.
+        """
+        return self.parameters
+
     # =======Lifecycle methods====================
 
     def initialize(self, parameters=None):
@@ -2365,5 +2392,24 @@ class Strategy(_Strategy):
         >>>         self.log_message("Order for AAPL filled")
         >>>         self.log_message(f"Price: {price}")
 
+        """
+        pass
+
+    def on_parameters_updated(self, parameters):
+        """Use this lifecycle event to execute code when the parameters are updated.
+
+        Parameters
+        ----------
+        parameters : dict
+            The parameters that are being updated.
+
+        Returns
+        -------
+        None
+
+        Example
+        -------
+        >>> def on_parameters_updated(self, parameters):
+        >>>     self.log_message(f"Parameters updated: {parameters}")
         """
         pass

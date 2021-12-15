@@ -991,7 +991,10 @@ class IBClient(EClient):
         elif greek:
             greek_storage = self.wrapper.init_greek()
 
-        contract = self.create_contract(asset)
+        contract = self.create_contract(
+            asset,
+            currency=asset.currency,
+        )
         reqId = self.get_reqid()
 
         if not greek:

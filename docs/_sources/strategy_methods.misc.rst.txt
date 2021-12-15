@@ -12,6 +12,8 @@ Miscellaneous methods are the methods that do not fit into other categories. You
     log_message
     sleep
     set_market
+    update_parameters
+    get_parameters
     await_market_to_close
     await_market_to_open
     wait_for_order_registration

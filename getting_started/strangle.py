@@ -491,22 +491,18 @@ class Strangle(Strategy):
 
 
 def main(backtest=False):
-    # Choose your budget and log file locations
-    budget = 100000
     logfile = "logs/logfile.log"
     benchmark_asset = "SPY"
 
-    strategy_name = "Strangle"
     strategy_class = Strangle
 
     symbols = [
-        "FB",
-        "MSFT",
+        "AAPL",
     ]
 
     if backtest:
-        backtesting_start = datetime.datetime(2021, 10, 11)  # Earliest is 5th
-        backtesting_end = datetime.datetime(2021, 10, 15)  # up to 20th
+        backtesting_start = datetime.datetime(2021, 9, 16)  # Earliest is 5th
+        backtesting_end = datetime.datetime(2021, 9, 19)  # up to 20th
 
         trading_hours_start = datetime.time(9, 30)
         trading_hours_end = datetime.time(16, 00)
@@ -535,8 +531,6 @@ def main(backtest=False):
             pandas_data[asset] = Data(
                 asset,
                 df,
-                date_start=backtesting_start,
-                date_end=backtesting_end,
                 trading_hours_start=trading_hours_start,
                 trading_hours_end=trading_hours_end,
                 timestep="minute",
@@ -575,8 +569,6 @@ def main(backtest=False):
                 pandas_data[asset] = Data(
                     asset,
                     df,
-                    date_start=backtesting_start,
-                    date_end=backtesting_end,
                     trading_hours_start=trading_hours_start,
                     trading_hours_end=trading_hours_end,
                     timestep="minute",
@@ -601,7 +593,7 @@ def main(backtest=False):
         trader = Trader(logfile=logfile)
         broker = InteractiveBrokers(InteractiveBrokersConfig)
 
-        strategy_class = Strangle(name=strategy_name, budget=budget, broker=broker, **kwargs)
+        strategy_class = Strangle(broker=broker, **kwargs)
 
         trader.add_strategy(strategy_class)
         trader.run_all()
@@ -609,8 +601,6 @@ def main(backtest=False):
     elif backtest:
         tic = perf_counter()
         strategy_class.backtest(
-            strategy_name,
-            budget,
             backtesting_datasource,
             backtesting_start,
             backtesting_end,
@@ -623,4 +613,4 @@ def main(backtest=False):
         print(f"Elapsed time: {(toc - tic):.2f}")
 
 if __name__ == "__main__":
-    main(backtest=False)
+    main(backtest=True)

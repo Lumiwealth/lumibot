@@ -272,7 +272,7 @@ class Strategy(_Strategy):
         --------
         >>> self.log_message('Sending a buy order')
         """
-        message = "Strategy %s: %s" % (self.name, message)
+        message = f"Strategy {self._log_strat_name()}: {message}"
         logging.info(message)
 
         return message

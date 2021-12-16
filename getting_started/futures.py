@@ -82,8 +82,7 @@ class Futures(Strategy):
 
 
 if __name__ == "__main__":
-    # Choose your budget and log file locations
-    budget = 100000
+
     logfile = "logs/test.log"
     backtesting_start = datetime.datetime(2020, 10, 8)
     backtesting_end = datetime.datetime(2021, 8, 10)
@@ -91,7 +90,6 @@ if __name__ == "__main__":
     trading_hours_start = datetime.time(9, 30)
     trading_hours_end = datetime.time(16, 0)
 
-    strategy_name = "Futures"
     strategy_class = Futures
 
     backtesting_datasource = PandasDataBacktesting

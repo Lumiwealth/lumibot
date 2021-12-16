@@ -122,9 +122,7 @@ class Strangle(Strategy):
             options["call"] = self.create_asset(
                 asset.symbol,
                 asset_type="option",
-                expiration=self.options_expiry_to_datetime_date(
-                    options["expiration_date"]
-                ),
+                expiration=options["expiration_date"],
                 strike=options["buy_call_strike"],
                 right="CALL",
                 multiplier=multiplier,
@@ -132,9 +130,7 @@ class Strangle(Strategy):
             options["put"] = self.create_asset(
                 asset.symbol,
                 asset_type="option",
-                expiration=self.options_expiry_to_datetime_date(
-                    options["expiration_date"]
-                ),
+                expiration= options["expiration_date"] ,
                 strike=options["buy_put_strike"],
                 right="PUT",
                 multiplier=multiplier,
@@ -338,7 +334,7 @@ class Strangle(Strategy):
         asset = self.create_asset(
             symbol,
             asset_type="option",
-            expiration=self.options_expiry_to_datetime_date(expiration_date),
+            expiration=expiration_date,
             right="CALL",
             multiplier=100,
         )
@@ -362,7 +358,7 @@ class Strangle(Strategy):
         # Expiration
         current_date = datetime.datetime.now().date()
         for expiration in expirations:
-            ex_date = datetime.datetime.strptime(expiration, "%Y%m%d").date()
+            ex_date = expiration
             net_days = (ex_date - current_date).days
             if net_days < self.max_days_expiry:
                 expiration_date = expiration

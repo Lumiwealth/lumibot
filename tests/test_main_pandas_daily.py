@@ -21,7 +21,6 @@ os.makedirs("./logs", exist_ok=True)
 
 # Global parameters
 debug = True
-budget = 40000
 backtesting_start = datetime.datetime(2019, 3, 1)
 backtesting_end = datetime.datetime(2019, 11, 1)
 
@@ -135,8 +134,6 @@ def run_test(strategy_name):
         data.strategy = strategy_name
     stats_file = f"logs/strategy_{strategy_class.__name__}_{int(time())}.csv"
     return strategy_class.backtest(
-        strategy_name,
-        budget,
         backtesting_datasource,
         backtesting_start,
         backtesting_end,
@@ -146,6 +143,8 @@ def run_test(strategy_name):
         logfile=logfile,
         risk_free_rate=0,
         show_plot=False,
+        name = strategy_name,
+        budget=40000,
         **kwargs,
     )
 

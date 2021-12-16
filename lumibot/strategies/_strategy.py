@@ -145,6 +145,10 @@ class _Strategy:
                 f"entered {asset}"
             )
 
+    def _log_strat_name(self):
+        """Returns the name of the strategy as a string if not default"""
+        return f"{self._name} " if self._name != "StratName" else ""
+
     # =============Auto updating functions=============
 
     def _update_portfolio_value(self):
@@ -231,8 +235,7 @@ class _Strategy:
 
             # Getting the performance of the strategy
             self.log_message(
-                f"--- {self._name + ' ' if self._name != 'StratName' else ''}"
-                f"Strategy Performance  ---"
+                f"--- {self._log_strat_name()}Strategy Performance  ---"
             )
 
             self._strategy_returns_df = day_deduplicate(self._stats)
@@ -326,7 +329,7 @@ class _Strategy:
         else:
             plot_returns(
                 self._strategy_returns_df,
-                f"{self._name + ' ' if self._name != 'StratName' else ''}Strategy",
+                f"{self._log_strat_name()}Strategy",
                 self._benchmark_returns_df,
                 self._benchmark_asset,
                 plot_file,
@@ -391,8 +394,6 @@ class _Strategy:
         )
         backtesting_broker = BacktestingBroker(data_source)
         strategy = cls(
-            name,
-            budget,
             backtesting_broker,
             minutes_before_closing=minutes_before_closing,
             minutes_before_opening=minutes_before_opening,
@@ -403,8 +404,8 @@ class _Strategy:
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             pandas_data=pandas_data,
-            name="StratName",
-            budget=10000,
+            name=name,
+            budget=budget,
             **kwargs,
         )
         trader.add_strategy(strategy)

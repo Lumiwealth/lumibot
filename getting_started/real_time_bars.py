@@ -48,7 +48,6 @@ class RealTimeBars(Strategy):
 
 if __name__ == "__main__":
 
-    # Choose your budget and log file locations
     logfile = "logs/rtb.log"
 
     # Initialize all our classes
@@ -65,8 +64,7 @@ if __name__ == "__main__":
         timeshift=datetime.timedelta(days=0),
     )
     print(kwargs)
-    strategy_name = "RealTimeBars"
-    strategy = RealTimeBars(name=strategy_name, budget=500, broker=broker, **kwargs)
+    strategy = RealTimeBars(broker=broker, **kwargs)
 
     trader.add_strategy(strategy)
     trader.run_all()

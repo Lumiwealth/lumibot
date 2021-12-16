@@ -1140,13 +1140,13 @@ class IBClient(EClient):
         try:
             requested_accounts = accounts_storage.get(timeout=self.max_wait_time)
         except queue.Empty:
-            print("The queue was empty or max time reached for account summary")
+            logger.info("The queue was empty or max time reached for account summary")
             requested_accounts = None
 
         self.cancelAccountSummary(as_reqid)
 
         while self.wrapper.is_error():
-            print(f"Error: {self.get_error(timeout=5)}")
+            logger.debug(f"Error: {self.get_error(timeout=5)}")
 
         return requested_accounts
 

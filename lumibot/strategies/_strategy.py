@@ -84,6 +84,8 @@ class _Strategy:
         # Setting execution parameters
         self._first_iteration = True
         self._initial_budget = budget
+        if not self._is_backtesting:
+            budget = self.broker. _get_cash_balance_at_broker()
         self._cash = budget
         self._portfolio_value = budget
         self._minutes_before_closing = minutes_before_closing
@@ -104,6 +106,25 @@ class _Strategy:
         self._benchmark_returns_df = None
 
         self._filled_order_callback = filled_order_callback
+
+
+    @property
+    def _cash(self):
+        """Returns the cash balance of the strategy.
+
+        Returns:
+            float: The cash balance for the strategy.
+        """
+        return self._cash
+
+    @_cash.setter
+    def _cash(self, value):
+        """Returns the initial cash for the strategy.
+
+        For backtesting will return the initial budget. For live trading
+        will return the cash balance of the broker.
+        """
+        self._cash = value
 
     # =============Internal functions===================
 

@@ -107,25 +107,6 @@ class _Strategy:
 
         self._filled_order_callback = filled_order_callback
 
-
-    @property
-    def _cash(self):
-        """Returns the cash balance of the strategy.
-
-        Returns:
-            float: The cash balance for the strategy.
-        """
-        return self._cash
-
-    @_cash.setter
-    def _cash(self, value):
-        """Returns the initial cash for the strategy.
-
-        For backtesting will return the initial budget. For live trading
-        will return the cash balance of the broker.
-        """
-        self._cash = value
-
     # =============Internal functions===================
 
     def _copy_dict(self):

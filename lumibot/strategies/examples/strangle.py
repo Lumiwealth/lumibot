@@ -138,7 +138,7 @@ class Strangle(Strategy):
 
     def on_trading_iteration(self):
         value = self.portfolio_value
-        cash = self.unspent_money
+        cash = self.cash
         positions = self.get_tracked_positions()
         filled_assets = [p.asset for p in positions]
         trade_cash = self.portfolio_value / (self.max_trades * 2)
@@ -280,7 +280,7 @@ class Strangle(Strategy):
         filla = [pos.asset for pos in positions]
         print(
             f"**** End of iteration ****\n"
-            f"Cash: {self.unspent_money}, Value: {self.portfolio_value}  "
+            f"Cash: {self.cash}, Value: {self.portfolio_value}  "
             f"Positions: {positions} "
             f"Filled_assets: {filla} "
             f"*******  END ELAPSED TIME  "

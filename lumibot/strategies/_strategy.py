@@ -84,7 +84,7 @@ class _Strategy:
         # Setting execution parameters
         self._first_iteration = True
         self._initial_budget = budget
-        self._unspent_money = budget
+        self._cash = budget
         self._portfolio_value = budget
         self._minutes_before_closing = minutes_before_closing
         self._minutes_before_opening = minutes_before_opening
@@ -122,7 +122,7 @@ class _Strategy:
             elif key in [
                 "_name",
                 "_initial_budget",
-                "_unspent_money",
+                "_cash",
                 "_portfolio_value",
                 "_minutes_before_closing",
                 "_minutes_before_opening",
@@ -155,7 +155,7 @@ class _Strategy:
     def _update_portfolio_value(self):
         """updates self.portfolio_value"""
         with self._executor.lock:
-            portfolio_value = self._unspent_money
+            portfolio_value = self._cash
             positions = self.broker.get_tracked_positions(self._name)
             assets = [position.asset for position in positions]
             prices = self.data_source.get_last_prices(assets)
@@ -186,16 +186,16 @@ class _Strategy:
 
         return portfolio_value
 
-    def _update_unspent_money(self, side, quantity, price, multiplier):
-        """update the self.unspent_money"""
+    def _update_cash(self, side, quantity, price, multiplier):
+        """update the self.cash"""
         with self._executor.lock:
             if side == "buy":
-                self._unspent_money -= quantity * price * multiplier
+                self._cash -= quantity * price * multiplier
             if side == "sell":
-                self._unspent_money += quantity * price * multiplier
-            return self._unspent_money
+                self._cash += quantity * price * multiplier
+            return self._cash
 
-    def _update_unspent_money_with_dividends(self):
+    def _update_cash_with_dividends(self):
         with self._executor.lock:
             positions = self.broker.get_tracked_positions(self._name)
             assets = [position.asset for position in positions]
@@ -208,8 +208,8 @@ class _Strategy:
                     if dividends_per_share is None
                     else dividends_per_share.get(asset, 0)
                 )
-                self._unspent_money += dividend_per_share * quantity
-            return self._unspent_money
+                self._cash += dividend_per_share * quantity
+            return self._cash
 
     # =============Stats functions=====================
 

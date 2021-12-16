@@ -258,7 +258,7 @@ class Strangle(Strategy):
         filla = [pos.asset for pos in positions]
         self.log_message(
             f"**** End of iteration ****\n"
-            f"Cash: {self.unspent_money}, Value: {self.portfolio_value}  "
+            f"Cash: {self.cash}, Value: {self.portfolio_value}  "
             f"Positions: {positions} "
             f"Filled_assets: {filla} "
             f"*******"

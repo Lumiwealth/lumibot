@@ -17,7 +17,7 @@ Inside your strategy you can also get a lot of information about the state of th
     parameters
     is_backtesting
     portfolio_value
-    unspent_money
+    cash
     first_iteration
     timezone
     pytz

@@ -186,7 +186,7 @@ class Strategy(_Strategy):
         Returns
         -------
         portfolio_value : float
-            The current portfolio value. Includes the actual values of shares held by the current strategy plus the total unspent money.
+            The current portfolio value. Includes the actual values of shares held by the current strategy plus the total cash.
 
         Example
         -------
@@ -197,8 +197,8 @@ class Strategy(_Strategy):
         return self._portfolio_value
 
     @property
-    def unspent_money(self):
-        """Returns the current unspent money. This is the money that is not used for positions or
+    def cash(self):
+        """Returns the current cash. This is the money that is not used for positions or
         orders (in other words, the money that is available to buy new assets, or cash).
 
         This property is updated whenever a transaction was filled by the broker or when dividends
@@ -206,15 +206,15 @@ class Strategy(_Strategy):
 
         Returns
         -------
-        unspent_money : float
-            The current unspent money.
+        cash : float
+            The current cash.
 
         Example
         -------
-        >>> # Get the current unspent money
-        >>> self.log_message(self.unspent_money)
+        >>> # Get the current cash
+        >>> self.log_message(self.cash)
         """
-        return self._unspent_money
+        return self._cash
 
     @property
     def first_iteration(self):
@@ -2213,7 +2213,7 @@ class Strategy(_Strategy):
         >>>         "my_stat": context["my_stat"],
         >>>         "my_other_stat": context["my_other_stat"],
         >>>         "portfolio_value": self.portfolio_value,
-        >>>         "unspent_money": self.unspent_money,
+        >>>         "cash": self.cash,
         >>>     }
         """
         return {}
@@ -2256,7 +2256,7 @@ class Strategy(_Strategy):
         >>> def after_market_closes(self):
         >>>     self.log_message("The market is closed")
         >>>     self.log_message(f"The total value of our portfolio is {self.portfolio_value}")
-        >>>     self.log_message(f"The amount of cash we have is {self.unspent_money})
+        >>>     self.log_message(f"The amount of cash we have is {self.cash})
         """
         pass
 

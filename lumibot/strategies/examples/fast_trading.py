@@ -49,7 +49,7 @@ class FastTrading(Strategy):
     def on_trading_iteration(self):
 
         # Setting the buying budget
-        cash = self.unspent_money + sum(
+        cash = self.cash + sum(
             [order.cash_pending(self) for order in self.get_tracked_orders()]
         )
 

@@ -172,6 +172,7 @@
 <li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_partially_filled_order.html">def on_partially_filled_order</a></li>
 <li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_filled_order.html">def on_filled_order</a></li>
 <li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_canceled_order.html">def on_canceled_order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_parameters_updated.html">def on_parameters_updated</a></li>
 </ul>
 </li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="strategy_methods.html">Strategy Methods</a><input class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
@@ -228,6 +229,8 @@
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.log_message.html">self.log_message</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.sleep.html">self.sleep</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.set_market.html">self.set_market</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.update_parameters.html">self.update_parameters</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.get_parameters.html">self.get_parameters</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.await_market_to_close.html">self.await_market_to_close</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.await_market_to_open.html">self.await_market_to_open</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.wait_for_order_registration.html">self.wait_for_order_registration</a></li>
@@ -755,6 +758,8 @@
 </li>
         <li><a href="strategy_methods.orders/strategies.strategy.Strategy.get_orders.html#strategies.strategy.Strategy.get_orders">get_orders() (in module strategies.strategy.Strategy)</a>
 </li>
+        <li><a href="strategy_methods.misc/strategies.strategy.Strategy.get_parameters.html#strategies.strategy.Strategy.get_parameters">get_parameters() (in module strategies.strategy.Strategy)</a>
+</li>
         <li><a href="strategy_methods.orders/strategies.strategy.Strategy.get_position.html#strategies.strategy.Strategy.get_position">get_position() (in module strategies.strategy.Strategy)</a>
 </li>
         <li><a href="strategy_methods.orders/strategies.strategy.Strategy.get_positions.html#strategies.strategy.Strategy.get_positions">get_positions() (in module strategies.strategy.Strategy)</a>
@@ -1177,6 +1182,8 @@
         </ul></li>
     </ul></td>
     <td style="width: 33%; vertical-align: top;"><ul>
+        <li><a href="lifecycle_methods.on_parameters_updated.html#strategies.strategy.Strategy.on_parameters_updated">on_parameters_updated() (in module strategies.strategy.Strategy)</a>
+</li>
         <li><a href="lifecycle_methods.on_partially_filled_order.html#strategies.strategy.Strategy.on_partially_filled_order">on_partially_filled_order() (in module strategies.strategy.Strategy)</a>
 
         <ul>
@@ -1451,9 +1458,11 @@
         </ul></li>
         <li><a href="entities.bar.html#entities.bar.Bar.update">update() (entities.bar.Bar method)</a>
 </li>
+        <li><a href="lumibot.data_sources.html#lumibot.data_sources.pandas.PandasData.update_date_index">update_date_index() (lumibot.data_sources.pandas.PandasData method)</a>
+</li>
     </ul></td>
     <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="lumibot.data_sources.html#lumibot.data_sources.pandas.PandasData.update_date_index">update_date_index() (lumibot.data_sources.pandas.PandasData method)</a>
+        <li><a href="strategy_methods.misc/strategies.strategy.Strategy.update_parameters.html#strategies.strategy.Strategy.update_parameters">update_parameters() (in module strategies.strategy.Strategy)</a>
 </li>
         <li><a href="entities.order.html#entities.order.Order.update_raw">update_raw() (entities.order.Order method)</a>
 

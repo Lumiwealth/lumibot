@@ -1146,7 +1146,12 @@ class Strategy(_Strategy):
         >>> self.log_message(f"Last price for {asset} is {last_price}")
         """
         asset = self._set_asset_mapping(asset)
-        return self.broker.get_last_price(asset)
+        try:
+            return self.broker.get_last_price(asset)
+        except Exception as e:
+            self.log_message(f"Could not get last price for {asset}")
+            self.log_message(f"{e}")
+            return None
 
     def get_tick(self, asset):
         """Takes an asset asset and returns the last known price"""
@@ -2029,9 +2034,36 @@ class Strategy(_Strategy):
         assets = [self._set_asset_mapping(asset) for asset in assets]
         return self.data_source.get_yesterday_dividends(assets)
 
+    def update_parameters(self, parameters):
+        """Update the parameters of the strategy.
+
+        Parameters
+        ----------
+        parameters : dict
+            The parameters to update.
+
+        Returns
+        -------
+        None
+        """
+        for key, value in parameters.items():
+            self.parameters[key] = value
+
+        self.on_parameters_updated(parameters)
+
+    def get_parameters(self):
+        """Get the parameters of the strategy.
+
+        Returns
+        -------
+        parameters : dict
+            The parameters of the strategy.
+        """
+        return self.parameters
+
     # =======Lifecycle methods====================
 
-    def initialize(self):
+    def initialize(self, parameters=None):
         """Initialize the strategy. Use this lifecycle method to initialize parameters.
 
         This method is called once before the first time the strategy is run.
@@ -2360,5 +2392,24 @@ class Strategy(_Strategy):
         >>>         self.log_message("Order for AAPL filled")
         >>>         self.log_message(f"Price: {price}")
 
+        """
+        pass
+
+    def on_parameters_updated(self, parameters):
+        """Use this lifecycle event to execute code when the parameters are updated.
+
+        Parameters
+        ----------
+        parameters : dict
+            The parameters that are being updated.
+
+        Returns
+        -------
+        None
+
+        Example
+        -------
+        >>> def on_parameters_updated(self, parameters):
+        >>>     self.log_message(f"Parameters updated: {parameters}")
         """
         pass

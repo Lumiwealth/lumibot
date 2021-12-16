@@ -39,6 +39,7 @@ class _Strategy:
         filled_order_callback=None,
         name="StratName",
         budget=10000,
+        parameters={},
         **kwargs,
     ):
         # Setting the broker object
@@ -97,7 +98,7 @@ class _Strategy:
         self._analysis = {}
 
         # Storing parameters for the initialize method
-        self._parameters = kwargs
+        self._parameters = dict(list(parameters.items()) + list(kwargs.items()))
 
         self._strategy_returns_df = None
         self._benchmark_returns_df = None

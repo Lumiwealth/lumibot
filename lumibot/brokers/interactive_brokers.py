@@ -16,8 +16,9 @@ from ibapi.wrapper import *
 from lumibot.data_sources import InteractiveBrokersData
 
 # Naming conflict on Order between IB and Lumibot.
+from lumibot.entities import Asset
 from lumibot.entities import Order as OrderLum
-from lumibot.entities import Asset, Position
+from lumibot.entities import Position
 
 from .broker import Broker
 
@@ -148,7 +149,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         elif broker_position["asset_type"] == "future":
             asset = Asset(
                 symbol=broker_position["symbol"],
-                asset_type='future',
+                asset_type="future",
                 expiration=broker_position["expiration"],
                 multiplier=broker_position["multiplier"],
                 currency=broker_position["currency"],
@@ -156,14 +157,20 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         elif broker_position["asset_type"] == "option":
             asset = Asset(
                 symbol=broker_position["symbol"],
-                asset_type='option',
+                asset_type="option",
                 expiration=broker_position["expiration"],
                 strike=broker_position["strike"],
                 right=broker_position["right"],
                 multiplier=broker_position["multiplier"],
                 currency=broker_position["currency"],
             )
-        else: # Unreachable code.
+        elif broker_position["asset_type"] == "forex":
+            asset = Asset(
+                symbol=broker_position["symbol"],
+                asset_type="forex",
+                currency=broker_position["currency"],
+            )
+        else:  # Unreachable code.
             raise ValueError(
                 f"From Interactive Brokers, asset type can only be `stock`, "
                 f"`future`, or `option`. A value of {broker_position['asset_type']} "
@@ -193,8 +200,6 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
     def _pull_broker_positions(self):
         """Get the broker representation of all positions"""
         return self.ib.get_positions()
-
-
 
     # =======Orders and assets functions=========
 
@@ -547,16 +552,22 @@ class IBWrapper(EWrapper):
                 return None
         return None
 
-    def error(self, id, errorCode, errorString):
+    def error(self, id, error_code, error_string):
         if not hasattr(self, "my_errors_queue"):
             self.init_error()
-        errormessage = "IB returns an error with %d error code %d that says %s" % (
-            id,
-            errorCode,
-            errorString,
+
+        error_message = (
+            "IBWrapper returned an error with %d error code %d that says %s"
+            % (
+                id,
+                error_code,
+                error_string,
+            )
         )
-        logging.info(errormessage)
-        self.my_errors_queue.put(errormessage)
+        # Make sure we don't lose the error, but we only print it if asked for
+        logging.debug(error_message)
+
+        self.my_errors_queue.put(error_message)
 
     # Time.
     def init_time(self):
@@ -717,16 +728,16 @@ class IBWrapper(EWrapper):
                 positionsdict["expiration"], "%Y%m%d"
             ).date()
 
-        if positionsdict["right"] == 'C':
-            positionsdict["right"] = 'CALL'
-        elif positionsdict["right"] == 'P':
-            positionsdict["right"] = 'PUT'
+        if positionsdict["right"] == "C":
+            positionsdict["right"] = "CALL"
+        elif positionsdict["right"] == "P":
+            positionsdict["right"] = "PUT"
 
         self.positions.append(positionsdict)
 
         positionstxt = ", ".join(f"{k}: {v}" for k, v in positionsdict.items())
 
-        logging.info(positionstxt)
+        logging.debug(positionstxt)
 
     def positionEnd(self):
         self.my_positions_queue.put(self.positions)
@@ -758,7 +769,8 @@ class IBWrapper(EWrapper):
             [f"{k}: {v}" for k, v in accountSummarydict.items()]
         )
 
-        logging.info(accountSummarytxt)
+        # Keep the logs, but only show if asked for
+        logging.debug(accountSummarytxt)
 
     def accountSummaryEnd(self, reqId):
         super().accountSummaryEnd(reqId)
@@ -818,7 +830,7 @@ class IBWrapper(EWrapper):
             f"Status: {orderState.status}) "
         )
 
-        logging.info(openOrdertxt)
+        logging.debug(openOrdertxt)
 
         order.contract = contract
         order.orderState = orderState
@@ -829,7 +841,6 @@ class IBWrapper(EWrapper):
             self.init_new_orders()
         if orderState.status == "PreSubmitted":
             self.my_new_orders_queue.put(order)
-
 
     def openOrderEnd(self):
         super().openOrderEnd()
@@ -857,7 +868,7 @@ class IBWrapper(EWrapper):
             f"remaining: {remaining}, "
             f"lastFillPrice: {lastFillPrice}, "
         )
-        logging.info(orderStatustxt)
+        logging.debug(orderStatustxt)
         self.ib_broker.on_status_event(
             orderId,
             status,
@@ -884,7 +895,7 @@ class IBWrapper(EWrapper):
             f"{execution.shares}, "
             f"{execution.lastLiquidity} "
         )
-        logging.info(execDetailstxt)
+        logging.debug(execDetailstxt)
 
         return self.ib_broker.on_trade_event(reqId, contract, execution)
 
@@ -987,7 +998,10 @@ class IBClient(EClient):
         elif greek:
             greek_storage = self.wrapper.init_greek()
 
-        contract = self.create_contract(asset)
+        contract = self.create_contract(
+            asset,
+            currency=asset.currency,
+        )
         reqId = self.get_reqid()
 
         if not greek:
@@ -1007,7 +1021,7 @@ class IBClient(EClient):
             requested_greek = None
 
         while self.wrapper.is_error():
-            print(f"Error: {self.get_error(timeout=5)}")
+            logger.debug(f"Error: {self.get_error(timeout=5)}")
 
         if not greek:
             return requested_tick
@@ -1252,7 +1266,7 @@ class IBApp(IBWrapper, IBClient):
         currency="USD",
         primaryExchange="ISLAND",
     ):
-        """Creates new contract objects. """
+        """Creates new contract objects."""
         contract = Contract()
 
         contract.symbol = str(asset.symbol)
@@ -1326,7 +1340,7 @@ class IBApp(IBWrapper, IBClient):
         elif order.order_class == "oto":
             if not order.limit_price:
                 logging.info(
-                    f"All oto orders must have limit price for the originating order. "
+                    f"All OTO orders must have limit price for the originating order. "
                     f"The one triggers other order for {order.symbol} is cancelled."
                 )
                 return []

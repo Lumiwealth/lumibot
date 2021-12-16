@@ -163,14 +163,18 @@ class StrategyExecutor(Thread):
                                 obroker = getattr(order, order_attr)
                                 if olumi != obroker:
                                     setattr(order_lumi, order_attr, obroker)
-                                    logging.warning(f"We would adjust {order_lumi}, {order_attr}, to be {obroker} her.")
+                                    logging.warning(
+                                        f"We would adjust {order_lumi}, {order_attr}, to be {obroker} her."
+                                    )
                         else:
                             # Add to order in lumibot.
                             self.broker._process_new_order(order)
 
                 for order_lumi in orders_lumi:
                     # Remove lumibot orders if not in broker.
-                    if order_lumi.identifier not in [order.identifier for order in orders_broker]:
+                    if order_lumi.identifier not in [
+                        order.identifier for order in orders_broker
+                    ]:
                         self.broker._process_trade_event(order_lumi, "canceled")
 
             self.broker._hold_trade_events = False
@@ -283,7 +287,7 @@ class StrategyExecutor(Thread):
     @lifecycle_method
     def _initialize(self):
         self.strategy.log_message("Executing the initialize lifecycle method")
-        self.strategy.initialize(**self.strategy.parameters)
+        self.strategy.initialize()
 
     @lifecycle_method
     def _before_market_opens(self):

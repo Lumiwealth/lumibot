@@ -26,3 +26,4 @@ When building strategies, lifecycle methods needs to be overloaded. Trading logi
    lifecycle_methods.on_partially_filled_order
    lifecycle_methods.on_filled_order
    lifecycle_methods.on_canceled_order
+   lifecycle_methods.on_parameters_updated

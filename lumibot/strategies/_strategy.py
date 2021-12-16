@@ -39,6 +39,7 @@ class _Strategy:
         backtesting_end=None,
         pandas_data=None,
         filled_order_callback=None,
+        parameters={},
         **kwargs,
     ):
         # Setting the broker object
@@ -97,7 +98,7 @@ class _Strategy:
         self._analysis = {}
 
         # Storing parameters for the initialize method
-        self._parameters = kwargs
+        self._parameters = dict(list(parameters.items()) + list(kwargs.items()))
 
         self._strategy_returns_df = None
         self._benchmark_returns_df = None

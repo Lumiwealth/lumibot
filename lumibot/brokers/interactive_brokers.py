@@ -552,16 +552,22 @@ class IBWrapper(EWrapper):
                 return None
         return None
 
-    def error(self, id, errorCode, errorString):
+    def error(self, id, error_code, error_string):
         if not hasattr(self, "my_errors_queue"):
             self.init_error()
-        errormessage = "IB returns an error with %d error code %d that says %s" % (
-            id,
-            errorCode,
-            errorString,
+
+        error_message = (
+            "IBWrapper returned an error with %d error code %d that says %s"
+            % (
+                id,
+                error_code,
+                error_string,
+            )
         )
-        logging.info(errormessage)
-        self.my_errors_queue.put(errormessage)
+        # Make sure we don't lose the error, but we only print it if asked for
+        logging.debug(error_message)
+
+        self.my_errors_queue.put(error_message)
 
     # Time.
     def init_time(self):
@@ -731,7 +737,7 @@ class IBWrapper(EWrapper):
 
         positionstxt = ", ".join(f"{k}: {v}" for k, v in positionsdict.items())
 
-        logging.info(positionstxt)
+        logging.debug(positionstxt)
 
     def positionEnd(self):
         self.my_positions_queue.put(self.positions)
@@ -763,7 +769,8 @@ class IBWrapper(EWrapper):
             [f"{k}: {v}" for k, v in accountSummarydict.items()]
         )
 
-        logging.info(accountSummarytxt)
+        # Keep the logs, but only show if asked for
+        logging.debug(accountSummarytxt)
 
     def accountSummaryEnd(self, reqId):
         super().accountSummaryEnd(reqId)
@@ -823,7 +830,7 @@ class IBWrapper(EWrapper):
             f"Status: {orderState.status}) "
         )
 
-        logging.info(openOrdertxt)
+        logging.debug(openOrdertxt)
 
         order.contract = contract
         order.orderState = orderState
@@ -861,7 +868,7 @@ class IBWrapper(EWrapper):
             f"remaining: {remaining}, "
             f"lastFillPrice: {lastFillPrice}, "
         )
-        logging.info(orderStatustxt)
+        logging.debug(orderStatustxt)
         self.ib_broker.on_status_event(
             orderId,
             status,
@@ -888,7 +895,7 @@ class IBWrapper(EWrapper):
             f"{execution.shares}, "
             f"{execution.lastLiquidity} "
         )
-        logging.info(execDetailstxt)
+        logging.debug(execDetailstxt)
 
         return self.ib_broker.on_trade_event(reqId, contract, execution)
 
@@ -1014,7 +1021,7 @@ class IBClient(EClient):
             requested_greek = None
 
         while self.wrapper.is_error():
-            print(f"Error: {self.get_error(timeout=5)}")
+            logger.debug(f"Error: {self.get_error(timeout=5)}")
 
         if not greek:
             return requested_tick
@@ -1333,7 +1340,7 @@ class IBApp(IBWrapper, IBClient):
         elif order.order_class == "oto":
             if not order.limit_price:
                 logging.info(
-                    f"All oto orders must have limit price for the originating order. "
+                    f"All OTO orders must have limit price for the originating order. "
                     f"The one triggers other order for {order.symbol} is cancelled."
                 )
                 return []

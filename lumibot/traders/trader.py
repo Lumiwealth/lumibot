@@ -12,7 +12,9 @@ class Trader:
     def __init__(self, logfile="logs/logs.log", debug=False, strategies=None):
         # Setting debug and _logfile parameters and setting global log format
         self.debug = debug
-        self.log_format = logging.Formatter("%(asctime)s: %(levelname)s: %(message)s")
+        self.log_format = logging.Formatter(
+            "%(asctime)s: %(name)s: %(levelname)s: %(message)s"
+        )
         self.logfile = logfile
 
         # Setting the list of strategies if defined
@@ -111,7 +113,9 @@ class Trader:
         # Disable Interactive Brokers logs
         for log_name, log_obj in logging.Logger.manager.loggerDict.items():
             if log_name.startswith("ibapi"):
-                log_obj.disabled = True
+                iblogger = logging.getLogger(log_name)
+                iblogger.setLevel(logging.CRITICAL)
+                iblogger.disabled = True
 
     def _init_pool(self):
         self._pool = [strategy._executor for strategy in self._strategies]

@@ -382,6 +382,7 @@ class StrategyExecutor(Thread):
         minutes, hours.
         """
         has_data_source = hasattr(self.broker, "_data_source")
+        is_247 = hasattr(self.broker, "market") and self.broker.market == "24/7"
         # Process pandas daily and get out.
         if (
             has_data_source
@@ -410,8 +411,8 @@ class StrategyExecutor(Thread):
             self._on_trading_iteration()
             return
 
-        if not has_data_source or (
-            has_data_source and self.broker._data_source.SOURCE != "PANDAS"
+        if not is_247 and (not has_data_source or (
+            has_data_source and self.broker._data_source.SOURCE != "PANDAS")
         ):
             self.strategy.await_market_to_open()  # set new time and bar length. Check if hit bar max
             # or date max.
@@ -419,16 +420,24 @@ class StrategyExecutor(Thread):
                 self._before_market_opens()
             self.strategy._update_cash_with_dividends()
 
-        self.strategy.await_market_to_open(timedelta=0)
-        self._before_starting_trading()
+        if not is_247:
+            self.strategy.await_market_to_open(timedelta=0)
+            self._before_starting_trading()
 
-        time_to_close = self.broker.get_time_to_close()
-        while time_to_close > self.strategy.minutes_before_closing * 60:
+        if not is_247:
+            time_to_close = self.broker.get_time_to_close()
+        while is_247 or (time_to_close > self.strategy.minutes_before_closing * 60):
             if self.broker.IS_BACKTESTING_BROKER:
                 self.broker.process_pending_orders(strategy=self.strategy.name)
             self._on_trading_iteration()
-            time_to_close = self.broker.get_time_to_close()
-            sleeptime = time_to_close - self.strategy.minutes_before_closing * 60
+
+            # Set the sleeptime to close.
+            if is_247:
+                sleeptime = float('inf')
+            else:
+                time_to_close = self.broker.get_time_to_close()
+                sleeptime = time_to_close - self.strategy.minutes_before_closing * 60
+
             sleeptime_err_msg = (
                 f"You can set the sleep time as an integer which will be interpreted as "
                 f"minutes. eg: sleeptime = 50 would be 50 minutes. Conversely, you can enter "

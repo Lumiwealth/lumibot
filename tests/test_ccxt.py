@@ -23,29 +23,14 @@ def test_get_timestamp(monkeypatch):
     assert ccxt.get_timestamp() == 1639702229.554235
 
 
-# def test_is_market_open(monkeypatch):
-#     def mock_is_open():
-#         class Clock:
-#             is_open = True
-#
-#         return Clock()
-#
-#     monkeypatch.setattr(alpaca.api, "get_clock", mock_is_open)
-#     assert alpaca.is_market_open() == True
-#
-#
-# def test_get_time_to_open(monkeypatch):
-#     def mock_to_open():
-#         class Clock:
-#             next_open = Timestamp(2021, 2, 1, 9, 30, 0, 0)
-#             timestamp = Timestamp(2021, 2, 1, 8, 30, 0, 0)
-#
-#         return Clock()
-#
-#     monkeypatch.setattr(alpaca.api, "get_clock", mock_to_open)
-#     assert alpaca.get_time_to_open() == 3600
-#
-#
+def test_is_market_open(monkeypatch):
+    assert ccxt.is_market_open() == True
+
+
+def test_get_time_to_open(monkeypatch):
+    assert ccxt.get_time_to_open() == None
+
+
 # def test_get_time_to_close(monkeypatch):
 #     def mock_to_close():
 #         class Clock:

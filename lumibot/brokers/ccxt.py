@@ -31,6 +31,7 @@ class Ccxt(CcxtData, Broker):
         )
         Broker.__init__(self, name="ccxt", connect_stream=connect_stream)
 
+        self.market = "24/7"
     # =========Clock functions=====================
 
     def get_timestamp(self):
@@ -65,8 +66,7 @@ class Ccxt(CcxtData, Broker):
         >>> self.is_market_open()
         True
         """
-        return True  # todo revert
-        return self.api.get_clock().is_open
+        return True
 
     def get_time_to_open(self):
         """How much time in seconds remains until the market next opens?
@@ -89,11 +89,8 @@ class Ccxt(CcxtData, Broker):
 
         >>> self.get_time_to_open()
         """
-        clock = self.api.get_clock()
-        opening_time = clock.next_open.timestamp()
-        curr_time = clock.timestamp.timestamp()
-        time_to_open = opening_time - curr_time
-        return time_to_open
+
+        return None
 
     def get_time_to_close(self):
         """How much time in seconds remains until the market closes?

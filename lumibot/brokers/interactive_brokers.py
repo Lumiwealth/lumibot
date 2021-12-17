@@ -980,11 +980,13 @@ class IBClient(EClient):
         try:
             requested_time = time_storage.get(timeout=self.max_wait_time)
         except queue.Empty:
-            print("The queue was empty or max time reached for timestamp.")
+            logging.info(
+                "The Interactive Brokers queue was empty or max time reached for timestamp."
+            )
             requested_time = None
 
         while self.wrapper.is_error():
-            print("Error:", self.get_error(timeout=5))
+            logging.error("Interactive Brokers Error:", self.get_error(timeout=5))
 
         return requested_time
 
@@ -1016,12 +1018,14 @@ class IBClient(EClient):
                 requested_greek = greek_storage.get(timeout=self.max_wait_time)
         except queue.Empty:
             data_type = f"{'tick' if not greek else 'greek'}"
-            print(f"The queue was empty or max time reached for {data_type} data.")
+            logging.error(
+                f"Unable to get data. The Interactive Brokers queue was empty or max time reached for {data_type} data."
+            )
             requested_tick = None
             requested_greek = None
 
         while self.wrapper.is_error():
-            logger.debug(f"Error: {self.get_error(timeout=5)}")
+            logging.error(f"Error: {self.get_error(timeout=5)}")
 
         if not greek:
             return requested_tick
@@ -1140,13 +1144,15 @@ class IBClient(EClient):
         try:
             requested_accounts = accounts_storage.get(timeout=self.max_wait_time)
         except queue.Empty:
-            logger.info("The queue was empty or max time reached for account summary")
+            logging.info(
+                "The Interactive Brokers queue was empty or max time reached for account summary"
+            )
             requested_accounts = None
 
         self.cancelAccountSummary(as_reqid)
 
         while self.wrapper.is_error():
-            logger.debug(f"Error: {self.get_error(timeout=5)}")
+            logging.debug(f"Error: {self.get_error(timeout=5)}")
 
         return requested_accounts
 
@@ -1269,7 +1275,7 @@ class IBApp(IBWrapper, IBClient):
         """Creates new contract objects."""
         contract = Contract()
 
-        contract.symbol = str(asset.symbol)
+        contract.symbol = str(asset.symbol).upper()
         contract.secType = TYPE_MAP[asset.asset_type]
         contract.exchange = exchange
         contract.currency = currency

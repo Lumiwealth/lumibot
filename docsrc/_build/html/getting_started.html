@@ -364,7 +364,7 @@
 </ol>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">trader</span> <span class="o">=</span> <span class="n">Trader</span><span class="p">()</span>
 <span class="n">broker</span> <span class="o">=</span> <span class="n">Alpaca</span><span class="p">(</span><span class="n">AlpacaConfig</span><span class="p">)</span>
-<span class="n">strategy</span> <span class="o">=</span> <span class="n">MyStrategy</span><span class="p">(</span><span class="n">strategy_name</span><span class="p">,</span> <span class="n">budget</span><span class="p">,</span> <span class="n">broker</span><span class="p">,</span> <span class="n">symbol</span><span class="o">=</span><span class="s2">"SPY"</span><span class="p">)</span>
+<span class="n">strategy</span> <span class="o">=</span> <span class="n">MyStrategy</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">strategy_name</span><span class="p">,</span> <span class="n">budget</span><span class="o">=</span><span class="n">budget</span><span class="p">,</span> <span class="n">broker</span><span class="o">=</span><span class="n">broker</span><span class="p">,</span> <span class="n">symbol</span><span class="o">=</span><span class="s2">"SPY"</span><span class="p">)</span>
 </pre></div>
 </div>
 <ol class="arabic simple" start="8">
@@ -428,7 +428,7 @@
 
 <span class="n">trader</span> <span class="o">=</span> <span class="n">Trader</span><span class="p">()</span>
 <span class="n">broker</span> <span class="o">=</span> <span class="n">Alpaca</span><span class="p">(</span><span class="n">AlpacaConfig</span><span class="p">)</span>
-<span class="n">strategy</span> <span class="o">=</span> <span class="n">MyStrategy</span><span class="p">(</span><span class="n">strategy_name</span><span class="p">,</span> <span class="n">budget</span><span class="p">,</span> <span class="n">broker</span><span class="p">,</span> <span class="n">symbol</span><span class="o">=</span><span class="s2">"SPY"</span><span class="p">)</span>
+<span class="n">strategy</span> <span class="o">=</span> <span class="n">MyStrategy</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">strategy_name</span><span class="p">,</span> <span class="n">budget</span><span class="o">=</span><span class="n">budget</span><span class="p">,</span> <span class="n">broker</span><span class="o">=</span><span class="n">broker</span><span class="p">,</span> <span class="n">symbol</span><span class="o">=</span><span class="s2">"SPY"</span><span class="p">)</span>
 
 <span class="c1"># Backtest this strategy</span>
 <span class="n">backtesting_start</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">2020</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>

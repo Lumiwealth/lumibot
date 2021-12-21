@@ -2061,6 +2061,27 @@ class Strategy(_Strategy):
         """
         return self.parameters
 
+    def set_parameter_defaults(self, parameter_defaults):
+        """Set the default parameters of the strategy.
+
+        Parameters
+        ----------
+        parameter_defaults : dict
+            The parameters to set defaults for.
+
+        Returns
+        -------
+        None
+        """
+        if parameter_defaults is None:
+            return None
+
+        for key, value in parameter_defaults.items():
+            if key not in self.parameters:
+                self.parameters[key] = value
+
+        return self.parameters
+
     # =======Lifecycle methods====================
 
     def initialize(self, parameters=None):

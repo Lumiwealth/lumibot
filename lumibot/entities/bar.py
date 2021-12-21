@@ -5,6 +5,34 @@ from lumibot.tools import ComparaisonMixin
 
 
 class Bar(ComparaisonMixin):
+    """
+    The Bar class represents a single bar (OHLC) of data.
+
+    Attributes
+    ----------
+    timestamp : datetime.datetime
+        The timestamp of the bar.
+    open : float
+        The opening price of the bar.
+    high : float
+        The high price of the bar.
+    low : float
+        The low price of the bar.
+    close : float
+        The closing price of the bar.
+    volume : float
+        The volume of the bar.
+    dividend : float
+        The dividend amount of the bar.
+    stock_splits : float
+        The stock splits amount of the bar.
+
+    Methods
+    -------
+    update(data)
+        Updates the bar with the given data.
+    """
+
     COMPARAISON_PROP = "timestamp"
     DEFAULT_TIMEZONE = LUMIBOT_DEFAULT_TIMEZONE
     DEFAULT_PYTZ = LUMIBOT_DEFAULT_PYTZ

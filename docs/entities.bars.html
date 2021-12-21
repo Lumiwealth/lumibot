@@ -389,6 +389,52 @@ should be in, eg. “15Min”, “1H”, or “1D”. Returns a new Bars
 object.</p>
 </dd></dl>
 <dl class="py method">
+<dt class="sig sig-object py" id="entities.bars.Bars.get_total_volume">
+<span class="sig-name descname"><span class="pre">get_total_volume</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">start</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">end</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.bars.Bars.get_total_volume" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns the total volume of the dataframe.</p>
+</dd></dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="entities.bars.Bars.get_total_dividends">
+<span class="sig-name descname"><span class="pre">get_total_dividends</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">start</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">end</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.bars.Bars.get_total_dividends" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns the total dividend amount of the dataframe.</p>
+</dd></dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="entities.bars.Bars.get_total_stock_splits">
+<span class="sig-name descname"><span class="pre">get_total_stock_splits</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">start</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">end</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.bars.Bars.get_total_stock_splits" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns the total stock split amount of the dataframe.</p>
+</dd></dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="entities.bars.Bars.get_total_return">
+<span class="sig-name descname"><span class="pre">get_total_return</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">start</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">end</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.bars.Bars.get_total_return" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns the total return of the dataframe.</p>
+</dd></dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="entities.bars.Bars.get_total_return_pct">
+<span class="sig-name descname"><span class="pre">get_total_return_pct</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">start</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">end</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.bars.Bars.get_total_return_pct" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns the total return percentage of the dataframe.</p>
+</dd></dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="entities.bars.Bars.get_total_return_pct_change">
+<span class="sig-name descname"><span class="pre">get_total_return_pct_change</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">start</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">end</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.bars.Bars.get_total_return_pct_change" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns the total return percentage change of the dataframe.</p>
+</dd></dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Get the most recent bars for AAPL</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">bars</span> <span class="o">=</span> <span class="n">bars</span><span class="o">.</span><span class="n">get_bars</span><span class="p">(</span><span class="s2">"AAPL"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># Get the most recent bars for AAPL between 2018-01-01 and 2018-01-02</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">bars</span> <span class="o">=</span> <span class="n">bars</span><span class="o">.</span><span class="n">get_bars</span><span class="p">(</span><span class="s2">"AAPL"</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="n">datetime</span><span class="p">(</span><span class="mi">2018</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">end</span><span class="o">=</span><span class="n">datetime</span><span class="p">(</span><span class="mi">2018</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">10</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">df</span> <span class="o">=</span> <span class="n">bars</span><span class="o">.</span><span class="n">df</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">log_message</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="s2">"close"</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Get the most recent bars for ES futures contract</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="n">symbol</span><span class="o">=</span><span class="s2">"ES"</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s2">"future"</span><span class="p">,</span> <span class="n">multiplier</span><span class="o">=</span><span class="mi">100</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">bars</span> <span class="o">=</span> <span class="n">bars</span><span class="o">.</span><span class="n">get_bars</span><span class="p">(</span><span class="n">asset</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">df</span> <span class="o">=</span> <span class="n">bars</span><span class="o">.</span><span class="n">df</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">log_message</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="s2">"close"</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+</pre></div>
+</div>
+<dl class="py method">
 <dt class="sig sig-object py" id="id0">
 <span class="sig-name descname"><span class="pre">aggregate_bars</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">frequency</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#id0" title="Permalink to this definition">¶</a></dt>
 <dd><p>Will convert a set of bars to a different timeframe (eg. 1 min to 15 min)
@@ -483,8 +529,8 @@ Returns a new bars object.</p>
 </dl>
 </dd></dl>
 <dl class="py method">
-<dt class="sig sig-object py" id="entities.bars.Bars.get_total_volume">
-<span class="sig-name descname"><span class="pre">get_total_volume</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">start</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">end</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.bars.Bars.get_total_volume" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="id4">
+<span class="sig-name descname"><span class="pre">get_total_volume</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">start</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">end</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#id4" title="Permalink to this definition">¶</a></dt>
 <dd><p>Return the total volume of the bars between start and end</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>

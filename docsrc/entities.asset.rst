@@ -34,7 +34,7 @@ When creating a new security there are two options.
 
 2. Asset object: Asset objects may be created at anytime for stocks or options. For options, futures, or forex asset objects are mandatory due to the additional details required to identify and trade these securities.
 
-Assets may be created using the ``self.create_asset`` method as follows: ``self.create_asset(symbol, asset_type=option, **kwargs)`` * see attributes above.
+Assets may be created using the ``Asset()`` method as follows: ``Asset(symbol, asset_type=option, **kwargs)`` * see attributes above.
 
 Examples:
 
@@ -42,7 +42,9 @@ For stocks:
 
 .. code-block:: python
 
-    asset = self.create_asset('SPY', asset_type="stock")
+    from lumibot.entities import Asset
+
+    asset = Asset('SPY', asset_type="stock")
     order = self.create_order(asset, 10, "buy")
     self.submit_order(order)
 
@@ -50,7 +52,9 @@ For futures:
 
 .. code-block:: python
 
-    asset = self.create_asset(
+    from lumibot.entities import Asset
+
+    asset = Asset(
     'ES', asset_type="future", expiration=datetime.date(2021, 6, 18)
     )
     order = self.create_order(asset, 10, "buy")

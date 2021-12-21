@@ -47,6 +47,39 @@ class Bars:
         to 15 min) frequency (string): The new timeframe that the bars
         should be in, eg. “15Min”, “1H”, or “1D”. Returns a new Bars
         object.
+
+    get_total_volume(start=None, end=None)
+        Returns the total volume of the dataframe.
+
+    get_total_dividends(start=None, end=None)
+        Returns the total dividend amount of the dataframe.
+
+    get_total_stock_splits(start=None, end=None)
+        Returns the total stock split amount of the dataframe.
+
+    get_total_return(start=None, end=None)
+        Returns the total return of the dataframe.
+
+    get_total_return_pct(start=None, end=None)
+        Returns the total return percentage of the dataframe.
+
+    get_total_return_pct_change(start=None, end=None)
+        Returns the total return percentage change of the dataframe.
+
+    Examples
+    --------
+    >>> # Get the most recent bars for AAPL
+    >>> bars = bars.get_bars("AAPL")
+    >>> # Get the most recent bars for AAPL between 2018-01-01 and 2018-01-02
+    >>> bars = bars.get_bars("AAPL", start=datetime(2018, 1, 1), end=datetime(2018, 1, 10))
+    >>> df = bars.df
+    >>> self.log_message(df["close"][-1])
+
+    >>> # Get the most recent bars for ES futures contract
+    >>> asset = Asset(symbol="ES", asset_type="future", multiplier=100)
+    >>> bars = bars.get_bars(asset)
+    >>> df = bars.df
+    >>> self.log_message(df["close"][-1])
     """
 
     def __init__(self, df, source, asset, raw=None):

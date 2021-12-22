@@ -245,6 +245,10 @@ class Broker:
         ]
         return result
 
+    def get_historical_account_value(self):
+        """Get the historical account value of the account."""
+        pass
+
     def _parse_broker_position(self, broker_position, strategy, orders=None):
         """parse a broker position representation
         into a position object"""

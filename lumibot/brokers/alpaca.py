@@ -264,6 +264,13 @@ class Alpaca(AlpacaData, Broker):
         """Cancel an order"""
         self.api.cancel_order(order.identifier)
 
+    # =======Account functions=========
+    def get_historical_account_value(self):
+        """Get the historical account value of the account."""
+        response = self.api.get_portfolio_history()
+        df = response.df
+        return df
+
     # =======Stream functions=========
 
     def _get_stream_object(self):

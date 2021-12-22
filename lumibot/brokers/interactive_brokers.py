@@ -1130,6 +1130,11 @@ class IBClient(EClient):
 
         return requested_positions
 
+    def get_historical_account_value(self):
+        logging.error(
+            "The function get_historical_account_value is not implemented yet for IB."
+        )
+
     def get_account_summary(self):
         accounts_storage = self.wrapper.init_accounts()
 

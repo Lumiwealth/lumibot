@@ -712,6 +712,23 @@ class Strategy(_Strategy):
 
         return self.broker.get_tracked_positions(self.name)
 
+    def get_historical_account_value(self):
+        """Get the historical account value.
+
+        Returns
+        -------
+        float
+            The historical account value.
+
+        Example
+        -------
+        >>> # Get the historical account value
+        >>> account_value = self.get_historical_account_value()
+        >>> # Show the historical account value
+        >>> self.log_message(account_value)
+        """
+        return self.broker.get_historical_account_value()
+
     @property
     def positions(self):
         return self.get_tracked_positions()

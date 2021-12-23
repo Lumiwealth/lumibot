@@ -265,11 +265,29 @@ class Alpaca(AlpacaData, Broker):
         self.api.cancel_order(order.identifier)
 
     # =======Account functions=========
+
+    def _parse_historical_account_value(self, df_account_values):
+        output = []
+        for index, row in df_account_values.iterrows():
+            entry = {
+                "date": index,
+                "equity": row["equity"],
+                "profit_loss": row["profit_loss"],
+                "profit_loss_pct": row["profit_loss_pct"],
+            }
+            output.append(entry)
+
+        return output
+
     def get_historical_account_value(self):
         """Get the historical account value of the account."""
-        response = self.api.get_portfolio_history()
-        df = response.df
-        return df
+        response_day = self.api.get_portfolio_history(period="12M", timeframe="1D")
+        daily = self._parse_historical_account_value(response_day.df)
+
+        response_hour = self.api.get_portfolio_history(period="30D", timeframe="1H")
+        hourly = self._parse_historical_account_value(response_hour.df)
+
+        return {"hourly": hourly, "daily": daily}
 
     # =======Stream functions=========
 

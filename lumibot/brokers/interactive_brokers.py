@@ -1132,8 +1132,9 @@ class IBClient(EClient):
 
     def get_historical_account_value(self):
         logging.error(
-            "The function get_historical_account_value is not implemented yet for IB."
+            "The function get_historical_account_value is not implemented yet for Interactive Brokers."
         )
+        return {"hourly": None, "daily": None}
 
     def get_account_summary(self):
         accounts_storage = self.wrapper.init_accounts()

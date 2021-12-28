@@ -287,7 +287,7 @@ class StrategyExecutor(Thread):
     @lifecycle_method
     def _initialize(self):
         self.strategy.log_message("Executing the initialize lifecycle method")
-        self.strategy.initialize()
+        self.strategy.initialize(**self.strategy.parameters)
 
     @lifecycle_method
     def _before_market_opens(self):

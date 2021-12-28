@@ -84,7 +84,10 @@ class _Strategy:
         # Setting execution parameters
         self._first_iteration = True
         self._initial_budget = budget
-        self._unspent_money = budget
+        if not self.broker.IS_BACKTESTING_BROKER:
+            self._unspent_money = self.broker._get_cash_balance_at_broker()
+        else:
+            self._unspent_money = budget
         self._portfolio_value = budget
         self._minutes_before_closing = minutes_before_closing
         self._minutes_before_opening = minutes_before_opening

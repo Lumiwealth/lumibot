@@ -20,7 +20,6 @@ from lumibot.traders import Trader
 
 # Global parameters
 debug = True
-budget = 40000
 backtesting_start = datetime.datetime(2019, 2, 28)
 backtesting_end = datetime.datetime(2019, 12, 1)
 logfile = "logs/test.log"
@@ -147,8 +146,6 @@ if __name__ == "__main__":
 
         tic = perf_counter()
         strategy_class.backtest(
-            strategy_name,
-            budget,
             backtesting_datasource,
             backtesting_start,
             backtesting_end,

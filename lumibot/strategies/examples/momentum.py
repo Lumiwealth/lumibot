@@ -97,7 +97,7 @@ class Momentum(Strategy):
     #     row = {
     #         "old_best_asset": snapshot_before.get("asset"),
     #         "old_asset_quantity": snapshot_before.get("quantity"),
-    #         "old_unspent_money": snapshot_before.get("unspent_money"),
+    #         "old_cash": snapshot_before.get("cash"),
     #         "new_best_asset": self.asset,
     #         "new_asset_quantity": self.quantity,
     #     }
@@ -113,7 +113,7 @@ class Momentum(Strategy):
     #                 row[f"{symbol}_{key}"] = item[key]
     #
     #     # Add all of our values to the row in the CSV file. These automatically get
-    #     # added to portfolio_value, unspent_money and return
+    #     # added to portfolio_value, cash and return
     #     return row
 
     # =============Helper methods====================

@@ -23,7 +23,6 @@ from lumibot.traders import Trader
 
 # Global parameters
 debug = True
-budget = 40000
 
 backtesting_start = datetime(2019, 1, 4)
 backtesting_end = datetime(2019, 4, 30)
@@ -142,8 +141,6 @@ if __name__ == "__main__":
         stats_file = f"logs/strategy_{strategy_class.__name__}_{int(time())}.csv"
         if live_trading:
             strategy = strategy_class(
-                strategy_name,
-                budget=budget,
                 broker=alpaca_broker,
                 stats_file=stats_file,
                 **kwargs,
@@ -157,8 +154,6 @@ if __name__ == "__main__":
 
             tic = perf_counter()
             strategy_class.backtest(
-                strategy_name,
-                budget,
                 backtesting_datasource,
                 backtesting_start,
                 backtesting_end,

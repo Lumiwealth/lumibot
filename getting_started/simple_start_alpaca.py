@@ -15,8 +15,6 @@ from lumibot.strategies.examples import (
 )
 from lumibot.traders import Trader
 
-# Choose your budget and log file locations
-budget = 50000
 logfile = "logs/test.log"
 backtesting_start = datetime(2012, 1, 1)
 backtesting_end = datetime(2021, 1, 1)
@@ -30,16 +28,13 @@ broker = Alpaca(AlpacaConfig)
 # Select our strategy
 ####
 
-strategy_name = "DiversifiedLeverage"
-strategy = DiversifiedLeverage(name=strategy_name, budget=budget, broker=broker)
+strategy = DiversifiedLeverage(broker=broker)
 
 ####
 # Backtest
 ####
 
 strategy.backtest(
-    strategy_name,
-    budget,
     YahooDataBacktesting,
     backtesting_start,
     backtesting_end,

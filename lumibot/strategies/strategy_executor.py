@@ -90,7 +90,7 @@ class StrategyExecutor(Thread):
                     self.broker.process_held_trades()
                     self.broker._hold_trade_events = True
 
-            self.strategy._unspent_money = cash_broker
+            self.strategy._cash = cash_broker
 
             # POSITIONS
             # Update Lumibot positions to match broker positions.
@@ -197,7 +197,7 @@ class StrategyExecutor(Thread):
             quantity = payload["quantity"]
             multiplier = payload["multiplier"]
 
-            self.strategy._update_unspent_money(order.side, quantity, price, multiplier)
+            self.strategy._update_cash(order.side, quantity, price, multiplier)
             self._on_filled_order(**payload)
         elif event == self.PARTIALLY_FILLED_ORDER:
             order = payload["order"]
@@ -205,7 +205,7 @@ class StrategyExecutor(Thread):
             quantity = payload["quantity"]
             multiplier = payload["multiplier"]
 
-            self.strategy._update_unspent_money(order.side, quantity, price, multiplier)
+            self.strategy._update_cash(order.side, quantity, price, multiplier)
             self._on_partially_filled_order(**payload)
 
     def process_queue(self):
@@ -278,7 +278,7 @@ class StrategyExecutor(Thread):
 
         result["datetime"] = self.strategy.get_datetime()
         result["portfolio_value"] = self.strategy.portfolio_value
-        result["unspent_money"] = self.strategy.unspent_money
+        result["cash"] = self.strategy.cash
         self.strategy._append_row(result)
         return result
 
@@ -409,7 +409,7 @@ class StrategyExecutor(Thread):
             # Is this update money dividends in the right place? Maybe after orders. or both
             if self.broker.IS_BACKTESTING_BROKER:
                 self.broker.process_pending_orders(strategy=self.strategy.name)
-            self.strategy._update_unspent_money_with_dividends()
+            self.strategy._update_cash_with_dividends()
             self._on_trading_iteration()
             return
 
@@ -420,7 +420,7 @@ class StrategyExecutor(Thread):
             # or date max.
             if not self.broker.is_market_open():
                 self._before_market_opens()
-            self.strategy._update_unspent_money_with_dividends()
+            self.strategy._update_cash_with_dividends()
 
         self.strategy.await_market_to_open(timedelta=0)
         self._before_starting_trading()

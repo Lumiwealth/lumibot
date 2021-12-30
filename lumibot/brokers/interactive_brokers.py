@@ -240,6 +240,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
             limit_price=response.lmtPrice,
             stop_price=response.adjustedStopPrice,
             time_in_force=response.tif,
+            good_till_date=response.GoodTillDate
         )
         order._transmitted = True
         order.set_identifier(response.orderId)
@@ -272,6 +273,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
             "type": order.type,
             "order_class": order.order_class,
             "time_in_force": order.time_in_force,
+            "good_till_date": order.good_till_date,
             "limit_price": order.limit_price,
             "stop_price": order.stop_price,
             "trail_price": order.trail_price,
@@ -1430,7 +1432,8 @@ class IBApp(IBWrapper, IBClient):
             ib_order.orderId = (
                 order.identifier if order.identifier else self.nextOrderId()
             )
-
+            ib_order.tif = order.time_in_force.upper()
+            ib_order.goodTillDate = order.good_till_date.strftime("%Y%m%d %H:%M:%S") if order.good_till_date else ""
             return [ib_order]
 
     def execute_order(self, orders):

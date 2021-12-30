@@ -72,7 +72,6 @@ class InteractiveBrokersData(DataSource):
 
         parsed_timestep = self._parse_source_timestep(timestep, reverse=True)
 
-        # IB can only ADJUSTED_LAST for current time.
         if timeshift:
             end = datetime.datetime.now() - timeshift
             end = self.to_default_timezone(end)
@@ -80,7 +79,7 @@ class InteractiveBrokersData(DataSource):
             type = "TRADES"
         else:
             end_date_time = ""
-            type = "ADJUSTED_LAST"
+            type = "TRADES"
 
         # Call data.
         reqId = 0

@@ -160,15 +160,13 @@ class Singles(Strategy):
 
 # noinspection PyUnboundLocalVariable
 def main(backtest=False):
-    # Choose your budget and log file locations
-    budget = 10000
     strategy_class = Singles
 
     symbol = "AAPL"
 
     if backtest:
-        backtesting_start = datetime.datetime(2021, 10, 12)  # Earliest is 5th
-        backtesting_end = datetime.datetime(2021, 10, 16)  # up to 20th
+        backtesting_start = datetime.datetime(2021, 9, 15)  # Earliest is 5th
+        backtesting_end = datetime.datetime(2021, 9, 21)  # up to 20th
 
         trading_hours_start = datetime.time(9, 30)
         trading_hours_end = datetime.time(16, 00)
@@ -183,7 +181,7 @@ def main(backtest=False):
             symbol=symbol,
             asset_type="stock",
         )
-        datadir = Path("~/options_course/data/")
+        datadir = Path("data")
         df = pd.read_csv(
             datadir / f"{symbol}.csv",
             parse_dates=True,
@@ -203,7 +201,7 @@ def main(backtest=False):
         )
 
         # Load the options data.
-        filesdir = Path(f"/home/runout/options_course/data/options/{symbol}")
+        filesdir = Path(f"data/options/{symbol}")
         files = sorted(list(filesdir.glob("*.csv")))
         for file in files:  # [file for file in files if file.suffix == ".csv"]:
             fn = file.name.split(".")[0]
@@ -263,15 +261,13 @@ def main(backtest=False):
         broker = InteractiveBrokers(InteractiveBrokersConfig)
 
         strategy_class = Singles(
-            name="Single Options", budget=budget, broker=broker, **kwargs
+            broker=broker, **kwargs
         )
         trader.add_strategy(strategy_class)
         trader.run_all()
 
     elif backtest:
         strategy_class.backtest(
-            "Singles Options",
-            budget,
             backtesting_datasource,
             backtesting_start,
             backtesting_end,

@@ -16,8 +16,6 @@ from lumibot.strategies.examples import (
 )
 from lumibot.traders import Trader
 
-# Choose your budget and log file locations
-budget = 50000
 logfile = "logs/test.log"
 backtesting_start = datetime(2012, 1, 1)
 backtesting_end = datetime(2021, 1, 1)
@@ -43,8 +41,7 @@ kwargs = {
     "max_days_expiry": 30,
     "days_to_earnings_min": 100,  # 15
 }
-strategy_name = "Simple"
-strategy = Strangle(name=strategy_name, budget=budget, broker=broker, **kwargs)
+strategy = Strangle(broker=broker)  #, **kwargs)
 
 
 ####

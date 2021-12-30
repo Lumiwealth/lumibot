@@ -49,7 +49,7 @@ class FastTrading(Strategy):
     def on_trading_iteration(self):
 
         # Setting the buying budget
-        cash = self.unspent_money + sum(
+        cash = self.cash + sum(
             [order.cash_pending(self) for order in self.get_tracked_orders()]
         )
 
@@ -113,7 +113,7 @@ class FastTrading(Strategy):
         """
         # Get the values of all our variables from the last iteration
         row = {
-            "old_unspent_money": snapshot_before.get("unspent_money"),
+            "old_cash": snapshot_before.get("cash"),
             "old_portfolio_value": snapshot_before.get("portfolio_value"),
         }
 
@@ -126,7 +126,7 @@ class FastTrading(Strategy):
             )
 
         # Add all of our values to the row in the CSV file. These automatically get
-        # added to portfolio_value, unspent_money and return
+        # added to portfolio_value, cash and return
         return row
 
     def before_market_closes(self):

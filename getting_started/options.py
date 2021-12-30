@@ -147,8 +147,6 @@ class Options(Strategy):
 
 
 if __name__ == "__main__":
-    # Choose your budget and log file locations
-    budget = 100000
     logfile = "logs/test.log"
 
     # AAPL data is minute from the 15th to the 20th, 0930 - 1559.
@@ -161,7 +159,6 @@ if __name__ == "__main__":
     trading_hours_start = datetime.time(9, 30)
     trading_hours_end = datetime.time(16, 00)
 
-    strategy_name = "Options"
     strategy_class = Options
 
     backtesting_datasource = PandasDataBacktesting
@@ -237,8 +234,6 @@ if __name__ == "__main__":
 
     tic = perf_counter()
     strategy_class.backtest(
-        strategy_name,
-        budget,
         backtesting_datasource,
         backtesting_start,
         backtesting_end,

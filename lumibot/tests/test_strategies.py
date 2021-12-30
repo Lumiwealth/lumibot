@@ -10,7 +10,6 @@ TOLERANCE = 0.00001
 
 def test_momentum_strategy():
     try:
-        budget = 40000
         backtesting_start = datetime(2020, 1, 1)
         backtesting_end = datetime(2020, 12, 31)
         risk_free_rate = 0
@@ -27,13 +26,13 @@ def test_momentum_strategy():
         }
 
         stats = Momentum.backtest(
-            "momentum",
-            budget,
             YahooDataBacktesting,
             backtesting_start,
             backtesting_end,
             risk_free_rate=risk_free_rate,
             auto_adjust=False,
+            name = "momentum",
+            budget = 40000
         )
         result = stats.get("momentum")
         assert result
@@ -69,7 +68,6 @@ def test_momentum_strategy():
 
 def test_diversification_strategy():
     try:
-        budget = 40000
         backtesting_start = datetime(2020, 1, 1)
         backtesting_end = datetime(2020, 12, 31)
         risk_free_rate = 0
@@ -86,13 +84,13 @@ def test_diversification_strategy():
         }
 
         stats = Diversification.backtest(
-            "diversification",
-            budget,
             YahooDataBacktesting,
             backtesting_start,
             backtesting_end,
             risk_free_rate=risk_free_rate,
             auto_adjust=False,
+            name = "diversification",
+            budget=40000
         )
         result = stats.get("diversification")
         assert abs(result["cagr"] - valid_result["cagr"]) < TOLERANCE

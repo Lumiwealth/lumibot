@@ -85,7 +85,7 @@ class _Strategy:
         self._first_iteration = True
         self._initial_budget = budget
         if not self._is_backtesting:
-            budget = self.broker. _get_cash_balance_at_broker()
+            budget = self.broker._get_cash_balance_at_broker()
         self._cash = budget
         self._portfolio_value = budget
         self._minutes_before_closing = minutes_before_closing

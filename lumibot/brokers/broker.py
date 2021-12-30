@@ -45,6 +45,7 @@ class Broker:
             self._orders_queue = Queue()
             self._orders_thread = None
             self._start_orders_thread()
+            self._filled_positions = self._pull_positions(self.name)
 
         # setting the stream object
         self.stream = self._get_stream_object()

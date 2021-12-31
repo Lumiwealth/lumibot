@@ -291,4 +291,4 @@ class InteractiveBrokersData(DataSource):
 
     def get_yesterday_dividends(self, asset):
         """ Unavailable """
-        return 0
+        return None

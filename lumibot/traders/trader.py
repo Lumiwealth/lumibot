@@ -32,7 +32,6 @@ class Trader:
         """Adds a strategy to the trader"""
         self._strategies.append(strategy)
 
-    # TODO: Make an asyn version of this
     def run_all(self):
         """run all strategies"""
         if self.is_backtest:

@@ -80,7 +80,7 @@ class StrategyExecutor(Thread):
             held_trades_len = 1
             while held_trades_len > 0:
                 # Snapshot for the broker and lumibot:
-                cash_broker = self.broker._get_cash_balance_at_broker()
+                cash_broker = self.broker._get_balances_at_broker()[0]
                 positions_broker = self.broker._pull_positions(self.name)
                 orders_broker = self.broker._pull_open_orders(self.name)
 
@@ -98,28 +98,25 @@ class StrategyExecutor(Thread):
             # are being held pending the completion of the sync.
             if len(positions_broker) > 0:
                 for position in positions_broker:
-                    if self.strategy._first_iteration and position.quantity != 0:
-                        self.broker._filled_positions.append(position)
-                    else:
-                        # Check against existing position.
-                        position_lumi = [
-                            pos_lumi
-                            for pos_lumi in self.broker._filled_positions.get_list()
-                            if pos_lumi.asset == position.asset
-                        ]
-                        position_lumi = (
-                            position_lumi[0] if len(position_lumi) > 0 else None
-                        )
+                    # Check against existing position.
+                    position_lumi = [
+                        pos_lumi
+                        for pos_lumi in self.broker._filled_positions.get_list()
+                        if pos_lumi.asset == position.asset
+                    ]
+                    position_lumi = (
+                        position_lumi[0] if len(position_lumi) > 0 else None
+                    )
 
-                        if position_lumi:
-                            # Compare to existing lumi position.
-                            if position_lumi.quantity != position.quantity:
-                                position_lumi.quantity = position.quantity
-                        else:
-                            # Add to positions in lumibot, position does not exist
-                            # in lumibot.
-                            if position.quantity != 0:
-                                self.broker._filled_positions.append(position)
+                    if position_lumi:
+                        # Compare to existing lumi position.
+                        if position_lumi.quantity != position.quantity:
+                            position_lumi.quantity = position.quantity
+                    else:
+                        # Add to positions in lumibot, position does not exist
+                        # in lumibot.
+                        if position.quantity != 0:
+                            self.broker._filled_positions.append(position)
             else:
                 # There are no positions at the broker, remove any positions
                 # in lumibot.

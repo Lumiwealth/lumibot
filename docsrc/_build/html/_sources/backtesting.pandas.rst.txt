@@ -130,7 +130,7 @@ Finally, we create or add to the dictionary that will be passed into Lumibot.
 
 As with Yahoo backtester, data is passed in by using ``.backtest()`` on your strategy class.
 
-There is a logging function that will save the details of your backtest (the portfolio value each day, unspent money, etc) put into a CSV file in the location of ``stats_file``.
+There is a logging function that will save the details of your backtest (the portfolio value each day, cash, etc) put into a CSV file in the location of ``stats_file``.
 
 There is also a returns plot. By default this will show in a browser. You may suppress it using ``show_plot=False``
 

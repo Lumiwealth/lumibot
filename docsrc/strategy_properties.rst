@@ -13,6 +13,7 @@ Inside your strategy you can also get a lot of information about the state of th
     initial_budget
     minutes_before_closing
     minutes_before_opening
+    unspent_money
     sleeptime
     parameters
     is_backtesting

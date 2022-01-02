@@ -180,6 +180,11 @@ class Strategy(_Strategy):
         return self._is_backtesting
 
     @property
+    def unspent_money(self):
+        """Deprecated, will be removed in the future. Please use `self.cash` instead."""
+        return self._cash
+
+    @property
     def portfolio_value(self):
         """Returns the current portfolio value (cash + positions value).
 

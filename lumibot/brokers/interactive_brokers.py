@@ -240,6 +240,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
             limit_price=response.lmtPrice,
             stop_price=response.adjustedStopPrice,
             time_in_force=response.tif,
+            good_till_date=response.goodTillDate
         )
         order._transmitted = True
         order.set_identifier(response.orderId)
@@ -272,6 +273,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
             "type": order.type,
             "order_class": order.order_class,
             "time_in_force": order.time_in_force,
+            "good_till_date": order.good_till_date,
             "limit_price": order.limit_price,
             "stop_price": order.stop_price,
             "trail_price": order.trail_price,
@@ -336,11 +338,17 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
     def _close_connection(self):
         self.ib.disconnect()
 
-    def _get_cash_balance_at_broker(self):
-        """Get's the current actual cash value from interactive Brokers.
+    def _get_balances_at_broker(self):
+        """Get's the current actual cash, positions value, and total
+        liquidation value from interactive Brokers.
+
+        This method will get the current actual values from Interactive
+        Brokers for the actual cash, positions value, and total liquidation.
+
         Returns
         -------
-            float
+        tuple of float
+            (cash, positions_value, total_liquidation_value)
         """
         try:
             summary = self.ib.get_account_summary()
@@ -352,7 +360,18 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         total_cash_value = [
             float(c["Value"]) for c in summary if c["Tag"] == "TotalCashValue"
         ][0]
-        return total_cash_value
+
+
+        gross_position_value = [
+            float(c["Value"]) for c in summary if c["Tag"] == "GrossPositionValue"
+        ][0]
+
+        net_liquidation_value = [
+            float(c["Value"]) for c in summary if c["Tag"] == "NetLiquidation"
+        ][0]
+
+
+        return (total_cash_value, gross_position_value, net_liquidation_value)
 
     def get_contract_details(self, asset):
         # Used for Interactive Brokers. Convert an asset into a IB Contract.
@@ -801,11 +820,6 @@ class IBWrapper(EWrapper):
         new_orders_queue = queue.Queue()
         self.my_new_orders_queue = new_orders_queue
         return new_orders_queue
-
-    # def init_order_updates(self):  todo dead code
-    #     order_updates_queue = queue.Queue()
-    #     self.my_order_updates_queue = order_updates_queue
-    #     return order_updates_queue
 
     def openOrder(
         self, orderId: OrderId, contract: Contract, order: Order, orderState: OrderState
@@ -1430,7 +1444,8 @@ class IBApp(IBWrapper, IBClient):
             ib_order.orderId = (
                 order.identifier if order.identifier else self.nextOrderId()
             )
-
+            ib_order.tif = order.time_in_force.upper()
+            ib_order.goodTillDate = order.good_till_date.strftime("%Y%m%d %H:%M:%S") if order.good_till_date else ""
             return [ib_order]
 
     def execute_order(self, orders):

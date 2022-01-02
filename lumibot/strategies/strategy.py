@@ -292,6 +292,7 @@ class Strategy(_Strategy):
         limit_price=None,
         stop_price=None,
         time_in_force="day",
+        good_till_date=None,
         take_profit_price=None,
         stop_loss_price=None,
         stop_loss_limit_price=None,
@@ -321,6 +322,14 @@ class Strategy(_Strategy):
             A Stop order is an instruction to submit a buy or sell
             market order if and when the user-specified stop trigger
             price is attained or penetrated.
+        time_in_force : str
+            Amount of time the order is in force. Order types include:
+                - `day` Orders valid for the remainder of the day.
+                - 'gtc' Good until cancelled.
+                - 'gtd' Good until date.
+            (Default: 'day')
+        good_till_date : datetime.datetime
+            This is the time order is valid for Good Though Date orders.
         time_in_force : str
             Amount of time the order is in force. Default: 'day'
         take_profit_price : float
@@ -406,6 +415,7 @@ class Strategy(_Strategy):
             limit_price=limit_price,
             stop_price=stop_price,
             time_in_force=time_in_force,
+            good_till_date=good_till_date,
             take_profit_price=take_profit_price,
             stop_loss_price=stop_loss_price,
             stop_loss_limit_price=stop_loss_limit_price,
@@ -414,6 +424,7 @@ class Strategy(_Strategy):
             exchange=exchange,
             sec_type=asset.asset_type,
             position_filled=position_filled,
+            date_created=self.get_datetime()
         )
         return order
 

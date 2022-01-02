@@ -60,15 +60,20 @@ def test_get_time_to_close(monkeypatch):
     assert alpaca.get_time_to_close() == 7200
 
 
-def test__get_cash_balance_at_broker(monkeypatch):
+def test__get_balance_at_broker(monkeypatch):
     def mock_cash():
         class Account:
-            _raw = dict(cash="123456.78")
+            _raw = dict(
+                cash="123456.78",
+                long_market_value=0,
+                short_market_value=0,
+                portfolio_value=123456.78,
+            )
 
         return Account()
 
     monkeypatch.setattr(alpaca.api, "get_account", mock_cash)
-    assert alpaca._get_cash_balance_at_broker() == 123456.78
+    assert alpaca._get_balances_at_broker()[0] == 123456.78
 
 
 @pytest.mark.parametrize(
@@ -189,6 +194,8 @@ def test__pull_source_symbol_bars(monkeypatch):
 
 vars = "length, timestep, timeshift"
 params = [(10, "minute", 0), (20, "minute", 1), (30, "day", 4), (40, "day", 5)]
+
+
 @pytest.mark.parametrize(vars, params)
 def test__pull_source_bars(length, timestep, timeshift, monkeypatch):
     """Only returning dummy dataframe, testing get_barset_from_api separately"""

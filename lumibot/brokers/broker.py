@@ -46,6 +46,7 @@ class Broker:
             self._orders_thread = None
             self._start_orders_thread()
 
+
         # setting the stream object
         self.stream = self._get_stream_object()
         if connect_stream:
@@ -102,6 +103,11 @@ class Broker:
         return result
 
     # =========Internal functions==============
+
+    def _set_initial_positions(self, strategy):
+        """ Set initial positions """
+        for pos in self._pull_positions(strategy):
+            self._filled_positions.append(pos)
 
     def _process_new_order(self, order):
         logging.info("New %r was submitted." % order)
@@ -224,7 +230,7 @@ class Broker:
 
     # =========Positions functions==================
 
-    def _get_cash_balance_at_broker(self):
+    def _get_balances_at_broker(self):
         """Get the actual cash balance at the broker."""
         pass
 
@@ -662,31 +668,6 @@ class Broker:
                 if self._is_stream_subscribed is True:
                     break
         return
-
-    def _poll(self):  # todo dead code.
-        """Check every minute orders in the '_new_orders' and
-        '_partially_filled' lists and update their status
-        if necessary"""
-        for order in self._tracked_orders:
-            old_status = order.status
-            order_updated = self._pull_order(order.identifier, order.strategy)
-            if order_updated is None:
-                raise ValueError(
-                    "No trace of previous order with id %s found by the broker %s"
-                    % (order.identifier, self.name)
-                )
-
-            new_status = order_updated.status
-            if old_status != new_status:
-                type_event = new_status
-                price = None
-                filled_quantity = None  #'filled_qty': '0',
-                self._process_trade_event(
-                    order_updated,
-                    type_event,
-                    price=price,
-                    filled_quantity=filled_quantity,
-                )
 
     def export_trade_events_to_csv(self, filename):
         if len(self._trade_event_log_df) > 0:

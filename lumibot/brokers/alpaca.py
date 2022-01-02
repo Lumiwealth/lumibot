@@ -68,7 +68,6 @@ class Alpaca(AlpacaData, Broker):
         >>> self.is_market_open()
         True
         """
-        return True  # todo revert
         return self.api.get_clock().is_open
 
     def get_time_to_open(self):
@@ -125,19 +124,27 @@ class Alpaca(AlpacaData, Broker):
 
     # =========Positions functions==================
 
-    def _get_cash_balance_at_broker(self):
-        """Get the current cash balance at Alpaca.
+    def _get_balances_at_broker(self):
+        """Get's the current actual cash, positions value, and total
+        liquidation value from Alpaca.
 
-        Parameters
-        ----------
-        None
+        This method will get the current actual values from Alpaca
+        for the actual cash, positions value, and total liquidation.
 
         Returns
         -------
-        float
+        tuple of float
+            (cash, positions_value, total_liquidation_value)
         """
+
         response = self.api.get_account()
-        return float(response._raw["cash"])
+        total_cash_value = float(response._raw["cash"])
+        gross_positions_value = float(response._raw["long_market_value"]) - float(
+            response._raw["short_market_value"]
+        )
+        net_liquidation_value = float(response._raw["portfolio_value"])
+
+        return  (total_cash_value, gross_positions_value, net_liquidation_value)
 
     def _parse_broker_position(self, broker_position, strategy, orders=None):
         """parse a broker position representation

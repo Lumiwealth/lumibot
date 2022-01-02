@@ -85,9 +85,15 @@ class _Strategy:
         self._first_iteration = True
         self._initial_budget = budget
         if not self._is_backtesting:
-            budget = self.broker. _get_cash_balance_at_broker()
-        self._cash = budget
-        self._portfolio_value = budget
+                self._cash, self._position_value, self._portfolio_value = \
+                    self.broker._get_balances_at_broker()
+                # Set initial positions if live trading.
+                self.broker._set_initial_positions(self._name)
+        else:
+            self._cash = budget
+            self._position_value = 0
+            self._portfolio_value = budget
+
         self._minutes_before_closing = minutes_before_closing
         self._minutes_before_opening = minutes_before_opening
         self._sleeptime = sleeptime
@@ -156,6 +162,9 @@ class _Strategy:
 
     def _update_portfolio_value(self):
         """updates self.portfolio_value"""
+        if not self.IS_BACKTESTABLE:
+            return self.broker._get_balances_at_broker()[2]
+
         with self._executor.lock:
             portfolio_value = self._cash
             positions = self.broker.get_tracked_positions(self._name)
@@ -237,9 +246,7 @@ class _Strategy:
                 self._stats.to_csv(self._stats_file)
 
             # Getting the performance of the strategy
-            self.log_message(
-                f"--- {self._log_strat_name()}Strategy Performance  ---"
-            )
+            self.log_message(f"--- {self._log_strat_name()}Strategy Performance  ---")
 
             self._strategy_returns_df = day_deduplicate(self._stats)
             self._analysis = stats_summary(
@@ -368,19 +375,27 @@ class _Strategy:
         # Filename defaults
         datestring = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         if plot_file is None:
-            plot_file = f"logs/{name + '_' if name != 'StratName' else ''}{datestring}.jpg"
+            plot_file = (
+                f"logs/{name + '_' if name != 'StratName' else ''}{datestring}.jpg"
+            )
         if plot_file_html is None:
-            plot_file_html = f"logs/{name + '_' if name != 'StratName' else ''}{datestring}.html"
+            plot_file_html = (
+                f"logs/{name + '_' if name != 'StratName' else ''}{datestring}.html"
+            )
         if stats_file is None:
             stats_file = f"logs/{name + '_' if name != 'StratName' else ''}{datestring}_stats.csv"
         if trades_file is None:
             trades_file = f"logs/{name + '_' if name != 'StratName' else ''}{datestring}_trades.csv"
         if logfile is None:
-            logfile = f"logs/{name + '_' if name != 'StratName' else ''}{datestring}_logs.csv"
+            logfile = (
+                f"logs/{name + '_' if name != 'StratName' else ''}{datestring}_logs.csv"
+            )
 
         if not cls.IS_BACKTESTABLE:
-            logging.warning(f"Strategy {name + ' ' if name != 'StratName' else ''}cannot be "
-                            f"backtested at the moment")
+            logging.warning(
+                f"Strategy {name + ' ' if name != 'StratName' else ''}cannot be "
+                f"backtested at the moment"
+            )
             return None
 
         backtesting_start = to_datetime_aware(backtesting_start)

@@ -216,7 +216,7 @@ class Strategy(_Strategy):
 
         Example
         -------
-        >>> # Get the current cash
+        >>> # Get the current cash available in the account
         >>> self.log_message(self.cash)
         """
         return self._cash
@@ -424,7 +424,7 @@ class Strategy(_Strategy):
             exchange=exchange,
             sec_type=asset.asset_type,
             position_filled=position_filled,
-            date_created=self.get_datetime()
+            date_created=self.get_datetime(),
         )
         return order
 

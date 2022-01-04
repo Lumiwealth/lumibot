@@ -10,5 +10,6 @@ Lumibot has two modes for backtesting.
    :maxdepth: 2
    :caption: Contents:
 
+   backtesting.all
    backtesting.yahoo
    backtesting.pandas

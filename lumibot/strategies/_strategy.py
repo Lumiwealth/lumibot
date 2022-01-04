@@ -85,10 +85,13 @@ class _Strategy:
         self._first_iteration = True
         self._initial_budget = budget
         if not self._is_backtesting:
-                self._cash, self._position_value, self._portfolio_value = \
-                    self.broker._get_balances_at_broker()
-                # Set initial positions if live trading.
-                self.broker._set_initial_positions(self._name)
+            (
+                self._cash,
+                self._position_value,
+                self._portfolio_value,
+            ) = self.broker._get_balances_at_broker()
+            # Set initial positions if live trading.
+            self.broker._set_initial_positions(self._name)
         else:
             self._cash = budget
             self._position_value = 0
@@ -372,6 +375,83 @@ class _Strategy:
         show_plot=True,
         **kwargs,
     ):
+        """Backtest a strategy.
+
+        Parameters
+        ----------
+        datasource_class : class
+            The datasource class to use. For example, if you want to use the yahoo finance datasource, then you would pass YahooDataBacktesting as the datasource_class.
+        backtesting_start : datetime
+            The start date of the backtesting period.
+        backtesting_end : datetime
+            The end date of the backtesting period.
+        minutes_before_closing : int
+            The number of minutes before closing that the minutes_before_closing strategy method will be called.
+        minutes_before_opening : int
+            The number of minutes before opening that the minutes_before_opening strategy method will be called.
+        sleeptime : int
+            The number of seconds to sleep between each iteration of the backtest.
+        stats_file : str
+            The file to write the stats to.
+        risk_free_rate : float
+            The risk free rate to use.
+        logfile : str
+            The file to write the log to.
+        config : dict
+            The config to use.
+        auto_adjust : bool
+            Whether or not to automatically adjust the strategy.
+        name : str
+            The name of the strategy.
+        budget : float
+            The initial budget to use for the backtest.
+        benchmark_asset : str
+            The benchmark asset to use for the backtest to compare to.
+        plot_file : str
+            The file to write the plot to.
+        plot_file_html : str
+            The file to write the plot html to.
+        trades_file : str
+            The file to write the trades to.
+        pandas_data : pandas.DataFrame
+            The pandas data to use.
+        show_plot : bool
+            Whether or not to show the plot.
+
+        Returns
+        -------
+        Backtest
+            The backtest object.
+
+        Examples
+        --------
+
+        >>> from datetime import datetime
+        >>> from lumibot.backtesting import YahooDataBacktesting
+        >>> from lumibot.strategies import Strategy
+        >>>
+        >>> # A simple strategy that buys AAPL on the first day
+        >>> class MyStrategy(Strategy):
+        >>>    def on_trading_iteration(self):
+        >>>        if self.first_iteration:
+        >>>            order = self.create_order("AAPL", quantity=1, side="buy")
+        >>>            self.submit_order(order)
+        >>>
+        >>> # Create a backtest
+        >>> backtesting_start = datetime(2018, 1, 1)
+        >>> backtesting_end = datetime(2018, 1, 31)
+        >>> budget = 10000
+        >>> backtest = MyStrategy.backtest(
+        >>>     datasource_class=YahooDataBacktesting,
+        >>>     backtesting_start=backtesting_start,
+        >>>     backtesting_end=backtesting_end,
+        >>>     budget=budget,
+        >>>     name="MyStrategy",
+        >>>     benchmark_asset="QQQ",
+        >>> )
+
+
+        """
         # Filename defaults
         datestring = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         if plot_file is None:
@@ -418,7 +498,7 @@ class _Strategy:
             sleeptime=sleeptime,
             risk_free_rate=risk_free_rate,
             stats_file=stats_file,
-            # benchmark_asset=benchmark_asset,
+            benchmark_asset=benchmark_asset,
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             pandas_data=pandas_data,

@@ -21,7 +21,6 @@ os.makedirs("./logs", exist_ok=True)
 
 # Global parameters
 debug = True
-budget = 40000
 backtesting_start = datetime.datetime(2019, 3, 1)
 backtesting_end = datetime.datetime(2019, 11, 1)
 
@@ -135,8 +134,6 @@ def run_test(strategy_name):
         data.strategy = strategy_name
     stats_file = f"logs/strategy_{strategy_class.__name__}_{int(time())}.csv"
     return strategy_class.backtest(
-        strategy_name,
-        budget,
         backtesting_datasource,
         backtesting_start,
         backtesting_end,
@@ -146,6 +143,8 @@ def run_test(strategy_name):
         logfile=logfile,
         risk_free_rate=0,
         show_plot=False,
+        name = strategy_name,
+        budget=40000,
         **kwargs,
     )
 
@@ -164,7 +163,7 @@ def test_integration():
 
     expected_result = {
         "buy_and_hold": {
-            "cagr": 0.1476027590432618,
+            "cagr": 0.14760275904326248,
             "volatility": 0.13352288364371973,
             "sharpe": 1.1054491560945578,
             "romad": 2.2315656039426397,
@@ -200,11 +199,12 @@ def test_integration():
         },
     }
     for strategy, results in agg_results.items():
-        assert results["cagr"] == expected_result[strategy]["cagr"]
-        assert results["romad"] == expected_result[strategy]["romad"]
-        assert results["sharpe"] == expected_result[strategy]["sharpe"]
-        assert results["total_return"] == expected_result[strategy]["total_return"]
-        assert results["volatility"] == expected_result[strategy]["volatility"]
+        assert round(results["cagr"], 5) == round(expected_result[strategy]["cagr"], 5)
+        assert round(results["romad"], 5) == round(expected_result[strategy]["romad"], 5)
+        assert round(results["sharpe"], 5) == round(expected_result[strategy]["sharpe"], 5)
+        assert round(results["total_return"], 5) == round(expected_result[strategy][
+                                                              "total_return"], 5)
+        assert round(results["volatility"], 5) == round(expected_result[strategy]["volatility"], 5)
 
 
 @pytest.fixture(scope="session", autouse=True)

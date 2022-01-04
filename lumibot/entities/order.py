@@ -26,9 +26,11 @@ class Order:
         trail_price=None,
         trail_percent=None,
         time_in_force="day",
+        good_till_date= None,
         sec_type="STK",
         exchange="SMART",
         position_filled=False,
+        date_created=None
     ):
         """Order class for managing individual orders.
 
@@ -63,8 +65,15 @@ class Order:
             A Stop order is an instruction to submit a buy or sell
             market order if and when the user-specified stop trigger
             price is attained or penetrated.
-        time_in_force : str (in development)
-            Amount of time the order is in force. Default: 'day'
+        time_in_force : str
+            Amount of time the order is in force. Order types include:
+                - `day` Orders valid for the remainder of the day.
+                - 'gtc' Good until cancelled.
+                - 'gtd' Good until date. (IB only)
+                - 'ioc' Immediate or cancelled.
+            (Default: 'day')
+        good_till_date : datetime.datetime
+            This is the time order is valid for Good Though Date orders.
         take_profit_price : float
             Limit price used for bracket orders and one cancels other
             orders.
@@ -143,8 +152,10 @@ class Order:
         self.symbol = self.asset.symbol
         self.identifier = None
         self.status = "unprocessed"
+        self._date_created = None
         self.side = None
         self.time_in_force = time_in_force
+        self.good_till_date = good_till_date
         self.position_filled = position_filled
         self.limit_price = None
         self.stop_price = None

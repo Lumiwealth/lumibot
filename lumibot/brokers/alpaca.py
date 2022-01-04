@@ -105,6 +105,7 @@ class Alpaca(AlpacaData, Broker):
         -------
         int
             Sample unix timestamp return value: 1612172730.000234
+
         """
         clock = self.api.get_clock()
         curr_time = clock.timestamp.replace(tzinfo=timezone.utc).timestamp()
@@ -121,8 +122,12 @@ class Alpaca(AlpacaData, Broker):
         -------
         boolean
             True if market is open, false if the market is closed.
+
+        Examples
+        --------
+        >>> self.is_market_open()
+        True
         """
-        return True  # todo revert
         return self.api.get_clock().is_open
 
     def get_time_to_open(self):
@@ -143,6 +148,8 @@ class Alpaca(AlpacaData, Broker):
         --------
         If it is 0830 and the market next opens at 0930, then there are 3,600
         seconds until the next market open.
+
+        >>> self.get_time_to_open()
         """
         clock = self.api.get_clock()
         opening_time = clock.next_open.timestamp()
@@ -177,19 +184,31 @@ class Alpaca(AlpacaData, Broker):
 
     # =========Positions functions==================
 
-    def _get_cash_balance_at_broker(self):
-        """Get the current cash balance at Alpaca.
+    def _get_balances_at_broker(self):
+        """Get's the current actual cash, positions value, and total
+        liquidation value from Alpaca.
 
-        Parameters
-        ----------
-        None
+        This method will get the current actual values from Alpaca
+        for the actual cash, positions value, and total liquidation.
 
         Returns
         -------
-        float
+        tuple of float
+            (cash, positions_value, total_liquidation_value)
         """
+
         response = self.api.get_account()
+<<<<<<< HEAD
+        total_cash_value = float(response._raw["cash"])
+        gross_positions_value = float(response._raw["long_market_value"]) - float(
+            response._raw["short_market_value"]
+        )
+        net_liquidation_value = float(response._raw["portfolio_value"])
+
+        return  (total_cash_value, gross_positions_value, net_liquidation_value)
+=======
         return float(response._raw["cash"])
+>>>>>>> master
 
     def _parse_broker_position(self, broker_position, strategy, orders=None):
         """parse a broker position representation
@@ -253,7 +272,7 @@ class Alpaca(AlpacaData, Broker):
         return orders
 
     def _flatten_order(self, order):
-        """Some submitted orders may triggers other orders.
+        """Some submitted orders may trigger other orders.
         _flatten_order returns a list containing the main order
         and all the derived ones"""
         orders = [order]
@@ -326,6 +345,31 @@ class Alpaca(AlpacaData, Broker):
             The order that was cancelled
         """
         self.api.cancel_order(order.identifier)
+
+    # =======Account functions=========
+
+    def _parse_historical_account_value(self, df_account_values):
+        output = []
+        for index, row in df_account_values.iterrows():
+            entry = {
+                "date": index,
+                "equity": row["equity"],
+                "profit_loss": row["profit_loss"],
+                "profit_loss_pct": row["profit_loss_pct"],
+            }
+            output.append(entry)
+
+        return output
+
+    def get_historical_account_value(self):
+        """Get the historical account value of the account."""
+        response_day = self.api.get_portfolio_history(period="12M", timeframe="1D")
+        daily = self._parse_historical_account_value(response_day.df)
+
+        response_hour = self.api.get_portfolio_history(period="30D", timeframe="1H")
+        hourly = self._parse_historical_account_value(response_hour.df)
+
+        return {"hourly": hourly, "daily": daily}
 
     # =======Stream functions=========
 

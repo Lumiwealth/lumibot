@@ -212,7 +212,7 @@ In the strangle example, `cash`, `value` and `positions` are set. These will be 
 orders are issued throughout the `on_trading_iteration` lifecylce. 
 ```
 value = self.portfolio_value
-cash = self.unspent_money
+cash = self.cash
 positions = self.get_tracked_positions()
 ```
 `filled_asset` is a list assets for active positions. This allows for easy checking to verify if 

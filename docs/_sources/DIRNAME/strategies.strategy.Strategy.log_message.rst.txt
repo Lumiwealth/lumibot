@@ -1,6 +1,0 @@
-﻿strategies.strategy.Strategy.log\_message
-=========================================
-
-.. currentmodule:: strategies.strategy
-
-.. automethod:: Strategy.log_message

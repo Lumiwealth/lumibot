@@ -64,7 +64,7 @@ Currently Alpaca and Interactive Brokers are available as a brokerage services. 
 
     trader = Trader()
     broker = Alpaca(AlpacaConfig)
-    strategy = MyStrategy(strategy_name, budget, broker, symbol="SPY")
+    strategy = MyStrategy(name=strategy_name, budget=budget, broker=broker, symbol="SPY")
 
 
 8. Backtest the strategy (optional):
@@ -133,7 +133,7 @@ Here it is all together:
 
     trader = Trader()
     broker = Alpaca(AlpacaConfig)
-    strategy = MyStrategy(strategy_name, budget, broker, symbol="SPY")
+    strategy = MyStrategy(name=strategy_name, budget=budget, broker=broker, symbol="SPY")
 
     # Backtest this strategy
     backtesting_start = datetime(2020, 1, 1)

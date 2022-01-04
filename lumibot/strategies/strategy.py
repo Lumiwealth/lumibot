@@ -180,13 +180,18 @@ class Strategy(_Strategy):
         return self._is_backtesting
 
     @property
+    def unspent_money(self):
+        """Deprecated, will be removed in the future. Please use `self.cash` instead."""
+        return self._cash
+
+    @property
     def portfolio_value(self):
         """Returns the current portfolio value (cash + positions value).
 
         Returns
         -------
         portfolio_value : float
-            The current portfolio value. Includes the actual values of shares held by the current strategy plus the total unspent money.
+            The current portfolio value. Includes the actual values of shares held by the current strategy plus the total cash.
 
         Example
         -------
@@ -197,8 +202,8 @@ class Strategy(_Strategy):
         return self._portfolio_value
 
     @property
-    def unspent_money(self):
-        """Returns the current unspent money. This is the money that is not used for positions or
+    def cash(self):
+        """Returns the current cash. This is the money that is not used for positions or
         orders (in other words, the money that is available to buy new assets, or cash).
 
         This property is updated whenever a transaction was filled by the broker or when dividends
@@ -206,15 +211,15 @@ class Strategy(_Strategy):
 
         Returns
         -------
-        unspent_money : float
-            The current unspent money.
+        cash : float
+            The current cash.
 
         Example
         -------
-        >>> # Get the current unspent money
-        >>> self.log_message(self.unspent_money)
+        >>> # Get the current cash available in the account
+        >>> self.log_message(self.cash)
         """
-        return self._unspent_money
+        return self._cash
 
     @property
     def first_iteration(self):
@@ -272,7 +277,7 @@ class Strategy(_Strategy):
         --------
         >>> self.log_message('Sending a buy order')
         """
-        message = "Strategy %s: %s" % (self.name, message)
+        message = f"Strategy {self._log_strat_name()}: {message}"
         logging.info(message)
 
         return message
@@ -287,6 +292,7 @@ class Strategy(_Strategy):
         limit_price=None,
         stop_price=None,
         time_in_force="day",
+        good_till_date=None,
         take_profit_price=None,
         stop_loss_price=None,
         stop_loss_limit_price=None,
@@ -316,6 +322,14 @@ class Strategy(_Strategy):
             A Stop order is an instruction to submit a buy or sell
             market order if and when the user-specified stop trigger
             price is attained or penetrated.
+        time_in_force : str
+            Amount of time the order is in force. Order types include:
+                - `day` Orders valid for the remainder of the day.
+                - 'gtc' Good until cancelled.
+                - 'gtd' Good until date.
+            (Default: 'day')
+        good_till_date : datetime.datetime
+            This is the time order is valid for Good Though Date orders.
         time_in_force : str
             Amount of time the order is in force. Default: 'day'
         take_profit_price : float
@@ -492,6 +506,7 @@ class Strategy(_Strategy):
             limit_price=limit_price,
             stop_price=stop_price,
             time_in_force=time_in_force,
+            good_till_date=good_till_date,
             take_profit_price=take_profit_price,
             stop_loss_price=stop_loss_price,
             stop_loss_limit_price=stop_loss_limit_price,
@@ -500,6 +515,7 @@ class Strategy(_Strategy):
             exchange=exchange,
             sec_type=asset.asset_type,
             position_filled=position_filled,
+            date_created=self.get_datetime(),
         )
         return order
 
@@ -568,14 +584,16 @@ class Strategy(_Strategy):
 
         Example
         -------
-        >>> # Set the market to NYSE
-        >>> self.set_market('NYSE')
+        >>> # Set the market to 24/7
+        >>> def initialize(self):
+        >>>    # Set the market to 24/7
+        >>>    self.set_market('24/7')
 
         >>> # Set the market to NASDAQ
         >>> self.set_market('NASDAQ')
 
-        >>> # Set the market to 24/7
-        >>> self.set_market('24/7')
+        >>> # Set the market to NYSE
+        >>> self.set_market('NYSE')
 
         >>> # Set the market to 24/5
         >>> self.set_market('24/5')
@@ -688,12 +706,7 @@ class Strategy(_Strategy):
                 f"Valid market entries are: {markets}. You entered {market}. Please adjust."
             )
 
-        if self.broker.SOURCE == "InteractiveBrokers":
-            self.broker.market = market
-        else:
-            raise ValueError(
-                f"Please only adjust market calendars when using a broker that supports assets other than stocks"
-            )
+        self.broker.market = market
 
     def await_market_to_open(self, timedelta=None):
         """Executes infinite loop until market opens
@@ -750,6 +763,14 @@ class Strategy(_Strategy):
         return self.broker._await_market_to_close(timedelta)
 
     def get_tracked_position(self, asset):
+        """Deprecated, will be removed in the future. Please use `get_position()` instead."""
+
+        self.log_message(
+            "Warning: get_tracked_position() is deprecated, please use get_position() instead."
+        )
+        self.get_position(asset)
+
+    def get_position(self, asset):
         """Get a tracked position given an asset for the current
         strategy.
 
@@ -770,7 +791,7 @@ class Strategy(_Strategy):
         Example
         -------
         >>> # Get the position for the TLT asset
-        >>> position = self.get_tracked_position("TLT")
+        >>> position = self.get_position("TLT")
         >>> # Show the quantity of the TLT position
         >>> self.log_message(position.quantity)
 
@@ -779,10 +800,15 @@ class Strategy(_Strategy):
         return self.broker.get_tracked_position(self.name, asset)
 
     def get_tracked_positions(self):
-        """Get all tracked positions for the current strategy
+        """Deprecated, will be removed in the future. Please use `get_positions()` instead."""
 
-        Seeks out and returns the all tracked positions in the current
-        strategy.
+        self.log_message(
+            "Warning: get_tracked_positions() is deprecated, please use get_positions() instead."
+        )
+        return self.get_positions()
+
+    def get_positions(self):
+        """Get all positions for the account.
 
         Parameters
         ----------
@@ -798,7 +824,7 @@ class Strategy(_Strategy):
         Example
         -------
         >>> # Get all tracked positions
-        >>> positions = self.get_tracked_positions()
+        >>> positions = self.get_positions()
         >>> for position in positions:
         >>>     # Show the quantity of each position
         >>>     self.log_message(position.quantity)
@@ -808,6 +834,23 @@ class Strategy(_Strategy):
         """
 
         return self.broker.get_tracked_positions(self.name)
+
+    def get_historical_account_value(self):
+        """Get the historical account value.
+
+        Returns
+        -------
+        float
+            The historical account value.
+
+        Example
+        -------
+        >>> # Get the historical account value
+        >>> account_value = self.get_historical_account_value()
+        >>> # Show the historical account value
+        >>> self.log_message(account_value)
+        """
+        return self.broker.get_historical_account_value()
 
     @property
     def positions(self):
@@ -835,6 +878,14 @@ class Strategy(_Strategy):
         return self.broker.get_contract_details(asset)
 
     def get_tracked_order(self, identifier):
+        """Deprecated, will be removed in the future. Please use `get_order()` instead."""
+
+        self.log_message(
+            "Warning: get_tracked_order() is deprecated, please use get_order() instead."
+        )
+        return self.get_order()
+
+    def get_order(self, identifier):
         """Get a tracked order given an identifier. Check the details of the order including status, etc.
 
         Returns
@@ -845,7 +896,7 @@ class Strategy(_Strategy):
         Example
         -------
         >>> # Get the order object for the order id
-        >>> order = self.get_tracked_order(order_id)
+        >>> order = self.get_order(order_id)
         >>> # Show the status of the order
         >>> self.log_message(order.status)
         """
@@ -854,7 +905,15 @@ class Strategy(_Strategy):
             return order
         return None
 
-    def get_tracked_orders(self):
+    def get_tracked_orders(self, identifier):
+        """Deprecated, will be removed in the future. Please use `get_orders()` instead."""
+
+        self.log_message(
+            "Warning: get_tracked_orders() is deprecated, please use get_orders() instead."
+        )
+        return self.get_orders()
+
+    def get_orders(self):
         """Get all the current open orders.
 
         Returns
@@ -865,7 +924,7 @@ class Strategy(_Strategy):
         Example
         -------
         >>> # Get all tracked orders
-        >>> orders = self.get_tracked_orders()
+        >>> orders = self.get_orders()
         >>> for order in orders:
         >>>     # Show the status of each order
         >>>     self.log_message(order.status)
@@ -1003,8 +1062,7 @@ class Strategy(_Strategy):
         >>>    asset_type="option",
         >>>    expiration_date="2020-01-01",
         >>>    strike_price=100.00,
-        >>>    right="call",
-        >>>    multiplier=100)
+        >>>    right="call")
         >>> order = self.create_order(asset, 10, "buy")
         >>> self.submit_order(order)
 
@@ -1413,7 +1471,12 @@ class Strategy(_Strategy):
 
         """
         asset = self._set_asset_mapping(asset)
-        return self.broker.get_last_price(asset)
+        try:
+            return self.broker.get_last_price(asset)
+        except Exception as e:
+            self.log_message(f"Could not get last price for {asset}")
+            self.log_message(f"{e}")
+            return None
 
     def get_tick(self, asset):
         """Takes an asset asset and returns the last known price"""
@@ -2344,9 +2407,57 @@ class Strategy(_Strategy):
         assets = [self._set_asset_mapping(asset) for asset in assets]
         return self.data_source.get_yesterday_dividends(assets)
 
+    def update_parameters(self, parameters):
+        """Update the parameters of the strategy.
+
+        Parameters
+        ----------
+        parameters : dict
+            The parameters to update.
+
+        Returns
+        -------
+        None
+        """
+        for key, value in parameters.items():
+            self.parameters[key] = value
+
+        self.on_parameters_updated(parameters)
+
+    def get_parameters(self):
+        """Get the parameters of the strategy.
+
+        Returns
+        -------
+        parameters : dict
+            The parameters of the strategy.
+        """
+        return self.parameters
+
+    def set_parameter_defaults(self, parameter_defaults):
+        """Set the default parameters of the strategy.
+
+        Parameters
+        ----------
+        parameter_defaults : dict
+            The parameters to set defaults for.
+
+        Returns
+        -------
+        None
+        """
+        if parameter_defaults is None:
+            return None
+
+        for key, value in parameter_defaults.items():
+            if key not in self.parameters:
+                self.parameters[key] = value
+
+        return self.parameters
+
     # =======Lifecycle methods====================
 
-    def initialize(self):
+    def initialize(self, parameters=None):
         """Initialize the strategy. Use this lifecycle method to initialize parameters.
 
         This method is called once before the first time the strategy is run.
@@ -2471,7 +2582,7 @@ class Strategy(_Strategy):
         >>>         "my_stat": context["my_stat"],
         >>>         "my_other_stat": context["my_other_stat"],
         >>>         "portfolio_value": self.portfolio_value,
-        >>>         "unspent_money": self.unspent_money,
+        >>>         "cash": self.cash,
         >>>     }
 
 
@@ -2517,7 +2628,7 @@ class Strategy(_Strategy):
         >>> def after_market_closes(self):
         >>>     self.log_message("The market is closed")
         >>>     self.log_message(f"The total value of our portfolio is {self.portfolio_value}")
-        >>>     self.log_message(f"The amount of cash we have is {self.unspent_money})
+        >>>     self.log_message(f"The amount of cash we have is {self.cash})
         """
         pass
 
@@ -2711,5 +2822,24 @@ class Strategy(_Strategy):
         >>>         self.positions["AAPL"] = position
 
 
+        """
+        pass
+
+    def on_parameters_updated(self, parameters):
+        """Use this lifecycle event to execute code when the parameters are updated.
+
+        Parameters
+        ----------
+        parameters : dict
+            The parameters that are being updated.
+
+        Returns
+        -------
+        None
+
+        Example
+        -------
+        >>> def on_parameters_updated(self, parameters):
+        >>>     self.log_message(f"Parameters updated: {parameters}")
         """
         pass

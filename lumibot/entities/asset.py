@@ -68,12 +68,15 @@ class Asset(BaseModel, frozen=True, extra="forbid"):
     Example
     -------
     >>> # Create an Asset object for a stock.
+    >>> from lumibot.entities import Asset
     >>> asset = Asset(symbol="AAPL")
 
     >>> # Create an Asset object for a futures contract.
+    >>> from lumibot.entities import Asset
     >>> asset = Asset(symbol="ES", asset_type='future', expiration=datetime.date(2021, 12, 17))
 
     >>> # Create an Asset object for an options contract.
+    >>> from lumibot.entities import Asset
     >>> asset = Asset(
     >>>     symbol="AAPL",
     >>>     asset_type='option',
@@ -83,6 +86,10 @@ class Asset(BaseModel, frozen=True, extra="forbid"):
     >>>     multiplier=100,
     >>>     currency="USD"
     >>> )
+
+    >>> # Create an Asset object for a FOREX contract.
+    >>> from lumibot.entities import Asset
+    >>> asset = Asset(symbol="USD", asset_type='forex', currency="EUR")
     >>> order = self.create_order(asset, 100, 'BUY')
     >>> self.submit_order(order)
     """

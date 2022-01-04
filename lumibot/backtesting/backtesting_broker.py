@@ -68,7 +68,9 @@ class BacktestingBroker(Broker):
     # =========Internal functions==================
 
     def _update_datetime(self, input):
-        """Works with either timedelta or datetime input"""
+        """Works with either timedelta or datetime input
+        and updates the datetime of the broker"""
+
         if isinstance(input, timedelta):
             new_datetime = self.datetime + input
         elif isinstance(input, int) or isinstance(input, float):
@@ -422,7 +424,7 @@ class BacktestingBroker(Broker):
                 continue
 
     def limit_order(self, limit_price, side, open, high, low):
-        """Limit order logic. """
+        """Limit order logic."""
         if side == "buy":
             if limit_price >= open:
                 return open
@@ -439,7 +441,7 @@ class BacktestingBroker(Broker):
                 return 0
 
     def stop_order(self, stop_price, side, open, high, low):
-        """Stop order logic. """
+        """Stop order logic."""
         if side == "buy":
             if stop_price <= open:
                 return open
@@ -465,7 +467,7 @@ class BacktestingBroker(Broker):
         return self._data_source.get_last_prices(symbols)
 
     def get_last_bar(self, asset):
-        """Returns OHLCV dictionary for last bar of the asset. """
+        """Returns OHLCV dictionary for last bar of the asset."""
         return self._data_source.get_symbol_bars(asset, 1)
 
     def get_chains(self, asset):
@@ -491,16 +493,16 @@ class BacktestingBroker(Broker):
         return self._data_source.get_strikes(asset)
 
     def _get_greeks(
-            self,
-            asset,
-            implied_volatility=False,
-            delta=False,
-            option_price=False,
-            pv_dividend=False,
-            gamma=False,
-            vega=False,
-            theta=False,
-            underlying_price=False,
+        self,
+        asset,
+        implied_volatility=False,
+        delta=False,
+        option_price=False,
+        pv_dividend=False,
+        gamma=False,
+        vega=False,
+        theta=False,
+        underlying_price=False,
     ):
         return self._data_source.get_greeks(
             asset,

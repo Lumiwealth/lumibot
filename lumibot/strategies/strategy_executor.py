@@ -80,7 +80,7 @@ class StrategyExecutor(Thread):
             held_trades_len = 1
             while held_trades_len > 0:
                 # Snapshot for the broker and lumibot:
-                cash_broker = self.broker._get_cash_balance_at_broker()
+                cash_broker = self.broker._get_balances_at_broker()[0]
                 positions_broker = self.broker._pull_positions(self.name)
                 orders_broker = self.broker._pull_open_orders(self.name)
 
@@ -90,7 +90,7 @@ class StrategyExecutor(Thread):
                     self.broker.process_held_trades()
                     self.broker._hold_trade_events = True
 
-            self.strategy._unspent_money = cash_broker
+            self.strategy._cash = cash_broker
 
             # POSITIONS
             # Update Lumibot positions to match broker positions.
@@ -98,28 +98,25 @@ class StrategyExecutor(Thread):
             # are being held pending the completion of the sync.
             if len(positions_broker) > 0:
                 for position in positions_broker:
-                    if self.strategy._first_iteration and position.quantity != 0:
-                        self.broker._filled_positions.append(position)
-                    else:
-                        # Check against existing position.
-                        position_lumi = [
-                            pos_lumi
-                            for pos_lumi in self.broker._filled_positions.get_list()
-                            if pos_lumi.asset == position.asset
-                        ]
-                        position_lumi = (
-                            position_lumi[0] if len(position_lumi) > 0 else None
-                        )
+                    # Check against existing position.
+                    position_lumi = [
+                        pos_lumi
+                        for pos_lumi in self.broker._filled_positions.get_list()
+                        if pos_lumi.asset == position.asset
+                    ]
+                    position_lumi = (
+                        position_lumi[0] if len(position_lumi) > 0 else None
+                    )
 
-                        if position_lumi:
-                            # Compare to existing lumi position.
-                            if position_lumi.quantity != position.quantity:
-                                position_lumi.quantity = position.quantity
-                        else:
-                            # Add to positions in lumibot, position does not exist
-                            # in lumibot.
-                            if position.quantity != 0:
-                                self.broker._filled_positions.append(position)
+                    if position_lumi:
+                        # Compare to existing lumi position.
+                        if position_lumi.quantity != position.quantity:
+                            position_lumi.quantity = position.quantity
+                    else:
+                        # Add to positions in lumibot, position does not exist
+                        # in lumibot.
+                        if position.quantity != 0:
+                            self.broker._filled_positions.append(position)
             else:
                 # There are no positions at the broker, remove any positions
                 # in lumibot.
@@ -163,14 +160,18 @@ class StrategyExecutor(Thread):
                                 obroker = getattr(order, order_attr)
                                 if olumi != obroker:
                                     setattr(order_lumi, order_attr, obroker)
-                                    logging.warning(f"We would adjust {order_lumi}, {order_attr}, to be {obroker} her.")
+                                    logging.warning(
+                                        f"We would adjust {order_lumi}, {order_attr}, to be {obroker} her."
+                                    )
                         else:
                             # Add to order in lumibot.
                             self.broker._process_new_order(order)
 
                 for order_lumi in orders_lumi:
                     # Remove lumibot orders if not in broker.
-                    if order_lumi.identifier not in [order.identifier for order in orders_broker]:
+                    if order_lumi.identifier not in [
+                        order.identifier for order in orders_broker
+                    ]:
                         self.broker._process_trade_event(order_lumi, "canceled")
 
             self.broker._hold_trade_events = False
@@ -193,7 +194,7 @@ class StrategyExecutor(Thread):
             quantity = payload["quantity"]
             multiplier = payload["multiplier"]
 
-            self.strategy._update_unspent_money(order.side, quantity, price, multiplier)
+            self.strategy._update_cash(order.side, quantity, price, multiplier)
             self._on_filled_order(**payload)
         elif event == self.PARTIALLY_FILLED_ORDER:
             order = payload["order"]
@@ -201,7 +202,7 @@ class StrategyExecutor(Thread):
             quantity = payload["quantity"]
             multiplier = payload["multiplier"]
 
-            self.strategy._update_unspent_money(order.side, quantity, price, multiplier)
+            self.strategy._update_cash(order.side, quantity, price, multiplier)
             self._on_partially_filled_order(**payload)
 
     def process_queue(self):
@@ -274,7 +275,7 @@ class StrategyExecutor(Thread):
 
         result["datetime"] = self.strategy.get_datetime()
         result["portfolio_value"] = self.strategy.portfolio_value
-        result["unspent_money"] = self.strategy.unspent_money
+        result["cash"] = self.strategy.cash
         self.strategy._append_row(result)
         return result
 
@@ -405,7 +406,7 @@ class StrategyExecutor(Thread):
             # Is this update money dividends in the right place? Maybe after orders. or both
             if self.broker.IS_BACKTESTING_BROKER:
                 self.broker.process_pending_orders(strategy=self.strategy.name)
-            self.strategy._update_unspent_money_with_dividends()
+            self.strategy._update_cash_with_dividends()
             self._on_trading_iteration()
             return
 
@@ -416,7 +417,7 @@ class StrategyExecutor(Thread):
             # or date max.
             if not self.broker.is_market_open():
                 self._before_market_opens()
-            self.strategy._update_unspent_money_with_dividends()
+            self.strategy._update_cash_with_dividends()
 
         self.strategy.await_market_to_open(timedelta=0)
         self._before_starting_trading()

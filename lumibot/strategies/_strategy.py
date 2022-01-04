@@ -25,8 +25,6 @@ class _Strategy:
 
     def __init__(
         self,
-        name,
-        budget,
         broker,
         data_source=None,
         minutes_before_closing=5,
@@ -39,6 +37,9 @@ class _Strategy:
         backtesting_end=None,
         pandas_data=None,
         filled_order_callback=None,
+        name="StratName",
+        budget=10000,
+        parameters={},
         **kwargs,
     ):
         # Setting the broker object
@@ -83,8 +84,19 @@ class _Strategy:
         # Setting execution parameters
         self._first_iteration = True
         self._initial_budget = budget
-        self._unspent_money = budget
-        self._portfolio_value = budget
+        if not self._is_backtesting:
+            (
+                self._cash,
+                self._position_value,
+                self._portfolio_value,
+            ) = self.broker._get_balances_at_broker()
+            # Set initial positions if live trading.
+            self.broker._set_initial_positions(self._name)
+        else:
+            self._cash = budget
+            self._position_value = 0
+            self._portfolio_value = budget
+
         self._minutes_before_closing = minutes_before_closing
         self._minutes_before_opening = minutes_before_opening
         self._sleeptime = sleeptime
@@ -97,7 +109,7 @@ class _Strategy:
         self._analysis = {}
 
         # Storing parameters for the initialize method
-        self._parameters = kwargs
+        self._parameters = dict(list(parameters.items()) + list(kwargs.items()))
 
         self._strategy_returns_df = None
         self._benchmark_returns_df = None
@@ -121,7 +133,7 @@ class _Strategy:
             elif key in [
                 "_name",
                 "_initial_budget",
-                "_unspent_money",
+                "_cash",
                 "_portfolio_value",
                 "_minutes_before_closing",
                 "_minutes_before_opening",
@@ -145,12 +157,19 @@ class _Strategy:
                 f"entered {asset}"
             )
 
+    def _log_strat_name(self):
+        """Returns the name of the strategy as a string if not default"""
+        return f"{self._name} " if self._name != "StratName" else ""
+
     # =============Auto updating functions=============
 
     def _update_portfolio_value(self):
         """updates self.portfolio_value"""
+        if not self.IS_BACKTESTABLE:
+            return self.broker._get_balances_at_broker()[2]
+
         with self._executor.lock:
-            portfolio_value = self._unspent_money
+            portfolio_value = self._cash
             positions = self.broker.get_tracked_positions(self._name)
             assets = [position.asset for position in positions]
             prices = self.data_source.get_last_prices(assets)
@@ -181,16 +200,16 @@ class _Strategy:
 
         return portfolio_value
 
-    def _update_unspent_money(self, side, quantity, price, multiplier):
-        """update the self.unspent_money"""
+    def _update_cash(self, side, quantity, price, multiplier):
+        """update the self.cash"""
         with self._executor.lock:
             if side == "buy":
-                self._unspent_money -= quantity * price * multiplier
+                self._cash -= quantity * price * multiplier
             if side == "sell":
-                self._unspent_money += quantity * price * multiplier
-            return self._unspent_money
+                self._cash += quantity * price * multiplier
+            return self._cash
 
-    def _update_unspent_money_with_dividends(self):
+    def _update_cash_with_dividends(self):
         with self._executor.lock:
             positions = self.broker.get_tracked_positions(self._name)
             assets = [position.asset for position in positions]
@@ -203,8 +222,8 @@ class _Strategy:
                     if dividends_per_share is None
                     else dividends_per_share.get(asset, 0)
                 )
-                self._unspent_money += dividend_per_share * quantity
-            return self._unspent_money
+                self._cash += dividend_per_share * quantity
+            return self._cash
 
     # =============Stats functions=====================
 
@@ -230,7 +249,7 @@ class _Strategy:
                 self._stats.to_csv(self._stats_file)
 
             # Getting the performance of the strategy
-            self.log_message(f"--- {self._name} Strategy Performance ---")
+            self.log_message(f"--- {self._log_strat_name()}Strategy Performance  ---")
 
             self._strategy_returns_df = day_deduplicate(self._stats)
             self._analysis = stats_summary(
@@ -323,7 +342,7 @@ class _Strategy:
         else:
             plot_returns(
                 self._strategy_returns_df,
-                f"{self._name} Strategy",
+                f"{self._log_strat_name()}Strategy",
                 self._benchmark_returns_df,
                 self._benchmark_asset,
                 plot_file,
@@ -335,8 +354,6 @@ class _Strategy:
     @classmethod
     def backtest(
         cls,
-        name,
-        budget,
         datasource_class,
         backtesting_start,
         backtesting_end,
@@ -348,6 +365,8 @@ class _Strategy:
         logfile=None,
         config=None,
         auto_adjust=False,
+        name="StratName",
+        budget=10000,
         benchmark_asset="SPY",
         plot_file=None,
         plot_file_html=None,
@@ -356,21 +375,107 @@ class _Strategy:
         show_plot=True,
         **kwargs,
     ):
+        """Backtest a strategy.
+
+        Parameters
+        ----------
+        datasource_class : class
+            The datasource class to use. For example, if you want to use the yahoo finance datasource, then you would pass YahooDataBacktesting as the datasource_class.
+        backtesting_start : datetime
+            The start date of the backtesting period.
+        backtesting_end : datetime
+            The end date of the backtesting period.
+        minutes_before_closing : int
+            The number of minutes before closing that the minutes_before_closing strategy method will be called.
+        minutes_before_opening : int
+            The number of minutes before opening that the minutes_before_opening strategy method will be called.
+        sleeptime : int
+            The number of seconds to sleep between each iteration of the backtest.
+        stats_file : str
+            The file to write the stats to.
+        risk_free_rate : float
+            The risk free rate to use.
+        logfile : str
+            The file to write the log to.
+        config : dict
+            The config to use.
+        auto_adjust : bool
+            Whether or not to automatically adjust the strategy.
+        name : str
+            The name of the strategy.
+        budget : float
+            The initial budget to use for the backtest.
+        benchmark_asset : str
+            The benchmark asset to use for the backtest to compare to.
+        plot_file : str
+            The file to write the plot to.
+        plot_file_html : str
+            The file to write the plot html to.
+        trades_file : str
+            The file to write the trades to.
+        pandas_data : pandas.DataFrame
+            The pandas data to use.
+        show_plot : bool
+            Whether or not to show the plot.
+
+        Returns
+        -------
+        Backtest
+            The backtest object.
+
+        Examples
+        --------
+
+        >>> from datetime import datetime
+        >>> from lumibot.backtesting import YahooDataBacktesting
+        >>> from lumibot.strategies import Strategy
+        >>>
+        >>> # A simple strategy that buys AAPL on the first day
+        >>> class MyStrategy(Strategy):
+        >>>    def on_trading_iteration(self):
+        >>>        if self.first_iteration:
+        >>>            order = self.create_order("AAPL", quantity=1, side="buy")
+        >>>            self.submit_order(order)
+        >>>
+        >>> # Create a backtest
+        >>> backtesting_start = datetime(2018, 1, 1)
+        >>> backtesting_end = datetime(2018, 1, 31)
+        >>> budget = 10000
+        >>> backtest = MyStrategy.backtest(
+        >>>     datasource_class=YahooDataBacktesting,
+        >>>     backtesting_start=backtesting_start,
+        >>>     backtesting_end=backtesting_end,
+        >>>     budget=budget,
+        >>>     name="MyStrategy",
+        >>>     benchmark_asset="QQQ",
+        >>> )
+
+
+        """
         # Filename defaults
         datestring = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         if plot_file is None:
-            plot_file = f"logs/{name}_{datestring}.jpg"
+            plot_file = (
+                f"logs/{name + '_' if name != 'StratName' else ''}{datestring}.jpg"
+            )
         if plot_file_html is None:
-            plot_file_html = f"logs/{name}_{datestring}.html"
+            plot_file_html = (
+                f"logs/{name + '_' if name != 'StratName' else ''}{datestring}.html"
+            )
         if stats_file is None:
-            stats_file = f"logs/{name}_{datestring}_stats.csv"
+            stats_file = f"logs/{name + '_' if name != 'StratName' else ''}{datestring}_stats.csv"
         if trades_file is None:
-            trades_file = f"logs/{name}_{datestring}_trades.csv"
+            trades_file = f"logs/{name + '_' if name != 'StratName' else ''}{datestring}_trades.csv"
         if logfile is None:
-            logfile = f"logs/{name}_{datestring}_logs.csv"
+            logfile = (
+                f"logs/{name + '_' if name != 'StratName' else ''}{datestring}_logs.csv"
+            )
 
         if not cls.IS_BACKTESTABLE:
-            logging.warning(f"Strategy {name} cannot be backtested at the moment")
+            logging.warning(
+                f"Strategy {name + ' ' if name != 'StratName' else ''}cannot be "
+                f"backtested at the moment"
+            )
             return None
 
         backtesting_start = to_datetime_aware(backtesting_start)
@@ -387,18 +492,18 @@ class _Strategy:
         )
         backtesting_broker = BacktestingBroker(data_source)
         strategy = cls(
-            name,
-            budget,
             backtesting_broker,
             minutes_before_closing=minutes_before_closing,
             minutes_before_opening=minutes_before_opening,
             sleeptime=sleeptime,
             risk_free_rate=risk_free_rate,
             stats_file=stats_file,
-            # benchmark_asset=benchmark_asset,
+            benchmark_asset=benchmark_asset,
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             pandas_data=pandas_data,
+            name=name,
+            budget=budget,
             **kwargs,
         )
         trader.add_strategy(strategy)

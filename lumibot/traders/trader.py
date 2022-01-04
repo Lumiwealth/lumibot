@@ -12,7 +12,9 @@ class Trader:
     def __init__(self, logfile="logs/logs.log", debug=False, strategies=None):
         # Setting debug and _logfile parameters and setting global log format
         self.debug = debug
-        self.log_format = logging.Formatter("%(asctime)s: %(levelname)s: %(message)s")
+        self.log_format = logging.Formatter(
+            "%(asctime)s: %(name)s: %(levelname)s: %(message)s"
+        )
         self.logfile = logfile
 
         # Setting the list of strategies if defined
@@ -49,6 +51,25 @@ class Trader:
         result = self._collect_analysis()
 
         return result
+
+    # Async version of run_all
+    def run_all_async(self):
+        """run all strategies"""
+        if self.is_backtest:
+            if len(self._strategies) > 1:
+                raise Exception(
+                    "Received %d strategies for backtesting."
+                    "You can only backtest one at a time." % len(self._strategies)
+                )
+
+            logging.info("Backtesting starting...")
+
+        signal.signal(signal.SIGINT, self._stop_pool)
+        self._set_logger()
+        self._init_pool()
+        self._start_pool()
+
+        return self._strategies
 
     def _set_logger(self):
         """Setting Logging to both console and a file if logfile is specified"""
@@ -91,7 +112,9 @@ class Trader:
         # Disable Interactive Brokers logs
         for log_name, log_obj in logging.Logger.manager.loggerDict.items():
             if log_name.startswith("ibapi"):
-                log_obj.disabled = True
+                iblogger = logging.getLogger(log_name)
+                iblogger.setLevel(logging.CRITICAL)
+                iblogger.disabled = True
 
     def _init_pool(self):
         self._pool = [strategy._executor for strategy in self._strategies]

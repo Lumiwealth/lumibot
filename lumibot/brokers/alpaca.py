@@ -198,17 +198,13 @@ class Alpaca(AlpacaData, Broker):
         """
 
         response = self.api.get_account()
-<<<<<<< HEAD
         total_cash_value = float(response._raw["cash"])
         gross_positions_value = float(response._raw["long_market_value"]) - float(
             response._raw["short_market_value"]
         )
         net_liquidation_value = float(response._raw["portfolio_value"])
 
-        return  (total_cash_value, gross_positions_value, net_liquidation_value)
-=======
-        return float(response._raw["cash"])
->>>>>>> master
+        return (total_cash_value, gross_positions_value, net_liquidation_value)
 
     def _parse_broker_position(self, broker_position, strategy, orders=None):
         """parse a broker position representation

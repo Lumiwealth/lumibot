@@ -364,133 +364,61 @@
 <dt class="sig sig-object py" id="entities.asset.Asset">
 <em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">entities.asset.</span></span><span class="sig-name descname"><span class="pre">Asset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">symbol</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">asset_type</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span> <span class="o"><span class="pre">=</span></span> <span class="default_value"><span class="pre">'stock'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">expiration</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">datetime.date</span></span> <span class="o"><span class="pre">=</span></span> <span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">strike</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span> <span class="o"><span class="pre">=</span></span> <span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">right</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span> <span class="o"><span class="pre">=</span></span> <span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">multiplier</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">int</span></span> <span class="o"><span class="pre">=</span></span> <span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">currency</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span> <span class="o"><span class="pre">=</span></span> <span class="default_value"><span class="pre">'USD'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.asset.Asset" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">pydantic.main.BaseModel</span></code></p>
-<p>This is a base class for Assets including stocks, futures, options
+<blockquote>
+<div><p>This is a base class for Assets including stocks, futures, options
 and forex.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>symbol</strong> (<em>str</em>) – Symbol of the stock or underlying in case of futures/options.</p></li>
-<li><p><strong>asset_type</strong> (<em>str</em>) – Type of the asset. Asset types are only ‘stock’, ‘option’, ‘future’, ‘forex’
-default : ‘stock’</p></li>
-<li><p><strong>expiration</strong> (<em>datetime.date</em>) – Option or futures expiration.
+<dl class="simple">
+<dt>symbol<span class="classifier">str</span></dt><dd><p>Symbol of the stock or underlying in case of futures/options.</p>
+</dd>
+<dt>asset_type<span class="classifier">str</span></dt><dd><p>Type of the asset. Asset types are only ‘stock’, ‘option’, ‘future’, ‘forex’
+default : ‘stock’</p>
+</dd>
+<dt>expiration<span class="classifier">datetime.date</span></dt><dd><p>Option or futures expiration.
 The datetime.date will be converted to broker specific formats.
-IB Format: for options “YYYYMMDD”, for futures “YYYYMM”</p></li>
-<li><p><strong>strike</strong> (<em>str</em>) – Options strike as string.</p></li>
-<li><p><strong>right</strong> (<em>str</em>) – ‘CALL’ or ‘PUT’
-default : “”</p></li>
-<li><p><strong>multiplier</strong> (<em>int</em>) – Price multiplier.
-default : 1</p></li>
-<li><p><strong>currency</strong> (<em>str</em>) – Base currency, (default=None)</p></li>
-</ul>
+IB Format: for options “YYYYMMDD”, for futures “YYYYMM”</p>
+</dd>
+<dt>strike<span class="classifier">str</span></dt><dd><p>Options strike as string.</p>
+</dd>
+<dt>right<span class="classifier">str</span></dt><dd><p>‘CALL’ or ‘PUT’
+default : “”</p>
+</dd>
+<dt>multiplier<span class="classifier">int</span></dt><dd><p>Price multiplier.
+default : 1</p>
+</dd>
+<dt>currency<span class="classifier">str</span></dt><dd><p>Base currency, (default=None)</p>
 </dd>
 </dl>
-<dl class="py attribute">
-<dt class="sig sig-object py" id="entities.asset.Asset.symbol">
-<span class="sig-name descname"><span class="pre">symbol</span></span><a class="headerlink" href="#entities.asset.Asset.symbol" title="Permalink to this definition">¶</a></dt>
-<dd><p>The symbol used to retrieve stock quotes if stock. The underlying
+<dl class="simple">
+<dt>symbol<span class="classifier">string (required)</span></dt><dd><p>The symbol used to retrieve stock quotes if stock. The underlying
 symbol if option. For Forex: The base currency.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Type</dt>
-<dd class="field-odd"><p>string</p>
+</dd>
+<dt>asset_type (string, default: <cite>stock</cite>)</dt><dd><p>One of the following:
+- ‘stock’
+- ‘option’
+- ‘future’
+- ‘forex’</p>
+</dd>
+<dt>expiration<span class="classifier">datetime.date (required if asset_type is ‘option’ or ‘future’)</span></dt><dd><p>Contract expiration dates for futures and options.</p>
+</dd>
+<dt>strike<span class="classifier">float (required if asset_type is ‘option’)</span></dt><dd><p>Contract strike price.</p>
+</dd>
+<dt>right<span class="classifier">str (required if asset_type is ‘option’)</span></dt><dd><p>Option call or put.</p>
+</dd>
+<dt>multiplier<span class="classifier">int  (required if asset_type is ‘forex’)</span></dt><dd><p>Contract leverage over the underlying.</p>
+</dd>
+<dt>currency<span class="classifier">string (required if asset_type is ‘forex’)</span></dt><dd><p>Conversion currency.</p>
+</dd>
+<dt>_asset_types<span class="classifier">list of str</span></dt><dd><p>Acceptable asset types.</p>
+</dd>
+<dt>_right<span class="classifier">list of str</span></dt><dd><p>Acceptable values for right.</p>
 </dd>
 </dl>
-</dd></dl>
-<dl class="py attribute">
-<dt class="sig sig-object py">
-<span class="sig-name descname"><span class="pre">asset_type</span> <span class="pre">(string,</span> <span class="pre">default</span></span></dt>
-<dd><ul class="simple">
-<li><p>‘stock’</p></li>
-<li><p>‘option’</p></li>
-<li><p>‘future’</p></li>
-<li><p>‘forex’</p></li>
-</ul>
-<dl class="field-list simple">
-<dt class="field-odd">Type</dt>
-<dd class="field-odd"><p><cite>stock</cite>): One of the following:</p>
+<dl class="simple">
+<dt>asset_type_must_be_one_of(@”asset_type”)</dt><dd><p>validates asset types.</p>
+</dd>
+<dt>right_must_be_one_of(@”right”)</dt><dd><p>validates rights types.</p>
 </dd>
 </dl>
-</dd></dl>
-<dl class="py attribute">
-<dt class="sig sig-object py" id="entities.asset.Asset.expiration">
-<span class="sig-name descname"><span class="pre">expiration</span></span><a class="headerlink" href="#entities.asset.Asset.expiration" title="Permalink to this definition">¶</a></dt>
-<dd><p>Contract expiration dates for futures and options.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Type</dt>
-<dd class="field-odd"><p>datetime.date</p>
-</dd>
-</dl>
-</dd></dl>
-<dl class="py attribute">
-<dt class="sig sig-object py" id="entities.asset.Asset.strike">
-<span class="sig-name descname"><span class="pre">strike</span></span><a class="headerlink" href="#entities.asset.Asset.strike" title="Permalink to this definition">¶</a></dt>
-<dd><p>Contract strike price.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Type</dt>
-<dd class="field-odd"><p>float</p>
-</dd>
-</dl>
-</dd></dl>
-<dl class="py attribute">
-<dt class="sig sig-object py" id="entities.asset.Asset.right">
-<span class="sig-name descname"><span class="pre">right</span></span><a class="headerlink" href="#entities.asset.Asset.right" title="Permalink to this definition">¶</a></dt>
-<dd><p>Option call or put.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Type</dt>
-<dd class="field-odd"><p>str</p>
-</dd>
-</dl>
-</dd></dl>
-<dl class="py attribute">
-<dt class="sig sig-object py" id="entities.asset.Asset.multiplier">
-<span class="sig-name descname"><span class="pre">multiplier</span></span><a class="headerlink" href="#entities.asset.Asset.multiplier" title="Permalink to this definition">¶</a></dt>
-<dd><p>Contract leverage over the underlying.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Type</dt>
-<dd class="field-odd"><p>int</p>
-</dd>
-</dl>
-</dd></dl>
-<dl class="py attribute">
-<dt class="sig sig-object py" id="entities.asset.Asset.currency">
-<span class="sig-name descname"><span class="pre">currency</span></span><a class="headerlink" href="#entities.asset.Asset.currency" title="Permalink to this definition">¶</a></dt>
-<dd><p>Conversion currency.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Type</dt>
-<dd class="field-odd"><p>string</p>
-</dd>
-</dl>
-</dd></dl>
-<dl class="py attribute">
-<dt class="sig sig-object py" id="entities.asset.Asset._asset_types">
-<span class="sig-name descname"><span class="pre">_asset_types</span></span><a class="headerlink" href="#entities.asset.Asset._asset_types" title="Permalink to this definition">¶</a></dt>
-<dd><p>Acceptable asset types.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Type</dt>
-<dd class="field-odd"><p>list of str</p>
-</dd>
-</dl>
-</dd></dl>
-<dl class="py attribute">
-<dt class="sig sig-object py" id="entities.asset.Asset._right">
-<span class="sig-name descname"><span class="pre">_right</span></span><a class="headerlink" href="#entities.asset.Asset._right" title="Permalink to this definition">¶</a></dt>
-<dd><p>Acceptable values for right.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Type</dt>
-<dd class="field-odd"><p>list of str</p>
-</dd>
-</dl>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="entities.asset.Asset.asset_type_must_be_one_of">
-<span class="sig-name descname"><span class="pre">asset_type_must_be_one_of</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="pre">@"asset_type"</span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.asset.Asset.asset_type_must_be_one_of" title="Permalink to this definition">¶</a></dt>
-<dd><p>validates asset types.</p>
-</dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="entities.asset.Asset.right_must_be_one_of">
-<span class="sig-name descname"><span class="pre">right_must_be_one_of</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="pre">@"right"</span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.asset.Asset.right_must_be_one_of" title="Permalink to this definition">¶</a></dt>
-<dd><p>validates rights types.</p>
-</dd></dl>
-<p class="rubric">Example</p>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Create an Asset object for a stock.</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">lumibot.entities</span> <span class="kn">import</span> <span class="n">Asset</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="n">symbol</span><span class="o">=</span><span class="s2">"AAPL"</span><span class="p">)</span>
@@ -514,47 +442,54 @@ symbol if option. For Forex: The base currency.</p>
 <span class="gp">&gt;&gt;&gt; </span><span class="p">)</span>
 </pre></div>
 </div>
+</div></blockquote>
+<p>&lt;&lt;&lt;&lt;&lt;&lt;&lt; HEAD</p>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Create an Asset object for a forex contract.</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">lumibot.entities</span> <span class="kn">import</span> <span class="n">Asset</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="n">symbol</span><span class="o">=</span><span class="s2">"USD"</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s1">'forex'</span><span class="p">,</span> <span class="n">currency</span><span class="o">=</span><span class="s2">"EUR"</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">"buy"</span><span class="p">,</span> <span class="s2">"market"</span><span class="p">)</span>
 </pre></div>
 </div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="s1">'BUY'</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>&gt;&gt;&gt;&gt;&gt;&gt;&gt; master</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="entities.asset.Asset.asset_type">
 <span class="sig-name descname"><span class="pre">asset_type</span></span><em class="property"><span class="pre">:</span> <span class="pre">str</span></em><a class="headerlink" href="#entities.asset.Asset.asset_type" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 <dl class="py method">
-<dt class="sig sig-object py" id="id0">
-<em class="property"><span class="pre">classmethod</span> </em><span class="sig-name descname"><span class="pre">asset_type_must_be_one_of</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#id0" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="entities.asset.Asset.asset_type_must_be_one_of">
+<em class="property"><span class="pre">classmethod</span> </em><span class="sig-name descname"><span class="pre">asset_type_must_be_one_of</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.asset.Asset.asset_type_must_be_one_of" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 <dl class="py attribute">
-<dt class="sig sig-object py" id="id1">
-<span class="sig-name descname"><span class="pre">currency</span></span><em class="property"><span class="pre">:</span> <span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#id1" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="entities.asset.Asset.currency">
+<span class="sig-name descname"><span class="pre">currency</span></span><em class="property"><span class="pre">:</span> <span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#entities.asset.Asset.currency" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 <dl class="py attribute">
-<dt class="sig sig-object py" id="id2">
-<span class="sig-name descname"><span class="pre">expiration</span></span><em class="property"><span class="pre">:</span> <span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">datetime.date</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#id2" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="entities.asset.Asset.expiration">
+<span class="sig-name descname"><span class="pre">expiration</span></span><em class="property"><span class="pre">:</span> <span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">datetime.date</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#entities.asset.Asset.expiration" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 <dl class="py attribute">
-<dt class="sig sig-object py" id="id3">
-<span class="sig-name descname"><span class="pre">multiplier</span></span><em class="property"><span class="pre">:</span> <span class="pre">int</span></em><a class="headerlink" href="#id3" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="entities.asset.Asset.multiplier">
+<span class="sig-name descname"><span class="pre">multiplier</span></span><em class="property"><span class="pre">:</span> <span class="pre">int</span></em><a class="headerlink" href="#entities.asset.Asset.multiplier" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 <dl class="py attribute">
-<dt class="sig sig-object py" id="id4">
-<span class="sig-name descname"><span class="pre">right</span></span><em class="property"><span class="pre">:</span> <span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#id4" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="entities.asset.Asset.right">
+<span class="sig-name descname"><span class="pre">right</span></span><em class="property"><span class="pre">:</span> <span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#entities.asset.Asset.right" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 <dl class="py method">
-<dt class="sig sig-object py" id="id5">
-<em class="property"><span class="pre">classmethod</span> </em><span class="sig-name descname"><span class="pre">right_must_be_one_of</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#id5" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="entities.asset.Asset.right_must_be_one_of">
+<em class="property"><span class="pre">classmethod</span> </em><span class="sig-name descname"><span class="pre">right_must_be_one_of</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.asset.Asset.right_must_be_one_of" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 <dl class="py attribute">
-<dt class="sig sig-object py" id="id6">
-<span class="sig-name descname"><span class="pre">strike</span></span><em class="property"><span class="pre">:</span> <span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#id6" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="entities.asset.Asset.strike">
+<span class="sig-name descname"><span class="pre">strike</span></span><em class="property"><span class="pre">:</span> <span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#entities.asset.Asset.strike" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 <dl class="py attribute">
-<dt class="sig sig-object py" id="id7">
-<span class="sig-name descname"><span class="pre">symbol</span></span><em class="property"><span class="pre">:</span> <span class="pre">str</span></em><a class="headerlink" href="#id7" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="entities.asset.Asset.symbol">
+<span class="sig-name descname"><span class="pre">symbol</span></span><em class="property"><span class="pre">:</span> <span class="pre">str</span></em><a class="headerlink" href="#entities.asset.Asset.symbol" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 </dd></dl>
 <dl class="py class">

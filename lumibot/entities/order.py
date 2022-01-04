@@ -99,6 +99,49 @@ class Order:
             The exchange where the order will be placed.
             Default = `SMART`
 
+        Examples
+        --------
+        >>> from lumibot.entities import Asset
+        >>> from lumibot.order import Order
+        >>> asset = Asset("MSFT", "stock")
+        >>> order = self.create_order(
+        ...     asset,
+        ...     quantity=100,
+        ...     side="buy",
+        ...     limit_price=100,
+        ...     take_profit_price=110,
+        ...     stop_loss_price=90,
+        ...     stop_loss_limit_price=80,
+        ... )
+        >>> order.asset
+        Asset(symbol='MSFT', asset_type='stock')
+        >>> order.quantity
+        100
+        >>> order.side
+        'buy'
+        >>> order.limit_price
+        100
+        >>> order.take_profit_price
+        110
+        >>> order.stop_loss_price
+        90
+        >>> order.stop_loss_limit_price
+        80
+        >>> order.time_in_force
+        'day'
+        >>> order.exchange
+        'SMART'
+        >>> order.position_filled
+        False
+        >>> order.status
+        'open'
+        >>> order.type
+        'limit'
+        >>> order.order_class
+        'bracket'
+        >>> order.strategy
+        'test'
+
         """
         if isinstance(asset, str):
             asset = entities.Asset(symbol=asset)

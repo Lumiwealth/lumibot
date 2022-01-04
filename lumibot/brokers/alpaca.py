@@ -13,8 +13,68 @@ from .broker import Broker
 
 
 class Alpaca(AlpacaData, Broker):
-    """Inherit AlpacaData first and all the price market
-    methods than inherits broker
+    """A broker class that connects to Alpaca
+
+    Attributes
+    ----------
+    api : tradeapi.REST
+        Alpaca API object
+
+    Methods
+    -------
+    get_timestamp()
+        Returns the current UNIX timestamp representation from Alpaca
+
+    is_market_open()
+        Determines if the market is open.
+
+    get_time_to_open()
+        How much time in seconds remains until the market next opens?
+
+    get_time_to_close()
+        How much time in seconds remains until the market closes?
+
+    Examples
+    --------
+    >>> # Connect to Alpaca
+    >>> from lumibot.brokers import Alpaca
+    >>> class AlpacaConfig:
+    ...     API_KEY = 'your_api_key'
+    ...     SECRET_KEY = 'your_secret_key'
+    ...     ENDPOINT = 'https://paper-api.alpaca.markets'
+    >>> alpaca = Alpaca(AlpacaConfig)
+    >>> print(alpaca.get_time_to_open())
+    >>> print(alpaca.get_time_to_close())
+    >>> print(alpaca.is_market_open())
+
+    >>> # Run a strategy on Alpaca
+    >>> from lumibot.strategies import Strategy
+    >>> from lumibot.brokers import Alpaca
+    >>> from lumibot.traders import Trader
+    >>>
+    >>> class AlpacaConfig:
+    ...     # Put your own Alpaca key here:
+    ...     API_KEY = "YOUR_API_KEY"
+    ...     # Put your own Alpaca secret here:
+    ...     API_SECRET = "YOUR_API_SECRET"
+    ...     # If you want to go live, you must change this
+    ...     ENDPOINT = "https://paper-api.alpaca.markets"
+    >>>
+    >>> class AlpacaStrategy(Strategy):
+    ...     def on_trading_interation(self):
+    ...         if self.broker.is_market_open():
+    ...             self.create_order(
+    ...                 asset=Asset(symbol="AAPL"),
+    ...                 quantity=1,
+    ...                 order_type="market",
+    ...                 side="buy",
+    ...             )
+    >>>
+    >>> alpaca = Alpaca(AlpacaConfig)
+    >>> strategy = AlpacaStrategy(broker=alpaca)
+    >>> trader = Trader()
+    >>> trader.add_strategy(strategy)
+    >>> trader.run()
 
     """
 
@@ -138,6 +198,7 @@ class Alpaca(AlpacaData, Broker):
         """
 
         response = self.api.get_account()
+<<<<<<< HEAD
         total_cash_value = float(response._raw["cash"])
         gross_positions_value = float(response._raw["long_market_value"]) - float(
             response._raw["short_market_value"]
@@ -145,6 +206,9 @@ class Alpaca(AlpacaData, Broker):
         net_liquidation_value = float(response._raw["portfolio_value"])
 
         return  (total_cash_value, gross_positions_value, net_liquidation_value)
+=======
+        return float(response._raw["cash"])
+>>>>>>> master
 
     def _parse_broker_position(self, broker_position, strategy, orders=None):
         """parse a broker position representation
@@ -268,7 +332,18 @@ class Alpaca(AlpacaData, Broker):
         return order
 
     def cancel_order(self, order):
-        """Cancel an order"""
+        """Cancel an order
+
+        Parameters
+        ----------
+        order : Order
+            The order to cancel
+
+        Returns
+        -------
+        Order
+            The order that was cancelled
+        """
         self.api.cancel_order(order.identifier)
 
     # =======Account functions=========

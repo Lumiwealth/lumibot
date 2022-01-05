@@ -1,6 +1,7 @@
 import logging
 import time
 import traceback
+from datetime import datetime
 from functools import wraps
 from queue import Empty, Queue
 from threading import Event, Lock, Thread
@@ -104,9 +105,7 @@ class StrategyExecutor(Thread):
                         for pos_lumi in self.broker._filled_positions.get_list()
                         if pos_lumi.asset == position.asset
                     ]
-                    position_lumi = (
-                        position_lumi[0] if len(position_lumi) > 0 else None
-                    )
+                    position_lumi = position_lumi[0] if len(position_lumi) > 0 else None
 
                     if position_lumi:
                         # Compare to existing lumi position.
@@ -308,6 +307,7 @@ class StrategyExecutor(Thread):
         on_trading_iteration()
         self.strategy._first_iteration = False
         self._strategy_context = on_trading_iteration.locals
+        self.strategy._last_on_trading_iteration_datetime = datetime.now()
         self.process_queue()
 
     @lifecycle_method

@@ -36,6 +36,19 @@ class Strategy(_Strategy):
         return self._initial_budget
 
     @property
+    def last_on_trading_iteration_datetime(self):
+        """Returns the datetime of the last iteration.
+
+        Returns:
+            datetime: The datetime of the last iteration.
+
+        Example
+        -------
+        >>> self.log_message(f'The last trading iteration happened at: {self.last_on_trading_iteration_datetime}')
+        """
+        return self._last_on_trading_iteration_datetime
+
+    @property
     def minutes_before_opening(self):
         """Get or set the number of minutes that the strategy will start executing before the market opens. The lifecycle method before_market_opens is executed minutes_before_opening minutes before the market opens. By default equals to 60 minutes.
 

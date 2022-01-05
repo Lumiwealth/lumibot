@@ -83,6 +83,7 @@ class _Strategy:
 
         # Setting execution parameters
         self._first_iteration = True
+        self._last_on_trading_iteration_datetime = None
         self._initial_budget = budget
         if not self._is_backtesting:
             (

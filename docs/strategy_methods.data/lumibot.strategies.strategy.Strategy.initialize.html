@@ -254,6 +254,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../strategy_properties/strategies.strategy.Strategy.portfolio_value.html">self.portfolio_value</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../strategy_properties/strategies.strategy.Strategy.cash.html">self.cash</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../strategy_properties/strategies.strategy.Strategy.first_iteration.html">self.first_iteration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../strategy_properties/strategies.strategy.Strategy.last_on_trading_iteration_datetime.html">self.last_on_trading_iteration_datetime</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../strategy_properties/strategies.strategy.Strategy.timezone.html">self.timezone</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../strategy_properties/strategies.strategy.Strategy.pytz.html">self.pytz</a></li>
 </ul>
@@ -309,7 +310,7 @@
 <h1>self.initialize<a class="headerlink" href="#self-initialize" title="Permalink to this headline">¶</a></h1>
 <dl class="py function">
 <dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.initialize">
-<span class="sig-prename descclassname"><span class="pre">lumibot.strategies.strategy.Strategy.</span></span><span class="sig-name descname"><span class="pre">initialize</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.initialize" title="Permalink to this definition">¶</a></dt>
+<span class="sig-prename descclassname"><span class="pre">lumibot.strategies.strategy.Strategy.</span></span><span class="sig-name descname"><span class="pre">initialize</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">parameters</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.initialize" title="Permalink to this definition">¶</a></dt>
 <dd><p>Initialize the strategy. Use this lifecycle method to initialize parameters.</p>
 <p>This method is called once before the first time the strategy is run.</p>
 <dl class="field-list simple">
@@ -327,6 +328,12 @@
 <span class="gp">&gt;&gt;&gt; </span>  <span class="bp">self</span><span class="o">.</span><span class="n">ticker</span> <span class="o">=</span> <span class="s2">"AAPL"</span>
 <span class="gp">&gt;&gt;&gt; </span>  <span class="bp">self</span><span class="o">.</span><span class="n">minutes_before_closing</span> <span class="o">=</span> <span class="mi">5</span>
 <span class="gp">&gt;&gt;&gt; </span>  <span class="bp">self</span><span class="o">.</span><span class="n">max_bars</span> <span class="o">=</span> <span class="mi">100</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Initialize the strategy</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">def</span> <span class="nf">initialize</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="gp">&gt;&gt;&gt; </span>  <span class="bp">self</span><span class="o">.</span><span class="n">sleeptime</span> <span class="o">=</span> <span class="s2">"2S"</span>
+<span class="gp">&gt;&gt;&gt; </span>  <span class="bp">self</span><span class="o">.</span><span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
 </pre></div>
 </div>
 </dd></dl>

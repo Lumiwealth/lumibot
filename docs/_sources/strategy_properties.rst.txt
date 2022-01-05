@@ -20,5 +20,6 @@ Inside your strategy you can also get a lot of information about the state of th
     portfolio_value
     cash
     first_iteration
+    last_on_trading_iteration_datetime
     timezone
     pytz

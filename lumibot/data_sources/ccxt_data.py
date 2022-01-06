@@ -1,3 +1,4 @@
+import logging
 import time
 from datetime import datetime
 
@@ -16,8 +17,8 @@ class CcxtData(DataSource):
     SOURCE = "CCXT"
     MIN_TIMESTEP = "minute"
     TIMESTEP_MAPPING = [
-        {"timestep": "minute", "representations": ["1Min", "minute"]},
-        {"timestep": "day", "representations": ["1D", "day"]},
+        {"timestep": "minute", "representations": ["1m"]},
+        {"timestep": "day", "representations": ["1d"]},
     ]
 
     """Common base class for data_sources/ccxt and brokers/ccxt"""
@@ -53,6 +54,8 @@ class CcxtData(DataSource):
         exchange_class = getattr(ccxt, exchange_id)
 
         self.api = exchange_class(keys)
+        # Recommended two or less api calls per second.
+        self.api.enableRateLimit = True
 
     def _pull_source_symbol_bars(
         self, asset, length, timestep=MIN_TIMESTEP, timeshift=None
@@ -71,54 +74,63 @@ class CcxtData(DataSource):
         outputs a dataframe open, high, low, close columns and
         a UTC timezone aware index.
         """
-        if limit is None:
-            limit = 1000
+        if not api.has['fetchOHLCV']:
+            logging.error("Exchange does not support fetching OHLCV data")
 
-        if end is None:
-            end = datetime.now()
+        candles = api.fetch_ohlcv('BTC/USDT', freq, since=end, limit=limit, params={})
 
-        df_ret = None
-        curr_end = end
-        cnt = 0
-        last_curr_end = None
-        loop_limit = 1000 if limit > 1000 else limit
-        while True:
-            cnt += 1
-            barset = api.get_barset(symbol, freq, limit=loop_limit, end=curr_end)
-            df = barset[symbol].df  # .tz_convert("utc")
+        df = pd.DataFrame(candles, columns=["time", "open", "high", "low", "close", "volume"])
+        return
 
-            if df_ret is None:
-                df_ret = df
-            elif str(df.index[0]) < str(df_ret.index[0]):
-                df_ret = df.append(df_ret)
-
-            if len(df_ret) >= limit:
-                break
-            else:
-                curr_end = (
-                    datetime.fromisoformat(str(df_ret.index[0])).strftime(
-                        "%Y-%m-%dT%H:%M:%S"
-                    )
-                    + "-04:00"
-                )
-
-            # Sometimes the beginning date we put in is not a trading date,
-            # this makes sure that we end when we're close enough
-            # (it's just returning the same thing over and over)
-            if curr_end == last_curr_end:
-                break
-            else:
-                last_curr_end = curr_end
-
-            # Sleep so that we don't trigger rate limiting
-            if cnt >= 50:
-                time.sleep(10)
-                cnt = 0
-
-        df_ret = df_ret[~df_ret.index.duplicated(keep="first")]
-        df_ret = df_ret.iloc[-limit:]
-
-        return df_ret[df_ret.close > 0]
+        #
+        # if limit is None:
+        #     limit = 1000
+        #
+        # if end is None:
+        #     end = datetime.now()
+        #
+        # df_ret = None
+        # curr_end = end
+        # cnt = 0
+        # last_curr_end = None
+        # loop_limit = 1000 if limit > 1000 else limit
+        # while True:
+        #     cnt += 1
+        #     barset = api.get_barset(symbol, freq, limit=loop_limit, end=curr_end)
+        #     df = barset[symbol].df  # .tz_convert("utc")
+        #
+        #     if df_ret is None:
+        #         df_ret = df
+        #     elif str(df.index[0]) < str(df_ret.index[0]):
+        #         df_ret = df.append(df_ret)
+        #
+        #     if len(df_ret) >= limit:
+        #         break
+        #     else:
+        #         curr_end = (
+        #             datetime.fromisoformat(str(df_ret.index[0])).strftime(
+        #                 "%Y-%m-%dT%H:%M:%S"
+        #             )
+        #             + "-04:00"
+        #         )
+        #
+        #     # Sometimes the beginning date we put in is not a trading date,
+        #     # this makes sure that we end when we're close enough
+        #     # (it's just returning the same thing over and over)
+        #     if curr_end == last_curr_end:
+        #         break
+        #     else:
+        #         last_curr_end = curr_end
+        #
+        #     # Sleep so that we don't trigger rate limiting
+        #     if cnt >= 50:
+        #         time.sleep(10)
+        #         cnt = 0
+        #
+        # df_ret = df_ret[~df_ret.index.duplicated(keep="first")]
+        # df_ret = df_ret.iloc[-limit:]
+        #
+        # return df_ret[df_ret.close > 0]
 
     def _pull_source_bars(self, assets, length, timestep=MIN_TIMESTEP, timeshift=None):
         """pull broker bars for a list assets"""

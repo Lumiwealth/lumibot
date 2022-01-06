@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import traceback
+
 # from asyncio import CancelledError
 from datetime import timezone
 
@@ -26,12 +27,11 @@ class Ccxt(CcxtData, Broker):
 
     def __init__(self, config, max_workers=20, chunk_size=100, connect_stream=False):
         # Calling init methods
-        CcxtData.__init__(
-            self, config, max_workers=max_workers, chunk_size=chunk_size
-        )
+        CcxtData.__init__(self, config, max_workers=max_workers, chunk_size=chunk_size)
         Broker.__init__(self, name="ccxt", connect_stream=connect_stream)
 
         self.market = "24/7"
+
     # =========Clock functions=====================
 
     def get_timestamp(self):
@@ -40,6 +40,19 @@ class Ccxt(CcxtData, Broker):
         Parameters
         ----------
         None
+        """
+        logging.warning(
+            "The method 'get_time_to_close' is not applicable with Crypto 24/7 markets."
+        )
+        return None
+
+    # =========Positions functions==================
+    def _get_balances_at_broker(self):
+        """Get's the current actual cash, positions value, and total
+        liquidation value from Alpaca.
+
+        This method will get the current actual values from Alpaca
+        for the actual cash, positions value, and total liquidation.
 
         Returns
         -------
@@ -50,74 +63,64 @@ class Ccxt(CcxtData, Broker):
         return self.api.microseconds() / 1000000
 
     def is_market_open(self):
-        """Determines if the market is open.
-
-        Parameters
-        ----------
-        None
+        """Not applicable with Crypto 24/7 markets.
 
         Returns
         -------
-        boolean
-            True if market is open, false if the market is closed.
-
-        Examples
-        --------
-        >>> self.is_market_open()
-        True
+        None
         """
-        return True
+        logging.warning(
+            "The method 'is_market_open' is not applicable with Crypto 24/7 markets."
+        )
+        return None
 
     def get_time_to_open(self):
-        """How much time in seconds remains until the market next opens?
-
-        Return the remaining time for the market to open in seconds
-
-        Parameters
-        ----------
-        None
+        """Not applicable with Crypto 24/7 markets.
 
         Returns
         -------
-        int
-            Number of seconds until open.
-
-        Examples
-        --------
-        If it is 0830 and the market next opens at 0930, then there are 3,600
-        seconds until the next market open.
-
-        >>> self.get_time_to_open()
+        None
         """
-
+        logging.warning(
+            "The method 'get_time_to_open' is not applicable with Crypto 24/7 markets."
+        )
         return None
 
     def get_time_to_close(self):
-        """How much time in seconds remains until the market closes?
-
-        Return the remaining time for the market to closes in seconds
-
-        Parameters
-        ----------
-        None
+        """Not applicable with Crypto 24/7 markets.
 
         Returns
         -------
-        int
-            Number of seconds until close.
-
-        Examples
-        --------
-        If it is 1400 and the market closes at 1600, then there are 7,200
-        seconds until the market closes.
+        None
         """
-        clock = self.api.get_clock()
-        closing_time = clock.next_close.timestamp()
-        curr_time = clock.timestamp.timestamp()
-        time_to_close = closing_time - curr_time
-        return time_to_close
+        logging.warning(
+            "The method 'get_time_to_close' is not applicable with Crypto 24/7 markets."
+        )
+        return None
 
     # =========Positions functions==================
+    def _get_balances_at_broker(self):
+        """Get's the current actual cash, positions value, and total
+        liquidation value from Alpaca.
+
+        This method will get the current actual values from Alpaca
+        for the actual cash, positions value, and total liquidation.
+
+        Returns
+        -------
+        tuple of float
+            (cash, positions_value, total_liquidation_value)
+        """
+
+        response = self.api.get_account()
+        total_cash_value = float(response._raw["cash"])
+        gross_positions_value = float(response._raw["long_market_value"]) - float(
+            response._raw["short_market_value"]
+        )
+        net_liquidation_value = float(response._raw["portfolio_value"])
+
+
+        return (total_cash_value, gross_positions_value, net_liquidation_value)
 
     def _get_cash_balance_at_broker(self):
         """Get the current cash balance at Alpaca.
@@ -125,13 +128,22 @@ class Ccxt(CcxtData, Broker):
         Parameters
         ----------
         None
+        """
+        logging.warning(
+            "The method 'is_market_open' is not applicable with Crypto 24/7 markets."
+        )
+        return None
+
+    def get_time_to_open(self):
+        """Not applicable with Crypto 24/7 markets.
 
         Returns
         -------
         float
         """
-        response = self.api.get_account()
-        return float(response._raw["cash"])
+        # response = self.api.get_account()
+        # return float(response._raw["cash"])
+        return 0.0
 
     def _parse_broker_position(self, broker_position, strategy, orders=None):
         """parse a broker position representation

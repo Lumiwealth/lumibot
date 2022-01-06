@@ -23,12 +23,12 @@ def test_get_timestamp(monkeypatch):
     assert ccxt.get_timestamp() == 1639702229.554235
 
 
-def test_is_market_open(monkeypatch):
-    assert ccxt.is_market_open() == True
+# def test_is_market_open(monkeypatch):
+#     assert ccxt.is_market_open() == True
 
 
-def test_get_time_to_open(monkeypatch):
-    assert ccxt.get_time_to_open() == None
+# def test_get_time_to_open(monkeypatch):
+#     assert ccxt.get_time_to_open() == None
 
 
 # def test_get_time_to_close(monkeypatch):
@@ -42,18 +42,18 @@ def test_get_time_to_open(monkeypatch):
 #     monkeypatch.setattr(alpaca.api, "get_clock", mock_to_close)
 #     assert alpaca.get_time_to_close() == 7200
 #
-#
-# def test__get_cash_balance_at_broker(monkeypatch):
-#     def mock_cash():
-#         class Account:
-#             _raw = dict(cash="123456.78")
-#
-#         return Account()
-#
-#     monkeypatch.setattr(alpaca.api, "get_account", mock_cash)
-#     assert alpaca._get_cash_balance_at_broker() == 123456.78
-#
-#
+
+def test__get_cash_balance_at_broker(monkeypatch):
+    def mock_cash():
+        class Account:
+            _raw = dict(cash="123456.78")
+
+        return Account()
+
+    monkeypatch.setattr(alpaca.api, "get_account", mock_cash)
+    assert alpaca._get_cash_balance_at_broker() == 123456.78
+
+
 # @pytest.mark.parametrize(
 #     "symbol, qty", [("MSFT", 9), ("GM", 100), ("FB", 500), ("TSLA", 1)]
 # )

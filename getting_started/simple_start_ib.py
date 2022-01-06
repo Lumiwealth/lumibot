@@ -43,7 +43,6 @@ kwargs = {
 }
 strategy = Strangle(broker=broker, **kwargs)
 
-
 ####
 # Run the strategy
 ####

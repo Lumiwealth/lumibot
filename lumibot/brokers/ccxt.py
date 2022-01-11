@@ -139,11 +139,9 @@ class Ccxt(CcxtData, Broker):
 
         Returns
         -------
-        float
+        None
         """
-        # response = self.api.get_account()
-        # return float(response._raw["cash"])
-        return 0.0
+        return None
 
     def _parse_broker_position(self, broker_position, strategy, orders=None):
         """parse a broker position representation

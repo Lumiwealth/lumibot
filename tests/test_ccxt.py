@@ -15,43 +15,32 @@ exchange_id = 'binance'
 ccxt = Ccxt(CcxtConfig.EXCHANGE_KEYS[exchange_id])
 
 
-def test_get_timestamp(monkeypatch):
-    def mock_clock():
-            return 1639702229554235
-
-    monkeypatch.setattr(ccxt.api, "microseconds", mock_clock)
-    assert ccxt.get_timestamp() == 1639702229.554235
-
-
-# def test_is_market_open(monkeypatch):
-#     assert ccxt.is_market_open() == True
-
-
-# def test_get_time_to_open(monkeypatch):
-#     assert ccxt.get_time_to_open() == None
-
-
-# def test_get_time_to_close(monkeypatch):
-#     def mock_to_close():
-#         class Clock:
-#             timestamp = Timestamp(2021, 2, 1, 14, 0, 0, 0)
-#             next_close = Timestamp(2021, 2, 1, 16, 0, 0, 0)
+# def test_get_timestamp(monkeypatch):
+#     def mock_clock():
+#             return 1639702229554235
 #
-#         return Clock()
+#     monkeypatch.setattr(ccxt.api, "microseconds", mock_clock)
+#     assert ccxt.get_timestamp() == 1639702229.554235
+
+
+def test_is_market_open(monkeypatch):
+    assert ccxt.is_market_open() == None
+
+def test_get_time_to_open():
+    assert ccxt.get_time_to_open() == None
+
+def test_get_time_to_close():
+    assert ccxt.get_time_to_close() == None
+
+# def test__get_cash_balance_at_broker(monkeypatch):
+#     def mock_cash():
+#         class Account:
+#             _raw = dict(cash="123456.78")
 #
-#     monkeypatch.setattr(alpaca.api, "get_clock", mock_to_close)
-#     assert alpaca.get_time_to_close() == 7200
+#         return Account()
 #
-
-def test__get_cash_balance_at_broker(monkeypatch):
-    def mock_cash():
-        class Account:
-            _raw = dict(cash="123456.78")
-
-        return Account()
-
-    monkeypatch.setattr(alpaca.api, "get_account", mock_cash)
-    assert alpaca._get_cash_balance_at_broker() == 123456.78
+#     monkeypatch.setattr(alpaca.api, "get_account", mock_cash)
+#     assert alpaca._get_cash_balance_at_broker() == 123456.78
 
 
 # @pytest.mark.parametrize(

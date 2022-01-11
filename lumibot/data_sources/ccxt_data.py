@@ -5,6 +5,7 @@ from datetime import datetime
 import ccxt
 from credentials import CcxtConfig
 import pandas as pd
+
 # from alpaca_trade_api.common import URL
 # from alpaca_trade_api.entity import Bar
 
@@ -48,12 +49,16 @@ class CcxtData(DataSource):
         # else:
         #     self.version = "v2"
 
-        exchange_id = 'binance'
+        exchange_id = "coinbasepro_sandbox"
         keys = CcxtConfig.EXCHANGE_KEYS[exchange_id]
 
-        exchange_class = getattr(ccxt, exchange_id)
+        exchange_class = getattr(
+            ccxt, "coinbasepro"
+        )  # Need to make generic with Binance.
 
         self.api = exchange_class(keys)
+        self.api.set_sandbox_mode(True)
+        self.api.load_markets()
         # Recommended two or less api calls per second.
         self.api.enableRateLimit = True
 
@@ -74,12 +79,14 @@ class CcxtData(DataSource):
         outputs a dataframe open, high, low, close columns and
         a UTC timezone aware index.
         """
-        if not api.has['fetchOHLCV']:
+        if not api.has["fetchOHLCV"]:
             logging.error("Exchange does not support fetching OHLCV data")
 
-        candles = api.fetch_ohlcv('BTC/USDT', freq, since=end, limit=limit, params={})
+        candles = api.fetch_ohlcv("BTC/USDT", freq, since=end, limit=limit, params={})
 
-        df = pd.DataFrame(candles, columns=["time", "open", "high", "low", "close", "volume"])
+        df = pd.DataFrame(
+            candles, columns=["time", "open", "high", "low", "close", "volume"]
+        )
         return
 
         #

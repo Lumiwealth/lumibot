@@ -7,8 +7,8 @@ from pydantic import BaseModel, validator
 
 class Asset(BaseModel, frozen=True, extra="forbid"):
     """
-    This is a base class for Assets including stocks, futures, options
-    and forex.
+    This is a base class for Assets including stocks, futures, options,
+    forex, and crypto.
 
     Parameters
     ----------
@@ -43,7 +43,7 @@ class Asset(BaseModel, frozen=True, extra="forbid"):
         - 'option'
         - 'future'
         - 'forex'
-
+        - 'crypto'
     expiration : datetime.date (required if asset_type is 'option' or 'future')
         Contract expiration dates for futures and options.
     strike : float (required if asset_type is 'option')
@@ -52,7 +52,8 @@ class Asset(BaseModel, frozen=True, extra="forbid"):
         Option call or put.
     multiplier : int  (required if asset_type is 'forex')
         Contract leverage over the underlying.
-    currency : string (required if asset_type is 'forex')
+    currency : string (required if asset_type is 'forex' or 'crypto')  # todo: Not sure about
+    adding crypto here.
         Conversion currency.
     _asset_types : list of str
         Acceptable asset types.
@@ -102,7 +103,7 @@ class Asset(BaseModel, frozen=True, extra="forbid"):
     right: Optional[str] = None
     multiplier: int = 1
     currency: Optional[str] = "USD"
-    _asset_types: list = ["stock", "option", "future", "forex"]
+    _asset_types: list = ["stock", "option", "future", "forex", "crypto"]
     _right: list = ["CALL", "PUT"]
 
     def __repr__(self):

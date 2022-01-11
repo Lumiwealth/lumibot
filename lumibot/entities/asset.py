@@ -15,7 +15,7 @@ class Asset(BaseModel, frozen=True, extra="forbid"):
     symbol : str
         Symbol of the stock or underlying in case of futures/options.
     asset_type : str
-        Type of the asset. Asset types are only 'stock', 'option', 'future', 'forex'
+        Type of the asset. Asset types are only 'stock', 'option', 'future', 'forex', 'crypto'
         default : 'stock'
     expiration : datetime.date
         Option or futures expiration.

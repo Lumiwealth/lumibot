@@ -1758,6 +1758,23 @@ and open orders for the current strategy</p>
 </pre></div>
 </div>
 </dd></dl>
+<dl class="py property">
+<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.last_on_trading_iteration_datetime">
+<em class="property"><span class="pre">property</span> </em><span class="sig-name descname"><span class="pre">last_on_trading_iteration_datetime</span></span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.last_on_trading_iteration_datetime" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns the datetime of the last iteration.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p>The datetime of the last iteration.</p>
+</dd>
+<dt class="field-even">Return type</dt>
+<dd class="field-even"><p>datetime</p>
+</dd>
+</dl>
+<p class="rubric">Example</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">log_message</span><span class="p">(</span><span class="sa">f</span><span class="s1">'The last trading iteration happened at: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">last_on_trading_iteration_datetime</span><span class="si">}</span><span class="s1">'</span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
 <dl class="py method">
 <dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.load_pandas">
 <span class="sig-name descname"><span class="pre">load_pandas</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">df</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.load_pandas" title="Permalink to this definition">¶</a></dt>

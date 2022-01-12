@@ -473,12 +473,12 @@
 <p>There is a logging function that will save the details of your backtest (the portfolio value each day, cash, etc) put into a CSV file in the location of <code class="docutils literal notranslate"><span class="pre">stats_file</span></code>.</p>
 <p>There is also a returns plot. By default this will show in a browser. You may suppress it using <code class="docutils literal notranslate"><span class="pre">show_plot=False</span></code></p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">strategy_class</span><span class="o">.</span><span class="n">backtest</span><span class="p">(</span>
-        <span class="s2">"strategy_name"</span><span class="p">,</span>
-        <span class="n">budget</span><span class="p">,</span>
         <span class="n">PandasDataBacktesting</span><span class="p">,</span>
         <span class="n">backtesting_start</span><span class="p">,</span>
         <span class="n">backtesting_end</span><span class="p">,</span>
         <span class="n">pandas_data</span><span class="o">=</span><span class="n">pandas_data</span><span class="p">,</span>
+        <span class="n">name</span><span class="o">=</span><span class="s2">"My Strategy"</span><span class="p">,</span>
+        <span class="n">budget</span><span class="o">=</span><span class="n">budget</span><span class="p">,</span>
     <span class="p">)</span>
 </pre></div>
 </div>
@@ -500,7 +500,7 @@
 
 
 <span class="c1"># Set your strategy name and budget</span>
-<span class="n">strategy_name</span> <span class="o">=</span> <span class="s2">"MyStrategy"</span>
+<span class="n">strategy_name</span> <span class="o">=</span> <span class="s2">"My Cool Strategy"</span>
 <span class="n">budget</span> <span class="o">=</span> <span class="mi">50000</span>
 
 <span class="c1"># Read the data from the CSV file (in this example you must have a file named "AAPL.csv"</span>
@@ -525,12 +525,12 @@
 
 <span class="c1"># Run the backtesting</span>
 <span class="n">MyStrategy</span><span class="o">.</span><span class="n">backtest</span><span class="p">(</span>
-    <span class="n">strategy_name</span><span class="p">,</span>
-    <span class="n">budget</span><span class="p">,</span>
     <span class="n">PandasDataBacktesting</span><span class="p">,</span>
     <span class="n">backtesting_start</span><span class="p">,</span>
     <span class="n">backtesting_end</span><span class="p">,</span>
     <span class="n">pandas_data</span><span class="o">=</span><span class="n">pandas_data</span><span class="p">,</span>
+    <span class="n">name</span><span class="o">=</span><span class="n">strategy_name</span><span class="p">,</span>
+    <span class="n">budget</span><span class="o">=</span><span class="n">budget</span><span class="p">,</span>
 <span class="p">)</span>
 </pre></div>
 </div>

@@ -399,7 +399,7 @@ class _Strategy:
         logfile : str
             The file to write the log to.
         config : dict
-            The config to use.
+            The config to use to set up the brokers in live trading.
         auto_adjust : bool
             Whether or not to automatically adjust the strategy.
         name : str
@@ -479,8 +479,33 @@ class _Strategy:
             )
             return None
 
-        backtesting_start = to_datetime_aware(backtesting_start)
-        backtesting_end = to_datetime_aware(backtesting_end)
+        try:
+            backtesting_start = to_datetime_aware(backtesting_start)
+            backtesting_end = to_datetime_aware(backtesting_end)
+        except AttributeError:
+            logging.error(
+                "`backtesting_start` and `backtesting_end` must be datetime objects. \n"
+                "You are receiving this error most likely because you are using \n"
+                "the original positional arguments for backtesting. Please do not \n"
+                "use `name' or 'budget' as positional arguments. These \n"
+                "have been changed to keyword arguments. \n"
+                "For example, please create your `strategy.backtest` similar to\n"
+                "below adding, if you need them, `name` and `budget` as \n"
+                "keyword arguments. \n"
+                "    strategy_class.backtest(\n"
+                "        backtesting_datasource,\n"
+                "        backtesting_start,\n"
+                "        backtesting_end,\n"
+                "        pandas_data=pandas_data,\n"
+                "        stats_file=stats_file,\n"
+                "        name='my_strategy_name',\n"
+                "        budget=50000,\n"
+                "        config=config,\n"
+                "        logfile=logfile,\n"
+                "        **kwargs,\n"
+                "    )"
+            )
+            return None
 
         trader = Trader(logfile=logfile)
         data_source = datasource_class(

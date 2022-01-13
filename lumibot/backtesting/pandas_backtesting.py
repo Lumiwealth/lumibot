@@ -12,10 +12,10 @@ class PandasDataBacktesting(DataSourceBacktesting, PandasData):
     data_source : PandasData
         The data source to use for backtesting.
     """
-
-    def __init__(self, data_source):
-        DataSourceBacktesting.__init__(self, data_source)
-        PandasData.__init__(self, data_source.data_source)
+    def __init__(self, datetime_start, datetime_end, pandas_data=None, **kwargs):
+        self.LIVE_DATA_SOURCE = PandasData
+        PandasData.__init__(self, pandas_data, **kwargs)
+        DataSourceBacktesting.__init__(self, datetime_start, datetime_end)
 
     def get_data(self, start_date, end_date, **kwargs):
         """

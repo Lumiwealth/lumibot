@@ -399,7 +399,7 @@ class _Strategy:
         logfile : str
             The file to write the log to.
         config : dict
-            The config to use.
+            The config to use to set up the brokers in live trading.
         auto_adjust : bool
             Whether or not to automatically adjust the strategy.
         name : str

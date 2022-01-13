@@ -376,12 +376,12 @@
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">backtesting_start</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">2020</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
 <span class="n">backtesting_end</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">2020</span><span class="p">,</span> <span class="mi">12</span><span class="p">,</span> <span class="mi">31</span><span class="p">)</span>
 <span class="n">strategy</span><span class="o">.</span><span class="n">backtest</span><span class="p">(</span>
-    <span class="n">strategy_name</span><span class="p">,</span>
-    <span class="n">budget</span><span class="p">,</span>
     <span class="n">YahooDataBacktesting</span><span class="p">,</span>
     <span class="n">backtesting_start</span><span class="p">,</span>
     <span class="n">backtesting_end</span><span class="p">,</span>
     <span class="n">symbol</span><span class="o">=</span><span class="s2">"SPY"</span><span class="p">,</span>
+    <span class="n">name</span><span class="o">=</span><span class="n">strategy_name</span><span class="p">,</span>
+    <span class="n">budget</span><span class="o">=</span><span class="n">budget</span><span class="p">,</span>
 <span class="p">)</span>
 </pre></div>
 </div>
@@ -437,11 +437,11 @@
 <span class="n">backtesting_start</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">2020</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
 <span class="n">backtesting_end</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">2020</span><span class="p">,</span> <span class="mi">12</span><span class="p">,</span> <span class="mi">31</span><span class="p">)</span>
 <span class="n">strategy</span><span class="o">.</span><span class="n">backtest</span><span class="p">(</span>
-    <span class="n">strategy_name</span><span class="p">,</span>
-    <span class="n">budget</span><span class="p">,</span>
     <span class="n">YahooDataBacktesting</span><span class="p">,</span>
     <span class="n">backtesting_start</span><span class="p">,</span>
     <span class="n">backtesting_end</span><span class="p">,</span>
+    <span class="n">name</span><span class="o">=</span><span class="n">strategy_name</span><span class="p">,</span>
+    <span class="n">budget</span><span class="o">=</span><span class="n">budget</span><span class="p">,</span>
     <span class="n">symbol</span><span class="o">=</span><span class="s2">"SPY"</span><span class="p">,</span>
 <span class="p">)</span>
 

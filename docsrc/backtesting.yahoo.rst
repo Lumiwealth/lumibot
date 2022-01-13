@@ -43,10 +43,10 @@ There is also a returns plot. By default this will show in a browser. You may su
 
     # Run the backtest
     MyStrategy.backtest(
-        "My Strategy",
-        budget,
         YahooDataBacktesting,
         backtesting_start,
         backtesting_end,
         show_plot=True,
+        name="My Strategy",
+        budget=budget,
     )

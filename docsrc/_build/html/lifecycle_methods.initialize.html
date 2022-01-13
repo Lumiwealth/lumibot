@@ -343,13 +343,13 @@
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">options</span> <span class="o">=</span> <span class="p">[</span><span class="kc">True</span><span class="p">,</span> <span class="kc">False</span><span class="p">]</span>
 <span class="k">for</span> <span class="n">option</span> <span class="ow">in</span> <span class="n">options</span><span class="p">:</span>
     <span class="n">MyStrategy</span><span class="o">.</span><span class="n">backtest</span><span class="p">(</span>
-        <span class="n">budget</span><span class="p">,</span>
         <span class="n">YahooDataBacktesting</span><span class="p">,</span>
         <span class="n">backtesting_start</span><span class="p">,</span>
         <span class="n">backtesting_end</span><span class="p">,</span>
         <span class="n">stats_file</span><span class="o">=</span><span class="n">stats_file</span><span class="p">,</span>
         <span class="n">my_custom_parameter</span><span class="o">=</span><span class="n">option</span><span class="p">,</span>
         <span class="n">my_last_parameter</span><span class="o">=</span><span class="s2">"SPY"</span>
+        <span class="n">budget</span><span class="o">=</span><span class="n">budget</span><span class="p">,</span>
     <span class="p">)</span>
 
 <span class="c1"># `options` in this example is not referring to trading options contracts.</span>

@@ -46,13 +46,13 @@ or just for backtesting
     options = [True, False]
     for option in options:
         MyStrategy.backtest(
-            budget,
             YahooDataBacktesting,
             backtesting_start,
             backtesting_end,
             stats_file=stats_file,
             my_custom_parameter=option,
             my_last_parameter="SPY"
+            budget=budget,
         )
 
     # `options` in this example is not referring to trading options contracts.

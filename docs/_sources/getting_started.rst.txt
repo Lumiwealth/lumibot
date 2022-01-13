@@ -74,12 +74,12 @@ Currently Alpaca and Interactive Brokers are available as a brokerage services. 
     backtesting_start = datetime(2020, 1, 1)
     backtesting_end = datetime(2020, 12, 31)
     strategy.backtest(
-        strategy_name,
-        budget,
         YahooDataBacktesting,
         backtesting_start,
         backtesting_end,
         symbol="SPY",
+        name=strategy_name,
+        budget=budget,
     )
 
 9. Run the strategy:
@@ -139,11 +139,11 @@ Here it is all together:
     backtesting_start = datetime(2020, 1, 1)
     backtesting_end = datetime(2020, 12, 31)
     strategy.backtest(
-        strategy_name,
-        budget,
         YahooDataBacktesting,
         backtesting_start,
         backtesting_end,
+        name=strategy_name,
+        budget=budget,
         symbol="SPY",
     )
 

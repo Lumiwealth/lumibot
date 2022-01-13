@@ -137,12 +137,12 @@ There is also a returns plot. By default this will show in a browser. You may su
 .. code-block:: python
 
     strategy_class.backtest(
-            "strategy_name",
-            budget,
             PandasDataBacktesting,
             backtesting_start,
             backtesting_end,
             pandas_data=pandas_data,
+            name="My Strategy",
+            budget=budget,
         )
 
 Putting all of this together, and adding in budget and strategy information, the code would look like the following:
@@ -166,7 +166,7 @@ Putting all of this together, and adding in budget and strategy information, the
 
 
     # Set your strategy name and budget
-    strategy_name = "MyStrategy"
+    strategy_name = "My Cool Strategy"
     budget = 50000
 
     # Read the data from the CSV file (in this example you must have a file named "AAPL.csv"
@@ -191,12 +191,12 @@ Putting all of this together, and adding in budget and strategy information, the
 
     # Run the backtesting
     MyStrategy.backtest(
-        strategy_name,
-        budget,
         PandasDataBacktesting,
         backtesting_start,
         backtesting_end,
         pandas_data=pandas_data,
+        name=strategy_name,
+        budget=budget,
     )
 
 Getting Data

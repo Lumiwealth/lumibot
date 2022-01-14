@@ -141,7 +141,6 @@ if __name__ == "__main__":
         stats_file = f"logs/strategy_{strategy_class.__name__}_{int(time())}.csv"
         if live_trading:
             strategy = strategy_class(
-                "wrong strat name",
                 broker=alpaca_broker,
                 stats_file=stats_file,
                 **kwargs,

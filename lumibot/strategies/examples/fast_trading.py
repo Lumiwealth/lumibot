@@ -50,7 +50,8 @@ class FastTrading(Strategy):
 
         # Setting the buying budget
         cash = self.cash + sum(
-            [order.cash_pending(self) for order in self.get_tracked_orders()]
+            [order.cash_pending(self._name) for order in self.get_orders()]
+
         )
 
         self.orders = list()

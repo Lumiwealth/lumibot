@@ -25,7 +25,8 @@ class _Strategy:
 
     def __init__(
         self,
-        broker,
+        *args,
+        broker=None,
         data_source=None,
         minutes_before_closing=5,
         minutes_before_opening=60,
@@ -42,11 +43,41 @@ class _Strategy:
         parameters={},
         **kwargs,
     ):
-        # Setting the broker object
-        self._name = name
-        self.broker = broker
-        self._is_backtesting = self.broker.IS_BACKTESTING_BROKER
+        # Handling positional arguments.
+        # If there is one positional argument, it is assumed to be `broker`.
+        # If there are two positional arguments, they are assumed to be
+        # `name` and `broker`.
+        # If there are three positional arguments, they are assumed to be
+        # `name`, `budget` and `broker`
+        if len(args) == 1:
+            if isinstance(args[0], str):
+                self._name = args[0]
+                self.broker = broker
+            else:
+                self.broker = args[0]
+                self._name = kwargs.get("name", name)
+        elif len(args) == 2:
+            self._name = args[0]
+            self.broker = args[1]
+            logging.warning(
+                f"You are using the old style of initializing a Strategy. Only use \n"
+                f"the broker class as the first positional argument and the rest as keyword arguments. \n"
+                f"For example `MyStrategy(broker, name=strategy_name, budget=budget)`\n"
+            )
+        elif len(args) == 3:
+            self._name = args[0]
+            self.broker = args[2]
+            logging.warning(
+                f"You are using the old style of initializing a STrategy. Only use \n"
+                f"the broker class as the first positional argument and the rest as keyword arguments. \n"
+                f"For example `MyStrategy(broker, name=strategy_name, budget=budget)`\n"
+            )
+        else:
+            self.broker = broker
+            self._name = name
 
+        # Setting the broker object
+        self._is_backtesting = self.broker.IS_BACKTESTING_BROKER
         self._benchmark_asset = benchmark_asset
         self._backtesting_start = backtesting_start
         self._backtesting_end = backtesting_end
@@ -102,7 +133,7 @@ class _Strategy:
         self._minutes_before_opening = minutes_before_opening
         self._sleeptime = sleeptime
         self._executor = StrategyExecutor(self)
-        broker._add_subscriber(self._executor)
+        self.broker._add_subscriber(self._executor)
 
         # Stats related variables
         self._stats_file = stats_file
@@ -355,9 +386,7 @@ class _Strategy:
     @classmethod
     def backtest(
         cls,
-        datasource_class,
-        backtesting_start,
-        backtesting_end,
+        *args,
         minutes_before_closing=5,
         minutes_before_opening=60,
         sleeptime=1,
@@ -453,6 +482,50 @@ class _Strategy:
 
 
         """
+        positional_args_error_message = (
+            "Please do not use `name' or 'budget' as positional arguments. \n"
+            "These have been changed to keyword arguments. For example, \n"
+            "please create your `strategy.backtest` similar to below adding, \n"
+            "if you need them, `name` and `budget` as keyword arguments. \n"
+            "    strategy_class.backtest(\n"
+            "        backtesting_datasource,\n"
+            "        backtesting_start,\n"
+            "        backtesting_end,\n"
+            "        pandas_data=pandas_data,\n"
+            "        stats_file=stats_file,\n"
+            "        name='my_strategy_name',\n"
+            "        budget=50000,\n"
+            "        config=config,\n"
+            "        logfile=logfile,\n"
+            "        **kwargs,\n"
+            "    )"
+        )
+
+        # Handling positional arguments.
+        if len(args) == 3:
+            datasource_class = args[0]
+            backtesting_start = args[1]
+            backtesting_end = args[2]
+            name = kwargs.get("name", name)
+            budget = kwargs.get("budget", budget)
+        elif len(args) == 5:
+            name = args[0]
+            budget = args[1]
+            datasource_class = args[2]
+            backtesting_start = args[3]
+            backtesting_end = args[4]
+            logging.warning(
+                f"You are using the old style of initializing a backtest object. \n"
+                f"{positional_args_error_message}"
+            )
+        else:
+            # Error message
+            logging.error(
+                "Unable to interpret positional arguments. Please ensure you have \n"
+                "included `datasource_class`, `backtesting_start`,  and `backtesting_end` \n"
+                "for your three positional arguments. \n"
+            )
+
         # Filename defaults
         datestring = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         if plot_file is None:
@@ -486,24 +559,8 @@ class _Strategy:
             logging.error(
                 "`backtesting_start` and `backtesting_end` must be datetime objects. \n"
                 "You are receiving this error most likely because you are using \n"
-                "the original positional arguments for backtesting. Please do not \n"
-                "use `name' or 'budget' as positional arguments. These \n"
-                "have been changed to keyword arguments. \n"
-                "For example, please create your `strategy.backtest` similar to\n"
-                "below adding, if you need them, `name` and `budget` as \n"
-                "keyword arguments. \n"
-                "    strategy_class.backtest(\n"
-                "        backtesting_datasource,\n"
-                "        backtesting_start,\n"
-                "        backtesting_end,\n"
-                "        pandas_data=pandas_data,\n"
-                "        stats_file=stats_file,\n"
-                "        name='my_strategy_name',\n"
-                "        budget=50000,\n"
-                "        config=config,\n"
-                "        logfile=logfile,\n"
-                "        **kwargs,\n"
-                "    )"
+                "the original positional arguments for backtesting. \n\n"
+                f"{positional_args_error_message}"
             )
             return None
 

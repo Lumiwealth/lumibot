@@ -52,6 +52,7 @@ class _Strategy:
         if len(args) == 1:
             if isinstance(args[0], str):
                 self._name = args[0]
+                self.broker = broker
             else:
                 self.broker = args[0]
                 self._name = kwargs.get("name", name)

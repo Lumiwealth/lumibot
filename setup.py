@@ -47,6 +47,7 @@ setuptools.setup(
         "email_validator",
         "bcrypt",
         "pytest",
+        "scipy",
     ],
     classifiers=[
         "Programming Language :: Python :: 3",

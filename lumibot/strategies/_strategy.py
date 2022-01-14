@@ -60,15 +60,17 @@ class _Strategy:
             self._name = args[0]
             self.broker = args[1]
             logging.warning(
-                f"You are using the old style of initializing. Only use \n"
-                f"the broker class as the first positional argument. \n"
+                f"You are using the old style of initializing a Strategy. Only use \n"
+                f"the broker class as the first positional argument and the rest as keyword arguments. \n"
+                f"For example `MyStrategy(broker, name=strategy_name, budget=budget)`\n"
             )
         elif len(args) == 3:
             self._name = args[0]
             self.broker = args[2]
             logging.warning(
-                f"You are using the old style of initializing. Only use \n"
-                f"the broker class as the first positional argument. \n"
+                f"You are using the old style of initializing a STrategy. Only use \n"
+                f"the broker class as the first positional argument and the rest as keyword arguments. \n"
+                f"For example `MyStrategy(broker, name=strategy_name, budget=budget)`\n"
             )
         else:
             self.broker = broker
@@ -557,8 +559,7 @@ class _Strategy:
             logging.error(
                 "`backtesting_start` and `backtesting_end` must be datetime objects. \n"
                 "You are receiving this error most likely because you are using \n"
-                "the original positional arguments for backtesting. \n\n" 
-
+                "the original positional arguments for backtesting. \n\n"
                 f"{positional_args_error_message}"
             )
             return None

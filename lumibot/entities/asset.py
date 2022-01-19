@@ -52,8 +52,8 @@ class Asset(BaseModel, frozen=True, extra="forbid"):
         Option call or put.
     multiplier : int  (required if asset_type is 'forex')
         Contract leverage over the underlying.
-    currency : string (required if asset_type is 'forex' or 'crypto')  # todo: Not sure about
-    adding crypto here.
+    currency : string (required if asset_type is 'forex')
+    precision : str (required if asset_type is 'crypto')
         Conversion currency.
     _asset_types : list of str
         Acceptable asset types.
@@ -103,6 +103,7 @@ class Asset(BaseModel, frozen=True, extra="forbid"):
     right: Optional[str] = None
     multiplier: int = 1
     currency: Optional[str] = "USD"
+    precision: Optional[str] = None
     _asset_types: list = ["stock", "option", "future", "forex", "crypto"]
     _right: list = ["CALL", "PUT"]
 
@@ -141,7 +142,6 @@ class Asset(BaseModel, frozen=True, extra="forbid"):
                 f"`right` is {v} must be one of {', '.join(cls._right)}, upper case."
             )
         return v
-
 
 class AssetsMapping(UserDict):
     def __init__(self, mapping):

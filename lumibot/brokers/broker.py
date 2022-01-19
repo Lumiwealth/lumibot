@@ -46,7 +46,6 @@ class Broker:
             self._orders_thread = None
             self._start_orders_thread()
 
-
         # setting the stream object
         self.stream = self._get_stream_object()
         if connect_stream:

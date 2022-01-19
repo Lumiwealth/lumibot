@@ -1,4 +1,5 @@
 import asyncio
+from decimal import Decimal, getcontext
 import logging
 import traceback
 
@@ -111,14 +112,34 @@ class Ccxt(CcxtData, Broker):
         tuple of float
             (cash, positions_value, total_liquidation_value)
         """
+        base_currency = "USD"
+        total_cash_value = 0
+        positions_value = 0
+        # Get the market values for each coin held.
+        balances = self.api.fetch_balance()
+        for currency_info in balances["info"]:
+            currency = currency_info["currency"]
+            # if currency != 'BTC':
+            #     continue
+            market = f"{currency}/{base_currency}"
+            try:
+                assert market in self.api.markets
+            except AssertionError:
+                logging.error(f"Market {market} not found in ccxt.markets")
+                continue
+            precision_amount = self.api.markets[market]["precision"]["amount"]
+            precision_price = self.api.markets[market]["precision"]["price"]
+            units = Decimal(currency_info["balance"]).quantize(
+                Decimal(str(precision_amount))
+            )
+            price = Decimal(self.api.fetch_ticker(market)["last"]).quantize(
+                Decimal(str(precision_price))
+            )
+            value = units * price
+            positions_value += value
 
-        response = self.api.get_account()
-        total_cash_value = float(response._raw["cash"])
-        gross_positions_value = float(response._raw["long_market_value"]) - float(
-            response._raw["short_market_value"]
-        )
-        net_liquidation_value = float(response._raw["portfolio_value"])
-
+        gross_positions_value = float(positions_value)
+        net_liquidation_value = float(positions_value)
 
         return (total_cash_value, gross_positions_value, net_liquidation_value)
 
@@ -143,27 +164,33 @@ class Ccxt(CcxtData, Broker):
         """
         return None
 
-    def _parse_broker_position(self, broker_position, strategy, orders=None):
+    def _parse_broker_position(self, position, strategy, orders=None):
         """parse a broker position representation
         into a position object"""
-        position = broker_position._raw
         asset = Asset(
-            symbol=position["symbol"],
+            symbol=position["currency"],
+            asset_type="crypto",
+            precision=str(self.api.currencies["BTC"]["precision"]),
         )
-        quantity = position["qty"]
-        position = Position(strategy, asset, quantity, orders=orders)
+        quantity = position["balance"]
+        hold = position["hold"]
+        available = position["available"]
+
+        position = Position(
+            strategy, asset, quantity, hold=hold, available=available, orders=orders
+        )
         return position
 
     def _pull_broker_position(self, asset):
         """Given a asset, get the broker representation
         of the corresponding asset"""
-        response = self.api.get_position(asset)
+        response = self._pull_broker_positions()["info"][asset.symbol]
         return response
 
     def _pull_broker_positions(self):
         """Get the broker representation of all positions"""
-        response = self.api.list_positions()
-        return response
+        response = self.api.fetch_balance()
+        return response['info']
 
     # =======Orders and assets functions=========
     def map_asset_type(self, type):

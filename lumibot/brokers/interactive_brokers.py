@@ -212,7 +212,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         if response.contract.secType in ["OPT", "FUT"]:
             expiration = datetime.datetime.strptime(
                 response.contract.lastTradeDateOrContractMonth,
-                DATE_MAP[response.contract.secType],
+                DATE_MAP[[d for d, v in TYPE_MAP.items() if v == response.contract.secType]][0]
             )
             multiplier = response.contract.multiplier
 

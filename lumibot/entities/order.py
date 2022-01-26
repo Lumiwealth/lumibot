@@ -30,6 +30,7 @@ class Order:
         sec_type="STK",
         exchange="SMART",
         position_filled=False,
+        crypto_market='USD'
         date_created=None
     ):
         """Order class for managing individual orders.
@@ -50,8 +51,12 @@ class Order:
             The asset that will be traded. While it is possible to
             create a string asset when trading stocks in the strategy
             script, all string stocks are converted to `Asset` inside
-            Lumibot before creating the `Order` object. Therefore all
+            Lumibot before creating the `Order` object. Therefore, all
             `Order` objects will only have an `Asset` object.
+
+            If trading cryptocurrency, this asset will be the numerator
+            of the trading pair. For example: if trading `BTC/ETH`, then
+            asset will be for `BTC`.
         quantity : float
             The number of shares or units to trade.
         side : str
@@ -98,7 +103,10 @@ class Order:
         exchange : str
             The exchange where the order will be placed.
             Default = `SMART`
-
+        crypto_market : str
+            This is the currency that the main coin being bought or sold
+            will exchange in. For example, if trading `BTC/ETH` this
+            parameter will be 'ETH'.
         Examples
         --------
         >>> from lumibot.entities import Asset
@@ -171,9 +179,13 @@ class Order:
         self.dependent_order = None
         self.dependent_order_filled = False
 
+
         # Options:
         self.exchange = exchange
         self.sec_type = sec_type
+
+        # Cyrptocurrency market.
+        self.crypto_market = crypto_market
 
         # setting events
         self._new_event = Event()

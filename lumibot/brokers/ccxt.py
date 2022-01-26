@@ -26,6 +26,7 @@ class Ccxt(CcxtData, Broker):
         forex=[],
     )
 
+
     def __init__(self, config, max_workers=20, chunk_size=100, connect_stream=False):
         # Calling init methods
         CcxtData.__init__(self, config, max_workers=max_workers, chunk_size=chunk_size)
@@ -204,20 +205,21 @@ class Ccxt(CcxtData, Broker):
     def _parse_broker_order(self, response, strategy):
         """parse a broker order representation
         to an order object"""
+        coins = response['symbol'].split('/')
         order = Order(
             strategy,
             Asset(
-                symbol=response.symbol,
-                asset_type="stock",
+                symbol=coins[0],
+                asset_type="crypto",
             ),
-            response.qty,
-            response.side,
-            limit_price=response.limit_price,
-            stop_price=response.stop_price,
-            time_in_force=response.time_in_force,
+            response['amount'],
+            response['side'],
+            limit_price=response['price'],
+            stop_price=response['stopPrice'],
+            time_in_force=response['timeInForce'].lower(),
         )
-        order.set_identifier(response.id)
-        order.update_status(response.status)
+        order.set_identifier(response['id'])
+        order.update_status(response['status'])
         order.update_raw(response)
         return order
 
@@ -228,7 +230,7 @@ class Ccxt(CcxtData, Broker):
 
     def _pull_broker_open_orders(self):
         """Get the broker open orders"""
-        orders = self.api.list_orders(status="open")
+        orders = self.api.fetch_open_orders()
         return orders
 
     def _flatten_order(self, order):

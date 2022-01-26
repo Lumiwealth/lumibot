@@ -21,6 +21,7 @@ class CcxtData(DataSource):
         {"timestep": "minute", "representations": ["1m"]},
         {"timestep": "day", "representations": ["1d"]},
     ]
+    IS_BACKTESTING_DATA_SOURCE = False
 
     """Common base class for data_sources/ccxt and brokers/ccxt"""
 

@@ -166,7 +166,7 @@ class _Strategy:
 
     def _update_portfolio_value(self):
         """updates self.portfolio_value"""
-        if not self.IS_BACKTESTABLE:
+        if not self._is_backtesting:
             return self.broker._get_balances_at_broker()[2]
 
         with self._executor.lock:

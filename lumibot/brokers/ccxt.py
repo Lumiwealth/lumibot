@@ -26,7 +26,6 @@ class Ccxt(CcxtData, Broker):
         forex=[],
     )
 
-
     def __init__(self, config, max_workers=20, chunk_size=100, connect_stream=False):
         # Calling init methods
         CcxtData.__init__(self, config, max_workers=max_workers, chunk_size=chunk_size)
@@ -191,7 +190,7 @@ class Ccxt(CcxtData, Broker):
     def _pull_broker_positions(self):
         """Get the broker representation of all positions"""
         response = self.api.fetch_balance()
-        return response['info']
+        return response["info"]
 
     # =======Orders and assets functions=========
     def map_asset_type(self, type):
@@ -205,21 +204,21 @@ class Ccxt(CcxtData, Broker):
     def _parse_broker_order(self, response, strategy):
         """parse a broker order representation
         to an order object"""
-        coins = response['symbol'].split('/')
+        coins = response["symbol"].split("/")
         order = Order(
             strategy,
             Asset(
                 symbol=coins[0],
                 asset_type="crypto",
             ),
-            response['amount'],
-            response['side'],
-            limit_price=response['price'],
-            stop_price=response['stopPrice'],
-            time_in_force=response['timeInForce'].lower(),
+            response["amount"],
+            response["side"],
+            limit_price=response["price"],
+            stop_price=response["stopPrice"],
+            time_in_force=response["timeInForce"].lower(),
         )
-        order.set_identifier(response['id'])
-        order.update_status(response['status'])
+        order.set_identifier(response["id"])
+        order.update_status(response["status"])
         order.update_raw(response)
         return order
 
@@ -248,29 +247,135 @@ class Ccxt(CcxtData, Broker):
 
     def _submit_order(self, order):
         """Submit an order for an asset"""
-        kwargs = {
-            "type": order.type,
-            "order_class": order.order_class,
-            "time_in_force": order.time_in_force,
-            "limit_price": order.limit_price,
-            "stop_price": order.stop_price,
-            "trail_price": order.trail_price,
-            "trail_percent": order.trail_percent,
-        }
+
+        # Check order within limits.
+        market = self.api.markets[order.coin]
+        limits = market["limits"]
+        precision = market["precision"]
+
+        # Convert the amount to Decimal.
+        if hasattr(order, "quantity") and getattr(order, "quantity") is not None:
+            setattr(
+                order,
+                "quantity",
+                Decimal(getattr(order, "quantity")).quantize(
+                    Decimal(str(precision["amount"]))
+                ),
+            )
+            try:
+                if limits["amount"]["min"] is not None:
+                    assert order.quantity >= limits["amount"]["min"]
+            except AssertionError:
+                logging.warning(
+                    f"\nThe order {order} was rejected as the order quantity \n"
+                    f"was less then the minimum allowed for {order.coin}. The minimum order quantity is {limits['amount']['min']} \n"
+                    f"The quantity for this order was {order.quantity} \n"
+                )
+                return
+
+            try:
+                if limits["amount"]["max"] is not None:
+                    assert order.quantity <= limits["amount"]["max"]
+            except AssertionError:
+                logging.warning(
+                    f"\nThe order {order} was rejected as the order quantity \n"
+                    f"was greater then the maximum allowed for {order.coin}. The maximum order "
+                    f"quantity is {limits['amount']['max']} \n"
+                    f"The quantity for this order was {order.quantity} \n"
+                )
+                return
+
+        # Convert the price to Decimal.
+        for price_type in [
+            "limit_price",
+            "stop_price",
+            "stop_loss_price",
+            "stop_loss_limit_price",
+        ]:
+            if hasattr(order, price_type) and getattr(order, price_type) is not None:
+                setattr(
+                    order,
+                    price_type,
+                    Decimal(getattr(order, price_type)).quantize(
+                        Decimal(str(precision["price"]))
+                    ),
+                )
+            else:
+                continue
+
+            try:
+                if limits["price"]["min"] is not None:
+                    assert getattr(order, price_type) >= limits["price"]["min"]
+            except AssertionError:
+                logging.warning(
+                    f"\nThe order {order} was rejected as the order {price_type} \n"
+                    f"was less then the minimum allowed for {order.coin}. The minimum price "
+                    f"is {limits['price']['min']} \n"
+                    f"The price for this order was {getattr(order, price_type):4.9f} \n"
+                )
+                return
+
+            try:
+                if limits["price"]["max"] is not None:
+                    assert getattr(order, price_type) <= limits["price"]["max"]
+            except AssertionError:
+                logging.warning(
+                    f"\nThe order {order} was rejected as the order {price_type} \n"
+                    f"was greater then the maximum allowed for {order.coin}. The maximum price "
+                    f"is {limits['price']['max']} \n"
+                    f"The price for this order was {getattr(order, price_type):4.9f} \n"
+                )
+                return
+
+            try:
+                if limits["cost"]["min"] is not None:
+                    assert (
+                        getattr(order, price_type) * order.quantity
+                        >= limits["cost"]["min"]
+                    )
+            except AssertionError:
+                logging.warning(
+                    f"\nThe order {order} was rejected as the order total cost \n"
+                    f"was less then the minimum allowed for {order.coin}. The minimum cost "
+                    f"is {limits['cost']['min'] * order.quantity} \n"
+                    f"The cost for this order was "
+                    f"{(getattr(order, price_type) * order.quantity):4.9f} \n"
+                )
+                return
+
+            try:
+                if limits["cost"]["max"] is not None:
+                    assert (
+                        getattr(order, price_type) * order.quantity
+                        <= limits["cost"]["max"]
+                    )
+            except AssertionError:
+                logging.warning(
+                    f"\nThe order {order} was rejected as the order total cost \n"
+                    f"was greater then the maximum allowed for {order.coin}. The maximum cost "
+                    f"is {limits['cost']['max'] * order.quantity} \n"
+                    f"The cost for this order was "
+                    f"{(getattr(order, price_type) * order.quantity):4.9f} \n"
+                )
+                return
+
+        params = {}
+        if order.stop_price is not None:
+            params = {
+                # 'type': "stopLimit",
+                'stopPrice': order.stop_price,
+            }
         # Remove items with None values
-        kwargs = {k: v for k, v in kwargs.items() if v}
-
-        if order.take_profit_price:
-            kwargs["take_profit"] = {"limit_price": order.take_profit_price}
-
-        if order.stop_loss_price:
-            kwargs["stop_loss"] = {"stop_price": order.stop_loss_price}
-            if order.stop_loss_limit_price:
-                kwargs["stop_loss"]["limit_price"] = order.stop_loss_limit_price
+        params = {k: v for k, v in params.items() if v}
 
         try:
-            response = self.api.submit_order(
-                order.asset.symbol, order.quantity, order.side, **kwargs
+            response = self.api.create_order(
+                order.coin,
+                order.type,
+                order.side,
+                order.quantity,
+                order.limit_price,
+                **params,
             )
 
             order.set_identifier(response.id)
@@ -280,16 +385,10 @@ class Ccxt(CcxtData, Broker):
         except Exception as e:
             order.set_error(e)
             message = str(e)
-            if "stop price must not be greater than base price / 1.001" in message:
-                logging.info(
-                    "%r did not go through because the share base price became lesser than the stop loss price."
-                    % order
-                )
-            else:
-                logging.info(
-                    "%r did not go through. The following error occured: %s"
-                    % (order, e)
-                )
+            logging.info(
+                "%r did not go through. The following error ocured: %s"
+                % (order, e)
+            )
 
         return order
 

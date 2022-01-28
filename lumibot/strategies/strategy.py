@@ -313,6 +313,7 @@ class Strategy(_Strategy):
         trail_percent=None,
         position_filled=False,
         exchange="SMART",
+        exch_coin=None,
     ):
         """Creates a new order for this specific strategy. Once created, an order must still be submitted.
 
@@ -369,6 +370,10 @@ class Strategy(_Strategy):
         exchange : str
             The exchange where the order will be placed.
             Default = `SMART`
+        exch_coin : Asset
+            This is the currency that the main coin being bought or sold
+            will exchange in. For example, if trading `BTC/ETH` this
+            parameter will be 'ETH' (as an Asset object).
 
         Returns
         -------
@@ -529,6 +534,7 @@ class Strategy(_Strategy):
             sec_type=asset.asset_type,
             position_filled=position_filled,
             date_created=self.get_datetime(),
+            exch_coin=exch_coin,
         )
         return order
 

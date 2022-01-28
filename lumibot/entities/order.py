@@ -30,8 +30,9 @@ class Order:
         sec_type="STK",
         exchange="SMART",
         position_filled=False,
-        crypto_market='USD'
-        date_created=None
+        exch_coin='USD',
+        coin=None,
+        date_created=None,
     ):
         """Order class for managing individual orders.
 
@@ -103,10 +104,10 @@ class Order:
         exchange : str
             The exchange where the order will be placed.
             Default = `SMART`
-        crypto_market : str
+        exch_coin : Asset
             This is the currency that the main coin being bought or sold
             will exchange in. For example, if trading `BTC/ETH` this
-            parameter will be 'ETH'.
+            parameter will be 'ETH' (as an Asset object).
         Examples
         --------
         >>> from lumibot.entities import Asset
@@ -185,7 +186,10 @@ class Order:
         self.sec_type = sec_type
 
         # Cyrptocurrency market.
-        self.crypto_market = crypto_market
+        self.exch_coin = exch_coin
+        if asset.asset_type == "crypto":
+            self.coin = f"{self.asset.symbol}/{self.exch_coin}"
+
 
         # setting events
         self._new_event = Event()
@@ -303,14 +307,16 @@ class Order:
 
     def __repr__(self):
         self.rep_asset = self.symbol
-        if self.asset.asset_type == "future":
+        if self.asset.asset_type == 'crypto':
+            self.rep_asset = f"{self.coin}"
+        elif self.asset.asset_type == "future":
             self.rep_asset = f"{self.symbol} {self.asset.expiration}"
         elif self.asset.asset_type == "option":
             self.rep_asset = (
                 f"{self.symbol} {self.asset.expiration} "
                 f"{self.asset.right} {self.asset.strike}"
             )
-        repr = "%s order of | %d %s %s |" % (
+        repr = "%s order of | %f %s %s |" % (
             self.type,
             self.quantity,
             self.rep_asset,

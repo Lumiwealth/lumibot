@@ -36,7 +36,7 @@ class Ccxt(CcxtData, Broker):
     # =========Clock functions=====================
 
     def get_timestamp(self):
-        """Returns the current UNIX timestamp representation from Alpaca
+        """Returns the current UNIX timestamp representation from CCXT.
 
         Parameters
         ----------
@@ -45,22 +45,6 @@ class Ccxt(CcxtData, Broker):
         logging.warning(
             "The method 'get_time_to_close' is not applicable with Crypto 24/7 markets."
         )
-        return None
-
-    # =========Positions functions==================
-    def _get_balances_at_broker(self):
-        """Get's the current actual cash, positions value, and total
-        liquidation value from Alpaca.
-
-        This method will get the current actual values from Alpaca
-        for the actual cash, positions value, and total liquidation.
-
-        Returns
-        -------
-        int
-            Sample unix timestamp return value: 1612172730.000234
-
-        """
         return self.api.microseconds() / 1000000
 
     def is_market_open(self):
@@ -143,27 +127,6 @@ class Ccxt(CcxtData, Broker):
 
         return (total_cash_value, gross_positions_value, net_liquidation_value)
 
-    def _get_cash_balance_at_broker(self):
-        """Get the current cash balance at Alpaca.
-
-        Parameters
-        ----------
-        None
-        """
-        logging.warning(
-            "The method 'is_market_open' is not applicable with Crypto 24/7 markets."
-        )
-        return None
-
-    def get_time_to_open(self):
-        """Not applicable with Crypto 24/7 markets.
-
-        Returns
-        -------
-        None
-        """
-        return None
-
     def _parse_broker_position(self, position, strategy, orders=None):
         """parse a broker position representation
         into a position object"""
@@ -237,7 +200,7 @@ class Ccxt(CcxtData, Broker):
         _flatten_order returns a list containing the main order
         and all the derived ones"""
         orders = [order]
-        if order._raw.legs:
+        if "legs" in order._raw and order._raw.legs:
             strategy = order.strategy
             for json_sub_order in order._raw.legs:
                 sub_order = self._parse_broker_order(json_sub_order, strategy)
@@ -363,7 +326,7 @@ class Ccxt(CcxtData, Broker):
         if order.stop_price is not None:
             params = {
                 # 'type': "stopLimit",
-                'stopPrice': order.stop_price,
+                "stopPrice": order.stop_price,
             }
         # Remove items with None values
         params = {k: v for k, v in params.items() if v}
@@ -378,23 +341,24 @@ class Ccxt(CcxtData, Broker):
                 **params,
             )
 
-            order.set_identifier(response.id)
-            order.update_status(response.status)
+            order.set_identifier(response["id"])
+            order.update_status(response["status"])
             order.update_raw(response)
 
         except Exception as e:
             order.set_error(e)
             message = str(e)
             logging.info(
-                "%r did not go through. The following error ocured: %s"
-                % (order, e)
+                "%r did not go through. The following error ocured: %s" % (order, e)
             )
 
         return order
 
     def cancel_order(self, order):
         """Cancel an order"""
-        self.api.cancel_order(order.identifier)
+        response = self.api.cancel_order(order.identifier)
+        if order.identifier == response:
+            order.set_canceled()
 
     # # =======Stream functions=========
     #

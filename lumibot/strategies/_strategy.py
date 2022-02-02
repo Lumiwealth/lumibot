@@ -148,15 +148,36 @@ class _Strategy:
     def _set_asset_mapping(self, asset):
         if isinstance(asset, Asset):
             return asset
-        elif isinstance(asset, str):
+        elif isinstance(asset, str) and "/" not in asset:
             if asset not in self._asset_mapping:
                 self._asset_mapping[asset] = Asset(symbol=asset)
             return self._asset_mapping[asset]
+        elif (isinstance(asset, str) and "/" in asset) or (
+            isinstance(asset, tuple) and len(asset) == 2
+        ):
+            asset_tuple = []
+            if isinstance(asset, str):
+                assets = asset.split("/")
+            else:
+                assets = asset
+            for asset in assets:
+                if isinstance(asset, str) and asset not in self._asset_mapping:
+                    self._asset_mapping[asset] = Asset(symbol=asset)
+                    asset_tuple.append(self._asset_mapping[asset])
+                asset_tuple.append(asset)
+            return tuple(asset_tuple)
         else:
-            raise ValueError(
-                f"You must enter a symbol string or an asset object. You "
-                f"entered {asset}"
-            )
+            if self.broker.SOURCE != 'CCXT':
+                raise ValueError(
+                    f"You must enter a symbol string or an asset object. You "
+                    f"entered {asset}"
+                )
+            else:
+                raise ValueError(
+                    f"You must enter symbol string or an asset object. If you "
+                    f"getting a quote, you may enter a string like `ETH/BTC` or "
+                    f"asset objects in a tuple like (Asset(ETH), Asset(BTC))."
+                )
 
     def _log_strat_name(self):
         """Returns the name of the strategy as a string if not default"""

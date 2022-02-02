@@ -2166,7 +2166,12 @@ class Strategy(_Strategy):
         ----------
         asset : str or Asset
             The symbol string representation (e.g AAPL, GOOG, ...) or asset
-            object.
+            object. Crypto currencies must specify the market. Use a string
+            with the two coins as follows:
+                `ETH/BTC`
+            Alternatively for cryptos, one can use a tuple with the two asset
+            objects, numerator first, denominator second.
+                `(Asset(ETH), Asset(BTC))`
         length : int
             The number of rows (number of timesteps)
         timestep : str
@@ -2235,7 +2240,12 @@ class Strategy(_Strategy):
         ----------
         assets : list(str/asset)
             The symbol string representation (e.g AAPL, GOOG, ...) or asset
-            objects.
+            objects. Crypto currencies must specify the market. Use a list
+            of string with the two coins as follows:
+                `ETH/BTC`
+            Alternatively for cryptos, one can use a tuple with the two asset
+            objects, numerator first, denominator second.
+                `(Asset(ETH), Asset(BTC))`
         length : int
             The number of rows (number of timesteps)
         timestep : str

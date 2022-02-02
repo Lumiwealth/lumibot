@@ -187,8 +187,13 @@ class Ccxt(CcxtData, Broker):
 
     def _pull_broker_order(self, id):
         """Get a broker order representation by its id"""
-        response = self.api.get_order(id)
-        return response
+        open_orders = self._pull_broker_open_orders()
+        closed_orders = self.api.fetch_closed_orders()
+        all_orders = open_orders + closed_orders
+
+        response = [order for order in all_orders if order["id"] == id]
+
+        return response[0] if len(response) > 0 else None
 
     def _pull_broker_open_orders(self):
         """Get the broker open orders"""
@@ -359,69 +364,3 @@ class Ccxt(CcxtData, Broker):
         response = self.api.cancel_order(order.identifier)
         if order.identifier == response:
             order.set_canceled()
-
-    # # =======Stream functions=========
-    #
-    # def _get_stream_object(self):
-    #     """get the broker stream connection"""
-    #     stream = tradeapi.StreamConn(self.api_key, self.api_secret, self.endpoint)
-    #     return stream
-    #
-    # def _register_stream_events(self):
-    #     """Register the function on_trade_event
-    #     to be executed on each trade_update event"""
-    #
-    #     @self.stream.on(r"^trade_updates$")
-    #     async def on_trade_event(conn, channel, data):
-    #         self._orders_queue.join()
-    #         try:
-    #             logged_order = data.order
-    #             type_event = data.event
-    #             identifier = logged_order.get("id")
-    #             stored_order = self.get_tracked_order(identifier)
-    #             if stored_order is None:
-    #                 logging.info(
-    #                     "Untracked order %s was logged by broker %s"
-    #                     % (identifier, self.name)
-    #                 )
-    #                 return False
-    #
-    #             price = data.price if hasattr(data, "price") else None
-    #             filled_quantity = data.qty if hasattr(data, "qty") else None
-    #             self._process_trade_event(
-    #                 stored_order,
-    #                 type_event,
-    #                 price=price,
-    #                 filled_quantity=filled_quantity,
-    #             )
-    #
-    #             return True
-    #         except:
-    #             logging.error(traceback.format_exc())
-    #
-    # def _run_stream(self):
-    #     """Overloading default alpaca_trade_api.STreamCOnnect().run()
-    #     Run forever and block until exception is raised.
-    #     initial_channels is the channels to start with.
-    #     """
-    #     loop = self.stream.loop
-    #     should_renew = True  # should renew connection if it disconnects
-    #     while should_renew:
-    #         try:
-    #             if loop.is_closed():
-    #                 self.stream.loop = asyncio.new_event_loop()
-    #                 loop = self.stream.loop
-    #             loop.run_until_complete(self.stream.subscribe(["trade_updates"]))
-    #             self._stream_established()
-    #             loop.run_until_complete(self.stream.consume())
-    #         except KeyboardInterrupt:
-    #             logging.info("Exiting on Interrupt")
-    #             should_renew = False
-    #         except Exception as e:
-    #             m = "consume cancelled" if isinstance(e, CancelledError) else e
-    #             logging.error(f"error while consuming ws messages: {m}")
-    #             if self.stream._debug:
-    #                 logging.error(traceback.format_exc())
-    #             loop.run_until_complete(self.stream.close(should_renew))
-    #             if loop.is_running():
-    #                 loop.close()

@@ -156,7 +156,7 @@ class DataSource:
                 parsed = self._parse_source_bars(response)
                 result = {**result, **parsed}
 
-        return AssetsMapping(result)
+        return result
 
     def get_last_price(self, asset, timestep=None):
         """Takes an asset and returns the last known price"""

@@ -1,6 +1,6 @@
 import logging
 import time
-from datetime import datetime
+import datetime
 
 import ccxt
 from credentials import CcxtConfig
@@ -83,82 +83,89 @@ class CcxtData(DataSource):
         if not api.has["fetchOHLCV"]:
             logging.error("Exchange does not support fetching OHLCV data")
 
-        candles = api.fetch_ohlcv("BTC/USDT", freq, since=end, limit=limit, params={})
+        if limit is None:
+            limit = 300
 
-        df = pd.DataFrame(
-            candles, columns=["time", "open", "high", "low", "close", "volume"]
-        )
-        return
+        if end is None:
+            end = datetime.datetime.now()
 
-        #
-        # if limit is None:
-        #     limit = 1000
-        #
-        # if end is None:
-        #     end = datetime.now()
-        #
-        # df_ret = None
-        # curr_end = end
-        # cnt = 0
-        # last_curr_end = None
-        # loop_limit = 1000 if limit > 1000 else limit
-        # while True:
-        #     cnt += 1
-        #     barset = api.get_barset(symbol, freq, limit=loop_limit, end=curr_end)
-        #     df = barset[symbol].df  # .tz_convert("utc")
-        #
-        #     if df_ret is None:
-        #         df_ret = df
-        #     elif str(df.index[0]) < str(df_ret.index[0]):
-        #         df_ret = df.append(df_ret)
-        #
-        #     if len(df_ret) >= limit:
-        #         break
-        #     else:
-        #         curr_end = (
-        #             datetime.fromisoformat(str(df_ret.index[0])).strftime(
-        #                 "%Y-%m-%dT%H:%M:%S"
-        #             )
-        #             + "-04:00"
-        #         )
-        #
-        #     # Sometimes the beginning date we put in is not a trading date,
-        #     # this makes sure that we end when we're close enough
-        #     # (it's just returning the same thing over and over)
-        #     if curr_end == last_curr_end:
-        #         break
-        #     else:
-        #         last_curr_end = curr_end
-        #
-        #     # Sleep so that we don't trigger rate limiting
-        #     if cnt >= 50:
-        #         time.sleep(10)
-        #         cnt = 0
-        #
-        # df_ret = df_ret[~df_ret.index.duplicated(keep="first")]
-        # df_ret = df_ret.iloc[-limit:]
-        #
-        # return df_ret[df_ret.close > 0]
+        endunix = self.api.parse8601(end.strftime("%Y-%m-%d %H:%M:%S"))
+        buffer = 10  # A few extra datapoints in the download then trim the df.
+        if freq == "1m":
+            start = end - datetime.timedelta(minutes=limit+buffer)
+        else:
+            start = end - datetime.timedelta(days=limit+buffer)
+        df_ret = None
+        curr_start = self.api.parse8601(start.strftime("%Y-%m-%d %H:%M:%S"))
+        cnt = 0
+        last_curr_end = None
+        # loop_limit = 300 if limit > 300 else limit
+        loop_limit = 300
+        rate_limit = 10  # 10 requests per second in burst.
+
+        while True:
+            cnt += 1
+            candles = self.api.fetch_ohlcv(
+                symbol, freq, since=curr_start, limit=loop_limit, params={}
+            )
+
+            df = pd.DataFrame(
+                candles, columns=["datetime", "open", "high", "low", "close", "volume"]
+            )
+            df["datetime"] = pd.to_datetime(df["datetime"], unit="ms")
+            df = df.set_index("datetime")
+
+            if df_ret is None:
+                df_ret = df
+            else:
+                df_ret = pd.concat([df_ret, df])
+
+            df_ret = df_ret.sort_index()
+
+
+            last_curr_end = self.api.parse8601(df.index[-1].strftime("%Y-%m-%d %H:%M:%S"))
+            if len(df_ret) >= limit:
+                break
+            elif last_curr_end > endunix:
+                break
+
+            curr_start = last_curr_end
+            if cnt % 10 == 0:
+                time.sleep(.5)
+
+            # Catch if endless loop.
+            if cnt > 500:
+                break
+
+
+        df_ret = df_ret[~df_ret.index.duplicated(keep="first")]
+        df_ret = df_ret.loc[:end]
+        df_ret = df_ret.iloc[-limit:]
+
+        return df_ret
 
     def _pull_source_bars(self, assets, length, timestep=MIN_TIMESTEP, timeshift=None):
         """pull broker bars for a list assets"""
         parsed_timestep = self._parse_source_timestep(timestep, reverse=True)
         kwargs = dict(limit=length)
         if timeshift:
-            end = datetime.now() - timeshift
+            end = datetime.datetime.now() - timeshift
             end = self.to_default_timezone(end)
             kwargs["end"] = self._format_datetime(end)
 
         result = {}
         for asset in assets:
-            symbol = asset.symbol
+            if isinstance(asset, tuple):
+                symbol = f"{asset[0].symbol.upper()}/{asset[1].symbol.upper()}"
+            else:
+                symbol = asset
             data = self.get_barset_from_api(self.api, symbol, parsed_timestep, **kwargs)
             result[asset] = data
 
         return result
 
     def _parse_source_symbol_bars(self, response, asset):
-        # TODO: Alpaca return should also include dividend yield
+        # Parse the dataframe returned from CCXT.
         response["return"] = response["close"].pct_change()
-        bars = Bars(response, self.SOURCE, asset, raw=response)
+        bars = Bars(response, self.SOURCE, asset[0], pair=asset[1], raw=response)
         return bars

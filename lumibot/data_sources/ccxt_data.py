@@ -6,9 +6,6 @@ import ccxt
 from credentials import CcxtConfig
 import pandas as pd
 
-# from alpaca_trade_api.common import URL
-# from alpaca_trade_api.entity import Bar
-
 from lumibot.entities import Bars
 
 from .data_source import DataSource
@@ -30,9 +27,6 @@ class CcxtData(DataSource):
         return pd.Timestamp(dt).isoformat()
 
     def __init__(self, config, max_workers=20, chunk_size=100, **kwargs):
-        # Alpaca authorize 200 requests per minute and per API key
-        # Setting the max_workers for multithreading with a maximum
-        # of 200
         self.name = "ccxt"
         self.max_workers = min(max_workers, 200)
 
@@ -40,15 +34,6 @@ class CcxtData(DataSource):
         # if there is too many assets, the best thing to do would
         # be to split it into chunks and request data for each chunk
         self.chunk_size = min(chunk_size, 100)
-
-        # if hasattr(config, "ENDPOINT"):
-        #     self.endpoint = URL(config.ENDPOINT)
-        # else:
-        #     self.endpoint = URL("https://paper-api.alpaca.markets")
-        # if hasattr(config, "VERSION"):
-        #     self.version = config.VERSION
-        # else:
-        #     self.version = "v2"
 
         exchange_id = "coinbasepro_sandbox"
         keys = CcxtConfig.EXCHANGE_KEYS[exchange_id]
@@ -72,6 +57,26 @@ class CcxtData(DataSource):
         )
         return response[asset]
 
+    def _pull_source_bars(self, assets, length, timestep=MIN_TIMESTEP, timeshift=None):
+        """pull broker bars for a list assets"""
+        parsed_timestep = self._parse_source_timestep(timestep, reverse=True)
+        kwargs = dict(limit=length)
+        if timeshift:
+            end = datetime.datetime.now() - timeshift
+            kwargs["end"] = self.to_default_timezone(end)
+
+        result = {}
+        for asset in assets:
+            if isinstance(asset, tuple):
+                symbol = f"{asset[0].symbol.upper()}/{asset[1].symbol.upper()}"
+            else:
+                symbol = asset
+            data = self.get_barset_from_api(self.api, symbol, parsed_timestep, **kwargs)
+            result[asset] = data
+
+        return result
+
+
     def get_barset_from_api(self, api, symbol, freq, limit=None, end=None):
         """
         gets historical bar data for the given stock symbol
@@ -87,7 +92,7 @@ class CcxtData(DataSource):
             limit = 300
 
         if end is None:
-            end = datetime.datetime.now()
+            end = datetime.datetime.utcnow()
 
         endunix = self.api.parse8601(end.strftime("%Y-%m-%d %H:%M:%S"))
         buffer = 10  # A few extra datapoints in the download then trim the df.
@@ -144,25 +149,6 @@ class CcxtData(DataSource):
 
         return df_ret
 
-    def _pull_source_bars(self, assets, length, timestep=MIN_TIMESTEP, timeshift=None):
-        """pull broker bars for a list assets"""
-        parsed_timestep = self._parse_source_timestep(timestep, reverse=True)
-        kwargs = dict(limit=length)
-        if timeshift:
-            end = datetime.datetime.now() - timeshift
-            end = self.to_default_timezone(end)
-            kwargs["end"] = self._format_datetime(end)
-
-        result = {}
-        for asset in assets:
-            if isinstance(asset, tuple):
-                symbol = f"{asset[0].symbol.upper()}/{asset[1].symbol.upper()}"
-            else:
-                symbol = asset
-            data = self.get_barset_from_api(self.api, symbol, parsed_timestep, **kwargs)
-            result[asset] = data
-
-        return result
 
     def _parse_source_symbol_bars(self, response, asset):
         # Parse the dataframe returned from CCXT.

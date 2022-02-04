@@ -182,8 +182,10 @@ class DataSource:
             elif bars is not None:
                 last_value = bars.df.iloc[0].close
                 result[asset] = last_value
-
-        return AssetsMapping(result)
+        if self.SOURCE == "CCXT":
+            return result
+        else:
+            return AssetsMapping(result)
 
     def is_tradable(self, asset, dt, length=1, timestep="minute", timeshift=0):
         # Check if an asset is tradable at this moment.

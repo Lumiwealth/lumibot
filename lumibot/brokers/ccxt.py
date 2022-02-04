@@ -19,13 +19,6 @@ class Ccxt(CcxtData, Broker):
 
     """
 
-    ASSET_TYPE_MAP = dict(
-        stock=["us_equity"],
-        option=[],
-        future=[],
-        forex=[],
-    )
-
     def __init__(self, config, max_workers=20, chunk_size=100, connect_stream=False):
         # Calling init methods
         CcxtData.__init__(self, config, max_workers=max_workers, chunk_size=chunk_size)
@@ -156,14 +149,6 @@ class Ccxt(CcxtData, Broker):
         return response["info"]
 
     # =======Orders and assets functions=========
-    def map_asset_type(self, type):
-        for k, v in self.ASSET_TYPE_MAP.items():
-            if type in v:
-                return k
-        raise ValueError(
-            f"The type {type} is not in the ASSET_TYPE_MAP in the Alpaca Module."
-        )
-
     def _parse_broker_order(self, response, strategy):
         """parse a broker order representation
         to an order object"""
@@ -217,7 +202,14 @@ class Ccxt(CcxtData, Broker):
         """Submit an order for an asset"""
 
         # Check order within limits.
-        market = self.api.markets[order.coin]
+        market = self.api.markets.get(order.coin, None)
+        if market is None:
+            logging.error(
+                f"An order for {order.coin} was submitted. The market for that coin does not exist"
+            )
+            order.set_error("No market for coin.")
+            return order
+
         limits = market["limits"]
         precision = market["precision"]
 

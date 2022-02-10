@@ -199,7 +199,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
 
     def _pull_broker_positions(self):
         """Get the broker representation of all positions"""
-        return self.ib.get_positions()
+        return [d for d in self.ib.get_positions() if d["position"] > 0]
 
     # =======Orders and assets functions=========
 
@@ -212,7 +212,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         if response.contract.secType in ["OPT", "FUT"]:
             expiration = datetime.datetime.strptime(
                 response.contract.lastTradeDateOrContractMonth,
-                DATE_MAP[response.contract.secType],
+                DATE_MAP[[d for d, v in TYPE_MAP.items() if v == response.contract.secType]][0]
             )
             multiplier = response.contract.multiplier
 
@@ -240,7 +240,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
             limit_price=response.lmtPrice,
             stop_price=response.adjustedStopPrice,
             time_in_force=response.tif,
-            good_till_date=response.goodTillDate
+            good_till_date=response.goodTillDate,
         )
         order._transmitted = True
         order.set_identifier(response.orderId)
@@ -361,7 +361,6 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
             float(c["Value"]) for c in summary if c["Tag"] == "TotalCashValue"
         ][0]
 
-
         gross_position_value = [
             float(c["Value"]) for c in summary if c["Tag"] == "GrossPositionValue"
         ][0]
@@ -369,7 +368,6 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         net_liquidation_value = [
             float(c["Value"]) for c in summary if c["Tag"] == "NetLiquidation"
         ][0]
-
 
         return (total_cash_value, gross_position_value, net_liquidation_value)
 
@@ -1445,7 +1443,11 @@ class IBApp(IBWrapper, IBClient):
                 order.identifier if order.identifier else self.nextOrderId()
             )
             ib_order.tif = order.time_in_force.upper()
-            ib_order.goodTillDate = order.good_till_date.strftime("%Y%m%d %H:%M:%S") if order.good_till_date else ""
+            ib_order.goodTillDate = (
+                order.good_till_date.strftime("%Y%m%d %H:%M:%S")
+                if order.good_till_date
+                else ""
+            )
             return [ib_order]
 
     def execute_order(self, orders):

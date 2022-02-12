@@ -92,7 +92,7 @@ class Ccxt(CcxtData, Broker):
         base_currency = "USD"
         total_cash_value = 0
         positions_value = 0
-        # Get the market values for each coin held.
+        # Get the market values for each pair held.
         balances = self.api.fetch_balance()
         for currency_info in balances["info"]:
             currency = currency_info["currency"]
@@ -152,11 +152,11 @@ class Ccxt(CcxtData, Broker):
     def _parse_broker_order(self, response, strategy):
         """parse a broker order representation
         to an order object"""
-        coins = response["symbol"].split("/")
+        pair = response["symbol"].split("/")
         order = Order(
             strategy,
             Asset(
-                symbol=coins[0],
+                symbol=pair[0],
                 asset_type="crypto",
             ),
             response["amount"],
@@ -164,6 +164,10 @@ class Ccxt(CcxtData, Broker):
             limit_price=response["price"],
             stop_price=response["stopPrice"],
             time_in_force=response["timeInForce"].lower(),
+            quote=Asset(
+                symbol=pair[1],
+                asset_type="crypto",
+            ),
         )
         order.set_identifier(response["id"])
         order.update_status(response["status"])
@@ -202,12 +206,12 @@ class Ccxt(CcxtData, Broker):
         """Submit an order for an asset"""
 
         # Check order within limits.
-        market = self.api.markets.get(order.coin, None)
+        market = self.api.markets.get(order.pair, None)
         if market is None:
             logging.error(
-                f"An order for {order.coin} was submitted. The market for that coin does not exist"
+                f"An order for {order.pair} was submitted. The market for that pair does not exist"
             )
-            order.set_error("No market for coin.")
+            order.set_error("No market for pair.")
             return order
 
         limits = market["limits"]
@@ -228,7 +232,7 @@ class Ccxt(CcxtData, Broker):
             except AssertionError:
                 logging.warning(
                     f"\nThe order {order} was rejected as the order quantity \n"
-                    f"was less then the minimum allowed for {order.coin}. The minimum order quantity is {limits['amount']['min']} \n"
+                    f"was less then the minimum allowed for {order.pair}. The minimum order quantity is {limits['amount']['min']} \n"
                     f"The quantity for this order was {order.quantity} \n"
                 )
                 return
@@ -239,7 +243,7 @@ class Ccxt(CcxtData, Broker):
             except AssertionError:
                 logging.warning(
                     f"\nThe order {order} was rejected as the order quantity \n"
-                    f"was greater then the maximum allowed for {order.coin}. The maximum order "
+                    f"was greater then the maximum allowed for {order.pair}. The maximum order "
                     f"quantity is {limits['amount']['max']} \n"
                     f"The quantity for this order was {order.quantity} \n"
                 )
@@ -249,8 +253,6 @@ class Ccxt(CcxtData, Broker):
         for price_type in [
             "limit_price",
             "stop_price",
-            "stop_loss_price",
-            "stop_loss_limit_price",
         ]:
             if hasattr(order, price_type) and getattr(order, price_type) is not None:
                 setattr(
@@ -269,7 +271,7 @@ class Ccxt(CcxtData, Broker):
             except AssertionError:
                 logging.warning(
                     f"\nThe order {order} was rejected as the order {price_type} \n"
-                    f"was less then the minimum allowed for {order.coin}. The minimum price "
+                    f"was less then the minimum allowed for {order.pair}. The minimum price "
                     f"is {limits['price']['min']} \n"
                     f"The price for this order was {getattr(order, price_type):4.9f} \n"
                 )
@@ -281,7 +283,7 @@ class Ccxt(CcxtData, Broker):
             except AssertionError:
                 logging.warning(
                     f"\nThe order {order} was rejected as the order {price_type} \n"
-                    f"was greater then the maximum allowed for {order.coin}. The maximum price "
+                    f"was greater then the maximum allowed for {order.pair}. The maximum price "
                     f"is {limits['price']['max']} \n"
                     f"The price for this order was {getattr(order, price_type):4.9f} \n"
                 )
@@ -296,7 +298,7 @@ class Ccxt(CcxtData, Broker):
             except AssertionError:
                 logging.warning(
                     f"\nThe order {order} was rejected as the order total cost \n"
-                    f"was less then the minimum allowed for {order.coin}. The minimum cost "
+                    f"was less then the minimum allowed for {order.pair}. The minimum cost "
                     f"is {limits['cost']['min'] * order.quantity} \n"
                     f"The cost for this order was "
                     f"{(getattr(order, price_type) * order.quantity):4.9f} \n"
@@ -312,7 +314,7 @@ class Ccxt(CcxtData, Broker):
             except AssertionError:
                 logging.warning(
                     f"\nThe order {order} was rejected as the order total cost \n"
-                    f"was greater then the maximum allowed for {order.coin}. The maximum cost "
+                    f"was greater then the maximum allowed for {order.pair}. The maximum cost "
                     f"is {limits['cost']['max'] * order.quantity} \n"
                     f"The cost for this order was "
                     f"{(getattr(order, price_type) * order.quantity):4.9f} \n"
@@ -320,24 +322,35 @@ class Ccxt(CcxtData, Broker):
                 return
 
         params = {}
-        if order.stop_price is not None:
+        # Current custom params are for Coinbase only.
+        if order.type in ["stop", "stop_limit"]:
             params = {
-                # 'type': "stopLimit",
-                "stopPrice": order.stop_price,
+                "stop": "entry" if order.side == "buy" else "loss",
+                "stop_price": order.stop_price,
             }
-        # Remove items with None values
-        params = {k: v for k, v in params.items() if v}
+            # Remove items with None values
+            params = {k: v for k, v in params.items() if v}
+
+        order_type_map = dict(
+            market="market",
+            stop="market",
+            limit="limit",
+            stop_limit="limit",
+        )
+
+        args = [
+            order.pair,
+            order_type_map[order.type],
+            order.side,
+            order.quantity,
+        ]
+        if order_type_map[order.type] == "limit":
+            args.append(order.limit_price)
+
+        args.append(params)
 
         try:
-            response = self.api.create_order(
-                order.coin,
-                order.type,
-                order.side,
-                order.quantity,
-                order.limit_price,
-                **params,
-            )
-
+            response = self.api.create_order(*args)
             order.set_identifier(response["id"])
             order.update_status(response["status"])
             order.update_raw(response)
@@ -346,7 +359,8 @@ class Ccxt(CcxtData, Broker):
             order.set_error(e)
             message = str(e)
             logging.info(
-                "%r did not go through. The following error ocured: %s" % (order, e)
+                "%r did not go through. The following error occurred: %s"
+                % (order, message)
             )
 
         return order

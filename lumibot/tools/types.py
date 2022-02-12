@@ -1,3 +1,6 @@
+from decimal import Decimal
+
+
 def check_numeric(
     input, type, error_message, positive=True, strict=False, nullable=False, ratio=False
 ):
@@ -6,7 +9,7 @@ def check_numeric(
 
     error = ValueError(error_message)
 
-    if isinstance(input, str):
+    if isinstance(input, str) or (type == Decimal and not isinstance(input, Decimal)):
         try:
             input = type(input)
         except:
@@ -56,6 +59,20 @@ def check_quantity(quantity, custom_message=""):
     result = check_numeric(
         quantity,
         int,
+        error_message,
+        strict=True,
+    )
+    return result
+
+
+def check_crypto_quantity(quantity, custom_message=""):
+    error_message = "%r is not a positive Decimal." % quantity
+    if custom_message:
+        error_message = f"{error_message} {custom_message}"
+
+    result = check_numeric(
+        quantity,
+        Decimal,
         error_message,
         strict=True,
     )

@@ -47,10 +47,7 @@ class Position:
 
     @quantity.setter
     def quantity(self, value):
-        if self.asset.asset_type != 'crypto':
-            self._quantity =  int(value)
-        else:
-            self._quantity = Decimal(str(value)).quantize(Decimal(self.asset.precision))
+        self._quantity = int(value) if not isinstance(value, Decimal) else value
 
     @property
     def hold(self):

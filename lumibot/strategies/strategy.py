@@ -313,7 +313,8 @@ class Strategy(_Strategy):
         trail_percent=None,
         position_filled=False,
         exchange="SMART",
-        exch_coin=None,
+        quote=None,
+        pair=None,
     ):
         """Creates a new order for this specific strategy. Once created, an order must still be submitted.
 
@@ -338,14 +339,12 @@ class Strategy(_Strategy):
             price is attained or penetrated.
         time_in_force : str
             Amount of time the order is in force. Order types include:
-                - `day` Orders valid for the remainder of the day.
+                - 'day' Orders valid for the remainder of the day.
                 - 'gtc' Good until cancelled.
                 - 'gtd' Good until date.
             (Default: 'day')
         good_till_date : datetime.datetime
             This is the time order is valid for Good Though Date orders.
-        time_in_force : str
-            Amount of time the order is in force. Default: 'day'
         take_profit_price : float
             Limit price used for bracket orders and one cancels other
             orders.
@@ -370,7 +369,7 @@ class Strategy(_Strategy):
         exchange : str
             The exchange where the order will be placed.
             Default = `SMART`
-        exch_coin : Asset
+        quote : Asset
             This is the currency that the main coin being bought or sold
             will exchange in. For example, if trading `BTC/ETH` this
             parameter will be 'ETH' (as an Asset object).
@@ -514,6 +513,25 @@ class Strategy(_Strategy):
         >>>            )
         >>> self.submit_order(order)
 
+        >>> # For a cryptocurrency order with a market price
+        >>> base = Asset("BTC", asset_type="crypto")
+        >>> quote = Asset("USD", asset_type="crypto")
+        >>> order = self.create_order(base, 0.05, "buy", quote=quote)
+        >>> self.submit_order(order)
+
+        >>> # For a cryptocurrency the base and the quote may be
+        >>> # combined as a tuple for all order types.
+        >>> base = Asset("BTC", asset_type="crypto")
+        >>> quote = Asset("USD", asset_type="crypto")
+        >>> order = self.create_order((base, quote), 0.05, "buy")
+        >>> self.submit_order(order)
+
+        >>> # For a cryptocurrency the base and the quote may be
+        >>> # combined as a tuple for all order types.
+        >>> base = Asset("BTC", asset_type="crypto")
+        >>> quote = Asset("USD", asset_type="crypto")
+        >>> order = self.create_order(base, 0.05, "buy", limit_price=41000,  quote=quote)
+        >>> self.submit_order(order)
         """
         asset = self._set_asset_mapping(asset)
         order = Order(
@@ -531,10 +549,11 @@ class Strategy(_Strategy):
             trail_price=trail_price,
             trail_percent=trail_percent,
             exchange=exchange,
-            sec_type=asset.asset_type,
+            sec_type=asset.asset_type if isinstance(asset, Asset) else asset[0].asset_type,
             position_filled=position_filled,
             date_created=self.get_datetime(),
-            exch_coin=exch_coin,
+            quote=quote,
+            pair=pair
         )
         return order
 

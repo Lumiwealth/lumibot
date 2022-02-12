@@ -247,7 +247,7 @@ class _Strategy:
                 multiplier = (
                     asset.multiplier if asset.asset_type in ["option", "future"] else 1
                 )
-                portfolio_value += quantity * price * multiplier
+                portfolio_value += float(quantity) * price * multiplier
 
             self._portfolio_value = portfolio_value
 
@@ -257,9 +257,9 @@ class _Strategy:
         """update the self.cash"""
         with self._executor.lock:
             if side == "buy":
-                self._cash -= quantity * price * multiplier
+                self._cash -= float(quantity) * price * multiplier
             if side == "sell":
-                self._cash += quantity * price * multiplier
+                self._cash += float(quantity) * price * multiplier
             return self._cash
 
     def _update_cash_with_dividends(self):
@@ -275,7 +275,7 @@ class _Strategy:
                     if dividends_per_share is None
                     else dividends_per_share.get(asset, 0)
                 )
-                self._cash += dividend_per_share * quantity
+                self._cash += dividend_per_share * float(quantity)
             return self._cash
 
     # =============Stats functions=====================

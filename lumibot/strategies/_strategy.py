@@ -12,6 +12,7 @@ from lumibot.tools import (
     get_risk_free_rate,
     get_symbol_returns,
     plot_returns,
+    create_tearsheet,
     stats_summary,
     to_datetime_aware,
 )
@@ -383,6 +384,28 @@ class _Strategy:
                 show_plot,
             )
 
+    def tearsheet(
+            self,
+            save_tearsheet=False,
+            tearsheet_file=None,
+            show_tearsheet=False,
+    ):
+        if not save_tearsheet:
+            return None
+
+        if self._strategy_returns_df is None:
+            logging.warning(
+                "Cannot create a tearsheet because the strategy returns are missing"
+            )
+        else:
+            create_tearsheet(
+                self._strategy_returns_df[['return']],
+                tearsheet_file,
+                self._benchmark_returns_df,
+                self._benchmark_asset,
+                show_tearsheet,
+            )
+
     @classmethod
     def backtest(
         cls,
@@ -403,6 +426,9 @@ class _Strategy:
         trades_file=None,
         pandas_data=None,
         show_plot=True,
+        tearsheet_file=None,
+        save_tearsheet=False,
+        show_tearsheet=False,
         **kwargs,
     ):
         """Backtest a strategy.
@@ -544,7 +570,10 @@ class _Strategy:
             logfile = (
                 f"logs/{name + '_' if name != 'StratName' else ''}{datestring}_logs.csv"
             )
-
+        if tearsheet_file is None:
+            tearsheet_file = (
+                f"logs/{name + '_' if name != 'StratName' else ''}{datestring}_tearsheet.html"
+            )
         if not cls.IS_BACKTESTABLE:
             logging.warning(
                 f"Strategy {name + ' ' if name != 'StratName' else ''}cannot be "
@@ -612,6 +641,12 @@ class _Strategy:
             plot_file_html,
             backtesting_broker._trade_event_log_df,
             show_plot=show_plot,
+        )
+
+        strategy.tearsheet(
+            save_tearsheet=save_tearsheet,
+            tearsheet_file=tearsheet_file,
+            show_tearsheet=show_tearsheet,
         )
 
         return result

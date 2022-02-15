@@ -427,8 +427,8 @@ class _Strategy:
         pandas_data=None,
         show_plot=True,
         tearsheet_file=None,
-        save_tearsheet=False,
-        show_tearsheet=False,
+        save_tearsheet=True,
+        show_tearsheet=True,
         **kwargs,
     ):
         """Backtest a strategy.

@@ -268,13 +268,13 @@ def plot_returns(
 
 
 def create_tearsheet(
-    strategy_returns_df,
+    df,
     tearsheet_file,
     benchmark_returns_df,
     benchmark_asset,
     show_tearsheet,
 ):
-    df = strategy_returns_df
+    df = df.copy()
     df["strategy"] = np.log(1 + df["return"])
     df = df.groupby(df.index.date)["strategy"].sum()
 
@@ -295,7 +295,7 @@ def create_tearsheet(
         output=tearsheet_file,
     )
     if show_tearsheet:
-        open_browser = webbrowser.open_new_tab(str(tearsheet_file))
+        open_browser = webbrowser.open(str(tearsheet_file))
 
 
 def get_risk_free_rate():

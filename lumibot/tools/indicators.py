@@ -292,10 +292,12 @@ def create_tearsheet(
         df["strategy"],
         df["benchmark"],
         # title="my title, double check",
-        output=tearsheet_file,
+        output=True,
+        download_filename=tearsheet_file,
     )
     if show_tearsheet:
-        webbrowser.open(str(tearsheet_file))
+        url = "file://" + os.path.abspath(str(tearsheet_file))
+        webbrowser.open(url)
 
 
 def get_risk_free_rate():

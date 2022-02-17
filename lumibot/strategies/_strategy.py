@@ -261,7 +261,7 @@ class _Strategy:
     # =============Stats functions=====================
 
     def _append_row(self, row):
-        self._stats = self._stats.append(row, ignore_index=True)
+        self._stats = pd.concat([self._stats, pd.DataFrame(row, index=[0])])
 
     def _format_stats(self):
         self._stats = self._stats.set_index("datetime")

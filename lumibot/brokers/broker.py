@@ -637,8 +637,8 @@ class Broker:
                 "multiplier": multiplier,
             }
             # append row to the dataframe
-            self._trade_event_log_df = self._trade_event_log_df.append(
-                new_row, ignore_index=True
+            self._trade_event_log_df = pd.concat(
+                [self._trade_event_log_df, pd.DataFrame(new_row, index=[0])], axis=0
             )
 
         return

@@ -3,11 +3,13 @@ import math
 import subprocess
 from datetime import datetime, timedelta
 
+import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-
+import quantstats as qs
+import webbrowser
 # import lumibot.data_sources.alpha_vantage as av
 from lumibot import LUMIBOT_DEFAULT_PYTZ
 from lumibot.entities.asset import Asset
@@ -263,6 +265,37 @@ def plot_returns(
     )
 
     fig.write_html(plot_file_html, auto_open=show_plot)
+
+
+def create_tearsheet(
+    df,
+    tearsheet_file,
+    benchmark_returns_df,
+    benchmark_asset,
+    show_tearsheet,
+):
+    df = df.copy()
+    df["strategy"] = np.log(1 + df["return"])
+    df = df.groupby(df.index.date)["strategy"].sum()
+
+    if benchmark_returns_df.shape[0] != 0:
+        benchmark_returns_df["benchmark"] = np.log(
+            1 + benchmark_returns_df["pct_change"]
+        )
+        benchmark_returns_df = benchmark_returns_df.groupby(
+            benchmark_returns_df.index.date
+        )["benchmark"].sum()
+        df = pd.concat([df, benchmark_returns_df], axis=1)
+        df.index = pd.to_datetime(df.index)
+
+    qs.reports.html(
+        df['strategy'],
+        df['benchmark'],
+        # title="my title, double check",
+        output=tearsheet_file,
+    )
+    if show_tearsheet:
+        open_browser = webbrowser.open(str(tearsheet_file))
 
 
 def get_risk_free_rate():

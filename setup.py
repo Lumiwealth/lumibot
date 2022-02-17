@@ -32,7 +32,7 @@ setuptools.setup(
         "alpaca_trade_api",
         "alpha_vantage",
         "ibapi==9.81.1.post1",
-        "yfinance>=0.1.63",
+        "yfinance>=0.1.70",
         "matplotlib",
         "quandl",
         "pandas<=1.3.5",

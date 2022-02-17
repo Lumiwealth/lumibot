@@ -295,8 +295,7 @@ def create_tearsheet(
         output=tearsheet_file,
     )
     if show_tearsheet:
-        url = "file://" + os.path.abspath(str(tearsheet_file))
-        webbrowser.open(url)
+        webbrowser.open(str(tearsheet_file))
 
 
 def get_risk_free_rate():

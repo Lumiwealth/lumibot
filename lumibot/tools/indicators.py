@@ -1,15 +1,15 @@
-import logging
 import math
-import subprocess
+import os
+import webbrowser
 from datetime import datetime, timedelta
 
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import quantstats as qs
-import webbrowser
+
 # import lumibot.data_sources.alpha_vantage as av
 from lumibot import LUMIBOT_DEFAULT_PYTZ
 from lumibot.entities.asset import Asset
@@ -289,13 +289,14 @@ def create_tearsheet(
         df.index = pd.to_datetime(df.index)
 
     qs.reports.html(
-        df['strategy'],
-        df['benchmark'],
+        df["strategy"],
+        df["benchmark"],
         # title="my title, double check",
         output=tearsheet_file,
     )
     if show_tearsheet:
-        open_browser = webbrowser.open(str(tearsheet_file))
+        url = "file://" + os.path.abspath(str(tearsheet_file))
+        webbrowser.open(url)
 
 
 def get_risk_free_rate():

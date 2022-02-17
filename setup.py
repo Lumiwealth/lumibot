@@ -48,6 +48,7 @@ setuptools.setup(
         "bcrypt",
         "pytest",
         "scipy",
+        "quantstats",
     ],
     classifiers=[
         "Programming Language :: Python :: 3",

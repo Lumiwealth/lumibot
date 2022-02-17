@@ -128,7 +128,7 @@ class Ccxt(CcxtData, Broker):
             asset_type="crypto",
             precision=str(self.api.currencies["BTC"]["precision"]),
         )
-        quantity = position["balance"]
+        quantity = Decimal(position["balance"])
         hold = position["hold"]
         available = position["available"]
 

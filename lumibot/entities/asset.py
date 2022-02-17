@@ -123,6 +123,16 @@ class Asset(BaseModel, frozen=True, extra="forbid"):
         else:
             return f"{self.symbol}"
 
+    def __eq__(self, other):
+        return (
+            self.symbol == other.symbol
+            and self.asset_type == other.asset_type
+            and self.expiration == other.expiration
+            and self.strike == other.strike
+            and self.right == other.right
+            and self.multiplier == other.multiplier
+        )
+
     @validator("asset_type")
     def asset_type_must_be_one_of(cls, v):
         if v not in cls._asset_types:

@@ -198,7 +198,9 @@ def plot_returns(
 
     df_final = pd.concat(dfs_concat, join="outer", axis=1)
 
-    if trades_df is not None:
+    if trades_df is None or trades_df.empty:
+        pass
+    else:
         trades_df = trades_df.set_index("time")
         df_final = df_final.merge(
             trades_df, how="outer", left_index=True, right_index=True

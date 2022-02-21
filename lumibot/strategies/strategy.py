@@ -798,7 +798,7 @@ class Strategy(_Strategy):
         >>> # Sleep until market closes (on_trading_iteration will stop running until the market closes)
         >>> self.await_market_to_close()
         """
-        if self.broker.market == "24/7":
+        if hasattr(self.broker, "market") and self.broker.market == "24/7":
             return None
         if timedelta is None:
             timedelta = self.minutes_before_closing

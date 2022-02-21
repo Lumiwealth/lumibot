@@ -3,7 +3,7 @@ import time
 import datetime
 
 import ccxt
-from credentials import CcxtConfig
+# from credentials import CcxtConfig
 import pandas as pd
 
 from lumibot.entities import Bars
@@ -26,7 +26,7 @@ class CcxtData(DataSource):
     def _format_datetime(dt):
         return pd.Timestamp(dt).isoformat()
 
-    def __init__(self, config, max_workers=20, chunk_size=100, **kwargs):
+    def __init__(self, api_keys, max_workers=20, chunk_size=100, **kwargs):
         self.name = "ccxt"
         self.max_workers = min(max_workers, 200)
 
@@ -35,14 +35,11 @@ class CcxtData(DataSource):
         # be to split it into chunks and request data for each chunk
         self.chunk_size = min(chunk_size, 100)
 
-        exchange_id = "coinbasepro_sandbox"
-        keys = CcxtConfig.EXCHANGE_KEYS[exchange_id]
-
         exchange_class = getattr(
-            ccxt, "coinbasepro"
-        )  # Need to make generic with Binance.
+            ccxt, api_keys["exchange_id"]
+        )
 
-        self.api = exchange_class(keys)
+        self.api = exchange_class(api_keys)
         self.api.set_sandbox_mode(True)
         self.api.load_markets()
         # Recommended two or less api calls per second.

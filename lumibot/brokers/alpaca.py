@@ -91,6 +91,7 @@ class Alpaca(AlpacaData, Broker):
             self, config, max_workers=max_workers, chunk_size=chunk_size
         )
         Broker.__init__(self, name="alpaca", connect_stream=connect_stream)
+        self.market = "NASDAQ"
 
     # =========Clock functions=====================
 

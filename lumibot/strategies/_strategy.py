@@ -419,8 +419,10 @@ class _Strategy:
                 "Cannot create a tearsheet because the strategy returns are missing"
             )
         else:
+            strat_name = self._name if self._name != "StratName" else "Strategy"
             create_tearsheet(
                 self._strategy_returns_df[['return']],
+                strat_name,
                 tearsheet_file,
                 self._benchmark_returns_df,
                 self._benchmark_asset,

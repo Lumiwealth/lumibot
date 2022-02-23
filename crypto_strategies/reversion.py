@@ -44,7 +44,7 @@ class Momentum(Strategy):
                 self.parameters["quote"],
             )
 
-        self.sleeptime = 30
+        self.sleeptime = 1
         self.set_market("NASDAQ")
 
         self.signal = self.create_indicators(df)
@@ -58,6 +58,7 @@ class Momentum(Strategy):
         if self.get_orders():
             return
         date = self.get_datetime()
+
         signal = self.signal.loc[date][0]
 
         if len(self.get_positions()) > 0:
@@ -128,8 +129,8 @@ def run(live=False):
 
     if not live:
         # Backtest this strategy
-        backtesting_start = datetime.datetime(2020, 1, 1)
-        backtesting_end = datetime.datetime(2020, 8, 15)
+        backtesting_start = datetime.datetime(2020, 6, 1)
+        backtesting_end = datetime.datetime(2020, 10, 31)
 
         backtesting_datasource = PandasDataBacktesting
 
@@ -166,10 +167,10 @@ def run(live=False):
             pandas_data=pandas_data,
             benchmark_asset="BTC-USD",
             budget=50000,
+            name="Mean Reversion",
             crypto=asset,
-            # name=f"Momentum {length}",
-            show_plot=False,
-            show_tearsheet=False,
+            show_plot=True,
+            show_tearsheet=True,
         )
 
     else:

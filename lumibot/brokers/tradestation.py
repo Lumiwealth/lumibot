@@ -6,13 +6,13 @@ from datetime import timezone
 
 import alpaca_trade_api as tradeapi
 
-from lumibot.data_sources import AlpacaData
+from lumibot.data_sources import TradestationData
 from lumibot.entities import Asset, Order, Position
 
 from .broker import Broker
 
 
-class Alpaca(AlpacaData, Broker):
+class Tradestation(TradestationData, Broker):
     """A broker class that connects to Alpaca
 
     Attributes
@@ -87,10 +87,10 @@ class Alpaca(AlpacaData, Broker):
 
     def __init__(self, config, max_workers=20, chunk_size=100, connect_stream=True):
         # Calling init methods
-        AlpacaData.__init__(
+        TradestationData.__init__(
             self, config, max_workers=max_workers, chunk_size=chunk_size
         )
-        Broker.__init__(self, name="alpaca", connect_stream=connect_stream)
+        Broker.__init__(self, name="tradestation", connect_stream=connect_stream)
 
     # =========Clock functions=====================
 

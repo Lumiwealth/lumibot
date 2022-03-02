@@ -1,18 +1,15 @@
 import time
 from datetime import datetime
 
-import alpaca_trade_api as tradeapi
 import pandas as pd
-from alpaca_trade_api.common import URL
-from alpaca_trade_api.entity import Bar
 
 from lumibot.entities import Bars
 
 from .data_source import DataSource
 
 
-class AlpacaData(DataSource):
-    SOURCE = "ALPACA"
+class TradestationData(DataSource):
+    SOURCE = "TRADESTATION"
     MIN_TIMESTEP = "minute"
     TIMESTEP_MAPPING = [
         {"timestep": "minute", "representations": ["1Min", "minute"]},
@@ -26,10 +23,9 @@ class AlpacaData(DataSource):
         return pd.Timestamp(dt).isoformat()
 
     def __init__(self, config, max_workers=20, chunk_size=100, **kwargs):
-        # Alpaca authorize 200 requests per minute and per API key
         # Setting the max_workers for multithreading with a maximum
         # of 200
-        self.name = "alpaca"
+        self.name = "tradestation"
         self.max_workers = min(max_workers, 200)
 
         # When requesting data for assets for example,
@@ -41,17 +37,17 @@ class AlpacaData(DataSource):
         self.config = config
         self.api_key = config.API_KEY
         self.api_secret = config.API_SECRET
-        if hasattr(config, "ENDPOINT"):
-            self.endpoint = URL(config.ENDPOINT)
-        else:
-            self.endpoint = URL("https://paper-api.alpaca.markets")
-        if hasattr(config, "VERSION"):
-            self.version = config.VERSION
-        else:
-            self.version = "v2"
-        self.api = tradeapi.REST(
-            self.api_key, self.api_secret, self.endpoint, self.version
-        )
+        # if hasattr(config, "ENDPOINT"):
+        #     self.endpoint = URL(config.ENDPOINT)
+        # else:
+        #     self.endpoint = URL("https://paper-api.alpaca.markets")
+        # if hasattr(config, "VERSION"):
+        #     self.version = config.VERSION
+        # else:
+        #     self.version = "v2"
+        # self.api = tradeapi.REST(
+        #     self.api_key, self.api_secret, self.endpoint, self.version
+        # )
 
     def _pull_source_symbol_bars(
         self, asset, length, timestep=MIN_TIMESTEP, timeshift=None

@@ -8,7 +8,6 @@ from lumibot.tools.types import (
     check_positive,
     check_price,
     check_quantity,
-    check_crypto_quantity,
 )
 
 
@@ -226,15 +225,10 @@ class Order:
         self._error_message = None
 
         # setting the quantity
-        # todo need to adjust this, Decimal used for backtesting as crypto stock.
-        if self.asset.asset_type == 'crypto' or isinstance(quantity, Decimal):
-            self.quantity = check_crypto_quantity(
-                quantity, "Order quantity must be a positive Decimal"
-            )
-        else:
-            self.quantity = check_quantity(
-                quantity, "Order quantity must be a positive integer"
-            )
+        self.quantity = check_quantity(
+            quantity, "Order quantity must be a positive Decimal"
+        )
+
         # setting the side
         if side not in [self.BUY, self.SELL]:
             raise ValueError("Side must be either sell or buy, got %r instead" % side)

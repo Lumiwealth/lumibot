@@ -324,8 +324,10 @@ class Strategy(_Strategy):
             The asset that will be traded. If this is just a stock, then
             `str` is sufficient. However, all assets other than stocks
             must use `Asset`.
-        quantity : float
-            The number of shares or units to trade.
+        quantity : int string Decimal float (float will deprecate)
+            The number of shares or units to trade. One may enter an
+            int, a string number eg: "3.213", or a Decimal obect,
+            eg: Decimal("3.213"). Internally all will convert to Decimal.
         side : str
             Whether the order is `buy` or `sell`.
         limit_price : float

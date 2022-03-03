@@ -581,7 +581,7 @@ class Broker:
             )
             try:
                 if not isinstance(filled_quantity, Decimal):
-                    filled_quantity = int(filled_quantity)
+                    filled_quantity = Decimal(filled_quantity)
                 if filled_quantity < 0:
                     raise error
             except:

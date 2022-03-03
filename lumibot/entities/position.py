@@ -38,7 +38,7 @@ class Position:
             self.orders = orders
 
     def __repr__(self):
-        repr = "%d shares of %s" % (self.quantity, self.symbol)
+        repr = "%f shares of %s" % (self.quantity, self.symbol)
         return repr
 
     @property
@@ -47,7 +47,7 @@ class Position:
 
     @quantity.setter
     def quantity(self, value):
-        self._quantity = int(value) if not isinstance(value, Decimal) else value
+        self._quantity = Decimal(value)
 
     @property
     def hold(self):
@@ -55,13 +55,7 @@ class Position:
 
     @hold.setter
     def hold(self, value):
-        if self.asset.asset_type != 'crypto':
-            return 0
-
-        if isinstance(value, Decimal):
-            self._hold = value.quantize(Decimal(self.asset.precision))
-        elif isinstance(value, (int, float, str,)):
-            self._hold = Decimal(str(value)).quantize(Decimal(self.asset.precision))
+        self._hold = self.value_type(value)
 
     @hold.deleter
     def hold(self):
@@ -76,13 +70,7 @@ class Position:
 
     @available.setter
     def available(self, value):
-        if self.asset.asset_type != 'crypto':
-            return 0
-
-        if isinstance(value, Decimal):
-            self._available = value.quantize(Decimal(self.asset.precision))
-        elif isinstance(value, (int, float, str)):
-            self._available = Decimal(str(value)).quantize(Decimal(self.asset.precision))
+        self._available = self.value_type(value)
 
     @available.deleter
     def available(self):
@@ -90,6 +78,18 @@ class Position:
             return 0
         else:
             self._available = Decimal('0')
+
+    def value_type(self, value):
+        # Used to check the number types for hold and available.
+        if self.asset.asset_type != 'crypto':
+            return 0
+
+        default_precision = 8
+        precision = self.asset.precision if hasattr(self, "asset.precision") else default_precision
+        if isinstance(value, Decimal):
+            return value.quantize(Decimal(precision))
+        elif isinstance(value, (int, float, str,)):
+            return Decimal(str(value)).quantize(Decimal(precision))
 
     def get_selling_order(self):
         """Returns an order that can be used to sell this position.

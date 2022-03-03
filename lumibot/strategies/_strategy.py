@@ -8,11 +8,11 @@ from lumibot import LUMIBOT_DEFAULT_PYTZ
 from lumibot.backtesting import BacktestingBroker
 from lumibot.entities import Asset
 from lumibot.tools import (
+    create_tearsheet,
     day_deduplicate,
     get_risk_free_rate,
     get_symbol_returns,
     plot_returns,
-    create_tearsheet,
     stats_summary,
     to_datetime_aware,
 )
@@ -406,13 +406,16 @@ class _Strategy:
             )
 
     def tearsheet(
-            self,
-            save_tearsheet=False,
-            tearsheet_file=None,
-            show_tearsheet=False,
+        self,
+        save_tearsheet=True,
+        tearsheet_file=None,
+        show_tearsheet=True,
     ):
         if not save_tearsheet:
             return None
+
+        if show_tearsheet:
+            save_tearsheet = True
 
         if self._strategy_returns_df is None:
             logging.warning(
@@ -421,7 +424,7 @@ class _Strategy:
         else:
             strat_name = self._name if self._name != "StratName" else "Strategy"
             create_tearsheet(
-                self._strategy_returns_df[['return']],
+                self._strategy_returns_df[["return"]],
                 strat_name,
                 tearsheet_file,
                 self._benchmark_returns_df,
@@ -594,9 +597,7 @@ class _Strategy:
                 f"logs/{name + '_' if name != 'StratName' else ''}{datestring}_logs.csv"
             )
         if tearsheet_file is None:
-            tearsheet_file = (
-                f"logs/{name + '_' if name != 'StratName' else ''}{datestring}_tearsheet.html"
-            )
+            tearsheet_file = f"logs/{name + '_' if name != 'StratName' else ''}{datestring}_tearsheet.html"
         if not cls.IS_BACKTESTABLE:
             logging.warning(
                 f"Strategy {name + ' ' if name != 'StratName' else ''}cannot be "

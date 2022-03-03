@@ -91,6 +91,7 @@ class Alpaca(AlpacaData, Broker):
             self, config, max_workers=max_workers, chunk_size=chunk_size
         )
         Broker.__init__(self, name="alpaca", connect_stream=connect_stream)
+        self.market = "NASDAQ"
 
     # =========Clock functions=====================
 
@@ -210,9 +211,16 @@ class Alpaca(AlpacaData, Broker):
         """parse a broker position representation
         into a position object"""
         position = broker_position._raw
-        asset = Asset(
-            symbol=position["symbol"],
-        )
+        if position["asset_class"] == "crypto":
+            asset = Asset(
+                symbol=position["symbol"].replace("USD", ""),
+                asset_type="crypto",
+            )
+        else:
+            asset = Asset(
+                symbol=position["symbol"],
+            )
+
         quantity = position["qty"]
         position = Position(strategy, asset, quantity, orders=orders)
         return position
@@ -302,9 +310,14 @@ class Alpaca(AlpacaData, Broker):
             if order.stop_loss_limit_price:
                 kwargs["stop_loss"]["limit_price"] = order.stop_loss_limit_price
 
+        if order.asset.asset_type == "crypto":
+            trade_symbol = order.pair.replace("/", "")
+        else:
+            trade_symbol = order.asset.symbol
+
         try:
             response = self.api.submit_order(
-                order.asset.symbol, order.quantity, order.side, **kwargs
+                trade_symbol, str(order.quantity), order.side, **kwargs
             )
 
             order.set_identifier(response.id)

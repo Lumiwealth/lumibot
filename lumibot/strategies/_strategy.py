@@ -180,15 +180,36 @@ class _Strategy:
     def _set_asset_mapping(self, asset):
         if isinstance(asset, Asset):
             return asset
-        elif isinstance(asset, str):
+        elif isinstance(asset, str) and "/" not in asset:
             if asset not in self._asset_mapping:
                 self._asset_mapping[asset] = Asset(symbol=asset)
             return self._asset_mapping[asset]
+        elif (isinstance(asset, str) and "/" in asset) or (
+            isinstance(asset, tuple) and len(asset) == 2
+        ):
+            asset_tuple = []
+            if isinstance(asset, str):
+                assets = asset.split("/")
+            else:
+                assets = asset
+            for asset in assets:
+                if isinstance(asset, str) and asset not in self._asset_mapping:
+                    self._asset_mapping[asset] = Asset(symbol=asset)
+                    asset_tuple.append(self._asset_mapping[asset])
+                asset_tuple.append(asset)
+            return tuple(asset_tuple)
         else:
-            raise ValueError(
-                f"You must enter a symbol string or an asset object. You "
-                f"entered {asset}"
-            )
+            if self.broker.SOURCE != 'CCXT':
+                raise ValueError(
+                    f"You must enter a symbol string or an asset object. You "
+                    f"entered {asset}"
+                )
+            else:
+                raise ValueError(
+                    f"You must enter symbol string or an asset object. If you "
+                    f"getting a quote, you may enter a string like `ETH/BTC` or "
+                    f"asset objects in a tuple like (Asset(ETH), Asset(BTC))."
+                )
 
     def _log_strat_name(self):
         """Returns the name of the strategy as a string if not default"""
@@ -198,7 +219,7 @@ class _Strategy:
 
     def _update_portfolio_value(self):
         """updates self.portfolio_value"""
-        if not self.IS_BACKTESTABLE:
+        if not self._is_backtesting:
             return self.broker._get_balances_at_broker()[2]
 
         with self._executor.lock:
@@ -227,7 +248,7 @@ class _Strategy:
                 multiplier = (
                     asset.multiplier if asset.asset_type in ["option", "future"] else 1
                 )
-                portfolio_value += quantity * price * multiplier
+                portfolio_value += float(quantity) * price * multiplier
 
             self._portfolio_value = portfolio_value
 
@@ -237,9 +258,9 @@ class _Strategy:
         """update the self.cash"""
         with self._executor.lock:
             if side == "buy":
-                self._cash -= quantity * price * multiplier
+                self._cash -= float(quantity) * price * multiplier
             if side == "sell":
-                self._cash += quantity * price * multiplier
+                self._cash += float(quantity) * price * multiplier
             return self._cash
 
     def _update_cash_with_dividends(self):
@@ -255,7 +276,7 @@ class _Strategy:
                     if dividends_per_share is None
                     else dividends_per_share.get(asset, 0)
                 )
-                self._cash += dividend_per_share * quantity
+                self._cash += dividend_per_share * float(quantity)
             return self._cash
 
     # =============Stats functions=====================
@@ -401,8 +422,10 @@ class _Strategy:
                 "Cannot create a tearsheet because the strategy returns are missing"
             )
         else:
+            strat_name = self._name if self._name != "StratName" else "Strategy"
             create_tearsheet(
                 self._strategy_returns_df[["return"]],
+                strat_name,
                 tearsheet_file,
                 self._benchmark_returns_df,
                 self._benchmark_asset,

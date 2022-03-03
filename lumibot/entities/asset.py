@@ -7,15 +7,15 @@ from pydantic import BaseModel, validator
 
 class Asset(BaseModel, frozen=True, extra="forbid"):
     """
-    This is a base class for Assets including stocks, futures, options
-    and forex.
+    This is a base class for Assets including stocks, futures, options,
+    forex, and crypto.
 
     Parameters
     ----------
     symbol : str
         Symbol of the stock or underlying in case of futures/options.
     asset_type : str
-        Type of the asset. Asset types are only 'stock', 'option', 'future', 'forex'
+        Type of the asset. Asset types are only 'stock', 'option', 'future', 'forex', 'crypto'
         default : 'stock'
     expiration : datetime.date
         Option or futures expiration.
@@ -43,6 +43,7 @@ class Asset(BaseModel, frozen=True, extra="forbid"):
         - 'option'
         - 'future'
         - 'forex'
+        - 'crypto'
     expiration : datetime.date (required if asset_type is 'option' or 'future')
         Contract expiration dates for futures and options.
     strike : float (required if asset_type is 'option')
@@ -52,6 +53,7 @@ class Asset(BaseModel, frozen=True, extra="forbid"):
     multiplier : int  (required if asset_type is 'forex')
         Contract leverage over the underlying.
     currency : string (required if asset_type is 'forex')
+    precision : str (required if asset_type is 'crypto')
         Conversion currency.
     _asset_types : list of str
         Acceptable asset types.
@@ -101,7 +103,8 @@ class Asset(BaseModel, frozen=True, extra="forbid"):
     right: Optional[str] = None
     multiplier: int = 1
     currency: Optional[str] = "USD"
-    _asset_types: list = ["stock", "option", "future", "forex"]
+    precision: Optional[str] = None
+    _asset_types: list = ["stock", "option", "future", "forex", "crypto"]
     _right: list = ["CALL", "PUT"]
 
     def __repr__(self):
@@ -119,6 +122,16 @@ class Asset(BaseModel, frozen=True, extra="forbid"):
             return f"{self.symbol}, {self.expiration} {self.strike} {self.right}"
         else:
             return f"{self.symbol}"
+
+    def __eq__(self, other):
+        return (
+            self.symbol == other.symbol
+            and self.asset_type == other.asset_type
+            and self.expiration == other.expiration
+            and self.strike == other.strike
+            and self.right == other.right
+            and self.multiplier == other.multiplier
+        )
 
     @validator("asset_type")
     def asset_type_must_be_one_of(cls, v):
@@ -139,7 +152,6 @@ class Asset(BaseModel, frozen=True, extra="forbid"):
                 f"`right` is {v} must be one of {', '.join(cls._right)}, upper case."
             )
         return v
-
 
 class AssetsMapping(UserDict):
     def __init__(self, mapping):

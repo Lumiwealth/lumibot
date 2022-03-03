@@ -313,6 +313,8 @@ class Strategy(_Strategy):
         trail_percent=None,
         position_filled=False,
         exchange="SMART",
+        quote=None,
+        pair=None,
     ):
         """Creates a new order for this specific strategy. Once created, an order must still be submitted.
 
@@ -322,8 +324,10 @@ class Strategy(_Strategy):
             The asset that will be traded. If this is just a stock, then
             `str` is sufficient. However, all assets other than stocks
             must use `Asset`.
-        quantity : float
-            The number of shares or units to trade.
+        quantity : int string Decimal float (float will deprecate)
+            The number of shares or units to trade. One may enter an
+            int, a string number eg: "3.213", or a Decimal obect,
+            eg: Decimal("3.213"). Internally all will convert to Decimal.
         side : str
             Whether the order is `buy` or `sell`.
         limit_price : float
@@ -337,14 +341,12 @@ class Strategy(_Strategy):
             price is attained or penetrated.
         time_in_force : str
             Amount of time the order is in force. Order types include:
-                - `day` Orders valid for the remainder of the day.
+                - 'day' Orders valid for the remainder of the day.
                 - 'gtc' Good until cancelled.
                 - 'gtd' Good until date.
             (Default: 'day')
         good_till_date : datetime.datetime
             This is the time order is valid for Good Though Date orders.
-        time_in_force : str
-            Amount of time the order is in force. Default: 'day'
         take_profit_price : float
             Limit price used for bracket orders and one cancels other
             orders.
@@ -369,6 +371,10 @@ class Strategy(_Strategy):
         exchange : str
             The exchange where the order will be placed.
             Default = `SMART`
+        quote : Asset
+            This is the currency that the main coin being bought or sold
+            will exchange in. For example, if trading `BTC/ETH` this
+            parameter will be 'ETH' (as an Asset object).
 
         Returns
         -------
@@ -509,6 +515,25 @@ class Strategy(_Strategy):
         >>>            )
         >>> self.submit_order(order)
 
+        >>> # For a cryptocurrency order with a market price
+        >>> base = Asset("BTC", asset_type="crypto")
+        >>> quote = Asset("USD", asset_type="crypto")
+        >>> order = self.create_order(base, 0.05, "buy", quote=quote)
+        >>> self.submit_order(order)
+
+        >>> # For a cryptocurrency the base and the quote may be
+        >>> # combined as a tuple for all order types.
+        >>> base = Asset("BTC", asset_type="crypto")
+        >>> quote = Asset("USD", asset_type="crypto")
+        >>> order = self.create_order((base, quote), 0.05, "buy")
+        >>> self.submit_order(order)
+
+        >>> # For a cryptocurrency the base and the quote may be
+        >>> # combined as a tuple for all order types.
+        >>> base = Asset("BTC", asset_type="crypto")
+        >>> quote = Asset("USD", asset_type="crypto")
+        >>> order = self.create_order(base, 0.05, "buy", limit_price=41000,  quote=quote)
+        >>> self.submit_order(order)
         """
         asset = self._set_asset_mapping(asset)
         order = Order(
@@ -526,9 +551,11 @@ class Strategy(_Strategy):
             trail_price=trail_price,
             trail_percent=trail_percent,
             exchange=exchange,
-            sec_type=asset.asset_type,
+            sec_type=asset.asset_type if isinstance(asset, Asset) else asset[0].asset_type,
             position_filled=position_filled,
             date_created=self.get_datetime(),
+            quote=quote,
+            pair=pair
         )
         return order
 
@@ -745,6 +772,8 @@ class Strategy(_Strategy):
         >>> self.await_market_to_open()
 
         """
+        if self.broker.market == "24/7":
+            return None
         if timedelta is None:
             timedelta = self.minutes_before_opening
         return self.broker._await_market_to_open(timedelta)
@@ -771,6 +800,8 @@ class Strategy(_Strategy):
         >>> # Sleep until market closes (on_trading_iteration will stop running until the market closes)
         >>> self.await_market_to_close()
         """
+        if hasattr(self.broker, "market") and self.broker.market == "24/7":
+            return None
         if timedelta is None:
             timedelta = self.minutes_before_closing
         return self.broker._await_market_to_close(timedelta)
@@ -2160,7 +2191,12 @@ class Strategy(_Strategy):
         ----------
         asset : str or Asset
             The symbol string representation (e.g AAPL, GOOG, ...) or asset
-            object.
+            object. Crypto currencies must specify the market. Use a string
+            with the two coins as follows:
+                `ETH/BTC`
+            Alternatively for cryptos, one can use a tuple with the two asset
+            objects, numerator first, denominator second.
+                `(Asset(ETH), Asset(BTC))`
         length : int
             The number of rows (number of timesteps)
         timestep : str
@@ -2229,7 +2265,12 @@ class Strategy(_Strategy):
         ----------
         assets : list(str/asset)
             The symbol string representation (e.g AAPL, GOOG, ...) or asset
-            objects.
+            objects. Crypto currencies must specify the market. Use a list
+            of string with the two coins as follows:
+                `ETH/BTC`
+            Alternatively for cryptos, one can use a tuple with the two asset
+            objects, numerator first, denominator second.
+                `(Asset(ETH), Asset(BTC))`
         length : int
             The number of rows (number of timesteps)
         timestep : str

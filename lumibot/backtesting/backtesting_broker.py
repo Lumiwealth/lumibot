@@ -23,10 +23,12 @@ class BacktestingBroker(Broker):
         # Calling init methods
         self.name = "backtesting"
         self.max_workers = max_workers
+        self.market = "NASDAQ"
+
 
         if not data_source.IS_BACKTESTING_DATA_SOURCE:
             raise ValueError(
-                "object %r is not a backteesting data_source" % data_source
+                "object %r is not a backtesting data_source" % data_source
             )
         self._data_source = data_source
         if data_source.SOURCE != "PANDAS":

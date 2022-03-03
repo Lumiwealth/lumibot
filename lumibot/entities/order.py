@@ -1,9 +1,14 @@
 import logging
 from collections import namedtuple
+from decimal import Decimal
 from threading import Event
 
 import lumibot.entities as entities
-from lumibot.tools.types import check_positive, check_price, check_quantity
+from lumibot.tools.types import (
+    check_positive,
+    check_price,
+    check_quantity,
+)
 
 
 class Order:
@@ -26,11 +31,13 @@ class Order:
         trail_price=None,
         trail_percent=None,
         time_in_force="day",
-        good_till_date= None,
+        good_till_date=None,
         sec_type="STK",
         exchange="SMART",
         position_filled=False,
-        date_created=None
+        quote=None,
+        pair=None,
+        date_created=None,
     ):
         """Order class for managing individual orders.
 
@@ -50,8 +57,15 @@ class Order:
             The asset that will be traded. While it is possible to
             create a string asset when trading stocks in the strategy
             script, all string stocks are converted to `Asset` inside
-            Lumibot before creating the `Order` object. Therefore all
+            Lumibot before creating the `Order` object. Therefore, all
             `Order` objects will only have an `Asset` object.
+
+            If trading cryptocurrency, this asset will be the base
+            of the trading pair. For example: if trading `BTC/ETH`, then
+            asset will be for `BTC`.
+
+            For cryptocurrencies, it is also possible to enter this as
+            a tuple containing `(base, quote)
         quantity : float
             The number of shares or units to trade.
         side : str
@@ -65,6 +79,10 @@ class Order:
             A Stop order is an instruction to submit a buy or sell
             market order if and when the user-specified stop trigger
             price is attained or penetrated.
+
+            In cryptocurrencies, if the order has both a `stop_price`
+            and a `limit_price`, then once the stop price is met, a
+            limit order will become active with the `limit_price'.
         time_in_force : str
             Amount of time the order is in force. Order types include:
                 - `day` Orders valid for the remainder of the day.
@@ -98,7 +116,11 @@ class Order:
         exchange : str
             The exchange where the order will be placed.
             Default = `SMART`
-
+        quote : Asset
+            This is the base cryptocurrency. For example, if trading
+            `BTC/ETH` this parameter will be 'ETH' (as an Asset object).
+        pair : str
+            A string representation of the trading pair. eg: `BTC/USD`.
         Examples
         --------
         >>> from lumibot.entities import Asset
@@ -148,7 +170,14 @@ class Order:
 
         # Initialization default values
         self.strategy = strategy
-        self.asset = asset
+        # it is possible for crypto currencies to arrive as a tuple of
+        # two assets.
+        if isinstance(asset, tuple) and asset[0].asset_type == "crypto":
+            self.asset = asset[0]
+            self.quote = asset[1]
+        else:
+            self.asset = asset
+            self.quote = quote
         self.symbol = self.asset.symbol
         self.identifier = None
         self.status = "unprocessed"
@@ -175,6 +204,13 @@ class Order:
         self.exchange = exchange
         self.sec_type = sec_type
 
+        # Cryptocurrency market.
+        self.pair = (
+            f"{self.asset.symbol}/{self.quote.symbol}"
+            if self.asset.asset_type == "crypto"
+            else pair
+        )
+
         # setting events
         self._new_event = Event()
         self._canceled_event = Event()
@@ -190,7 +226,7 @@ class Order:
 
         # setting the quantity
         self.quantity = check_quantity(
-            quantity, "Order quantity must be a positive integer"
+            quantity, "Order quantity must be a positive Decimal"
         )
 
         # setting the side
@@ -291,14 +327,16 @@ class Order:
 
     def __repr__(self):
         self.rep_asset = self.symbol
-        if self.asset.asset_type == "future":
+        if self.asset.asset_type == "crypto":
+            self.rep_asset = f"{self.pair}"
+        elif self.asset.asset_type == "future":
             self.rep_asset = f"{self.symbol} {self.asset.expiration}"
         elif self.asset.asset_type == "option":
             self.rep_asset = (
                 f"{self.symbol} {self.asset.expiration} "
                 f"{self.asset.right} {self.asset.strike}"
             )
-        repr = "%s order of | %d %s %s |" % (
+        repr = "%s order of | %f %s %s |" % (
             self.type,
             self.quantity,
             self.rep_asset,

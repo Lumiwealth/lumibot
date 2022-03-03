@@ -153,7 +153,7 @@ if __name__ == "__main__":
             stats_file=stats_file,
             config=config,
             logfile=logfile,
-            show_plot=False,
+            show_plot=True,
             **kwargs,
         )
         toc = perf_counter()

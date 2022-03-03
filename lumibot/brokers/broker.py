@@ -2,6 +2,7 @@ import logging
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
+from decimal import Decimal
 from functools import wraps
 from queue import Queue
 from threading import RLock, Thread
@@ -45,7 +46,6 @@ class Broker:
             self._orders_queue = Queue()
             self._orders_thread = None
             self._start_orders_thread()
-
 
         # setting the stream object
         self.stream = self._get_stream_object()
@@ -580,7 +580,8 @@ class Broker:
                 % filled_quantity
             )
             try:
-                filled_quantity = int(filled_quantity)
+                if not isinstance(filled_quantity, Decimal):
+                    filled_quantity = Decimal(filled_quantity)
                 if filled_quantity < 0:
                     raise error
             except:

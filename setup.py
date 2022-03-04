@@ -49,6 +49,7 @@ setuptools.setup(
         "pytest",
         "scipy",
         "quantstats",
+        "ccxt",
     ],
     classifiers=[
         "Programming Language :: Python :: 3",

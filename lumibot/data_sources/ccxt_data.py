@@ -40,7 +40,7 @@ class CcxtData(DataSource):
         )
 
         self.api = exchange_class(api_keys)
-        self.api.set_sandbox_mode(True)
+        self.api.set_sandbox_mode(True if 'sandbox' not in api_keys else api_keys['sandbox'])
         self.api.load_markets()
         # Recommended two or less api calls per second.
         self.api.enableRateLimit = True

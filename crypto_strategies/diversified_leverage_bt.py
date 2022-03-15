@@ -146,7 +146,7 @@ if __name__ == "__main__":
     # Choose your budget and log file locations
     budget = 1000000
     logfile = "logs/test.log"
-    backtesting_start = datetime.datetime(2020, 1, 1)  # 2018
+    backtesting_start = datetime.datetime(2021, 3, 1)  # 2018
     backtesting_end = datetime.datetime(2021, 5, 1)
     benchmark_asset = "BTC-USD"
 

@@ -49,7 +49,7 @@ class Momentum(Strategy):
         self.parameters["length"] = length
 
         self.sleeptime = 0
-        self.set_market("NASDAQ")
+        self.set_market("24/7")
         self.momentum_is_positive = None
 
     def on_trading_iteration(self):
@@ -121,6 +121,7 @@ def run(live=False, length=34):
 
 
 if __name__ == "__main__":
-    lengths = [30, 40,]  # 50, 60, 70, 80]
+
+    lengths = [40]  # 50, 60, 70, 80]
     for length in lengths:
-        run(live=False, length=length)
+        run(live=True, length=length)

@@ -44,7 +44,7 @@ class MovingAverage(Strategy):
 
         # There is only one trading operation per day
         # no need to sleep between iterations
-        self.sleeptime = "10S"
+        self.sleeptime = "30S"
 
         # Initializing the portfolio variable with the assets and proportions we want to own
         self.initialized = False
@@ -64,9 +64,10 @@ class MovingAverage(Strategy):
         bars = self.get_symbol_bars(
             (self.parameters["base"], self.parameters["quote"]),
             self.parameters["slow"] + 100,
-            timestep="day",
+            timestep="minute",
         )
         df_res = bars.df.dropna()
+
         df = df_res.copy().dropna()
         df.ta.macd(
             fast=self.parameters["fast"],
@@ -77,9 +78,10 @@ class MovingAverage(Strategy):
         df = df.dropna().copy()
         df["hpos"] = np.where(df["MACD_S"] > 0, 1, 0)
         df["macd_change"] = df["hpos"] - df["hpos"].shift()
+        self.log_message(f"Lastest data is: \n{df.iloc[-1]}")
         # If `1` then buy, if `-1` then sell, if 0, then nothing.
         signal = int(df["macd_change"][-1])
-
+        self.log_message(f"Trading signal is {signal}")
         if not self.traded and signal == 1:
             side = "buy"
         elif self.traded and signal == -1:

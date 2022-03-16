@@ -43,7 +43,9 @@ class Position:
 
     @property
     def quantity(self):
-        return self._quantity
+        if self.asset.asset_type == "crypto":
+            return self._quantity
+        return int(self._quantity)
 
     @quantity.setter
     def quantity(self, value):

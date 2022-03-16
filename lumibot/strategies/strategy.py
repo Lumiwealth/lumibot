@@ -1,4 +1,5 @@
 import datetime
+from decimal import Decimal
 import logging
 
 import pandas as pd
@@ -324,7 +325,7 @@ class Strategy(_Strategy):
             The asset that will be traded. If this is just a stock, then
             `str` is sufficient. However, all assets other than stocks
             must use `Asset`.
-        quantity : int string Decimal float (float will deprecate)
+        quantity : int string Decimal (float will deprecate)
             The number of shares or units to trade. One may enter an
             int, a string number eg: "3.213", or a Decimal obect,
             eg: Decimal("3.213"). Internally all will convert to Decimal.
@@ -1489,7 +1490,7 @@ class Strategy(_Strategy):
             cancel_open_orders=cancel_open_orders,
         )
 
-    def get_last_price(self, asset):
+    def get_last_price(self, asset, quote=None):
         """Takes an asset asset and returns the last known price
 
         Makes an active call to the market to retrieve the last price.
@@ -1515,6 +1516,11 @@ class Strategy(_Strategy):
 
         """
         asset = self._set_asset_mapping(asset)
+
+        # Check for crypto quote, convert to tuple
+        if isinstance(asset, Asset) and asset.asset_type == "crypto" and isinstance(quote, Asset):
+            asset = (asset, quote)
+
         try:
             return self.broker.get_last_price(asset)
         except Exception as e:

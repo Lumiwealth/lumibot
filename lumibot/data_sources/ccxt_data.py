@@ -111,8 +111,8 @@ class CcxtData(DataSource):
                 symbol, freq, since=curr_start, limit=loop_limit, params={}
             )
 
-            if len(candles) == 0:
-                continue
+            # if len(candles) == 0: # todo check this
+            #     return None
 
             df = pd.DataFrame(
                 candles, columns=["datetime", "open", "high", "low", "close", "volume"]

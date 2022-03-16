@@ -79,17 +79,19 @@ class Ccxt(CcxtData, Broker):
     # =========Positions functions==================
     def _get_balances_at_broker(self):
         """Get's the current actual cash, positions value, and total
-        liquidation value from Alpaca.
+        liquidation value from ccxt.
 
-        This method will get the current actual values from Alpaca
+        This method will get the current actual values from ccxt broker
         for the actual cash, positions value, and total liquidation.
+
+        Best attempts will be made to use USD as a base currency.
 
         Returns
         -------
         tuple of float
             (cash, positions_value, total_liquidation_value)
         """
-        base_currency = "USD"
+        base_currency = ["USD", "USDC", "USDT"]
         total_cash_value = 0
         positions_value = 0
         # Get the market values for each pair held.
@@ -98,20 +100,39 @@ class Ccxt(CcxtData, Broker):
             currency = currency_info["currency"]
             # if currency != 'BTC':
             #     continue
-            market = f"{currency}/{base_currency}"
-            try:
-                assert market in self.api.markets
-            except AssertionError:
+
+            # Check for three USD markets.
+            for bc in base_currency:
+                market = f"{currency}/{bc}"
+                if market not in self.api.markets:
+                    market = None
+                    continue
+                else:
+                    break
+            if market is None:
                 logging.error(f"Market {market} not found in ccxt.markets")
                 continue
+
             precision_amount = self.api.markets[market]["precision"]["amount"]
             precision_price = self.api.markets[market]["precision"]["price"]
             units = Decimal(currency_info["balance"]).quantize(
                 Decimal(str(precision_amount))
             )
-            price = Decimal(self.api.fetch_ticker(market)["last"]).quantize(
-                Decimal(str(precision_price))
-            )
+
+            attempts = 0
+            max_attempts = 3
+            while attempts < max_attempts:
+                last_price = self.api.fetch_ticker(market)["last"]
+                if last_price is None:
+                    attempts += 1
+                else:
+                    attempts = max_attempts
+
+            if last_price is None:
+                last_price = 0
+
+            price = Decimal(last_price).quantize(Decimal(str(precision_price)))
+
             value = units * price
             positions_value += value
 

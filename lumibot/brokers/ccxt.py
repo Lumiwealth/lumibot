@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 from decimal import Decimal, getcontext
 import logging
 import traceback
@@ -25,6 +26,8 @@ class Ccxt(CcxtData, Broker):
         Broker.__init__(self, name="ccxt", connect_stream=connect_stream)
 
         self.market = "24/7"
+        self.fetch_open_orders_last_request_time = None
+        self.binance_all_orders_rate_limit = 5
 
     # =========Clock functions=====================
 
@@ -123,15 +126,17 @@ class Ccxt(CcxtData, Broker):
             precision_amount = self.api.markets[market]["precision"]["amount"]
             precision_price = self.api.markets[market]["precision"]["price"]
 
-            if self.api.exchangeId == 'binance':
-                precision_amount = 10**-precision_amount
-                precision_price = 10**-precision_price
+            if self.api.exchangeId == "binance":
+                precision_amount = 10 ** -precision_amount
+                precision_price = 10 ** -precision_price
 
             # Binance only have `free` and `locked`.
             if self.api.exchangeId == "binance":
-                total_balance = Decimal(currency_info["free"]) + Decimal(currency_info["locked"])
+                total_balance = Decimal(currency_info["free"]) + Decimal(
+                    currency_info["locked"]
+                )
             else:
-                total_balance = currency_info['balance']
+                total_balance = currency_info["balance"]
 
             units = Decimal(total_balance).quantize(Decimal(str(precision_amount)))
 
@@ -161,14 +166,14 @@ class Ccxt(CcxtData, Broker):
         """parse a broker position representation
         into a position object"""
 
-        if self.api.exchangeId == 'binance':
-            symbol = position['asset']
-            precision = str(10**-self.api.currencies["BTC"]["precision"])
+        if self.api.exchangeId == "binance":
+            symbol = position["asset"]
+            precision = str(10 ** -self.api.currencies["BTC"]["precision"])
             quantity = Decimal(position["free"]) + Decimal(position["locked"])
             hold = position["locked"]
             available = position["free"]
         else:
-            symbol = position['currency']
+            symbol = position["currency"]
             precision = str(self.api.currencies["BTC"]["precision"])
             quantity = Decimal(position["balance"])
             hold = position["hold"]
@@ -194,8 +199,8 @@ class Ccxt(CcxtData, Broker):
     def _pull_broker_positions(self):
         """Get the broker representation of all positions"""
         response = self.api.fetch_balance()
-        if self.api.exchangeId == 'binance':
-            return response["info"]['balances']
+        if self.api.exchangeId == "binance":
+            return response["info"]["balances"]
         else:
             return response["info"]
 
@@ -237,6 +242,24 @@ class Ccxt(CcxtData, Broker):
 
     def _pull_broker_open_orders(self):
         """Get the broker open orders"""
+        # For binance api rate limit on calling all orders at once.
+        if self.api.exchangeId == "binance":
+            self.api.options["warnOnFetchOpenOrdersWithoutSymbol"] = False
+            if self.fetch_open_orders_last_request_time is not None:
+                net_rate_limit = (
+                    self.binance_all_orders_rate_limit
+                    - (
+                        datetime.datetime.now()
+                        - self.fetch_open_orders_last_request_time
+                    ).seconds
+                )
+                if net_rate_limit > 0:
+                    logging.info(
+                        f"Binance all order rate limit is being exceeded, bot sleeping for "
+                        f"{net_rate_limit} seconds."
+                    )
+                    self.sleep(net_rate_limit)
+            self.fetch_open_orders_last_request_time = datetime.datetime.now()
         orders = self.api.fetch_open_orders()
         return orders
 
@@ -418,8 +441,6 @@ class Ccxt(CcxtData, Broker):
 
     def cancel_order(self, order):
         """Cancel an order"""
-        response = self.api.cancel_order(
-            order.identifier, order.symbol
-        )
+        response = self.api.cancel_order(order.identifier, order.symbol)
         if order.identifier == response:
             order.set_canceled()

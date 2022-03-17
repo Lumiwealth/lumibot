@@ -160,14 +160,25 @@ class Ccxt(CcxtData, Broker):
     def _parse_broker_position(self, position, strategy, orders=None):
         """parse a broker position representation
         into a position object"""
+
+        if self.api.exchangeId == 'binance':
+            symbol = position['asset']
+            precision = str(10**-self.api.currencies["BTC"]["precision"])
+            quantity = Decimal(position["free"]) + Decimal(position["locked"])
+            hold = position["locked"]
+            available = position["free"]
+        else:
+            symbol = position['currency']
+            precision = str(self.api.currencies["BTC"]["precision"])
+            quantity = Decimal(position["balance"])
+            hold = position["hold"]
+            available = position["available"]
+
         asset = Asset(
-            symbol=position["currency"],
+            symbol=symbol,
             asset_type="crypto",
-            precision=str(self.api.currencies["BTC"]["precision"]),
+            precision=precision,
         )
-        quantity = Decimal(position["balance"])
-        hold = position["hold"]
-        available = position["available"]
 
         position = Position(
             strategy, asset, quantity, hold=hold, available=available, orders=orders
@@ -183,7 +194,10 @@ class Ccxt(CcxtData, Broker):
     def _pull_broker_positions(self):
         """Get the broker representation of all positions"""
         response = self.api.fetch_balance()
-        return response["info"]
+        if self.api.exchangeId == 'binance':
+            return response["info"]['balances']
+        else:
+            return response["info"]
 
     # =======Orders and assets functions=========
     def _parse_broker_order(self, response, strategy):

@@ -1,4 +1,5 @@
 import datetime
+from decimal import Decimal
 import pandas as pd
 from pandas import Timestamp
 from pathlib import Path
@@ -123,29 +124,66 @@ def test__get_balances_at_broker(
     assert net_liquidation_value == expected_result
 
 
-# @pytest.mark.parametrize(
-#     "symbol, qty", [("MSFT", 9), ("GM", 100), ("FB", 500), ("TSLA", 1)]
-# )
-# def test__parse_broker_position(symbol, qty):
-#     class BPosition:
-#         _raw = {"symbol": symbol, "qty": str(qty)}
-#
-#     bposition = BPosition()
-#
-#     position = Position(
-#         "AlpacaTest",
-#         Asset(symbol=symbol, asset_type="stock"),
-#         quantity=qty,
-#         orders=None,
-#     )
-#
-#     result = alpaca._parse_broker_position(bposition, "AlpacaTest", orders=None)
-#     assert result.asset == position.asset
-#     assert result.quantity == position.quantity
-#     assert result.asset.symbol == position.asset.symbol
-#     assert result.strategy == position.strategy
-#
-#
+vars = "broker, exchangeId, position, precision"
+params = [
+    (
+        "coinbase",
+        "coinbsepro",
+        {
+            "currency": "BTC",
+            "balance": 1000,
+            "hold": 0,
+            "available": 1000,
+        },
+        "0.00000001",
+    ),
+(
+        "binance",
+        "binance",
+        {
+            "asset": "BTC",
+            "locked": 0,
+            "free": 1000,
+        },
+        "8",
+    )
+]
+
+@pytest.mark.parametrize(vars, params)
+def test__parse_broker_position(broker, exchangeId, position, precision, monkeypatch):
+
+    monkeypatch.setattr(ccxt.api, "exchangeId", exchangeId)
+
+    if exchangeId == 'binance':
+        symbol = position['asset']
+        precision = str(10**-Decimal(precision))
+        quantity = Decimal(position["free"]) + Decimal(position["locked"])
+        hold = position["locked"]
+        available = position["free"]
+    else:
+        symbol = position['currency']
+        quantity = Decimal(position["balance"])
+        hold = position["hold"]
+        available = position["available"]
+
+    expected = Position(
+        "CcxtTest",
+        Asset(symbol=symbol, asset_type="crypto", precision=precision),
+        quantity=quantity,
+        hold=hold,
+        available=available,
+        orders=None,
+    )
+
+    result = ccxt._parse_broker_position(position, "CcxtTest", orders=None)
+    assert result.asset == expected.asset
+    assert result.quantity == expected.quantity
+    assert result.asset.symbol == expected.asset.symbol
+    assert result.strategy == expected.strategy
+    assert result.available == expected.available
+    assert result.hold == expected.hold
+
+
 # @pytest.mark.parametrize("type", [("us_equity",), ("options",), ("USD",)])
 # def test_map_asset_type(type):
 #     try:

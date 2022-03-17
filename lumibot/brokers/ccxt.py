@@ -96,10 +96,17 @@ class Ccxt(CcxtData, Broker):
         positions_value = 0
         # Get the market values for each pair held.
         balances = self.api.fetch_balance()
-        for currency_info in balances["info"]:
-            currency = currency_info["currency"]
-            # if currency != 'BTC':
-            #     continue
+
+        # Broker may return different formatting for `fetch_balance()`
+        if self.api.exchangeId == "binance":
+            balances_info = balances["info"]["balances"]
+            currency_tag = "asset"
+        else:
+            balances_info = balances["info"]
+            currency_tag = "currency"
+
+        for currency_info in balances_info:
+            currency = currency_info[currency_tag]
 
             # Check for three USD markets.
             for bc in base_currency:
@@ -115,9 +122,18 @@ class Ccxt(CcxtData, Broker):
 
             precision_amount = self.api.markets[market]["precision"]["amount"]
             precision_price = self.api.markets[market]["precision"]["price"]
-            units = Decimal(currency_info["balance"]).quantize(
-                Decimal(str(precision_amount))
-            )
+
+            if self.api.exchangeId == 'binance':
+                precision_amount = 10**-precision_amount
+                precision_price = 10**-precision_price
+
+            # Binance only have `free` and `locked`.
+            if self.api.exchangeId == "binance":
+                total_balance = Decimal(currency_info["free"]) + Decimal(currency_info["locked"])
+            else:
+                total_balance = currency_info['balance']
+
+            units = Decimal(total_balance).quantize(Decimal(str(precision_amount)))
 
             attempts = 0
             max_attempts = 3
@@ -388,6 +404,8 @@ class Ccxt(CcxtData, Broker):
 
     def cancel_order(self, order):
         """Cancel an order"""
-        response = self.api.cancel_order(order.identifier)
+        response = self.api.cancel_order(
+            order.identifier, order.symbol
+        )
         if order.identifier == response:
             order.set_canceled()

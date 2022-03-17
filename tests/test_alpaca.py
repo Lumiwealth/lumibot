@@ -81,7 +81,7 @@ def test__get_balance_at_broker(monkeypatch):
 )
 def test__parse_broker_position(symbol, qty):
     class BPosition:
-        _raw = {"symbol": symbol, "qty": str(qty)}
+        _raw = {"symbol": symbol, "qty": str(qty), "asset_class": "us_equity"}
 
     bposition = BPosition()
 

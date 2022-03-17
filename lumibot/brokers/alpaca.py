@@ -214,7 +214,7 @@ class Alpaca(AlpacaData, Broker):
         if position["asset_class"] == "crypto":
             asset = Asset(
                 symbol=position["symbol"].replace("USD", ""),
-                asset_type="crypto",
+                # asset_type="crypto",
             )
         else:
             asset = Asset(

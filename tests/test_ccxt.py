@@ -11,17 +11,16 @@ from lumibot.entities.bars import Bars
 from lumibot.entities.order import Order
 from lumibot.entities.position import Position
 
-exchange_id = 'binance'
+exchange_id = "binance"
 ccxt = Ccxt(CcxtConfig.EXCHANGE_KEYS[exchange_id])
 
 
-# def test_get_timestamp(monkeypatch):
-#     def mock_clock():
-#             return 1639702229554235
-#
-#     monkeypatch.setattr(ccxt.api, "microseconds", mock_clock)
-#     assert ccxt.get_timestamp() == 1639702229.554235
+def test_get_timestamp(monkeypatch):
+    def mock_clock():
+        return 1639702229554235
 
+    monkeypatch.setattr(ccxt.api, "microseconds", mock_clock)
+    assert ccxt.get_timestamp() == 1639702229.554235
 
 def test_is_market_open(monkeypatch):
     assert ccxt.is_market_open() == None
@@ -32,15 +31,61 @@ def test_get_time_to_open():
 def test_get_time_to_close():
     assert ccxt.get_time_to_close() == None
 
-# def test__get_cash_balance_at_broker(monkeypatch):
-#     def mock_cash():
-#         class Account:
-#             _raw = dict(cash="123456.78")
-#
-#         return Account()
-#
-#     monkeypatch.setattr(alpaca.api, "get_account", mock_cash)
-#     assert alpaca._get_cash_balance_at_broker() == 123456.78
+
+vars = "broker, exchangeId, expected_result, balances, markets, fetch_ticker"
+params = [
+    (
+        "coinbase",
+        "coinbasepro",
+        1000,
+        {
+            "info": [
+                {
+                    "currency": "BTC",
+                    "balance": "1.00000001",
+                    "hold": "0",
+                    "available": "1.00000001",
+                },
+                {
+                    "currency": "ETH",
+                    "balance": "9999.99999999",
+                    "hold": "0",
+                    "available": "9999.99999999",
+                },
+            ]
+        },
+        {
+            "BTC/USD": {"precision": {"amount": 0.00000001, "price": 0.01}},
+            "ETH/USD": {"precision": {"amount": 0.00000001, "price": 0.01}},
+        },
+        {
+            "BTC/USD": {"last": 40000},
+            "ETH/USD": {"last": 3000},
+        },
+    ),
+]
+
+
+@pytest.mark.parametrize(vars, params)
+def test__get_balances_at_broker(
+    broker, exchangeId, expected_result, balances, markets, fetch_ticker, monkeypatch
+):
+
+    def mock_fetch_balance():
+        return balances
+
+    def mock_fetch_ticker(market):
+        return fetch_ticker[market]
+
+    monkeypatch.setattr(ccxt.api, "exchangeId", exchangeId)
+    monkeypatch.setattr(ccxt.api, "fetch_balance", mock_fetch_balance)
+    monkeypatch.setattr(ccxt.api, "markets", markets)
+    monkeypatch.setattr(ccxt.api, "fetch_ticker", mock_fetch_ticker)
+
+    total_cash_value, gross_positions_value, net_liquidation_value =  ccxt._get_balances_at_broker()
+    assert total_cash_value == 0
+    assert gross_positions_value == 30040000.00037
+    assert net_liquidation_value == 30040000.00037
 
 
 # @pytest.mark.parametrize(

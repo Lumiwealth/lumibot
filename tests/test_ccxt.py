@@ -22,11 +22,14 @@ def test_get_timestamp(monkeypatch):
     monkeypatch.setattr(ccxt.api, "microseconds", mock_clock)
     assert ccxt.get_timestamp() == 1639702229.554235
 
+
 def test_is_market_open(monkeypatch):
     assert ccxt.is_market_open() == None
 
+
 def test_get_time_to_open():
     assert ccxt.get_time_to_open() == None
+
 
 def test_get_time_to_close():
     assert ccxt.get_time_to_close() == None
@@ -37,7 +40,7 @@ params = [
     (
         "coinbase",
         "coinbasepro",
-        1000,
+        30040000.00037,
         {
             "info": [
                 {
@@ -63,6 +66,35 @@ params = [
             "ETH/USD": {"last": 3000},
         },
     ),
+    (
+        "binance",
+        "binance",
+        30040000.00037,
+        {
+            "info": {
+                "balances": [
+                    {
+                        "asset": "BTC",
+                        "locked": "0",
+                        "free": "1.00000001",
+                    },
+                    {
+                        "asset": "ETH",
+                        "locked": "0",
+                        "free": "9999.99999999",
+                    },
+                ],
+            },
+        },
+        {
+            "BTC/USD": {"precision": {"amount": 0.00000001, "price": 0.01}},
+            "ETH/USD": {"precision": {"amount": 0.00000001, "price": 0.01}},
+        },
+        {
+            "BTC/USD": {"last": 40000},
+            "ETH/USD": {"last": 3000},
+        },
+    ),
 ]
 
 
@@ -70,7 +102,6 @@ params = [
 def test__get_balances_at_broker(
     broker, exchangeId, expected_result, balances, markets, fetch_ticker, monkeypatch
 ):
-
     def mock_fetch_balance():
         return balances
 
@@ -82,10 +113,14 @@ def test__get_balances_at_broker(
     monkeypatch.setattr(ccxt.api, "markets", markets)
     monkeypatch.setattr(ccxt.api, "fetch_ticker", mock_fetch_ticker)
 
-    total_cash_value, gross_positions_value, net_liquidation_value =  ccxt._get_balances_at_broker()
+    (
+        total_cash_value,
+        gross_positions_value,
+        net_liquidation_value,
+    ) = ccxt._get_balances_at_broker()
     assert total_cash_value == 0
-    assert gross_positions_value == 30040000.00037
-    assert net_liquidation_value == 30040000.00037
+    assert gross_positions_value == expected_result
+    assert net_liquidation_value == expected_result
 
 
 # @pytest.mark.parametrize(

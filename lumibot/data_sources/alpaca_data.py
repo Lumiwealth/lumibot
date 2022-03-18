@@ -1,11 +1,11 @@
 import time
 from datetime import datetime
-
+import pytz
 import alpaca_trade_api as tradeapi
 import pandas as pd
 from alpaca_trade_api.common import URL
 from alpaca_trade_api.entity import Bar
-
+from alpaca_trade_api.rest import TimeFrame
 from lumibot.entities import Bars
 
 from .data_source import DataSource
@@ -15,8 +15,9 @@ class AlpacaData(DataSource):
     SOURCE = "ALPACA"
     MIN_TIMESTEP = "minute"
     TIMESTEP_MAPPING = [
-        {"timestep": "minute", "representations": ["1Min", "minute"]},
-        {"timestep": "day", "representations": ["1D", "day"]},
+        {"timestep": "minute", "representations": [
+            "1Min", "minute", TimeFrame.Minute]},
+        {"timestep": "day", "representations": ["1D", "day", TimeFrame.Day]},
     ]
 
     """Common base class for data_sources/alpaca and brokers/alpaca"""
@@ -74,17 +75,18 @@ class AlpacaData(DataSource):
             limit = 1000
 
         if end is None:
-            end = datetime.now()
+            end = datetime.now(pytz.timezone('US/Eastern'))
 
         df_ret = None
-        curr_end = end
+        curr_end = end.isoformat(timespec="seconds")
+
         cnt = 0
         last_curr_end = None
         loop_limit = 1000 if limit > 1000 else limit
         while True:
             cnt += 1
-            barset = api.get_barset(symbol, freq, limit=loop_limit, end=curr_end)
-            df = barset[symbol].df  # .tz_convert("utc")
+            barset = api.get_bars(symbol, freq, limit=loop_limit, end=curr_end)
+            df = barset.df  # .tz_convert("utc")
 
             if df_ret is None:
                 df_ret = df
@@ -98,8 +100,8 @@ class AlpacaData(DataSource):
                     datetime.fromisoformat(str(df_ret.index[0])).strftime(
                         "%Y-%m-%dT%H:%M:%S"
                     )
-                    + "-04:00"
-                )
+                    # this is concerning as it could be 4 or 5 hours
+                    + "-04:00")
 
             # Sometimes the beginning date we put in is not a trading date,
             # this makes sure that we end when we're close enough

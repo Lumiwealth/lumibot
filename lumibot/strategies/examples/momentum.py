@@ -75,7 +75,7 @@ class Momentum(Strategy):
                 # Calculate the quantity and send the buy order for the new asset
                 self.asset = best_asset
                 best_asset_price = best_asset_data["price"]
-                self.quantity = self.portfolio_value // best_asset_price
+                self.quantity = int(self.portfolio_value // best_asset_price)
                 order = self.create_order(self.asset, self.quantity, "buy")
                 self.submit_order(order)
             else:

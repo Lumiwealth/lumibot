@@ -1,4 +1,5 @@
 import datetime
+from decimal import Decimal
 import pandas as pd
 from pandas import Timestamp
 from pathlib import Path
@@ -11,61 +12,178 @@ from lumibot.entities.bars import Bars
 from lumibot.entities.order import Order
 from lumibot.entities.position import Position
 
-exchange_id = 'binance'
+exchange_id = "binance"
 ccxt = Ccxt(CcxtConfig.EXCHANGE_KEYS[exchange_id])
 
 
-# def test_get_timestamp(monkeypatch):
-#     def mock_clock():
-#             return 1639702229554235
-#
-#     monkeypatch.setattr(ccxt.api, "microseconds", mock_clock)
-#     assert ccxt.get_timestamp() == 1639702229.554235
+def test_get_timestamp(monkeypatch):
+    def mock_clock():
+        return 1639702229554235
+
+    monkeypatch.setattr(ccxt.api, "microseconds", mock_clock)
+    assert ccxt.get_timestamp() == 1639702229.554235
 
 
 def test_is_market_open(monkeypatch):
     assert ccxt.is_market_open() == None
 
+
 def test_get_time_to_open():
     assert ccxt.get_time_to_open() == None
+
 
 def test_get_time_to_close():
     assert ccxt.get_time_to_close() == None
 
-# def test__get_cash_balance_at_broker(monkeypatch):
-#     def mock_cash():
-#         class Account:
-#             _raw = dict(cash="123456.78")
-#
-#         return Account()
-#
-#     monkeypatch.setattr(alpaca.api, "get_account", mock_cash)
-#     assert alpaca._get_cash_balance_at_broker() == 123456.78
+
+vars = "broker, exchangeId, expected_result, balances, markets, fetch_ticker"
+params = [
+    (
+        "coinbase",
+        "coinbasepro",
+        30040000.00037,
+        {
+            "info": [
+                {
+                    "currency": "BTC",
+                    "balance": "1.00000001",
+                    "hold": "0",
+                    "available": "1.00000001",
+                },
+                {
+                    "currency": "ETH",
+                    "balance": "9999.99999999",
+                    "hold": "0",
+                    "available": "9999.99999999",
+                },
+            ]
+        },
+        {
+            "BTC/USD": {"precision": {"amount": 0.00000001, "price": 0.01}},
+            "ETH/USD": {"precision": {"amount": 0.00000001, "price": 0.01}},
+        },
+        {
+            "BTC/USD": {"last": 40000},
+            "ETH/USD": {"last": 3000},
+        },
+    ),
+    (
+        "binance",
+        "binance",
+        30040000.00037,
+        {
+            "info": {
+                "balances": [
+                    {
+                        "asset": "BTC",
+                        "locked": "0",
+                        "free": "1.00000001",
+                    },
+                    {
+                        "asset": "ETH",
+                        "locked": "0",
+                        "free": "9999.99999999",
+                    },
+                ],
+            },
+        },
+        {
+            "BTC/USD": {"precision": {"amount": 0.00000001, "price": 0.01}},
+            "ETH/USD": {"precision": {"amount": 0.00000001, "price": 0.01}},
+        },
+        {
+            "BTC/USD": {"last": 40000},
+            "ETH/USD": {"last": 3000},
+        },
+    ),
+]
 
 
-# @pytest.mark.parametrize(
-#     "symbol, qty", [("MSFT", 9), ("GM", 100), ("FB", 500), ("TSLA", 1)]
-# )
-# def test__parse_broker_position(symbol, qty):
-#     class BPosition:
-#         _raw = {"symbol": symbol, "qty": str(qty)}
-#
-#     bposition = BPosition()
-#
-#     position = Position(
-#         "AlpacaTest",
-#         Asset(symbol=symbol, asset_type="stock"),
-#         quantity=qty,
-#         orders=None,
-#     )
-#
-#     result = alpaca._parse_broker_position(bposition, "AlpacaTest", orders=None)
-#     assert result.asset == position.asset
-#     assert result.quantity == position.quantity
-#     assert result.asset.symbol == position.asset.symbol
-#     assert result.strategy == position.strategy
-#
-#
+@pytest.mark.parametrize(vars, params)
+def test__get_balances_at_broker(
+    broker, exchangeId, expected_result, balances, markets, fetch_ticker, monkeypatch
+):
+    def mock_fetch_balance():
+        return balances
+
+    def mock_fetch_ticker(market):
+        return fetch_ticker[market]
+
+    monkeypatch.setattr(ccxt.api, "exchangeId", exchangeId)
+    monkeypatch.setattr(ccxt.api, "fetch_balance", mock_fetch_balance)
+    monkeypatch.setattr(ccxt.api, "markets", markets)
+    monkeypatch.setattr(ccxt.api, "fetch_ticker", mock_fetch_ticker)
+
+    (
+        total_cash_value,
+        gross_positions_value,
+        net_liquidation_value,
+    ) = ccxt._get_balances_at_broker()
+    assert total_cash_value == 0
+    assert gross_positions_value == expected_result
+    assert net_liquidation_value == expected_result
+
+
+vars = "broker, exchangeId, position, precision"
+params = [
+    (
+        "coinbase",
+        "coinbsepro",
+        {
+            "currency": "BTC",
+            "balance": 1000,
+            "hold": 0,
+            "available": 1000,
+        },
+        "0.00000001",
+    ),
+(
+        "binance",
+        "binance",
+        {
+            "asset": "BTC",
+            "locked": 0,
+            "free": 1000,
+        },
+        "8",
+    )
+]
+
+@pytest.mark.parametrize(vars, params)
+def test__parse_broker_position(broker, exchangeId, position, precision, monkeypatch):
+
+    monkeypatch.setattr(ccxt.api, "exchangeId", exchangeId)
+
+    if exchangeId == 'binance':
+        symbol = position['asset']
+        precision = str(10**-Decimal(precision))
+        quantity = Decimal(position["free"]) + Decimal(position["locked"])
+        hold = position["locked"]
+        available = position["free"]
+    else:
+        symbol = position['currency']
+        quantity = Decimal(position["balance"])
+        hold = position["hold"]
+        available = position["available"]
+
+    expected = Position(
+        "CcxtTest",
+        Asset(symbol=symbol, asset_type="crypto", precision=precision),
+        quantity=quantity,
+        hold=hold,
+        available=available,
+        orders=None,
+    )
+
+    result = ccxt._parse_broker_position(position, "CcxtTest", orders=None)
+    assert result.asset == expected.asset
+    assert result.quantity == expected.quantity
+    assert result.asset.symbol == expected.asset.symbol
+    assert result.strategy == expected.strategy
+    assert result.available == expected.available
+    assert result.hold == expected.hold
+
+
 # @pytest.mark.parametrize("type", [("us_equity",), ("options",), ("USD",)])
 # def test_map_asset_type(type):
 #     try:

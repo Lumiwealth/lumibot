@@ -224,10 +224,7 @@ class Order:
         self._error = None
         self._error_message = None
 
-        # setting the quantity
-        self.quantity = check_quantity(
-            quantity, "Order quantity must be a positive Decimal"
-        )
+        self.quantity = quantity
 
         # setting the side
         if side not in [self.BUY, self.SELL]:
@@ -324,6 +321,28 @@ class Order:
                 self.stop_price = check_price(
                     stop_price, "stop_price must be positive float."
                 )
+
+    @property
+    def quantity(self):
+        if self.asset.asset_type == "crypto":
+            return self._quantity
+        return int(self._quantity)
+
+    @quantity.setter
+    def quantity(self, value):
+        # All non-crypto assets must be of type 'int'.
+        error_msg = f"Quantity for {self.asset} which is a " \
+                    f"{self.asset.asset_type}, must be of type 'int'." \
+                    f"The value {value} was entered which is a {type(value)}."
+
+        if self.asset.asset_type != 'crypto' and not isinstance(value, Decimal):
+            try:
+                assert isinstance(value, int), error_msg
+            except TypeError as error:
+                logging.info(error)
+
+        quantity = Decimal(value)
+        self._quantity = check_quantity(quantity, "Order quantity must be a positive Decimal")
 
     def __repr__(self):
         self.rep_asset = self.symbol

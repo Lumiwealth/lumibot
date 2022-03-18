@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 from decimal import Decimal, getcontext
 import logging
 import traceback
@@ -25,6 +26,8 @@ class Ccxt(CcxtData, Broker):
         Broker.__init__(self, name="ccxt", connect_stream=connect_stream)
 
         self.market = "24/7"
+        self.fetch_open_orders_last_request_time = None
+        self.binance_all_orders_rate_limit = 5
 
     # =========Clock functions=====================
 
@@ -79,39 +82,78 @@ class Ccxt(CcxtData, Broker):
     # =========Positions functions==================
     def _get_balances_at_broker(self):
         """Get's the current actual cash, positions value, and total
-        liquidation value from Alpaca.
+        liquidation value from ccxt.
 
-        This method will get the current actual values from Alpaca
+        This method will get the current actual values from ccxt broker
         for the actual cash, positions value, and total liquidation.
+
+        Best attempts will be made to use USD as a base currency.
 
         Returns
         -------
         tuple of float
             (cash, positions_value, total_liquidation_value)
         """
-        base_currency = "USD"
+        base_currency = ["USD", "USDC", "USDT"]
         total_cash_value = 0
         positions_value = 0
         # Get the market values for each pair held.
         balances = self.api.fetch_balance()
-        for currency_info in balances["info"]:
-            currency = currency_info["currency"]
-            # if currency != 'BTC':
-            #     continue
-            market = f"{currency}/{base_currency}"
-            try:
-                assert market in self.api.markets
-            except AssertionError:
+
+        # Broker may return different formatting for `fetch_balance()`
+        if self.api.exchangeId == "binance":
+            balances_info = balances["info"]["balances"]
+            currency_tag = "asset"
+        else:
+            balances_info = balances["info"]
+            currency_tag = "currency"
+
+        for currency_info in balances_info:
+            currency = currency_info[currency_tag]
+
+            # Check for three USD markets.
+            for bc in base_currency:
+                market = f"{currency}/{bc}"
+                if market not in self.api.markets:
+                    market = None
+                    continue
+                else:
+                    break
+            if market is None:
                 logging.error(f"Market {market} not found in ccxt.markets")
                 continue
+
             precision_amount = self.api.markets[market]["precision"]["amount"]
             precision_price = self.api.markets[market]["precision"]["price"]
-            units = Decimal(currency_info["balance"]).quantize(
-                Decimal(str(precision_amount))
-            )
-            price = Decimal(self.api.fetch_ticker(market)["last"]).quantize(
-                Decimal(str(precision_price))
-            )
+
+            if self.api.exchangeId == "binance":
+                precision_amount = 10 ** -precision_amount
+                precision_price = 10 ** -precision_price
+
+            # Binance only have `free` and `locked`.
+            if self.api.exchangeId == "binance":
+                total_balance = Decimal(currency_info["free"]) + Decimal(
+                    currency_info["locked"]
+                )
+            else:
+                total_balance = currency_info["balance"]
+
+            units = Decimal(total_balance).quantize(Decimal(str(precision_amount)))
+
+            attempts = 0
+            max_attempts = 3
+            while attempts < max_attempts:
+                last_price = self.api.fetch_ticker(market)["last"]
+                if last_price is None:
+                    attempts += 1
+                else:
+                    attempts = max_attempts
+
+            if last_price is None:
+                last_price = 0
+
+            price = Decimal(last_price).quantize(Decimal(str(precision_price)))
+
             value = units * price
             positions_value += value
 
@@ -123,14 +165,25 @@ class Ccxt(CcxtData, Broker):
     def _parse_broker_position(self, position, strategy, orders=None):
         """parse a broker position representation
         into a position object"""
+
+        if self.api.exchangeId == "binance":
+            symbol = position["asset"]
+            precision = str(10 ** -self.api.currencies["BTC"]["precision"])
+            quantity = Decimal(position["free"]) + Decimal(position["locked"])
+            hold = position["locked"]
+            available = position["free"]
+        else:
+            symbol = position["currency"]
+            precision = str(self.api.currencies["BTC"]["precision"])
+            quantity = Decimal(position["balance"])
+            hold = position["hold"]
+            available = position["available"]
+
         asset = Asset(
-            symbol=position["currency"],
+            symbol=symbol,
             asset_type="crypto",
-            precision=str(self.api.currencies["BTC"]["precision"]),
+            precision=precision,
         )
-        quantity = Decimal(position["balance"])
-        hold = position["hold"]
-        available = position["available"]
 
         position = Position(
             strategy, asset, quantity, hold=hold, available=available, orders=orders
@@ -146,7 +199,10 @@ class Ccxt(CcxtData, Broker):
     def _pull_broker_positions(self):
         """Get the broker representation of all positions"""
         response = self.api.fetch_balance()
-        return response["info"]
+        if self.api.exchangeId == "binance":
+            return response["info"]["balances"]
+        else:
+            return response["info"]
 
     # =======Orders and assets functions=========
     def _parse_broker_order(self, response, strategy):
@@ -186,6 +242,24 @@ class Ccxt(CcxtData, Broker):
 
     def _pull_broker_open_orders(self):
         """Get the broker open orders"""
+        # For binance api rate limit on calling all orders at once.
+        if self.api.exchangeId == "binance":
+            self.api.options["warnOnFetchOpenOrdersWithoutSymbol"] = False
+            if self.fetch_open_orders_last_request_time is not None:
+                net_rate_limit = (
+                    self.binance_all_orders_rate_limit
+                    - (
+                        datetime.datetime.now()
+                        - self.fetch_open_orders_last_request_time
+                    ).seconds
+                )
+                if net_rate_limit > 0:
+                    logging.info(
+                        f"Binance all order rate limit is being exceeded, bot sleeping for "
+                        f"{net_rate_limit} seconds."
+                    )
+                    self.sleep(net_rate_limit)
+            self.fetch_open_orders_last_request_time = datetime.datetime.now()
         orders = self.api.fetch_open_orders()
         return orders
 
@@ -367,6 +441,6 @@ class Ccxt(CcxtData, Broker):
 
     def cancel_order(self, order):
         """Cancel an order"""
-        response = self.api.cancel_order(order.identifier)
+        response = self.api.cancel_order(order.identifier, order.symbol)
         if order.identifier == response:
             order.set_canceled()

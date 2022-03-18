@@ -54,15 +54,16 @@ def check_quantity(quantity, custom_message=""):
     error_message = "%r is not a positive Decimal." % quantity
     if custom_message:
         error_message = f"{error_message} {custom_message}"
-    if isinstance(quantity, float):
-        warnings.simplefilter('always', DeprecationWarning)
-        warnings.warn(
-            f"The order quantity of {quantity} must be an integer, "
-            f"string (eg '3.21'), \nor Decimal (eg: Decimal('3.21')), "
-            f"not a float. Float will be deprecated in future versions.",
-            DeprecationWarning,
-        )
-        warnings.simplefilter('ignore', DeprecationWarning)
+    # todo delete I think we don't need this.
+    # if isinstance(quantity, float):
+    #     warnings.simplefilter('always', DeprecationWarning)
+    #     warnings.warn(
+    #         f"The order quantity of {quantity} must be an integer, "
+    #         f"string (eg '3.21'), \nor Decimal (eg: Decimal('3.21')), "
+    #         f"not a float. Float will be deprecated in future versions.",
+    #         DeprecationWarning,
+    #     )
+    #     warnings.simplefilter('ignore', DeprecationWarning)
     quantity = Decimal(quantity)
     result = check_numeric(
         quantity,

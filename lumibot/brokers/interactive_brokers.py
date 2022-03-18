@@ -2,6 +2,7 @@ import datetime
 import time
 import traceback
 from collections import deque
+from decimal import Decimal
 from datetime import timezone
 from threading import Thread
 
@@ -219,7 +220,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         right = None
         strike = ""
         if response.contract.secType == "OPT":
-            right = response.contract.right
+            right = "CALL" if response.contract.right == "C" else "PUT"
             strike = response.contract.strike
 
         order = OrderLum(
@@ -235,10 +236,10 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
                 multiplier=multiplier,
                 currency=response.contract.currency,
             ),
-            response.totalQuantity,
+            Decimal(response.totalQuantity),
             response.action.lower(),
-            limit_price=response.lmtPrice,
-            stop_price=response.adjustedStopPrice,
+            limit_price=response.lmtPrice if response.lmtPrice != 0 else None,
+            stop_price=response.auxPrice if response.auxPrice != 0 else None, # todo test these
             time_in_force=response.tif,
             good_till_date=response.goodTillDate,
         )

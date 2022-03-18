@@ -1,15 +1,15 @@
 import asyncio
-import logging
-import traceback
 from asyncio import CancelledError
 from datetime import timezone
+from decimal import Decimal
+import logging
+import traceback
 
 import alpaca_trade_api as tradeapi
 
+from .broker import Broker
 from lumibot.data_sources import AlpacaData
 from lumibot.entities import Asset, Order, Position
-
-from .broker import Broker
 
 
 class Alpaca(AlpacaData, Broker):
@@ -214,7 +214,7 @@ class Alpaca(AlpacaData, Broker):
         if position["asset_class"] == "crypto":
             asset = Asset(
                 symbol=position["symbol"].replace("USD", ""),
-                asset_type="crypto",
+                # asset_type="crypto",
             )
         else:
             asset = Asset(
@@ -254,7 +254,7 @@ class Alpaca(AlpacaData, Broker):
                 symbol=response.symbol,
                 asset_type="stock",
             ),
-            response.qty,
+            Decimal(response.qty),
             response.side,
             limit_price=response.limit_price,
             stop_price=response.stop_price,

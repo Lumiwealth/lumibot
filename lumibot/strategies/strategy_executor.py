@@ -79,9 +79,22 @@ class StrategyExecutor(Thread):
             # If the _held_trades list is not empty, process these and then snapshot again
             # ensuring that the lumibot broker and the real broker should match.
             held_trades_len = 1
+            cash_broker_max_retries = 3
+            cash_broker_retries = 0
             while held_trades_len > 0:
                 # Snapshot for the broker and lumibot:
-                cash_broker = self.broker._get_balances_at_broker()[0]
+                cash_broker = self.broker._get_balances_at_broker()
+                if cash_broker is None and cash_broker_retries < cash_broker_max_retries:
+                    logging.info("Unable to get cash from broker, trying again.")
+                    cash_broker_retries += 1
+                    continue
+                elif cash_broker is None and cash_broker_retries >= cash_broker_max_retries:
+                    logging.info(f"Unable to get the cash balance after {cash_broker_max_retries} "
+                                 f"tries, setting cash to zero.")
+                    cash_broker = 0
+                else:
+                    cash_broker = cash_broker[0]
+
                 positions_broker = self.broker._pull_positions(self.name)
                 orders_broker = self.broker._pull_open_orders(self.name)
 

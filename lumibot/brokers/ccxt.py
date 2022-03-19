@@ -290,15 +290,17 @@ class Ccxt(CcxtData, Broker):
 
         limits = market["limits"]
         precision = market["precision"]
+        if self.api.exchangeId == "binance":
+            precision_amount = str(10 ** -precision["amount"])
+        else:
+            precision_amount = str(precision["amount"])
 
         # Convert the amount to Decimal.
         if hasattr(order, "quantity") and getattr(order, "quantity") is not None:
             setattr(
                 order,
                 "quantity",
-                Decimal(getattr(order, "quantity")).quantize(
-                    Decimal(str(precision["amount"]))
-                ),
+                Decimal(getattr(order, "quantity")).quantize(Decimal(precision_amount)),
             )
             try:
                 if limits["amount"]["min"] is not None:

@@ -279,6 +279,26 @@ class Ccxt(CcxtData, Broker):
     def _submit_order(self, order):
         """Submit an order for an asset"""
 
+        # Orders limited.
+        order_class = ""
+        order_types = ["market", "limit", "stop_limit"]
+        markets_error_message = (
+            f"Only `market`, `limit`, or `stop_limit` orders work "
+            f"with crypto currency markets."
+        )
+
+        if order.order_class != order_class:
+            raise ValueError(
+                f"A compound order of {order.order_class} was entered. "
+                f"{markets_error_message}"
+            )
+
+        if order.type not in order_types:
+            raise ValueError(
+                f"An order type of {order.type} was entered which is not "
+                f"valid. {markets_error_message}"
+            )
+
         # Check order within limits.
         market = self.api.markets.get(order.pair, None)
         if market is None:
@@ -396,34 +416,7 @@ class Ccxt(CcxtData, Broker):
                     f"{(getattr(order, price_type) * order.quantity):4.9f} \n"
                 )
                 return
-
-        params = {}
-        # Current custom params are for Coinbase only.
-        if order.type in ["stop", "stop_limit"]:
-            params = {
-                "stop": "entry" if order.side == "buy" else "loss",
-                "stop_price": order.stop_price,
-            }
-            # Remove items with None values
-            params = {k: v for k, v in params.items() if v}
-
-        order_type_map = dict(
-            market="market",
-            stop="market",
-            limit="limit",
-            stop_limit="limit",
-        )
-
-        args = [
-            order.pair,
-            order_type_map[order.type],
-            order.side,
-            order.quantity,
-        ]
-        if order_type_map[order.type] == "limit":
-            args.append(order.limit_price)
-
-        args.append(params)
+        args = self.create_order_args(order)
 
         try:
             response = self.api.create_order(*args)
@@ -441,8 +434,191 @@ class Ccxt(CcxtData, Broker):
 
         return order
 
-    def cancel_order(self, order):
-        """Cancel an order"""
-        response = self.api.cancel_order(order.identifier, order.symbol)
-        if order.identifier == response:
-            order.set_canceled()
+    def create_order_args(self, order):
+        """Will create the args for the ccxt `create_order` submission.
+
+        Creating the order args. There are only a few acceptable lumibot
+        orders. These are:
+            market, limit, stop_limit
+
+        There is no stop or trailing orders. Also combo orders do not
+        work in crypto. So no bracket or oco orders.
+
+        The args are complicated and will vary for each broker. All new
+        broker conditions should be fully documented as below.
+
+        The main arguments for `api.create_order()` are:
+            symbol: always the pairing symbol.
+            type: order types vary with broker, see below.
+            side: buy or sell
+            amount: string quantity to buy or sell
+            price=None: Optional, use for limit pricing.
+            {params}: custom parameters.
+
+        For Binance the args are as follows:
+            Allowable orders:
+                orderTypes:
+                    'MARKET'
+                    'LIMIT',
+                    'STOP_LOSS_LIMIT'
+                custom parameters dict:
+                    {'stopPrice': string price}
+
+            Examples of the args for binance are as follows:
+
+            Market Order
+            api.create_order("BTC/USDT", "MARKET", "buy", "0.0999")
+
+            Limit Order
+            api.create_order("BTC/USDT", "LIMIT", "buy", "0.0888", "40000")
+            api.create_order("BTC/USDT", "LIMIT", "sell", "0.0777", "40000")
+
+            Stop Entry Limit Order
+            api.create_order(
+                "BTC/USDT",
+                "TAKE_PROFIT_LIMIT",
+                "sell",
+                ".0777",
+                40100,
+                {"stopPrice": 40000},
+            )
+
+            Stop Loss Limit Order
+            api.create_order(
+                "BTC/USDT",
+                "STOP_LOSS_LIMIT",
+                "sell",
+                "0.0666",
+                40100,
+                {"stopPrice": 40000}
+            )
+
+        For Coinbase the args are as follows:
+            Allowable orders:
+                orderTypes:
+                    `market`
+                    `limit`
+                custom parameters dict:
+                    {
+                    `stop`: `loss` or `entry`
+                    `stop_price`: string price
+                    }
+
+            Examples of the args for coinbase are as follows:
+
+            Market Order
+            api.create_order("BTC/USD", "market", side, amount)
+
+            Limit Order
+            api.create_order("BTC/USD", "limit", side, amount, "40000")
+            api.create_order("BTC/USD", "limit", side, amount, "40000")
+
+            Buy Stop Entry
+            api.create_order(
+                "BTC/USD",
+                "limit",
+                "buy",
+                "0.123",
+                "40100",
+                {"stop": "entry", "stop_price": "40000"},
+            )
+
+            Sell Stop Loss
+            order = api.create_order(
+                "BTC/USD",
+                "limit",
+                "sell",
+                "0.111",
+                "40100",
+                {"stop": "loss", "stop_price": "40000"},
+            )
+
+
+        Parameters
+        ----------
+        order
+
+        Returns
+        -------
+        create_order api arguments : dict
+
+        """
+        broker = self.api.exchangeId
+        if broker == "binance":
+            params = {}
+            # Current custom params are for Coinbase only.
+            if order.type in ["stop_limit"]:
+                params = {
+                    "stopPrice": str(order.stop_price),
+                }
+                # Remove items with None values
+                params = {k: v for k, v in params.items() if v}
+
+            order_type_map = dict(
+                market="MARKET", limit="LIMIT", stop_limit="STOP_LOSS_LIMIT"
+            )
+
+            args = [
+                order.pair,
+                order_type_map[order.type],
+                order.side,
+                str(order.quantity),
+            ]
+            if order.type in ["limit", "stop_limit"]:
+                args.append(order.limit_price)
+
+            if len(params) > 0:
+                args.append(params)
+
+            return args
+
+        elif broker == "coinbasepro":
+            params = {}
+            # Current custom params are for Coinbase only.
+            if order.type in ["stop_limit"]:
+                params = {
+                    "stop": "entry" if order.side == "buy" else "loss",
+                    "stop_price": order.stop_price,
+                }
+
+                # Remove items with None values
+                params = {k: v for k, v in params.items() if v}
+
+            order_type_map = dict(
+                market="market",
+                stop="market",
+                limit="limit",
+                stop_limit="limit",
+            )
+
+            args = [
+                order.pair,
+                order_type_map[order.type],
+                order.side,
+                str(order.quantity),  # check this with coinbase.
+            ]
+            if order_type_map[order.type] == "limit":
+                args.append(order.limit_price)
+
+            if len(params) > 0:
+                args.append(params)
+
+            return args
+
+        else:
+            raise ValueError(
+                f"An attempt was made to use the broker {broker} which is "
+                f"not an approved broker. Please refer to the Lumibot docs"
+                f"to get a list of currently approved brokers."
+            )
+
+
+def cancel_order(self, order):
+    """Cancel an order"""
+    response = self.api.cancel_order(order.identifier, order.symbol)
+    if order.identifier == response:
+        order.set_canceled()
+
+def cancel_open_orders(self, name=None):
+    for order in self._pull_broker_open_orders():
+        self.api.cancel_order(order["id"], symbol=order["symbol"])

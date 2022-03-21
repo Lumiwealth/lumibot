@@ -471,6 +471,9 @@ class Broker:
         """Takes a list of assets and returns the last known prices"""
         pass
 
+    def _get_tick(self, order):
+        raise NotImplementedError(f"Tic data is not available for {self.name}")
+
     # =========Subscribers/Strategies functions==============
 
     def _add_subscriber(self, subscriber):

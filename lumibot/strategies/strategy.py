@@ -202,6 +202,11 @@ class Strategy(_Strategy):
     def portfolio_value(self):
         """Returns the current portfolio value (cash + positions value).
 
+        Returns the portfolio value of positions plus cash in US dollars.
+
+        Crypto markets will attempt to resove to US dollars as a quote
+        currency.
+
         Returns
         -------
         portfolio_value : float
@@ -222,6 +227,8 @@ class Strategy(_Strategy):
 
         This property is updated whenever a transaction was filled by the broker or when dividends
         are paid.
+
+        Crypto currencies are a form of cash. Therefore cash will always be zero.
 
         Returns
         -------
@@ -318,6 +325,30 @@ class Strategy(_Strategy):
         pair=None,
     ):
         """Creates a new order for this specific strategy. Once created, an order must still be submitted.
+
+        Some notes on Crypto markets:
+        Crypto markets required both a base currency and a quote currency to create an order. These
+        may be entered in one of two ways.
+            1. tuple of Assets.
+                self.create_order(
+                    (Asset(symbol='BTC', asset_type='crypto'), Asset(symbol='USDT',
+                    asset_type='crypto')),
+                    .50,
+                    `buy`,
+                )
+            2. Use the quote parameter.
+                self.create_order(
+                    Asset(symbol='BTC', asset_type='crypto'),
+                    .50,
+                    `buy`,
+                    quote=Asset(symbol='USDT', asset_type='crypto'),
+                )
+
+        Orders for crypto markets are restriced to: `market`, `limit`, `stop_limit`.
+
+        Crypto markets' orders are simple. There are no compound orders such
+        `oco` or `bracket`. Also, duration of orders are all GTC.
+
 
         Parameters
         ----------
@@ -589,6 +620,8 @@ class Strategy(_Strategy):
         Setting the market will determine the trading hours for live
         trading and for Yahoo backtesting. Not applicable to Pandas
         backtesting.
+
+        Crypto markets are always 24/7.
         `NASDAQ` is default.
 
         Parameters
@@ -807,6 +840,13 @@ class Strategy(_Strategy):
             timedelta = self.minutes_before_closing
         return self.broker._await_market_to_close(timedelta)
 
+    @staticmethod
+    def crypto_assets_to_tuple(base, quote):
+        """Check for crypto quote, convert to tuple"""
+        if isinstance(base, Asset) and base.asset_type == "crypto" and isinstance(quote, Asset):
+            return (base, quote)
+        return base
+
     def get_tracked_position(self, asset):
         """Deprecated, will be removed in the future. Please use `get_position()` instead."""
 
@@ -928,7 +968,7 @@ class Strategy(_Strategy):
         self.log_message(
             "Warning: get_tracked_order() is deprecated, please use get_order() instead."
         )
-        return self.get_order()
+        return self.get_order(identifier)
 
     def get_order(self, identifier):
         """Get a tracked order given an identifier. Check the details of the order including status, etc.
@@ -1208,6 +1248,49 @@ class Strategy(_Strategy):
         >>> asset = Asset("SPY")
         >>> order = self.create_order(asset, 10, "sell", trailing_stop_price=100.00)
         >>> self.submit_order(order)
+
+        >>> # For buying a crypto with a market price
+        >>> asset_base = Asset(
+        >>>    "BTC",
+        >>>    asset_type="crypto",
+        >>> )
+        >>> asset_quote = Asset(
+        >>>    "USD",
+        >>>    asset_type="crypto",
+        >>> )
+        >>> order = self.create_order(asset_base, 0.1, "buy", quote=asset_quote)
+        >>> or...
+        >>> order = self.create_order((asset_base, asset_quote), 0.1, "buy")
+        >>> self.submit_order(order)
+
+        >>> # For buying a crypto with a limit price
+        >>> asset_base = Asset(
+        >>>    "BTC",
+        >>>    asset_type="crypto",
+        >>> )
+        >>> asset_quote = Asset(
+        >>>    "USD",
+        >>>    asset_type="crypto",
+        >>> )
+        >>> order = self.create_order(asset_base, 0.1, "buy", limit_price="41250", quote=asset_quote)
+        >>> or...
+        >>> order = self.create_order((asset_base, asset_quote), 0.1, "buy", limit_price="41250")
+        >>> self.submit_order(order)
+
+        >>> # For buying a crypto with a stop limit price
+        >>> asset_base = Asset(
+        >>>    "BTC",
+        >>>    asset_type="crypto",
+        >>> )
+        >>> asset_quote = Asset(
+        >>>    "USD",
+        >>>    asset_type="crypto",
+        >>> )
+        >>> order = self.create_order(asset_base, 0.1, "buy", limit_price="41325", stop_price="41300", quote=asset_quote)
+        >>> or...
+        >>> order = self.create_order((asset_base, asset_quote), 0.1, "buy", limit_price="41325", stop_price="41300",)
+        >>> self.submit_order(order)
+
         """
         return self.broker.submit_order(order)
 
@@ -1289,8 +1372,26 @@ class Strategy(_Strategy):
         >>> order2 = self.create_order(asset, 200, "sell")
         >>> self.submit_orders([order1, order2])
 
-
-
+        >>> # For 2 CRYPTO buy orders.
+        >>> asset_BTC = Asset(
+        >>>    "BTC",
+        >>>    asset_type="crypto",
+        >>> )
+        >>> asset_ETH = Asset(
+        >>>    "ETH",
+        >>>    asset_type="crypto",
+        >>> )
+        >>> asset_quote = Asset(
+        >>>    "USD",
+        >>>    asset_type="crypto",
+        >>> )
+        >>> order1 = self.create_order(asset_BTC, 0.1, "buy", quote=asset_quote)
+        >>> order2 = self.create_order(asset_ETH, 10, "buy", quote=asset_quote)
+        >>> self.submit_order([order1, order2])
+        >>> or...
+        >>> order1 = self.create_order((asset_BTC, asset_quote), 0.1, "buy")
+        >>> order2 = self.create_order((asset_ETH, asset_quote), 10, "buy")
+        >>> self.submit_order([order1, order2])
         """
         return self.broker.submit_orders(orders)
 
@@ -1516,10 +1617,7 @@ class Strategy(_Strategy):
 
         """
         asset = self._set_asset_mapping(asset)
-
-        # Check for crypto quote, convert to tuple
-        if isinstance(asset, Asset) and asset.asset_type == "crypto" and isinstance(quote, Asset):
-            asset = (asset, quote)
+        asset = self.crypto_assets_to_tuple(asset, quote)
 
         try:
             return self.broker.get_last_price(asset)
@@ -2084,7 +2182,7 @@ class Strategy(_Strategy):
             The symbol of the asset.
 
         asset_type : str
-            The type of the asset. Can be either "stock", "option", or "future".
+            The type of the asset. Can be either "stock", "option", or "future", "crytpo".
 
         expiration : datetime.datetime
             The expiration date of the asset (optional, only required for options and futures).
@@ -2128,6 +2226,12 @@ class Strategy(_Strategy):
 
         >>> # Will create a FOREX asset
         >>> asset = self.create_asset(currency="USD", symbol="EUR", asset_type="forex")
+
+        >>> # Will create a CRYPTO asset
+        >>> asset = self.create(symbol="BTC", asset_type="crypto"),
+        >>> asset = self.create(symbol="USDT", asset_type="crypto"),
+        >>> asset = self.create(symbol="EUR", asset_type="crypto"),
+        >>> asset = self.create(symbol="ETH", asset_type="crypto"),
         """
         # If backtesting,  return existing asset if in store.
         if self.broker.IS_BACKTESTING_BROKER:
@@ -2185,6 +2289,7 @@ class Strategy(_Strategy):
         length,
         timestep="",
         timeshift=None,
+        quote=None,
     ):
         """Get historical pricing data for a given symbol or asset.
 
@@ -2240,9 +2345,18 @@ class Strategy(_Strategy):
         >>> bars.df
 
 
+        >>> # Get the data for BTC in USD  for the last 2 days
+        >>> asset_base = self.create(symbol="BTC", asset_type="crypto"),
+        >>> asset_quote = self.create(symbol="USDT", asset_type="crypto"),
+        >>>
+        >>> bars =  self.get_symbol_bars("SPY", 2, "day")
+        >>> # To get the DataFrame of SPY data
+        >>> bars.df
         """
 
         asset = self._set_asset_mapping(asset)
+
+        asset = self.crypto_assets_to_tuple(asset, quote)
         if not timestep:
             timestep = self.data_source.MIN_TIMESTEP
         return self.data_source.get_symbol_bars(

@@ -94,7 +94,7 @@ class Ccxt(CcxtData, Broker):
         tuple of float
             (cash, positions_value, total_liquidation_value)
         """
-        base_currency = ["USD", "USDC", "USDT"]
+        quote_currency = ["USD", "USDC", "USDT"]
         total_cash_value = 0
         positions_value = 0
         # Get the market values for each pair held.
@@ -102,25 +102,33 @@ class Ccxt(CcxtData, Broker):
 
         # Broker may return different formatting for `fetch_balance()`
         if self.api.exchangeId == "binance":
-            balances_info = balances["info"]["balances"]
+            balances_info = [
+                bal
+                for bal in balances["info"]["balances"]
+                if (Decimal(bal["free"]) + Decimal(bal["locked"])) != Decimal("0")
+            ]
             currency_tag = "asset"
         else:
-            balances_info = balances["info"]
+            balances_info = [
+                bal
+                for bal in balances["info"]
+                if Decimal(bal["balance"]) != Decimal("0")
+            ]
             currency_tag = "currency"
 
+        no_valuation = []
         for currency_info in balances_info:
             currency = currency_info[currency_tag]
-
             # Check for three USD markets.
-            for bc in base_currency:
-                market = f"{currency}/{bc}"
+            for qc in quote_currency:
+                market = f"{currency}/{qc}"
                 if market not in self.api.markets:
                     market = None
                     continue
                 else:
                     break
             if market is None:
-                logging.error(f"Market {market} not found in ccxt.markets")
+                no_valuation.append(currency)
                 continue
 
             precision_amount = self.api.markets[market]["precision"]["amount"]
@@ -156,6 +164,13 @@ class Ccxt(CcxtData, Broker):
 
             value = units * price
             positions_value += value
+
+        if len(no_valuation) > 0:
+            logging.info(
+                f"These coins have no valuation in USD and therefore "
+                f"could not be added to the portfolio when calculating "
+                f"the total value of the holdings. {no_valuation}"
+            )
 
         gross_positions_value = float(positions_value)
         net_liquidation_value = float(positions_value)
@@ -612,13 +627,60 @@ class Ccxt(CcxtData, Broker):
                 f"to get a list of currently approved brokers."
             )
 
+    def cancel_order(self, order):
+        """Cancel an order"""
+        response = self.api.cancel_order(order.identifier, order.symbol)
+        if order.identifier == response:
+            order.set_canceled()
 
-def cancel_order(self, order):
-    """Cancel an order"""
-    response = self.api.cancel_order(order.identifier, order.symbol)
-    if order.identifier == response:
-        order.set_canceled()
+    def cancel_open_orders(self, strategy):
+        """Cancel all open orders at the broker."""
+        for order in self._pull_broker_open_orders():
+            self.api.cancel_order(order["id"], symbol=order["symbol"])
 
-def cancel_open_orders(self, name=None):
-    for order in self._pull_broker_open_orders():
-        self.api.cancel_order(order["id"], symbol=order["symbol"])
+    def get_historical_account_value(self):
+        logging.error(
+            "The function get_historical_account_value is not "
+            "implemented yet for Crypto currencies."
+        )
+        return {"hourly": None, "daily": None}
+
+    def wait_for_order_registration(self, order):
+        """Wait for the registration of the orders with the broker.
+
+        Not yet implemented, requires streaming.
+        """
+        raise NotImplementedError(
+            "Waiting for an order registration is not yet implemented in Crypto, "
+            "requires streaming. Check the order status at each interval."
+        )
+
+    def wait_for_order_registrations(self, orders):
+        """Wait for the registration of the order with the broker.
+
+        Not yet implemented, requires streaming.
+        """
+        raise NotImplementedError(
+            "Waiting for an order registration is not yet implemented in Crypto, "
+            "requires streaming. Check the order status at each interval."
+        )
+
+    def wait_for_order_execution(self, order):
+        """Wait for order to fill.
+
+        Not yet implemented, requires streaming.
+        """
+        raise NotImplementedError(
+            "Waiting for an order execution is not yet implemented in Crypto, "
+            "requires streaming. Check the order status at each interval."
+        )
+
+    def wait_for_order_executions(self, order):
+        """Wait for orders to fill.
+
+        Not yet implemented, requires streaming.
+        """
+        raise NotImplementedError(
+            "Waiting for an order execution is not yet implemented in Crypto, "
+            "requires streaming. Check the order status at each interval."
+        )

@@ -54,8 +54,6 @@ class DiversifiedLeverage(Strategy):
         self.counter = 0
 
 
-        self.set_market("NASDAQ")
-
     def on_trading_iteration(self):
         # If the target number of minutes (period) has passed, rebalance the portfolio
         if self.counter == self.rebalance_period or self.counter == 0:

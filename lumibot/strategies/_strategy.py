@@ -69,7 +69,7 @@ class _Strategy:
             self._name = args[0]
             self.broker = args[2]
             logging.warning(
-                f"You are using the old style of initializing a STrategy. Only use \n"
+                f"You are using the old style of initializing a Strategy. Only use \n"
                 f"the broker class as the first positional argument and the rest as keyword arguments. \n"
                 f"For example `MyStrategy(broker, name=strategy_name, budget=budget)`\n"
             )

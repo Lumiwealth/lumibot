@@ -1,6 +1,6 @@
 import datetime
-from decimal import Decimal
 import logging
+from decimal import Decimal
 
 import pandas as pd
 
@@ -560,8 +560,7 @@ class Strategy(_Strategy):
         >>> order = self.create_order((base, quote), 0.05, "buy")
         >>> self.submit_order(order)
 
-        >>> # For a cryptocurrency the base and the quote may be
-        >>> # combined as a tuple for all order types.
+        >>> # Placing a limit order with a quote asset for cryptocurrencies
         >>> base = Asset("BTC", asset_type="crypto")
         >>> quote = Asset("USD", asset_type="crypto")
         >>> order = self.create_order(base, 0.05, "buy", limit_price=41000,  quote=quote)
@@ -583,11 +582,13 @@ class Strategy(_Strategy):
             trail_price=trail_price,
             trail_percent=trail_percent,
             exchange=exchange,
-            sec_type=asset.asset_type if isinstance(asset, Asset) else asset[0].asset_type,
+            sec_type=asset.asset_type
+            if isinstance(asset, Asset)
+            else asset[0].asset_type,
             position_filled=position_filled,
             date_created=self.get_datetime(),
             quote=quote,
-            pair=pair
+            pair=pair,
         )
         return order
 
@@ -843,7 +844,11 @@ class Strategy(_Strategy):
     @staticmethod
     def crypto_assets_to_tuple(base, quote):
         """Check for crypto quote, convert to tuple"""
-        if isinstance(base, Asset) and base.asset_type == "crypto" and isinstance(quote, Asset):
+        if (
+            isinstance(base, Asset)
+            and base.asset_type == "crypto"
+            and isinstance(quote, Asset)
+        ):
             return (base, quote)
         return base
 
@@ -1615,6 +1620,11 @@ class Strategy(_Strategy):
         >>> last_price = self.get_last_price(asset)
         >>> self.log_message(f"Last price for {asset} is {last_price}")
 
+        >>> # Will return the last price for a crypto asset
+        >>> base = Asset("BTC")
+        >>> quote = Asset("USDT")
+        >>> last_price = self.get_last_price(base, quote)
+        >>> self.log_message(f"Last price for BTC/USDT is {last_price}")
         """
         asset = self._set_asset_mapping(asset)
         asset = self.crypto_assets_to_tuple(asset, quote)

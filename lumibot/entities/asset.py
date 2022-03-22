@@ -94,6 +94,13 @@ class Asset(BaseModel, frozen=True, extra="forbid"):
     >>> asset = Asset(symbol="USD", asset_type='forex', currency="EUR")
     >>> order = self.create_order(asset, 100, 'BUY')
     >>> self.submit_order(order)
+
+    >>> # Create an Asset object for crypto.
+    >>> from lumibot.entities import Asset
+    >>> base = Asset(symbol="BTC", asset_type='crypto')
+    >>> quote = Asset(symbol="USDT", asset_type='crypto')
+    >>> order = self.create_order(asset, 100, 'BUY', quote=quote)
+    >>> self.submit_order(order)
     """
 
     symbol: str
@@ -152,6 +159,7 @@ class Asset(BaseModel, frozen=True, extra="forbid"):
                 f"`right` is {v} must be one of {', '.join(cls._right)}, upper case."
             )
         return v
+
 
 class AssetsMapping(UserDict):
     def __init__(self, mapping):

@@ -1,13 +1,15 @@
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from functools import wraps
 from queue import Queue
 from threading import RLock, Thread
 
 import pandas as pd
+import pandas_market_calendars as mcal
+from dateutil import tz
 
 from lumibot.data_sources import DataSource
 from lumibot.entities import Order
@@ -180,6 +182,45 @@ class Broker:
 
     # =========Clock functions=====================
 
+    def utc_to_local(self, utc_dt):
+        return utc_dt.replace(tzinfo=timezone.utc).astimezone(tz=tz.tzlocal())
+
+    def market_hours(self, market="NASDAQ", close=True, next=False, date=None):
+        """[summary]
+
+        Parameters
+        ----------
+        market : str, optional
+            Which market to test, by default "NASDAQ"
+        close : bool, optional
+            Choose open or close to check, by default True
+        next : bool, optional
+            Check current day or next day, by default False
+        date : [type], optional
+            Date to check, `None` for today, by default None
+
+        Returns
+        -------
+        [type]
+            [description]
+        """
+
+        market = self.market if self.market is not None else market
+        mkt_cal = mcal.get_calendar(market)
+        date = date if date is not None else datetime.now()
+        trading_hours = mkt_cal.schedule(
+            start_date=date, end_date=date + timedelta(weeks=1)
+        ).head(2)
+
+        row = 0 if not next else 1
+        th = trading_hours.iloc[row, :]
+        market_open, market_close = th[0], th[1]
+
+        if close:
+            return market_close
+        else:
+            return market_open
+
     def should_continue(self):
         """In production mode always returns True.
         Needs to be overloaded for backtesting to
@@ -187,7 +228,22 @@ class Broker:
         return True
 
     def is_market_open(self):
-        """return True if market is open else false"""
+        """Determines if the market is open.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        boolean
+            True if market is open, false if the market is closed.
+
+        Examples
+        --------
+        >>> self.is_market_open()
+        True
+        """
         pass
 
     def get_time_to_open(self):

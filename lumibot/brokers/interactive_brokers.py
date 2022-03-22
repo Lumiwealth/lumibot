@@ -2,8 +2,8 @@ import datetime
 import time
 import traceback
 from collections import deque
-from decimal import Decimal
 from datetime import timezone
+from decimal import Decimal
 from threading import Thread
 
 import pandas as pd
@@ -53,49 +53,10 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
 
     # =========Clock functions=====================
 
-    def utc_to_local(self, utc_dt):
-        return utc_dt.replace(tzinfo=timezone.utc).astimezone(tz=tz.tzlocal())
-
     def get_timestamp(self):
         """return current timestamp"""
         clock = self.ib.get_timestamp()
         return clock
-
-    def market_hours(self, market="NASDAQ", close=True, next=False, date=None):
-        """[summary]
-
-        Parameters
-        ----------
-        market : str, optional
-            Which market to test, by default "NASDAQ"
-        close : bool, optional
-            Choose open or close to check, by default True
-        next : bool, optional
-            Check current day or next day, by default False
-        date : [type], optional
-            Date to check, `None` for today, by default None
-
-        Returns
-        -------
-        [type]
-            [description]
-        """
-
-        market = self.market if self.market is not None else market
-        mkt_cal = mcal.get_calendar(market)
-        date = date if date is not None else datetime.datetime.now()
-        trading_hours = mkt_cal.schedule(
-            start_date=date, end_date=date + datetime.timedelta(weeks=1)
-        ).head(2)
-
-        row = 0 if not next else 1
-        th = trading_hours.iloc[row, :]
-        market_open, market_close = th[0], th[1]
-
-        if close:
-            return market_close
-        else:
-            return market_open
 
     def market_close_time(self):
         return self.utc_to_local(self.market_hours(close=True))
@@ -213,7 +174,11 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         if response.contract.secType in ["OPT", "FUT"]:
             expiration = datetime.datetime.strptime(
                 response.contract.lastTradeDateOrContractMonth,
-                DATE_MAP[[d for d, v in TYPE_MAP.items() if v == response.contract.secType][0]]
+                DATE_MAP[
+                    [d for d, v in TYPE_MAP.items() if v == response.contract.secType][
+                        0
+                    ]
+                ],
             )
             multiplier = response.contract.multiplier
 
@@ -239,7 +204,9 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
             Decimal(response.totalQuantity),
             response.action.lower(),
             limit_price=response.lmtPrice if response.lmtPrice != 0 else None,
-            stop_price=response.auxPrice if response.auxPrice != 0 else None, # todo test these
+            stop_price=response.auxPrice
+            if response.auxPrice != 0
+            else None,  # todo test these
             time_in_force=response.tif,
             good_till_date=response.goodTillDate,
         )

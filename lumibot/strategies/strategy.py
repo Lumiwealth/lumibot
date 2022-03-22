@@ -1619,6 +1619,11 @@ class Strategy(_Strategy):
         >>> last_price = self.get_last_price(asset)
         >>> self.log_message(f"Last price for {asset} is {last_price}")
 
+        >>> # Will return the last price for a crypto asset
+        >>> base = Asset("BTC")
+        >>> quote = Asset("USDT")
+        >>> last_price = self.get_last_price(base, quote)
+        >>> self.log_message(f"Last price for BTC/USDT is {last_price}")
         """
         asset = self._set_asset_mapping(asset)
         asset = self.crypto_assets_to_tuple(asset, quote)

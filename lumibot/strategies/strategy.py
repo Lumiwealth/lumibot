@@ -454,6 +454,7 @@ class Strategy(_Strategy):
         >>>                "sell",
         >>>                take_profit_price=limit,
         >>>                stop_loss_price=stop_loss,
+        >>>                position_filled=True,
         >>>            )
 
         >>> # For a bracket order

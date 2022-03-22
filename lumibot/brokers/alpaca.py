@@ -1,15 +1,18 @@
 import asyncio
+import datetime
+import logging
+import traceback
 from asyncio import CancelledError
 from datetime import timezone
 from decimal import Decimal
-import logging
-import traceback
 
 import alpaca_trade_api as tradeapi
+from dateutil import tz
 
-from .broker import Broker
 from lumibot.data_sources import AlpacaData
 from lumibot.entities import Asset, Order, Position
+
+from .broker import Broker
 
 
 class Alpaca(AlpacaData, Broker):
@@ -129,7 +132,16 @@ class Alpaca(AlpacaData, Broker):
         >>> self.is_market_open()
         True
         """
-        return self.api.get_clock().is_open
+        if self.market is not None:
+            open_time = self.utc_to_local(self.market_hours(close=False))
+            close_time = self.utc_to_local(self.market_hours(close=True))
+
+            current_time = datetime.datetime.now().astimezone(tz=tz.tzlocal())
+            if self.market == "24/7":
+                return True
+            return (current_time >= open_time) and (close_time >= current_time)
+        else:
+            return self.api.get_clock().is_open
 
     def get_time_to_open(self):
         """How much time in seconds remains until the market next opens?

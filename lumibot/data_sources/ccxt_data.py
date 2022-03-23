@@ -85,6 +85,14 @@ class CcxtData(DataSource):
         if not api.has["fetchOHLCV"]:
             logging.error("Exchange does not support fetching OHLCV data")
 
+        market = self.api.markets.get(symbol, None)
+        if market is None:
+            logging.error(
+                f"A request for market data for {symbol} was submitted. "
+                f"The market for that pair does not exist"
+            )
+            return None
+
         if limit is None:
             limit = 300
 

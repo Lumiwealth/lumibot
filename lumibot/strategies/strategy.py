@@ -1597,7 +1597,7 @@ class Strategy(_Strategy):
         )
 
     def get_last_price(self, asset, quote=None):
-        """Takes an asset asset and returns the last known price
+        """Takes an asset and returns the last known price
 
         Makes an active call to the market to retrieve the last price.
         In backtesting will provide the close of the last complete bar.

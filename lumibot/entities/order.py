@@ -4,11 +4,7 @@ from decimal import Decimal
 from threading import Event
 
 import lumibot.entities as entities
-from lumibot.tools.types import (
-    check_positive,
-    check_price,
-    check_quantity,
-)
+from lumibot.tools.types import check_positive, check_price, check_quantity
 
 
 class Order:
@@ -335,11 +331,14 @@ class Order:
                     f"{self.asset.asset_type}, must be of type 'int'." \
                     f"The value {value} was entered which is a {type(value)}."
 
-        if self.asset.asset_type != 'crypto' and not isinstance(value, Decimal):
-            try:
-                assert isinstance(value, int), error_msg
-            except TypeError as error:
-                logging.info(error)
+        if not isinstance(value, Decimal):
+            if isinstance(value, float):
+                value = Decimal(str(value))
+            else:
+                try:
+                    assert isinstance(value, int), error_msg
+                except TypeError as error:
+                    logging.info(error)
 
         quantity = Decimal(value)
         self._quantity = check_quantity(quantity, "Order quantity must be a positive Decimal")

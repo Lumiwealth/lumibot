@@ -29,7 +29,7 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     install_requires=[
         "pydantic",
-        "alpaca_trade_api",
+        "alpaca_trade_api>=1.2.1",
         "alpha_vantage",
         "ibapi==9.81.1.post1",
         "yfinance>=0.1.70",

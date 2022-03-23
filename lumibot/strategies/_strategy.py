@@ -98,9 +98,9 @@ class _Strategy:
                         f"Use the following: 'pandas_data': your_dataframe "
                     )
                 pd_asset_keys = dict()
-                for asset, df in pandas_data.items():
-                    new_asset = self._set_asset_mapping(asset)
-                    pd_asset_keys[new_asset] = df
+                for asset, data in pandas_data.items():
+                    new_asset = self._set_asset_mapping(asset, data)
+                    pd_asset_keys[new_asset] = data
                 self.broker._trading_days = self.data_source.load_data(pd_asset_keys)
         elif data_source is None:
             self.data_source = self.broker
@@ -177,9 +177,21 @@ class _Strategy:
 
         return result
 
-    def _set_asset_mapping(self, asset):
-        if isinstance(asset, Asset):
+    def _set_asset_mapping(self, asset, df=None):
+        if isinstance(asset, Asset) and asset.asset_type != "crypto":
             return asset
+        elif isinstance(asset, Asset) and asset.asset_type == "crypto":
+            return (df.asset, df.quote)
+        elif isinstance(asset, tuple) and asset[0].asset_type == "crypto":
+            return asset
+        elif (
+            df is not None
+            and isinstance(df.asset, Asset)
+            and df.asset.asset_type == "crypto"
+            and isinstance(df.quote, Asset)
+            and df.quote.asset_type == "crypto"
+        ):
+            return (df.asset, df.quote)
         elif isinstance(asset, str) and "/" not in asset:
             if asset not in self._asset_mapping:
                 self._asset_mapping[asset] = Asset(symbol=asset)
@@ -199,7 +211,7 @@ class _Strategy:
                 asset_tuple.append(asset)
             return tuple(asset_tuple)
         else:
-            if self.broker.SOURCE != 'CCXT':
+            if self.broker.SOURCE != "CCXT":
                 raise ValueError(
                     f"You must enter a symbol string or an asset object. You "
                     f"entered {asset}"

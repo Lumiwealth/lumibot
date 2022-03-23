@@ -1,3 +1,4 @@
+import logging
 import math
 import os
 import webbrowser
@@ -187,20 +188,22 @@ def plot_returns(
 
     _df1 = df1.copy()
     _df1 = _df1.sort_index(ascending=True)
+    _df1.index.name = 'datetime'
     _df1[name1] = (1 + _df1["return"]).cumprod()
-    # _df1 = _df1.resample("1D").mean()
-    dfs_concat.append(_df1.loc[:, [name1]])
+    dfs_concat.append(_df1[name1])
 
     _df2 = df2.copy()
     _df2 = _df2.sort_index(ascending=True)
+    _df2.index.name = 'datetime'
     _df2[name2] = (1 + _df2["return"]).cumprod()
-    # _df2 = _df2.resample("1D").mean()
-    dfs_concat.append(_df2.loc[:, [name2]])
+    dfs_concat.append(_df2[name2])
 
     df_final = pd.concat(dfs_concat, join="outer", axis=1)
+    df_final = df_final.dropna()
 
     if trades_df is None or trades_df.empty:
-        return  #  todo Do we need a log entry?
+        logging.info("There were no trades in this backtest.")
+        return
     else:
         trades_df = trades_df.set_index("time")
         df_final = df_final.merge(
@@ -287,28 +290,25 @@ def plot_returns(
 
 
 def create_tearsheet(
-    df,
+    df1,
     strat_name,
     tearsheet_file,
-    benchmark_returns_df,
+    df2,
     benchmark_asset,
     show_tearsheet,
 ):
-    df = df.copy()
-    if df['return'].abs().sum() == 0:
+    _df1 = df1.copy()
+    if _df1['return'].abs().sum() == 0:
         return None
-    df["strategy"] = np.log(1 + df["return"])
-    df = df.groupby(df.index.date)["strategy"].sum()
+    _df1["strategy"] = (1 + _df1["return"]).cumprod()
+    _df1 = _df1.groupby(_df1.index.date)["strategy"].last()
 
-    if benchmark_returns_df.shape[0] != 0:
-        benchmark_returns_df["benchmark"] = np.log(
-            1 + benchmark_returns_df["pct_change"]
-        )
-        benchmark_returns_df = benchmark_returns_df.groupby(
-            benchmark_returns_df.index.date
-        )["benchmark"].sum()
-        df = pd.concat([df, benchmark_returns_df], axis=1)
-        df.index = pd.to_datetime(df.index)
+    _df2 = df2.copy()
+    _df2["benchmark"] = (1 + _df2["pct_change"]).cumprod()
+    _df2 = _df2.groupby(_df2.index.date)["benchmark"].last()
+
+    df = pd.concat([_df1, _df2], join='inner', axis=1)
+    df.index = pd.to_datetime(df.index)
 
     df = df.dropna()
 

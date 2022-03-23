@@ -385,7 +385,9 @@ class _Strategy:
         trades_df=None,
         show_plot=True,
     ):
-        if self._strategy_returns_df is None:
+        if not show_plot:
+            return
+        elif self._strategy_returns_df is None:
             logging.warning(
                 "Cannot plot returns because the strategy returns are missing"
             )
@@ -411,7 +413,7 @@ class _Strategy:
         tearsheet_file=None,
         show_tearsheet=True,
     ):
-        if not save_tearsheet:
+        if not save_tearsheet and not show_tearsheet:
             return None
 
         if show_tearsheet:

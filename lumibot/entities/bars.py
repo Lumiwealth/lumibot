@@ -32,7 +32,7 @@ class Bars:
         The ticker symbol. eg: "AAPL". If cryptocurrency, the symbol
         will be the pair of coins. eg: "ETH/BTC"
 
-    pair : Asset
+    quote: Asset
         For cryptocurrency only. This is the other asset for trading
         getting ohlcv quotes.
 
@@ -88,13 +88,13 @@ class Bars:
 
     >>> # Get the most recent bars for Ethereum into Bitcoin.
     >>> asset = Asset(symbol="ETH", asset_type="crypto")
-    >>> pair = Asset(symbol="BTC", asset_type="crypto")
+    >>> quote = Asset(symbol="BTC", asset_type="crypto")
     >>> bars = bars.get_bars(asset)
     >>> df = bars.df
     >>> self.log_message(df["close"][-1])
     """
 
-    def __init__(self, df, source, asset, pair=None, raw=None):
+    def __init__(self, df, source, asset, quote=None, raw=None):
         """
         df columns: open, high, low, close, volume, dividend, stock_splits
         df index: pd.Timestamp localized at the timezone America/New_York
@@ -105,7 +105,7 @@ class Bars:
         self.source = source.upper()
         self.asset = asset
         self.symbol = asset.symbol.upper()
-        self.pair = pair
+        self.quote = quote
         self._raw = raw
 
     def __repr__(self):

@@ -352,11 +352,12 @@ class BacktestingBroker(Broker):
                 continue
 
             # Check validity if current date > valid date, cancel order. todo valid date
+            asset = order.asset if order.asset.asset_type != "crypto" else (order.asset, order.quote)
             price = 0
             filled_quantity = order.quantity
 
             if self._data_source.SOURCE == "YAHOO":
-                ohlc = self.get_last_bar(order.asset)
+                ohlc = self.get_last_bar(asset)
                 dt = ohlc.df.index[-1]
                 open = ohlc.df.open[-1]
                 high = ohlc.df.high[-1]
@@ -365,7 +366,7 @@ class BacktestingBroker(Broker):
                 volume = ohlc.df.volume[-1]
 
             elif self._data_source.SOURCE == "PANDAS":
-                ohlc = self._data_source._data_store[order.asset]._get_bars_dict(
+                ohlc = self._data_source._data_store[asset]._get_bars_dict(
                     self.datetime, length=1
                 )
                 if ohlc is None:

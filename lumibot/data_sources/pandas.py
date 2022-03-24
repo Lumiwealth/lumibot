@@ -178,8 +178,7 @@ class PandasData(DataSource):
         result = {}
         for asset in assets:
             result[asset] = self.get_last_price(asset, timestep=timestep)
-
-        return AssetsMapping(result)
+        return result
 
     def _pull_source_symbol_bars(
         self, asset, length, timestep=MIN_TIMESTEP, timeshift=0
@@ -213,7 +212,12 @@ class PandasData(DataSource):
         return result
 
     def _parse_source_symbol_bars(self, response, asset):
-        bars = Bars(response, self.SOURCE, asset, raw=response)
+        """parse broker response for a single asset"""
+        asset1 = asset
+        asset2 = None
+        if isinstance(asset, tuple):
+            asset1, asset2 = asset
+        bars = Bars(response, self.SOURCE, asset1, quote=asset2, raw=response)
         return bars
 
     def get_yesterday_dividend(self, asset):

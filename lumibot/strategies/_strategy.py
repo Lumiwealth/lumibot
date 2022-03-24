@@ -177,21 +177,24 @@ class _Strategy:
 
         return result
 
-    def _set_asset_mapping(self, asset, df=None):
+    def _set_asset_mapping(self, asset, quote=None, item=None):
         if isinstance(asset, Asset) and asset.asset_type != "crypto":
             return asset
         elif isinstance(asset, Asset) and asset.asset_type == "crypto":
-            return (df.asset, df.quote)
+            if quote is not None:
+                return (asset, quote)
+            else:
+                return (item.asset, item.quote)
         elif isinstance(asset, tuple) and asset[0].asset_type == "crypto":
             return asset
         elif (
-            df is not None
-            and isinstance(df.asset, Asset)
-            and df.asset.asset_type == "crypto"
-            and isinstance(df.quote, Asset)
-            and df.quote.asset_type == "crypto"
+            item is not None
+            and isinstance(item.asset, Asset)
+            and item.asset.asset_type == "crypto"
+            and isinstance(item.quote, Asset)
+            and item.quote.asset_type == "crypto"
         ):
-            return (df.asset, df.quote)
+            return (item.asset, item.quote)
         elif isinstance(asset, str) and "/" not in asset:
             if asset not in self._asset_mapping:
                 self._asset_mapping[asset] = Asset(symbol=asset)

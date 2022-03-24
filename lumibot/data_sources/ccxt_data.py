@@ -158,5 +158,5 @@ class CcxtData(DataSource):
     def _parse_source_symbol_bars(self, response, asset):
         # Parse the dataframe returned from CCXT.
         response["return"] = response["close"].pct_change()
-        bars = Bars(response, self.SOURCE, asset[0], pair=asset[1], raw=response)
+        bars = Bars(response, self.SOURCE, asset[0], quote=asset[1], raw=response)
         return bars

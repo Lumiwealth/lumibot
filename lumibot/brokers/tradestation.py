@@ -176,18 +176,57 @@ class Tradestation(TradeStationData, Broker):
 
     # =========Positions functions==================
 
-    def _get_balances_at_broker(self):
-        """Get's the current actual cash, positions value, and total
-        liquidation value from TradeStation.
-
-        This method will get the current actual values from TradeStation
-        for the actual cash, positions value, and total liquidation.
-
-        Returns
-        -------
-        tuple of float
-            (cash, positions_value, total_liquidation_value)
+     def _get_balances_at_broker(self, account_keys: List[str]) -> dict:
+        """Grabs all the balances for each account provided.
+        Args:
+        ----
+        account_keys (List[str]): A list of account numbers. Can only be a max
+            of 25 account numbers
+        Raises:
+        ----
+        ValueError: If the list is more than 25 account numbers will raise an error.
+        Returns:
+        ----
+        dict: A list of account balances for each of the accounts.
         """
+
+        if isinstance(account_keys, list):
+
+            # validate the token.
+            self._token_validation()
+
+            # argument validation.
+            if len(account_keys) == 0:
+                raise ValueError(
+                    "You cannot pass through an empty list for account keys.")
+            elif len(account_keys) > 0 and len(account_keys) <= 25:
+                account_keys = ','.join(account_keys)
+            elif len(account_keys) > 25:
+                raise ValueError(
+                    "You cannot pass through more than 25 account keys.")
+
+            # define the endpoint.
+            url_endpoint = self._api_endpoint(
+                url='accounts/{account_numbers}/balances'.format(
+                    account_numbers=account_keys)
+            )
+
+            # define the arguments
+            params = {
+                'access_token': self.state['access_token']
+            }
+
+            # grab the response.
+            response = self._handle_requests(
+                url=url_endpoint,
+                method='get',
+                args=params
+            )
+
+            return response
+
+        else:
+            raise ValueError("Account Keys, must be a list object")
 
         
 

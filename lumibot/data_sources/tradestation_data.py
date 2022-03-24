@@ -29,7 +29,7 @@ class TradeStation(DataSource):
         # Alpaca authorize 200 requests per minute and per API key
         # Setting the max_workers for multithreading with a maximum
         # of 200
-        self.name = "alpaca"
+        self.name = "tradestation"
         self.max_workers = min(max_workers, 200)
 
         # When requesting data for assets for example,

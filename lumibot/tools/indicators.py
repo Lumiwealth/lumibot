@@ -184,6 +184,7 @@ def plot_returns(
     trades_df=None,
     show_plot=True,
 ):
+
     dfs_concat = []
 
     _df1 = df1.copy()
@@ -200,6 +201,7 @@ def plot_returns(
 
     df_final = pd.concat(dfs_concat, join="outer", axis=1)
     df_final = df_final.dropna()
+
 
     if trades_df is None or trades_df.empty:
         logging.info("There were no trades in this backtest.")
@@ -300,22 +302,21 @@ def create_tearsheet(
     _df1 = df1.copy()
     if _df1['return'].abs().sum() == 0:
         return None
-    _df1["strategy"] = (1 + _df1["return"]).cumprod()
-    _df1 = _df1.groupby(_df1.index.date)["strategy"].last()
+    _df1["strategy"] = _df1["return"]
+    _df1 = _df1.groupby(_df1.index.date)["strategy"].mean()
 
     _df2 = df2.copy()
-    _df2["benchmark"] = (1 + _df2["pct_change"]).cumprod()
-    _df2 = _df2.groupby(_df2.index.date)["benchmark"].last()
+    _df2["benchmark"] = _df2["return"]
+    _df2 = _df2.groupby(_df2.index.date)["benchmark"].mean()
 
-    df = pd.concat([_df1, _df2], join='inner', axis=1)
+    df = pd.concat([_df1, _df2], join='outer', axis=1)
     df.index = pd.to_datetime(df.index)
 
     df = df.dropna()
 
-
-    # bm_text = f"compared with {name2}" if name2 else ""
     bm_text = f"compared to {benchmark_asset}" if benchmark_asset else ""
     title = f"{strat_name} {bm_text}"
+
     qs.reports.html(
         df["strategy"],
         df["benchmark"],

@@ -205,8 +205,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
             response.action.lower(),
             limit_price=response.lmtPrice if response.lmtPrice != 0 else None,
             stop_price=response.auxPrice
-            if response.auxPrice != 0
-            else None,  # todo test these
+            if response.auxPrice != 0 else None,
             time_in_force=response.tif,
             good_till_date=response.goodTillDate,
         )

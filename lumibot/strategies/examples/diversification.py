@@ -131,7 +131,7 @@ class Diversification(Strategy):
 
             # Execute the order if necessary
             if side:
-                order = self.create_order(symbol, abs(quantity_difference), side)
+                order = self.create_order(symbol, int(abs(quantity_difference)), side)
                 orders.append(order)
                 asset["quantity"] = new_quantity
 

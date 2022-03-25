@@ -19,7 +19,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="lumibot",
-    version="1.5.5",
+    version="1.6.0",
     author="Robert Grzesik",
     author_email="rob@lumiwealth.com",
     description="Trading Framework",
@@ -29,7 +29,7 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     install_requires=[
         "pydantic",
-        "alpaca_trade_api",
+        "alpaca_trade_api>=1.2.1",
         "alpha_vantage",
         "ibapi==9.81.1.post1",
         "yfinance>=0.1.70",
@@ -37,7 +37,7 @@ setuptools.setup(
         "quandl",
         "pandas>=1.4.0",
         "pandas_datareader",
-        "pandas_market_calendars>=3.3",
+        "pandas_market_calendars>=3.4",
         "plotly",
         "flask-socketio",
         "flask-sqlalchemy",
@@ -49,6 +49,7 @@ setuptools.setup(
         "pytest",
         "scipy",
         "quantstats",
+        "ccxt",
     ],
     classifiers=[
         "Programming Language :: Python :: 3",

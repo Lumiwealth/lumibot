@@ -1,10 +1,13 @@
 import asyncio
+import datetime
 import logging
 import traceback
 from asyncio import CancelledError
 from datetime import timezone
+from decimal import Decimal
 
 import alpaca_trade_api as tradeapi
+from dateutil import tz
 
 from lumibot.data_sources import AlpacaData
 from lumibot.entities import Asset, Order, Position
@@ -91,6 +94,7 @@ class Alpaca(AlpacaData, Broker):
             self, config, max_workers=max_workers, chunk_size=chunk_size
         )
         Broker.__init__(self, name="alpaca", connect_stream=connect_stream)
+        self.market = "NASDAQ"
 
     # =========Clock functions=====================
 
@@ -128,7 +132,16 @@ class Alpaca(AlpacaData, Broker):
         >>> self.is_market_open()
         True
         """
-        return self.api.get_clock().is_open
+        if self.market is not None:
+            open_time = self.utc_to_local(self.market_hours(close=False))
+            close_time = self.utc_to_local(self.market_hours(close=True))
+
+            current_time = datetime.datetime.now().astimezone(tz=tz.tzlocal())
+            if self.market == "24/7":
+                return True
+            return (current_time >= open_time) and (close_time >= current_time)
+        else:
+            return self.api.get_clock().is_open
 
     def get_time_to_open(self):
         """How much time in seconds remains until the market next opens?
@@ -210,9 +223,16 @@ class Alpaca(AlpacaData, Broker):
         """parse a broker position representation
         into a position object"""
         position = broker_position._raw
-        asset = Asset(
-            symbol=position["symbol"],
-        )
+        if position["asset_class"] == "crypto":
+            asset = Asset(
+                symbol=position["symbol"].replace("USD", ""),
+                # asset_type="crypto",
+            )
+        else:
+            asset = Asset(
+                symbol=position["symbol"],
+            )
+
         quantity = position["qty"]
         position = Position(strategy, asset, quantity, orders=orders)
         return position
@@ -246,7 +266,7 @@ class Alpaca(AlpacaData, Broker):
                 symbol=response.symbol,
                 asset_type="stock",
             ),
-            response.qty,
+            Decimal(response.qty),
             response.side,
             limit_price=response.limit_price,
             stop_price=response.stop_price,
@@ -302,9 +322,14 @@ class Alpaca(AlpacaData, Broker):
             if order.stop_loss_limit_price:
                 kwargs["stop_loss"]["limit_price"] = order.stop_loss_limit_price
 
+        if order.asset.asset_type == "crypto":
+            trade_symbol = order.pair.replace("/", "")
+        else:
+            trade_symbol = order.asset.symbol
+
         try:
             response = self.api.submit_order(
-                order.asset.symbol, order.quantity, order.side, **kwargs
+                trade_symbol, str(order.quantity), order.side, **kwargs
             )
 
             order.set_identifier(response.id)

@@ -1,14 +1,16 @@
+import logging
 import math
 import os
 import webbrowser
 from datetime import datetime, timedelta
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import quantstats as qs
+import webbrowser
+
 
 # import lumibot.data_sources.alpha_vantage as av
 from lumibot import LUMIBOT_DEFAULT_PYTZ
@@ -182,23 +184,29 @@ def plot_returns(
     trades_df=None,
     show_plot=True,
 ):
+
     dfs_concat = []
 
     _df1 = df1.copy()
     _df1 = _df1.sort_index(ascending=True)
+    _df1.index.name = 'datetime'
     _df1[name1] = (1 + _df1["return"]).cumprod()
-    # _df1 = _df1.resample("1D").mean()
-    dfs_concat.append(_df1.loc[:, [name1]])
+    dfs_concat.append(_df1[name1])
 
     _df2 = df2.copy()
     _df2 = _df2.sort_index(ascending=True)
+    _df2.index.name = 'datetime'
     _df2[name2] = (1 + _df2["return"]).cumprod()
-    # _df2 = _df2.resample("1D").mean()
-    dfs_concat.append(_df2.loc[:, [name2]])
+    dfs_concat.append(_df2[name2])
 
     df_final = pd.concat(dfs_concat, join="outer", axis=1)
+    df_final = df_final.dropna()
 
-    if trades_df is not None:
+
+    if trades_df is None or trades_df.empty:
+        logging.info("There were no trades in this backtest.")
+        return
+    else:
         trades_df = trades_df.set_index("time")
         df_final = df_final.merge(
             trades_df, how="outer", left_index=True, right_index=True
@@ -226,21 +234,29 @@ def plot_returns(
         )
     )
 
+    vshift = 0.015
+
     # Buys
     buys = df_final.copy()
     buys[name1] = buys[name1].fillna(method="bfill")
     buys = buys.loc[df_final["side"] == "buy"]
     buys["plotly_text"] = buys["filled_quantity"].astype(str) + " " + buys["symbol"]
+    buys.index.name = "datetime"
+    buys = buys.groupby(["datetime", name1])["plotly_text"].apply(lambda x: '<br>'.join(
+        x)).reset_index()
+    buys = buys.set_index("datetime")
+    buys["buy_shift"] = buys[name1] * (1 - vshift)
+
     fig.add_trace(
         go.Scatter(
             x=buys.index,
-            y=buys[name1],
+            y=buys["buy_shift"],
             mode="markers",
             name="buy",
             marker_symbol="triangle-up",
             marker_color="green",
             marker_size=15,
-            hovertemplate="Bought %{text}<br>%{x|%b %d %Y %I:%M:%S %p}<extra></extra>",
+            hovertemplate="Bought<br>%{text}<br>%{x|%b %d %Y %I:%M:%S %p}<extra></extra>",
             text=buys["plotly_text"],
         )
     )
@@ -250,48 +266,61 @@ def plot_returns(
     sells[name1] = sells[name1].fillna(method="bfill")
     sells = sells.loc[df_final["side"] == "sell"]
     sells["plotly_text"] = sells["filled_quantity"].astype(str) + " " + sells["symbol"]
+    sells.index.name = "datetime"
+    sells = sells.groupby(["datetime", name1])["plotly_text"].apply(lambda x: '<br>'.join(
+        x)).reset_index()
+    sells = sells.set_index("datetime")
+    sells["sell_shift"] = sells[name1] * (1 + vshift)
+
     fig.add_trace(
         go.Scatter(
             x=sells.index,
-            y=sells[name1],
+            y=sells["sell_shift"],
             mode="markers",
             name="sell",
             marker_color="red",
             marker_size=15,
             marker_symbol="triangle-down",
-            hovertemplate="Sold %{text}<br>%{x|%b %d %Y %I:%M:%S %p}<extra></extra>",
+            hovertemplate="Sold<br>%{text}<br>%{x|%b %d %Y %I:%M:%S %p}<extra></extra>",
             text=buys["plotly_text"],
         )
     )
+    bm_text = f"compared with {name2}" if name2 else ""
+    fig.update_layout(title_text=f"{name1} {bm_text}", title_font_size=30, template="plotly_dark",)
 
     fig.write_html(plot_file_html, auto_open=show_plot)
 
 
 def create_tearsheet(
-    df,
+    df1,
+    strat_name,
     tearsheet_file,
-    benchmark_returns_df,
+    df2,
     benchmark_asset,
     show_tearsheet,
 ):
-    df = df.copy()
-    df["strategy"] = np.log(1 + df["return"])
-    df = df.groupby(df.index.date)["strategy"].sum()
+    _df1 = df1.copy()
+    if _df1['return'].abs().sum() == 0:
+        return None
+    _df1["strategy"] = _df1["return"]
+    _df1 = _df1.groupby(_df1.index.date)["strategy"].mean()
 
-    if benchmark_returns_df.shape[0] != 0:
-        benchmark_returns_df["benchmark"] = np.log(
-            1 + benchmark_returns_df["pct_change"]
-        )
-        benchmark_returns_df = benchmark_returns_df.groupby(
-            benchmark_returns_df.index.date
-        )["benchmark"].sum()
-        df = pd.concat([df, benchmark_returns_df], axis=1)
-        df.index = pd.to_datetime(df.index)
+    _df2 = df2.copy()
+    _df2["benchmark"] = _df2["return"]
+    _df2 = _df2.groupby(_df2.index.date)["benchmark"].mean()
+
+    df = pd.concat([_df1, _df2], join='outer', axis=1)
+    df.index = pd.to_datetime(df.index)
+
+    df = df.dropna()
+
+    bm_text = f"compared to {benchmark_asset}" if benchmark_asset else ""
+    title = f"{strat_name} {bm_text}"
 
     qs.reports.html(
         df["strategy"],
         df["benchmark"],
-        # title="my title, double check",
+        title=title,
         output=True,
         download_filename=tearsheet_file,
     )

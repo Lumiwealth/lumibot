@@ -1,10 +1,12 @@
+import re
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 
 import alpaca_trade_api as tradeapi
 import pandas as pd
 from alpaca_trade_api.common import URL
 from alpaca_trade_api.entity import Bar
+from alpaca_trade_api.rest import TimeFrame, TimeFrameUnit
 
 from lumibot.entities import Bars
 
@@ -15,8 +17,14 @@ class AlpacaData(DataSource):
     SOURCE = "ALPACA"
     MIN_TIMESTEP = "minute"
     TIMESTEP_MAPPING = [
-        {"timestep": "minute", "representations": ["1Min", "minute"]},
-        {"timestep": "day", "representations": ["1D", "day"]},
+        {
+            "timestep": "minute",
+            "representations": [TimeFrame(1, TimeFrameUnit.Minute), "minute"],
+        },
+        {
+            "timestep": "day",
+            "representations": [TimeFrame(1, TimeFrameUnit.Day), "day"],
+        },
     ]
 
     """Common base class for data_sources/alpaca and brokers/alpaca"""
@@ -74,17 +82,19 @@ class AlpacaData(DataSource):
             limit = 1000
 
         if end is None:
-            end = datetime.now()
+            end = datetime.now(timezone.utc)
 
         df_ret = None
-        curr_end = end
+        curr_end = end.isoformat()
         cnt = 0
         last_curr_end = None
         loop_limit = 1000 if limit > 1000 else limit
         while True:
             cnt += 1
-            barset = api.get_barset(symbol, freq, limit=loop_limit, end=curr_end)
-            df = barset[symbol].df  # .tz_convert("utc")
+            # freqnum = re.search(r'\d+', freq).group()
+            # freqtimelen = freq[len(freqnum):]
+            barset = api.get_bars(symbol, freq, limit=loop_limit, end=curr_end)
+            df = barset.df  # .tz_convert("utc")
 
             if df_ret is None:
                 df_ret = df

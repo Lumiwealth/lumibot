@@ -19,7 +19,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="lumibot",
-    version="1.5.5",
+    version="1.6.0",
     author="Robert Grzesik",
     author_email="rob@lumiwealth.com",
     description="Trading Framework",

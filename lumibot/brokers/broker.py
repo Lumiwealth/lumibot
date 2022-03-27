@@ -203,7 +203,6 @@ class Broker:
             self._filled_positions.append(position)
         else:
             position.quantity += quote_quantity
-            pass
     # =========Clock functions=====================
 
     def utc_to_local(self, utc_dt):

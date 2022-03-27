@@ -105,16 +105,17 @@ class _Strategy:
                     )
                 self.broker._trading_days = self.data_source.load_data()
                 # Create initial positions.
-                for asset, quantity in self.starting_units.items():
-                    position = Position(
-                        self._name,
-                        asset,
-                        Decimal(quantity),
-                        orders=None,
-                        hold=0,
-                        available=Decimal(quantity),
-                    )
-                    self.broker._filled_positions.append(position)
+                if self.starting_units is not None and len(self.starting_units) > 0:
+                    for asset, quantity in self.starting_units.items():
+                        position = Position(
+                            self._name,
+                            asset,
+                            Decimal(quantity),
+                            orders=None,
+                            hold=0,
+                            available=Decimal(quantity),
+                        )
+                        self.broker._filled_positions.append(position)
 
         elif data_source is None:
             self.data_source = self.broker
@@ -140,11 +141,13 @@ class _Strategy:
             # Set initial positions if live trading.
             self.broker._set_initial_positions(self._name)
         else:
-            if list(self.broker._data_source._data_store.keys())[0][0].asset_type != "crypto":
+            store_assets = list(self.broker._data_source._data_store.keys())
+            asset = store_assets[0]
+            if isinstance(asset, Asset) and asset.asset_type != "crypto":
                 self._cash = budget
                 self._position_value = 0
                 self._portfolio_value = budget
-            else:
+            elif isinstance(asset, tuple) and asset[0].asset_type == "crypto":
                 self._cash = 0
                 portfolio_value = 0
                 for position in self.get_positions():
@@ -301,7 +304,11 @@ class _Strategy:
             positions = self.broker.get_tracked_positions(self._name)
             assets = [position.asset for position in positions]
             # Set the base currency for crypto valuations.
-            if assets[0].asset_type == "crypto" and self.value_quote is not None:
+            if (
+                len(assets) > 0
+                and assets[0].asset_type == "crypto"
+                and self.value_quote is not None
+            ):
                 assets = [(asset, self.value_quote) for asset in assets]
 
             prices = self.data_source.get_last_prices(assets)

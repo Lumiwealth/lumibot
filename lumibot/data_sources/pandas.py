@@ -16,7 +16,7 @@ class PandasData(DataSource):
 
     def __init__(self, pandas_data, config=None, auto_adjust=True, **kwargs):
         self.name = "pandas"
-        self.pandas_data = pandas_data  # self._set_pandas_data_keys(pandas_data)
+        self.pandas_data = self._set_pandas_data_keys(pandas_data)
         self.auto_adjust = auto_adjust
         self._data_store = {}
         self._date_index = None
@@ -24,24 +24,24 @@ class PandasData(DataSource):
         self._timestep = "day"
         self._expiries_exist = False
 
-    # @staticmethod todo delete
-    # def _set_pandas_data_keys(pandas_data):
-    #     new_pandas_data = {}
-    #     for k, data in pandas_data.items():
-    #         if isinstance(data.asset, Asset) and data.asset.asset_type != 'crypto':
-    #             key = data.asset
-    #         elif isinstance(data.asset, tuple) and data.asset[0].asset_type == 'crypto':
-    #             key = data.asset
-    #         elif isinstance(data.asset, Asset) and data.asset.asset_type == 'crypto':
-    #             key = (data.asset, data.quote)
-    #         else:
-    #             raise ValueError("Asset must be an Asset or a tuple of Asset and quote")
-    #         new_pandas_data[key] = data
-    #     return new_pandas_data
+    @staticmethod
+    def _set_pandas_data_keys(pandas_data):
+        new_pandas_data = {}
+        for k, data in pandas_data.items():
+            if isinstance(data.asset, Asset) and data.asset.asset_type != 'crypto':
+                key = data.asset
+            elif isinstance(data.asset, tuple) and data.asset[0].asset_type == 'crypto':
+                key = data.asset
+            elif isinstance(data.asset, Asset) and data.asset.asset_type == 'crypto':
+                key = (data.asset, data.quote)
+            else:
+                raise ValueError("Asset must be an Asset or a tuple of Asset and quote")
+            new_pandas_data[key] = data
+        return new_pandas_data
 
 
-    def load_data(self, pandas_data):
-        self._data_store = pandas_data
+    def load_data(self):
+        self._data_store = self.pandas_data
         self._expiries_exist = (
             len(
                 [

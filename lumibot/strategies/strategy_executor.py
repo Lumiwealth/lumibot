@@ -206,7 +206,8 @@ class StrategyExecutor(Thread):
             quantity = payload["quantity"]
             multiplier = payload["multiplier"]
 
-            self.strategy._update_cash(order.side, quantity, price, multiplier)
+            if order.asset.asset_type != 'crypto':
+                self.strategy._update_cash(order.side, quantity, price, multiplier)
             self._on_filled_order(**payload)
         elif event == self.PARTIALLY_FILLED_ORDER:
             order = payload["order"]
@@ -214,7 +215,8 @@ class StrategyExecutor(Thread):
             quantity = payload["quantity"]
             multiplier = payload["multiplier"]
 
-            self.strategy._update_cash(order.side, quantity, price, multiplier)
+            if order.asset.asset_type != 'crypto':
+                self.strategy._update_cash(order.side, quantity, price, multiplier)
             self._on_partially_filled_order(**payload)
 
     def process_queue(self):
@@ -266,7 +268,7 @@ class StrategyExecutor(Thread):
     def trace_stats(func_input):
         @wraps(func_input)
         def func_output(self, *args, **kwargs):
-            self.strategy._update_portfolio_value()
+            self.strategy._update_portfolio_value() #todo reverse this!!!!!! or just for crypto
             snapshot_before = self.strategy._copy_dict()
             result = func_input(self, *args, **kwargs)
             self._trace_stats(self._strategy_context, snapshot_before)

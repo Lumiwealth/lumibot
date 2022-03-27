@@ -14,6 +14,7 @@ from dateutil import tz
 from lumibot.data_sources import DataSource
 from lumibot.entities import Order
 from lumibot.trading_builtins import SafeList
+from lumibot.entities import Position
 
 
 class Broker:
@@ -151,6 +152,10 @@ class Broker:
 
         if order not in self._partially_filled_orders:
             self._partially_filled_orders.append(order)
+
+        if order.asset.asset_type == "crypto":
+            self._process_crypto_quote(order, quantity, price)
+
         return order, position
 
     def _process_filled_order(self, order, price, quantity):
@@ -178,8 +183,27 @@ class Broker:
                 logging.info("Position %r liquidated" % position)
                 self._filled_positions.remove(position)
 
+        if order.asset.asset_type == "crypto":
+            self._process_crypto_quote(order, quantity, price)
+
         return position
 
+    def _process_crypto_quote(self, order, quantity, price):
+        """Used to process the quote side of a crypto trade. """
+        quote_quantity = Decimal(quantity) * Decimal(price)
+        if order.side == "buy":
+            quote_quantity = -quote_quantity
+        position = self.get_tracked_position(order.strategy, order.quote)
+        if position is None:
+            position = Position(
+                order.strategy,
+                order.quote,
+                quote_quantity,
+            )
+            self._filled_positions.append(position)
+        else:
+            position.quantity += quote_quantity
+            pass
     # =========Clock functions=====================
 
     def utc_to_local(self, utc_dt):

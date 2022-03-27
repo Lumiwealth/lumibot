@@ -566,7 +566,7 @@ class Strategy(_Strategy):
         >>> order = self.create_order(base, 0.05, "buy", limit_price=41000,  quote=quote)
         >>> self.submit_order(order)
         """
-        asset = self._set_asset_mapping(asset, quote=quote)
+        asset = self._set_asset_mapping(asset)
         order = Order(
             self.name,
             asset,
@@ -2244,7 +2244,7 @@ class Strategy(_Strategy):
         >>> asset = self.create(symbol="ETH", asset_type="crypto"),
         """
         # If backtesting,  return existing asset if in store.
-        if self.broker.IS_BACKTESTING_BROKER:
+        if self.broker.IS_BACKTESTING_BROKER and asset_type != "crypto":
             # Check for existing asset.
             for asset in self.broker._data_source._data_store:
                 is_symbol = asset.symbol == symbol

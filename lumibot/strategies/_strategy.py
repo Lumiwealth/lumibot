@@ -1,4 +1,5 @@
 import datetime
+from decimal import Decimal
 import logging
 from copy import deepcopy
 
@@ -6,7 +7,7 @@ import pandas as pd
 
 from lumibot import LUMIBOT_DEFAULT_PYTZ
 from lumibot.backtesting import BacktestingBroker
-from lumibot.entities import Asset
+from lumibot.entities import Asset, Position
 from lumibot.tools import (
     create_tearsheet,
     day_deduplicate,
@@ -97,11 +98,7 @@ class _Strategy:
                         f"Please add a pandas dataframe as an input parameter. "
                         f"Use the following: 'pandas_data': your_dataframe "
                     )
-                pd_asset_keys = dict()
-                for asset, data in pandas_data.items():
-                    new_asset = self._set_asset_mapping(asset, data)
-                    pd_asset_keys[new_asset] = data
-                self.broker._trading_days = self.data_source.load_data(pd_asset_keys)
+                self.broker._trading_days = self.data_source.load_data()
         elif data_source is None:
             self.data_source = self.broker
         else:
@@ -177,30 +174,17 @@ class _Strategy:
 
         return result
 
-    def _set_asset_mapping(self, asset, quote=None, item=None):
-        if isinstance(asset, Asset) and asset.asset_type != "crypto":
+    def _set_asset_mapping(self, asset):
+        if isinstance(asset, Asset):
             return asset
-        elif isinstance(asset, Asset) and asset.asset_type == "crypto":
-            if quote is not None:
-                return (asset, quote)
-            else:
-                return (item.asset, item.quote)
-        elif isinstance(asset, tuple) and asset[0].asset_type == "crypto":
+        elif isinstance(asset, tuple):
             return asset
-        elif (
-            item is not None
-            and isinstance(item.asset, Asset)
-            and item.asset.asset_type == "crypto"
-            and isinstance(item.quote, Asset)
-            and item.quote.asset_type == "crypto"
-        ):
-            return (item.asset, item.quote)
         elif isinstance(asset, str) and "/" not in asset:
             if asset not in self._asset_mapping:
                 self._asset_mapping[asset] = Asset(symbol=asset)
             return self._asset_mapping[asset]
         elif (isinstance(asset, str) and "/" in asset) or (
-            isinstance(asset, tuple) and len(asset) == 2
+                isinstance(asset, tuple) and len(asset) == 2
         ):
             asset_tuple = []
             if isinstance(asset, str):
@@ -214,7 +198,7 @@ class _Strategy:
                 asset_tuple.append(asset)
             return tuple(asset_tuple)
         else:
-            if self.broker.SOURCE != "CCXT":
+            if self.broker.SOURCE != 'CCXT':
                 raise ValueError(
                     f"You must enter a symbol string or an asset object. You "
                     f"entered {asset}"
@@ -225,6 +209,54 @@ class _Strategy:
                     f"getting a quote, you may enter a string like `ETH/BTC` or "
                     f"asset objects in a tuple like (Asset(ETH), Asset(BTC))."
                 )
+    # def _set_asset_mapping(self, asset, quote=None, item=None):
+    #     if isinstance(asset, Asset) and asset.asset_type != "crypto":
+    #         return asset
+    #     elif isinstance(asset, tuple) and asset[0].asset_type == "crypto":
+    #         return asset
+    #     elif isinstance(asset, Asset) and asset.asset_type == "crypto":
+    #         if quote is not None:
+    #             return (asset, quote)
+    #         else:
+    #             return (item.asset, item.quote)
+    #     elif (
+    #         item is not None
+    #         and isinstance(item.asset, Asset)
+    #         and item.asset.asset_type == "crypto"
+    #         and isinstance(item.quote, Asset)
+    #         and item.quote.asset_type == "crypto"
+    #     ):
+    #         return (item.asset, item.quote)
+    #     elif isinstance(asset, str) and "/" not in asset:
+    #         if asset not in self._asset_mapping:
+    #             self._asset_mapping[asset] = Asset(symbol=asset)
+    #         return self._asset_mapping[asset]
+    #     elif (isinstance(asset, str) and "/" in asset) or (
+    #         isinstance(asset, tuple) and len(asset) == 2
+    #     ):
+    #         asset_tuple = []
+    #         if isinstance(asset, str):
+    #             assets = asset.split("/")
+    #         else:
+    #             assets = asset
+    #         for asset in assets:
+    #             if isinstance(asset, str) and asset not in self._asset_mapping:
+    #                 self._asset_mapping[asset] = Asset(symbol=asset)
+    #                 asset_tuple.append(self._asset_mapping[asset])
+    #             asset_tuple.append(asset)
+    #         return tuple(asset_tuple)
+    #     else:
+    #         if self.broker.SOURCE != "CCXT":
+    #             raise ValueError(
+    #                 f"You must enter a symbol string or an asset object. You "
+    #                 f"entered {asset}"
+    #             )
+    #         else:
+    #             raise ValueError(
+    #                 f"You must enter symbol string or an asset object. If you "
+    #                 f"getting a quote, you may enter a string like `ETH/BTC` or "
+    #                 f"asset objects in a tuple like (Asset(ETH), Asset(BTC))."
+    #             )
 
     def _log_strat_name(self):
         """Returns the name of the strategy as a string if not default"""
@@ -276,7 +308,9 @@ class _Strategy:
                 self._cash -= float(quantity) * price * multiplier
             if side == "sell":
                 self._cash += float(quantity) * price * multiplier
+
             return self._cash
+
 
     def _update_cash_with_dividends(self):
         with self._executor.lock:

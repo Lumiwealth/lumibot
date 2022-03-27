@@ -39,6 +39,8 @@ class _Strategy:
         backtesting_start=None,
         backtesting_end=None,
         pandas_data=None,
+        value_quote=None,
+        starting_units=None,
         filled_order_callback=None,
         name="StratName",
         budget=10000,
@@ -78,6 +80,9 @@ class _Strategy:
             self.broker = broker
             self._name = name
 
+        self.value_quote = value_quote
+        self.starting_units = starting_units
+
         # Setting the broker object
         self._is_backtesting = self.broker.IS_BACKTESTING_BROKER
         self._benchmark_asset = benchmark_asset
@@ -99,6 +104,18 @@ class _Strategy:
                         f"Use the following: 'pandas_data': your_dataframe "
                     )
                 self.broker._trading_days = self.data_source.load_data()
+                # Create initial positions.
+                for asset, quantity in self.starting_units.items():
+                    position = Position(
+                        self._name,
+                        asset,
+                        Decimal(quantity),
+                        orders=None,
+                        hold=0,
+                        available=Decimal(quantity),
+                    )
+                    self.broker._filled_positions.append(position)
+
         elif data_source is None:
             self.data_source = self.broker
         else:
@@ -123,9 +140,19 @@ class _Strategy:
             # Set initial positions if live trading.
             self.broker._set_initial_positions(self._name)
         else:
-            self._cash = budget
-            self._position_value = 0
-            self._portfolio_value = budget
+            if list(self.broker._data_source._data_store.keys())[0][0].asset_type != "crypto":
+                self._cash = budget
+                self._position_value = 0
+                self._portfolio_value = budget
+            else:
+                self._cash = 0
+                portfolio_value = 0
+                for position in self.get_positions():
+                    value = float(position.quantity) * self.get_last_price(
+                        position.asset, quote=self.value_quote
+                    )
+                    portfolio_value += value
+                self._portfolio_value = portfolio_value
 
         self._minutes_before_closing = minutes_before_closing
         self._minutes_before_opening = minutes_before_opening
@@ -147,7 +174,6 @@ class _Strategy:
         self._filled_order_callback = filled_order_callback
 
     # =============Internal functions===================
-
     def _copy_dict(self):
         result = {}
         ignored_fields = ["broker", "data_source", "trading_pairs", "asset_gen"]
@@ -184,7 +210,7 @@ class _Strategy:
                 self._asset_mapping[asset] = Asset(symbol=asset)
             return self._asset_mapping[asset]
         elif (isinstance(asset, str) and "/" in asset) or (
-                isinstance(asset, tuple) and len(asset) == 2
+            isinstance(asset, tuple) and len(asset) == 2
         ):
             asset_tuple = []
             if isinstance(asset, str):
@@ -198,7 +224,7 @@ class _Strategy:
                 asset_tuple.append(asset)
             return tuple(asset_tuple)
         else:
-            if self.broker.SOURCE != 'CCXT':
+            if self.broker.SOURCE != "CCXT":
                 raise ValueError(
                     f"You must enter a symbol string or an asset object. You "
                     f"entered {asset}"
@@ -209,6 +235,7 @@ class _Strategy:
                     f"getting a quote, you may enter a string like `ETH/BTC` or "
                     f"asset objects in a tuple like (Asset(ETH), Asset(BTC))."
                 )
+
     # def _set_asset_mapping(self, asset, quote=None, item=None):
     #     if isinstance(asset, Asset) and asset.asset_type != "crypto":
     #         return asset
@@ -273,10 +300,18 @@ class _Strategy:
             portfolio_value = self._cash
             positions = self.broker.get_tracked_positions(self._name)
             assets = [position.asset for position in positions]
+            # Set the base currency for crypto valuations.
+            if assets[0].asset_type == "crypto" and self.value_quote is not None:
+                assets = [(asset, self.value_quote) for asset in assets]
+
             prices = self.data_source.get_last_prices(assets)
 
             for position in positions:
-                asset = position.asset
+                asset = (
+                    position.asset
+                    if position.asset.asset_type != "crypto"
+                    else (position.asset, self.value_quote)
+                )
                 quantity = position.quantity
                 price = prices.get(asset, 0)
                 if self._is_backtesting and price is None:
@@ -292,9 +327,14 @@ class _Strategy:
                         f"expiration: {asset.expiration}, \n"
                         f"strike: {asset.strike}.\n"
                     )
-                multiplier = (
-                    asset.multiplier if asset.asset_type in ["option", "future"] else 1
-                )
+                if isinstance(asset, tuple):
+                    multiplier = 1
+                else:
+                    multiplier = (
+                        asset.multiplier
+                        if asset.asset_type in ["option", "future"]
+                        else 1
+                    )
                 portfolio_value += float(quantity) * price * multiplier
 
             self._portfolio_value = portfolio_value
@@ -310,7 +350,6 @@ class _Strategy:
                 self._cash += float(quantity) * price * multiplier
 
             return self._cash
-
 
     def _update_cash_with_dividends(self):
         with self._executor.lock:
@@ -502,6 +541,8 @@ class _Strategy:
         plot_file_html=None,
         trades_file=None,
         pandas_data=None,
+        value_quote=None,
+        starting_units=None,
         show_plot=True,
         tearsheet_file=None,
         save_tearsheet=True,
@@ -548,8 +589,16 @@ class _Strategy:
             The file to write the trades to.
         pandas_data : pandas.DataFrame
             The pandas data to use.
+        value_quote : Asset (crypto)
+            An Asset object for the crypto currency that will get used
+            as a valuation asset for measuring overall porfolio values.
+            Usually USDT, USD, USDC.
         show_plot : bool
             Whether or not to show the plot.
+        show_tearsheet : bool
+            Whether or not to show the tearsheet.
+        save_tearsheet : bool
+            Whether or not to save the tearsheet.
 
         Returns
         -------
@@ -689,6 +738,8 @@ class _Strategy:
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             pandas_data=pandas_data,
+            value_quote=value_quote,
+            starting_units=starting_units,
             name=name,
             budget=budget,
             **kwargs,

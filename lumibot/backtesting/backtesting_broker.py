@@ -219,6 +219,7 @@ class BacktestingBroker(Broker):
                     order.quantity,
                     order.side,
                     stop_price=order.stop_price,
+                    quote=order.quote,
                 )
                 stop_loss_order = self._parse_broker_order(
                     stop_loss_order, order.strategy
@@ -232,6 +233,7 @@ class BacktestingBroker(Broker):
                 order.quantity,
                 order.side,
                 stop_price=order.stop_loss_price,
+                quote=order.quote,
             )
             orders.append(stop_loss_order)
 
@@ -241,6 +243,7 @@ class BacktestingBroker(Broker):
                 order.quantity,
                 order.side,
                 limit_price=order.take_profit_price,
+                quote=order.quote,
             )
             orders.append(limit_order)
 
@@ -250,7 +253,7 @@ class BacktestingBroker(Broker):
         elif order.order_class in ["bracket", "oto"]:
             side = "sell" if order.side == "buy" else "buy"
             if order.order_class == "bracket" or (
-                order.order_class == "oto" and order.stop_loss_price
+                    order.order_class == "oto" and order.stop_loss_price
             ):
                 stop_loss_order = Order(
                     order.strategy,
@@ -259,11 +262,12 @@ class BacktestingBroker(Broker):
                     side,
                     stop_price=order.stop_loss_price,
                     limit_price=order.stop_loss_limit_price,
+                    quote=order.quote,
                 )
                 orders.append(stop_loss_order)
 
             if order.order_class == "bracket" or (
-                order.order_class == "oto" and order.take_profit_price
+                    order.order_class == "oto" and order.take_profit_price
             ):
                 limit_order = Order(
                     order.strategy,
@@ -271,6 +275,7 @@ class BacktestingBroker(Broker):
                     order.quantity,
                     side,
                     limit_price=order.take_profit_price,
+                    quote=order.quote,
                 )
                 orders.append(limit_order)
 
@@ -351,11 +356,14 @@ class BacktestingBroker(Broker):
             if order.dependent_order_filled:
                 continue
 
+            # Check validity if current date > valid date, cancel order. todo valid date
+            asset = order.asset if order.asset.asset_type != "crypto" else (order.asset, order.quote)
+
             price = 0
             filled_quantity = order.quantity
 
             if self._data_source.SOURCE == "YAHOO":
-                ohlc = self.get_last_bar(order.asset)
+                ohlc = self.get_last_bar(asset)
                 dt = ohlc.df.index[-1]
                 open = ohlc.df.open[-1]
                 high = ohlc.df.high[-1]
@@ -364,7 +372,7 @@ class BacktestingBroker(Broker):
                 volume = ohlc.df.volume[-1]
 
             elif self._data_source.SOURCE == "PANDAS":
-                ohlc = self._data_source._data_store[order.asset]._get_bars_dict(
+                ohlc = self._data_source._data_store[asset]._get_bars_dict(
                     self.datetime, length=1
                 )
                 if ohlc is None:

@@ -2244,7 +2244,7 @@ class Strategy(_Strategy):
         >>> asset = self.create(symbol="ETH", asset_type="crypto"),
         """
         # If backtesting,  return existing asset if in store.
-        if self.broker.IS_BACKTESTING_BROKER:
+        if self.broker.IS_BACKTESTING_BROKER and asset_type != "crypto":
             # Check for existing asset.
             for asset in self.broker._data_source._data_store:
                 is_symbol = asset.symbol == symbol

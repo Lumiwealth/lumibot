@@ -33,8 +33,6 @@ class Data:
         If not supplied, then default is 2359 hrs.
     timestep : str
         Either "minute" (default) or "day"
-    columns : list of str
-        For feeding in desired columns (not yet used).
 
     Attributes
     ----------
@@ -59,8 +57,6 @@ class Data:
         If not supplied, then default is 2359 hrs.
     timestep : str
         Either "minute" (default) or "day"
-    columns : list of str
-        For feeding in desired columns (not yet used).
     datalines : dict
         Keys are column names like `datetime` or `close`, values are
         numpy arrays.
@@ -113,10 +109,20 @@ class Data:
         trading_hours_start=datetime.time(0, 0),
         trading_hours_end=datetime.time(23, 59),
         timestep="minute",
-        columns=None,
+        quote=None,
     ):
+
         self.asset = asset
         self.symbol = self.asset.symbol
+
+        if self.asset.asset_type == "crypto" and quote is None:
+            raise ValueError(
+                f"A crypto asset {self.symbol} was added to data without a corresponding"
+                f"`quote` asset. Please add the quote asset. For example, if trying to add "
+                f"`BTCUSD` to data, you would need to add `USD` as the quote asset."
+                f"Quote must be provided for crypto assets.")
+        else:
+            self.quote = quote
 
         self.timestep = timestep
         self.df = self.columns(df)

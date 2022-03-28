@@ -396,6 +396,28 @@ instructions for the orders.</p>
 <span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_orders</span><span class="p">([</span><span class="n">order1</span><span class="p">,</span> <span class="n">order2</span><span class="p">])</span>
 </pre></div>
 </div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For 2 CRYPTO buy orders.</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">asset_BTC</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="s2">"BTC"</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="n">asset_type</span><span class="o">=</span><span class="s2">"crypto"</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">asset_ETH</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="s2">"ETH"</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="n">asset_type</span><span class="o">=</span><span class="s2">"crypto"</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">asset_quote</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="s2">"USD"</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="n">asset_type</span><span class="o">=</span><span class="s2">"crypto"</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">order1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">asset_BTC</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="s2">"buy"</span><span class="p">,</span> <span class="n">quote</span><span class="o">=</span><span class="n">asset_quote</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">order2</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">asset_ETH</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="s2">"buy"</span><span class="p">,</span> <span class="n">quote</span><span class="o">=</span><span class="n">asset_quote</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">([</span><span class="n">order1</span><span class="p">,</span> <span class="n">order2</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="ow">or</span><span class="o">...</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">order1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">((</span><span class="n">asset_BTC</span><span class="p">,</span> <span class="n">asset_quote</span><span class="p">),</span> <span class="mf">0.1</span><span class="p">,</span> <span class="s2">"buy"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">order2</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">((</span><span class="n">asset_ETH</span><span class="p">,</span> <span class="n">asset_quote</span><span class="p">),</span> <span class="mi">10</span><span class="p">,</span> <span class="s2">"buy"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">([</span><span class="n">order1</span><span class="p">,</span> <span class="n">order2</span><span class="p">])</span>
+</pre></div>
+</div>
 </dd></dl>
 </div>
 

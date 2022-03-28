@@ -323,11 +323,15 @@
 <span id="documentation"></span><h2>Documentation<a class="headerlink" href="#module-entities.position" title="Permalink to this headline">¶</a></h2>
 <dl class="py class">
 <dt class="sig sig-object py" id="entities.position.Position">
-<em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">entities.position.</span></span><span class="sig-name descname"><span class="pre">Position</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">strategy</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quantity</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">orders</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.position.Position" title="Permalink to this definition">¶</a></dt>
+<em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">entities.position.</span></span><span class="sig-name descname"><span class="pre">Position</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">strategy</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quantity</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">orders</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">available</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.position.Position" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <dl class="py method">
 <dt class="sig sig-object py" id="entities.position.Position.add_order">
 <span class="sig-name descname"><span class="pre">add_order</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">order</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quantity</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.position.Position.add_order" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+<dl class="py property">
+<dt class="sig sig-object py" id="entities.position.Position.available">
+<em class="property"><span class="pre">property</span> </em><span class="sig-name descname"><span class="pre">available</span></span><a class="headerlink" href="#entities.position.Position.available" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 <dl class="py method">
 <dt class="sig sig-object py" id="entities.position.Position.get_selling_order">
@@ -345,9 +349,17 @@
 </dd>
 </dl>
 </dd></dl>
+<dl class="py property">
+<dt class="sig sig-object py" id="entities.position.Position.hold">
+<em class="property"><span class="pre">property</span> </em><span class="sig-name descname"><span class="pre">hold</span></span><a class="headerlink" href="#entities.position.Position.hold" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+<dl class="py property">
+<dt class="sig sig-object py" id="entities.position.Position.quantity">
+<em class="property"><span class="pre">property</span> </em><span class="sig-name descname"><span class="pre">quantity</span></span><a class="headerlink" href="#entities.position.Position.quantity" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
 <dl class="py method">
-<dt class="sig sig-object py" id="entities.position.Position.update_raw">
-<span class="sig-name descname"><span class="pre">update_raw</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">raw</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.position.Position.update_raw" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="entities.position.Position.value_type">
+<span class="sig-name descname"><span class="pre">value_type</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">value</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.position.Position.value_type" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 </dd></dl>
 </div>

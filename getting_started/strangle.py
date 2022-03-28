@@ -385,7 +385,6 @@ class Strangle(Strategy):
             ]
 
             if -1 in status_list:
-                # todo for multiple assets must find orders for each call/put
                 self.sell_all(cancel_open_orders=True)
                 positions = self.get_tracked_positions()
                 sell_orders = [

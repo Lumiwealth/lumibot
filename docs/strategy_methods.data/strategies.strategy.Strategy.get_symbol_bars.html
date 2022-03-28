@@ -310,7 +310,7 @@
 <h1>self.get_symbol_bars<a class="headerlink" href="#self-get-symbol-bars" title="Permalink to this headline">¶</a></h1>
 <dl class="py function">
 <dt class="sig sig-object py" id="strategies.strategy.Strategy.get_symbol_bars">
-<span class="sig-prename descclassname"><span class="pre">strategies.strategy.Strategy.</span></span><span class="sig-name descname"><span class="pre">get_symbol_bars</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">length</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timestep</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timeshift</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#strategies.strategy.Strategy.get_symbol_bars" title="Permalink to this definition">¶</a></dt>
+<span class="sig-prename descclassname"><span class="pre">strategies.strategy.Strategy.</span></span><span class="sig-name descname"><span class="pre">get_symbol_bars</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">length</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timestep</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timeshift</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quote</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#strategies.strategy.Strategy.get_symbol_bars" title="Permalink to this definition">¶</a></dt>
 <dd><p>Get historical pricing data for a given symbol or asset.</p>
 <p>Return data bars for a given symbol or asset.  Any number of bars can
 be return limited by the data available. This is set with <cite>length</cite> in
@@ -319,8 +319,18 @@ starting point can be shifted backwards by time or bars.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>asset</strong> (<em>str</em><em> or </em><a class="reference internal" href="../entities.asset.html#entities.asset.Asset" title="entities.asset.Asset"><em>Asset</em></a>) – The symbol string representation (e.g AAPL, GOOG, …) or asset
-object.</p></li>
+<li><p><strong>asset</strong> (<em>str</em><em> or </em><a class="reference internal" href="../entities.asset.html#entities.asset.Asset" title="entities.asset.Asset"><em>Asset</em></a>) – <p>The symbol string representation (e.g AAPL, GOOG, …) or asset
+object. Crypto currencies must specify the market. Use a string
+with the two coins as follows:</p>
+<blockquote>
+<div><p><cite>ETH/BTC</cite></p>
+</div></blockquote>
+<p>Alternatively for cryptos, one can use a tuple with the two asset
+objects, numerator first, denominator second.</p>
+<blockquote>
+<div><p><cite>(Asset(ETH), Asset(BTC))</cite></p>
+</div></blockquote>
+</p></li>
 <li><p><strong>length</strong> (<em>int</em>) – The number of rows (number of timesteps)</p></li>
 <li><p><strong>timestep</strong> (<em>str</em>) – Either <code class="docutils literal notranslate"><span class="pre">`"minute""`</span></code> for minutes data or <code class="docutils literal notranslate"><span class="pre">`"day"`</span></code>
 for days data default value depends on the data_source (minute
@@ -356,6 +366,15 @@ with the latest data being 24h ago (timedelta(days=1)) (in a backtest)</p>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">asset</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_asset</span><span class="p">(</span><span class="s2">"AAPL"</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s2">"option"</span><span class="p">,</span> <span class="n">expiration</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">(</span><span class="mi">2020</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">strike</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">right</span><span class="o">=</span><span class="s2">"call"</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">bars</span> <span class="o">=</span>  <span class="bp">self</span><span class="o">.</span><span class="n">get_symbol_bars</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="mi">30</span><span class="p">,</span> <span class="s2">"minute"</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># To get the DataFrame of AAPL data</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">bars</span><span class="o">.</span><span class="n">df</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Get the data for BTC in USD  for the last 2 days</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">asset_base</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">symbol</span><span class="o">=</span><span class="s2">"BTC"</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s2">"crypto"</span><span class="p">),</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">asset_quote</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">symbol</span><span class="o">=</span><span class="s2">"USDT"</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s2">"crypto"</span><span class="p">),</span>
+<span class="go">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">bars</span> <span class="o">=</span>  <span class="bp">self</span><span class="o">.</span><span class="n">get_symbol_bars</span><span class="p">(</span><span class="s2">"SPY"</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">"day"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># To get the DataFrame of SPY data</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">bars</span><span class="o">.</span><span class="n">df</span>
 </pre></div>
 </div>

@@ -310,8 +310,8 @@
 <h1>self.get_last_price<a class="headerlink" href="#self-get-last-price" title="Permalink to this headline">¶</a></h1>
 <dl class="py function">
 <dt class="sig sig-object py" id="strategies.strategy.Strategy.get_last_price">
-<span class="sig-prename descclassname"><span class="pre">strategies.strategy.Strategy.</span></span><span class="sig-name descname"><span class="pre">get_last_price</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">asset</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#strategies.strategy.Strategy.get_last_price" title="Permalink to this definition">¶</a></dt>
-<dd><p>Takes an asset asset and returns the last known price</p>
+<span class="sig-prename descclassname"><span class="pre">strategies.strategy.Strategy.</span></span><span class="sig-name descname"><span class="pre">get_last_price</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quote</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#strategies.strategy.Strategy.get_last_price" title="Permalink to this definition">¶</a></dt>
+<dd><p>Takes an asset and returns the last known price</p>
 <p>Makes an active call to the market to retrieve the last price.
 In backtesting will provide the close of the last complete bar.</p>
 <dl class="field-list simple">
@@ -331,6 +331,13 @@ retrieved.</p>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">asset</span> <span class="o">=</span> <span class="s2">"SPY"</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">last_price</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_last_price</span><span class="p">(</span><span class="n">asset</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">log_message</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Last price for </span><span class="si">{</span><span class="n">asset</span><span class="si">}</span><span class="s2"> is </span><span class="si">{</span><span class="n">last_price</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Will return the last price for a crypto asset</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">base</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">"BTC"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">quote</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">"USDT"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">last_price</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_last_price</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="n">quote</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">log_message</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Last price for BTC/USDT is </span><span class="si">{</span><span class="n">last_price</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 </pre></div>
 </div>
 </dd></dl>

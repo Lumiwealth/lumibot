@@ -358,6 +358,7 @@ class BacktestingBroker(Broker):
 
             # Check validity if current date > valid date, cancel order. todo valid date
             asset = order.asset if order.asset.asset_type != "crypto" else (order.asset, order.quote)
+
             price = 0
             filled_quantity = order.quantity
 

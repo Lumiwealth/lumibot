@@ -312,6 +312,9 @@
 <dt class="sig sig-object py" id="strategies.strategy.Strategy.portfolio_value">
 <em class="property"><span class="pre">property</span> </em><span class="sig-prename descclassname"><span class="pre">Strategy.</span></span><span class="sig-name descname"><span class="pre">portfolio_value</span></span><a class="headerlink" href="#strategies.strategy.Strategy.portfolio_value" title="Permalink to this definition">¶</a></dt>
 <dd><p>Returns the current portfolio value (cash + positions value).</p>
+<p>Returns the portfolio value of positions plus cash in US dollars.</p>
+<p>Crypto markets will attempt to resove to US dollars as a quote
+currency.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Returns</dt>
 <dd class="field-odd"><p><strong>portfolio_value</strong> – The current portfolio value. Includes the actual values of shares held by the current strategy plus the total cash.</p>

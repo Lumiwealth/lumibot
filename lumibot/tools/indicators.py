@@ -102,9 +102,15 @@ def max_drawdown(_df):
     df["drawdown"] = df["cum_return_max"] - df["cum_return"]
     df["drawdown_pct"] = df["drawdown"] / df["cum_return_max"]
 
-    max_dd = df.loc[df["drawdown_pct"].idxmax()]
+    drawdown = df["drawdown_pct"].max()
+    if math.isnan(drawdown):
+        drawdown = 0
 
-    return {"drawdown": max_dd["drawdown_pct"], "date": max_dd.name}
+    date = df["drawdown_pct"].idxmax()
+    if type(date) == float and math.isnan(date):
+        date = df.index[0]
+
+    return {"drawdown": drawdown, "date": date}
 
 
 def romad(_df):

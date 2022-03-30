@@ -1,7 +1,7 @@
 import datetime
-from decimal import Decimal
 import logging
 from copy import deepcopy
+from decimal import Decimal
 
 import pandas as pd
 
@@ -418,8 +418,10 @@ class _Strategy:
             self.log_message(f"Sharpe {sharpe_value:,.2f}")
 
             max_drawdown_result = self._analysis["max_drawdown"]
+            max_drawdown_value = max_drawdown_result["drawdown"] * 100
+            max_drawdown_date = max_drawdown_result["date"]
             self.log_message(
-                f"Max Drawdown {max_drawdown_result['drawdown']*100:,.2f}% on {max_drawdown_result['date']:%Y-%m-%d}"
+                f"Max Drawdown {max_drawdown_value:,.2f}% on {max_drawdown_date:%Y-%m-%d}"
             )
 
             romad_value = self._analysis["romad"]

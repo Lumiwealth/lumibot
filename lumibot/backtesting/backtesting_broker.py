@@ -25,11 +25,8 @@ class BacktestingBroker(Broker):
         self.max_workers = max_workers
         self.market = "NASDAQ"
 
-
         if not data_source.IS_BACKTESTING_DATA_SOURCE:
-            raise ValueError(
-                "object %r is not a backtesting data_source" % data_source
-            )
+            raise ValueError("object %r is not a backtesting data_source" % data_source)
         self._data_source = data_source
         if data_source.SOURCE != "PANDAS":
             self._trading_days = get_trading_days()
@@ -253,7 +250,7 @@ class BacktestingBroker(Broker):
         elif order.order_class in ["bracket", "oto"]:
             side = "sell" if order.side == "buy" else "buy"
             if order.order_class == "bracket" or (
-                    order.order_class == "oto" and order.stop_loss_price
+                order.order_class == "oto" and order.stop_loss_price
             ):
                 stop_loss_order = Order(
                     order.strategy,
@@ -267,7 +264,7 @@ class BacktestingBroker(Broker):
                 orders.append(stop_loss_order)
 
             if order.order_class == "bracket" or (
-                    order.order_class == "oto" and order.take_profit_price
+                order.order_class == "oto" and order.take_profit_price
             ):
                 limit_order = Order(
                     order.strategy,
@@ -321,9 +318,13 @@ class BacktestingBroker(Broker):
             return []
 
         orders_closing_contracts = []
-        for tracked_position in self.get_tracked_positions(strategy):
-            if tracked_position.asset.expiration == self.datetime.date():
-                orders_closing_contracts.append(tracked_position.get_selling_order())
+        positions = self.get_tracked_positions(strategy)
+        for position in positions:
+            if position.asset.expiration <= self.datetime.date():
+                logging.warn(
+                    f"Automatically selling expired contract for asset {position.asset}"
+                )
+                orders_closing_contracts.append(position.get_selling_order())
 
         return orders_closing_contracts
 
@@ -357,7 +358,11 @@ class BacktestingBroker(Broker):
                 continue
 
             # Check validity if current date > valid date, cancel order. todo valid date
-            asset = order.asset if order.asset.asset_type != "crypto" else (order.asset, order.quote)
+            asset = (
+                order.asset
+                if order.asset.asset_type != "crypto"
+                else (order.asset, order.quote)
+            )
 
             price = 0
             filled_quantity = order.quantity

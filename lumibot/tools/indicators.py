@@ -9,8 +9,6 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import quantstats as qs
-import webbrowser
-
 
 # import lumibot.data_sources.alpha_vantage as av
 from lumibot import LUMIBOT_DEFAULT_PYTZ
@@ -189,19 +187,17 @@ def plot_returns(
 
     _df1 = df1.copy()
     _df1 = _df1.sort_index(ascending=True)
-    _df1.index.name = 'datetime'
+    _df1.index.name = "datetime"
     _df1[name1] = (1 + _df1["return"]).cumprod()
     dfs_concat.append(_df1[name1])
 
     _df2 = df2.copy()
     _df2 = _df2.sort_index(ascending=True)
-    _df2.index.name = 'datetime'
+    _df2.index.name = "datetime"
     _df2[name2] = (1 + _df2["return"]).cumprod()
     dfs_concat.append(_df2[name2])
 
     df_final = pd.concat(dfs_concat, join="outer", axis=1)
-    df_final = df_final.dropna()
-
 
     if trades_df is None or trades_df.empty:
         logging.info("There were no trades in this backtest.")
@@ -242,8 +238,11 @@ def plot_returns(
     buys = buys.loc[df_final["side"] == "buy"]
     buys["plotly_text"] = buys["filled_quantity"].astype(str) + " " + buys["symbol"]
     buys.index.name = "datetime"
-    buys = buys.groupby(["datetime", name1])["plotly_text"].apply(lambda x: '<br>'.join(
-        x)).reset_index()
+    buys = (
+        buys.groupby(["datetime", name1])["plotly_text"]
+        .apply(lambda x: "<br>".join(x))
+        .reset_index()
+    )
     buys = buys.set_index("datetime")
     buys["buy_shift"] = buys[name1] * (1 - vshift)
 
@@ -267,8 +266,11 @@ def plot_returns(
     sells = sells.loc[df_final["side"] == "sell"]
     sells["plotly_text"] = sells["filled_quantity"].astype(str) + " " + sells["symbol"]
     sells.index.name = "datetime"
-    sells = sells.groupby(["datetime", name1])["plotly_text"].apply(lambda x: '<br>'.join(
-        x)).reset_index()
+    sells = (
+        sells.groupby(["datetime", name1])["plotly_text"]
+        .apply(lambda x: "<br>".join(x))
+        .reset_index()
+    )
     sells = sells.set_index("datetime")
     sells["sell_shift"] = sells[name1] * (1 + vshift)
 
@@ -286,7 +288,11 @@ def plot_returns(
         )
     )
     bm_text = f"compared with {name2}" if name2 else ""
-    fig.update_layout(title_text=f"{name1} {bm_text}", title_font_size=30, template="plotly_dark",)
+    fig.update_layout(
+        title_text=f"{name1} {bm_text}",
+        title_font_size=30,
+        template="plotly_dark",
+    )
 
     fig.write_html(plot_file_html, auto_open=show_plot)
 
@@ -300,7 +306,7 @@ def create_tearsheet(
     show_tearsheet,
 ):
     _df1 = df1.copy()
-    if _df1['return'].abs().sum() == 0:
+    if _df1["return"].abs().sum() == 0:
         return None
     _df1["strategy"] = _df1["return"]
     _df1 = _df1.groupby(_df1.index.date)["strategy"].mean()
@@ -309,7 +315,7 @@ def create_tearsheet(
     _df2["benchmark"] = _df2["return"]
     _df2 = _df2.groupby(_df2.index.date)["benchmark"].mean()
 
-    df = pd.concat([_df1, _df2], join='outer', axis=1)
+    df = pd.concat([_df1, _df2], join="outer", axis=1)
     df.index = pd.to_datetime(df.index)
 
     df = df.dropna()

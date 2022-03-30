@@ -1,5 +1,6 @@
 import datetime
 import logging
+from asyncio.log import logger
 from decimal import Decimal
 
 import pandas as pd
@@ -2293,7 +2294,7 @@ class Strategy(_Strategy):
             currency=currency,
         )
 
-    def get_symbol_bars(
+    def get_historical_prices(
         self,
         asset,
         length,
@@ -2373,7 +2374,24 @@ class Strategy(_Strategy):
             asset, length, timestep=timestep, timeshift=timeshift
         )
 
-    def get_bars(
+    def get_symbol_bars(
+        self,
+        asset,
+        length,
+        timestep="",
+        timeshift=None,
+        quote=None,
+    ):
+        """This method is deprecated and will be removed in a future version. Please use self.get_historical_prices() instead."""
+        logger.warning(
+            "The get_bars method is deprecated and will be removed in a future version. Please use self.get_historical_prices() instead."
+        )
+
+        return self.get_historical_prices(
+            asset, length, timestep=timestep, timeshift=timeshift, quote=quote
+        )
+
+    def get_historical_prices_for_assets(
         self,
         assets,
         length,
@@ -2385,8 +2403,8 @@ class Strategy(_Strategy):
         """Get historical pricing data for the list of assets.
 
         Return data bars for a list of symbols or assets.  Return a dictionary
-        of bars for a given list of symbols. Works the same as get_symbol_bars
-        but take as first parameter a list of symbols. Any number of bars can
+        of bars for a given list of symbols. Works the same as get_historical_prices
+        but take as first parameter a list of assets. Any number of bars can
         be return limited by the data available. This is set with `length` in
         number of bars. Bars may be returned as daily or by minute. And the
         starting point can be shifted backwards by time or bars.
@@ -2436,6 +2454,29 @@ class Strategy(_Strategy):
         assets = [self._set_asset_mapping(asset) for asset in assets]
 
         return self.data_source.get_bars(
+            assets,
+            length,
+            timestep=timestep,
+            timeshift=timeshift,
+            chunk_size=chunk_size,
+            max_workers=max_workers,
+        )
+
+    def get_bars(
+        self,
+        assets,
+        length,
+        timestep="minute",
+        timeshift=None,
+        chunk_size=100,
+        max_workers=200,
+    ):
+        """This method is deprecated and will be removed in a future version. Please use self.get_historical_prices_for_assets() instead."""
+        logger.warning(
+            "The get_bars method is deprecated and will be removed in a future version. Please use self.get_historical_prices_for_assets() instead."
+        )
+
+        return self.get_historical_prices_for_assets(
             assets,
             length,
             timestep=timestep,

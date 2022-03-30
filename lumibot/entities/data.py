@@ -295,6 +295,9 @@ class Data:
             dt = args[0]
             # Check if the iter date is outside of this data's date range.
             if dt < self.datetime_start or dt > self.datetime_end:
+                logging.error(
+                    f"The date you are looking for ({dt}) is outside of the data's date range ({self.datetime_start} to {self.datetime_end})."
+                )
                 return None
 
             data_index = (
@@ -305,6 +308,9 @@ class Data:
             )
             is_data = data_index >= 0
             if not is_data:
+                logging.error(
+                    f"The date you are looking for ({dt}) is outside of the data's date range ({self.datetime_start} to {self.datetime_end}) after accounting for a length of {kwargs.get('length', 1)} and a timeshift of {kwargs.get('timeshift', 0)}."
+                )
                 return None
 
             res = func(self, *args, **kwargs)

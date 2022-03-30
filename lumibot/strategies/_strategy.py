@@ -39,7 +39,7 @@ class _Strategy:
         backtesting_start=None,
         backtesting_end=None,
         pandas_data=None,
-        value_quote=None,
+        quote_asset=Asset(symbol="USD", asset_type="forex"),
         starting_units=None,
         filled_order_callback=None,
         name="StratName",
@@ -80,7 +80,7 @@ class _Strategy:
             self.broker = broker
             self._name = name
 
-        self.value_quote = value_quote
+        self.quote_asset = quote_asset
         self.starting_units = starting_units
 
         # Setting the broker object
@@ -152,7 +152,7 @@ class _Strategy:
                 portfolio_value = 0
                 for position in self.get_positions():
                     value = float(position.quantity) * self.get_last_price(
-                        position.asset, quote=self.value_quote
+                        position.asset, quote=self.quote_asset
                     )
                     portfolio_value += value
                 self._portfolio_value = portfolio_value
@@ -300,40 +300,64 @@ class _Strategy:
             return self.broker._get_balances_at_broker()[2]
 
         with self._executor.lock:
+            # Used for traditional brokers, for crypto this will likely be 0
             portfolio_value = self._cash
+
             positions = self.broker.get_tracked_positions(self._name)
             assets = [position.asset for position in positions]
             # Set the base currency for crypto valuations.
             if (
                 len(assets) > 0
                 and assets[0].asset_type == "crypto"
-                and self.value_quote is not None
+                and self.quote_asset is not None
             ):
-                assets = [(asset, self.value_quote) for asset in assets]
+                assets = [(asset, self.quote_asset) for asset in assets]
 
             prices = self.data_source.get_last_prices(assets)
 
             for position in positions:
+                # Turn the asset into a tuple if it's a crypto asset
                 asset = (
                     position.asset
                     if position.asset.asset_type != "crypto"
-                    else (position.asset, self.value_quote)
+                    else (position.asset, self.quote_asset)
                 )
                 quantity = position.quantity
                 price = prices.get(asset, 0)
+
+                # If the asset is the quote asset, then we should consider it as cash with a price of 1
+                # Eg. if we have a position of USDT and USDT is the quote_asset then we should consider it as cash
+                if self.quote_asset is not None:
+                    if isinstance(asset, tuple) and asset == (
+                        self.quote_asset,
+                        self.quote_asset,
+                    ):
+                        price = 1
+                    elif isinstance(asset, Asset) and asset == self.quote_asset:
+                        price = 1
+
                 if self._is_backtesting and price is None:
-                    raise ValueError(
-                        f"A security as returned a price of none will trying "
-                        f"to set the portfolio value. This is usually due to "
-                        f"a mixup in futures contract dates and when data is \n"
-                        f"actually available. Please ensure data exist for "
-                        f"{self.broker.datetime}. The security that has missing data is: \n"
-                        f"symbol: {asset.symbol}, \n"
-                        f"type: {asset.asset_type}, \n"
-                        f"right: {asset.right}, \n"
-                        f"expiration: {asset.expiration}, \n"
-                        f"strike: {asset.strike}.\n"
-                    )
+                    if isinstance(asset, Asset):
+                        raise ValueError(
+                            f"A security has returned a price of {price} while trying "
+                            f"to set the portfolio value. This usually happens when there "
+                            f"is no data data available for the Asset or pair. "
+                            f"Please ensure data exist at "
+                            f"{self.broker.datetime} for the security: \n"
+                            f"symbol: {asset.symbol}, \n"
+                            f"type: {asset.asset_type}, \n"
+                            f"right: {asset.right}, \n"
+                            f"expiration: {asset.expiration}, \n"
+                            f"strike: {asset.strike}.\n"
+                        )
+                    elif isinstance(asset, tuple):
+                        raise ValueError(
+                            f"A security has returned a price of {price} while trying "
+                            f"to set the portfolio value. This usually happens when there "
+                            f"is no data data available for the Asset or pair. "
+                            f"Please ensure data exist at "
+                            f"{self.broker.datetime} for the pair: {asset}"
+                        )
                 if isinstance(asset, tuple):
                     multiplier = 1
                 else:
@@ -550,7 +574,7 @@ class _Strategy:
         plot_file_html=None,
         trades_file=None,
         pandas_data=None,
-        value_quote=None,
+        quote_asset=Asset(symbol="USD", asset_type="forex"),
         starting_units=None,
         show_plot=True,
         tearsheet_file=None,
@@ -598,7 +622,7 @@ class _Strategy:
             The file to write the trades to.
         pandas_data : pandas.DataFrame
             The pandas data to use.
-        value_quote : Asset (crypto)
+        quote_asset : Asset (crypto)
             An Asset object for the crypto currency that will get used
             as a valuation asset for measuring overall porfolio values.
             Usually USDT, USD, USDC.
@@ -747,7 +771,7 @@ class _Strategy:
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             pandas_data=pandas_data,
-            value_quote=value_quote,
+            quote_asset=quote_asset,
             starting_units=starting_units,
             name=name,
             budget=budget,

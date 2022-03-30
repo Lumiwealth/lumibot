@@ -169,7 +169,8 @@ class Order:
 
         # Initialization default values
         self.strategy = strategy
-        # it is possible for crypto currencies to arrive as a tuple of
+
+        # It is possible for crypto currencies to arrive as a tuple of
         # two assets.
         if isinstance(asset, tuple) and asset[0].asset_type == "crypto":
             self.asset = asset[0]
@@ -177,6 +178,7 @@ class Order:
         else:
             self.asset = asset
             self.quote = quote
+
         self.symbol = self.asset.symbol
         self.identifier = None
         self.status = "unprocessed"

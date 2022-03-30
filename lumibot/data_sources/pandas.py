@@ -1,7 +1,8 @@
 import pandas as pd
 
-from lumibot.entities import Asset, Bars, AssetsMapping
+from lumibot.entities import Asset, AssetsMapping, Bars
 from lumibot.tools.black_scholes import BS
+
 from .data_source import DataSource
 
 
@@ -28,17 +29,16 @@ class PandasData(DataSource):
     def _set_pandas_data_keys(pandas_data):
         new_pandas_data = {}
         for k, data in pandas_data.items():
-            if isinstance(data.asset, Asset) and data.asset.asset_type != 'crypto':
+            if isinstance(data.asset, Asset) and data.asset.asset_type != "crypto":
                 key = data.asset
-            elif isinstance(data.asset, tuple) and data.asset[0].asset_type == 'crypto':
+            elif isinstance(data.asset, tuple) and data.asset[0].asset_type == "crypto":
                 key = data.asset
-            elif isinstance(data.asset, Asset) and data.asset.asset_type == 'crypto':
+            elif isinstance(data.asset, Asset) and data.asset.asset_type == "crypto":
                 key = (data.asset, data.quote)
             else:
                 raise ValueError("Asset must be an Asset or a tuple of Asset and quote")
             new_pandas_data[key] = data
         return new_pandas_data
-
 
     def load_data(self):
         self._data_store = self.pandas_data
@@ -169,7 +169,10 @@ class PandasData(DataSource):
 
     def get_last_price(self, asset, timestep=None):
         # Takes an asset and returns the last known price
-        return self._data_store[asset].get_last_price(self.get_datetime())
+        if asset in self._data_store:
+            return self._data_store[asset].get_last_price(self.get_datetime())
+        else:
+            return None
 
     def get_last_prices(self, assets, timestep=None):
         # Takes a list of assets and returns dictionary of last known prices for each.
@@ -445,7 +448,6 @@ class PandasData(DataSource):
             theta=c.callTheta if is_call else c.putTheta,
             underlying_price=und_price,
         )
-
 
         greeks = dict()
         for greek, value in result.items():

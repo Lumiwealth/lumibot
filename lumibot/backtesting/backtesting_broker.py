@@ -320,7 +320,10 @@ class BacktestingBroker(Broker):
         orders_closing_contracts = []
         positions = self.get_tracked_positions(strategy)
         for position in positions:
-            if position.asset.expiration <= self.datetime.date():
+            if (
+                position.asset.expiration is not None
+                and position.asset.expiration <= self.datetime.date()
+            ):
                 logging.warn(
                     f"Automatically selling expired contract for asset {position.asset}"
                 )

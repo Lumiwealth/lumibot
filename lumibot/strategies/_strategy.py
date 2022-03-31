@@ -42,7 +42,7 @@ class _Strategy:
         quote_asset=Asset(symbol="USD", asset_type="forex"),
         starting_units=None,
         filled_order_callback=None,
-        name="StratName",
+        name=None,
         budget=10000,
         parameters={},
         **kwargs,
@@ -150,9 +150,14 @@ class _Strategy:
                     self._cash = 0
                     portfolio_value = 0
                     for position in self.get_positions():
-                        value = float(position.quantity) * self.get_last_price(
-                            position.asset, quote=self.quote_asset
-                        )
+                        price = None
+                        if position.asset == self.quote_asset:
+                            price = 1
+                        else:
+                            price = self.get_last_price(
+                                position.asset, quote=self.quote_asset
+                            )
+                        value = float(position.quantity) * price
                         portfolio_value += value
                     self._portfolio_value = portfolio_value
             else:
@@ -294,7 +299,7 @@ class _Strategy:
 
     def _log_strat_name(self):
         """Returns the name of the strategy as a string if not default"""
-        return f"{self._name} " if self._name != "StratName" else ""
+        return f"{self._name} " if self._name != None else ""
 
     # =============Auto updating functions=============
 
@@ -343,7 +348,7 @@ class _Strategy:
                 if self._is_backtesting and price is None:
                     if isinstance(asset, Asset):
                         raise ValueError(
-                            f"A security has returned a price of {price} while trying "
+                            f"A security has returned a price of None while trying "
                             f"to set the portfolio value. This usually happens when there "
                             f"is no data data available for the Asset or pair. "
                             f"Please ensure data exist at "
@@ -356,7 +361,7 @@ class _Strategy:
                         )
                     elif isinstance(asset, tuple):
                         raise ValueError(
-                            f"A security has returned a price of {price} while trying "
+                            f"A security has returned a price of None while trying "
                             f"to set the portfolio value. This usually happens when there "
                             f"is no data data available for the Asset or pair. "
                             f"Please ensure data exist at "
@@ -549,7 +554,7 @@ class _Strategy:
                 "Cannot create a tearsheet because the strategy returns are missing"
             )
         else:
-            strat_name = self._name if self._name != "StratName" else "Strategy"
+            strat_name = self._name if self._name != None else "Strategy"
             create_tearsheet(
                 self._strategy_returns_df[["return"]],
                 strat_name,
@@ -571,7 +576,7 @@ class _Strategy:
         logfile=None,
         config=None,
         auto_adjust=False,
-        name="StratName",
+        name=None,
         budget=10000,
         benchmark_asset="SPY",
         plot_file=None,
@@ -715,29 +720,34 @@ class _Strategy:
                 "for your three positional arguments. \n"
             )
 
+        if name is None:
+            name = cls.__name__
+
         # Filename defaults
         datestring = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         if plot_file is None:
-            plot_file = (
-                f"logs/{name + '_' if name != 'StratName' else ''}{datestring}.jpg"
-            )
+            plot_file = f"logs/{name + '_' if name != None else ''}{datestring}.jpg"
         if plot_file_html is None:
             plot_file_html = (
-                f"logs/{name + '_' if name != 'StratName' else ''}{datestring}.html"
+                f"logs/{name + '_' if name != None else ''}{datestring}.html"
             )
         if stats_file is None:
-            stats_file = f"logs/{name + '_' if name != 'StratName' else ''}{datestring}_stats.csv"
-        if trades_file is None:
-            trades_file = f"logs/{name + '_' if name != 'StratName' else ''}{datestring}_trades.csv"
-        if logfile is None:
-            logfile = (
-                f"logs/{name + '_' if name != 'StratName' else ''}{datestring}_logs.csv"
+            stats_file = (
+                f"logs/{name + '_' if name != None else ''}{datestring}_stats.csv"
             )
+        if trades_file is None:
+            trades_file = (
+                f"logs/{name + '_' if name != None else ''}{datestring}_trades.csv"
+            )
+        if logfile is None:
+            logfile = f"logs/{name + '_' if name != None else ''}{datestring}_logs.csv"
         if tearsheet_file is None:
-            tearsheet_file = f"logs/{name + '_' if name != 'StratName' else ''}{datestring}_tearsheet.html"
+            tearsheet_file = (
+                f"logs/{name + '_' if name != None else ''}{datestring}_tearsheet.html"
+            )
         if not cls.IS_BACKTESTABLE:
             logging.warning(
-                f"Strategy {name + ' ' if name != 'StratName' else ''}cannot be "
+                f"Strategy {name + ' ' if name != None else ''}cannot be "
                 f"backtested at the moment"
             )
             return None

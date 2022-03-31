@@ -125,12 +125,12 @@ class Strategy(_Strategy):
         Parameters
         ----------
         sleeptime : int or str
-            Sleep time in minutes or a string with the duration numbers first, followed by the time units: ‘M’ for minutes, ‘S’ for seconds.
+            Sleep time in minutes or a string with the duration numbers first, followed by the time units: `S` for seconds, `M` for minutes, `H` for hours' or `D` for days.
 
         Returns
         -------
         sleeptime : int
-            Sleep time in minutes or a string with the duration numbers first, followed by the time units: ‘M’ for minutes, ‘S’ for seconds.
+            Sleep time in minutes or a string with the duration numbers first, followed by the time units: `S` for seconds, `M` for minutes, `H` for hours' or `D` for days.
 
         Example
         -------
@@ -155,6 +155,12 @@ class Strategy(_Strategy):
 
         >>> # Set the sleep time to 5 seconds
         >>> self.sleeptime = "5S"
+
+        >>> # Set the sleep time to 2 hours
+        >>> self.sleeptime = "2H"
+
+        >>> # Set the sleep time to 2 days
+        >>> self.sleeptime = "2D"
         """
         return self._sleeptime
 
@@ -2702,7 +2708,26 @@ class Strategy(_Strategy):
 
         >>> # Initialize the strategy
         >>> def initialize(self):
+        >>>   # Set the strategy to call on_trading_interation every 5 seconds
         >>>   self.sleeptime = "2S"
+        >>>   self.count = 0
+
+        >>> # Initialize the strategy
+        >>> def initialize(self):
+        >>>   # Set the strategy to call on_trading_interation every 10 minutes
+        >>>   self.sleeptime = "10M"
+        >>>   self.count = 0
+
+        >>> # Initialize the strategy
+        >>> def initialize(self):
+        >>>   # Set the strategy to call on_trading_interation every 20 hours
+        >>>   self.sleeptime = "20H"
+        >>>   self.count = 0
+
+        >>> # Initialize the strategy
+        >>> def initialize(self):
+        >>>   # Set the strategy to call on_trading_interation every 2 days (48 hours)
+        >>>   self.sleeptime = "2D"
         >>>   self.count = 0
 
 
@@ -2757,7 +2782,7 @@ class Strategy(_Strategy):
         pass
 
     def on_trading_iteration(self):
-        """Use this lifecycle method for your main trading loop. This method is called every self.sleeptime minutes (or seconds if self.sleeptime is "30S")
+        """Use this lifecycle method for your main trading loop. This method is called every self.sleeptime minutes (or seconds/hours/days if self.sleeptime is "30S", "1H", "1D", etc.).
 
         Parameters
         ----------

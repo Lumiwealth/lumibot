@@ -142,20 +142,24 @@ class _Strategy:
             self.broker._set_initial_positions(self._name)
         else:
             store_assets = list(self.broker._data_source._data_store.keys())
-            asset = store_assets[0]
-            if isinstance(asset, Asset) and asset.asset_type != "crypto":
+
+            # Check if we are backtesing with crypto assets ans set the initial parameters as needed
+            if len(store_assets) > 0:
+                asset = store_assets[0]
+                if isinstance(asset, tuple) and asset[0].asset_type == "crypto":
+                    self._cash = 0
+                    portfolio_value = 0
+                    for position in self.get_positions():
+                        value = float(position.quantity) * self.get_last_price(
+                            position.asset, quote=self.quote_asset
+                        )
+                        portfolio_value += value
+                    self._portfolio_value = portfolio_value
+            else:
+                asset = None
                 self._cash = budget
                 self._position_value = 0
                 self._portfolio_value = budget
-            elif isinstance(asset, tuple) and asset[0].asset_type == "crypto":
-                self._cash = 0
-                portfolio_value = 0
-                for position in self.get_positions():
-                    value = float(position.quantity) * self.get_last_price(
-                        position.asset, quote=self.quote_asset
-                    )
-                    portfolio_value += value
-                self._portfolio_value = portfolio_value
 
         self._minutes_before_closing = minutes_before_closing
         self._minutes_before_opening = minutes_before_opening

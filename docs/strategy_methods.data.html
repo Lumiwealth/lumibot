@@ -199,6 +199,8 @@
 <li class="toctree-l2 current has-children current-page"><a class="current reference internal" href="#">Data</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_last_price.html">self.get_last_price</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_last_prices.html">self.get_last_prices</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_historical_prices.html">self.get_historical_prices</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_historical_prices_for_assets.html">self.get_historical_prices_for_assets</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_symbol_bars.html">self.get_symbol_bars</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_bars.html">self.get_bars</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.start_realtime_bars.html">self.start_realtime_bars</a></li>
@@ -321,11 +323,17 @@
 <tr class="row-even"><td><p><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_last_prices.html#strategies.strategy.Strategy.get_last_prices" title="strategies.strategy.Strategy.get_last_prices"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_last_prices</span></code></a>(assets)</p></td>
 <td><p>Takes a list of assets and returns the last known prices</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_symbol_bars.html#strategies.strategy.Strategy.get_symbol_bars" title="strategies.strategy.Strategy.get_symbol_bars"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_symbol_bars</span></code></a>(asset, length[, timestep, ...])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_historical_prices.html#strategies.strategy.Strategy.get_historical_prices" title="strategies.strategy.Strategy.get_historical_prices"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_historical_prices</span></code></a>(asset, length[, ...])</p></td>
 <td><p>Get historical pricing data for a given symbol or asset.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_bars.html#strategies.strategy.Strategy.get_bars" title="strategies.strategy.Strategy.get_bars"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_bars</span></code></a>(assets, length[, timestep, ...])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_historical_prices_for_assets.html#strategies.strategy.Strategy.get_historical_prices_for_assets" title="strategies.strategy.Strategy.get_historical_prices_for_assets"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_historical_prices_for_assets</span></code></a>(assets, length)</p></td>
 <td><p>Get historical pricing data for the list of assets.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_symbol_bars.html#strategies.strategy.Strategy.get_symbol_bars" title="strategies.strategy.Strategy.get_symbol_bars"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_symbol_bars</span></code></a>(asset, length[, timestep, ...])</p></td>
+<td><p>This method is deprecated and will be removed in a future version.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_bars.html#strategies.strategy.Strategy.get_bars" title="strategies.strategy.Strategy.get_bars"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_bars</span></code></a>(assets, length[, timestep, ...])</p></td>
+<td><p>This method is deprecated and will be removed in a future version.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.start_realtime_bars.html#strategies.strategy.Strategy.start_realtime_bars" title="strategies.strategy.Strategy.start_realtime_bars"><code class="xref py py-obj docutils literal notranslate"><span class="pre">start_realtime_bars</span></code></a>(asset[, keep_bars])</p></td>
 <td><p>Starts a real time stream of tickers for Interactive Broker only.</p></td>

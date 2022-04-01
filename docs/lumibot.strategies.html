@@ -199,6 +199,8 @@
 <li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.data.html">Data</a><input class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_last_price.html">self.get_last_price</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_last_prices.html">self.get_last_prices</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_historical_prices.html">self.get_historical_prices</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_historical_prices_for_assets.html">self.get_historical_prices_for_assets</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_symbol_bars.html">self.get_symbol_bars</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_bars.html">self.get_bars</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.start_realtime_bars.html">self.start_realtime_bars</a></li>
@@ -585,6 +587,7 @@ strategies.</p>
 orders (in other words, the money that is available to buy new assets, or cash).</p>
 <p>This property is updated whenever a transaction was filled by the broker or when dividends
 are paid.</p>
+<p>Crypto currencies are a form of cash. Therefore cash will always be zero.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Returns</dt>
 <dd class="field-odd"><p><strong>cash</strong> – The current cash.</p>
@@ -607,7 +610,7 @@ are paid.</p>
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>symbol</strong> (<em>str</em>) – The symbol of the asset.</p></li>
-<li><p><strong>asset_type</strong> (<em>str</em>) – The type of the asset. Can be either “stock”, “option”, or “future”.</p></li>
+<li><p><strong>asset_type</strong> (<em>str</em>) – The type of the asset. Can be either “stock”, “option”, or “future”, “crytpo”.</p></li>
 <li><p><strong>expiration</strong> (<em>datetime.datetime</em>) – The expiration date of the asset (optional, only required for options and futures).</p></li>
 <li><p><strong>strike</strong> (<em>str</em>) – The strike price of the asset (optional, only required for options).</p></li>
 <li><p><strong>right</strong> (<em>str</em>) – The right of the option (optional, only required for options).</p></li>
@@ -651,18 +654,61 @@ are paid.</p>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">asset</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_asset</span><span class="p">(</span><span class="n">currency</span><span class="o">=</span><span class="s2">"USD"</span><span class="p">,</span> <span class="n">symbol</span><span class="o">=</span><span class="s2">"EUR"</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s2">"forex"</span><span class="p">)</span>
 </pre></div>
 </div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Will create a CRYPTO asset</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">asset</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">symbol</span><span class="o">=</span><span class="s2">"BTC"</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s2">"crypto"</span><span class="p">),</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">asset</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">symbol</span><span class="o">=</span><span class="s2">"USDT"</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s2">"crypto"</span><span class="p">),</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">asset</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">symbol</span><span class="o">=</span><span class="s2">"EUR"</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s2">"crypto"</span><span class="p">),</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">asset</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">symbol</span><span class="o">=</span><span class="s2">"ETH"</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s2">"crypto"</span><span class="p">),</span>
+</pre></div>
+</div>
 </dd></dl>
 <dl class="py method">
 <dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.create_order">
-<span class="sig-name descname"><span class="pre">create_order</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quantity</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">side</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">limit_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stop_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_in_force</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'day'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">good_till_date</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">take_profit_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stop_loss_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stop_loss_limit_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">trail_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">trail_percent</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">position_filled</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exchange</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'SMART'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.create_order" title="Permalink to this definition">¶</a></dt>
+<span class="sig-name descname"><span class="pre">create_order</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quantity</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">side</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">limit_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stop_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_in_force</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'day'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">good_till_date</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">take_profit_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stop_loss_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stop_loss_limit_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">trail_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">trail_percent</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">position_filled</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exchange</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'SMART'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quote</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pair</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.create_order" title="Permalink to this definition">¶</a></dt>
 <dd><p>Creates a new order for this specific strategy. Once created, an order must still be submitted.</p>
+<p>Some notes on Crypto markets:
+Crypto markets required both a base currency and a quote currency to create an order. These
+may be entered in one of two ways.</p>
+<blockquote>
+<div><ol class="arabic">
+<li><dl>
+<dt>tuple of Assets.</dt><dd><dl class="simple">
+<dt>self.create_order(</dt><dd><p>(Asset(symbol=’BTC’, asset_type=’crypto’), Asset(symbol=’USDT’,
+asset_type=’crypto’)),
+.50,
+<cite>buy</cite>,</p>
+</dd>
+</dl>
+<p>)</p>
+</dd>
+</dl>
+</li>
+<li><dl>
+<dt>Use the quote parameter.</dt><dd><dl class="simple">
+<dt>self.create_order(</dt><dd><p>Asset(symbol=’BTC’, asset_type=’crypto’),
+.50,
+<cite>buy</cite>,
+quote=Asset(symbol=’USDT’, asset_type=’crypto’),</p>
+</dd>
+</dl>
+<p>)</p>
+</dd>
+</dl>
+</li>
+</ol>
+</div></blockquote>
+<p>Orders for crypto markets are restriced to: <cite>market</cite>, <cite>limit</cite>, <cite>stop_limit</cite>.</p>
+<p>Crypto markets’ orders are simple. There are no compound orders such
+<cite>oco</cite> or <cite>bracket</cite>. Also, duration of orders are all GTC.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>asset</strong> (<em>str</em><em> or </em><a class="reference internal" href="entities.asset.html#entities.asset.Asset" title="entities.asset.Asset"><em>Asset</em></a>) – The asset that will be traded. If this is just a stock, then
 <cite>str</cite> is sufficient. However, all assets other than stocks
 must use <cite>Asset</cite>.</p></li>
-<li><p><strong>quantity</strong> (<em>float</em>) – The number of shares or units to trade.</p></li>
+<li><p><strong>quantity</strong> (<em>int string Decimal</em><em> (</em><em>float will deprecate</em><em>)</em>) – The number of shares or units to trade. One may enter an
+int, a string number eg: “3.213”, or a Decimal obect,
+eg: Decimal(“3.213”). Internally all will convert to Decimal.</p></li>
 <li><p><strong>side</strong> (<em>str</em>) – Whether the order is <cite>buy</cite> or <cite>sell</cite>.</p></li>
 <li><p><strong>limit_price</strong> (<em>float</em>) – A Limit order is an order to buy or sell at a specified
 price or better. The Limit order ensures that if the
@@ -673,7 +719,7 @@ market order if and when the user-specified stop trigger
 price is attained or penetrated.</p></li>
 <li><p><strong>time_in_force</strong> (<em>str</em>) – <dl class="simple">
 <dt>Amount of time the order is in force. Order types include:</dt><dd><ul>
-<li><p><cite>day</cite> Orders valid for the remainder of the day.</p></li>
+<li><p>’day’ Orders valid for the remainder of the day.</p></li>
 <li><p>’gtc’ Good until cancelled.</p></li>
 <li><p>’gtd’ Good until date.</p></li>
 </ul>
@@ -682,7 +728,6 @@ price is attained or penetrated.</p></li>
 <p>(Default: ‘day’)</p>
 </p></li>
 <li><p><strong>good_till_date</strong> (<em>datetime.datetime</em>) – This is the time order is valid for Good Though Date orders.</p></li>
-<li><p><strong>time_in_force</strong> – Amount of time the order is in force. Default: ‘day’</p></li>
 <li><p><strong>take_profit_price</strong> (<em>float</em>) – Limit price used for bracket orders and one cancels other
 orders.</p></li>
 <li><p><strong>stop_loss_price</strong> (<em>float</em>) – Stop price used for bracket orders and one cancels other
@@ -700,6 +745,9 @@ trailing price in percent.</p></li>
 <li><p><strong>position_filled</strong> (<em>bool</em>) – The order has been filled.</p></li>
 <li><p><strong>exchange</strong> (<em>str</em>) – The exchange where the order will be placed.
 Default = <cite>SMART</cite></p></li>
+<li><p><strong>quote</strong> (<a class="reference internal" href="entities.asset.html#entities.asset.Asset" title="entities.asset.Asset"><em>Asset</em></a>) – This is the currency that the main coin being bought or sold
+will exchange in. For example, if trading <cite>BTC/ETH</cite> this
+parameter will be ‘ETH’ (as an Asset object).</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns</dt>
@@ -861,6 +909,33 @@ Default = <cite>SMART</cite></p></li>
 <span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
 </pre></div>
 </div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For a cryptocurrency order with a market price</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">base</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">"BTC"</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s2">"crypto"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">quote</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">"USD"</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s2">"crypto"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="mf">0.05</span><span class="p">,</span> <span class="s2">"buy"</span><span class="p">,</span> <span class="n">quote</span><span class="o">=</span><span class="n">quote</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For a cryptocurrency the base and the quote may be</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># combined as a tuple for all order types.</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">base</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">"BTC"</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s2">"crypto"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">quote</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">"USD"</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s2">"crypto"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">((</span><span class="n">base</span><span class="p">,</span> <span class="n">quote</span><span class="p">),</span> <span class="mf">0.05</span><span class="p">,</span> <span class="s2">"buy"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Placing a limit order with a quote asset for cryptocurrencies</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">base</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">"BTC"</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s2">"crypto"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">quote</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">"USD"</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s2">"crypto"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="mf">0.05</span><span class="p">,</span> <span class="s2">"buy"</span><span class="p">,</span> <span class="n">limit_price</span><span class="o">=</span><span class="mi">41000</span><span class="p">,</span>  <span class="n">quote</span><span class="o">=</span><span class="n">quote</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.crypto_assets_to_tuple">
+<em class="property"><span class="pre">static</span> </em><span class="sig-name descname"><span class="pre">crypto_assets_to_tuple</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">base</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quote</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.crypto_assets_to_tuple" title="Permalink to this definition">¶</a></dt>
+<dd><p>Check for crypto quote, convert to tuple</p>
 </dd></dl>
 <dl class="py property">
 <dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.first_iteration">
@@ -928,8 +1003,18 @@ starting point can be shifted backwards by time or bars.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>assets</strong> (<em>list</em><em>(</em><em>str/asset</em><em>)</em>) – The symbol string representation (e.g AAPL, GOOG, …) or asset
-objects.</p></li>
+<li><p><strong>assets</strong> (<em>list</em><em>(</em><em>str/asset</em><em>)</em>) – <p>The symbol string representation (e.g AAPL, GOOG, …) or asset
+objects. Crypto currencies must specify the market. Use a list
+of string with the two coins as follows:</p>
+<blockquote>
+<div><p><cite>ETH/BTC</cite></p>
+</div></blockquote>
+<p>Alternatively for cryptos, one can use a tuple with the two asset
+objects, numerator first, denominator second.</p>
+<blockquote>
+<div><p><cite>(Asset(ETH), Asset(BTC))</cite></p>
+</div></blockquote>
+</p></li>
 <li><p><strong>length</strong> (<em>int</em>) – The number of rows (number of timesteps)</p></li>
 <li><p><strong>timestep</strong> (<em>str</em>) – Either <code class="docutils literal notranslate"><span class="pre">`"minute""`</span></code> for minutes data or <code class="docutils literal notranslate"><span class="pre">`"day"`</span></code>
 for days data default value depends on the data_source (minute
@@ -1222,8 +1307,8 @@ underlying.</p></li>
 </dd></dl>
 <dl class="py method">
 <dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.get_last_price">
-<span class="sig-name descname"><span class="pre">get_last_price</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.get_last_price" title="Permalink to this definition">¶</a></dt>
-<dd><p>Takes an asset asset and returns the last known price</p>
+<span class="sig-name descname"><span class="pre">get_last_price</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quote</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.get_last_price" title="Permalink to this definition">¶</a></dt>
+<dd><p>Takes an asset and returns the last known price</p>
 <p>Makes an active call to the market to retrieve the last price.
 In backtesting will provide the close of the last complete bar.</p>
 <dl class="field-list simple">
@@ -1243,6 +1328,13 @@ retrieved.</p>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">asset</span> <span class="o">=</span> <span class="s2">"SPY"</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">last_price</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_last_price</span><span class="p">(</span><span class="n">asset</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">log_message</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Last price for </span><span class="si">{</span><span class="n">asset</span><span class="si">}</span><span class="s2"> is </span><span class="si">{</span><span class="n">last_price</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Will return the last price for a crypto asset</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">base</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">"BTC"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">quote</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">"USDT"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">last_price</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_last_price</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="n">quote</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">log_message</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Last price for BTC/USDT is </span><span class="si">{</span><span class="n">last_price</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 </pre></div>
 </div>
 </dd></dl>
@@ -1531,7 +1623,7 @@ the strike information.</p>
 </dd></dl>
 <dl class="py method">
 <dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.get_symbol_bars">
-<span class="sig-name descname"><span class="pre">get_symbol_bars</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">length</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timestep</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timeshift</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.get_symbol_bars" title="Permalink to this definition">¶</a></dt>
+<span class="sig-name descname"><span class="pre">get_symbol_bars</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">length</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timestep</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timeshift</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quote</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.get_symbol_bars" title="Permalink to this definition">¶</a></dt>
 <dd><p>Get historical pricing data for a given symbol or asset.</p>
 <p>Return data bars for a given symbol or asset.  Any number of bars can
 be return limited by the data available. This is set with <cite>length</cite> in
@@ -1540,8 +1632,18 @@ starting point can be shifted backwards by time or bars.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>asset</strong> (<em>str</em><em> or </em><a class="reference internal" href="entities.asset.html#entities.asset.Asset" title="entities.asset.Asset"><em>Asset</em></a>) – The symbol string representation (e.g AAPL, GOOG, …) or asset
-object.</p></li>
+<li><p><strong>asset</strong> (<em>str</em><em> or </em><a class="reference internal" href="entities.asset.html#entities.asset.Asset" title="entities.asset.Asset"><em>Asset</em></a>) – <p>The symbol string representation (e.g AAPL, GOOG, …) or asset
+object. Crypto currencies must specify the market. Use a string
+with the two coins as follows:</p>
+<blockquote>
+<div><p><cite>ETH/BTC</cite></p>
+</div></blockquote>
+<p>Alternatively for cryptos, one can use a tuple with the two asset
+objects, numerator first, denominator second.</p>
+<blockquote>
+<div><p><cite>(Asset(ETH), Asset(BTC))</cite></p>
+</div></blockquote>
+</p></li>
 <li><p><strong>length</strong> (<em>int</em>) – The number of rows (number of timesteps)</p></li>
 <li><p><strong>timestep</strong> (<em>str</em>) – Either <code class="docutils literal notranslate"><span class="pre">`"minute""`</span></code> for minutes data or <code class="docutils literal notranslate"><span class="pre">`"day"`</span></code>
 for days data default value depends on the data_source (minute
@@ -1577,6 +1679,15 @@ with the latest data being 24h ago (timedelta(days=1)) (in a backtest)</p>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">asset</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_asset</span><span class="p">(</span><span class="s2">"AAPL"</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s2">"option"</span><span class="p">,</span> <span class="n">expiration</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">(</span><span class="mi">2020</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">strike</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">right</span><span class="o">=</span><span class="s2">"call"</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">bars</span> <span class="o">=</span>  <span class="bp">self</span><span class="o">.</span><span class="n">get_symbol_bars</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="mi">30</span><span class="p">,</span> <span class="s2">"minute"</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># To get the DataFrame of AAPL data</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">bars</span><span class="o">.</span><span class="n">df</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Get the data for BTC in USD  for the last 2 days</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">asset_base</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">symbol</span><span class="o">=</span><span class="s2">"BTC"</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s2">"crypto"</span><span class="p">),</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">asset_quote</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">symbol</span><span class="o">=</span><span class="s2">"USDT"</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s2">"crypto"</span><span class="p">),</span>
+<span class="go">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">bars</span> <span class="o">=</span>  <span class="bp">self</span><span class="o">.</span><span class="n">get_symbol_bars</span><span class="p">(</span><span class="s2">"SPY"</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">"day"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># To get the DataFrame of SPY data</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">bars</span><span class="o">.</span><span class="n">df</span>
 </pre></div>
 </div>
@@ -2171,6 +2282,9 @@ statistics when backtesting finishes</p>
 <dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.portfolio_value">
 <em class="property"><span class="pre">property</span> </em><span class="sig-name descname"><span class="pre">portfolio_value</span></span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.portfolio_value" title="Permalink to this definition">¶</a></dt>
 <dd><p>Returns the current portfolio value (cash + positions value).</p>
+<p>Returns the portfolio value of positions plus cash in US dollars.</p>
+<p>Crypto markets will attempt to resove to US dollars as a quote
+currency.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Returns</dt>
 <dd class="field-odd"><p><strong>portfolio_value</strong> – The current portfolio value. Includes the actual values of shares held by the current strategy plus the total cash.</p>
@@ -2244,7 +2358,8 @@ False. Default is True.</p>
 <dd><p>Set the market for trading hours.</p>
 <p>Setting the market will determine the trading hours for live
 trading and for Yahoo backtesting. Not applicable to Pandas
-backtesting.
+backtesting.</p>
+<p>Crypto markets are always 24/7.
 <cite>NASDAQ</cite> is default.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
@@ -2632,6 +2747,51 @@ executing the order.</p>
 <span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
 </pre></div>
 </div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For buying a crypto with a market price</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">asset_base</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="s2">"BTC"</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="n">asset_type</span><span class="o">=</span><span class="s2">"crypto"</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">asset_quote</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="s2">"USD"</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="n">asset_type</span><span class="o">=</span><span class="s2">"crypto"</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">asset_base</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="s2">"buy"</span><span class="p">,</span> <span class="n">quote</span><span class="o">=</span><span class="n">asset_quote</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="ow">or</span><span class="o">...</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">((</span><span class="n">asset_base</span><span class="p">,</span> <span class="n">asset_quote</span><span class="p">),</span> <span class="mf">0.1</span><span class="p">,</span> <span class="s2">"buy"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For buying a crypto with a limit price</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">asset_base</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="s2">"BTC"</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="n">asset_type</span><span class="o">=</span><span class="s2">"crypto"</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">asset_quote</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="s2">"USD"</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="n">asset_type</span><span class="o">=</span><span class="s2">"crypto"</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">asset_base</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="s2">"buy"</span><span class="p">,</span> <span class="n">limit_price</span><span class="o">=</span><span class="s2">"41250"</span><span class="p">,</span> <span class="n">quote</span><span class="o">=</span><span class="n">asset_quote</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="ow">or</span><span class="o">...</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">((</span><span class="n">asset_base</span><span class="p">,</span> <span class="n">asset_quote</span><span class="p">),</span> <span class="mf">0.1</span><span class="p">,</span> <span class="s2">"buy"</span><span class="p">,</span> <span class="n">limit_price</span><span class="o">=</span><span class="s2">"41250"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For buying a crypto with a stop limit price</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">asset_base</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="s2">"BTC"</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="n">asset_type</span><span class="o">=</span><span class="s2">"crypto"</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">asset_quote</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="s2">"USD"</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="n">asset_type</span><span class="o">=</span><span class="s2">"crypto"</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">asset_base</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="s2">"buy"</span><span class="p">,</span> <span class="n">limit_price</span><span class="o">=</span><span class="s2">"41325"</span><span class="p">,</span> <span class="n">stop_price</span><span class="o">=</span><span class="s2">"41300"</span><span class="p">,</span> <span class="n">quote</span><span class="o">=</span><span class="n">asset_quote</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="ow">or</span><span class="o">...</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">((</span><span class="n">asset_base</span><span class="p">,</span> <span class="n">asset_quote</span><span class="p">),</span> <span class="mf">0.1</span><span class="p">,</span> <span class="s2">"buy"</span><span class="p">,</span> <span class="n">limit_price</span><span class="o">=</span><span class="s2">"41325"</span><span class="p">,</span> <span class="n">stop_price</span><span class="o">=</span><span class="s2">"41300"</span><span class="p">,)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+</pre></div>
+</div>
 </dd></dl>
 <dl class="py method">
 <dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.submit_orders">
@@ -2719,6 +2879,28 @@ instructions for the orders.</p>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">order1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="s2">"sell"</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">order2</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="mi">200</span><span class="p">,</span> <span class="s2">"sell"</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_orders</span><span class="p">([</span><span class="n">order1</span><span class="p">,</span> <span class="n">order2</span><span class="p">])</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For 2 CRYPTO buy orders.</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">asset_BTC</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="s2">"BTC"</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="n">asset_type</span><span class="o">=</span><span class="s2">"crypto"</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">asset_ETH</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="s2">"ETH"</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="n">asset_type</span><span class="o">=</span><span class="s2">"crypto"</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">asset_quote</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="s2">"USD"</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="n">asset_type</span><span class="o">=</span><span class="s2">"crypto"</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">order1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">asset_BTC</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="s2">"buy"</span><span class="p">,</span> <span class="n">quote</span><span class="o">=</span><span class="n">asset_quote</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">order2</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">asset_ETH</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="s2">"buy"</span><span class="p">,</span> <span class="n">quote</span><span class="o">=</span><span class="n">asset_quote</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">([</span><span class="n">order1</span><span class="p">,</span> <span class="n">order2</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="ow">or</span><span class="o">...</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">order1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">((</span><span class="n">asset_BTC</span><span class="p">,</span> <span class="n">asset_quote</span><span class="p">),</span> <span class="mf">0.1</span><span class="p">,</span> <span class="s2">"buy"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">order2</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">((</span><span class="n">asset_ETH</span><span class="p">,</span> <span class="n">asset_quote</span><span class="p">),</span> <span class="mi">10</span><span class="p">,</span> <span class="s2">"buy"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">([</span><span class="n">order1</span><span class="p">,</span> <span class="n">order2</span><span class="p">])</span>
 </pre></div>
 </div>
 </dd></dl>

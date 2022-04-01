@@ -38,7 +38,7 @@ Currently Alpaca and Interactive Brokers are available as a brokerage services. 
     class MyStrategy(Strategy):
         def initialize(self, symbol=""):
             # Will make on_trading_iteration() run every 180 minutes
-            self.sleeptime = 180
+            self.sleeptime = "180M"
 
             # Custom parameters
             self.symbol = symbol
@@ -116,7 +116,7 @@ Here it is all together:
     class MyStrategy(Strategy):
         def initialize(self, symbol=""):
             # Will make on_trading_iteration() run every 180 minutes
-            self.sleeptime = 180
+            self.sleeptime = "180M"
 
             # Custom parameters
             self.symbol = symbol

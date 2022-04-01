@@ -327,9 +327,9 @@ def create_tearsheet(
     df = pd.concat([_df1, _df2], join="outer", axis=1)
     df.index = pd.to_datetime(df.index)
 
-    df = df.dropna()
+    df = df.fillna(0)
 
-    bm_text = f"compared to {benchmark_asset}" if benchmark_asset else ""
+    bm_text = f"Compared to {benchmark_asset}" if benchmark_asset else ""
     title = f"{strat_name} {bm_text}"
 
     qs.reports.html(
@@ -338,6 +338,7 @@ def create_tearsheet(
         title=title,
         output=True,
         download_filename=tearsheet_file,
+        # match_dates=True,
     )
     if show_tearsheet:
         url = "file://" + os.path.abspath(str(tearsheet_file))

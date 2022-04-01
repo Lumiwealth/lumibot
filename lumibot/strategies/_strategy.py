@@ -554,7 +554,7 @@ class _Strategy:
         else:
             strat_name = self._name if self._name != None else "Strategy"
             create_tearsheet(
-                self._strategy_returns_df[["return"]],
+                self._strategy_returns_df,
                 strat_name,
                 tearsheet_file,
                 self._benchmark_returns_df,

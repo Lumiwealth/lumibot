@@ -100,7 +100,7 @@ Table of Contents
 --------------------
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
    
    Home <self>
    Community/Forum <https://lumiwealth.circle.so/c/lumibot/>

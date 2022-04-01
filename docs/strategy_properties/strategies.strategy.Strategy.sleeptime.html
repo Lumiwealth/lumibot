@@ -199,6 +199,8 @@
 <li class="toctree-l2 has-children"><a class="reference internal" href="../strategy_methods.data.html">Data</a><input class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l3"><a class="reference internal" href="../strategy_methods.data/strategies.strategy.Strategy.get_last_price.html">self.get_last_price</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../strategy_methods.data/strategies.strategy.Strategy.get_last_prices.html">self.get_last_prices</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../strategy_methods.data/strategies.strategy.Strategy.get_historical_prices.html">self.get_historical_prices</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../strategy_methods.data/strategies.strategy.Strategy.get_historical_prices_for_assets.html">self.get_historical_prices_for_assets</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../strategy_methods.data/strategies.strategy.Strategy.get_symbol_bars.html">self.get_symbol_bars</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../strategy_methods.data/strategies.strategy.Strategy.get_bars.html">self.get_bars</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../strategy_methods.data/strategies.strategy.Strategy.start_realtime_bars.html">self.start_realtime_bars</a></li>
@@ -316,10 +318,10 @@
 <p>By default equals 1 minute. You can set the sleep time as an integer which will be interpreted as minutes. eg: sleeptime = 50 would be 50 minutes. Conversely, you can enter the time as a string with the duration numbers first, followed by the time units: ‘M’ for minutes, ‘S’ for seconds eg: ‘300S’ is 300 seconds, ‘10M’ is 10 minutes. Only “S” and “M” are allowed.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><p><strong>sleeptime</strong> (<em>int</em><em> or </em><em>str</em>) – Sleep time in minutes or a string with the duration numbers first, followed by the time units: ‘M’ for minutes, ‘S’ for seconds.</p>
+<dd class="field-odd"><p><strong>sleeptime</strong> (<em>int</em><em> or </em><em>str</em>) – Sleep time in minutes or a string with the duration numbers first, followed by the time units: <cite>S</cite> for seconds, <cite>M</cite> for minutes, <cite>H</cite> for hours’ or <cite>D</cite> for days.</p>
 </dd>
 <dt class="field-even">Returns</dt>
-<dd class="field-even"><p><strong>sleeptime</strong> – Sleep time in minutes or a string with the duration numbers first, followed by the time units: ‘M’ for minutes, ‘S’ for seconds.</p>
+<dd class="field-even"><p><strong>sleeptime</strong> – Sleep time in minutes or a string with the duration numbers first, followed by the time units: <cite>S</cite> for seconds, <cite>M</cite> for minutes, <cite>H</cite> for hours’ or <cite>D</cite> for days.</p>
 </dd>
 <dt class="field-odd">Return type</dt>
 <dd class="field-odd"><p>int</p>
@@ -353,6 +355,14 @@
 </div>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Set the sleep time to 5 seconds</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">sleeptime</span> <span class="o">=</span> <span class="s2">"5S"</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Set the sleep time to 2 hours</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">sleeptime</span> <span class="o">=</span> <span class="s2">"2H"</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Set the sleep time to 2 days</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">sleeptime</span> <span class="o">=</span> <span class="s2">"2D"</span>
 </pre></div>
 </div>
 </dd></dl>

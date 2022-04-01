@@ -334,41 +334,42 @@ class Strategy(_Strategy):
         """Creates a new order for this specific strategy. Once created, an order must still be submitted.
 
         Some notes on Crypto markets:
-        Crypto markets required both a base currency and a quote currency to create an order. These
-        may be entered in one of two ways.
-            1. tuple of Assets.
-                self.create_order(
-                    (Asset(symbol='BTC', asset_type='crypto'), Asset(symbol='USDT',
-                    asset_type='crypto')),
-                    .50,
-                    `buy`,
-                )
-            2. Use the quote parameter.
-                self.create_order(
-                    Asset(symbol='BTC', asset_type='crypto'),
-                    .50,
-                    `buy`,
-                    quote=Asset(symbol='USDT', asset_type='crypto'),
-                )
 
-        Orders for crypto markets are restriced to: `market`, `limit`, `stop_limit`.
+        Crypto markets require both a base currency and a quote currency to create an order. These
+        may be entered in one of two ways.
+
+        1. tuple of Assets.
+            >>> self.create_order(
+            >>>     (Asset(symbol='BTC', asset_type='crypto'), Asset(symbol='USDT',
+            >>>     asset_type='crypto')),
+            >>>     .50,
+            >>>     'buy',
+            >>> )
+        2. Use the quote parameter.
+            >>> self.create_order(
+            >>>     Asset(symbol='BTC', asset_type='crypto'),
+            >>>     .50,
+            >>>     'buy',
+            >>>     quote=Asset(symbol='USDT', asset_type='crypto'),
+            >>> )
+
+        Orders for crypto markets are restriced to: ``market``, ``limit``, ``stop_limit``.
 
         Crypto markets' orders are simple. There are no compound orders such
-        `oco` or `bracket`. Also, duration of orders are all GTC.
-
+        ``oco`` or ``bracket``. Also, duration of orders are all GTC.
 
         Parameters
         ----------
         asset : str or Asset
             The asset that will be traded. If this is just a stock, then
-            `str` is sufficient. However, all assets other than stocks
-            must use `Asset`.
+            ``str`` is sufficient. However, all assets other than stocks
+            must use ``Asset``.
         quantity : int string Decimal (float will deprecate)
             The number of shares or units to trade. One may enter an
             int, a string number eg: "3.213", or a Decimal obect,
             eg: Decimal("3.213"). Internally all will convert to Decimal.
         side : str
-            Whether the order is `buy` or `sell`.
+            Whether the order is ``buy`` or ``sell``.
         limit_price : float
             A Limit order is an order to buy or sell at a specified
             price or better. The Limit order ensures that if the
@@ -380,9 +381,9 @@ class Strategy(_Strategy):
             price is attained or penetrated.
         time_in_force : str
             Amount of time the order is in force. Order types include:
-                - 'day' Orders valid for the remainder of the day.
-                - 'gtc' Good until cancelled.
-                - 'gtd' Good until date.
+                - ``'day'`` Orders valid for the remainder of the day.
+                - ``'gtc'`` Good until cancelled.
+                - ``'gtd'`` Good until date.
             (Default: 'day')
         good_till_date : datetime.datetime
             This is the time order is valid for Good Though Date orders.
@@ -409,10 +410,10 @@ class Strategy(_Strategy):
             The order has been filled.
         exchange : str
             The exchange where the order will be placed.
-            Default = `SMART`
+            ``Default = 'SMART'``
         quote : Asset
             This is the currency that the main coin being bought or sold
-            will exchange in. For example, if trading `BTC/ETH` this
+            will exchange in. For example, if trading ``BTC/ETH`` this
             parameter will be 'ETH' (as an Asset object).
 
         Returns
@@ -575,7 +576,7 @@ class Strategy(_Strategy):
         """
         if quote is None:
             quote = self.quote_asset
-        
+
         asset = self._set_asset_mapping(asset)
         order = Order(
             self.name,
@@ -2314,7 +2315,7 @@ class Strategy(_Strategy):
         """Get historical pricing data for a given symbol or asset.
 
         Return data bars for a given symbol or asset.  Any number of bars can
-        be return limited by the data available. This is set with `length` in
+        be return limited by the data available. This is set with 'length' in
         number of bars. Bars may be returned as daily or by minute. And the
         starting point can be shifted backwards by time or bars.
 
@@ -2322,12 +2323,10 @@ class Strategy(_Strategy):
         ----------
         asset : str or Asset
             The symbol string representation (e.g AAPL, GOOG, ...) or asset
-            object. Crypto currencies must specify the market. Use a string
-            with the two coins as follows:
-                `ETH/BTC`
-            Alternatively for cryptos, one can use a tuple with the two asset
-            objects, numerator first, denominator second.
-                `(Asset(ETH), Asset(BTC))`
+            object.
+            Crypto currencies must specify the market. Use a string
+            with the two coins as follows: 'ETH/BTC'. Alternatively for cryptos, one can use a tuple with the two asset
+            objects, numerator first, denominator second. '(Asset(ETH), Asset(BTC))'
         length : int
             The number of rows (number of timesteps)
         timestep : str
@@ -2422,16 +2421,15 @@ class Strategy(_Strategy):
         ----------
         assets : list(str/asset)
             The symbol string representation (e.g AAPL, GOOG, ...) or asset
-            objects. Crypto currencies must specify the market. Use a list
-            of string with the two coins as follows:
-                `ETH/BTC`
+            objects.
+            Crypto currencies must specify the market. Use a list
+            of string with the two coins as follows: ```'ETH/BTC'```
             Alternatively for cryptos, one can use a tuple with the two asset
-            objects, numerator first, denominator second.
-                `(Asset(ETH), Asset(BTC))`
+            objects, numerator first, denominator second. '(Asset(ETH), Asset(BTC))'
         length : int
             The number of rows (number of timesteps)
         timestep : str
-            Either ```"minute""``` for minutes data or ```"day"```
+            Either ```"minute"``` for minutes data or ```"day"```
             for days data default value depends on the data_source (minute
             for alpaca, day for yahoo, ...)
         timeshift : timedelta

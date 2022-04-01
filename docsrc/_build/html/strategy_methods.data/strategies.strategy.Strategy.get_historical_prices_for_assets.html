@@ -323,20 +323,14 @@ starting point can be shifted backwards by time or bars.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>assets</strong> (<em>list</em><em>(</em><em>str/asset</em><em>)</em>) – <p>The symbol string representation (e.g AAPL, GOOG, …) or asset
-objects. Crypto currencies must specify the market. Use a list
-of string with the two coins as follows:</p>
-<blockquote>
-<div><p><cite>ETH/BTC</cite></p>
-</div></blockquote>
-<p>Alternatively for cryptos, one can use a tuple with the two asset
-objects, numerator first, denominator second.</p>
-<blockquote>
-<div><p><cite>(Asset(ETH), Asset(BTC))</cite></p>
-</div></blockquote>
-</p></li>
+<li><p><strong>assets</strong> (<em>list</em><em>(</em><em>str/asset</em><em>)</em>) – The symbol string representation (e.g AAPL, GOOG, …) or asset
+objects.
+Crypto currencies must specify the market. Use a list
+of string with the two coins as follows: <code class="docutils literal notranslate"><span class="pre">`'ETH/BTC'`</span></code>
+Alternatively for cryptos, one can use a tuple with the two asset
+objects, numerator first, denominator second. ‘(Asset(ETH), Asset(BTC))’</p></li>
 <li><p><strong>length</strong> (<em>int</em>) – The number of rows (number of timesteps)</p></li>
-<li><p><strong>timestep</strong> (<em>str</em>) – Either <code class="docutils literal notranslate"><span class="pre">`"minute""`</span></code> for minutes data or <code class="docutils literal notranslate"><span class="pre">`"day"`</span></code>
+<li><p><strong>timestep</strong> (<em>str</em>) – Either <code class="docutils literal notranslate"><span class="pre">`"minute"`</span></code> for minutes data or <code class="docutils literal notranslate"><span class="pre">`"day"`</span></code>
 for days data default value depends on the data_source (minute
 for alpaca, day for yahoo, …)</p></li>
 <li><p><strong>timeshift</strong> (<em>timedelta</em>) – <code class="docutils literal notranslate"><span class="pre">`None`</span></code> by default. If specified indicates the time shift from

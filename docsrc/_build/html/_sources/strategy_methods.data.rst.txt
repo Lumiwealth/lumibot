@@ -11,7 +11,6 @@ Data methods are made to get data for you to use in your strategies. You can use
 
     get_last_price
     get_last_prices
-    get_tradable_assets
     get_historical_prices
     get_historical_prices_for_assets
     get_symbol_bars

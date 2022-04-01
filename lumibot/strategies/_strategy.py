@@ -510,7 +510,6 @@ class _Strategy:
 
     def plot_returns_vs_benchmark(
         self,
-        plot_file="backtest_result.jpg",
         plot_file_html="backtest_result.html",
         trades_df=None,
         show_plot=True,
@@ -531,7 +530,6 @@ class _Strategy:
                 f"{self._log_strat_name()}Strategy",
                 self._benchmark_returns_df,
                 self._benchmark_asset,
-                plot_file,
                 plot_file_html,
                 trades_df,
                 show_plot,
@@ -579,7 +577,6 @@ class _Strategy:
         name=None,
         budget=10000,
         benchmark_asset="SPY",
-        plot_file=None,
         plot_file_html=None,
         trades_file=None,
         pandas_data=None,
@@ -623,8 +620,6 @@ class _Strategy:
             The initial budget to use for the backtest.
         benchmark_asset : str
             The benchmark asset to use for the backtest to compare to.
-        plot_file : str
-            The file to write the plot to.
         plot_file_html : str
             The file to write the plot html to.
         trades_file : str
@@ -725,8 +720,6 @@ class _Strategy:
 
         # Filename defaults
         datestring = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        if plot_file is None:
-            plot_file = f"logs/{name + '_' if name != None else ''}{datestring}.jpg"
         if plot_file_html is None:
             plot_file_html = (
                 f"logs/{name + '_' if name != None else ''}{datestring}.html"
@@ -810,7 +803,6 @@ class _Strategy:
         backtesting_broker.export_trade_events_to_csv(trades_file)
 
         strategy.plot_returns_vs_benchmark(
-            plot_file,
             plot_file_html,
             backtesting_broker._trade_event_log_df,
             show_plot=show_plot,

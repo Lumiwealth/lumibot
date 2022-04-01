@@ -458,7 +458,8 @@ class StrategyExecutor(Thread):
             # Stop after we pass the backtesting end date
             if (
                 self.broker.IS_BACKTESTING_BROKER
-                and self.broker.datetime > self.broker._data_source.datetime_end
+                and self.broker.datetime.date()
+                > self.broker._data_source.datetime_end.date()
             ):
                 break
 

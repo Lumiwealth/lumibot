@@ -573,6 +573,9 @@ class Strategy(_Strategy):
         >>> order = self.create_order(base, 0.05, "buy", limit_price=41000,  quote=quote)
         >>> self.submit_order(order)
         """
+        if quote is None:
+            quote = self.quote_asset
+        
         asset = self._set_asset_mapping(asset)
         order = Order(
             self.name,

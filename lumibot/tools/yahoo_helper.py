@@ -112,7 +112,12 @@ class YahooHelper:
     @staticmethod
     def process_df(df):
         df = df.dropna().copy()
-        df.index = df.index.tz_localize(LUMIBOT_DEFAULT_PYTZ)
+
+        if df.index.tzinfo is None:
+            df.index = df.index.tz_localize(LUMIBOT_DEFAULT_PYTZ)
+        else:
+            df.index = df.index.tz_convert(LUMIBOT_DEFAULT_PYTZ)
+
         df["Adj Ratio"] = df["Adj Close"] / df["Close"]
         df["Adj Open"] = df["Open"] * df["Adj Ratio"]
         df["Adj High"] = df["High"] * df["Adj Ratio"]
@@ -164,6 +169,14 @@ class YahooHelper:
     def download_symbol_day_data(symbol):
         ticker = yf.Ticker(symbol)
         df = ticker.history(period="max", auto_adjust=False)
+
+        # Adjust the time when we are getting daily stock data to the beginning of the day
+        # This way the times line up when backtesting daily data
+        info = ticker.info
+        if info.get("market") == "us_market":
+            df.index = df.index.tz_localize(info.get("exchangeTimezoneName"))
+            df.index = df.index.map(lambda t: t.replace(hour=9, minute=30))
+
         df = YahooHelper.process_df(df)
         return df
 

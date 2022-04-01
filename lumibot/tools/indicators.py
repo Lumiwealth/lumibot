@@ -160,7 +160,9 @@ def performance(_df, risk_free, prefix=""):
 def get_symbol_returns(symbol, start=datetime(1900, 1, 1), end=datetime.now()):
     # Making start and end datetime aware
     returns_df = yh.get_symbol_data(symbol)
-    returns_df = returns_df.loc[(returns_df.index >= start) & (returns_df.index <= end)]
+    returns_df = returns_df.loc[
+        (returns_df.index.date >= start.date()) & (returns_df.index.date <= end.date())
+    ]
     returns_df["pct_change"] = returns_df["Close"].pct_change()
     returns_df["div_yield"] = returns_df["Dividends"] / returns_df["Close"]
     returns_df["return"] = returns_df["pct_change"] + returns_df["div_yield"]
@@ -183,7 +185,6 @@ def plot_returns(
     name1,
     df2,
     name2,
-    plot_file="backtest_result.jpg",
     plot_file_html="backtest_result.html",
     trades_df=None,
     show_plot=True,
@@ -195,12 +196,14 @@ def plot_returns(
     _df1 = _df1.sort_index(ascending=True)
     _df1.index.name = "datetime"
     _df1[name1] = (1 + _df1["return"]).cumprod()
+    _df1[name1][0] = 1
     dfs_concat.append(_df1[name1])
 
     _df2 = df2.copy()
     _df2 = _df2.sort_index(ascending=True)
     _df2.index.name = "datetime"
     _df2[name2] = (1 + _df2["return"]).cumprod()
+    _df2[name2][0] = 1
     dfs_concat.append(_df2[name2])
 
     df_final = pd.concat(dfs_concat, join="outer", axis=1)
@@ -236,7 +239,7 @@ def plot_returns(
         )
     )
 
-    vshift = 0.015
+    vshift = 0.002
 
     # Buys
     buys = df_final.copy()
@@ -293,7 +296,7 @@ def plot_returns(
             text=buys["plotly_text"],
         )
     )
-    bm_text = f"compared with {name2}" if name2 else ""
+    bm_text = f"Compared With {name2}" if name2 else ""
     fig.update_layout(
         title_text=f"{name1} {bm_text}",
         title_font_size=30,

@@ -84,13 +84,21 @@ class StrategyExecutor(Thread):
             while held_trades_len > 0:
                 # Snapshot for the broker and lumibot:
                 cash_broker = self.broker._get_balances_at_broker()
-                if cash_broker is None and cash_broker_retries < cash_broker_max_retries:
+                if (
+                    cash_broker is None
+                    and cash_broker_retries < cash_broker_max_retries
+                ):
                     logging.info("Unable to get cash from broker, trying again.")
                     cash_broker_retries += 1
                     continue
-                elif cash_broker is None and cash_broker_retries >= cash_broker_max_retries:
-                    logging.info(f"Unable to get the cash balance after {cash_broker_max_retries} "
-                                 f"tries, setting cash to zero.")
+                elif (
+                    cash_broker is None
+                    and cash_broker_retries >= cash_broker_max_retries
+                ):
+                    logging.info(
+                        f"Unable to get the cash balance after {cash_broker_max_retries} "
+                        f"tries, setting cash to zero."
+                    )
                     cash_broker = 0
                 else:
                     cash_broker = cash_broker[0]
@@ -206,7 +214,8 @@ class StrategyExecutor(Thread):
             quantity = payload["quantity"]
             multiplier = payload["multiplier"]
 
-            self.strategy._update_cash(order.side, quantity, price, multiplier)
+            if order.asset.asset_type != "crypto":
+                self.strategy._update_cash(order.side, quantity, price, multiplier)
             self._on_filled_order(**payload)
         elif event == self.PARTIALLY_FILLED_ORDER:
             order = payload["order"]
@@ -214,7 +223,8 @@ class StrategyExecutor(Thread):
             quantity = payload["quantity"]
             multiplier = payload["multiplier"]
 
-            self.strategy._update_cash(order.side, quantity, price, multiplier)
+            if order.asset.asset_type != "crypto":
+                self.strategy._update_cash(order.side, quantity, price, multiplier)
             self._on_partially_filled_order(**payload)
 
     def process_queue(self):
@@ -424,8 +434,9 @@ class StrategyExecutor(Thread):
             self._on_trading_iteration()
             return
 
-        if not is_247 and (not has_data_source or (
-            has_data_source and self.broker._data_source.SOURCE != "PANDAS")
+        if not is_247 and (
+            not has_data_source
+            or (has_data_source and self.broker._data_source.SOURCE != "PANDAS")
         ):
             self.strategy.await_market_to_open()  # set new time and bar length. Check if hit bar max
             # or date max.
@@ -439,14 +450,26 @@ class StrategyExecutor(Thread):
 
         if not is_247:
             time_to_close = self.broker.get_time_to_close()
+
+        #####
+        # The main loop for backtesting if strategy is 24 hours
+        ####
         while is_247 or (time_to_close > self.strategy.minutes_before_closing * 60):
+            # Stop after we pass the backtesting end date
+            if (
+                self.broker.IS_BACKTESTING_BROKER
+                and self.broker.datetime.date()
+                > self.broker._data_source.datetime_end.date()
+            ):
+                break
+
             if self.broker.IS_BACKTESTING_BROKER:
                 self.broker.process_pending_orders(strategy=self.strategy.name)
             self._on_trading_iteration()
 
             # Set the sleeptime to close.
             if is_247:
-                sleeptime = float('inf')
+                sleeptime = float("inf")
             else:
                 time_to_close = self.broker.get_time_to_close()
                 sleeptime = time_to_close - self.strategy.minutes_before_closing * 60
@@ -466,11 +489,17 @@ class StrategyExecutor(Thread):
             else:
                 raise ValueError(sleeptime_err_msg)
 
-            if units not in "MS":
+            if units not in "SMHD":
                 raise ValueError(sleeptime_err_msg)
 
-            if units == "M":
+            if units == "S":
+                strategy_sleeptime = time
+            elif units == "M":
                 strategy_sleeptime = 60 * time
+            elif units == "H":
+                strategy_sleeptime = 60 * 60 * time
+            elif units == "D":
+                strategy_sleeptime = 60 * 60 * 24 * time
             else:
                 strategy_sleeptime = time
 
@@ -494,6 +523,10 @@ class StrategyExecutor(Thread):
         self.broker.sleep = self.safe_sleep
 
         self._initialize()
+
+        #####
+        # The main loop for running any strategy
+        ####
         while self.broker.should_continue() and self.should_continue:
             try:
                 self._run_trading_session()

@@ -33,8 +33,6 @@ class Data:
         If not supplied, then default is 2359 hrs.
     timestep : str
         Either "minute" (default) or "day"
-    columns : list of str
-        For feeding in desired columns (not yet used).
 
     Attributes
     ----------
@@ -59,8 +57,6 @@ class Data:
         If not supplied, then default is 2359 hrs.
     timestep : str
         Either "minute" (default) or "day"
-    columns : list of str
-        For feeding in desired columns (not yet used).
     datalines : dict
         Keys are column names like `datetime` or `close`, values are
         numpy arrays.
@@ -113,10 +109,21 @@ class Data:
         trading_hours_start=datetime.time(0, 0),
         trading_hours_end=datetime.time(23, 59),
         timestep="minute",
-        columns=None,
+        quote=None,
     ):
+
         self.asset = asset
         self.symbol = self.asset.symbol
+
+        if self.asset.asset_type == "crypto" and quote is None:
+            raise ValueError(
+                f"A crypto asset {self.symbol} was added to data without a corresponding"
+                f"`quote` asset. Please add the quote asset. For example, if trying to add "
+                f"`BTCUSD` to data, you would need to add `USD` as the quote asset."
+                f"Quote must be provided for crypto assets."
+            )
+        else:
+            self.quote = quote
 
         self.timestep = timestep
         self.df = self.columns(df)
@@ -215,7 +222,7 @@ class Data:
     ):
         # Trim the dataframe to match the desired backtesting dates.
 
-        df = df.loc[(df.index > date_start) & (df.index < date_end), :]
+        df = df.loc[(df.index >= date_start) & (df.index <= date_end), :]
         if self.timestep == "minute":
             df = df.between_time(trading_hours_start, trading_hours_end)
         if df.empty:
@@ -288,6 +295,9 @@ class Data:
             dt = args[0]
             # Check if the iter date is outside of this data's date range.
             if dt < self.datetime_start or dt > self.datetime_end:
+                raise ValueError(
+                    f"The date you are looking for ({dt}) is outside of the data's date range ({self.datetime_start} to {self.datetime_end})."
+                )
                 return None
 
             data_index = (
@@ -298,6 +308,9 @@ class Data:
             )
             is_data = data_index >= 0
             if not is_data:
+                raise ValueError(
+                    f"The date you are looking for ({dt}) is outside of the data's date range ({self.datetime_start} to {self.datetime_end}) after accounting for a length of {kwargs.get('length', 1)} and a timeshift of {kwargs.get('timeshift', 0)}. Keep in mind that the length you are requesting must also be available in your data, in this case we are {data_index} rows away from the data you need."
+                )
                 return None
 
             res = func(self, *args, **kwargs)

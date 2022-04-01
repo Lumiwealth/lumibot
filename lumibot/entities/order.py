@@ -28,7 +28,7 @@ class Order:
         trail_percent=None,
         time_in_force="day",
         good_till_date=None,
-        sec_type="STK",
+        sec_type=None,
         exchange="SMART",
         position_filled=False,
         quote=None,
@@ -164,9 +164,13 @@ class Order:
         if isinstance(asset, str):
             asset = entities.Asset(symbol=asset)
 
+        if sec_type is None:
+            sec_type = asset.asset_type
+
         # Initialization default values
         self.strategy = strategy
-        # it is possible for crypto currencies to arrive as a tuple of
+
+        # It is possible for crypto currencies to arrive as a tuple of
         # two assets.
         if isinstance(asset, tuple) and asset[0].asset_type == "crypto":
             self.asset = asset[0]
@@ -174,6 +178,7 @@ class Order:
         else:
             self.asset = asset
             self.quote = quote
+
         self.symbol = self.asset.symbol
         self.identifier = None
         self.status = "unprocessed"
@@ -327,9 +332,11 @@ class Order:
     @quantity.setter
     def quantity(self, value):
         # All non-crypto assets must be of type 'int'.
-        error_msg = f"Quantity for {self.asset} which is a " \
-                    f"{self.asset.asset_type}, must be of type 'int'." \
-                    f"The value {value} was entered which is a {type(value)}."
+        error_msg = (
+            f"Quantity for {self.asset} which is a "
+            f"{self.asset.asset_type}, must be of type 'int'."
+            f"The value {value} was entered which is a {type(value)}."
+        )
 
         if not isinstance(value, Decimal):
             if isinstance(value, float):
@@ -341,7 +348,9 @@ class Order:
                     logging.info(error)
 
         quantity = Decimal(value)
-        self._quantity = check_quantity(quantity, "Order quantity must be a positive Decimal")
+        self._quantity = check_quantity(
+            quantity, "Order quantity must be a positive Decimal"
+        )
 
     def __repr__(self):
         self.rep_asset = self.symbol

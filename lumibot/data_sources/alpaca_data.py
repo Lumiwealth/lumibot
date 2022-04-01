@@ -85,7 +85,8 @@ class AlpacaData(DataSource):
             end = datetime.now(timezone.utc)
 
         df_ret = None
-        curr_end = end.isoformat()
+
+        curr_end = end.isoformat() if not isinstance(end, str) else end
         cnt = 0
         last_curr_end = None
         loop_limit = 1000 if limit > 1000 else limit

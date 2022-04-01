@@ -9,8 +9,6 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import quantstats as qs
-import webbrowser
-
 
 # import lumibot.data_sources.alpha_vantage as av
 from lumibot import LUMIBOT_DEFAULT_PYTZ
@@ -104,9 +102,15 @@ def max_drawdown(_df):
     df["drawdown"] = df["cum_return_max"] - df["cum_return"]
     df["drawdown_pct"] = df["drawdown"] / df["cum_return_max"]
 
-    max_dd = df.loc[df["drawdown_pct"].idxmax()]
+    drawdown = df["drawdown_pct"].max()
+    if math.isnan(drawdown):
+        drawdown = 0
 
-    return {"drawdown": max_dd["drawdown_pct"], "date": max_dd.name}
+    date = df["drawdown_pct"].idxmax()
+    if type(date) == float and math.isnan(date):
+        date = df.index[0]
+
+    return {"drawdown": drawdown, "date": date}
 
 
 def romad(_df):
@@ -156,7 +160,9 @@ def performance(_df, risk_free, prefix=""):
 def get_symbol_returns(symbol, start=datetime(1900, 1, 1), end=datetime.now()):
     # Making start and end datetime aware
     returns_df = yh.get_symbol_data(symbol)
-    returns_df = returns_df.loc[(returns_df.index >= start) & (returns_df.index <= end)]
+    returns_df = returns_df.loc[
+        (returns_df.index.date >= start.date()) & (returns_df.index.date <= end.date())
+    ]
     returns_df["pct_change"] = returns_df["Close"].pct_change()
     returns_df["div_yield"] = returns_df["Dividends"] / returns_df["Close"]
     returns_df["return"] = returns_df["pct_change"] + returns_df["div_yield"]
@@ -179,7 +185,6 @@ def plot_returns(
     name1,
     df2,
     name2,
-    plot_file="backtest_result.jpg",
     plot_file_html="backtest_result.html",
     trades_df=None,
     show_plot=True,
@@ -189,19 +194,19 @@ def plot_returns(
 
     _df1 = df1.copy()
     _df1 = _df1.sort_index(ascending=True)
-    _df1.index.name = 'datetime'
+    _df1.index.name = "datetime"
     _df1[name1] = (1 + _df1["return"]).cumprod()
+    _df1[name1][0] = 1
     dfs_concat.append(_df1[name1])
 
     _df2 = df2.copy()
     _df2 = _df2.sort_index(ascending=True)
-    _df2.index.name = 'datetime'
+    _df2.index.name = "datetime"
     _df2[name2] = (1 + _df2["return"]).cumprod()
+    _df2[name2][0] = 1
     dfs_concat.append(_df2[name2])
 
     df_final = pd.concat(dfs_concat, join="outer", axis=1)
-    df_final = df_final.dropna()
-
 
     if trades_df is None or trades_df.empty:
         logging.info("There were no trades in this backtest.")
@@ -234,7 +239,7 @@ def plot_returns(
         )
     )
 
-    vshift = 0.015
+    vshift = 0.002
 
     # Buys
     buys = df_final.copy()
@@ -242,8 +247,11 @@ def plot_returns(
     buys = buys.loc[df_final["side"] == "buy"]
     buys["plotly_text"] = buys["filled_quantity"].astype(str) + " " + buys["symbol"]
     buys.index.name = "datetime"
-    buys = buys.groupby(["datetime", name1])["plotly_text"].apply(lambda x: '<br>'.join(
-        x)).reset_index()
+    buys = (
+        buys.groupby(["datetime", name1])["plotly_text"]
+        .apply(lambda x: "<br>".join(x))
+        .reset_index()
+    )
     buys = buys.set_index("datetime")
     buys["buy_shift"] = buys[name1] * (1 - vshift)
 
@@ -267,8 +275,11 @@ def plot_returns(
     sells = sells.loc[df_final["side"] == "sell"]
     sells["plotly_text"] = sells["filled_quantity"].astype(str) + " " + sells["symbol"]
     sells.index.name = "datetime"
-    sells = sells.groupby(["datetime", name1])["plotly_text"].apply(lambda x: '<br>'.join(
-        x)).reset_index()
+    sells = (
+        sells.groupby(["datetime", name1])["plotly_text"]
+        .apply(lambda x: "<br>".join(x))
+        .reset_index()
+    )
     sells = sells.set_index("datetime")
     sells["sell_shift"] = sells[name1] * (1 + vshift)
 
@@ -285,8 +296,12 @@ def plot_returns(
             text=buys["plotly_text"],
         )
     )
-    bm_text = f"compared with {name2}" if name2 else ""
-    fig.update_layout(title_text=f"{name1} {bm_text}", title_font_size=30, template="plotly_dark",)
+    bm_text = f"Compared With {name2}" if name2 else ""
+    fig.update_layout(
+        title_text=f"{name1} {bm_text}",
+        title_font_size=30,
+        template="plotly_dark",
+    )
 
     fig.write_html(plot_file_html, auto_open=show_plot)
 
@@ -300,7 +315,7 @@ def create_tearsheet(
     show_tearsheet,
 ):
     _df1 = df1.copy()
-    if _df1['return'].abs().sum() == 0:
+    if _df1["return"].abs().sum() == 0:
         return None
     _df1["strategy"] = _df1["return"]
     _df1 = _df1.groupby(_df1.index.date)["strategy"].mean()
@@ -309,12 +324,12 @@ def create_tearsheet(
     _df2["benchmark"] = _df2["return"]
     _df2 = _df2.groupby(_df2.index.date)["benchmark"].mean()
 
-    df = pd.concat([_df1, _df2], join='outer', axis=1)
+    df = pd.concat([_df1, _df2], join="outer", axis=1)
     df.index = pd.to_datetime(df.index)
 
-    df = df.dropna()
+    df = df.fillna(0)
 
-    bm_text = f"compared to {benchmark_asset}" if benchmark_asset else ""
+    bm_text = f"Compared to {benchmark_asset}" if benchmark_asset else ""
     title = f"{strat_name} {bm_text}"
 
     qs.reports.html(
@@ -323,6 +338,7 @@ def create_tearsheet(
         title=title,
         output=True,
         download_filename=tearsheet_file,
+        # match_dates=True,
     )
     if show_tearsheet:
         url = "file://" + os.path.abspath(str(tearsheet_file))

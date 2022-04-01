@@ -1,5 +1,6 @@
 import datetime
 import logging
+from asyncio.log import logger
 from decimal import Decimal
 
 import pandas as pd
@@ -124,12 +125,12 @@ class Strategy(_Strategy):
         Parameters
         ----------
         sleeptime : int or str
-            Sleep time in minutes or a string with the duration numbers first, followed by the time units: ‘M’ for minutes, ‘S’ for seconds.
+            Sleep time in minutes or a string with the duration numbers first, followed by the time units: `S` for seconds, `M` for minutes, `H` for hours' or `D` for days.
 
         Returns
         -------
         sleeptime : int
-            Sleep time in minutes or a string with the duration numbers first, followed by the time units: ‘M’ for minutes, ‘S’ for seconds.
+            Sleep time in minutes or a string with the duration numbers first, followed by the time units: `S` for seconds, `M` for minutes, `H` for hours' or `D` for days.
 
         Example
         -------
@@ -154,6 +155,12 @@ class Strategy(_Strategy):
 
         >>> # Set the sleep time to 5 seconds
         >>> self.sleeptime = "5S"
+
+        >>> # Set the sleep time to 2 hours
+        >>> self.sleeptime = "2H"
+
+        >>> # Set the sleep time to 2 days
+        >>> self.sleeptime = "2D"
         """
         return self._sleeptime
 
@@ -566,6 +573,9 @@ class Strategy(_Strategy):
         >>> order = self.create_order(base, 0.05, "buy", limit_price=41000,  quote=quote)
         >>> self.submit_order(order)
         """
+        if quote is None:
+            quote = self.quote_asset
+        
         asset = self._set_asset_mapping(asset)
         order = Order(
             self.name,
@@ -2244,7 +2254,7 @@ class Strategy(_Strategy):
         >>> asset = self.create(symbol="ETH", asset_type="crypto"),
         """
         # If backtesting,  return existing asset if in store.
-        if self.broker.IS_BACKTESTING_BROKER:
+        if self.broker.IS_BACKTESTING_BROKER and asset_type != "crypto":
             # Check for existing asset.
             for asset in self.broker._data_source._data_store:
                 is_symbol = asset.symbol == symbol
@@ -2293,7 +2303,7 @@ class Strategy(_Strategy):
             currency=currency,
         )
 
-    def get_symbol_bars(
+    def get_historical_prices(
         self,
         asset,
         length,
@@ -2373,7 +2383,24 @@ class Strategy(_Strategy):
             asset, length, timestep=timestep, timeshift=timeshift
         )
 
-    def get_bars(
+    def get_symbol_bars(
+        self,
+        asset,
+        length,
+        timestep="",
+        timeshift=None,
+        quote=None,
+    ):
+        """This method is deprecated and will be removed in a future version. Please use self.get_historical_prices() instead."""
+        logger.warning(
+            "The get_bars method is deprecated and will be removed in a future version. Please use self.get_historical_prices() instead."
+        )
+
+        return self.get_historical_prices(
+            asset, length, timestep=timestep, timeshift=timeshift, quote=quote
+        )
+
+    def get_historical_prices_for_assets(
         self,
         assets,
         length,
@@ -2385,8 +2412,8 @@ class Strategy(_Strategy):
         """Get historical pricing data for the list of assets.
 
         Return data bars for a list of symbols or assets.  Return a dictionary
-        of bars for a given list of symbols. Works the same as get_symbol_bars
-        but take as first parameter a list of symbols. Any number of bars can
+        of bars for a given list of symbols. Works the same as get_historical_prices
+        but take as first parameter a list of assets. Any number of bars can
         be return limited by the data available. This is set with `length` in
         number of bars. Bars may be returned as daily or by minute. And the
         starting point can be shifted backwards by time or bars.
@@ -2436,6 +2463,29 @@ class Strategy(_Strategy):
         assets = [self._set_asset_mapping(asset) for asset in assets]
 
         return self.data_source.get_bars(
+            assets,
+            length,
+            timestep=timestep,
+            timeshift=timeshift,
+            chunk_size=chunk_size,
+            max_workers=max_workers,
+        )
+
+    def get_bars(
+        self,
+        assets,
+        length,
+        timestep="minute",
+        timeshift=None,
+        chunk_size=100,
+        max_workers=200,
+    ):
+        """This method is deprecated and will be removed in a future version. Please use self.get_historical_prices_for_assets() instead."""
+        logger.warning(
+            "The get_bars method is deprecated and will be removed in a future version. Please use self.get_historical_prices_for_assets() instead."
+        )
+
+        return self.get_historical_prices_for_assets(
             assets,
             length,
             timestep=timestep,
@@ -2661,7 +2711,26 @@ class Strategy(_Strategy):
 
         >>> # Initialize the strategy
         >>> def initialize(self):
+        >>>   # Set the strategy to call on_trading_interation every 5 seconds
         >>>   self.sleeptime = "2S"
+        >>>   self.count = 0
+
+        >>> # Initialize the strategy
+        >>> def initialize(self):
+        >>>   # Set the strategy to call on_trading_interation every 10 minutes
+        >>>   self.sleeptime = "10M"
+        >>>   self.count = 0
+
+        >>> # Initialize the strategy
+        >>> def initialize(self):
+        >>>   # Set the strategy to call on_trading_interation every 20 hours
+        >>>   self.sleeptime = "20H"
+        >>>   self.count = 0
+
+        >>> # Initialize the strategy
+        >>> def initialize(self):
+        >>>   # Set the strategy to call on_trading_interation every 2 days (48 hours)
+        >>>   self.sleeptime = "2D"
         >>>   self.count = 0
 
 
@@ -2716,7 +2785,7 @@ class Strategy(_Strategy):
         pass
 
     def on_trading_iteration(self):
-        """Use this lifecycle method for your main trading loop. This method is called every self.sleeptime minutes (or seconds if self.sleeptime is "30S")
+        """Use this lifecycle method for your main trading loop. This method is called every self.sleeptime minutes (or seconds/hours/days if self.sleeptime is "30S", "1H", "1D", etc.).
 
         Parameters
         ----------

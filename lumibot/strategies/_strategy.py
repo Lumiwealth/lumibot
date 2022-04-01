@@ -1,12 +1,13 @@
 import datetime
 import logging
 from copy import deepcopy
+from decimal import Decimal
 
 import pandas as pd
 
 from lumibot import LUMIBOT_DEFAULT_PYTZ
 from lumibot.backtesting import BacktestingBroker
-from lumibot.entities import Asset
+from lumibot.entities import Asset, Position
 from lumibot.tools import (
     create_tearsheet,
     day_deduplicate,
@@ -38,8 +39,10 @@ class _Strategy:
         backtesting_start=None,
         backtesting_end=None,
         pandas_data=None,
+        quote_asset=Asset(symbol="USD", asset_type="forex"),
+        starting_units=None,
         filled_order_callback=None,
-        name="StratName",
+        name=None,
         budget=10000,
         parameters={},
         **kwargs,
@@ -77,6 +80,9 @@ class _Strategy:
             self.broker = broker
             self._name = name
 
+        self.quote_asset = quote_asset
+        self.starting_units = starting_units
+
         # Setting the broker object
         self._is_backtesting = self.broker.IS_BACKTESTING_BROKER
         self._benchmark_asset = benchmark_asset
@@ -97,11 +103,20 @@ class _Strategy:
                         f"Please add a pandas dataframe as an input parameter. "
                         f"Use the following: 'pandas_data': your_dataframe "
                     )
-                pd_asset_keys = dict()
-                for asset, df in pandas_data.items():
-                    new_asset = self._set_asset_mapping(asset)
-                    pd_asset_keys[new_asset] = df
-                self.broker._trading_days = self.data_source.load_data(pd_asset_keys)
+                self.broker._trading_days = self.data_source.load_data()
+                # Create initial positions.
+                if self.starting_units is not None and len(self.starting_units) > 0:
+                    for asset, quantity in self.starting_units.items():
+                        position = Position(
+                            self._name,
+                            asset,
+                            Decimal(quantity),
+                            orders=None,
+                            hold=0,
+                            available=Decimal(quantity),
+                        )
+                        self.broker._filled_positions.append(position)
+
         elif data_source is None:
             self.data_source = self.broker
         else:
@@ -126,9 +141,30 @@ class _Strategy:
             # Set initial positions if live trading.
             self.broker._set_initial_positions(self._name)
         else:
-            self._cash = budget
-            self._position_value = 0
-            self._portfolio_value = budget
+            store_assets = list(self.broker._data_source._data_store.keys())
+
+            # Check if we are backtesing with crypto assets ans set the initial parameters as needed
+            if len(store_assets) > 0:
+                asset = store_assets[0]
+                if isinstance(asset, tuple) and asset[0].asset_type == "crypto":
+                    self._cash = 0
+                    portfolio_value = 0
+                    for position in self.get_positions():
+                        price = None
+                        if position.asset == self.quote_asset:
+                            price = 1
+                        else:
+                            price = self.get_last_price(
+                                position.asset, quote=self.quote_asset
+                            )
+                        value = float(position.quantity) * price
+                        portfolio_value += value
+                    self._portfolio_value = portfolio_value
+            else:
+                asset = None
+                self._cash = budget
+                self._position_value = 0
+                self._portfolio_value = budget
 
         self._minutes_before_closing = minutes_before_closing
         self._minutes_before_opening = minutes_before_opening
@@ -150,7 +186,6 @@ class _Strategy:
         self._filled_order_callback = filled_order_callback
 
     # =============Internal functions===================
-
     def _copy_dict(self):
         result = {}
         ignored_fields = ["broker", "data_source", "trading_pairs", "asset_gen"]
@@ -180,6 +215,8 @@ class _Strategy:
     def _set_asset_mapping(self, asset):
         if isinstance(asset, Asset):
             return asset
+        elif isinstance(asset, tuple):
+            return asset
         elif isinstance(asset, str) and "/" not in asset:
             if asset not in self._asset_mapping:
                 self._asset_mapping[asset] = Asset(symbol=asset)
@@ -199,7 +236,7 @@ class _Strategy:
                 asset_tuple.append(asset)
             return tuple(asset_tuple)
         else:
-            if self.broker.SOURCE != 'CCXT':
+            if self.broker.SOURCE != "CCXT":
                 raise ValueError(
                     f"You must enter a symbol string or an asset object. You "
                     f"entered {asset}"
@@ -211,9 +248,58 @@ class _Strategy:
                     f"asset objects in a tuple like (Asset(ETH), Asset(BTC))."
                 )
 
+    # def _set_asset_mapping(self, asset, quote=None, item=None):
+    #     if isinstance(asset, Asset) and asset.asset_type != "crypto":
+    #         return asset
+    #     elif isinstance(asset, tuple) and asset[0].asset_type == "crypto":
+    #         return asset
+    #     elif isinstance(asset, Asset) and asset.asset_type == "crypto":
+    #         if quote is not None:
+    #             return (asset, quote)
+    #         else:
+    #             return (item.asset, item.quote)
+    #     elif (
+    #         item is not None
+    #         and isinstance(item.asset, Asset)
+    #         and item.asset.asset_type == "crypto"
+    #         and isinstance(item.quote, Asset)
+    #         and item.quote.asset_type == "crypto"
+    #     ):
+    #         return (item.asset, item.quote)
+    #     elif isinstance(asset, str) and "/" not in asset:
+    #         if asset not in self._asset_mapping:
+    #             self._asset_mapping[asset] = Asset(symbol=asset)
+    #         return self._asset_mapping[asset]
+    #     elif (isinstance(asset, str) and "/" in asset) or (
+    #         isinstance(asset, tuple) and len(asset) == 2
+    #     ):
+    #         asset_tuple = []
+    #         if isinstance(asset, str):
+    #             assets = asset.split("/")
+    #         else:
+    #             assets = asset
+    #         for asset in assets:
+    #             if isinstance(asset, str) and asset not in self._asset_mapping:
+    #                 self._asset_mapping[asset] = Asset(symbol=asset)
+    #                 asset_tuple.append(self._asset_mapping[asset])
+    #             asset_tuple.append(asset)
+    #         return tuple(asset_tuple)
+    #     else:
+    #         if self.broker.SOURCE != "CCXT":
+    #             raise ValueError(
+    #                 f"You must enter a symbol string or an asset object. You "
+    #                 f"entered {asset}"
+    #             )
+    #         else:
+    #             raise ValueError(
+    #                 f"You must enter symbol string or an asset object. If you "
+    #                 f"getting a quote, you may enter a string like `ETH/BTC` or "
+    #                 f"asset objects in a tuple like (Asset(ETH), Asset(BTC))."
+    #             )
+
     def _log_strat_name(self):
         """Returns the name of the strategy as a string if not default"""
-        return f"{self._name} " if self._name != "StratName" else ""
+        return f"{self._name} " if self._name != None else ""
 
     # =============Auto updating functions=============
 
@@ -223,31 +309,72 @@ class _Strategy:
             return self.broker._get_balances_at_broker()[2]
 
         with self._executor.lock:
+            # Used for traditional brokers, for crypto this will likely be 0
             portfolio_value = self._cash
+
             positions = self.broker.get_tracked_positions(self._name)
             assets = [position.asset for position in positions]
+            # Set the base currency for crypto valuations.
+            if (
+                len(assets) > 0
+                and assets[0].asset_type == "crypto"
+                and self.quote_asset is not None
+            ):
+                assets = [(asset, self.quote_asset) for asset in assets]
+
             prices = self.data_source.get_last_prices(assets)
 
             for position in positions:
-                asset = position.asset
+                # Turn the asset into a tuple if it's a crypto asset
+                asset = (
+                    position.asset
+                    if position.asset.asset_type != "crypto"
+                    else (position.asset, self.quote_asset)
+                )
                 quantity = position.quantity
                 price = prices.get(asset, 0)
+
+                # If the asset is the quote asset, then we should consider it as cash with a price of 1
+                # Eg. if we have a position of USDT and USDT is the quote_asset then we should consider it as cash
+                if self.quote_asset is not None:
+                    if isinstance(asset, tuple) and asset == (
+                        self.quote_asset,
+                        self.quote_asset,
+                    ):
+                        price = 1
+                    elif isinstance(asset, Asset) and asset == self.quote_asset:
+                        price = 1
+
                 if self._is_backtesting and price is None:
-                    raise ValueError(
-                        f"A security as returned a price of none will trying "
-                        f"to set the portfolio value. This is usually due to "
-                        f"a mixup in futures contract dates and when data is \n"
-                        f"actually available. Please ensure data exist for "
-                        f"{self.broker.datetime}. The security that has missing data is: \n"
-                        f"symbol: {asset.symbol}, \n"
-                        f"type: {asset.asset_type}, \n"
-                        f"right: {asset.right}, \n"
-                        f"expiration: {asset.expiration}, \n"
-                        f"strike: {asset.strike}.\n"
+                    if isinstance(asset, Asset):
+                        raise ValueError(
+                            f"A security has returned a price of None while trying "
+                            f"to set the portfolio value. This usually happens when there "
+                            f"is no data data available for the Asset or pair. "
+                            f"Please ensure data exist at "
+                            f"{self.broker.datetime} for the security: \n"
+                            f"symbol: {asset.symbol}, \n"
+                            f"type: {asset.asset_type}, \n"
+                            f"right: {asset.right}, \n"
+                            f"expiration: {asset.expiration}, \n"
+                            f"strike: {asset.strike}.\n"
+                        )
+                    elif isinstance(asset, tuple):
+                        raise ValueError(
+                            f"A security has returned a price of None while trying "
+                            f"to set the portfolio value. This usually happens when there "
+                            f"is no data data available for the Asset or pair. "
+                            f"Please ensure data exist at "
+                            f"{self.broker.datetime} for the pair: {asset}"
+                        )
+                if isinstance(asset, tuple):
+                    multiplier = 1
+                else:
+                    multiplier = (
+                        asset.multiplier
+                        if asset.asset_type in ["option", "future"]
+                        else 1
                     )
-                multiplier = (
-                    asset.multiplier if asset.asset_type in ["option", "future"] else 1
-                )
                 portfolio_value += float(quantity) * price * multiplier
 
             self._portfolio_value = portfolio_value
@@ -261,6 +388,7 @@ class _Strategy:
                 self._cash -= float(quantity) * price * multiplier
             if side == "sell":
                 self._cash += float(quantity) * price * multiplier
+
             return self._cash
 
     def _update_cash_with_dividends(self):
@@ -323,8 +451,10 @@ class _Strategy:
             self.log_message(f"Sharpe {sharpe_value:,.2f}")
 
             max_drawdown_result = self._analysis["max_drawdown"]
+            max_drawdown_value = max_drawdown_result["drawdown"] * 100
+            max_drawdown_date = max_drawdown_result["date"]
             self.log_message(
-                f"Max Drawdown {max_drawdown_result['drawdown']*100:,.2f}% on {max_drawdown_result['date']:%Y-%m-%d}"
+                f"Max Drawdown {max_drawdown_value:,.2f}% on {max_drawdown_date:%Y-%m-%d}"
             )
 
             romad_value = self._analysis["romad"]
@@ -380,7 +510,6 @@ class _Strategy:
 
     def plot_returns_vs_benchmark(
         self,
-        plot_file="backtest_result.jpg",
         plot_file_html="backtest_result.html",
         trades_df=None,
         show_plot=True,
@@ -401,7 +530,6 @@ class _Strategy:
                 f"{self._log_strat_name()}Strategy",
                 self._benchmark_returns_df,
                 self._benchmark_asset,
-                plot_file,
                 plot_file_html,
                 trades_df,
                 show_plot,
@@ -424,9 +552,9 @@ class _Strategy:
                 "Cannot create a tearsheet because the strategy returns are missing"
             )
         else:
-            strat_name = self._name if self._name != "StratName" else "Strategy"
+            strat_name = self._name if self._name != None else "Strategy"
             create_tearsheet(
-                self._strategy_returns_df[["return"]],
+                self._strategy_returns_df,
                 strat_name,
                 tearsheet_file,
                 self._benchmark_returns_df,
@@ -446,13 +574,14 @@ class _Strategy:
         logfile=None,
         config=None,
         auto_adjust=False,
-        name="StratName",
+        name=None,
         budget=10000,
         benchmark_asset="SPY",
-        plot_file=None,
         plot_file_html=None,
         trades_file=None,
         pandas_data=None,
+        quote_asset=Asset(symbol="USD", asset_type="forex"),
+        starting_units=None,
         show_plot=True,
         tearsheet_file=None,
         save_tearsheet=True,
@@ -491,16 +620,22 @@ class _Strategy:
             The initial budget to use for the backtest.
         benchmark_asset : str
             The benchmark asset to use for the backtest to compare to.
-        plot_file : str
-            The file to write the plot to.
         plot_file_html : str
             The file to write the plot html to.
         trades_file : str
             The file to write the trades to.
         pandas_data : pandas.DataFrame
             The pandas data to use.
+        quote_asset : Asset (crypto)
+            An Asset object for the crypto currency that will get used
+            as a valuation asset for measuring overall porfolio values.
+            Usually USDT, USD, USDC.
         show_plot : bool
             Whether or not to show the plot.
+        show_tearsheet : bool
+            Whether or not to show the tearsheet.
+        save_tearsheet : bool
+            Whether or not to save the tearsheet.
 
         Returns
         -------
@@ -580,29 +715,32 @@ class _Strategy:
                 "for your three positional arguments. \n"
             )
 
+        if name is None:
+            name = cls.__name__
+
         # Filename defaults
         datestring = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        if plot_file is None:
-            plot_file = (
-                f"logs/{name + '_' if name != 'StratName' else ''}{datestring}.jpg"
-            )
         if plot_file_html is None:
             plot_file_html = (
-                f"logs/{name + '_' if name != 'StratName' else ''}{datestring}.html"
+                f"logs/{name + '_' if name != None else ''}{datestring}.html"
             )
         if stats_file is None:
-            stats_file = f"logs/{name + '_' if name != 'StratName' else ''}{datestring}_stats.csv"
-        if trades_file is None:
-            trades_file = f"logs/{name + '_' if name != 'StratName' else ''}{datestring}_trades.csv"
-        if logfile is None:
-            logfile = (
-                f"logs/{name + '_' if name != 'StratName' else ''}{datestring}_logs.csv"
+            stats_file = (
+                f"logs/{name + '_' if name != None else ''}{datestring}_stats.csv"
             )
+        if trades_file is None:
+            trades_file = (
+                f"logs/{name + '_' if name != None else ''}{datestring}_trades.csv"
+            )
+        if logfile is None:
+            logfile = f"logs/{name + '_' if name != None else ''}{datestring}_logs.csv"
         if tearsheet_file is None:
-            tearsheet_file = f"logs/{name + '_' if name != 'StratName' else ''}{datestring}_tearsheet.html"
+            tearsheet_file = (
+                f"logs/{name + '_' if name != None else ''}{datestring}_tearsheet.html"
+            )
         if not cls.IS_BACKTESTABLE:
             logging.warning(
-                f"Strategy {name + ' ' if name != 'StratName' else ''}cannot be "
+                f"Strategy {name + ' ' if name != None else ''}cannot be "
                 f"backtested at the moment"
             )
             return None
@@ -640,6 +778,8 @@ class _Strategy:
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             pandas_data=pandas_data,
+            quote_asset=quote_asset,
+            starting_units=starting_units,
             name=name,
             budget=budget,
             **kwargs,
@@ -663,7 +803,6 @@ class _Strategy:
         backtesting_broker.export_trade_events_to_csv(trades_file)
 
         strategy.plot_returns_vs_benchmark(
-            plot_file,
             plot_file_html,
             backtesting_broker._trade_event_log_df,
             show_plot=show_plot,

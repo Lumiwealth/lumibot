@@ -5,7 +5,7 @@
     <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="../genindex.html" /><link rel="search" title="Search" href="../search.html" />
 
     <meta name="generator" content="sphinx-4.2.0, furo 2021.10.09"/>
-        <title>self.get_historical_prices - Lumibot Backtesting and Algorithmic Trading documentation</title>
+        <title>self.get_historical_prices - Lumibot: Backtest and Algo Trade documentation</title>
       <link rel="stylesheet" type="text/css" href="../_static/pygments.css" />
     <link rel="stylesheet" type="text/css" href="../_static/styles/furo.css?digest=0254c309f5cadf746f1a613e7677379ac9c8cdcd" />
     <link rel="stylesheet" type="text/css" href="../_static/styles/furo-extensions.css?digest=16fb25fabf47304eee183a5e9af80b1ba98259b1" />
@@ -124,7 +124,7 @@
       </label>
     </div>
     <div class="header-center">
-      <a href="../index.html"><div class="brand">Lumibot Backtesting and Algorithmic Trading  documentation</div></a>
+      <a href="../index.html"><div class="brand">Lumibot: Backtest and Algo Trade  documentation</div></a>
     </div>
     <div class="header-right">
       <div class="theme-toggle-container theme-toggle-header">
@@ -147,7 +147,7 @@
       <div class="sidebar-sticky"><a class="sidebar-brand" href="../index.html">
   
   
-  <span class="sidebar-brand-text">Lumibot Backtesting and Algorithmic Trading  documentation</span>
+  <span class="sidebar-brand-text">Lumibot: Backtest and Algo Trade  documentation</span>
   
 </a><form class="sidebar-search-container" method="get" action="../search.html" role="search">
   <input class="sidebar-search" placeholder=Search name="q" aria-label="Search">
@@ -315,17 +315,24 @@
 <span class="sig-prename descclassname"><span class="pre">lumibot.strategies.strategy.Strategy.</span></span><span class="sig-name descname"><span class="pre">get_historical_prices</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">length</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timestep</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timeshift</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quote</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.get_historical_prices" title="Permalink to this definition">¶</a></dt>
 <dd><p>Get historical pricing data for a given symbol or asset.</p>
 <p>Return data bars for a given symbol or asset.  Any number of bars can
-be return limited by the data available. This is set with ‘length’ in
+be return limited by the data available. This is set with <cite>length</cite> in
 number of bars. Bars may be returned as daily or by minute. And the
 starting point can be shifted backwards by time or bars.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>asset</strong> (<em>str</em><em> or </em><a class="reference internal" href="../entities.asset.html#entities.asset.Asset" title="entities.asset.Asset"><em>Asset</em></a>) – The symbol string representation (e.g AAPL, GOOG, …) or asset
-object.
-Crypto currencies must specify the market. Use a string
-with the two coins as follows: ‘ETH/BTC’. Alternatively for cryptos, one can use a tuple with the two asset
-objects, numerator first, denominator second. ‘(Asset(ETH), Asset(BTC))’</p></li>
+<li><p><strong>asset</strong> (<em>str</em><em> or </em><a class="reference internal" href="../entities.asset.html#entities.asset.Asset" title="entities.asset.Asset"><em>Asset</em></a>) – <p>The symbol string representation (e.g AAPL, GOOG, …) or asset
+object. Crypto currencies must specify the market. Use a string
+with the two coins as follows:</p>
+<blockquote>
+<div><p><cite>ETH/BTC</cite></p>
+</div></blockquote>
+<p>Alternatively for cryptos, one can use a tuple with the two asset
+objects, numerator first, denominator second.</p>
+<blockquote>
+<div><p><cite>(Asset(ETH), Asset(BTC))</cite></p>
+</div></blockquote>
+</p></li>
 <li><p><strong>length</strong> (<em>int</em>) – The number of rows (number of timesteps)</p></li>
 <li><p><strong>timestep</strong> (<em>str</em>) – Either <code class="docutils literal notranslate"><span class="pre">`"minute""`</span></code> for minutes data or <code class="docutils literal notranslate"><span class="pre">`"day"`</span></code>
 for days data default value depends on the data_source (minute

@@ -5,7 +5,7 @@
     <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" />
 
     <meta name="generator" content="sphinx-4.2.0, furo 2021.10.09"/>
-        <title>Strategies - Lumibot Backtesting and Algorithmic Trading documentation</title>
+        <title>Strategies - Lumibot: Backtest and Algo Trade documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=0254c309f5cadf746f1a613e7677379ac9c8cdcd" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?digest=16fb25fabf47304eee183a5e9af80b1ba98259b1" />
@@ -124,7 +124,7 @@
       </label>
     </div>
     <div class="header-center">
-      <a href="index.html"><div class="brand">Lumibot Backtesting and Algorithmic Trading  documentation</div></a>
+      <a href="index.html"><div class="brand">Lumibot: Backtest and Algo Trade  documentation</div></a>
     </div>
     <div class="header-right">
       <div class="theme-toggle-container theme-toggle-header">
@@ -147,7 +147,7 @@
       <div class="sidebar-sticky"><a class="sidebar-brand" href="index.html">
   
   
-  <span class="sidebar-brand-text">Lumibot Backtesting and Algorithmic Trading  documentation</span>
+  <span class="sidebar-brand-text">Lumibot: Backtest and Algo Trade  documentation</span>
   
 </a><form class="sidebar-search-container" method="get" action="search.html" role="search">
   <input class="sidebar-search" placeholder=Search name="q" aria-label="Search">
@@ -666,48 +666,50 @@ are paid.</p>
 <dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.create_order">
 <span class="sig-name descname"><span class="pre">create_order</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quantity</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">side</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">limit_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stop_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_in_force</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'day'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">good_till_date</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">take_profit_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stop_loss_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stop_loss_limit_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">trail_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">trail_percent</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">position_filled</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exchange</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'SMART'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quote</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pair</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.create_order" title="Permalink to this definition">¶</a></dt>
 <dd><p>Creates a new order for this specific strategy. Once created, an order must still be submitted.</p>
-<p>Some notes on Crypto markets:</p>
-<p>Crypto markets require both a base currency and a quote currency to create an order. These
+<p>Some notes on Crypto markets:
+Crypto markets required both a base currency and a quote currency to create an order. These
 may be entered in one of two ways.</p>
-<ol class="arabic">
+<blockquote>
+<div><ol class="arabic">
 <li><dl>
-<dt>tuple of Assets.</dt><dd><div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span>
-<span class="gp">&gt;&gt;&gt; </span>    <span class="p">(</span><span class="n">Asset</span><span class="p">(</span><span class="n">symbol</span><span class="o">=</span><span class="s1">'BTC'</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s1">'crypto'</span><span class="p">),</span> <span class="n">Asset</span><span class="p">(</span><span class="n">symbol</span><span class="o">=</span><span class="s1">'USDT'</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>    <span class="n">asset_type</span><span class="o">=</span><span class="s1">'crypto'</span><span class="p">)),</span>
-<span class="gp">&gt;&gt;&gt; </span>    <span class="o">.</span><span class="mi">50</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>    <span class="s1">'buy'</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="p">)</span>
-</pre></div>
-</div>
+<dt>tuple of Assets.</dt><dd><dl class="simple">
+<dt>self.create_order(</dt><dd><p>(Asset(symbol=’BTC’, asset_type=’crypto’), Asset(symbol=’USDT’,
+asset_type=’crypto’)),
+.50,
+<cite>buy</cite>,</p>
+</dd>
+</dl>
+<p>)</p>
 </dd>
 </dl>
 </li>
 <li><dl>
-<dt>Use the quote parameter.</dt><dd><div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span>
-<span class="gp">&gt;&gt;&gt; </span>    <span class="n">Asset</span><span class="p">(</span><span class="n">symbol</span><span class="o">=</span><span class="s1">'BTC'</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s1">'crypto'</span><span class="p">),</span>
-<span class="gp">&gt;&gt;&gt; </span>    <span class="o">.</span><span class="mi">50</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>    <span class="s1">'buy'</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>    <span class="n">quote</span><span class="o">=</span><span class="n">Asset</span><span class="p">(</span><span class="n">symbol</span><span class="o">=</span><span class="s1">'USDT'</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s1">'crypto'</span><span class="p">),</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="p">)</span>
-</pre></div>
-</div>
+<dt>Use the quote parameter.</dt><dd><dl class="simple">
+<dt>self.create_order(</dt><dd><p>Asset(symbol=’BTC’, asset_type=’crypto’),
+.50,
+<cite>buy</cite>,
+quote=Asset(symbol=’USDT’, asset_type=’crypto’),</p>
+</dd>
+</dl>
+<p>)</p>
 </dd>
 </dl>
 </li>
 </ol>
-<p>Orders for crypto markets are restriced to: <code class="docutils literal notranslate"><span class="pre">market</span></code>, <code class="docutils literal notranslate"><span class="pre">limit</span></code>, <code class="docutils literal notranslate"><span class="pre">stop_limit</span></code>.</p>
+</div></blockquote>
+<p>Orders for crypto markets are restriced to: <cite>market</cite>, <cite>limit</cite>, <cite>stop_limit</cite>.</p>
 <p>Crypto markets’ orders are simple. There are no compound orders such
-<code class="docutils literal notranslate"><span class="pre">oco</span></code> or <code class="docutils literal notranslate"><span class="pre">bracket</span></code>. Also, duration of orders are all GTC.</p>
+<cite>oco</cite> or <cite>bracket</cite>. Also, duration of orders are all GTC.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>asset</strong> (<em>str</em><em> or </em><a class="reference internal" href="entities.asset.html#entities.asset.Asset" title="entities.asset.Asset"><em>Asset</em></a>) – The asset that will be traded. If this is just a stock, then
-<code class="docutils literal notranslate"><span class="pre">str</span></code> is sufficient. However, all assets other than stocks
-must use <code class="docutils literal notranslate"><span class="pre">Asset</span></code>.</p></li>
+<cite>str</cite> is sufficient. However, all assets other than stocks
+must use <cite>Asset</cite>.</p></li>
 <li><p><strong>quantity</strong> (<em>int string Decimal</em><em> (</em><em>float will deprecate</em><em>)</em>) – The number of shares or units to trade. One may enter an
 int, a string number eg: “3.213”, or a Decimal obect,
 eg: Decimal(“3.213”). Internally all will convert to Decimal.</p></li>
-<li><p><strong>side</strong> (<em>str</em>) – Whether the order is <code class="docutils literal notranslate"><span class="pre">buy</span></code> or <code class="docutils literal notranslate"><span class="pre">sell</span></code>.</p></li>
+<li><p><strong>side</strong> (<em>str</em>) – Whether the order is <cite>buy</cite> or <cite>sell</cite>.</p></li>
 <li><p><strong>limit_price</strong> (<em>float</em>) – A Limit order is an order to buy or sell at a specified
 price or better. The Limit order ensures that if the
 order fills, it will not fill at a price less favorable
@@ -717,9 +719,9 @@ market order if and when the user-specified stop trigger
 price is attained or penetrated.</p></li>
 <li><p><strong>time_in_force</strong> (<em>str</em>) – <dl class="simple">
 <dt>Amount of time the order is in force. Order types include:</dt><dd><ul>
-<li><p><code class="docutils literal notranslate"><span class="pre">'day'</span></code> Orders valid for the remainder of the day.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">'gtc'</span></code> Good until cancelled.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">'gtd'</span></code> Good until date.</p></li>
+<li><p>’day’ Orders valid for the remainder of the day.</p></li>
+<li><p>’gtc’ Good until cancelled.</p></li>
+<li><p>’gtd’ Good until date.</p></li>
 </ul>
 </dd>
 </dl>
@@ -742,9 +744,9 @@ on the stock price movement. <cite>trail_price</cite> sets the
 trailing price in percent.</p></li>
 <li><p><strong>position_filled</strong> (<em>bool</em>) – The order has been filled.</p></li>
 <li><p><strong>exchange</strong> (<em>str</em>) – The exchange where the order will be placed.
-<code class="docutils literal notranslate"><span class="pre">Default</span> <span class="pre">=</span> <span class="pre">'SMART'</span></code></p></li>
+Default = <cite>SMART</cite></p></li>
 <li><p><strong>quote</strong> (<a class="reference internal" href="entities.asset.html#entities.asset.Asset" title="entities.asset.Asset"><em>Asset</em></a>) – This is the currency that the main coin being bought or sold
-will exchange in. For example, if trading <code class="docutils literal notranslate"><span class="pre">BTC/ETH</span></code> this
+will exchange in. For example, if trading <cite>BTC/ETH</cite> this
 parameter will be ‘ETH’ (as an Asset object).</p></li>
 </ul>
 </dd>
@@ -1219,17 +1221,24 @@ underlying.</p></li>
 <span class="sig-name descname"><span class="pre">get_historical_prices</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">length</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timestep</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timeshift</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quote</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.get_historical_prices" title="Permalink to this definition">¶</a></dt>
 <dd><p>Get historical pricing data for a given symbol or asset.</p>
 <p>Return data bars for a given symbol or asset.  Any number of bars can
-be return limited by the data available. This is set with ‘length’ in
+be return limited by the data available. This is set with <cite>length</cite> in
 number of bars. Bars may be returned as daily or by minute. And the
 starting point can be shifted backwards by time or bars.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>asset</strong> (<em>str</em><em> or </em><a class="reference internal" href="entities.asset.html#entities.asset.Asset" title="entities.asset.Asset"><em>Asset</em></a>) – The symbol string representation (e.g AAPL, GOOG, …) or asset
-object.
-Crypto currencies must specify the market. Use a string
-with the two coins as follows: ‘ETH/BTC’. Alternatively for cryptos, one can use a tuple with the two asset
-objects, numerator first, denominator second. ‘(Asset(ETH), Asset(BTC))’</p></li>
+<li><p><strong>asset</strong> (<em>str</em><em> or </em><a class="reference internal" href="entities.asset.html#entities.asset.Asset" title="entities.asset.Asset"><em>Asset</em></a>) – <p>The symbol string representation (e.g AAPL, GOOG, …) or asset
+object. Crypto currencies must specify the market. Use a string
+with the two coins as follows:</p>
+<blockquote>
+<div><p><cite>ETH/BTC</cite></p>
+</div></blockquote>
+<p>Alternatively for cryptos, one can use a tuple with the two asset
+objects, numerator first, denominator second.</p>
+<blockquote>
+<div><p><cite>(Asset(ETH), Asset(BTC))</cite></p>
+</div></blockquote>
+</p></li>
 <li><p><strong>length</strong> (<em>int</em>) – The number of rows (number of timesteps)</p></li>
 <li><p><strong>timestep</strong> (<em>str</em>) – Either <code class="docutils literal notranslate"><span class="pre">`"minute""`</span></code> for minutes data or <code class="docutils literal notranslate"><span class="pre">`"day"`</span></code>
 for days data default value depends on the data_source (minute
@@ -1291,14 +1300,20 @@ starting point can be shifted backwards by time or bars.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>assets</strong> (<em>list</em><em>(</em><em>str/asset</em><em>)</em>) – The symbol string representation (e.g AAPL, GOOG, …) or asset
-objects.
-Crypto currencies must specify the market. Use a list
-of string with the two coins as follows: <code class="docutils literal notranslate"><span class="pre">`'ETH/BTC'`</span></code>
-Alternatively for cryptos, one can use a tuple with the two asset
-objects, numerator first, denominator second. ‘(Asset(ETH), Asset(BTC))’</p></li>
+<li><p><strong>assets</strong> (<em>list</em><em>(</em><em>str/asset</em><em>)</em>) – <p>The symbol string representation (e.g AAPL, GOOG, …) or asset
+objects. Crypto currencies must specify the market. Use a list
+of string with the two coins as follows:</p>
+<blockquote>
+<div><p><cite>ETH/BTC</cite></p>
+</div></blockquote>
+<p>Alternatively for cryptos, one can use a tuple with the two asset
+objects, numerator first, denominator second.</p>
+<blockquote>
+<div><p><cite>(Asset(ETH), Asset(BTC))</cite></p>
+</div></blockquote>
+</p></li>
 <li><p><strong>length</strong> (<em>int</em>) – The number of rows (number of timesteps)</p></li>
-<li><p><strong>timestep</strong> (<em>str</em>) – Either <code class="docutils literal notranslate"><span class="pre">`"minute"`</span></code> for minutes data or <code class="docutils literal notranslate"><span class="pre">`"day"`</span></code>
+<li><p><strong>timestep</strong> (<em>str</em>) – Either <code class="docutils literal notranslate"><span class="pre">`"minute""`</span></code> for minutes data or <code class="docutils literal notranslate"><span class="pre">`"day"`</span></code>
 for days data default value depends on the data_source (minute
 for alpaca, day for yahoo, …)</p></li>
 <li><p><strong>timeshift</strong> (<em>timedelta</em>) – <code class="docutils literal notranslate"><span class="pre">`None`</span></code> by default. If specified indicates the time shift from

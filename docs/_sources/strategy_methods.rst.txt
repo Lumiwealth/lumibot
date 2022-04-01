@@ -8,7 +8,7 @@ Every strategy method will be used inside of one of your functions or lifecycle 
 Check out the list of available strategy methods below:
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
    :caption: Contents:
    
    strategy_methods.orders

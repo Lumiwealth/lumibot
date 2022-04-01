@@ -90,17 +90,17 @@ We also have some more sample code that you can check out here: https://github.c
 We wish you good luck with your trading strategies, don't forget us when you're swimming in cash!
 
 Need Extra Help?
----------------
+--------------------
 
 .. raw:: html
    :file: _html/course_list.html
 
 
 Table of Contents
-----------------
+--------------------
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
    
    Home <self>
    Community/Forum <https://lumiwealth.circle.so/c/lumibot/>
@@ -114,7 +114,7 @@ Table of Contents
 
 
 Indices and tables
-==================
+====================
 
 * :ref:`genindex`
 * :ref:`modindex`

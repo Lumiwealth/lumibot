@@ -469,10 +469,19 @@ class _Strategy:
                     f"--- {self._benchmark_asset} Benchmark Performance ---"
                 )
 
+                # Need to adjust the backtesting end date because the data from Yahoo
+                # is at the start of the day, so the graph cuts short. This may be needed
+                # for other timeframes as well
+                backtesting_end_adjusted = self._backtesting_end
+                if self.broker.market == "24/7":
+                    backtesting_end_adjusted = (
+                        self._backtesting_end + datetime.timedelta(days=1)
+                    )
+
                 self._benchmark_returns_df = get_symbol_returns(
                     self._benchmark_asset,
                     self._backtesting_start,
-                    self._backtesting_end,
+                    backtesting_end_adjusted,
                 )
 
                 self._benchmark_analysis = stats_summary(

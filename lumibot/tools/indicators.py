@@ -318,11 +318,21 @@ def create_tearsheet(
     if _df1["return"].abs().sum() == 0:
         return None
     _df1["strategy"] = _df1["return"]
-    _df1 = _df1.groupby(_df1.index.date)["strategy"].mean()
 
     _df2 = df2.copy()
     _df2["benchmark"] = _df2["return"]
-    _df2 = _df2.groupby(_df2.index.date)["benchmark"].mean()
+    
+    # ratio = len(_df1) / len(_df2)
+    # if len(_df1) > len(_df2):
+    #     _df1['strategy'] = (1 + _df1["strategy"]).cumprod()
+    #     _df1['strategy'] = _df1['strategy'].pct_change(int(ratio)).fillna(0)
+
+    # if len(_df2) > len(_df1):
+    #     _df2['benchmark'] = (1 + _df2["benchmark"]).cumprod()
+    #     _df2['benchmark'] = _df2['benchmark'].pct_change(int(ratio)).fillna(0)
+        
+    # _df1 = _df1.groupby(_df1.index.date)["strategy"].mean()
+    # _df2 = _df2.groupby(_df2.index.date)["benchmark"].mean()
 
     df = pd.concat([_df1, _df2], join="outer", axis=1)
     df.index = pd.to_datetime(df.index)

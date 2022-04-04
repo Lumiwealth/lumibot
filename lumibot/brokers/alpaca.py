@@ -264,6 +264,7 @@ class Alpaca(AlpacaData, Broker):
             strategy,
             Asset(
                 symbol=response.symbol,
+                # TODO: remove hardcoding, Alpaca can also trade crypto
                 asset_type="stock",
             ),
             Decimal(response.qty),

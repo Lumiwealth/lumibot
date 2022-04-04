@@ -1,5 +1,6 @@
 import datetime
 import logging
+from asyncio.log import logger
 from copy import deepcopy
 from decimal import Decimal
 
@@ -40,10 +41,10 @@ class _Strategy:
         backtesting_end=None,
         pandas_data=None,
         quote_asset=Asset(symbol="USD", asset_type="forex"),
-        starting_units=None,
+        starting_positions=None,
         filled_order_callback=None,
         name=None,
-        budget=10000,
+        budget=None,
         parameters={},
         **kwargs,
     ):
@@ -53,6 +54,9 @@ class _Strategy:
         # `name` and `broker`.
         # If there are three positional arguments, they are assumed to be
         # `name`, `budget` and `broker`
+
+        # TODO: Break up this function, too long!
+
         if len(args) == 1:
             if isinstance(args[0], str):
                 self._name = args[0]
@@ -81,7 +85,6 @@ class _Strategy:
             self._name = name
 
         self.quote_asset = quote_asset
-        self.starting_units = starting_units
 
         # Setting the broker object
         self._is_backtesting = self.broker.IS_BACKTESTING_BROKER
@@ -104,18 +107,20 @@ class _Strategy:
                         f"Use the following: 'pandas_data': your_dataframe "
                     )
                 self.broker._trading_days = self.data_source.load_data()
-                # Create initial positions.
-                if self.starting_units is not None and len(self.starting_units) > 0:
-                    for asset, quantity in self.starting_units.items():
-                        position = Position(
-                            self._name,
-                            asset,
-                            Decimal(quantity),
-                            orders=None,
-                            hold=0,
-                            available=Decimal(quantity),
-                        )
-                        self.broker._filled_positions.append(position)
+
+            # Create initial starting positions.
+            self.starting_positions = starting_positions
+            if self.starting_positions is not None and len(self.starting_positions) > 0:
+                for asset, quantity in self.starting_positions.items():
+                    position = Position(
+                        self._name,
+                        asset,
+                        Decimal(quantity),
+                        orders=None,
+                        hold=0,
+                        available=Decimal(quantity),
+                    )
+                    self.broker._filled_positions.append(position)
 
         elif data_source is None:
             self.data_source = self.broker
@@ -141,30 +146,40 @@ class _Strategy:
             # Set initial positions if live trading.
             self.broker._set_initial_positions(self._name)
         else:
-            store_assets = list(self.broker._data_source._data_store.keys())
-
-            # Check if we are backtesing with crypto assets ans set the initial parameters as needed
-            if len(store_assets) > 0:
-                asset = store_assets[0]
-                if isinstance(asset, tuple) and asset[0].asset_type == "crypto":
-                    self._cash = 0
-                    portfolio_value = 0
-                    for position in self.get_positions():
-                        price = None
-                        if position.asset == self.quote_asset:
-                            price = 1
-                        else:
-                            price = self.get_last_price(
-                                position.asset, quote=self.quote_asset
-                            )
-                        value = float(position.quantity) * price
-                        portfolio_value += value
-                    self._portfolio_value = portfolio_value
+            if budget is None:
+                if self.cash is None:
+                    # Default to $100,000 if no budget is set.
+                    budget = 100000
+                    self._set_cash_position(budget)
+                else:
+                    budget = self.cash
             else:
-                asset = None
-                self._cash = budget
+                logger.warning(
+                    "You have set both a starting budget and a starting position for the quote asset. The starting position for the quote asset will be replaced with the budget, and the budget will be used as the cash value instead."
+                )
+                self._set_cash_position(budget)
+
+            self._portfolio_value = self.cash
+
+            store_assets = list(self.broker._data_source._data_store.keys())
+            if len(store_assets) > 0:
+                positions_value = 0
+                for position in self.get_positions():
+                    price = None
+                    if position.asset == self.quote_asset:
+                        # Don't include the quote asset since it's already included with cash
+                        price = 0
+                    else:
+                        price = self.get_last_price(
+                            position.asset, quote=self.quote_asset
+                        )
+                    value = float(position.quantity) * price
+                    positions_value += value
+
+                self._portfolio_value = self._portfolio_value + positions_value
+
+            else:
                 self._position_value = 0
-                self._portfolio_value = budget
 
         self._minutes_before_closing = minutes_before_closing
         self._minutes_before_opening = minutes_before_opening
@@ -201,7 +216,7 @@ class _Strategy:
             elif key in [
                 "_name",
                 "_initial_budget",
-                "_cash",
+                # "_cash",
                 "_portfolio_value",
                 "_minutes_before_closing",
                 "_minutes_before_opening",
@@ -211,6 +226,26 @@ class _Strategy:
                 result[key[1:]] = deepcopy(self.__dict__[key])
 
         return result
+
+    def _set_cash_position(self, cash: float):
+        # Check if cash is in the list of positions yet
+        for x in range(len(self.broker._filled_positions.get_list())):
+            position = self.broker._filled_positions[x]
+            if position.asset == self.quote_asset:
+                position.quantity = cash
+                self.broker._filled_positions[x] = position
+                return
+
+        # If not in positions, create a new position for cash
+        position = Position(
+            self._name,
+            self.quote_asset,
+            Decimal(cash),
+            orders=None,
+            hold=0,
+            available=Decimal(cash),
+        )
+        self.broker._filled_positions.append(position)
 
     def _set_asset_mapping(self, asset):
         if isinstance(asset, Asset):
@@ -248,55 +283,6 @@ class _Strategy:
                     f"asset objects in a tuple like (Asset(ETH), Asset(BTC))."
                 )
 
-    # def _set_asset_mapping(self, asset, quote=None, item=None):
-    #     if isinstance(asset, Asset) and asset.asset_type != "crypto":
-    #         return asset
-    #     elif isinstance(asset, tuple) and asset[0].asset_type == "crypto":
-    #         return asset
-    #     elif isinstance(asset, Asset) and asset.asset_type == "crypto":
-    #         if quote is not None:
-    #             return (asset, quote)
-    #         else:
-    #             return (item.asset, item.quote)
-    #     elif (
-    #         item is not None
-    #         and isinstance(item.asset, Asset)
-    #         and item.asset.asset_type == "crypto"
-    #         and isinstance(item.quote, Asset)
-    #         and item.quote.asset_type == "crypto"
-    #     ):
-    #         return (item.asset, item.quote)
-    #     elif isinstance(asset, str) and "/" not in asset:
-    #         if asset not in self._asset_mapping:
-    #             self._asset_mapping[asset] = Asset(symbol=asset)
-    #         return self._asset_mapping[asset]
-    #     elif (isinstance(asset, str) and "/" in asset) or (
-    #         isinstance(asset, tuple) and len(asset) == 2
-    #     ):
-    #         asset_tuple = []
-    #         if isinstance(asset, str):
-    #             assets = asset.split("/")
-    #         else:
-    #             assets = asset
-    #         for asset in assets:
-    #             if isinstance(asset, str) and asset not in self._asset_mapping:
-    #                 self._asset_mapping[asset] = Asset(symbol=asset)
-    #                 asset_tuple.append(self._asset_mapping[asset])
-    #             asset_tuple.append(asset)
-    #         return tuple(asset_tuple)
-    #     else:
-    #         if self.broker.SOURCE != "CCXT":
-    #             raise ValueError(
-    #                 f"You must enter a symbol string or an asset object. You "
-    #                 f"entered {asset}"
-    #             )
-    #         else:
-    #             raise ValueError(
-    #                 f"You must enter symbol string or an asset object. If you "
-    #                 f"getting a quote, you may enter a string like `ETH/BTC` or "
-    #                 f"asset objects in a tuple like (Asset(ETH), Asset(BTC))."
-    #             )
-
     def _log_strat_name(self):
         """Returns the name of the strategy as a string if not default"""
         return f"{self._name} " if self._name != None else ""
@@ -310,7 +296,7 @@ class _Strategy:
 
         with self._executor.lock:
             # Used for traditional brokers, for crypto this will likely be 0
-            portfolio_value = self._cash
+            portfolio_value = self.cash
 
             positions = self.broker.get_tracked_positions(self._name)
             assets = [position.asset for position in positions]
@@ -334,16 +320,16 @@ class _Strategy:
                 quantity = position.quantity
                 price = prices.get(asset, 0)
 
-                # If the asset is the quote asset, then we should consider it as cash with a price of 1
-                # Eg. if we have a position of USDT and USDT is the quote_asset then we should consider it as cash
+                # If the asset is the quote asset, then we already have included it from cash
+                # Eg. if we have a position of USDT and USDT is the quote_asset then we already consider it as cash
                 if self.quote_asset is not None:
                     if isinstance(asset, tuple) and asset == (
                         self.quote_asset,
                         self.quote_asset,
                     ):
-                        price = 1
+                        price = 0
                     elif isinstance(asset, Asset) and asset == self.quote_asset:
-                        price = 1
+                        price = 0
 
                 if self._is_backtesting and price is None:
                     if isinstance(asset, Asset):
@@ -384,12 +370,20 @@ class _Strategy:
     def _update_cash(self, side, quantity, price, multiplier):
         """update the self.cash"""
         with self._executor.lock:
-            if side == "buy":
-                self._cash -= float(quantity) * price * multiplier
-            if side == "sell":
-                self._cash += float(quantity) * price * multiplier
+            cash = self.cash
+            if cash is None:
+                cash = 0
 
-            return self._cash
+            if side == "buy":
+                cash -= float(quantity) * price * multiplier
+            if side == "sell":
+                cash += float(quantity) * price * multiplier
+
+            self._set_cash_position(cash)
+
+            # Todo also update the cash asset in positions?
+
+            return self.cash
 
     def _update_cash_with_dividends(self):
         with self._executor.lock:
@@ -404,8 +398,10 @@ class _Strategy:
                     if dividends_per_share is None
                     else dividends_per_share.get(asset, 0)
                 )
-                self._cash += dividend_per_share * float(quantity)
-            return self._cash
+                cash = self.cash
+                cash += dividend_per_share * float(quantity)
+                self._set_cash_position(cash)
+            return self.cash
 
     # =============Stats functions=====================
 
@@ -584,13 +580,13 @@ class _Strategy:
         config=None,
         auto_adjust=False,
         name=None,
-        budget=10000,
+        budget=None,
         benchmark_asset="SPY",
         plot_file_html=None,
         trades_file=None,
         pandas_data=None,
         quote_asset=Asset(symbol="USD", asset_type="forex"),
-        starting_units=None,
+        starting_positions=None,
         show_plot=True,
         tearsheet_file=None,
         save_tearsheet=True,
@@ -788,7 +784,7 @@ class _Strategy:
             backtesting_end=backtesting_end,
             pandas_data=pandas_data,
             quote_asset=quote_asset,
-            starting_units=starting_units,
+            starting_positions=starting_positions,
             name=name,
             budget=budget,
             **kwargs,

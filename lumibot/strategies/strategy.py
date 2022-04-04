@@ -203,7 +203,7 @@ class Strategy(_Strategy):
     @property
     def unspent_money(self):
         """Deprecated, will be removed in the future. Please use `self.cash` instead."""
-        return self._cash
+        return self.cash
 
     @property
     def portfolio_value(self):
@@ -247,7 +247,19 @@ class Strategy(_Strategy):
         >>> # Get the current cash available in the account
         >>> self.log_message(self.cash)
         """
-        return self._cash
+
+        cash_position = self.get_position(self.quote_asset)
+        quantity = cash_position.quantity if cash_position else None
+
+        # This is not really true:
+        # if quantity is None:
+        #     self._set_cash_position(0)
+        #     quantity = 0
+
+        if type(quantity) is Decimal:
+            quantity = float(quantity)
+
+        return quantity
 
     @property
     def first_iteration(self):

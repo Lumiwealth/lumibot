@@ -33,13 +33,13 @@ strategy = DiversifiedLeverage(broker=broker)
 ####
 # Backtest
 ####
-
-strategy.backtest(
-    YahooDataBacktesting,
-    backtesting_start,
-    backtesting_end,
-    config=None,
-)
+#
+# strategy.backtest(
+#     YahooDataBacktesting,
+#     backtesting_start,
+#     backtesting_end,
+#     config=None,
+# )
 
 ####
 # Run the strategy

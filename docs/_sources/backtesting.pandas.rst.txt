@@ -200,6 +200,6 @@ Putting all of this together, and adding in budget and strategy information, the
     )
 
 Getting Data
------------
+----------------
 
 If you would like an easy way to download pricing data from Alpaca then you can use this code: https://github.com/Lumiwealth/lumibot/blob/master/download_price_data_alpaca.py

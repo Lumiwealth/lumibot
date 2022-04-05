@@ -1,5 +1,7 @@
 import datetime
 import logging
+from asyncio.log import logger
+from decimal import Decimal
 
 import pandas as pd
 
@@ -123,12 +125,12 @@ class Strategy(_Strategy):
         Parameters
         ----------
         sleeptime : int or str
-            Sleep time in minutes or a string with the duration numbers first, followed by the time units: ‘M’ for minutes, ‘S’ for seconds.
+            Sleep time in minutes or a string with the duration numbers first, followed by the time units: `S` for seconds, `M` for minutes, `H` for hours' or `D` for days.
 
         Returns
         -------
         sleeptime : int
-            Sleep time in minutes or a string with the duration numbers first, followed by the time units: ‘M’ for minutes, ‘S’ for seconds.
+            Sleep time in minutes or a string with the duration numbers first, followed by the time units: `S` for seconds, `M` for minutes, `H` for hours' or `D` for days.
 
         Example
         -------
@@ -153,6 +155,12 @@ class Strategy(_Strategy):
 
         >>> # Set the sleep time to 5 seconds
         >>> self.sleeptime = "5S"
+
+        >>> # Set the sleep time to 2 hours
+        >>> self.sleeptime = "2H"
+
+        >>> # Set the sleep time to 2 days
+        >>> self.sleeptime = "2D"
         """
         return self._sleeptime
 
@@ -201,6 +209,11 @@ class Strategy(_Strategy):
     def portfolio_value(self):
         """Returns the current portfolio value (cash + positions value).
 
+        Returns the portfolio value of positions plus cash in US dollars.
+
+        Crypto markets will attempt to resove to US dollars as a quote
+        currency.
+
         Returns
         -------
         portfolio_value : float
@@ -221,6 +234,8 @@ class Strategy(_Strategy):
 
         This property is updated whenever a transaction was filled by the broker or when dividends
         are paid.
+
+        Crypto currencies are a form of cash. Therefore cash will always be zero.
 
         Returns
         -------
@@ -313,19 +328,48 @@ class Strategy(_Strategy):
         trail_percent=None,
         position_filled=False,
         exchange="SMART",
+        quote=None,
+        pair=None,
     ):
         """Creates a new order for this specific strategy. Once created, an order must still be submitted.
+
+        Some notes on Crypto markets:
+
+        Crypto markets require both a base currency and a quote currency to create an order. These
+        may be entered in one of two ways.
+
+        1. tuple of Assets.
+            >>> self.create_order(
+            >>>     (Asset(symbol='BTC', asset_type='crypto'), Asset(symbol='USDT',
+            >>>     asset_type='crypto')),
+            >>>     .50,
+            >>>     'buy',
+            >>> )
+        2. Use the quote parameter.
+            >>> self.create_order(
+            >>>     Asset(symbol='BTC', asset_type='crypto'),
+            >>>     .50,
+            >>>     'buy',
+            >>>     quote=Asset(symbol='USDT', asset_type='crypto'),
+            >>> )
+
+        Orders for crypto markets are restriced to: ``market``, ``limit``, ``stop_limit``.
+
+        Crypto markets' orders are simple. There are no compound orders such
+        ``oco`` or ``bracket``. Also, duration of orders are all GTC.
 
         Parameters
         ----------
         asset : str or Asset
             The asset that will be traded. If this is just a stock, then
-            `str` is sufficient. However, all assets other than stocks
-            must use `Asset`.
-        quantity : float
-            The number of shares or units to trade.
+            ``str`` is sufficient. However, all assets other than stocks
+            must use ``Asset``.
+        quantity : int string Decimal (float will deprecate)
+            The number of shares or units to trade. One may enter an
+            int, a string number eg: "3.213", or a Decimal obect,
+            eg: Decimal("3.213"). Internally all will convert to Decimal.
         side : str
-            Whether the order is `buy` or `sell`.
+            Whether the order is ``buy`` or ``sell``.
         limit_price : float
             A Limit order is an order to buy or sell at a specified
             price or better. The Limit order ensures that if the
@@ -337,14 +381,12 @@ class Strategy(_Strategy):
             price is attained or penetrated.
         time_in_force : str
             Amount of time the order is in force. Order types include:
-                - `day` Orders valid for the remainder of the day.
-                - 'gtc' Good until cancelled.
-                - 'gtd' Good until date.
+                - ``'day'`` Orders valid for the remainder of the day.
+                - ``'gtc'`` Good until cancelled.
+                - ``'gtd'`` Good until date.
             (Default: 'day')
         good_till_date : datetime.datetime
             This is the time order is valid for Good Though Date orders.
-        time_in_force : str
-            Amount of time the order is in force. Default: 'day'
         take_profit_price : float
             Limit price used for bracket orders and one cancels other
             orders.
@@ -368,7 +410,11 @@ class Strategy(_Strategy):
             The order has been filled.
         exchange : str
             The exchange where the order will be placed.
-            Default = `SMART`
+            ``Default = 'SMART'``
+        quote : Asset
+            This is the currency that the main coin being bought or sold
+            will exchange in. For example, if trading ``BTC/ETH`` this
+            parameter will be 'ETH' (as an Asset object).
 
         Returns
         -------
@@ -509,7 +555,28 @@ class Strategy(_Strategy):
         >>>            )
         >>> self.submit_order(order)
 
+        >>> # For a cryptocurrency order with a market price
+        >>> base = Asset("BTC", asset_type="crypto")
+        >>> quote = Asset("USD", asset_type="crypto")
+        >>> order = self.create_order(base, 0.05, "buy", quote=quote)
+        >>> self.submit_order(order)
+
+        >>> # For a cryptocurrency the base and the quote may be
+        >>> # combined as a tuple for all order types.
+        >>> base = Asset("BTC", asset_type="crypto")
+        >>> quote = Asset("USD", asset_type="crypto")
+        >>> order = self.create_order((base, quote), 0.05, "buy")
+        >>> self.submit_order(order)
+
+        >>> # Placing a limit order with a quote asset for cryptocurrencies
+        >>> base = Asset("BTC", asset_type="crypto")
+        >>> quote = Asset("USD", asset_type="crypto")
+        >>> order = self.create_order(base, 0.05, "buy", limit_price=41000,  quote=quote)
+        >>> self.submit_order(order)
         """
+        if quote is None:
+            quote = self.quote_asset
+
         asset = self._set_asset_mapping(asset)
         order = Order(
             self.name,
@@ -526,9 +593,13 @@ class Strategy(_Strategy):
             trail_price=trail_price,
             trail_percent=trail_percent,
             exchange=exchange,
-            sec_type=asset.asset_type,
+            sec_type=asset.asset_type
+            if isinstance(asset, Asset)
+            else asset[0].asset_type,
             position_filled=position_filled,
             date_created=self.get_datetime(),
+            quote=quote,
+            pair=pair,
         )
         return order
 
@@ -561,6 +632,8 @@ class Strategy(_Strategy):
         Setting the market will determine the trading hours for live
         trading and for Yahoo backtesting. Not applicable to Pandas
         backtesting.
+
+        Crypto markets are always 24/7.
         `NASDAQ` is default.
 
         Parameters
@@ -745,6 +818,8 @@ class Strategy(_Strategy):
         >>> self.await_market_to_open()
 
         """
+        if self.broker.market == "24/7":
+            return None
         if timedelta is None:
             timedelta = self.minutes_before_opening
         return self.broker._await_market_to_open(timedelta)
@@ -771,9 +846,22 @@ class Strategy(_Strategy):
         >>> # Sleep until market closes (on_trading_iteration will stop running until the market closes)
         >>> self.await_market_to_close()
         """
+        if hasattr(self.broker, "market") and self.broker.market == "24/7":
+            return None
         if timedelta is None:
             timedelta = self.minutes_before_closing
         return self.broker._await_market_to_close(timedelta)
+
+    @staticmethod
+    def crypto_assets_to_tuple(base, quote):
+        """Check for crypto quote, convert to tuple"""
+        if (
+            isinstance(base, Asset)
+            and base.asset_type == "crypto"
+            and isinstance(quote, Asset)
+        ):
+            return (base, quote)
+        return base
 
     def get_tracked_position(self, asset):
         """Deprecated, will be removed in the future. Please use `get_position()` instead."""
@@ -896,7 +984,7 @@ class Strategy(_Strategy):
         self.log_message(
             "Warning: get_tracked_order() is deprecated, please use get_order() instead."
         )
-        return self.get_order()
+        return self.get_order(identifier)
 
     def get_order(self, identifier):
         """Get a tracked order given an identifier. Check the details of the order including status, etc.
@@ -1176,6 +1264,49 @@ class Strategy(_Strategy):
         >>> asset = Asset("SPY")
         >>> order = self.create_order(asset, 10, "sell", trailing_stop_price=100.00)
         >>> self.submit_order(order)
+
+        >>> # For buying a crypto with a market price
+        >>> asset_base = Asset(
+        >>>    "BTC",
+        >>>    asset_type="crypto",
+        >>> )
+        >>> asset_quote = Asset(
+        >>>    "USD",
+        >>>    asset_type="crypto",
+        >>> )
+        >>> order = self.create_order(asset_base, 0.1, "buy", quote=asset_quote)
+        >>> or...
+        >>> order = self.create_order((asset_base, asset_quote), 0.1, "buy")
+        >>> self.submit_order(order)
+
+        >>> # For buying a crypto with a limit price
+        >>> asset_base = Asset(
+        >>>    "BTC",
+        >>>    asset_type="crypto",
+        >>> )
+        >>> asset_quote = Asset(
+        >>>    "USD",
+        >>>    asset_type="crypto",
+        >>> )
+        >>> order = self.create_order(asset_base, 0.1, "buy", limit_price="41250", quote=asset_quote)
+        >>> or...
+        >>> order = self.create_order((asset_base, asset_quote), 0.1, "buy", limit_price="41250")
+        >>> self.submit_order(order)
+
+        >>> # For buying a crypto with a stop limit price
+        >>> asset_base = Asset(
+        >>>    "BTC",
+        >>>    asset_type="crypto",
+        >>> )
+        >>> asset_quote = Asset(
+        >>>    "USD",
+        >>>    asset_type="crypto",
+        >>> )
+        >>> order = self.create_order(asset_base, 0.1, "buy", limit_price="41325", stop_price="41300", quote=asset_quote)
+        >>> or...
+        >>> order = self.create_order((asset_base, asset_quote), 0.1, "buy", limit_price="41325", stop_price="41300",)
+        >>> self.submit_order(order)
+
         """
         return self.broker.submit_order(order)
 
@@ -1257,8 +1388,26 @@ class Strategy(_Strategy):
         >>> order2 = self.create_order(asset, 200, "sell")
         >>> self.submit_orders([order1, order2])
 
-
-
+        >>> # For 2 CRYPTO buy orders.
+        >>> asset_BTC = Asset(
+        >>>    "BTC",
+        >>>    asset_type="crypto",
+        >>> )
+        >>> asset_ETH = Asset(
+        >>>    "ETH",
+        >>>    asset_type="crypto",
+        >>> )
+        >>> asset_quote = Asset(
+        >>>    "USD",
+        >>>    asset_type="crypto",
+        >>> )
+        >>> order1 = self.create_order(asset_BTC, 0.1, "buy", quote=asset_quote)
+        >>> order2 = self.create_order(asset_ETH, 10, "buy", quote=asset_quote)
+        >>> self.submit_order([order1, order2])
+        >>> or...
+        >>> order1 = self.create_order((asset_BTC, asset_quote), 0.1, "buy")
+        >>> order2 = self.create_order((asset_ETH, asset_quote), 10, "buy")
+        >>> self.submit_order([order1, order2])
         """
         return self.broker.submit_orders(orders)
 
@@ -1458,8 +1607,8 @@ class Strategy(_Strategy):
             cancel_open_orders=cancel_open_orders,
         )
 
-    def get_last_price(self, asset):
-        """Takes an asset asset and returns the last known price
+    def get_last_price(self, asset, quote=None):
+        """Takes an asset and returns the last known price
 
         Makes an active call to the market to retrieve the last price.
         In backtesting will provide the close of the last complete bar.
@@ -1482,8 +1631,15 @@ class Strategy(_Strategy):
         >>> last_price = self.get_last_price(asset)
         >>> self.log_message(f"Last price for {asset} is {last_price}")
 
+        >>> # Will return the last price for a crypto asset
+        >>> base = Asset("BTC")
+        >>> quote = Asset("USDT")
+        >>> last_price = self.get_last_price(base, quote)
+        >>> self.log_message(f"Last price for BTC/USDT is {last_price}")
         """
         asset = self._set_asset_mapping(asset)
+        asset = self.crypto_assets_to_tuple(asset, quote)
+
         try:
             return self.broker.get_last_price(asset)
         except Exception as e:
@@ -2047,7 +2203,7 @@ class Strategy(_Strategy):
             The symbol of the asset.
 
         asset_type : str
-            The type of the asset. Can be either "stock", "option", or "future".
+            The type of the asset. Can be either "stock", "option", or "future", "crytpo".
 
         expiration : datetime.datetime
             The expiration date of the asset (optional, only required for options and futures).
@@ -2091,9 +2247,15 @@ class Strategy(_Strategy):
 
         >>> # Will create a FOREX asset
         >>> asset = self.create_asset(currency="USD", symbol="EUR", asset_type="forex")
+
+        >>> # Will create a CRYPTO asset
+        >>> asset = self.create(symbol="BTC", asset_type="crypto"),
+        >>> asset = self.create(symbol="USDT", asset_type="crypto"),
+        >>> asset = self.create(symbol="EUR", asset_type="crypto"),
+        >>> asset = self.create(symbol="ETH", asset_type="crypto"),
         """
         # If backtesting,  return existing asset if in store.
-        if self.broker.IS_BACKTESTING_BROKER:
+        if self.broker.IS_BACKTESTING_BROKER and asset_type != "crypto":
             # Check for existing asset.
             for asset in self.broker._data_source._data_store:
                 is_symbol = asset.symbol == symbol
@@ -2142,17 +2304,18 @@ class Strategy(_Strategy):
             currency=currency,
         )
 
-    def get_symbol_bars(
+    def get_historical_prices(
         self,
         asset,
         length,
         timestep="",
         timeshift=None,
+        quote=None,
     ):
         """Get historical pricing data for a given symbol or asset.
 
         Return data bars for a given symbol or asset.  Any number of bars can
-        be return limited by the data available. This is set with `length` in
+        be return limited by the data available. This is set with 'length' in
         number of bars. Bars may be returned as daily or by minute. And the
         starting point can be shifted backwards by time or bars.
 
@@ -2161,6 +2324,9 @@ class Strategy(_Strategy):
         asset : str or Asset
             The symbol string representation (e.g AAPL, GOOG, ...) or asset
             object.
+            Crypto currencies must specify the market. Use a string
+            with the two coins as follows: 'ETH/BTC'. Alternatively for cryptos, one can use a tuple with the two asset
+            objects, numerator first, denominator second. '(Asset(ETH), Asset(BTC))'
         length : int
             The number of rows (number of timesteps)
         timestep : str
@@ -2198,16 +2364,42 @@ class Strategy(_Strategy):
         >>> bars.df
 
 
+        >>> # Get the data for BTC in USD  for the last 2 days
+        >>> asset_base = self.create(symbol="BTC", asset_type="crypto"),
+        >>> asset_quote = self.create(symbol="USDT", asset_type="crypto"),
+        >>>
+        >>> bars =  self.get_symbol_bars("SPY", 2, "day")
+        >>> # To get the DataFrame of SPY data
+        >>> bars.df
         """
 
         asset = self._set_asset_mapping(asset)
+
+        asset = self.crypto_assets_to_tuple(asset, quote)
         if not timestep:
             timestep = self.data_source.MIN_TIMESTEP
         return self.data_source.get_symbol_bars(
             asset, length, timestep=timestep, timeshift=timeshift
         )
 
-    def get_bars(
+    def get_symbol_bars(
+        self,
+        asset,
+        length,
+        timestep="",
+        timeshift=None,
+        quote=None,
+    ):
+        """This method is deprecated and will be removed in a future version. Please use self.get_historical_prices() instead."""
+        logger.warning(
+            "The get_bars method is deprecated and will be removed in a future version. Please use self.get_historical_prices() instead."
+        )
+
+        return self.get_historical_prices(
+            asset, length, timestep=timestep, timeshift=timeshift, quote=quote
+        )
+
+    def get_historical_prices_for_assets(
         self,
         assets,
         length,
@@ -2219,8 +2411,8 @@ class Strategy(_Strategy):
         """Get historical pricing data for the list of assets.
 
         Return data bars for a list of symbols or assets.  Return a dictionary
-        of bars for a given list of symbols. Works the same as get_symbol_bars
-        but take as first parameter a list of symbols. Any number of bars can
+        of bars for a given list of symbols. Works the same as get_historical_prices
+        but take as first parameter a list of assets. Any number of bars can
         be return limited by the data available. This is set with `length` in
         number of bars. Bars may be returned as daily or by minute. And the
         starting point can be shifted backwards by time or bars.
@@ -2230,10 +2422,14 @@ class Strategy(_Strategy):
         assets : list(str/asset)
             The symbol string representation (e.g AAPL, GOOG, ...) or asset
             objects.
+            Crypto currencies must specify the market. Use a list
+            of string with the two coins as follows: ```'ETH/BTC'```
+            Alternatively for cryptos, one can use a tuple with the two asset
+            objects, numerator first, denominator second. '(Asset(ETH), Asset(BTC))'
         length : int
             The number of rows (number of timesteps)
         timestep : str
-            Either ```"minute""``` for minutes data or ```"day"```
+            Either ```"minute"``` for minutes data or ```"day"```
             for days data default value depends on the data_source (minute
             for alpaca, day for yahoo, ...)
         timeshift : timedelta
@@ -2265,6 +2461,29 @@ class Strategy(_Strategy):
         assets = [self._set_asset_mapping(asset) for asset in assets]
 
         return self.data_source.get_bars(
+            assets,
+            length,
+            timestep=timestep,
+            timeshift=timeshift,
+            chunk_size=chunk_size,
+            max_workers=max_workers,
+        )
+
+    def get_bars(
+        self,
+        assets,
+        length,
+        timestep="minute",
+        timeshift=None,
+        chunk_size=100,
+        max_workers=200,
+    ):
+        """This method is deprecated and will be removed in a future version. Please use self.get_historical_prices_for_assets() instead."""
+        logger.warning(
+            "The get_bars method is deprecated and will be removed in a future version. Please use self.get_historical_prices_for_assets() instead."
+        )
+
+        return self.get_historical_prices_for_assets(
             assets,
             length,
             timestep=timestep,
@@ -2490,7 +2709,26 @@ class Strategy(_Strategy):
 
         >>> # Initialize the strategy
         >>> def initialize(self):
+        >>>   # Set the strategy to call on_trading_interation every 5 seconds
         >>>   self.sleeptime = "2S"
+        >>>   self.count = 0
+
+        >>> # Initialize the strategy
+        >>> def initialize(self):
+        >>>   # Set the strategy to call on_trading_interation every 10 minutes
+        >>>   self.sleeptime = "10M"
+        >>>   self.count = 0
+
+        >>> # Initialize the strategy
+        >>> def initialize(self):
+        >>>   # Set the strategy to call on_trading_interation every 20 hours
+        >>>   self.sleeptime = "20H"
+        >>>   self.count = 0
+
+        >>> # Initialize the strategy
+        >>> def initialize(self):
+        >>>   # Set the strategy to call on_trading_interation every 2 days (48 hours)
+        >>>   self.sleeptime = "2D"
         >>>   self.count = 0
 
 
@@ -2545,7 +2783,7 @@ class Strategy(_Strategy):
         pass
 
     def on_trading_iteration(self):
-        """Use this lifecycle method for your main trading loop. This method is called every self.sleeptime minutes (or seconds if self.sleeptime is "30S")
+        """Use this lifecycle method for your main trading loop. This method is called every self.sleeptime minutes (or seconds/hours/days if self.sleeptime is "30S", "1H", "1D", etc.).
 
         Parameters
         ----------

@@ -1,16 +1,20 @@
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from functools import wraps
 from queue import Queue
 from threading import RLock, Thread
 
 import pandas as pd
+import pandas_market_calendars as mcal
+from dateutil import tz
 
 from lumibot.data_sources import DataSource
 from lumibot.entities import Order
 from lumibot.trading_builtins import SafeList
+from lumibot.entities import Position
 
 
 class Broker:
@@ -45,7 +49,6 @@ class Broker:
             self._orders_queue = Queue()
             self._orders_thread = None
             self._start_orders_thread()
-
 
         # setting the stream object
         self.stream = self._get_stream_object()
@@ -149,6 +152,10 @@ class Broker:
 
         if order not in self._partially_filled_orders:
             self._partially_filled_orders.append(order)
+
+        if order.asset.asset_type == "crypto":
+            self._process_crypto_quote(order, quantity, price)
+
         return order, position
 
     def _process_filled_order(self, order, price, quantity):
@@ -176,9 +183,66 @@ class Broker:
                 logging.info("Position %r liquidated" % position)
                 self._filled_positions.remove(position)
 
+        if order.asset.asset_type == "crypto":
+            self._process_crypto_quote(order, quantity, price)
+
         return position
 
+    def _process_crypto_quote(self, order, quantity, price):
+        """Used to process the quote side of a crypto trade. """
+        quote_quantity = Decimal(quantity) * Decimal(price)
+        if order.side == "buy":
+            quote_quantity = -quote_quantity
+        position = self.get_tracked_position(order.strategy, order.quote)
+        if position is None:
+            position = Position(
+                order.strategy,
+                order.quote,
+                quote_quantity,
+            )
+            self._filled_positions.append(position)
+        else:
+            position.quantity += quote_quantity
     # =========Clock functions=====================
+
+    def utc_to_local(self, utc_dt):
+        return utc_dt.replace(tzinfo=timezone.utc).astimezone(tz=tz.tzlocal())
+
+    def market_hours(self, market="NASDAQ", close=True, next=False, date=None):
+        """[summary]
+
+        Parameters
+        ----------
+        market : str, optional
+            Which market to test, by default "NASDAQ"
+        close : bool, optional
+            Choose open or close to check, by default True
+        next : bool, optional
+            Check current day or next day, by default False
+        date : [type], optional
+            Date to check, `None` for today, by default None
+
+        Returns
+        -------
+        [type]
+            [description]
+        """
+
+        market = self.market if self.market is not None else market
+        mkt_cal = mcal.get_calendar(market)
+        date = date if date is not None else datetime.now()
+        trading_hours = mkt_cal.schedule(
+            start_date=date, end_date=date + timedelta(weeks=1)
+        ).head(2)
+
+        row = 0 if not next else 1
+        th = trading_hours.iloc[row, :]
+        market_open, market_close = th[0], th[1]
+
+        if close:
+            return market_close
+        else:
+            return market_open
 
     def should_continue(self):
         """In production mode always returns True.
@@ -187,7 +251,22 @@ class Broker:
         return True
 
     def is_market_open(self):
-        """return True if market is open else false"""
+        """Determines if the market is open.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        boolean
+            True if market is open, false if the market is closed.
+
+        Examples
+        --------
+        >>> self.is_market_open()
+        True
+        """
         pass
 
     def get_time_to_open(self):
@@ -471,6 +550,9 @@ class Broker:
         """Takes a list of assets and returns the last known prices"""
         pass
 
+    def _get_tick(self, order):
+        raise NotImplementedError(f"Tic data is not available for {self.name}")
+
     # =========Subscribers/Strategies functions==============
 
     def _add_subscriber(self, subscriber):
@@ -580,7 +662,8 @@ class Broker:
                 % filled_quantity
             )
             try:
-                filled_quantity = int(filled_quantity)
+                if not isinstance(filled_quantity, Decimal):
+                    filled_quantity = Decimal(filled_quantity)
                 if filled_quantity < 0:
                     raise error
             except:

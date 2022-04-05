@@ -2,7 +2,7 @@ Alpaca
 ======================================================
 
 Documentation
---------
+---------------
 
 .. automodule:: lumibot.brokers.alpaca
    :members:

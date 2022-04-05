@@ -156,7 +156,7 @@ class DataSource:
                 parsed = self._parse_source_bars(response)
                 result = {**result, **parsed}
 
-        return AssetsMapping(result)
+        return result
 
     def get_last_price(self, asset, timestep=None):
         """Takes an asset and returns the last known price"""
@@ -182,8 +182,10 @@ class DataSource:
             elif bars is not None:
                 last_value = bars.df.iloc[0].close
                 result[asset] = last_value
-
-        return AssetsMapping(result)
+        if self.SOURCE == "CCXT":
+            return result
+        else:
+            return AssetsMapping(result)
 
     def is_tradable(self, asset, dt, length=1, timestep="minute", timeshift=0):
         # Check if an asset is tradable at this moment.

@@ -18,3 +18,5 @@ class InteractiveBrokersConfig:
 
 class AlphaVantageConfig:
     API_KEY = "YOUR ALPHA VANTAGE API KEY"
+
+# Hayden

@@ -61,10 +61,6 @@ for ticker in tickers:
     data = Data(
         asset,
         df,
-        date_start=datetime.datetime(2019, 1, 6),
-        date_end=datetime.datetime(2019, 12, 15),
-        # trading_hours_start=datetime.time(9, 30),
-        # trading_hours_end=datetime.time(16, 0),
         timestep="day",
     )
     pandas_data[asset] = data
@@ -153,7 +149,7 @@ if __name__ == "__main__":
             stats_file=stats_file,
             config=config,
             logfile=logfile,
-            show_plot=False,
+            show_plot=True,
             **kwargs,
         )
         toc = perf_counter()

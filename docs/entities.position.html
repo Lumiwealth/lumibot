@@ -5,7 +5,7 @@
     <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="prev" title="Order" href="entities.order.html" />
 
     <meta name="generator" content="sphinx-4.2.0, furo 2021.10.09"/>
-        <title>Position - Lumibot Backtesting and Algorithmic Trading documentation</title>
+        <title>Position - Lumibot: Backtest and Algo Trade documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=0254c309f5cadf746f1a613e7677379ac9c8cdcd" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?digest=16fb25fabf47304eee183a5e9af80b1ba98259b1" />
@@ -124,7 +124,7 @@
       </label>
     </div>
     <div class="header-center">
-      <a href="index.html"><div class="brand">Lumibot Backtesting and Algorithmic Trading  documentation</div></a>
+      <a href="index.html"><div class="brand">Lumibot: Backtest and Algo Trade  documentation</div></a>
     </div>
     <div class="header-right">
       <div class="theme-toggle-container theme-toggle-header">
@@ -147,7 +147,7 @@
       <div class="sidebar-sticky"><a class="sidebar-brand" href="index.html">
   
   
-  <span class="sidebar-brand-text">Lumibot Backtesting and Algorithmic Trading  documentation</span>
+  <span class="sidebar-brand-text">Lumibot: Backtest and Algo Trade  documentation</span>
   
 </a><form class="sidebar-search-container" method="get" action="search.html" role="search">
   <input class="sidebar-search" placeholder=Search name="q" aria-label="Search">
@@ -197,15 +197,17 @@
 </ul>
 </li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.data.html">Data</a><input class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
-<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_last_price.html">self.get_last_price</a></li>
-<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_last_prices.html">self.get_last_prices</a></li>
-<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_symbol_bars.html">self.get_symbol_bars</a></li>
-<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_bars.html">self.get_bars</a></li>
-<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.start_realtime_bars.html">self.start_realtime_bars</a></li>
-<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_realtime_bars.html">self.get_realtime_bars</a></li>
-<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.cancel_realtime_bars.html">self.cancel_realtime_bars</a></li>
-<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_yesterday_dividend.html">self.get_yesterday_dividend</a></li>
-<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/strategies.strategy.Strategy.get_yesterday_dividends.html">self.get_yesterday_dividends</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_last_price.html">self.get_last_price</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_last_prices.html">self.get_last_prices</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_historical_prices.html">self.get_historical_prices</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_historical_prices_for_assets.html">self.get_historical_prices_for_assets</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_symbol_bars.html">self.get_symbol_bars</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_bars.html">self.get_bars</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.start_realtime_bars.html">self.start_realtime_bars</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_realtime_bars.html">self.get_realtime_bars</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.cancel_realtime_bars.html">self.cancel_realtime_bars</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_yesterday_dividend.html">self.get_yesterday_dividend</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_yesterday_dividends.html">self.get_yesterday_dividends</a></li>
 </ul>
 </li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.options.html">Options</a><input class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" role="switch" type="checkbox"/><label for="toctree-checkbox-5"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
@@ -323,11 +325,15 @@
 <span id="documentation"></span><h2>Documentation<a class="headerlink" href="#module-entities.position" title="Permalink to this headline">¶</a></h2>
 <dl class="py class">
 <dt class="sig sig-object py" id="entities.position.Position">
-<em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">entities.position.</span></span><span class="sig-name descname"><span class="pre">Position</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">strategy</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quantity</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">orders</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.position.Position" title="Permalink to this definition">¶</a></dt>
+<em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">entities.position.</span></span><span class="sig-name descname"><span class="pre">Position</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">strategy</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quantity</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">orders</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">available</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.position.Position" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <dl class="py method">
 <dt class="sig sig-object py" id="entities.position.Position.add_order">
 <span class="sig-name descname"><span class="pre">add_order</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">order</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quantity</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.position.Position.add_order" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+<dl class="py property">
+<dt class="sig sig-object py" id="entities.position.Position.available">
+<em class="property"><span class="pre">property</span> </em><span class="sig-name descname"><span class="pre">available</span></span><a class="headerlink" href="#entities.position.Position.available" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 <dl class="py method">
 <dt class="sig sig-object py" id="entities.position.Position.get_selling_order">
@@ -345,9 +351,17 @@
 </dd>
 </dl>
 </dd></dl>
+<dl class="py property">
+<dt class="sig sig-object py" id="entities.position.Position.hold">
+<em class="property"><span class="pre">property</span> </em><span class="sig-name descname"><span class="pre">hold</span></span><a class="headerlink" href="#entities.position.Position.hold" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+<dl class="py property">
+<dt class="sig sig-object py" id="entities.position.Position.quantity">
+<em class="property"><span class="pre">property</span> </em><span class="sig-name descname"><span class="pre">quantity</span></span><a class="headerlink" href="#entities.position.Position.quantity" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
 <dl class="py method">
-<dt class="sig sig-object py" id="entities.position.Position.update_raw">
-<span class="sig-name descname"><span class="pre">update_raw</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">raw</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.position.Position.update_raw" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="entities.position.Position.value_type">
+<span class="sig-name descname"><span class="pre">value_type</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">value</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.position.Position.value_type" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 </dd></dl>
 </div>

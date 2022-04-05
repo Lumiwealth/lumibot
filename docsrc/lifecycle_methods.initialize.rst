@@ -9,7 +9,7 @@ This lifecycle methods is executed only once, when the strategy execution starts
     # self.minutes_before_closing: number of minutes before the market closes to stop trading
     class MyStrategy(Strategy):
         def initialize(self, my_custom_parameter=True):
-            self.sleeptime = 5
+            self.sleeptime = "5M"
             self.minutes_before_closing = 15
             self.my_custom_parameter = my_custom_parameter
 

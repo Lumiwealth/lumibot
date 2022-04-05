@@ -143,6 +143,8 @@ def run_test(strategy_name):
         logfile=logfile,
         risk_free_rate=0,
         show_plot=False,
+        save_tearsheet=False,
+        show_tearsheet=False,
         name = strategy_name,
         budget=40000,
         **kwargs,

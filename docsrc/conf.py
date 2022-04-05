@@ -14,11 +14,12 @@ import os
 import sys
 
 sys.path.insert(0, os.path.abspath("../lumibot/"))
+# sys.path.insert(0, os.path.abspath("../"))
 
 
 # -- Project information -----------------------------------------------------
 
-project = "Lumibot Backtesting and Algorithmic Trading"
+project = "Lumibot: Backtest and Algo Trade"
 copyright = "2021, Lumiwealth"
 author = "Lumiwealth Inc."
 

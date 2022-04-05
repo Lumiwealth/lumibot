@@ -41,8 +41,7 @@ kwargs = {
     "max_days_expiry": 30,
     "days_to_earnings_min": 100,  # 15
 }
-strategy = Strangle(broker=broker)  #, **kwargs)
-
+strategy = Strangle(broker=broker, **kwargs)
 
 ####
 # Run the strategy

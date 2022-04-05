@@ -3,7 +3,7 @@ Data
 
 Data methods are made to get data for you to use in your strategies. You can use them to get historical pricing data (eg. **get_symbol_bars()**) and more. You can see a list of them below:
 
-.. currentmodule:: strategies.strategy.Strategy
+.. currentmodule:: lumibot.strategies.strategy.Strategy
 
 .. autosummary::
     :toctree: strategy_methods.data
@@ -11,7 +11,8 @@ Data methods are made to get data for you to use in your strategies. You can use
 
     get_last_price
     get_last_prices
-    get_tradable_assets
+    get_historical_prices
+    get_historical_prices_for_assets
     get_symbol_bars
     get_bars
     start_realtime_bars

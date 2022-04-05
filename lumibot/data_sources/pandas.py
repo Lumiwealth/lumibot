@@ -1,7 +1,8 @@
 import pandas as pd
 
-from lumibot.entities import Bars, AssetsMapping
+from lumibot.entities import Asset, AssetsMapping, Bars
 from lumibot.tools.black_scholes import BS
+
 from .data_source import DataSource
 
 
@@ -16,7 +17,7 @@ class PandasData(DataSource):
 
     def __init__(self, pandas_data, config=None, auto_adjust=True, **kwargs):
         self.name = "pandas"
-        self.pandas_data = pandas_data
+        self.pandas_data = self._set_pandas_data_keys(pandas_data)
         self.auto_adjust = auto_adjust
         self._data_store = {}
         self._date_index = None
@@ -24,8 +25,23 @@ class PandasData(DataSource):
         self._timestep = "day"
         self._expiries_exist = False
 
-    def load_data(self, pandas_data):
-        self._data_store = pandas_data
+    @staticmethod
+    def _set_pandas_data_keys(pandas_data):
+        new_pandas_data = {}
+        for k, data in pandas_data.items():
+            if isinstance(data.asset, Asset) and data.asset.asset_type != "crypto":
+                key = data.asset
+            elif isinstance(data.asset, tuple) and data.asset[0].asset_type == "crypto":
+                key = data.asset
+            elif isinstance(data.asset, Asset) and data.asset.asset_type == "crypto":
+                key = (data.asset, data.quote)
+            else:
+                raise ValueError("Asset must be an Asset or a tuple of Asset and quote")
+            new_pandas_data[key] = data
+        return new_pandas_data
+
+    def load_data(self):
+        self._data_store = self.pandas_data
         self._expiries_exist = (
             len(
                 [
@@ -153,7 +169,10 @@ class PandasData(DataSource):
 
     def get_last_price(self, asset, timestep=None):
         # Takes an asset and returns the last known price
-        return self._data_store[asset].get_last_price(self.get_datetime())
+        if asset in self._data_store:
+            return self._data_store[asset].get_last_price(self.get_datetime())
+        else:
+            return None
 
     def get_last_prices(self, assets, timestep=None):
         # Takes a list of assets and returns dictionary of last known prices for each.
@@ -162,8 +181,7 @@ class PandasData(DataSource):
         result = {}
         for asset in assets:
             result[asset] = self.get_last_price(asset, timestep=timestep)
-
-        return AssetsMapping(result)
+        return result
 
     def _pull_source_symbol_bars(
         self, asset, length, timestep=MIN_TIMESTEP, timeshift=0
@@ -197,7 +215,12 @@ class PandasData(DataSource):
         return result
 
     def _parse_source_symbol_bars(self, response, asset):
-        bars = Bars(response, self.SOURCE, asset, raw=response)
+        """parse broker response for a single asset"""
+        asset1 = asset
+        asset2 = None
+        if isinstance(asset, tuple):
+            asset1, asset2 = asset
+        bars = Bars(response, self.SOURCE, asset1, quote=asset2, raw=response)
         return bars
 
     def get_yesterday_dividend(self, asset):
@@ -425,7 +448,6 @@ class PandasData(DataSource):
             theta=c.callTheta if is_call else c.putTheta,
             underlying_price=und_price,
         )
-
 
         greeks = dict()
         for greek, value in result.items():

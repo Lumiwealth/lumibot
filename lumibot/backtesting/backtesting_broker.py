@@ -23,11 +23,10 @@ class BacktestingBroker(Broker):
         # Calling init methods
         self.name = "backtesting"
         self.max_workers = max_workers
+        self.market = "NASDAQ"
 
         if not data_source.IS_BACKTESTING_DATA_SOURCE:
-            raise ValueError(
-                "object %r is not a backteesting data_source" % data_source
-            )
+            raise ValueError("object %r is not a backtesting data_source" % data_source)
         self._data_source = data_source
         if data_source.SOURCE != "PANDAS":
             self._trading_days = get_trading_days()
@@ -217,6 +216,7 @@ class BacktestingBroker(Broker):
                     order.quantity,
                     order.side,
                     stop_price=order.stop_price,
+                    quote=order.quote,
                 )
                 stop_loss_order = self._parse_broker_order(
                     stop_loss_order, order.strategy
@@ -230,6 +230,7 @@ class BacktestingBroker(Broker):
                 order.quantity,
                 order.side,
                 stop_price=order.stop_loss_price,
+                quote=order.quote,
             )
             orders.append(stop_loss_order)
 
@@ -239,6 +240,7 @@ class BacktestingBroker(Broker):
                 order.quantity,
                 order.side,
                 limit_price=order.take_profit_price,
+                quote=order.quote,
             )
             orders.append(limit_order)
 
@@ -257,6 +259,7 @@ class BacktestingBroker(Broker):
                     side,
                     stop_price=order.stop_loss_price,
                     limit_price=order.stop_loss_limit_price,
+                    quote=order.quote,
                 )
                 orders.append(stop_loss_order)
 
@@ -269,6 +272,7 @@ class BacktestingBroker(Broker):
                     order.quantity,
                     side,
                     limit_price=order.take_profit_price,
+                    quote=order.quote,
                 )
                 orders.append(limit_order)
 
@@ -314,9 +318,16 @@ class BacktestingBroker(Broker):
             return []
 
         orders_closing_contracts = []
-        for tracked_position in self.get_tracked_positions(strategy):
-            if tracked_position.asset.expiration == self.datetime.date():
-                orders_closing_contracts.append(tracked_position.get_selling_order())
+        positions = self.get_tracked_positions(strategy)
+        for position in positions:
+            if (
+                position.asset.expiration is not None
+                and position.asset.expiration <= self.datetime.date()
+            ):
+                logging.warn(
+                    f"Automatically selling expired contract for asset {position.asset}"
+                )
+                orders_closing_contracts.append(position.get_selling_order())
 
         return orders_closing_contracts
 
@@ -350,11 +361,17 @@ class BacktestingBroker(Broker):
                 continue
 
             # Check validity if current date > valid date, cancel order. todo valid date
+            asset = (
+                order.asset
+                if order.asset.asset_type != "crypto"
+                else (order.asset, order.quote)
+            )
+
             price = 0
             filled_quantity = order.quantity
 
             if self._data_source.SOURCE == "YAHOO":
-                ohlc = self.get_last_bar(order.asset)
+                ohlc = self.get_last_bar(asset)
                 dt = ohlc.df.index[-1]
                 open = ohlc.df.open[-1]
                 high = ohlc.df.high[-1]
@@ -363,7 +380,7 @@ class BacktestingBroker(Broker):
                 volume = ohlc.df.volume[-1]
 
             elif self._data_source.SOURCE == "PANDAS":
-                ohlc = self._data_source._data_store[order.asset]._get_bars_dict(
+                ohlc = self._data_source._data_store[asset]._get_bars_dict(
                     self.datetime, length=1
                 )
                 if ohlc is None:

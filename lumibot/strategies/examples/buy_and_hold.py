@@ -31,7 +31,7 @@ class BuyAndHold(Strategy):
 
         all_positions = self.get_tracked_positions()
         if len(all_positions) == 0:
-            quantity = self.portfolio_value // current_value
+            quantity = int(self.portfolio_value // current_value)
             purchase_order = self.create_order(self.buy_symbol, quantity, "buy")
             self.submit_order(purchase_order)
 

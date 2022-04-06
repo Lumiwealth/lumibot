@@ -347,17 +347,8 @@ class Strategy(_Strategy):
 
         Some notes on Crypto markets:
 
-        Crypto markets require both a base currency and a quote currency to create an order. These
-        may be entered in one of two ways.
+        Crypto markets require both a base currency and a quote currency to create an order. For example, use the quote parameter.:
 
-        1. tuple of Assets.
-            >>> self.create_order(
-            >>>     (Asset(symbol='BTC', asset_type='crypto'), Asset(symbol='USDT',
-            >>>     asset_type='crypto')),
-            >>>     .50,
-            >>>     'buy',
-            >>> )
-        2. Use the quote parameter.
             >>> self.create_order(
             >>>     Asset(symbol='BTC', asset_type='crypto'),
             >>>     .50,
@@ -571,13 +562,6 @@ class Strategy(_Strategy):
         >>> base = Asset("BTC", asset_type="crypto")
         >>> quote = Asset("USD", asset_type="crypto")
         >>> order = self.create_order(base, 0.05, "buy", quote=quote)
-        >>> self.submit_order(order)
-
-        >>> # For a cryptocurrency the base and the quote may be
-        >>> # combined as a tuple for all order types.
-        >>> base = Asset("BTC", asset_type="crypto")
-        >>> quote = Asset("USD", asset_type="crypto")
-        >>> order = self.create_order((base, quote), 0.05, "buy")
         >>> self.submit_order(order)
 
         >>> # Placing a limit order with a quote asset for cryptocurrencies
@@ -2335,20 +2319,19 @@ class Strategy(_Strategy):
         ----------
         asset : str or Asset
             The symbol string representation (e.g AAPL, GOOG, ...) or asset
-            object.
-            Crypto currencies must specify the market. Use a string
-            with the two coins as follows: 'ETH/BTC'. Alternatively for cryptos, one can use a tuple with the two asset
-            objects, numerator first, denominator second. '(Asset(ETH), Asset(BTC))'
+            object. Crypto currencies must also specify the quote currency.
         length : int
             The number of rows (number of timesteps)
         timestep : str
-            Either ```"minute""``` for minutes data or ```"day"```
+            Either ``"minute"`` for minutes data or ``"day"``
             for days data default value depends on the data_source (minute
             for alpaca, day for yahoo, ...)
         timeshift : timedelta
-            ```None``` by default. If specified indicates the time shift from
+            ``None`` by default. If specified indicates the time shift from
             the present. If  backtesting in Pandas, use integer representing
             number of bars.
+        quote : Asset
+            The quote currency for crypto currencies (eg. USD, USDT, EUR, ...).
 
         Returns
         -------
@@ -2434,18 +2417,16 @@ class Strategy(_Strategy):
         assets : list(str/asset)
             The symbol string representation (e.g AAPL, GOOG, ...) or asset
             objects.
-            Crypto currencies must specify the market. Use a list
-            of string with the two coins as follows: ```'ETH/BTC'```
-            Alternatively for cryptos, one can use a tuple with the two asset
-            objects, numerator first, denominator second. '(Asset(ETH), Asset(BTC))'
+            Crypto currencies must specify the quote asset. Use tuples with the two asset
+            objects, base first, quote second. '(Asset(ETH), Asset(BTC))'
         length : int
             The number of rows (number of timesteps)
         timestep : str
-            Either ```"minute"``` for minutes data or ```"day"```
+            Either ``"minute"`` for minutes data or ``"day"``
             for days data default value depends on the data_source (minute
             for alpaca, day for yahoo, ...)
         timeshift : timedelta
-            ```None``` by default. If specified indicates the time shift from
+            ``None`` by default. If specified indicates the time shift from
             the present. If  backtesting in Pandas, use integer representing
             number of bars.
 

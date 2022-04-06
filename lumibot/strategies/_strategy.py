@@ -469,10 +469,10 @@ class _Strategy:
                 # is at the start of the day, so the graph cuts short. This may be needed
                 # for other timeframes as well
                 backtesting_end_adjusted = self._backtesting_end
-                if self.broker.market == "24/7":
-                    backtesting_end_adjusted = (
-                        self._backtesting_end + datetime.timedelta(days=1)
-                    )
+                # if self.broker.market == "24/7":
+                #     backtesting_end_adjusted = (
+                #         self._backtesting_end + datetime.timedelta(days=1)
+                #     )
 
                 self._benchmark_returns_df = get_symbol_returns(
                     self._benchmark_asset,
@@ -530,6 +530,8 @@ class _Strategy:
                 "Cannot plot returns because the benchmark returns are missing"
             )
         else:
+            self._strategy_returns_df.to_csv("df-strategy_returns.csv")
+            self._benchmark_returns_df.to_csv("df-benchmark_returns.csv")
             plot_returns(
                 self._strategy_returns_df,
                 f"{self._log_strat_name()}Strategy",

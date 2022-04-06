@@ -239,7 +239,7 @@ def plot_returns(
         )
     )
 
-    vshift = 0.002
+    vshift = 0.005
 
     # Buys
     buys = df_final.copy()
@@ -321,21 +321,26 @@ def create_tearsheet(
 
     _df2 = df2.copy()
     _df2["benchmark"] = _df2["return"]
-    
-    # ratio = len(_df1) / len(_df2)
-    # if len(_df1) > len(_df2):
-    #     _df1['strategy'] = (1 + _df1["strategy"]).cumprod()
-    #     _df1['strategy'] = _df1['strategy'].pct_change(int(ratio)).fillna(0)
 
-    # if len(_df2) > len(_df1):
-    #     _df2['benchmark'] = (1 + _df2["benchmark"]).cumprod()
-    #     _df2['benchmark'] = _df2['benchmark'].pct_change(int(ratio)).fillna(0)
-        
-    # _df1 = _df1.groupby(_df1.index.date)["strategy"].mean()
-    # _df2 = _df2.groupby(_df2.index.date)["benchmark"].mean()
+    _df1.to_csv(f"df1-original.csv")
+    _df2.to_csv(f"df2-original.csv")
+
+    ratio = len(_df1) / len(_df2)
+    if len(_df1) > len(_df2):
+        _df1["strategy"] = _df1["portfolio_value"].pct_change(int(ratio))
+
+    if len(_df2) > len(_df1):
+        _df2["benchmark"] = _df2["Close"].pct_change(int(ratio))
+
+    _df1 = _df1.groupby(_df1.index.date)["strategy"].mean().fillna(0)
+    _df2 = _df2.groupby(_df2.index.date)["benchmark"].mean().fillna(0)
 
     df = pd.concat([_df1, _df2], join="outer", axis=1)
     df.index = pd.to_datetime(df.index)
+
+    _df1.to_csv(f"df1.csv")
+    _df2.to_csv(f"df2.csv")
+    df.to_csv(f"df-final.csv")
 
     df = df.fillna(0)
 

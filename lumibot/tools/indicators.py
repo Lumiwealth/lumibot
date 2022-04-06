@@ -322,27 +322,24 @@ def create_tearsheet(
     _df2 = df2.copy()
     _df2["benchmark"] = _df2["return"]
 
-    _df1.to_csv(f"df1-original.csv")
-    _df2.to_csv(f"df2-original.csv")
-
-    ratio = len(_df1) / len(_df2)
-    if len(_df1) > len(_df2):
-        _df1["strategy"] = _df1["portfolio_value"].pct_change(int(ratio))
-
-    if len(_df2) > len(_df1):
-        _df2["benchmark"] = _df2["Close"].pct_change(int(ratio))
-
-    _df1 = _df1.groupby(_df1.index.date)["strategy"].mean().fillna(0)
-    _df2 = _df2.groupby(_df2.index.date)["benchmark"].mean().fillna(0)
+    # Uncomment for debugging
+    # _df1.to_csv(f"df1-original.csv")
+    # _df2.to_csv(f"df2-original.csv")
 
     df = pd.concat([_df1, _df2], join="outer", axis=1)
     df.index = pd.to_datetime(df.index)
+    df["portfolio_value"] = df["portfolio_value"].ffill()
+    df["Close"] = df["Close"].ffill()
+    df = df.resample("D").ffill()
+    df["strategy"] = df["portfolio_value"].pct_change().fillna(0)
+    df["benchmark"] = df["Close"].pct_change().fillna(0)
+    df = df.loc[:, ["strategy", "benchmark"]]
+    df.index = df.index.tz_localize(None)
 
-    _df1.to_csv(f"df1.csv")
-    _df2.to_csv(f"df2.csv")
-    df.to_csv(f"df-final.csv")
-
-    df = df.fillna(0)
+    # Uncomment for debugging
+    # _df1.to_csv(f"df1.csv")
+    # _df2.to_csv(f"df2.csv")
+    # df.to_csv(f"df-final.csv")
 
     bm_text = f"Compared to {benchmark_asset}" if benchmark_asset else ""
     title = f"{strat_name} {bm_text}"

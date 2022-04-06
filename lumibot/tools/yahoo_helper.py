@@ -176,6 +176,9 @@ class YahooHelper:
         if info.get("market") == "us_market":
             df.index = df.index.tz_localize(info.get("exchangeTimezoneName"))
             df.index = df.index.map(lambda t: t.replace(hour=9, minute=30))
+        elif info.get("market") == "ccc_market":
+            df.index = df.index.tz_localize(info.get("exchangeTimezoneName"))
+            df.index = df.index.map(lambda t: t.replace(hour=23, minute=59))
 
         df = YahooHelper.process_df(df)
         return df

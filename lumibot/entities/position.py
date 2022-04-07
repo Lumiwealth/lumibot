@@ -1,5 +1,7 @@
-import lumibot.entities as entities
 from decimal import Decimal, getcontext
+
+import lumibot.entities as entities
+
 
 class Position:
     def __init__(self, strategy, asset, quantity, orders=None, hold=0, available=0):
@@ -43,9 +45,7 @@ class Position:
 
     @property
     def quantity(self):
-        if self.asset.asset_type == "crypto":
-            return self._quantity
-        return int(self._quantity)
+        return self._quantity
 
     @quantity.setter
     def quantity(self, value):
@@ -93,7 +93,7 @@ class Position:
         elif isinstance(value, (int, float, str,)):
             return Decimal(str(value)).quantize(Decimal(precision))
 
-    def get_selling_order(self):
+    def get_selling_order(self, quote_asset=None):
         """Returns an order that can be used to sell this position.
 
         Parameters
@@ -108,9 +108,9 @@ class Position:
         """
         order = None
         if self.quantity < 0:
-            order = entities.Order(self.strategy, self.asset, abs(self.quantity), "buy")
+            order = entities.Order(self.strategy, self.asset, abs(self.quantity), "buy", quote=quote_asset)
         else:
-            order = entities.Order(self.strategy, self.asset, self.quantity, "sell")
+            order = entities.Order(self.strategy, self.asset, self.quantity, "sell", quote=quote_asset)
         return order
 
     def add_order(self, order, quantity):

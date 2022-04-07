@@ -104,7 +104,10 @@ class Bars:
         self.df = df
         self.source = source.upper()
         self.asset = asset
-        self.symbol = asset.symbol.upper()
+        if isinstance(asset, tuple):
+            self.symbol = f"{asset[0].symbol}/{asset[1].symbol}".upper()
+        else:
+            self.symbol = asset.symbol.upper()
         self.quote = quote
         self._raw = raw
 

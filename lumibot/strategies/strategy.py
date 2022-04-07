@@ -1601,6 +1601,7 @@ class Strategy(_Strategy):
         self.broker.sell_all(
             self.name,
             cancel_open_orders=cancel_open_orders,
+            strategy=self
         )
 
     def get_last_price(self, asset, quote=None):

@@ -84,6 +84,9 @@ class _Strategy:
             self.broker = broker
             self._name = name
 
+        if self._name is None:
+            self._name = self.__class__.__name__
+
         self.quote_asset = quote_asset
 
         # Setting the broker object
@@ -399,6 +402,8 @@ class _Strategy:
                     else dividends_per_share.get(asset, 0)
                 )
                 cash = self.cash
+                if cash is None:
+                    cash = 0
                 cash += dividend_per_share * float(quantity)
                 self._set_cash_position(cash)
             return self.cash

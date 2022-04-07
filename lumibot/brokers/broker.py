@@ -12,9 +12,8 @@ import pandas_market_calendars as mcal
 from dateutil import tz
 
 from lumibot.data_sources import DataSource
-from lumibot.entities import Order
+from lumibot.entities import Order, Position
 from lumibot.trading_builtins import SafeList
-from lumibot.entities import Position
 
 
 class Broker:
@@ -513,28 +512,33 @@ class Broker:
                 return 1
         return 0
 
-    def sell_all(self, strategy, cancel_open_orders=True):
+    def sell_all(self, strategy_name, cancel_open_orders=True, strategy=None):
         """sell all positions"""
-        logging.warning("Strategy %s: sell all" % strategy)
+        logging.warning("Strategy %s: sell all" % strategy_name)
         if cancel_open_orders:
-            self.cancel_open_orders(strategy)
+            self.cancel_open_orders(strategy_name)
 
         if not self.IS_BACKTESTING_BROKER:
-            orders_result = self.wait_orders_clear(strategy)
+            orders_result = self.wait_orders_clear(strategy_name)
             if not orders_result:
                 logging.info(
                     "From sell_all, orders were still outstanding before the sell all event"
                 )
 
         orders = []
-        positions = self.get_tracked_positions(strategy)
+        positions = self.get_tracked_positions(strategy_name)
         for position in positions:
-            order = position.get_selling_order()
-            orders.append(order)
+            if strategy is not None:
+                if strategy.quote_asset != position.asset:
+                    order = position.get_selling_order(quote_asset=strategy.quote_asset)
+                    orders.append(order)
+            else:
+                order = position.get_selling_order()
+                orders.append(order)
         self.submit_orders(orders)
 
         if not self.IS_BACKTESTING_BROKER:
-            orders_result = self.wait_orders_clear(strategy)
+            orders_result = self.wait_orders_clear(strategy_name)
             if not orders_result:
                 logging.info(
                     "From sell_all, orders were still outstanding after the sell all event"

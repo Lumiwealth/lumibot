@@ -226,7 +226,7 @@ class Alpaca(AlpacaData, Broker):
         if position["asset_class"] == "crypto":
             asset = Asset(
                 symbol=position["symbol"].replace("USD", ""),
-                # asset_type="crypto",
+                asset_type="crypto",
             )
         else:
             asset = Asset(
@@ -264,14 +264,15 @@ class Alpaca(AlpacaData, Broker):
             strategy,
             Asset(
                 symbol=response.symbol,
-                # TODO: remove hardcoding, Alpaca can also trade crypto
-                asset_type="stock",
+                asset_type=response.asset_class,
             ),
             Decimal(response.qty),
             response.side,
             limit_price=response.limit_price,
             stop_price=response.stop_price,
             time_in_force=response.time_in_force,
+            # TODO: remove hardcoding in case Alpaca allows crypto to crypto trading
+            quote=Asset(symbol="USD", asset_type="forex"),
         )
         order.set_identifier(response.id)
         order.update_status(response.status)
@@ -307,21 +308,36 @@ class Alpaca(AlpacaData, Broker):
             "type": order.type,
             "order_class": order.order_class,
             "time_in_force": order.time_in_force,
-            "limit_price": order.limit_price,
-            "stop_price": order.stop_price,
-            "trail_price": order.trail_price,
+            "limit_price": str(order.limit_price) if order.limit_price else None,
+            "stop_price": str(order.stop_price) if order.stop_price else None,
+            "trail_price": str(order.trail_price) if order.trail_price else None,
             "trail_percent": order.trail_percent,
         }
         # Remove items with None values
         kwargs = {k: v for k, v in kwargs.items() if v}
 
         if order.take_profit_price:
-            kwargs["take_profit"] = {"limit_price": order.take_profit_price}
+            kwargs["take_profit"] = {
+                "limit_price": round(order.take_profit_price, 2)
+                if isinstance(order.take_profit_price, Decimal)
+                else order.take_profit_price,
+            }
 
         if order.stop_loss_price:
-            kwargs["stop_loss"] = {"stop_price": order.stop_loss_price}
+            kwargs["stop_loss"] = {
+                "stop_price": round(order.stop_loss_price, 2)
+                if isinstance(order.stop_loss_price, Decimal)
+                else order.stop_loss_price,
+            }
             if order.stop_loss_limit_price:
-                kwargs["stop_loss"]["limit_price"] = order.stop_loss_limit_price
+                kwargs["stop_loss"]["limit_price"] = (
+                    round(order.stop_loss_limit_price, 2)
+                    if isinstance(
+                        order.stop_loss_limit_price,
+                        Decimal,
+                    )
+                    else order.stop_loss_limit_price
+                )
 
         if order.asset.asset_type == "crypto":
             trade_symbol = order.pair.replace("/", "")
@@ -329,9 +345,8 @@ class Alpaca(AlpacaData, Broker):
             trade_symbol = order.asset.symbol
 
         try:
-            response = self.api.submit_order(
-                trade_symbol, str(order.quantity), order.side, **kwargs
-            )
+            qty = str(order.quantity)
+            response = self.api.submit_order(trade_symbol, qty, order.side, **kwargs)
 
             order.set_identifier(response.id)
             order.update_status(response.status)

@@ -103,6 +103,9 @@ class StrategyExecutor(Thread):
                 else:
                     cash_broker = cash_broker[0]
 
+                if cash_broker is not None:
+                    self.strategy._set_cash_position(cash_broker)
+
                 positions_broker = self.broker._pull_positions(self.name)
                 orders_broker = self.broker._pull_open_orders(self.name)
 
@@ -111,8 +114,6 @@ class StrategyExecutor(Thread):
                     self.broker._hold_trade_events = False
                     self.broker.process_held_trades()
                     self.broker._hold_trade_events = True
-
-            self.strategy._set_cash_position(cash_broker)
 
             # POSITIONS
             # Update Lumibot positions to match broker positions.
@@ -146,7 +147,12 @@ class StrategyExecutor(Thread):
             # Remove lumibot position if not at the broker.
             if len(positions_broker) < len(self.broker._filled_positions.get_list()):
                 for position in self.broker._filled_positions.get_list():
-                    if position not in positions_broker:
+                    found = False
+                    for position_broker in positions_broker:
+                        if position_broker.asset == position.asset:
+                            found = True
+                            break
+                    if not found and position.asset != self.strategy.quote_asset:
                         self.broker._filled_positions.remove(position)
 
             # ORDERS

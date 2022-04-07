@@ -1,7 +1,7 @@
-Lumibot Documentation
+Lumibot: Backtesting and Algorithmic Trading Library
 ===================================
 
-**The Most Powerful Backtesting + Trading Library in the World**
+**An Easy to Use and Powerful Open Source Backtesting and Trading Library**
 
 .. raw:: html
    :file: _html/main.html

@@ -15,9 +15,9 @@ import pandas as pd
 # symbol and desired timeframe:
 ###############################################################################
 
-APCA_API_KEY_ID = "PKN2NQZY2PPIV3TC835A"  # Add your Alpaca API key here
+APCA_API_KEY_ID = "PK6I89BTMDSDSF6KQZ4N"  # Add your Alpaca API key here
 APCA_API_SECRET_KEY = (
-    "fP9LxZKGl7TXCNxdksaSG3wPLBBJQ5wjYLzhKKdHG"  # Put your Alpaca secret key here
+    "sGwVpNeLcWl8UWGsdYj9TsZZF4PrEcnCL4nO6t5T"  # Put your Alpaca secret key here
 )
 APCA_ENDPOINT = "https://paper-api.alpaca.markets"
 ASSET_TO_DOWNLOAD = "SPY"  # The asset to download
@@ -49,10 +49,10 @@ def get_barset(api, symbol, timeframe, start, end, limit=None):
     last_curr_end = None
     while True:
         cnt += 1
-        barset = api.get_barset(
+        barset = api.get_bars(
             symbol, alpaca_format_str, limit=limit, start=start, end=curr_end
         )
-        df = barset[symbol].df.tz_convert("utc")
+        df = barset.df  # .tz_convert("utc")
 
         if df_ret is None:
             df_ret = df

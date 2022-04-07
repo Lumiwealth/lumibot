@@ -112,7 +112,7 @@ class StrategyExecutor(Thread):
                     self.broker.process_held_trades()
                     self.broker._hold_trade_events = True
 
-            self.strategy._cash = cash_broker
+            self.strategy._set_cash_position(cash_broker)
 
             # POSITIONS
             # Update Lumibot positions to match broker positions.

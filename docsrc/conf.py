@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.abspath("../lumibot/"))
 
 # -- Project information -----------------------------------------------------
 
-project = "Lumibot: Backtest and Algo Trade"
+project = "Lumibot"
 copyright = "2021, Lumiwealth"
 author = "Lumiwealth Inc."
 

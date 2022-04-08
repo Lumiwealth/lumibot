@@ -298,7 +298,7 @@ class _Strategy:
             return self.broker._get_balances_at_broker()[2]
 
         with self._executor.lock:
-            # Used for traditional brokers, for crypto this will likely be 0
+            # Used for traditional brokers, for crypto this could be 0
             portfolio_value = self.cash
 
             positions = self.broker.get_tracked_positions(self._name)

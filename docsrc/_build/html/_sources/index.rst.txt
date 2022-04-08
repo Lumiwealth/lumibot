@@ -1,7 +1,7 @@
 Lumibot: Backtesting and Algorithmic Trading Library
 ===================================
 
-**An Easy to Use and Powerful Open Source Backtesting and Trading Library**
+**An Easy to Use and Powerful Backtesting and Trading Library for Crypto, Stocks, Options, Futures and FOREX**
 
 .. raw:: html
    :file: _html/main.html

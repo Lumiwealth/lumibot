@@ -298,18 +298,18 @@ class _Strategy:
             return self.broker._get_balances_at_broker()[2]
 
         with self._executor.lock:
-            # Used for traditional brokers, for crypto this will likely be 0
+            # Used for traditional brokers, for crypto this could be 0
             portfolio_value = self.cash
 
             positions = self.broker.get_tracked_positions(self._name)
-            assets = [position.asset for position in positions]
+            assets_original = [position.asset for position in positions]
             # Set the base currency for crypto valuations.
-            if (
-                len(assets) > 0
-                and assets[0].asset_type == "crypto"
-                and self.quote_asset is not None
-            ):
-                assets = [(asset, self.quote_asset) for asset in assets]
+
+            assets = []
+            for asset in assets_original:
+                if asset.asset_type == "crypto" and self.quote_asset != asset:
+                    asset = (asset, self.quote_asset)
+                assets.append(asset)
 
             prices = self.data_source.get_last_prices(assets)
 

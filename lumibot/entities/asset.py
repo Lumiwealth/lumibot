@@ -142,7 +142,10 @@ class Asset(BaseModel, frozen=True, extra="forbid"):
 
     @validator("asset_type")
     def asset_type_must_be_one_of(cls, v):
-        if v not in cls._asset_types:
+        # TODO: check if this works!
+        if v == "us_equity":
+            v = "stock"
+        elif v not in cls._asset_types:
             raise ValueError(
                 f"`asset_type` must be one of {', '.join(cls._asset_types)}"
             )

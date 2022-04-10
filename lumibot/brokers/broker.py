@@ -159,10 +159,9 @@ class Broker:
 
     def _process_filled_order(self, order, price, quantity):
         logging.info(
-            "Filled Transaction: %s %d of %s at $%s per share"
-            % (order.side, quantity, order.asset, price)
+            f"Filled Transaction: {order.side} {quantity} of {order.asset.symbol} at {price:,.8f} {'USD'} per share"
         )
-        logging.info("%r was filled" % order)
+        logging.info(f"{order} was filled")
         self._new_orders.remove(order.identifier, key="identifier")
         self._partially_filled_orders.remove(order.identifier, key="identifier")
 
@@ -202,6 +201,7 @@ class Broker:
             self._filled_positions.append(position)
         else:
             position.quantity += quote_quantity
+
     # =========Clock functions=====================
 
     def utc_to_local(self, utc_dt):

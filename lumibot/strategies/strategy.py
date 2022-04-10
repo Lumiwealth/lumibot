@@ -317,7 +317,7 @@ class Strategy(_Strategy):
         --------
         >>> self.log_message('Sending a buy order')
         """
-        message = f"Strategy {self._log_strat_name()}: {message}"
+        message = f"{self._log_strat_name()}: {message}"
         logging.info(message)
 
         return message
@@ -1599,9 +1599,7 @@ class Strategy(_Strategy):
         >>> self.sell_all()
         """
         self.broker.sell_all(
-            self.name,
-            cancel_open_orders=cancel_open_orders,
-            strategy=self
+            self.name, cancel_open_orders=cancel_open_orders, strategy=self
         )
 
     def get_last_price(self, asset, quote=None):

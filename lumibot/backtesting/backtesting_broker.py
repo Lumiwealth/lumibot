@@ -380,7 +380,8 @@ class BacktestingBroker(Broker):
                 volume = ohlc.df.volume[-1]
 
             elif self._data_source.SOURCE == "PANDAS":
-                ohlc = self._data_source._data_store[asset]._get_bars_dict(
+                data = self._data_source._data_store[asset]
+                ohlc = data._get_bars_dict(
                     self.datetime, length=1
                 )
                 if ohlc is None:

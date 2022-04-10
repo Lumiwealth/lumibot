@@ -286,7 +286,16 @@ class Data:
 
     def get_iter_count(self, dt):
         # Return the index location for a given datetime.
-        return self.iter_index[dt]
+
+        # Check if the date is in the dataframe, if not then get the last
+        # known data
+        i = None
+        if dt in self.iter_index:
+            i = self.iter_index[dt]
+        else:
+            i = self.iter_index.loc[self.iter_index.index < dt][-1]
+
+        return i
 
     def check_data(func):
         # Validates if the provided date, length, timeshift, and timestep
@@ -300,12 +309,15 @@ class Data:
                 )
                 return None
 
-            data_index = (
-                self.iter_index[dt]
-                + 1
-                - kwargs.get("length", 1)
-                - kwargs.get("timeshift", 0)
-            )
+            # Check if the date is in the dataframe, if not then get the last
+            # known data
+            i = None
+            if dt in self.iter_index:
+                i = self.iter_index[dt]
+            else:
+                i = self.iter_index.loc[self.iter_index.index < dt][-1]
+
+            data_index = i + 1 - kwargs.get("length", 1) - kwargs.get("timeshift", 0)
             is_data = data_index >= 0
             if not is_data:
                 raise ValueError(

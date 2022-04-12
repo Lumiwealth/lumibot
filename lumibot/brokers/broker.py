@@ -407,6 +407,11 @@ class Broker:
         orders = self.get_tracked_orders(strategy, asset)
         for order in orders:
             quantity += order.get_increment()
+
+        if type(quantity) == Decimal:
+            if quantity.as_tuple().exponent > -4:
+                quantity = float(quantity)# has less than 5 decimal places, use float
+
         return quantity
 
     def _parse_broker_order(self, response, strategy):

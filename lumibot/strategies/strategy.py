@@ -1072,8 +1072,9 @@ class Strategy(_Strategy):
 
         Returns
         -------
-        int
-            The potential total for the asset.
+        int, float or Decimal
+            The potential total for the asset. Decimals are automatically
+            returned as floats if less than 4 decimal points
 
         Example
         -------

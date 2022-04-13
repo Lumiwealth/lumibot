@@ -2368,6 +2368,10 @@ class Strategy(_Strategy):
         >>> bars.df
         """
 
+        logging.info(
+            f"Getting historical prices for {asset}, {length} bars, {timestep}"
+        )
+
         asset = self._set_asset_mapping(asset)
 
         asset = self.crypto_assets_to_tuple(asset, quote)
@@ -2451,6 +2455,11 @@ class Strategy(_Strategy):
 
 
         """
+
+        logging.info(
+            f"Getting historical prices for {assets}, {length} bars, {timestep}"
+        )
+
         assets = [self._set_asset_mapping(asset) for asset in assets]
 
         return self.data_source.get_bars(

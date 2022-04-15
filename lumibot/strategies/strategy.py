@@ -2668,24 +2668,50 @@ class Strategy(_Strategy):
         """
         return self.parameters
 
-    def set_parameter_defaults(self, parameter_defaults):
+    def set_parameters(self, parameters):
         """Set the default parameters of the strategy.
 
         Parameters
         ----------
-        parameter_defaults : dict
-            The parameters to set defaults for.
+        parameters : dict
+            The parameters to set. These new parameters will overwrite
+            the existing parameters (including the default settings).
 
         Returns
         -------
         None
         """
-        if parameter_defaults is None:
+        if parameters is None:
             return None
 
-        for key, value in parameter_defaults.items():
+        for key, value in parameters.items():
+            self.parameters[key] = value
+
+        self.on_parameters_updated(parameters)
+
+        return self.parameters
+
+    def set_parameter_defaults(self, parameters):
+        """Set the default parameters of the strategy.
+
+        Parameters
+        ----------
+        parameters : dict
+            The parameters to set defaults for. This will not overwrite
+            existing parameters if they have already been set.
+
+        Returns
+        -------
+        None
+        """
+        if parameters is None:
+            return None
+
+        for key, value in parameters.items():
             if key not in self.parameters:
                 self.parameters[key] = value
+
+        self.on_parameters_updated(parameters)
 
         return self.parameters
 

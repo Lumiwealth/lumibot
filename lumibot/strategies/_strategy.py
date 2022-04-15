@@ -1,4 +1,5 @@
 import datetime
+import json
 import logging
 from asyncio.log import logger
 from copy import deepcopy
@@ -35,6 +36,7 @@ class _Strategy:
         minutes_before_opening=60,
         sleeptime=1,
         stats_file=None,
+        settings_file=None,
         risk_free_rate=None,
         benchmark_asset="SPY",
         backtesting_start=None,
@@ -535,8 +537,6 @@ class _Strategy:
                 "Cannot plot returns because the benchmark returns are missing"
             )
         else:
-            self._strategy_returns_df.to_csv("df-strategy_returns.csv")
-            self._benchmark_returns_df.to_csv("df-benchmark_returns.csv")
             plot_returns(
                 self._strategy_returns_df,
                 f"{self._log_strat_name()}Strategy",
@@ -591,6 +591,7 @@ class _Strategy:
         benchmark_asset="SPY",
         plot_file_html=None,
         trades_file=None,
+        settings_file=None,
         pandas_data=None,
         quote_asset=Asset(symbol="USD", asset_type="forex"),
         starting_positions=None,
@@ -750,6 +751,11 @@ class _Strategy:
             tearsheet_file = (
                 f"logs/{name + '_' if name != None else ''}{datestring}_tearsheet.html"
             )
+        if settings_file is None:
+            settings_file = (
+                f"logs/{name + '_' if name != None else ''}{datestring}_settings.json"
+            )
+
         if not cls.IS_BACKTESTABLE:
             logging.warning(
                 f"Strategy {name + ' ' if name != None else ''}cannot be "
@@ -803,6 +809,25 @@ class _Strategy:
         logger.info("Starting backtest...")
         start = datetime.datetime.now()
 
+        settings = {
+            "name": name,
+            "backtesting_start": str(backtesting_start),
+            "backtesting_end": str(backtesting_end),
+            "budget": budget,
+            "risk_free_rate": risk_free_rate,
+            "minutes_before_closing": minutes_before_closing,
+            "minutes_before_opening": minutes_before_opening,
+            "sleeptime": sleeptime,
+            "auto_adjust": auto_adjust,
+            "quote_asset": str(quote_asset),
+            "benchmark_asset": str(benchmark_asset),
+            "starting_positions": str(starting_positions),
+            "other": kwargs,
+        }
+
+        with open(settings_file, "w") as outfile:
+            json.dump(settings, outfile)
+
         result = trader.run_all()
 
         end = datetime.datetime.now()
@@ -826,4 +851,4 @@ class _Strategy:
             show_tearsheet=show_tearsheet,
         )
 
-        return result
+        return result[name]

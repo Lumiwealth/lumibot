@@ -110,7 +110,7 @@ class YahooHelper:
         return df
 
     @staticmethod
-    def process_df(df):
+    def process_df(df, asset_info=None):
         df = df.dropna().copy()
 
         if df.index.tzinfo is None:
@@ -166,13 +166,18 @@ class YahooHelper:
         }
 
     @staticmethod
+    def get_symbol_info(symbol):
+        ticker = yf.Ticker(symbol)
+        return ticker.info
+
+    @staticmethod
     def download_symbol_day_data(symbol):
         ticker = yf.Ticker(symbol)
         df = ticker.history(period="max", auto_adjust=False)
 
         # Adjust the time when we are getting daily stock data to the beginning of the day
         # This way the times line up when backtesting daily data
-        info = ticker.info
+        info = YahooHelper.get_symbol_info(symbol)
         if info.get("market") == "us_market":
             df.index = df.index.tz_localize(info.get("exchangeTimezoneName"))
             df.index = df.index.map(lambda t: t.replace(hour=9, minute=30))
@@ -180,7 +185,7 @@ class YahooHelper:
             df.index = df.index.tz_localize(info.get("exchangeTimezoneName"))
             df.index = df.index.map(lambda t: t.replace(hour=23, minute=59))
 
-        df = YahooHelper.process_df(df)
+        df = YahooHelper.process_df(df, asset_info=info)
         return df
 
     @staticmethod

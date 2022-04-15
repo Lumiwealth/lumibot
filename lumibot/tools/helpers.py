@@ -1,9 +1,10 @@
 import os
 import sys
 from datetime import datetime
-import pandas as pd
 
+import pandas as pd
 import pandas_market_calendars as mcal
+from termcolor import colored
 
 from lumibot import LUMIBOT_DEFAULT_PYTZ
 
@@ -82,10 +83,11 @@ def print_progress_bar(
     value,
     start_value,
     end_value,
+    backtesting_started,
     file=sys.stdout,
     length=None,
     prefix="Progress",
-    suffix="Complete",
+    suffix="",
     decimals=2,
     fill=chr(9608),
 ):
@@ -94,16 +96,31 @@ def print_progress_bar(
     percent = min((current_length / total_length) * 100, 100)
     percent_str = ("  {:.%df}" % decimals).format(percent)
     percent_str = percent_str[-decimals - 4 :]
+
+    now = datetime.now()
+    elapsed = now - backtesting_started
+    eta = (elapsed * (100 / percent)) - elapsed
+    eta_str = f"[Elapsed: {str(elapsed).split('.')[0]} ETA: {str(eta).split('.')[0]}]"
+
     if not isinstance(length, int):
         try:
             terminal_length, _ = os.get_terminal_size()
-            length = max(0, terminal_length - len(prefix) - len(suffix) - decimals - 10)
+            length = max(
+                0,
+                terminal_length
+                - len(prefix)
+                - len(suffix)
+                - decimals
+                - len(eta_str)
+                - 12,
+            )
         except:
             length = 0
 
     filled_length = int(length * percent / 100)
     bar = fill * filled_length + "-" * (length - filled_length)
-    line = f"\r{prefix} |{bar}| {percent_str}% {suffix}"
+
+    line = f"\r{prefix} |{colored(bar, 'green')}| {percent_str}% {suffix} {eta_str}"
     file.write(line)
     file.flush()
 

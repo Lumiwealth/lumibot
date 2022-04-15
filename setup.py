@@ -19,7 +19,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="lumibot",
-    version="2.0.3",
+    version="2.0.4",
     author="Robert Grzesik",
     author_email="rob@lumiwealth.com",
     description="Trading Framework",
@@ -50,6 +50,7 @@ setuptools.setup(
         "scipy",
         "quantstats",
         "ccxt",
+        "termcolor",
     ],
     classifiers=[
         "Programming Language :: Python :: 3",

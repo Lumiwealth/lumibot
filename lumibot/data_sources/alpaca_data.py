@@ -102,7 +102,12 @@ class AlpacaData(DataSource):
             else:
                 symbol = asset.symbol
                 barset = api.get_bars(symbol, freq, limit=loop_limit, end=curr_end)
-            df = barset.df  # .tz_convert("utc")
+            df = barset.df
+
+            if df.empty:
+                raise AssertionError(
+                    f"Could not get any pricing data from Alpaca for {symbol}, the DataFrame came back empty"
+                )
 
             if df_ret is None:
                 df_ret = df

@@ -306,9 +306,8 @@ class Data:
             # Check if the iter date is outside of this data's date range.
             if dt < self.datetime_start or dt > self.datetime_end:
                 raise ValueError(
-                    f"The date you are looking for ({dt}) is outside of the data's date range ({self.datetime_start} to {self.datetime_end})."
+                    f"The date you are looking for ({dt}) for ({self.asset}) is outside of the data's date range ({self.datetime_start} to {self.datetime_end})."
                 )
-                return None
 
             # Check if the date is in the dataframe, if not then get the last
             # known data

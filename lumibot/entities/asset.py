@@ -1,5 +1,7 @@
+import json
 from collections import UserDict
 from datetime import date
+from decimal import Decimal
 from typing import Optional
 
 from pydantic import BaseModel, validator
@@ -106,7 +108,7 @@ class Asset(BaseModel, frozen=True, extra="forbid"):
     symbol: str
     asset_type: str = "stock"
     expiration: Optional[date] = None
-    strike: Optional[str] = ""
+    strike: Optional[float] = 0.0
     right: Optional[str] = None
     multiplier: int = 1
     currency: Optional[str] = "USD"

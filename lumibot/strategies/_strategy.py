@@ -5,6 +5,7 @@ from asyncio.log import logger
 from copy import deepcopy
 from decimal import Decimal
 
+import jsonpickle
 import pandas as pd
 
 from lumibot import LUMIBOT_DEFAULT_PYTZ
@@ -599,6 +600,7 @@ class _Strategy:
         tearsheet_file=None,
         save_tearsheet=True,
         show_tearsheet=True,
+        parameters={},
         **kwargs,
     ):
         """Backtest a strategy.
@@ -649,6 +651,8 @@ class _Strategy:
             Whether or not to show the tearsheet.
         save_tearsheet : bool
             Whether or not to save the tearsheet.
+        parameters : dict
+            A dictionary of parameters to pass to the strategy.
 
         Returns
         -------
@@ -800,6 +804,7 @@ class _Strategy:
             starting_positions=starting_positions,
             name=name,
             budget=budget,
+            parameters=parameters,
             **kwargs,
         )
         trader.add_strategy(strategy)
@@ -822,11 +827,12 @@ class _Strategy:
             "quote_asset": str(quote_asset),
             "benchmark_asset": str(benchmark_asset),
             "starting_positions": str(starting_positions),
-            "other": kwargs,
+            "parameters": parameters,
         }
 
         with open(settings_file, "w") as outfile:
-            json.dump(settings, outfile)
+            json = jsonpickle.encode(settings)
+            outfile.write(json)
 
         result = trader.run_all()
 

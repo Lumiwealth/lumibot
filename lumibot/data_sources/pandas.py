@@ -198,9 +198,8 @@ class PandasData(DataSource):
 
         # result = data.tail(length)
 
-        res = data.get_bars(
-            self.get_datetime(), length=length, timestep=timestep, timeshift=timeshift
-        )
+        now = self.get_datetime()
+        res = data.get_bars(now, length=length, timestep=timestep, timeshift=timeshift)
         return res
 
     def _pull_source_bars(self, assets, length, timestep=MIN_TIMESTEP, timeshift=None):

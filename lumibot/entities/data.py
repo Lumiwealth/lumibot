@@ -128,6 +128,7 @@ class Data:
         self.timestep = timestep
         self.df = self.columns(df)
         self.df = self.set_date_format(self.df)
+        self.df = self.df.sort_index()
 
         self.trading_hours_start, self.trading_hours_end = self.set_times(
             trading_hours_start, trading_hours_end
@@ -202,9 +203,9 @@ class Data:
                 )
 
         if not date_start:
-            date_start = self.df.index[0]
+            date_start = self.df.index.min()
         if not date_end:
-            date_end = self.df.index[-1]
+            date_end = self.df.index.max()
 
         date_start = to_datetime_aware(date_start)
         date_end = to_datetime_aware(date_end)

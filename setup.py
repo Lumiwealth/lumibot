@@ -51,6 +51,7 @@ setuptools.setup(
         "quantstats",
         "ccxt",
         "termcolor",
+        "jsonpickle",
     ],
     classifiers=[
         "Programming Language :: Python :: 3",

@@ -159,10 +159,9 @@ class Broker:
 
     def _process_filled_order(self, order, price, quantity):
         logging.info(
-            "Filled Transaction: %s %d of %s at $%s per share"
-            % (order.side, quantity, order.asset, price)
+            f"Filled Transaction: {order.side} {quantity} of {order.asset.symbol} at {price:,.8f} {'USD'} per share"
         )
-        logging.info("%r was filled" % order)
+        logging.info(f"{order} was filled")
         self._new_orders.remove(order.identifier, key="identifier")
         self._partially_filled_orders.remove(order.identifier, key="identifier")
 
@@ -202,6 +201,7 @@ class Broker:
             self._filled_positions.append(position)
         else:
             position.quantity += quote_quantity
+
     # =========Clock functions=====================
 
     def utc_to_local(self, utc_dt):
@@ -407,6 +407,11 @@ class Broker:
         orders = self.get_tracked_orders(strategy, asset)
         for order in orders:
             quantity += order.get_increment()
+
+        if type(quantity) == Decimal:
+            if quantity.as_tuple().exponent > -4:
+                quantity = float(quantity)  # has less than 5 decimal places, use float
+
         return quantity
 
     def _parse_broker_order(self, response, strategy):
@@ -528,6 +533,9 @@ class Broker:
         orders = []
         positions = self.get_tracked_positions(strategy_name)
         for position in positions:
+            if position.quantity == 0:
+                continue
+
             if strategy is not None:
                 if strategy.quote_asset != position.asset:
                     order = position.get_selling_order(quote_asset=strategy.quote_asset)

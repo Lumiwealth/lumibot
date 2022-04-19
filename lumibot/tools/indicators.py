@@ -239,7 +239,7 @@ def plot_returns(
         )
     )
 
-    vshift = 0.005
+    vshift = 0.01
 
     # Buys
     buys = df_final.copy()

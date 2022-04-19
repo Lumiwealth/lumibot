@@ -317,7 +317,7 @@ class Strategy(_Strategy):
         --------
         >>> self.log_message('Sending a buy order')
         """
-        message = f"Strategy {self._log_strat_name()}: {message}"
+        message = f"{self._log_strat_name()}: {message}"
         logging.info(message)
 
         return message
@@ -1072,8 +1072,9 @@ class Strategy(_Strategy):
 
         Returns
         -------
-        int
-            The potential total for the asset.
+        int, float or Decimal
+            The potential total for the asset. Decimals are automatically
+            returned as floats if less than 4 decimal points
 
         Example
         -------
@@ -1599,9 +1600,7 @@ class Strategy(_Strategy):
         >>> self.sell_all()
         """
         self.broker.sell_all(
-            self.name,
-            cancel_open_orders=cancel_open_orders,
-            strategy=self
+            self.name, cancel_open_orders=cancel_open_orders, strategy=self
         )
 
     def get_last_price(self, asset, quote=None):
@@ -2369,6 +2368,10 @@ class Strategy(_Strategy):
         >>> bars.df
         """
 
+        logging.info(
+            f"Getting historical prices for {asset}, {length} bars, {timestep}"
+        )
+
         asset = self._set_asset_mapping(asset)
 
         asset = self.crypto_assets_to_tuple(asset, quote)
@@ -2452,6 +2455,11 @@ class Strategy(_Strategy):
 
 
         """
+
+        logging.info(
+            f"Getting historical prices for {assets}, {length} bars, {timestep}"
+        )
+
         assets = [self._set_asset_mapping(asset) for asset in assets]
 
         return self.data_source.get_bars(
@@ -2660,24 +2668,50 @@ class Strategy(_Strategy):
         """
         return self.parameters
 
-    def set_parameter_defaults(self, parameter_defaults):
+    def set_parameters(self, parameters):
         """Set the default parameters of the strategy.
 
         Parameters
         ----------
-        parameter_defaults : dict
-            The parameters to set defaults for.
+        parameters : dict
+            The parameters to set. These new parameters will overwrite
+            the existing parameters (including the default settings).
 
         Returns
         -------
         None
         """
-        if parameter_defaults is None:
+        if parameters is None:
             return None
 
-        for key, value in parameter_defaults.items():
+        for key, value in parameters.items():
+            self.parameters[key] = value
+
+        self.on_parameters_updated(parameters)
+
+        return self.parameters
+
+    def set_parameter_defaults(self, parameters):
+        """Set the default parameters of the strategy.
+
+        Parameters
+        ----------
+        parameters : dict
+            The parameters to set defaults for. This will not overwrite
+            existing parameters if they have already been set.
+
+        Returns
+        -------
+        None
+        """
+        if parameters is None:
+            return None
+
+        for key, value in parameters.items():
             if key not in self.parameters:
                 self.parameters[key] = value
+
+        self.on_parameters_updated(parameters)
 
         return self.parameters
 

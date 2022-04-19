@@ -1,9 +1,11 @@
 import datetime
+import json
 import logging
 from asyncio.log import logger
 from copy import deepcopy
 from decimal import Decimal
 
+import jsonpickle
 import pandas as pd
 
 from lumibot import LUMIBOT_DEFAULT_PYTZ
@@ -35,6 +37,7 @@ class _Strategy:
         minutes_before_opening=60,
         sleeptime=1,
         stats_file=None,
+        settings_file=None,
         risk_free_rate=None,
         benchmark_asset="SPY",
         backtesting_start=None,
@@ -298,18 +301,18 @@ class _Strategy:
             return self.broker._get_balances_at_broker()[2]
 
         with self._executor.lock:
-            # Used for traditional brokers, for crypto this will likely be 0
+            # Used for traditional brokers, for crypto this could be 0
             portfolio_value = self.cash
 
             positions = self.broker.get_tracked_positions(self._name)
-            assets = [position.asset for position in positions]
+            assets_original = [position.asset for position in positions]
             # Set the base currency for crypto valuations.
-            if (
-                len(assets) > 0
-                and assets[0].asset_type == "crypto"
-                and self.quote_asset is not None
-            ):
-                assets = [(asset, self.quote_asset) for asset in assets]
+
+            assets = []
+            for asset in assets_original:
+                if asset.asset_type == "crypto" and self.quote_asset != asset:
+                    asset = (asset, self.quote_asset)
+                assets.append(asset)
 
             prices = self.data_source.get_last_prices(assets)
 
@@ -535,8 +538,6 @@ class _Strategy:
                 "Cannot plot returns because the benchmark returns are missing"
             )
         else:
-            self._strategy_returns_df.to_csv("df-strategy_returns.csv")
-            self._benchmark_returns_df.to_csv("df-benchmark_returns.csv")
             plot_returns(
                 self._strategy_returns_df,
                 f"{self._log_strat_name()}Strategy",
@@ -591,6 +592,7 @@ class _Strategy:
         benchmark_asset="SPY",
         plot_file_html=None,
         trades_file=None,
+        settings_file=None,
         pandas_data=None,
         quote_asset=Asset(symbol="USD", asset_type="forex"),
         starting_positions=None,
@@ -598,6 +600,7 @@ class _Strategy:
         tearsheet_file=None,
         save_tearsheet=True,
         show_tearsheet=True,
+        parameters={},
         **kwargs,
     ):
         """Backtest a strategy.
@@ -648,6 +651,8 @@ class _Strategy:
             Whether or not to show the tearsheet.
         save_tearsheet : bool
             Whether or not to save the tearsheet.
+        parameters : dict
+            A dictionary of parameters to pass to the strategy.
 
         Returns
         -------
@@ -750,6 +755,11 @@ class _Strategy:
             tearsheet_file = (
                 f"logs/{name + '_' if name != None else ''}{datestring}_tearsheet.html"
             )
+        if settings_file is None:
+            settings_file = (
+                f"logs/{name + '_' if name != None else ''}{datestring}_settings.json"
+            )
+
         if not cls.IS_BACKTESTABLE:
             logging.warning(
                 f"Strategy {name + ' ' if name != None else ''}cannot be "
@@ -794,6 +804,7 @@ class _Strategy:
             starting_positions=starting_positions,
             name=name,
             budget=budget,
+            parameters=parameters,
             **kwargs,
         )
         trader.add_strategy(strategy)
@@ -802,6 +813,26 @@ class _Strategy:
         logger.setLevel(logging.INFO)
         logger.info("Starting backtest...")
         start = datetime.datetime.now()
+
+        settings = {
+            "name": name,
+            "backtesting_start": str(backtesting_start),
+            "backtesting_end": str(backtesting_end),
+            "budget": budget,
+            "risk_free_rate": risk_free_rate,
+            "minutes_before_closing": minutes_before_closing,
+            "minutes_before_opening": minutes_before_opening,
+            "sleeptime": sleeptime,
+            "auto_adjust": auto_adjust,
+            "quote_asset": str(quote_asset),
+            "benchmark_asset": str(benchmark_asset),
+            "starting_positions": str(starting_positions),
+            "parameters": parameters,
+        }
+
+        with open(settings_file, "w") as outfile:
+            json = jsonpickle.encode(settings)
+            outfile.write(json)
 
         result = trader.run_all()
 
@@ -826,4 +857,4 @@ class _Strategy:
             show_tearsheet=show_tearsheet,
         )
 
-        return result
+        return result[name]

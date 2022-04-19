@@ -158,7 +158,7 @@ class DataSource:
 
         return result
 
-    def get_last_price(self, asset, timestep=None):
+    def get_last_price(self, asset, timestep=None, quote=None):
         """Takes an asset and returns the last known price"""
         if timestep is None:
             timestep = self.get_timestep()

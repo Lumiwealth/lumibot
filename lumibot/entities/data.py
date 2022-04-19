@@ -128,6 +128,7 @@ class Data:
         self.timestep = timestep
         self.df = self.columns(df)
         self.df = self.set_date_format(self.df)
+        self.df = self.df.sort_index()
 
         self.trading_hours_start, self.trading_hours_end = self.set_times(
             trading_hours_start, trading_hours_end
@@ -202,9 +203,9 @@ class Data:
                 )
 
         if not date_start:
-            date_start = self.df.index[0]
+            date_start = self.df.index.min()
         if not date_end:
-            date_end = self.df.index[-1]
+            date_end = self.df.index.max()
 
         date_start = to_datetime_aware(date_start)
         date_end = to_datetime_aware(date_end)
@@ -286,7 +287,16 @@ class Data:
 
     def get_iter_count(self, dt):
         # Return the index location for a given datetime.
-        return self.iter_index[dt]
+
+        # Check if the date is in the dataframe, if not then get the last
+        # known data
+        i = None
+        if dt in self.iter_index:
+            i = self.iter_index[dt]
+        else:
+            i = self.iter_index.loc[self.iter_index.index < dt][-1]
+
+        return i
 
     def check_data(func):
         # Validates if the provided date, length, timeshift, and timestep
@@ -296,16 +306,18 @@ class Data:
             # Check if the iter date is outside of this data's date range.
             if dt < self.datetime_start or dt > self.datetime_end:
                 raise ValueError(
-                    f"The date you are looking for ({dt}) is outside of the data's date range ({self.datetime_start} to {self.datetime_end})."
+                    f"The date you are looking for ({dt}) for ({self.asset}) is outside of the data's date range ({self.datetime_start} to {self.datetime_end})."
                 )
-                return None
 
-            data_index = (
-                self.iter_index[dt]
-                + 1
-                - kwargs.get("length", 1)
-                - kwargs.get("timeshift", 0)
-            )
+            # Check if the date is in the dataframe, if not then get the last
+            # known data
+            i = None
+            if dt in self.iter_index:
+                i = self.iter_index[dt]
+            else:
+                i = self.iter_index.loc[self.iter_index.index < dt][-1]
+
+            data_index = i + 1 - kwargs.get("length", 1) - kwargs.get("timeshift", 0)
             is_data = data_index >= 0
             if not is_data:
                 raise ValueError(

@@ -9,11 +9,14 @@ from lumibot.tools import print_progress_bar, to_datetime_aware
 class DataSourceBacktesting(DataSource):
     IS_BACKTESTING_DATA_SOURCE = True
 
-    def __init__(self, datetime_start, datetime_end):
+    def __init__(
+        self, datetime_start, datetime_end, backtesting_started=datetime.now()
+    ):
         self.datetime_start = datetime_start
         self.datetime_end = datetime_end
         self._datetime = datetime_start
         self._iter_count = None
+        self.backtesting_started = backtesting_started
 
     def get_datetime(self):
         return self._datetime
@@ -35,7 +38,12 @@ class DataSourceBacktesting(DataSource):
 
     def _update_datetime(self, new_datetime):
         self._datetime = new_datetime
-        print_progress_bar(new_datetime, self.datetime_start, self.datetime_end)
+        print_progress_bar(
+            new_datetime,
+            self.datetime_start,
+            self.datetime_end,
+            self.backtesting_started,
+        )
 
     def _pull_source_symbol_bars(self, asset, length, timestep=None, timeshift=0):
         if timestep is None:

@@ -645,6 +645,10 @@ class _Strategy:
             An Asset object for the crypto currency that will get used
             as a valuation asset for measuring overall porfolio values.
             Usually USDT, USD, USDC.
+        starting_positions : dict
+            A dictionary of starting positions for each asset. For example,
+            if you want to start with $100 of SPY, and $200 of AAPL, then you
+            would pass in starting_positions={'SPY': 100, 'AAPL': 200}.
         show_plot : bool
             Whether or not to show the plot.
         show_tearsheet : bool
@@ -652,7 +656,8 @@ class _Strategy:
         save_tearsheet : bool
             Whether or not to save the tearsheet.
         parameters : dict
-            A dictionary of parameters to pass to the strategy.
+            A dictionary of parameters to pass to the strategy. These parameters
+            must be set up within the initialize() method.
 
         Returns
         -------
@@ -676,14 +681,12 @@ class _Strategy:
         >>> # Create a backtest
         >>> backtesting_start = datetime(2018, 1, 1)
         >>> backtesting_end = datetime(2018, 1, 31)
-        >>> budget = 10000
+        >>>
         >>> backtest = MyStrategy.backtest(
         >>>     datasource_class=YahooDataBacktesting,
         >>>     backtesting_start=backtesting_start,
         >>>     backtesting_end=backtesting_end,
-        >>>     budget=budget,
-        >>>     name="MyStrategy",
-        >>>     benchmark_asset="QQQ",
+        >>>     benchmark_asset="QQQ", # The benchmark asset to use for the backtest to compare to.
         >>> )
 
 

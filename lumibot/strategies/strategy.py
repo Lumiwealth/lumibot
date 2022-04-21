@@ -120,7 +120,7 @@ class Strategy(_Strategy):
 
         Sleep time is the time the program will pause between executions of on_trading_iteration and trace_stats. This is used to control the speed of the program.
 
-        By default equals 1 minute. You can set the sleep time as an integer which will be interpreted as minutes. eg: sleeptime = 50 would be 50 minutes. Conversely, you can enter the time as a string with the duration numbers first, followed by the time units: ‘M’ for minutes, ‘S’ for seconds eg: ‘300S’ is 300 seconds, ‘10M’ is 10 minutes. Only “S” and “M” are allowed.
+        By default equals 1 minute. You can set the sleep time as an integer which will be interpreted as minutes. eg: sleeptime = 50 would be 50 minutes. Conversely, you can enter the time as a string with the duration numbers first, followed by the time units: ‘M’ for minutes, ‘S’ for seconds eg: ‘"300S"’ is 300 seconds, ‘"10M"’ is 10 minutes.
 
         Parameters
         ----------
@@ -129,7 +129,7 @@ class Strategy(_Strategy):
 
         Returns
         -------
-        sleeptime : int
+        sleeptime : int or str
             Sleep time in minutes or a string with the duration numbers first, followed by the time units: `S` for seconds, `M` for minutes, `H` for hours' or `D` for days.
 
         Example
@@ -1617,8 +1617,8 @@ class Strategy(_Strategy):
 
         Returns
         -------
-        Float
-            Last closed price.
+        Float or Decimal
+            Last closed price as either a float or Decimal object.
 
         Example
         -------
@@ -1660,8 +1660,8 @@ class Strategy(_Strategy):
 
         Returns
         -------
-        list of floats
-            Last known closing prices.
+        list of floats or Decimals
+            Last known closing prices as either a list of floats or Decimal objects.
 
         Example
         -------
@@ -2336,6 +2336,9 @@ class Strategy(_Strategy):
         Returns
         -------
         Bars
+            The bars object with all the historical pricing data. Please check the ``Entities.Bars``
+            object documentation for more details on how to use Bars objects. To get a ``DataFrame``
+            from the Bars object, use ``bars.df``.
 
         Example
         -------
@@ -2345,27 +2348,41 @@ class Strategy(_Strategy):
         >>> # Get the data for SPY for the last 2 days
         >>> bars =  self.get_symbol_bars("SPY", 2, "day")
         >>> # To get the DataFrame of SPY data
-        >>> bars.df
+        >>> df = bars.df
+        >>>
+        >>> # Then, to get the DataFrame of SPY data
+        >>> df = bars.df
+        >>> last_ohlc = df.iloc[-1] # Get the last row of the DataFrame (the most recent pricing data we have)
+        >>> self.log_message(f"Last price of BTC in USD: {last_ohlc['close']}, and the open price was {last_ohlc['open']}")
 
         >>> # Get the data for AAPL for the last 30 minutes
         >>> bars =  self.get_symbol_bars("AAPL", 30, "minute")
-        >>> # To get the DataFrame of AAPL data
-        >>> bars.df
+        >>>
+        >>> # Then, to get the DataFrame of SPY data
+        >>> df = bars.df
+        >>> last_ohlc = df.iloc[-1] # Get the last row of the DataFrame (the most recent pricing data we have)
+        >>> self.log_message(f"Last price of BTC in USD: {last_ohlc['close']}, and the open price was {last_ohlc['open']}")
 
         >>> # Get the historical data for an AAPL option for the last 30 minutes
         >>> asset = self.create_asset("AAPL", asset_type="option", expiration=datetime.datetime(2020, 1, 1), strike=100, right="call")
         >>> bars =  self.get_symbol_bars(asset, 30, "minute")
-        >>> # To get the DataFrame of AAPL data
-        >>> bars.df
+        >>>
+        >>> # Then, to get the DataFrame of SPY data
+        >>> df = bars.df
+        >>> last_ohlc = df.iloc[-1] # Get the last row of the DataFrame (the most recent pricing data we have)
+        >>> self.log_message(f"Last price of BTC in USD: {last_ohlc['close']}, and the open price was {last_ohlc['open']}")
 
 
         >>> # Get the data for BTC in USD  for the last 2 days
         >>> asset_base = self.create(symbol="BTC", asset_type="crypto"),
         >>> asset_quote = self.create(symbol="USDT", asset_type="crypto"),
         >>>
-        >>> bars =  self.get_symbol_bars("SPY", 2, "day")
-        >>> # To get the DataFrame of SPY data
-        >>> bars.df
+        >>> bars =  self.get_symbol_bars(asset_base, 2, "day", quote=asset_quote)
+        >>>
+        >>> # Then, to get the DataFrame of SPY data
+        >>> df = bars.df
+        >>> last_ohlc = df.iloc[-1] # Get the last row of the DataFrame (the most recent pricing data we have)
+        >>> self.log_message(f"Last price of BTC in USD: {last_ohlc['close']}, and the open price was {last_ohlc['open']}")
         """
 
         logging.info(
@@ -2710,8 +2727,6 @@ class Strategy(_Strategy):
         for key, value in parameters.items():
             if key not in self.parameters:
                 self.parameters[key] = value
-
-        self.on_parameters_updated(parameters)
 
         return self.parameters
 

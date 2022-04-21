@@ -1,5 +1,8 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
+from decimal import Decimal
+
+import numpy
 
 from lumibot import LUMIBOT_DEFAULT_PYTZ, LUMIBOT_DEFAULT_TIMEZONE
 from lumibot.entities import Asset, AssetsMapping
@@ -168,7 +171,11 @@ class DataSource:
             return bars
         elif bars is None:
             return None
-        return bars.df.iloc[0].close
+
+        close = bars.df.iloc[0].close
+        if type(close) == numpy.int64:
+            close = Decimal(close.item())
+        return close
 
     def get_last_prices(self, assets, timestep=None):
         """Takes a list of assets and returns the last known prices"""

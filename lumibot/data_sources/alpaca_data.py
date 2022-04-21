@@ -1,3 +1,4 @@
+import logging
 import re
 import time
 from datetime import datetime, timezone
@@ -104,9 +105,10 @@ class AlpacaData(DataSource):
             df = barset.df
 
             if df.empty:
-                raise AssertionError(
+                logging.error(
                     f"Could not get any pricing data from Alpaca for {symbol}, the DataFrame came back empty"
                 )
+                return None
 
             if df_ret is None:
                 df_ret = df

@@ -1,6 +1,6 @@
 import datetime
-import json
 import logging
+import os
 from asyncio.log import logger
 from copy import deepcopy
 from decimal import Decimal
@@ -830,6 +830,7 @@ class _Strategy:
             "parameters": parameters,
         }
 
+        os.makedirs(os.path.dirname(settings_file), exist_ok=True)
         with open(settings_file, "w") as outfile:
             json = jsonpickle.encode(settings)
             outfile.write(json)

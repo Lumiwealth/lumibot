@@ -71,6 +71,10 @@ class Trader:
 
         return self._strategies
 
+    def stop_all(self):
+        logging.info("Stopping all strategies")
+        self._stop_pool()
+
     def _set_logger(self):
         """Setting Logging to both console and a file if logfile is specified"""
         logging.getLogger("urllib3").setLevel(logging.ERROR)
@@ -127,13 +131,13 @@ class Trader:
         for strategy_thread in self._pool:
             strategy_thread.join()
 
-    def _stop_pool(self, sig, frame):
+    def _stop_pool(self, sig=None, frame=None):
         """Run all strategies on_abrupt_closing
         lifecycle method. python signal handlers
         needs two positional arguments, the signal
         and the frame"""
-        logging.debug("Received signal number %d." % sig)
-        logging.debug("Closing Trader in %s frame." % frame)
+        logging.debug(f"Received signal number {sig}.")
+        logging.debug(f"Closing Trader in {frame} frame.")
         for strategy_thread in self._pool:
             strategy_thread.stop()
         logging.info("Trading finished")

@@ -39,14 +39,10 @@ There is also a returns plot. By default this will show in a browser. You may su
     # and the allocated budget
     backtesting_start = datetime(2020, 11, 1)
     backtesting_end = datetime(2020, 12, 31)
-    budget = 100000
 
     # Run the backtest
     MyStrategy.backtest(
         YahooDataBacktesting,
         backtesting_start,
         backtesting_end,
-        show_plot=True,
-        name="My Strategy",
-        budget=budget,
     )

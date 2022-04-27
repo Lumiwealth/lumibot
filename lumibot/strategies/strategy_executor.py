@@ -399,6 +399,56 @@ class StrategyExecutor(Thread):
                 self, position, order, price, quantity, multiplier
             )
 
+    def _strategy_sleep(self):
+        """ Sleep for the strategy's sleep time """
+        
+        is_247 = hasattr(self.broker, "market") and self.broker.market == "24/7"
+
+        # Set the sleeptime to close.
+        if is_247:
+            sleeptime = float("inf")
+        else:
+            time_to_close = self.broker.get_time_to_close()
+            sleeptime = time_to_close - self.strategy.minutes_before_closing * 60
+
+        sleeptime_err_msg = (
+            f"You can set the sleep time as an integer which will be interpreted as "
+            f"minutes. eg: sleeptime = 50 would be 50 minutes. Conversely, you can enter "
+            f"the time as a string with the duration numbers first, followed by the time "
+            f"units: 'M' for minutes, 'S' for seconds eg: '300S' is 300 seconds."
+        )
+        if isinstance(self.strategy.sleeptime, int):
+            units = "M"
+            time = self.strategy.sleeptime
+        elif isinstance(self.strategy.sleeptime, str):
+            units = self.strategy.sleeptime[-1:]
+            time = int(self.strategy.sleeptime[:-1])
+        else:
+            raise ValueError(sleeptime_err_msg)
+
+        if units not in "SMHD":
+            raise ValueError(sleeptime_err_msg)
+
+        if units == "S":
+            strategy_sleeptime = time
+        elif units == "M":
+            strategy_sleeptime = 60 * time
+        elif units == "H":
+            strategy_sleeptime = 60 * 60 * time
+        elif units == "D":
+            strategy_sleeptime = 60 * 60 * 24 * time
+        else:
+            strategy_sleeptime = time
+
+        sleeptime = max(min(sleeptime, strategy_sleeptime), 0)
+        if not self.should_continue or sleeptime == 0:
+            return False
+        else:
+            self.strategy.log_message("Sleeping for %d seconds" % sleeptime)
+            self.safe_sleep(sleeptime)
+
+        return True
+
     # ======Execution methods ====================
     def _run_trading_session(self):
         """This is really intraday trading method. Timeframes of less than a day, seconds,
@@ -448,7 +498,6 @@ class StrategyExecutor(Thread):
             self.strategy.await_market_to_open(timedelta=0)
             self._before_starting_trading()
 
-        if not is_247:
             time_to_close = self.broker.get_time_to_close()
 
         #####
@@ -466,49 +515,10 @@ class StrategyExecutor(Thread):
             if self.broker.IS_BACKTESTING_BROKER:
                 self.broker.process_pending_orders(strategy=self.strategy.name)
             self._on_trading_iteration()
-
-            # Set the sleeptime to close.
-            if is_247:
-                sleeptime = float("inf")
-            else:
-                time_to_close = self.broker.get_time_to_close()
-                sleeptime = time_to_close - self.strategy.minutes_before_closing * 60
-
-            sleeptime_err_msg = (
-                f"You can set the sleep time as an integer which will be interpreted as "
-                f"minutes. eg: sleeptime = 50 would be 50 minutes. Conversely, you can enter "
-                f"the time as a string with the duration numbers first, followed by the time "
-                f"units: 'M' for minutes, 'S' for seconds eg: '300S' is 300 seconds."
-            )
-            if isinstance(self.strategy.sleeptime, int):
-                units = "M"
-                time = self.strategy.sleeptime
-            elif isinstance(self.strategy.sleeptime, str):
-                units = self.strategy.sleeptime[-1:]
-                time = int(self.strategy.sleeptime[:-1])
-            else:
-                raise ValueError(sleeptime_err_msg)
-
-            if units not in "SMHD":
-                raise ValueError(sleeptime_err_msg)
-
-            if units == "S":
-                strategy_sleeptime = time
-            elif units == "M":
-                strategy_sleeptime = 60 * time
-            elif units == "H":
-                strategy_sleeptime = 60 * 60 * time
-            elif units == "D":
-                strategy_sleeptime = 60 * 60 * 24 * time
-            else:
-                strategy_sleeptime = time
-
-            sleeptime = max(min(sleeptime, strategy_sleeptime), 0)
-            if not self.should_continue or sleeptime == 0:
+            
+            # Sleep until the next trading iteration
+            if not self._strategy_sleep():
                 break
-            else:
-                self.strategy.log_message("Sleeping for %d seconds" % sleeptime)
-                self.safe_sleep(sleeptime)
 
         self.strategy.await_market_to_close()
         if self.broker.is_market_open():
@@ -531,11 +541,15 @@ class StrategyExecutor(Thread):
             try:
                 self._run_trading_session()
             except Exception as e:
+                # The bot crashed so log the error, call the on_bot_crash method, and continue
                 logging.error(e)
                 logging.error(traceback.format_exc())
                 self._on_bot_crash(e)
-                self.result = self.strategy._analysis
-                return False
+                
+                # Only stop the strategy if it's time, otherwise keep running the bot
+                if not self._strategy_sleep():
+                    self.result = self.strategy._analysis
+                    return False
 
         try:
             self._on_strategy_end()

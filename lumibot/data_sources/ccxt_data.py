@@ -1,8 +1,9 @@
+import datetime
 import logging
 import time
-import datetime
 
 import ccxt
+
 # from credentials import CcxtConfig
 import pandas as pd
 
@@ -35,12 +36,19 @@ class CcxtData(DataSource):
         # be to split it into chunks and request data for each chunk
         self.chunk_size = min(chunk_size, 100)
 
-        exchange_class = getattr(
-            ccxt, api_keys["exchange_id"]
-        )
+        try:
+            exchange_class = getattr(ccxt, api_keys["exchange_id"])
+        except:
+            raise Exception(
+                "Could not find exchange named '{}'. Are you sure you are spelling the exchange_id correctly?".format(
+                    api_keys["exchange_id"]
+                )
+            )
 
         self.api = exchange_class(api_keys)
-        self.api.set_sandbox_mode(True if 'sandbox' not in api_keys else api_keys['sandbox'])
+        self.api.set_sandbox_mode(
+            True if "sandbox" not in api_keys else api_keys["sandbox"]
+        )
         self.api.load_markets()
         # Recommended two or less api calls per second.
         self.api.enableRateLimit = True
@@ -73,7 +81,6 @@ class CcxtData(DataSource):
 
         return result
 
-
     def get_barset_from_api(self, api, symbol, freq, limit=None, end=None):
         """
         gets historical bar data for the given stock symbol
@@ -102,9 +109,9 @@ class CcxtData(DataSource):
         endunix = self.api.parse8601(end.strftime("%Y-%m-%d %H:%M:%S"))
         buffer = 10  # A few extra datapoints in the download then trim the df.
         if freq == "1m":
-            start = end - datetime.timedelta(minutes=limit+buffer)
+            start = end - datetime.timedelta(minutes=limit + buffer)
         else:
-            start = end - datetime.timedelta(days=limit+buffer)
+            start = end - datetime.timedelta(days=limit + buffer)
         df_ret = None
         curr_start = self.api.parse8601(start.strftime("%Y-%m-%d %H:%M:%S"))
         cnt = 0
@@ -132,8 +139,9 @@ class CcxtData(DataSource):
 
             df_ret = df_ret.sort_index()
 
-
-            last_curr_end = self.api.parse8601(df.index[-1].strftime("%Y-%m-%d %H:%M:%S"))
+            last_curr_end = self.api.parse8601(
+                df.index[-1].strftime("%Y-%m-%d %H:%M:%S")
+            )
             if len(df_ret) >= limit:
                 break
             elif last_curr_end > endunix:
@@ -141,19 +149,17 @@ class CcxtData(DataSource):
 
             curr_start = last_curr_end
             if cnt % 10 == 0:
-                time.sleep(.5)
+                time.sleep(0.5)
 
             # Catch if endless loop.
             if cnt > 500:
                 break
-
 
         df_ret = df_ret[~df_ret.index.duplicated(keep="first")]
         df_ret = df_ret.loc[:end]
         df_ret = df_ret.iloc[-limit:]
 
         return df_ret
-
 
     def _parse_source_symbol_bars(self, response, asset):
         # Parse the dataframe returned from CCXT.

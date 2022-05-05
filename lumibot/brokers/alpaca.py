@@ -197,7 +197,7 @@ class Alpaca(AlpacaData, Broker):
 
     # =========Positions functions==================
 
-    def _get_balances_at_broker(self):
+    def _get_balances_at_broker(self, quote_asset):
         """Get's the current actual cash, positions value, and total
         liquidation value from Alpaca.
 

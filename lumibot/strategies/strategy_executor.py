@@ -1,3 +1,4 @@
+import inspect
 import logging
 import time
 import traceback
@@ -83,7 +84,9 @@ class StrategyExecutor(Thread):
             cash_broker_retries = 0
             while held_trades_len > 0:
                 # Snapshot for the broker and lumibot:
-                cash_broker = self.broker._get_balances_at_broker()
+                cash_broker = self.broker._get_balances_at_broker(
+                    self.strategy.quote_asset
+                )
                 if (
                     cash_broker is None
                     and cash_broker_retries < cash_broker_max_retries
@@ -306,7 +309,15 @@ class StrategyExecutor(Thread):
     @lifecycle_method
     def _initialize(self):
         self.strategy.log_message("Executing the initialize lifecycle method")
-        self.strategy.initialize(**self.strategy.parameters)
+
+        # Do this for backwards compatibility.
+        initialize_argspecs = inspect.getfullargspec(self.strategy.initialize)
+        args = initialize_argspecs.args
+        safe_params_to_pass = {}
+        for arg in args:
+            if arg in self.strategy.parameters and arg != "self":
+                safe_params_to_pass[arg] = self.strategy.parameters[arg]
+        self.strategy.initialize(**safe_params_to_pass)
 
     @lifecycle_method
     def _before_market_opens(self):
@@ -401,15 +412,17 @@ class StrategyExecutor(Thread):
 
     def _strategy_sleep(self):
         """ Sleep for the strategy's sleep time """
-        
+
         is_247 = hasattr(self.broker, "market") and self.broker.market == "24/7"
 
         # Set the sleeptime to close.
         if is_247:
-            sleeptime = float("inf")
+            time_to_before_closing = float("inf")
         else:
             time_to_close = self.broker.get_time_to_close()
-            sleeptime = time_to_close - self.strategy.minutes_before_closing * 60
+            time_to_before_closing = (
+                time_to_close - self.strategy.minutes_before_closing * 60
+            )
 
         sleeptime_err_msg = (
             f"You can set the sleep time as an integer which will be interpreted as "
@@ -440,12 +453,15 @@ class StrategyExecutor(Thread):
         else:
             strategy_sleeptime = time
 
-        sleeptime = max(min(sleeptime, strategy_sleeptime), 0)
-        if not self.should_continue or sleeptime == 0:
+        if (
+            not self.should_continue
+            or strategy_sleeptime == 0
+            or time_to_before_closing <= 0
+        ):
             return False
         else:
-            self.strategy.log_message("Sleeping for %d seconds" % sleeptime)
-            self.safe_sleep(sleeptime)
+            self.strategy.log_message(f"Sleeping for {strategy_sleeptime} seconds")
+            self.safe_sleep(strategy_sleeptime)
 
         return True
 
@@ -515,7 +531,7 @@ class StrategyExecutor(Thread):
             if self.broker.IS_BACKTESTING_BROKER:
                 self.broker.process_pending_orders(strategy=self.strategy.name)
             self._on_trading_iteration()
-            
+
             # Sleep until the next trading iteration
             if not self._strategy_sleep():
                 break
@@ -545,7 +561,7 @@ class StrategyExecutor(Thread):
                 logging.error(e)
                 logging.error(traceback.format_exc())
                 self._on_bot_crash(e)
-                
+
                 # Only stop the strategy if it's time, otherwise keep running the bot
                 if not self._strategy_sleep():
                     self.result = self.strategy._analysis

@@ -61,9 +61,11 @@ class DataSourceBacktesting(DataSource):
                 backtesting_timeshift += timedelta(minutes=1)
         elif self.LIVE_DATA_SOURCE.SOURCE == "PANDAS":
             backtesting_timeshift = timeshift
+        elif self.LIVE_DATA_SOURCE.SOURCE == "ALPHA_VANTAGE":
+            backtesting_timeshift = timeshift
         else:
             raise ValueError(
-                f"An incorrect backtester values was received. Received"
+                f"An incorrect data source type was received. Received"
                 f" {self.LIVE_DATA_SOURCE.SOURCE}"
             )
         result = self.LIVE_DATA_SOURCE._pull_source_symbol_bars(

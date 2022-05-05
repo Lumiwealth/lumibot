@@ -308,7 +308,7 @@ class Broker:
 
     # =========Positions functions==================
 
-    def _get_balances_at_broker(self):
+    def _get_balances_at_broker(self, quote_asset):
         """Get the actual cash balance at the broker."""
         pass
 

@@ -1,10 +1,11 @@
 import logging
 import re
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import alpaca_trade_api as tradeapi
 import pandas as pd
+import pandas_market_calendars as mcal
 from alpaca_trade_api.common import URL
 from alpaca_trade_api.entity import Bar
 from alpaca_trade_api.rest import TimeFrame, TimeFrameUnit
@@ -87,7 +88,17 @@ class AlpacaData(DataSource):
 
         df_ret = None
 
-        curr_end = end.isoformat() if not isinstance(end, str) else end
+        if str(freq) == '1Min':
+
+            limit = limit+1
+            start = end - timedelta(minutes=limit)
+            curr_start = start.isoformat(timespec='seconds')
+            curr_end = end.isoformat(timespec='seconds')
+        else:  # if str(freq) == '1Day':
+            start = end - timedelta(days=limit)
+            curr_start = start.isoformat(timespec='seconds')
+            curr_end = end.isoformat(timespec='seconds')
+
         cnt = 0
         last_curr_end = None
         loop_limit = 1000 if limit > 1000 else limit
@@ -102,7 +113,14 @@ class AlpacaData(DataSource):
                 )
             else:
                 symbol = asset.symbol
-                barset = api.get_bars(symbol, freq, limit=loop_limit, end=curr_end)
+
+                if str(freq) == '1Min':
+                    barset = api.get_bars(
+                        symbol, freq, limit=loop_limit, start=curr_start, end=curr_end)
+                elif str(freq) == '1Day':
+                    barset = api.get_bars(
+                        symbol, freq, limit=loop_limit, start=curr_start,  end=curr_end)
+
             df = barset.df
 
             if df.empty:
@@ -155,7 +173,8 @@ class AlpacaData(DataSource):
 
         result = {}
         for asset in assets:
-            data = self.get_barset_from_api(self.api, asset, parsed_timestep, **kwargs)
+            data = self.get_barset_from_api(
+                self.api, asset, parsed_timestep, **kwargs)
             result[asset] = data
 
         return result

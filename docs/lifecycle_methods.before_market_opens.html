@@ -341,9 +341,9 @@ self.minutes_before_opening minutes before opening.</p>
 <p class="rubric">Example</p>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Get the data for SPY and TLT for the last 2 days</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="k">def</span> <span class="nf">before_market_opens</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<span class="gp">&gt;&gt;&gt; </span>    <span class="n">bars</span> <span class="o">=</span>  <span class="bp">self</span><span class="o">.</span><span class="n">get_bars</span><span class="p">([</span><span class="s2">"SPY"</span><span class="p">,</span> <span class="s2">"TLT"</span><span class="p">],</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">"day"</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span>    <span class="k">for</span> <span class="n">asset</span> <span class="ow">in</span> <span class="n">bars</span><span class="p">:</span>
-<span class="gp">&gt;&gt;&gt; </span>        <span class="bp">self</span><span class="o">.</span><span class="n">log_message</span><span class="p">(</span><span class="n">asset</span><span class="o">.</span><span class="n">df</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">bars_list</span> <span class="o">=</span>  <span class="bp">self</span><span class="o">.</span><span class="n">get_historical_prices_for_assets</span><span class="p">([</span><span class="s2">"SPY"</span><span class="p">,</span> <span class="s2">"TLT"</span><span class="p">],</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">"day"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="k">for</span> <span class="n">asset_bars</span> <span class="ow">in</span> <span class="n">bars_list</span><span class="p">:</span>
+<span class="gp">&gt;&gt;&gt; </span>        <span class="bp">self</span><span class="o">.</span><span class="n">log_message</span><span class="p">(</span><span class="n">asset_bars</span><span class="o">.</span><span class="n">df</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>&gt;</p>

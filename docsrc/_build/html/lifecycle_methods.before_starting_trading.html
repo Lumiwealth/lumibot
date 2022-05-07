@@ -338,7 +338,7 @@ for daily resetting variables</p>
 <p class="rubric">Example</p>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Get pricing data for the last day</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="k">def</span> <span class="nf">before_starting_trading</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<span class="gp">&gt;&gt;&gt; </span>    <span class="bp">self</span><span class="o">.</span><span class="n">get_bars</span><span class="p">(</span><span class="s2">"SPY"</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">"day"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="bp">self</span><span class="o">.</span><span class="n">get_historical_prices</span><span class="p">(</span><span class="s2">"SPY"</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">"day"</span><span class="p">)</span>
 </pre></div>
 </div>
 </dd></dl>

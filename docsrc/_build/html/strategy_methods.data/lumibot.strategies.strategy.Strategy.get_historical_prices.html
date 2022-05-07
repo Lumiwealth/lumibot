@@ -334,7 +334,9 @@ number of bars.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns</dt>
-<dd class="field-even"><p></p>
+<dd class="field-even"><p>The bars object with all the historical pricing data. Please check the <code class="docutils literal notranslate"><span class="pre">Entities.Bars</span></code>
+object documentation for more details on how to use Bars objects. To get a <code class="docutils literal notranslate"><span class="pre">DataFrame</span></code>
+from the Bars object, use <code class="docutils literal notranslate"><span class="pre">bars.df</span></code>.</p>
 </dd>
 <dt class="field-odd">Return type</dt>
 <dd class="field-odd"><p><a class="reference internal" href="../entities.bars.html#entities.bars.Bars" title="entities.bars.Bars">Bars</a></p>
@@ -346,29 +348,43 @@ with the latest data being 24h ago (timedelta(days=1)) (in a backtest)</p>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Get the data for SPY for the last 2 days</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">bars</span> <span class="o">=</span>  <span class="bp">self</span><span class="o">.</span><span class="n">get_symbol_bars</span><span class="p">(</span><span class="s2">"SPY"</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">"day"</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># To get the DataFrame of SPY data</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">bars</span><span class="o">.</span><span class="n">df</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">df</span> <span class="o">=</span> <span class="n">bars</span><span class="o">.</span><span class="n">df</span>
+<span class="go">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># Then, to get the DataFrame of SPY data</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">df</span> <span class="o">=</span> <span class="n">bars</span><span class="o">.</span><span class="n">df</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">last_ohlc</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="c1"># Get the last row of the DataFrame (the most recent pricing data we have)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">log_message</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Last price of BTC in USD: </span><span class="si">{</span><span class="n">last_ohlc</span><span class="p">[</span><span class="s1">'close'</span><span class="p">]</span><span class="si">}</span><span class="s2">, and the open price was </span><span class="si">{</span><span class="n">last_ohlc</span><span class="p">[</span><span class="s1">'open'</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 </pre></div>
 </div>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Get the data for AAPL for the last 30 minutes</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">bars</span> <span class="o">=</span>  <span class="bp">self</span><span class="o">.</span><span class="n">get_symbol_bars</span><span class="p">(</span><span class="s2">"AAPL"</span><span class="p">,</span> <span class="mi">30</span><span class="p">,</span> <span class="s2">"minute"</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="c1"># To get the DataFrame of AAPL data</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">bars</span><span class="o">.</span><span class="n">df</span>
+<span class="go">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># Then, to get the DataFrame of SPY data</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">df</span> <span class="o">=</span> <span class="n">bars</span><span class="o">.</span><span class="n">df</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">last_ohlc</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="c1"># Get the last row of the DataFrame (the most recent pricing data we have)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">log_message</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Last price of BTC in USD: </span><span class="si">{</span><span class="n">last_ohlc</span><span class="p">[</span><span class="s1">'close'</span><span class="p">]</span><span class="si">}</span><span class="s2">, and the open price was </span><span class="si">{</span><span class="n">last_ohlc</span><span class="p">[</span><span class="s1">'open'</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 </pre></div>
 </div>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Get the historical data for an AAPL option for the last 30 minutes</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">asset</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_asset</span><span class="p">(</span><span class="s2">"AAPL"</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s2">"option"</span><span class="p">,</span> <span class="n">expiration</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">(</span><span class="mi">2020</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">strike</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">right</span><span class="o">=</span><span class="s2">"call"</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">bars</span> <span class="o">=</span>  <span class="bp">self</span><span class="o">.</span><span class="n">get_symbol_bars</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="mi">30</span><span class="p">,</span> <span class="s2">"minute"</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="c1"># To get the DataFrame of AAPL data</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">bars</span><span class="o">.</span><span class="n">df</span>
+<span class="go">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># Then, to get the DataFrame of SPY data</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">df</span> <span class="o">=</span> <span class="n">bars</span><span class="o">.</span><span class="n">df</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">last_ohlc</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="c1"># Get the last row of the DataFrame (the most recent pricing data we have)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">log_message</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Last price of BTC in USD: </span><span class="si">{</span><span class="n">last_ohlc</span><span class="p">[</span><span class="s1">'close'</span><span class="p">]</span><span class="si">}</span><span class="s2">, and the open price was </span><span class="si">{</span><span class="n">last_ohlc</span><span class="p">[</span><span class="s1">'open'</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 </pre></div>
 </div>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Get the data for BTC in USD  for the last 2 days</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">asset_base</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">symbol</span><span class="o">=</span><span class="s2">"BTC"</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s2">"crypto"</span><span class="p">),</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">asset_quote</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">symbol</span><span class="o">=</span><span class="s2">"USDT"</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s2">"crypto"</span><span class="p">),</span>
 <span class="go">&gt;&gt;&gt;</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">bars</span> <span class="o">=</span>  <span class="bp">self</span><span class="o">.</span><span class="n">get_symbol_bars</span><span class="p">(</span><span class="s2">"SPY"</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">"day"</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="c1"># To get the DataFrame of SPY data</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">bars</span><span class="o">.</span><span class="n">df</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">bars</span> <span class="o">=</span>  <span class="bp">self</span><span class="o">.</span><span class="n">get_symbol_bars</span><span class="p">(</span><span class="n">asset_base</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">"day"</span><span class="p">,</span> <span class="n">quote</span><span class="o">=</span><span class="n">asset_quote</span><span class="p">)</span>
+<span class="go">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># Then, to get the DataFrame of SPY data</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">df</span> <span class="o">=</span> <span class="n">bars</span><span class="o">.</span><span class="n">df</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">last_ohlc</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="c1"># Get the last row of the DataFrame (the most recent pricing data we have)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">log_message</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Last price of BTC in USD: </span><span class="si">{</span><span class="n">last_ohlc</span><span class="p">[</span><span class="s1">'close'</span><span class="p">]</span><span class="si">}</span><span class="s2">, and the open price was </span><span class="si">{</span><span class="n">last_ohlc</span><span class="p">[</span><span class="s1">'open'</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 </pre></div>
 </div>
 </dd></dl>

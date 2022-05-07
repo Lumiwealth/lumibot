@@ -319,10 +319,11 @@
 <dd class="field-odd"><p><strong>asset</strong> (<a class="reference internal" href="../entities.asset.html#entities.asset.Asset" title="entities.asset.Asset"><em>Asset</em></a>) – Asset object who’s potential total is sought.</p>
 </dd>
 <dt class="field-even">Returns</dt>
-<dd class="field-even"><p>The potential total for the asset.</p>
+<dd class="field-even"><p>The potential total for the asset. Decimals are automatically
+returned as floats if less than 4 decimal points</p>
 </dd>
 <dt class="field-odd">Return type</dt>
-<dd class="field-odd"><p>int</p>
+<dd class="field-odd"><p>int, float or Decimal</p>
 </dd>
 </dl>
 <p class="rubric">Example</p>

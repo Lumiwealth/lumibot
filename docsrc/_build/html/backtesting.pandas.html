@@ -479,8 +479,7 @@
         <span class="n">backtesting_start</span><span class="p">,</span>
         <span class="n">backtesting_end</span><span class="p">,</span>
         <span class="n">pandas_data</span><span class="o">=</span><span class="n">pandas_data</span><span class="p">,</span>
-        <span class="n">name</span><span class="o">=</span><span class="s2">"My Strategy"</span><span class="p">,</span>
-        <span class="n">budget</span><span class="o">=</span><span class="n">budget</span><span class="p">,</span>
+        <span class="n">budget</span><span class="o">=</span><span class="mi">100000</span><span class="p">,</span>
     <span class="p">)</span>
 </pre></div>
 </div>
@@ -499,11 +498,6 @@
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">first_iteration</span><span class="p">:</span>
             <span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="s2">"AAPL"</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="s2">"buy"</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
-
-
-<span class="c1"># Set your strategy name and budget</span>
-<span class="n">strategy_name</span> <span class="o">=</span> <span class="s2">"My Cool Strategy"</span>
-<span class="n">budget</span> <span class="o">=</span> <span class="mi">50000</span>
 
 <span class="c1"># Read the data from the CSV file (in this example you must have a file named "AAPL.csv"</span>
 <span class="c1"># in a folder named "data" in the same directory as this script)</span>
@@ -531,8 +525,6 @@
     <span class="n">backtesting_start</span><span class="p">,</span>
     <span class="n">backtesting_end</span><span class="p">,</span>
     <span class="n">pandas_data</span><span class="o">=</span><span class="n">pandas_data</span><span class="p">,</span>
-    <span class="n">name</span><span class="o">=</span><span class="n">strategy_name</span><span class="p">,</span>
-    <span class="n">budget</span><span class="o">=</span><span class="n">budget</span><span class="p">,</span>
 <span class="p">)</span>
 </pre></div>
 </div>

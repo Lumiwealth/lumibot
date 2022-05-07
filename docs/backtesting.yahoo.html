@@ -339,16 +339,12 @@
 <span class="c1"># and the allocated budget</span>
 <span class="n">backtesting_start</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">2020</span><span class="p">,</span> <span class="mi">11</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
 <span class="n">backtesting_end</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">2020</span><span class="p">,</span> <span class="mi">12</span><span class="p">,</span> <span class="mi">31</span><span class="p">)</span>
-<span class="n">budget</span> <span class="o">=</span> <span class="mi">100000</span>
 
 <span class="c1"># Run the backtest</span>
 <span class="n">MyStrategy</span><span class="o">.</span><span class="n">backtest</span><span class="p">(</span>
     <span class="n">YahooDataBacktesting</span><span class="p">,</span>
     <span class="n">backtesting_start</span><span class="p">,</span>
     <span class="n">backtesting_end</span><span class="p">,</span>
-    <span class="n">show_plot</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-    <span class="n">name</span><span class="o">=</span><span class="s2">"My Strategy"</span><span class="p">,</span>
-    <span class="n">budget</span><span class="o">=</span><span class="n">budget</span><span class="p">,</span>
 <span class="p">)</span>
 </pre></div>
 </div>

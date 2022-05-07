@@ -1,7 +1,7 @@
 import logging
 import re
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import alpaca_trade_api as tradeapi
 import pandas as pd
@@ -71,7 +71,7 @@ class AlpacaData(DataSource):
         )
         return response[asset]
 
-    def get_barset_from_api(self, api, asset, freq, limit=None, end=None):
+    def get_barset_from_api(self, api, asset, freq, limit=None, end=None, start=None):
         """
         gets historical bar data for the given stock symbol
         and time params.
@@ -88,6 +88,16 @@ class AlpacaData(DataSource):
         df_ret = None
 
         curr_end = end.isoformat() if not isinstance(end, str) else end
+
+        if start is None:
+            if str(freq) == "1Min":
+                limit += 1
+                start = end - timedelta(minutes=limit)
+            elif str(freq) == "1Day":
+                start = end - timedelta(days=limit)
+
+        curr_start = start.isoformat(timespec="seconds")
+
         cnt = 0
         last_curr_end = None
         loop_limit = 1000 if limit > 1000 else limit
@@ -98,11 +108,15 @@ class AlpacaData(DataSource):
             if isinstance(asset, tuple):
                 symbol = f"{asset[0].symbol}{asset[1].symbol}"
                 barset = api.get_crypto_bars(
-                    symbol, freq, limit=loop_limit, end=curr_end
+                    symbol, freq, limit=loop_limit, end=curr_end, start=curr_start
                 )
+                # todo: delete this line, only for testing
+                x = barset.df
             else:
                 symbol = asset.symbol
-                barset = api.get_bars(symbol, freq, limit=loop_limit, end=curr_end)
+                barset = api.get_bars(
+                    symbol, freq, limit=loop_limit, end=curr_end, start=curr_start
+                )
             df = barset.df
 
             if df.empty:

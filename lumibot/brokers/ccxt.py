@@ -142,6 +142,7 @@ class Ccxt(CcxtData, Broker):
 
             if currency == quote_asset.symbol:
                 total_cash_value = Decimal(currency_info["balance"])
+                continue
 
             # Check for three USD markets.
             market = f"{currency}/{quote_asset.symbol}"
@@ -241,12 +242,16 @@ class Ccxt(CcxtData, Broker):
 
         if self.api.exchangeId == "binance":
             return response["info"]["balances"]
-        elif self.api.exchangeId == "coinbase_pro":
+        elif self.api.exchangeId == "coinbasepro":
             return response["info"]
         elif self.api.exchangeId == "kucoin":
             return response["info"]["data"]
         else:
-            raise NotImplementedError(f"{self.api.exchangeId} not implemented yet.")
+            raise NotImplementedError(
+                f"{self.api.exchangeId} not implemented yet. \
+                                      If you think this is incorrect, then please check \
+                                      the exact spelling of the exchangeId."
+            )
 
     # =======Orders and assets functions=========
     def _parse_broker_order(self, response, strategy):
@@ -268,6 +273,7 @@ class Ccxt(CcxtData, Broker):
                 symbol=pair[1],
                 asset_type="crypto",
             ),
+            type=response["type"] if "type" in response else None,
         )
         order.set_identifier(response["id"])
         order.update_status(response["status"])
@@ -610,7 +616,7 @@ class Ccxt(CcxtData, Broker):
                 str(order.quantity),
             ]
             if order.type in ["limit", "stop_limit"]:
-                args.append(order.limit_price)
+                args.append(str(order.limit_price))
 
             if len(params) > 0:
                 args.append(params)
@@ -622,7 +628,7 @@ class Ccxt(CcxtData, Broker):
             if order.type in ["stop_limit"]:
                 params = {
                     "stop": "entry" if order.side == "buy" else "loss",
-                    "stop_price": order.stop_price,
+                    "stop_price": str(order.stop_price),
                 }
 
                 # Remove items with None values
@@ -642,7 +648,7 @@ class Ccxt(CcxtData, Broker):
                 str(order.quantity),  # check this with coinbase.
             ]
             if order_type_map[order.type] == "limit":
-                args.append(order.limit_price)
+                args.append(str(order.limit_price))
 
             if len(params) > 0:
                 args.append(params)
@@ -654,7 +660,7 @@ class Ccxt(CcxtData, Broker):
             if order.type in ["stop_limit"]:
                 params = {
                     "stop": "entry" if order.side == "buy" else "loss",
-                    "stop_price": order.stop_price,
+                    "stop_price": str(order.stop_price),
                 }
 
                 # Remove items with None values
@@ -674,7 +680,7 @@ class Ccxt(CcxtData, Broker):
                 str(order.quantity),  # check this with coinbase.
             ]
             if order_type_map[order.type] == "limit":
-                args.append(order.limit_price)
+                args.append(str(order.limit_price))
 
             if len(params) > 0:
                 args.append(params)

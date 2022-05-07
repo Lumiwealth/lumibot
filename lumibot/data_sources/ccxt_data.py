@@ -139,10 +139,16 @@ class CcxtData(DataSource):
 
             df_ret = df_ret.sort_index()
 
-            last_curr_end = self.api.parse8601(
-                df.index[-1].strftime("%Y-%m-%d %H:%M:%S")
-            )
+            if len(df) > 0:
+                last_curr_end = self.api.parse8601(
+                    df.index[-1].strftime("%Y-%m-%d %H:%M:%S")
+                )
+            else:
+                last_curr_end = None
+
             if len(df_ret) >= limit:
+                break
+            elif last_curr_end is None:
                 break
             elif last_curr_end > endunix:
                 break

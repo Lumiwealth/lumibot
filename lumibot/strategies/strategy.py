@@ -998,7 +998,7 @@ class Strategy(_Strategy):
         >>> self.log_message(order.status)
         """
         order = self.broker.get_tracked_order(identifier)
-        if order.strategy == self.name:
+        if order is not None and order.strategy == self.name:
             return order
         return None
 
@@ -1628,9 +1628,15 @@ class Strategy(_Strategy):
         >>> self.log_message(f"Last price for {asset} is {last_price}")
 
         >>> # Will return the last price for a crypto asset
-        >>> base = Asset("BTC")
-        >>> quote = Asset("USDT")
-        >>> last_price = self.get_last_price(base, quote)
+        >>> base = Asset(symbol="BTC", asset_type="crypto")
+        >>> quote = Asset(symbol="USDT", asset_type="crypto")
+        >>> last_price = self.get_last_price(base, quote=quote)
+        >>> self.log_message(f"Last price for BTC/USDT is {last_price}")
+
+        >>> # Will return the last price for a crypto asset
+        >>> base = Asset(symbol="BTC", asset_type="crypto")
+        >>> quote = Asset(symbol="USD", asset_type="forex")
+        >>> last_price = self.get_last_price(base, quote=quote)
         >>> self.log_message(f"Last price for BTC/USDT is {last_price}")
         """
         asset = self._set_asset_mapping(asset)
@@ -2332,6 +2338,7 @@ class Strategy(_Strategy):
             number of bars.
         quote : Asset
             The quote currency for crypto currencies (eg. USD, USDT, EUR, ...).
+            Default is the quote asset for the strategy.
 
         Returns
         -------
@@ -2384,6 +2391,9 @@ class Strategy(_Strategy):
         >>> last_ohlc = df.iloc[-1] # Get the last row of the DataFrame (the most recent pricing data we have)
         >>> self.log_message(f"Last price of BTC in USD: {last_ohlc['close']}, and the open price was {last_ohlc['open']}")
         """
+
+        if quote is None:
+            quote = self.quote_asset
 
         logging.info(
             f"Getting historical prices for {asset}, {length} bars, {timestep}"
@@ -2461,12 +2471,12 @@ class Strategy(_Strategy):
         -------
 
         >>> # Get the data for SPY and TLT for the last 2 days
-        >>> bars =  self.get_bars(["SPY", "TLT"], 2, "day")
+        >>> bars =  self.get_historical_prices_for_assets(["SPY", "TLT"], 2, "day")
         >>> for asset in bars:
         >>>     self.log_message(asset.df)
 
         >>> # Get the data for AAPL and GOOG for the last 30 minutes
-        >>> bars =  self.get_bars(["AAPL", "GOOG"], 30, "minute")
+        >>> bars =  self.get_historical_prices_for_assets(["AAPL", "GOOG"], 30, "minute")
         >>> for asset in bars:
         >>>     self.log_message(asset.df)
 
@@ -2794,9 +2804,9 @@ class Strategy(_Strategy):
         -------
         >>> # Get the data for SPY and TLT for the last 2 days
         >>> def before_market_opens(self):
-        >>>     bars =  self.get_bars(["SPY", "TLT"], 2, "day")
-        >>>     for asset in bars:
-        >>>         self.log_message(asset.df)
+        >>>     bars_list =  self.get_historical_prices_for_assets(["SPY", "TLT"], 2, "day")
+        >>>     for asset_bars in bars_list:
+        >>>         self.log_message(asset_bars.df)
 
         >
         """
@@ -2819,7 +2829,7 @@ class Strategy(_Strategy):
         -------
         >>> # Get pricing data for the last day
         >>> def before_starting_trading(self):
-        >>>     self.get_bars("SPY", 1, "day")
+        >>>     self.get_historical_prices("SPY", 1, "day")
 
 
         """

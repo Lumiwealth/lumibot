@@ -315,7 +315,7 @@
 <em class="property"><span class="pre">property</span> </em><span class="sig-prename descclassname"><span class="pre">Strategy.</span></span><span class="sig-name descname"><span class="pre">sleeptime</span></span><a class="headerlink" href="#strategies.strategy.Strategy.sleeptime" title="Permalink to this definition">¶</a></dt>
 <dd><p>Get or set the current sleep time for the strategy.</p>
 <p>Sleep time is the time the program will pause between executions of on_trading_iteration and trace_stats. This is used to control the speed of the program.</p>
-<p>By default equals 1 minute. You can set the sleep time as an integer which will be interpreted as minutes. eg: sleeptime = 50 would be 50 minutes. Conversely, you can enter the time as a string with the duration numbers first, followed by the time units: ‘M’ for minutes, ‘S’ for seconds eg: ‘300S’ is 300 seconds, ‘10M’ is 10 minutes. Only “S” and “M” are allowed.</p>
+<p>By default equals 1 minute. You can set the sleep time as an integer which will be interpreted as minutes. eg: sleeptime = 50 would be 50 minutes. Conversely, you can enter the time as a string with the duration numbers first, followed by the time units: ‘M’ for minutes, ‘S’ for seconds eg: ‘”300S”’ is 300 seconds, ‘”10M”’ is 10 minutes.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><p><strong>sleeptime</strong> (<em>int</em><em> or </em><em>str</em>) – Sleep time in minutes or a string with the duration numbers first, followed by the time units: <cite>S</cite> for seconds, <cite>M</cite> for minutes, <cite>H</cite> for hours’ or <cite>D</cite> for days.</p>
@@ -324,7 +324,7 @@
 <dd class="field-even"><p><strong>sleeptime</strong> – Sleep time in minutes or a string with the duration numbers first, followed by the time units: <cite>S</cite> for seconds, <cite>M</cite> for minutes, <cite>H</cite> for hours’ or <cite>D</cite> for days.</p>
 </dd>
 <dt class="field-odd">Return type</dt>
-<dd class="field-odd"><p>int</p>
+<dd class="field-odd"><p>int or str</p>
 </dd>
 </dl>
 <p class="rubric">Example</p>

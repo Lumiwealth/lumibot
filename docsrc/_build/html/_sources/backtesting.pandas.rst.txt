@@ -141,8 +141,7 @@ There is also a returns plot. By default this will show in a browser. You may su
             backtesting_start,
             backtesting_end,
             pandas_data=pandas_data,
-            name="My Strategy",
-            budget=budget,
+            budget=100000,
         )
 
 Putting all of this together, and adding in budget and strategy information, the code would look like the following:
@@ -163,11 +162,6 @@ Putting all of this together, and adding in budget and strategy information, the
             if self.first_iteration:
                 order = self.create_order("AAPL", 100, "buy")
                 self.submit_order(order)
-
-
-    # Set your strategy name and budget
-    strategy_name = "My Cool Strategy"
-    budget = 50000
 
     # Read the data from the CSV file (in this example you must have a file named "AAPL.csv"
     # in a folder named "data" in the same directory as this script)
@@ -195,8 +189,6 @@ Putting all of this together, and adding in budget and strategy information, the
         backtesting_start,
         backtesting_end,
         pandas_data=pandas_data,
-        name=strategy_name,
-        budget=budget,
     )
 
 Getting Data

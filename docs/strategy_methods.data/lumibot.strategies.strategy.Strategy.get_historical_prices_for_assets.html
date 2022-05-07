@@ -346,13 +346,13 @@ same as get_symbol_bars take as first parameter a list of symbols.</p>
 </dl>
 <p class="rubric">Example</p>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Get the data for SPY and TLT for the last 2 days</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">bars</span> <span class="o">=</span>  <span class="bp">self</span><span class="o">.</span><span class="n">get_bars</span><span class="p">([</span><span class="s2">"SPY"</span><span class="p">,</span> <span class="s2">"TLT"</span><span class="p">],</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">"day"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">bars</span> <span class="o">=</span>  <span class="bp">self</span><span class="o">.</span><span class="n">get_historical_prices_for_assets</span><span class="p">([</span><span class="s2">"SPY"</span><span class="p">,</span> <span class="s2">"TLT"</span><span class="p">],</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">"day"</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="k">for</span> <span class="n">asset</span> <span class="ow">in</span> <span class="n">bars</span><span class="p">:</span>
 <span class="gp">&gt;&gt;&gt; </span>    <span class="bp">self</span><span class="o">.</span><span class="n">log_message</span><span class="p">(</span><span class="n">asset</span><span class="o">.</span><span class="n">df</span><span class="p">)</span>
 </pre></div>
 </div>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Get the data for AAPL and GOOG for the last 30 minutes</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">bars</span> <span class="o">=</span>  <span class="bp">self</span><span class="o">.</span><span class="n">get_bars</span><span class="p">([</span><span class="s2">"AAPL"</span><span class="p">,</span> <span class="s2">"GOOG"</span><span class="p">],</span> <span class="mi">30</span><span class="p">,</span> <span class="s2">"minute"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">bars</span> <span class="o">=</span>  <span class="bp">self</span><span class="o">.</span><span class="n">get_historical_prices_for_assets</span><span class="p">([</span><span class="s2">"AAPL"</span><span class="p">,</span> <span class="s2">"GOOG"</span><span class="p">],</span> <span class="mi">30</span><span class="p">,</span> <span class="s2">"minute"</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="k">for</span> <span class="n">asset</span> <span class="ow">in</span> <span class="n">bars</span><span class="p">:</span>
 <span class="gp">&gt;&gt;&gt; </span>    <span class="bp">self</span><span class="o">.</span><span class="n">log_message</span><span class="p">(</span><span class="n">asset</span><span class="o">.</span><span class="n">df</span><span class="p">)</span>
 </pre></div>

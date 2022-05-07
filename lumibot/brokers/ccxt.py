@@ -344,10 +344,11 @@ class Ccxt(CcxtData, Broker):
             )
 
         if order.type not in order_types:
-            raise ValueError(
+            logging.error(
                 f"An order type of {order.type} was entered which is not "
                 f"valid. {markets_error_message}"
             )
+            return
 
         # Check order within limits.
         market = self.api.markets.get(order.pair, None)

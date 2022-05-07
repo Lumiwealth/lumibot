@@ -148,7 +148,7 @@ class _Strategy:
                 self._cash,
                 self._position_value,
                 self._portfolio_value,
-            ) = self.broker._get_balances_at_broker()
+            ) = self.broker._get_balances_at_broker(self.quote_asset)
             # Set initial positions if live trading.
             self.broker._set_initial_positions(self._name)
         else:
@@ -298,7 +298,7 @@ class _Strategy:
     def _update_portfolio_value(self):
         """updates self.portfolio_value"""
         if not self._is_backtesting:
-            return self.broker._get_balances_at_broker()[2]
+            return self.broker._get_balances_at_broker(self.quote_asset)[2]
 
         with self._executor.lock:
             # Used for traditional brokers, for crypto this could be 0
@@ -310,9 +310,10 @@ class _Strategy:
 
             assets = []
             for asset in assets_original:
-                if asset.asset_type == "crypto" and self.quote_asset != asset:
-                    asset = (asset, self.quote_asset)
-                assets.append(asset)
+                if asset != self.quote_asset:
+                    if asset.asset_type == "crypto" and self.quote_asset != asset:
+                        asset = (asset, self.quote_asset)
+                    assets.append(asset)
 
             prices = self.data_source.get_last_prices(assets)
 
@@ -394,7 +395,12 @@ class _Strategy:
     def _update_cash_with_dividends(self):
         with self._executor.lock:
             positions = self.broker.get_tracked_positions(self._name)
-            assets = [position.asset for position in positions]
+
+            assets = []
+            for position in positions:
+                if position.asset != self.quote_asset:
+                    assets.append(position.asset)
+
             dividends_per_share = self.get_yesterday_dividends(assets)
             for position in positions:
                 asset = position.asset

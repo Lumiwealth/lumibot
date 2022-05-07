@@ -8,6 +8,7 @@ from decimal import Decimal
 
 import alpaca_trade_api as tradeapi
 from dateutil import tz
+from numpy import str0
 
 from lumibot.data_sources import AlpacaData
 from lumibot.entities import Asset, Order, Position
@@ -197,7 +198,7 @@ class Alpaca(AlpacaData, Broker):
 
     # =========Positions functions==================
 
-    def _get_balances_at_broker(self):
+    def _get_balances_at_broker(self, quote_asset):
         """Get's the current actual cash, positions value, and total
         liquidation value from Alpaca.
 
@@ -318,19 +319,19 @@ class Alpaca(AlpacaData, Broker):
 
         if order.take_profit_price:
             kwargs["take_profit"] = {
-                "limit_price": round(order.take_profit_price, 2)
+                "limit_price": float(round(order.take_profit_price, 2))
                 if isinstance(order.take_profit_price, Decimal)
                 else order.take_profit_price,
             }
 
         if order.stop_loss_price:
             kwargs["stop_loss"] = {
-                "stop_price": round(order.stop_loss_price, 2)
+                "stop_price": float(round(order.stop_loss_price, 2))
                 if isinstance(order.stop_loss_price, Decimal)
                 else order.stop_loss_price,
             }
             if order.stop_loss_limit_price:
-                kwargs["stop_loss"]["limit_price"] = (
+                kwargs["stop_loss"]["limit_price"] = float(
                     round(order.stop_loss_limit_price, 2)
                     if isinstance(
                         order.stop_loss_limit_price,

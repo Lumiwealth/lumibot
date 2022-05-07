@@ -100,7 +100,7 @@ class Bars:
         df index: pd.Timestamp localized at the timezone America/New_York
         """
         if df.shape[0] == 0:
-            raise NoBarDataFound(source, asset)
+            logging.warning(f"Unable to get bar data for {asset} {source}")
         self.df = df
         self.source = source.upper()
         self.asset = asset

@@ -204,8 +204,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
             Decimal(response.totalQuantity),
             response.action.lower(),
             limit_price=response.lmtPrice if response.lmtPrice != 0 else None,
-            stop_price=response.auxPrice
-            if response.auxPrice != 0 else None,
+            stop_price=response.auxPrice if response.auxPrice != 0 else None,
             time_in_force=response.tif,
             good_till_date=response.goodTillDate,
         )
@@ -305,7 +304,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
     def _close_connection(self):
         self.ib.disconnect()
 
-    def _get_balances_at_broker(self):
+    def _get_balances_at_broker(self, quote_asset):
         """Get's the current actual cash, positions value, and total
         liquidation value from interactive Brokers.
 

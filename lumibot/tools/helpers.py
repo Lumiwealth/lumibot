@@ -99,8 +99,14 @@ def print_progress_bar(
 
     now = datetime.now()
     elapsed = now - backtesting_started
-    eta = (elapsed * (100 / percent)) - elapsed
-    eta_str = f"[Elapsed: {str(elapsed).split('.')[0]} ETA: {str(eta).split('.')[0]}]"
+
+    if percent > 0:
+        eta = (elapsed * (100 / percent)) - elapsed
+        eta_str = (
+            f"[Elapsed: {str(elapsed).split('.')[0]} ETA: {str(eta).split('.')[0]}]"
+        )
+    else:
+        eta_str = ""
 
     if not isinstance(length, int):
         try:

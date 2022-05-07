@@ -4,5 +4,5 @@ from .ccxt_data import CcxtData
 from .data_source import DataSource
 from .exceptions import NoDataFound, UnavailabeTimestep
 from .interactive_brokers_data import InteractiveBrokersData
-from .yahoo import YahooData
-from .pandas import PandasData
+from .pandas_data import PandasData
+from .yahoo_data import YahooData

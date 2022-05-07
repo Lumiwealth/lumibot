@@ -379,11 +379,18 @@ class BacktestingBroker(Broker):
                 close = ohlc.df.close[-1]
                 volume = ohlc.df.volume[-1]
 
+            elif self._data_source.SOURCE == "ALPHA_VANTAGE":
+                ohlc = self.get_last_bar(asset)
+                dt = ohlc.df.index[-1]
+                open = ohlc.df.open[-1]
+                high = ohlc.df.high[-1]
+                low = ohlc.df.low[-1]
+                close = ohlc.df.close[-1]
+                volume = ohlc.df.volume[-1]
+
             elif self._data_source.SOURCE == "PANDAS":
                 data = self._data_source._data_store[asset]
-                ohlc = data._get_bars_dict(
-                    self.datetime, length=1
-                )
+                ohlc = data._get_bars_dict(self.datetime, length=1)
                 if ohlc is None:
                     self.cancel_order(order)
                     continue

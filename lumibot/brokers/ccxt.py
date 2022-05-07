@@ -1,12 +1,11 @@
 import asyncio
 import datetime
-from decimal import Decimal, getcontext
 import logging
 import traceback
 
 # from asyncio import CancelledError
 from datetime import timezone
-
+from decimal import Decimal, getcontext
 
 from lumibot.data_sources import CcxtData
 from lumibot.entities import Asset, Order, Position
@@ -80,7 +79,7 @@ class Ccxt(CcxtData, Broker):
         return None
 
     # =========Positions functions==================
-    def _get_balances_at_broker(self):
+    def _get_balances_at_broker(self, quote_asset):
         """Get's the current actual cash, positions value, and total
         liquidation value from ccxt.
 
@@ -94,39 +93,62 @@ class Ccxt(CcxtData, Broker):
         tuple of float
             (cash, positions_value, total_liquidation_value)
         """
-        quote_currency = ["USD", "USDC", "USDT"]
         total_cash_value = 0
         positions_value = 0
         # Get the market values for each pair held.
         balances = self.api.fetch_balance()
 
         # Broker may return different formatting for `fetch_balance()`
-        if self.api.exchangeId == "binance":
-            balances_info = [
-                bal
-                for bal in balances["info"]["balances"]
-                if (Decimal(bal["free"]) + Decimal(bal["locked"])) != Decimal("0")
-            ]
-            currency_tag = "asset"
+        # Example balances_info:
+        # [
+        # {
+        # 'id': '869d3e3d-2053-4dac-87d7-bbf344de4854',
+        # 'currency': 'BAT',
+        # 'balance': '1000000.0000000000000000',
+        # 'hold': '0.0000000000000000',
+        # 'available': '1000000',
+        # 'profile_id': 'a278bfa5-beec-4fc8-b84b-e7244856e6bb',
+        # 'trading_enabled': True
+        # },
+        # {
+        # 'id': 'b8b2fbea-0350-4036-a9b1-f654e911b760',
+        # 'currency': 'BTC',
+        # ...
+        # }
+        # ]
+        currency_key = "currency"
+        if self.api.exchangeId == "coinbasepro":
+            balances_info = []
+            for bal in balances["info"]:
+                if Decimal(bal["balance"]) != Decimal("0"):
+                    balances_info.append(bal)
+        elif self.api.exchangeId == "binance":
+            balances_info = []
+            for bal in balances["info"]["balances"]:
+                if (Decimal(bal["free"]) + Decimal(bal["locked"])) != Decimal("0"):
+                    balances_info.append(bal)
+            currency_key = "asset"
+        elif self.api.exchangeId == "kucoin":
+            balances_info = []
+            for bal in balances["info"]["data"]:
+                if Decimal(bal["balance"]) != Decimal("0"):
+                    balances_info.append(bal)
         else:
-            balances_info = [
-                bal
-                for bal in balances["info"]
-                if Decimal(bal["balance"]) != Decimal("0")
-            ]
-            currency_tag = "currency"
+            raise NotImplementedError(f"{self.api.exchangeId} not implemented yet.")
 
         no_valuation = []
         for currency_info in balances_info:
-            currency = currency_info[currency_tag]
+            currency = currency_info[currency_key]
+
+            if currency == quote_asset.symbol:
+                total_cash_value = Decimal(currency_info["balance"])
+                continue
+
             # Check for three USD markets.
-            for qc in quote_currency:
-                market = f"{currency}/{qc}"
-                if market not in self.api.markets:
-                    market = None
-                    continue
-                else:
-                    break
+            market = f"{currency}/{quote_asset.symbol}"
+            if market not in self.api.markets:
+                market = None
+
             if market is None:
                 no_valuation.append(currency)
                 continue
@@ -138,7 +160,7 @@ class Ccxt(CcxtData, Broker):
                 precision_amount = 10 ** -precision_amount
                 precision_price = 10 ** -precision_price
 
-            # Binance only have `free` and `locked`.
+            # Binance only has `free` and `locked`.
             if self.api.exchangeId == "binance":
                 total_balance = Decimal(currency_info["free"]) + Decimal(
                     currency_info["locked"]
@@ -167,9 +189,9 @@ class Ccxt(CcxtData, Broker):
 
         if len(no_valuation) > 0:
             logging.info(
-                f"These coins have no valuation in USD and therefore "
-                f"could not be added to the portfolio when calculating "
-                f"the total value of the holdings. {no_valuation}"
+                f"The coins {no_valuation} have no valuation in {quote_asset} "
+                f"and therefore could not be added to the portfolio when calculating "
+                f"the total value of the holdings."
             )
 
         gross_positions_value = float(positions_value)
@@ -191,7 +213,10 @@ class Ccxt(CcxtData, Broker):
             symbol = position["currency"]
             precision = str(self.api.currencies["BTC"]["precision"])
             quantity = Decimal(position["balance"])
-            hold = position["hold"]
+            if self.api.exchangeId == "kucoin":
+                hold = position["holds"]
+            else:
+                hold = position["hold"]
             available = position["available"]
 
         asset = Asset(
@@ -214,10 +239,19 @@ class Ccxt(CcxtData, Broker):
     def _pull_broker_positions(self):
         """Get the broker representation of all positions"""
         response = self.api.fetch_balance()
+
         if self.api.exchangeId == "binance":
             return response["info"]["balances"]
-        else:
+        elif self.api.exchangeId == "coinbasepro":
             return response["info"]
+        elif self.api.exchangeId == "kucoin":
+            return response["info"]["data"]
+        else:
+            raise NotImplementedError(
+                f"{self.api.exchangeId} not implemented yet. \
+                                      If you think this is incorrect, then please check \
+                                      the exact spelling of the exchangeId."
+            )
 
     # =======Orders and assets functions=========
     def _parse_broker_order(self, response, strategy):
@@ -239,6 +273,7 @@ class Ccxt(CcxtData, Broker):
                 symbol=pair[1],
                 asset_type="crypto",
             ),
+            type=response["type"] if "type" in response else None,
         )
         order.set_identifier(response["id"])
         order.update_status(response["status"])
@@ -325,17 +360,19 @@ class Ccxt(CcxtData, Broker):
 
         limits = market["limits"]
         precision = market["precision"]
-        if self.api.exchangeId == "binance":
+        if self.api.exchangeId == "binance" or "kucoin":
             precision_amount = str(10 ** -precision["amount"])
         else:
             precision_amount = str(precision["amount"])
 
         # Convert the amount to Decimal.
         if hasattr(order, "quantity") and getattr(order, "quantity") is not None:
+            qty = Decimal(getattr(order, "quantity"))
+            new_qty = qty.quantize(Decimal(precision_amount))
             setattr(
                 order,
                 "quantity",
-                Decimal(getattr(order, "quantity")).quantize(Decimal(precision_amount)),
+                new_qty,
             )
             try:
                 if limits["amount"]["min"] is not None:
@@ -561,7 +598,6 @@ class Ccxt(CcxtData, Broker):
         broker = self.api.exchangeId
         if broker == "binance":
             params = {}
-            # Current custom params are for Coinbase only.
             if order.type in ["stop_limit"]:
                 params = {
                     "stopPrice": str(order.stop_price),
@@ -580,7 +616,7 @@ class Ccxt(CcxtData, Broker):
                 str(order.quantity),
             ]
             if order.type in ["limit", "stop_limit"]:
-                args.append(order.limit_price)
+                args.append(str(order.limit_price))
 
             if len(params) > 0:
                 args.append(params)
@@ -589,11 +625,10 @@ class Ccxt(CcxtData, Broker):
 
         elif broker == "coinbasepro":
             params = {}
-            # Current custom params are for Coinbase only.
             if order.type in ["stop_limit"]:
                 params = {
                     "stop": "entry" if order.side == "buy" else "loss",
-                    "stop_price": order.stop_price,
+                    "stop_price": str(order.stop_price),
                 }
 
                 # Remove items with None values
@@ -613,7 +648,39 @@ class Ccxt(CcxtData, Broker):
                 str(order.quantity),  # check this with coinbase.
             ]
             if order_type_map[order.type] == "limit":
-                args.append(order.limit_price)
+                args.append(str(order.limit_price))
+
+            if len(params) > 0:
+                args.append(params)
+
+            return args
+
+        elif broker == "kucoin":
+            params = {}
+            if order.type in ["stop_limit"]:
+                params = {
+                    "stop": "entry" if order.side == "buy" else "loss",
+                    "stop_price": str(order.stop_price),
+                }
+
+                # Remove items with None values
+                params = {k: v for k, v in params.items() if v}
+
+            order_type_map = dict(
+                market="market",
+                stop="market",
+                limit="limit",
+                stop_limit="limit",
+            )
+
+            args = [
+                order.pair,
+                order_type_map[order.type],
+                order.side,
+                str(order.quantity),  # check this with coinbase.
+            ]
+            if order_type_map[order.type] == "limit":
+                args.append(str(order.limit_price))
 
             if len(params) > 0:
                 args.append(params)

@@ -1,6 +1,7 @@
 import datetime
 import logging
 import time
+from decimal import Decimal
 
 import ccxt
 
@@ -172,3 +173,14 @@ class CcxtData(DataSource):
         response["return"] = response["close"].pct_change()
         bars = Bars(response, self.SOURCE, asset[0], quote=asset[1], raw=response)
         return bars
+
+    def get_last_price(self, asset, quote=None):
+        if quote is not None:
+            symbol = f"{asset.symbol}/{quote.symbol}"
+        else:
+            symbol = asset.symbol
+
+        trade = self.api.fetch_trades(symbol, limit=1)[0]
+        price = trade["price"]
+
+        return price

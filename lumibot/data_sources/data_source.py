@@ -177,7 +177,7 @@ class DataSource:
             close = Decimal(close.item())
         return close
 
-    def get_last_prices(self, assets, timestep=None):
+    def get_last_prices(self, assets, timestep=None, quote=None):
         """Takes a list of assets and returns the last known prices"""
         if timestep is None:
             timestep = self.MIN_TIMESTEP

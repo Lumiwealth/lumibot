@@ -189,7 +189,7 @@ class InteractiveBrokersData(DataSource):
         self.ib.cancel_realtime_bars(asset)
         return 0
 
-    def get_last_price(self, asset, timestep=None):
+    def get_last_price(self, asset, timestep=None, quote=None):
         response = dict()
         get_data_attempt = 0
         max_attempts = 2

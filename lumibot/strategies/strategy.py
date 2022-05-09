@@ -1640,10 +1640,11 @@ class Strategy(_Strategy):
         >>> self.log_message(f"Last price for BTC/USDT is {last_price}")
         """
         asset = self._set_asset_mapping(asset)
-        asset = self.crypto_assets_to_tuple(asset, quote)
+        # TODO: Get rid of passing assets as tuples, and switch instead to only using quote
+        # asset = self.crypto_assets_to_tuple(asset, quote)
 
         try:
-            return self.broker.get_last_price(asset)
+            return self.broker.get_last_price(asset, quote=quote)
         except Exception as e:
             self.log_message(f"Could not get last price for {asset}")
             self.log_message(f"{e}")
@@ -1654,7 +1655,7 @@ class Strategy(_Strategy):
         asset = self._set_asset_mapping(asset)
         return self.broker._get_tick(asset)
 
-    def get_last_prices(self, assets):
+    def get_last_prices(self, assets, quote=None):
         """Takes a list of assets and returns the last known prices
 
         Makes an active call to the market to retrieve the last price. In backtesting will provide the close of the last complete bar.

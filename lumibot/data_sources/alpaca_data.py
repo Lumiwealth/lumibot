@@ -9,7 +9,7 @@ from alpaca_trade_api.common import URL
 from alpaca_trade_api.entity import Bar
 from alpaca_trade_api.rest import TimeFrame, TimeFrameUnit
 
-from lumibot.entities import Bars
+from lumibot.entities import Asset, Bars
 
 from .data_source import DataSource
 
@@ -70,6 +70,27 @@ class AlpacaData(DataSource):
             [asset], length, timestep=timestep, timeshift=timeshift
         )
         return response[asset]
+
+    def get_last_price(self, asset, quote=None):
+        if quote is not None:
+            # If the quote is not None, we use it even if the asset is a tuple
+            if isinstance(asset, tuple):
+                symbol = f"{asset[0].symbol}{quote.symbol}"
+            else:
+                symbol = f"{asset.symbol}{quote.symbol}"
+        elif isinstance(asset, tuple):
+            symbol = f"{asset[0].symbol}{asset[1].symbol}"
+        else:
+            symbol = asset.symbol
+
+        if isinstance(asset, tuple) and asset[0].asset_type == "crypto":
+            trade = self.api.get_latest_crypto_trade(symbol, exchange="CBSE")
+        elif isinstance(asset, Asset) and asset.asset_type == "crypto":
+            trade = self.api.get_latest_crypto_trade(symbol, exchange="CBSE")
+        else:
+            trade = self.api.get_latest_trade(symbol)
+
+        return trade.p
 
     def get_barset_from_api(self, api, asset, freq, limit=None, end=None, start=None):
         """

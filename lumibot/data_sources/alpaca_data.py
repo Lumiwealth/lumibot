@@ -92,7 +92,9 @@ class AlpacaData(DataSource):
 
         return trade.p
 
-    def get_barset_from_api(self, api, asset, freq, limit=None, end=None, start=None):
+    def get_barset_from_api(
+        self, api, asset, freq, limit=None, end=None, start=None, quote=None
+    ):
         """
         gets historical bar data for the given stock symbol
         and time params.
@@ -100,6 +102,11 @@ class AlpacaData(DataSource):
         outputs a dataframe open, high, low, close columns and
         a UTC timezone aware index.
         """
+        if isinstance(asset, tuple):
+            if quote is None:
+                quote = asset[1]
+            asset = asset[0]
+
         if limit is None:
             limit = 1000
 
@@ -126,13 +133,14 @@ class AlpacaData(DataSource):
             cnt += 1
             # freqnum = re.search(r'\d+', freq).group()
             # freqtimelen = freq[len(freqnum):]
-            if isinstance(asset, tuple):
-                symbol = f"{asset[0].symbol}{asset[1].symbol}"
+            if asset.asset_type == "crypto":
+                symbol = f"{asset.symbol}{quote.symbol}"
                 barset = api.get_crypto_bars(
-                    symbol, freq, limit=loop_limit, end=curr_end, start=curr_start
+                    symbol,
+                    freq,
+                    end=curr_end,
+                    start=curr_start,  # limit=loop_limit,
                 )
-                # todo: delete this line, only for testing
-                x = barset.df
             else:
                 symbol = asset.symbol
                 barset = api.get_bars(

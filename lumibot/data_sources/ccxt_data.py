@@ -47,9 +47,8 @@ class CcxtData(DataSource):
             )
 
         self.api = exchange_class(api_keys)
-        self.api.set_sandbox_mode(
-            True if "sandbox" not in api_keys else api_keys["sandbox"]
-        )
+        is_sandbox = True if "sandbox" not in api_keys else api_keys["sandbox"]
+        self.api.set_sandbox_mode(is_sandbox)
         self.api.load_markets()
         # Recommended two or less api calls per second.
         self.api.enableRateLimit = True
@@ -119,7 +118,7 @@ class CcxtData(DataSource):
         last_curr_end = None
         # loop_limit = 300 if limit > 300 else limit
         loop_limit = 300
-        rate_limit = 10  # 10 requests per second in burst.
+        rate_limit = 10  # Requests per second in burst.
 
         while True:
             cnt += 1
@@ -155,8 +154,10 @@ class CcxtData(DataSource):
                 break
 
             curr_start = last_curr_end
-            if cnt % 10 == 0:
-                time.sleep(0.5)
+
+            # Sleep for half a second every rate_limit requests to prevent rate limiting issues
+            if cnt % rate_limit == 0:
+                time.sleep(1)
 
             # Catch if endless loop.
             if cnt > 500:

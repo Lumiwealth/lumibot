@@ -76,6 +76,9 @@ class Broker:
                 result = self._submit_orders(block)
 
             for order in result:
+                if order is None:
+                    continue
+
                 if order.was_transmitted():
                     flat_orders = self._flatten_order(order)
                     for flat_order in flat_orders:

@@ -338,10 +338,11 @@ class Ccxt(CcxtData, Broker):
         )
 
         if order.order_class != order_class:
-            raise ValueError(
+            logging.error(
                 f"A compound order of {order.order_class} was entered. "
                 f"{markets_error_message}"
             )
+            return
 
         if order.type not in order_types:
             logging.error(

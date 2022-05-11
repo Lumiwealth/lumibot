@@ -1640,10 +1640,11 @@ class Strategy(_Strategy):
         >>> self.log_message(f"Last price for BTC/USDT is {last_price}")
         """
         asset = self._set_asset_mapping(asset)
-        asset = self.crypto_assets_to_tuple(asset, quote)
+        # TODO: Get rid of passing assets as tuples, and switch instead to only using quote
+        # asset = self.crypto_assets_to_tuple(asset, quote)
 
         try:
-            return self.broker.get_last_price(asset)
+            return self.broker.get_last_price(asset, quote=quote)
         except Exception as e:
             self.log_message(f"Could not get last price for {asset}")
             self.log_message(f"{e}")
@@ -1654,7 +1655,7 @@ class Strategy(_Strategy):
         asset = self._set_asset_mapping(asset)
         return self.broker._get_tick(asset)
 
-    def get_last_prices(self, assets):
+    def get_last_prices(self, assets, quote=None):
         """Takes a list of assets and returns the last known prices
 
         Makes an active call to the market to retrieve the last price. In backtesting will provide the close of the last complete bar.
@@ -2353,7 +2354,7 @@ class Strategy(_Strategy):
         with the latest data being 24h ago (timedelta(days=1)) (in a backtest)
 
         >>> # Get the data for SPY for the last 2 days
-        >>> bars =  self.get_symbol_bars("SPY", 2, "day")
+        >>> bars =  self.get_historical_prices("SPY", 2, "day")
         >>> # To get the DataFrame of SPY data
         >>> df = bars.df
         >>>
@@ -2363,7 +2364,7 @@ class Strategy(_Strategy):
         >>> self.log_message(f"Last price of BTC in USD: {last_ohlc['close']}, and the open price was {last_ohlc['open']}")
 
         >>> # Get the data for AAPL for the last 30 minutes
-        >>> bars =  self.get_symbol_bars("AAPL", 30, "minute")
+        >>> bars =  self.get_historical_prices("AAPL", 30, "minute")
         >>>
         >>> # Then, to get the DataFrame of SPY data
         >>> df = bars.df
@@ -2372,7 +2373,7 @@ class Strategy(_Strategy):
 
         >>> # Get the historical data for an AAPL option for the last 30 minutes
         >>> asset = self.create_asset("AAPL", asset_type="option", expiration=datetime.datetime(2020, 1, 1), strike=100, right="call")
-        >>> bars =  self.get_symbol_bars(asset, 30, "minute")
+        >>> bars =  self.get_historical_prices(asset, 30, "minute")
         >>>
         >>> # Then, to get the DataFrame of SPY data
         >>> df = bars.df
@@ -2384,7 +2385,7 @@ class Strategy(_Strategy):
         >>> asset_base = self.create(symbol="BTC", asset_type="crypto"),
         >>> asset_quote = self.create(symbol="USDT", asset_type="crypto"),
         >>>
-        >>> bars =  self.get_symbol_bars(asset_base, 2, "day", quote=asset_quote)
+        >>> bars =  self.get_historical_prices(asset_base, 2, "day", quote=asset_quote)
         >>>
         >>> # Then, to get the DataFrame of SPY data
         >>> df = bars.df

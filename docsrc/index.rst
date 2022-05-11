@@ -30,16 +30,12 @@ After you have installed Lumibot on your computer, you can then create a strateg
     # and the allocated budget
     backtesting_start = datetime(2020, 11, 1)
     backtesting_end = datetime(2020, 12, 31)
-    budget = 100000
 
     # Run the backtest
     MyStrategy.backtest(
         YahooDataBacktesting,
         backtesting_start,
         backtesting_end,
-        show_plot=True,
-        name="My Strategy",
-        budget=budget,
     )
 
 Once you have backtested your strategy and found it to be profitable on historical data, you can then very easily take your bot live. Notice here how the strategy code is exactly the same, it only takes a few lines of code to switch from backtesting to live trading. Here's an example using Alpaca (you can create a free Paper Trading account here in minutes: https://alpaca.markets/)
@@ -70,12 +66,9 @@ Once you have backtested your strategy and found it to be profitable on historic
                self.submit_order(order)
 
 
-   budget = 100000
-   strategy_name = "My Strategy"
-
    trader = Trader()
    broker = Alpaca(AlpacaConfig)
-   strategy = MyStrategy(broker=broker, symbol="SPY", name=strategy_name, budget=budget)
+   strategy = MyStrategy(broker=broker)
 
    # Run the strategy live
    trader.add_strategy(strategy)

@@ -49,16 +49,7 @@ Currently Alpaca and Interactive Brokers are available as a brokerage services. 
             self.order = self.create_order(self.symbol, self.quantity, self.side)
             self.submit_order(self.order)
 
-
-6. Define the budget and strategy name:
-
-.. code-block:: python
-
-    budget = 100000
-    strategy_name = "My Strategy"
-
-
-7. Instantiate the Trader, Alpaca and strategy classes like so:
+6. Instantiate the Trader, Alpaca and strategy classes like so:
 
 .. code-block:: python
 
@@ -67,7 +58,7 @@ Currently Alpaca and Interactive Brokers are available as a brokerage services. 
     strategy = MyStrategy(name=strategy_name, budget=budget, broker=broker, symbol="SPY")
 
 
-8. Backtest the strategy (optional):
+7. Backtest the strategy (optional):
 
 .. code-block:: python
 
@@ -77,12 +68,12 @@ Currently Alpaca and Interactive Brokers are available as a brokerage services. 
         YahooDataBacktesting,
         backtesting_start,
         backtesting_end,
-        symbol="SPY",
-        name=strategy_name,
-        budget=budget,
+        parameters= {
+            "symbol": "SPY"
+        },
     )
 
-9. Run the strategy:
+8. Run the strategy:
 
 .. code-block:: python
 
@@ -128,12 +119,13 @@ Here it is all together:
             self.submit_order(self.order)
 
 
-    budget = 100000
-    strategy_name = "My Strategy"
-
     trader = Trader()
     broker = Alpaca(AlpacaConfig)
-    strategy = MyStrategy(name=strategy_name, budget=budget, broker=broker, symbol="SPY")
+    strategy = MyStrategy(
+        broker=broker, 
+        parameters= {
+            "symbol": "SPY"
+        })
 
     # Backtest this strategy
     backtesting_start = datetime(2020, 1, 1)
@@ -142,9 +134,9 @@ Here it is all together:
         YahooDataBacktesting,
         backtesting_start,
         backtesting_end,
-        name=strategy_name,
-        budget=budget,
-        symbol="SPY",
+        parameters= {
+            "symbol": "SPY"
+        },
     )
 
     # Run the strategy live

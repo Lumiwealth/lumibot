@@ -9,7 +9,7 @@ from alpaca_trade_api.common import URL
 from alpaca_trade_api.entity import Bar
 from alpaca_trade_api.rest import TimeFrame, TimeFrameUnit
 
-from lumibot.entities import Bars
+from lumibot.entities import Asset, Bars
 
 from .data_source import DataSource
 
@@ -71,7 +71,30 @@ class AlpacaData(DataSource):
         )
         return response[asset]
 
-    def get_barset_from_api(self, api, asset, freq, limit=None, end=None, start=None):
+    def get_last_price(self, asset, quote=None):
+        if quote is not None:
+            # If the quote is not None, we use it even if the asset is a tuple
+            if isinstance(asset, tuple):
+                symbol = f"{asset[0].symbol}{quote.symbol}"
+            else:
+                symbol = f"{asset.symbol}{quote.symbol}"
+        elif isinstance(asset, tuple):
+            symbol = f"{asset[0].symbol}{asset[1].symbol}"
+        else:
+            symbol = asset.symbol
+
+        if isinstance(asset, tuple) and asset[0].asset_type == "crypto":
+            trade = self.api.get_latest_crypto_trade(symbol, exchange="CBSE")
+        elif isinstance(asset, Asset) and asset.asset_type == "crypto":
+            trade = self.api.get_latest_crypto_trade(symbol, exchange="CBSE")
+        else:
+            trade = self.api.get_latest_trade(symbol)
+
+        return trade.p
+
+    def get_barset_from_api(
+        self, api, asset, freq, limit=None, end=None, start=None, quote=None
+    ):
         """
         gets historical bar data for the given stock symbol
         and time params.
@@ -79,6 +102,11 @@ class AlpacaData(DataSource):
         outputs a dataframe open, high, low, close columns and
         a UTC timezone aware index.
         """
+        if isinstance(asset, tuple):
+            if quote is None:
+                quote = asset[1]
+            asset = asset[0]
+
         if limit is None:
             limit = 1000
 
@@ -105,13 +133,14 @@ class AlpacaData(DataSource):
             cnt += 1
             # freqnum = re.search(r'\d+', freq).group()
             # freqtimelen = freq[len(freqnum):]
-            if isinstance(asset, tuple):
-                symbol = f"{asset[0].symbol}{asset[1].symbol}"
+            if asset.asset_type == "crypto":
+                symbol = f"{asset.symbol}{quote.symbol}"
                 barset = api.get_crypto_bars(
-                    symbol, freq, limit=loop_limit, end=curr_end, start=curr_start
+                    symbol,
+                    freq,
+                    end=curr_end,
+                    start=curr_start,  # limit=loop_limit,
                 )
-                # todo: delete this line, only for testing
-                x = barset.df
             else:
                 symbol = asset.symbol
                 barset = api.get_bars(

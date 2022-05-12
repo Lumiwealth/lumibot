@@ -89,7 +89,7 @@ class _Strategy:
         if self._name is None:
             self._name = self.__class__.__name__
 
-        self.quote_asset = quote_asset
+        self._quote_asset = quote_asset
 
         # Setting the broker object
         self._is_backtesting = self.broker.IS_BACKTESTING_BROKER
@@ -198,11 +198,8 @@ class _Strategy:
         self._analysis = {}
 
         # Storing parameters for the initialize method
-
-        # TODO: this should go to self.parameters instead, keeping the old parameters too (unless overwrite)
         if type(self.parameters) != dict:
             self.parameters = {}
-
         self.parameters = {**self.parameters, **kwargs}
         self.parameters = {**self.parameters, **parameters}
 

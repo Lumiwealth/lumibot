@@ -37,7 +37,6 @@ class _Strategy:
         minutes_before_opening=60,
         sleeptime=1,
         stats_file=None,
-        settings_file=None,
         risk_free_rate=None,
         benchmark_asset="SPY",
         backtesting_start=None,
@@ -199,7 +198,13 @@ class _Strategy:
         self._analysis = {}
 
         # Storing parameters for the initialize method
-        self._parameters = dict(list(parameters.items()) + list(kwargs.items()))
+
+        # TODO: this should go to self.parameters instead, keeping the old parameters too (unless overwrite)
+        if type(self.parameters) != dict:
+            self.parameters = {}
+
+        self.parameters = {**self.parameters, **kwargs}
+        self.parameters = {**self.parameters, **parameters}
 
         self._strategy_returns_df = None
         self._benchmark_returns_df = None

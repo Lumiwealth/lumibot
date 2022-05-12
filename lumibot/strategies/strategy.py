@@ -181,7 +181,12 @@ class Strategy(_Strategy):
         -------
         >>> self.log_message(f'Strategy parameters: {self.parameters}')
         """
-        return self._parameters
+        return self.parameters
+
+    @parameters.setter
+    def parameters(self, value):
+        self.parameters = value
+        self.on_parameters_updated(self.parameters)
 
     @property
     def is_backtesting(self):

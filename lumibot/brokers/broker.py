@@ -426,8 +426,13 @@ class Broker:
         """parse a list of broker orders into a
         list of order objects"""
         result = []
-        for broker_order in broker_orders:
-            result.append(self._parse_broker_order(broker_order, strategy))
+        if broker_orders is not None:
+            for broker_order in broker_orders:
+                result.append(self._parse_broker_order(broker_order, strategy))
+        else:
+            logging.warning(
+                "No orders found in broker._parse_broker_orders: the broker_orders object is None"
+            )
 
         return result
 

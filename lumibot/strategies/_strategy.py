@@ -141,7 +141,6 @@ class _Strategy:
         # Setting execution parameters
         self._first_iteration = True
         self._last_on_trading_iteration_datetime = None
-        self._initial_budget = budget
         if not self._is_backtesting:
             (
                 self._cash,
@@ -186,6 +185,7 @@ class _Strategy:
             else:
                 self._position_value = 0
 
+        self._initial_budget = budget
         self._minutes_before_closing = minutes_before_closing
         self._minutes_before_opening = minutes_before_opening
         self._sleeptime = sleeptime
@@ -554,6 +554,7 @@ class _Strategy:
                 plot_file_html,
                 trades_df,
                 show_plot,
+                initial_budget=self._initial_budget,
             )
 
     def tearsheet(

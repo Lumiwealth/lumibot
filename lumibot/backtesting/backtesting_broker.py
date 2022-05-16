@@ -121,17 +121,25 @@ class BacktestingBroker(Broker):
         delta = trading_day.market_open - now
         return delta.total_seconds()
 
+    # TODO: speed up this function, it is a major bottleneck
     def get_time_to_close(self):
+        import time
+
         """Return the remaining time for the market to close in seconds"""
         now = self.datetime
+        # TODO: speed up the next line. next line speed implication: v high (1738 microseconds)
         search = self._trading_days[now < self._trading_days.market_close]
         if search.empty:
             raise self.CannotPredictFuture
 
+        # TODO: speed up the next line. next line speed implication: high (910 microseconds)
         trading_day = search.iloc[0]
+
+        # TODO: speed up the next line. next line speed implication: low (144 microseconds)
         if now < trading_day.market_open:
             return 0
 
+        # TODO: speed up the next line. next line speed implication: low (135 microseconds)
         delta = trading_day.market_close - now
         return delta.total_seconds()
 

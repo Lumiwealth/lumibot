@@ -1362,7 +1362,7 @@ class Strategy(_Strategy):
         """
 
         if order is None:
-            logging.warning(
+            logging.error(
                 "Cannot submit a None order, please check to make sure that you have actually created an order before submitting."
             )
             return

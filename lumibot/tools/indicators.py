@@ -181,30 +181,34 @@ def calculate_returns(symbol, start=datetime(1900, 1, 1), end=datetime.now()):
 
 
 def plot_returns(
-    df1,
-    name1,
-    df2,
-    name2,
+    strategy_df,
+    strategy_name,
+    benchmark_df,
+    benchmark_name,
     plot_file_html="backtest_result.html",
     trades_df=None,
     show_plot=True,
+    initial_budget=1,
 ):
 
     dfs_concat = []
 
-    _df1 = df1.copy()
+    _df1 = strategy_df.copy()
     _df1 = _df1.sort_index(ascending=True)
     _df1.index.name = "datetime"
-    _df1[name1] = (1 + _df1["return"]).cumprod()
-    _df1[name1][0] = 1
-    dfs_concat.append(_df1[name1])
+    _df1[strategy_name] = (1 + _df1["return"]).cumprod()
+    _df1[strategy_name][0] = 1
+    _df1[strategy_name] = _df1[strategy_name] * initial_budget
+    dfs_concat.append(_df1)
 
-    _df2 = df2.copy()
+    _df2 = benchmark_df.copy()
     _df2 = _df2.sort_index(ascending=True)
     _df2.index.name = "datetime"
-    _df2[name2] = (1 + _df2["return"]).cumprod()
-    _df2[name2][0] = 1
-    dfs_concat.append(_df2[name2])
+    _df2[benchmark_name] = (1 + _df2["return"]).cumprod()
+    # TODO: fix the warning here "A value is trying to be set on a copy of a slice from a DataFrame"
+    _df2[benchmark_name][0] = 1
+    _df2[benchmark_name] = _df2[benchmark_name] * initial_budget
+    dfs_concat.append(_df2[benchmark_name])
 
     df_final = pd.concat(dfs_concat, join="outer", axis=1)
 
@@ -221,9 +225,9 @@ def plot_returns(
     fig.add_trace(
         go.Scatter(
             x=df_final.index,
-            y=df_final[name1],
+            y=df_final[strategy_name],
             mode="lines",
-            name=name1,
+            name=strategy_name,
             connectgaps=True,
             hovertemplate="Value: %{y:$,.2f}<br>%{x|%b %d %Y %I:%M:%S %p}<extra></extra>",
         )
@@ -231,9 +235,19 @@ def plot_returns(
     fig.add_trace(
         go.Scatter(
             x=df_final.index,
-            y=df_final[name2],
+            y=df_final[benchmark_name],
             mode="lines",
-            name=name2,
+            name=benchmark_name,
+            connectgaps=True,
+            hovertemplate="Value: %{y:$,.2f}<br>%{x|%b %d %Y %I:%M:%S %p}<extra></extra>",
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=df_final.index,
+            y=df_final["cash"],
+            mode="lines",
+            name="cash",
             connectgaps=True,
             hovertemplate="Value: %{y:$,.2f}<br>%{x|%b %d %Y %I:%M:%S %p}<extra></extra>",
         )
@@ -243,17 +257,23 @@ def plot_returns(
 
     # Buys
     buys = df_final.copy()
-    buys[name1] = buys[name1].fillna(method="bfill")
+    buys[strategy_name] = buys[strategy_name].fillna(method="bfill")
     buys = buys.loc[df_final["side"] == "buy"]
-    buys["plotly_text"] = buys["filled_quantity"].astype(str) + " " + buys["symbol"]
+    buys["plotly_text"] = (
+        buys["filled_quantity"].astype(str)
+        + " "
+        + buys["symbol"]
+        + " @price="
+        + buys["price"].astype(str)
+    )
     buys.index.name = "datetime"
     buys = (
-        buys.groupby(["datetime", name1])["plotly_text"]
+        buys.groupby(["datetime", strategy_name])["plotly_text"]
         .apply(lambda x: "<br>".join(x))
         .reset_index()
     )
     buys = buys.set_index("datetime")
-    buys["buy_shift"] = buys[name1] * (1 - vshift)
+    buys["buy_shift"] = buys[strategy_name] * (1 - vshift)
 
     fig.add_trace(
         go.Scatter(
@@ -271,17 +291,23 @@ def plot_returns(
 
     # Sells
     sells = df_final.copy()
-    sells[name1] = sells[name1].fillna(method="bfill")
+    sells[strategy_name] = sells[strategy_name].fillna(method="bfill")
     sells = sells.loc[df_final["side"] == "sell"]
-    sells["plotly_text"] = sells["filled_quantity"].astype(str) + " " + sells["symbol"]
+    sells["plotly_text"] = (
+        sells["filled_quantity"].astype(str)
+        + " "
+        + sells["symbol"]
+        + " @price="
+        + sells["price"].astype(str)
+    )
     sells.index.name = "datetime"
     sells = (
-        sells.groupby(["datetime", name1])["plotly_text"]
+        sells.groupby(["datetime", strategy_name])["plotly_text"]
         .apply(lambda x: "<br>".join(x))
         .reset_index()
     )
     sells = sells.set_index("datetime")
-    sells["sell_shift"] = sells[name1] * (1 + vshift)
+    sells["sell_shift"] = sells[strategy_name] * (1 + vshift)
 
     fig.add_trace(
         go.Scatter(
@@ -296,9 +322,9 @@ def plot_returns(
             text=buys["plotly_text"],
         )
     )
-    bm_text = f"Compared With {name2}" if name2 else ""
+    bm_text = f"Compared With {benchmark_name}" if benchmark_name else ""
     fig.update_layout(
-        title_text=f"{name1} {bm_text}",
+        title_text=f"{strategy_name} {bm_text}",
         title_font_size=30,
         template="plotly_dark",
     )

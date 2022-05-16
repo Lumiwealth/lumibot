@@ -338,7 +338,10 @@ class StrategyExecutor(Thread):
         self._strategy_context = None
         self.strategy.log_message("Executing the on_trading_iteration lifecycle method")
         on_trading_iteration = append_locals(self.strategy.on_trading_iteration)
+
+        # Time consuming
         on_trading_iteration()
+
         self.strategy._first_iteration = False
         self._strategy_context = on_trading_iteration.locals
         self.strategy._last_on_trading_iteration_datetime = datetime.now()
@@ -410,6 +413,7 @@ class StrategyExecutor(Thread):
                 self, position, order, price, quantity, multiplier
             )
 
+    # TODO: speed up this function, it's a major bottleneck for backtesting
     def _strategy_sleep(self):
         """ Sleep for the strategy's sleep time """
 
@@ -419,7 +423,9 @@ class StrategyExecutor(Thread):
         if is_247:
             time_to_before_closing = float("inf")
         else:
+            # TODO: next line speed implication: v high (2233 microseconds) get_time_to_close()
             time_to_close = self.broker.get_time_to_close()
+
             time_to_before_closing = (
                 time_to_close - self.strategy.minutes_before_closing * 60
             )
@@ -461,6 +467,7 @@ class StrategyExecutor(Thread):
             return False
         else:
             self.strategy.log_message(f"Sleeping for {strategy_sleeptime} seconds")
+            # TODO: next line speed implication: medium (371 microseconds)
             self.safe_sleep(strategy_sleeptime)
 
         return True
@@ -488,11 +495,11 @@ class StrategyExecutor(Thread):
             else:
                 self.broker._data_source._iter_count += 1
 
-            datetime = self.broker._data_source._date_index[
+            dt = self.broker._data_source._date_index[
                 self.broker._data_source._iter_count
             ]
 
-            self.broker._update_datetime(datetime)
+            self.broker._update_datetime(dt)
             # Is this update money dividends in the right place? Maybe after orders. or both
             if self.broker.IS_BACKTESTING_BROKER:
                 self.broker.process_pending_orders(strategy=self.strategy.name)
@@ -519,6 +526,7 @@ class StrategyExecutor(Thread):
         #####
         # The main loop for backtesting if strategy is 24 hours
         ####
+        # TODO: speed up this loop for backtesting (it's a major bottleneck)
         while is_247 or (time_to_close > self.strategy.minutes_before_closing * 60):
             # Stop after we pass the backtesting end date
             if (
@@ -530,9 +538,12 @@ class StrategyExecutor(Thread):
 
             if self.broker.IS_BACKTESTING_BROKER:
                 self.broker.process_pending_orders(strategy=self.strategy.name)
+
+            # TODO: next line speed implication: v high (7563 microseconds) _on_trading_iteration()
             self._on_trading_iteration()
 
             # Sleep until the next trading iteration
+            # TODO: next line speed implication: high (2625 microseconds) _strategy_sleep()
             if not self._strategy_sleep():
                 break
 

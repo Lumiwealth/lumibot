@@ -38,6 +38,24 @@ class Strategy(_Strategy):
         return self._initial_budget
 
     @property
+    def quote_asset(self):
+        """Returns the quote asset for the strategy. The quote asset is what is considered
+        "cash" (as in `self.cash`), and it is the currency that `self.portfolio_value` uses.
+
+        Returns:
+            Asset: The quote asset for the strategy
+
+        Example
+        -------
+        >>> self.log_message(f"The quote asset for this strategy is {self.quote_asset}")
+        """
+        return self._quote_asset
+
+    @quote_asset.setter
+    def minutes_before_opening(self, value):
+        self._quote_asset = value
+
+    @property
     def last_on_trading_iteration_datetime(self):
         """Returns the datetime of the last iteration.
 
@@ -181,7 +199,12 @@ class Strategy(_Strategy):
         -------
         >>> self.log_message(f'Strategy parameters: {self.parameters}')
         """
-        return self._parameters
+        return self.parameters
+
+    @parameters.setter
+    def parameters(self, value):
+        self.parameters = value
+        self.on_parameters_updated(self.parameters)
 
     @property
     def is_backtesting(self):
@@ -621,6 +644,38 @@ class Strategy(_Strategy):
         >>> self.sleep(5)
         """
         return self.broker.sleep(sleeptime)
+
+    def get_selling_order(self, position):
+        """Get the selling order for a position.
+
+        Parameters
+        -----------
+        position : Position
+            The position to get the selling order for.
+
+        Returns
+        -------
+        Order or None
+
+        Example
+        -------
+        >>> # Get the selling order for a position
+        >>> position = self.get_position("SPY")
+        >>> order = self.get_selling_order(position)
+        >>> self.submit_order(order)
+
+        >>> # Sell all positions owned by the account
+        >>> for position in self.get_positions():
+        >>>    order = self.get_selling_order(position)
+        >>>    self.submit_order(order)
+        """
+        if position.asset != self.quote_asset:
+            selling_order = self.create_order(
+                position.asset, position.quantity, "sell", quote=self.quote_asset
+            )
+            return selling_order
+        else:
+            return None
 
     def set_market(self, market):
         """Set the market for trading hours.
@@ -1305,6 +1360,13 @@ class Strategy(_Strategy):
         >>> self.submit_order(order)
 
         """
+
+        if order is None:
+            logging.error(
+                "Cannot submit a None order, please check to make sure that you have actually created an order before submitting."
+            )
+            return
+
         return self.broker.submit_order(order)
 
     def submit_orders(self, orders):

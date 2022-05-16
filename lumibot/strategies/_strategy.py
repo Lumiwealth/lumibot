@@ -37,7 +37,6 @@ class _Strategy:
         minutes_before_opening=60,
         sleeptime=1,
         stats_file=None,
-        settings_file=None,
         risk_free_rate=None,
         benchmark_asset="SPY",
         backtesting_start=None,
@@ -90,7 +89,7 @@ class _Strategy:
         if self._name is None:
             self._name = self.__class__.__name__
 
-        self.quote_asset = quote_asset
+        self._quote_asset = quote_asset
 
         # Setting the broker object
         self._is_backtesting = self.broker.IS_BACKTESTING_BROKER
@@ -142,7 +141,6 @@ class _Strategy:
         # Setting execution parameters
         self._first_iteration = True
         self._last_on_trading_iteration_datetime = None
-        self._initial_budget = budget
         if not self._is_backtesting:
             (
                 self._cash,
@@ -187,6 +185,7 @@ class _Strategy:
             else:
                 self._position_value = 0
 
+        self._initial_budget = budget
         self._minutes_before_closing = minutes_before_closing
         self._minutes_before_opening = minutes_before_opening
         self._sleeptime = sleeptime
@@ -199,7 +198,10 @@ class _Strategy:
         self._analysis = {}
 
         # Storing parameters for the initialize method
-        self._parameters = dict(list(parameters.items()) + list(kwargs.items()))
+        if type(self.parameters) != dict:
+            self.parameters = {}
+        self.parameters = {**self.parameters, **kwargs}
+        self.parameters = {**self.parameters, **parameters}
 
         self._strategy_returns_df = None
         self._benchmark_returns_df = None
@@ -552,6 +554,7 @@ class _Strategy:
                 plot_file_html,
                 trades_df,
                 show_plot,
+                initial_budget=self._initial_budget,
             )
 
     def tearsheet(

@@ -454,8 +454,8 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         elif status in ["ApiCancelled", "Cancelled", "Inactive"]:
             type_event = self.CANCELED_ORDER
         else:
-            raise ValueError(
-                "A status event with an order of unknown order type. Should only be: "
+            logging.error(
+                f"A status event with an order of unknown order type of {status}. Should only be: "
                 "`Submitted`, `ApiCancelled`, `Cancelled`, `Inactive`"
             )
         self._process_trade_event(

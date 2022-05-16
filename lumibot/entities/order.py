@@ -166,6 +166,12 @@ class Order:
         'test'
 
         """
+        if asset == quote:
+            logging.error(
+                f"When creating an Order, asset and quote must be different. Got asset = {asset} and quote = {quote}"
+            )
+            return
+
         if isinstance(asset, str):
             asset = entities.Asset(symbol=asset)
 

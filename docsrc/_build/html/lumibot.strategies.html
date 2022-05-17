@@ -184,6 +184,7 @@
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.cancel_order.html">self.cancel_order</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.cancel_orders.html">self.cancel_orders</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.cancel_open_orders.html">self.cancel_open_orders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_selling_order.html">self.get_selling_order</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.sell_all.html">self.sell_all</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_order.html">self.get_order</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_orders.html">self.get_orders</a></li>
@@ -245,20 +246,21 @@
 </ul>
 </li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="strategy_properties.html">Strategy Properties</a><input class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.cash.html">self.cash</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.portfolio_value.html">self.portfolio_value</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.first_iteration.html">self.first_iteration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.is_backtesting.html">self.is_backtesting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.quote_asset.html">self.quote_asset</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.name.html">self.name</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.initial_budget.html">self.initial_budget</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.minutes_before_closing.html">self.minutes_before_closing</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.minutes_before_opening.html">self.minutes_before_opening</a></li>
-<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.unspent_money.html">self.unspent_money</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.sleeptime.html">self.sleeptime</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.parameters.html">self.parameters</a></li>
-<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.is_backtesting.html">self.is_backtesting</a></li>
-<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.portfolio_value.html">self.portfolio_value</a></li>
-<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.cash.html">self.cash</a></li>
-<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.first_iteration.html">self.first_iteration</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.last_on_trading_iteration_datetime.html">self.last_on_trading_iteration_datetime</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.timezone.html">self.timezone</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.pytz.html">self.pytz</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.unspent_money.html">self.unspent_money</a></li>
 </ul>
 </li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="backtesting.html">Backtesting</a><input class="toctree-checkbox" id="toctree-checkbox-9" name="toctree-checkbox-9" role="switch" type="checkbox"/><label for="toctree-checkbox-9"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
@@ -327,7 +329,7 @@
 <span id="documentation"></span><h2>Documentation<a class="headerlink" href="#module-lumibot.strategies.strategy" title="Permalink to this headline">¶</a></h2>
 <dl class="py class">
 <dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy">
-<em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">lumibot.strategies.strategy.</span></span><span class="sig-name descname"><span class="pre">Strategy</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">broker</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data_source</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">minutes_before_closing</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">minutes_before_opening</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">60</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sleeptime</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stats_file</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">settings_file</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">risk_free_rate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">benchmark_asset</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'SPY'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">backtesting_start</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">backtesting_end</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pandas_data</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quote_asset</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">USD</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">starting_positions</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filled_order_callback</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">budget</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">parameters</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">{}</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy" title="Permalink to this definition">¶</a></dt>
+<em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">lumibot.strategies.strategy.</span></span><span class="sig-name descname"><span class="pre">Strategy</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">broker</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data_source</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">minutes_before_closing</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">minutes_before_opening</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">60</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sleeptime</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stats_file</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">risk_free_rate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">benchmark_asset</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'SPY'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">backtesting_start</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">backtesting_end</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pandas_data</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quote_asset</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">USD</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">starting_positions</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filled_order_callback</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">budget</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">parameters</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">{}</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">lumibot.strategies._strategy._Strategy</span></code></p>
 <dl class="py method">
 <dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.after_market_closes">
@@ -1225,7 +1227,7 @@ from the Bars object, use <code class="docutils literal notranslate"><span class
 <p>Extract 2 rows of SPY data with one day timestep between each row
 with the latest data being 24h ago (timedelta(days=1)) (in a backtest)</p>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Get the data for SPY for the last 2 days</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">bars</span> <span class="o">=</span>  <span class="bp">self</span><span class="o">.</span><span class="n">get_symbol_bars</span><span class="p">(</span><span class="s2">"SPY"</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">"day"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">bars</span> <span class="o">=</span>  <span class="bp">self</span><span class="o">.</span><span class="n">get_historical_prices</span><span class="p">(</span><span class="s2">"SPY"</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">"day"</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># To get the DataFrame of SPY data</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">df</span> <span class="o">=</span> <span class="n">bars</span><span class="o">.</span><span class="n">df</span>
 <span class="go">&gt;&gt;&gt;</span>
@@ -1236,7 +1238,7 @@ with the latest data being 24h ago (timedelta(days=1)) (in a backtest)</p>
 </pre></div>
 </div>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Get the data for AAPL for the last 30 minutes</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">bars</span> <span class="o">=</span>  <span class="bp">self</span><span class="o">.</span><span class="n">get_symbol_bars</span><span class="p">(</span><span class="s2">"AAPL"</span><span class="p">,</span> <span class="mi">30</span><span class="p">,</span> <span class="s2">"minute"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">bars</span> <span class="o">=</span>  <span class="bp">self</span><span class="o">.</span><span class="n">get_historical_prices</span><span class="p">(</span><span class="s2">"AAPL"</span><span class="p">,</span> <span class="mi">30</span><span class="p">,</span> <span class="s2">"minute"</span><span class="p">)</span>
 <span class="go">&gt;&gt;&gt;</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Then, to get the DataFrame of SPY data</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">df</span> <span class="o">=</span> <span class="n">bars</span><span class="o">.</span><span class="n">df</span>
@@ -1246,7 +1248,7 @@ with the latest data being 24h ago (timedelta(days=1)) (in a backtest)</p>
 </div>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Get the historical data for an AAPL option for the last 30 minutes</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">asset</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_asset</span><span class="p">(</span><span class="s2">"AAPL"</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s2">"option"</span><span class="p">,</span> <span class="n">expiration</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">(</span><span class="mi">2020</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">strike</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">right</span><span class="o">=</span><span class="s2">"call"</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">bars</span> <span class="o">=</span>  <span class="bp">self</span><span class="o">.</span><span class="n">get_symbol_bars</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="mi">30</span><span class="p">,</span> <span class="s2">"minute"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">bars</span> <span class="o">=</span>  <span class="bp">self</span><span class="o">.</span><span class="n">get_historical_prices</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="mi">30</span><span class="p">,</span> <span class="s2">"minute"</span><span class="p">)</span>
 <span class="go">&gt;&gt;&gt;</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Then, to get the DataFrame of SPY data</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">df</span> <span class="o">=</span> <span class="n">bars</span><span class="o">.</span><span class="n">df</span>
@@ -1258,7 +1260,7 @@ with the latest data being 24h ago (timedelta(days=1)) (in a backtest)</p>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">asset_base</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">symbol</span><span class="o">=</span><span class="s2">"BTC"</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s2">"crypto"</span><span class="p">),</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">asset_quote</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">symbol</span><span class="o">=</span><span class="s2">"USDT"</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s2">"crypto"</span><span class="p">),</span>
 <span class="go">&gt;&gt;&gt;</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">bars</span> <span class="o">=</span>  <span class="bp">self</span><span class="o">.</span><span class="n">get_symbol_bars</span><span class="p">(</span><span class="n">asset_base</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">"day"</span><span class="p">,</span> <span class="n">quote</span><span class="o">=</span><span class="n">asset_quote</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">bars</span> <span class="o">=</span>  <span class="bp">self</span><span class="o">.</span><span class="n">get_historical_prices</span><span class="p">(</span><span class="n">asset_base</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">"day"</span><span class="p">,</span> <span class="n">quote</span><span class="o">=</span><span class="n">asset_quote</span><span class="p">)</span>
 <span class="go">&gt;&gt;&gt;</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Then, to get the DataFrame of SPY data</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">df</span> <span class="o">=</span> <span class="n">bars</span><span class="o">.</span><span class="n">df</span>
@@ -1395,7 +1397,7 @@ retrieved.</p>
 </dd></dl>
 <dl class="py method">
 <dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.get_last_prices">
-<span class="sig-name descname"><span class="pre">get_last_prices</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">assets</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.get_last_prices" title="Permalink to this definition">¶</a></dt>
+<span class="sig-name descname"><span class="pre">get_last_prices</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">assets</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quote</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.get_last_prices" title="Permalink to this definition">¶</a></dt>
 <dd><p>Takes a list of assets and returns the last known prices</p>
 <p>Makes an active call to the market to retrieve the last price. In backtesting will provide the close of the last complete bar.</p>
 <dl class="field-list simple">
@@ -1647,6 +1649,35 @@ start of the real time bars.</p>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Will return the current minute rounded to the nearest minute</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">round_minute</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_round_minute</span><span class="p">()</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">log_message</span><span class="p">(</span><span class="sa">f</span><span class="s2">"The current minute rounded to the nearest minute is </span><span class="si">{</span><span class="n">round_minute</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.get_selling_order">
+<span class="sig-name descname"><span class="pre">get_selling_order</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">position</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.get_selling_order" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get the selling order for a position.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>position</strong> (<a class="reference internal" href="entities.position.html#entities.position.Position" title="entities.position.Position"><em>Position</em></a>) – The position to get the selling order for.</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p></p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p><a class="reference internal" href="entities.order.html#entities.order.Order" title="entities.order.Order">Order</a> or None</p>
+</dd>
+</dl>
+<p class="rubric">Example</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Get the selling order for a position</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">position</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_position</span><span class="p">(</span><span class="s2">"SPY"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_selling_order</span><span class="p">(</span><span class="n">position</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Sell all positions owned by the account</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">for</span> <span class="n">position</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_positions</span><span class="p">():</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_selling_order</span><span class="p">(</span><span class="n">position</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
 </pre></div>
 </div>
 </dd></dl>
@@ -2330,6 +2361,24 @@ currency.</p>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Will return the pytz object of the data source</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">pytz</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pytz</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">log_message</span><span class="p">(</span><span class="sa">f</span><span class="s2">"pytz: </span><span class="si">{</span><span class="n">pytz</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+<dl class="py property">
+<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.quote_asset">
+<em class="property"><span class="pre">property</span> </em><span class="sig-name descname"><span class="pre">quote_asset</span></span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.quote_asset" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns the quote asset for the strategy. The quote asset is what is considered
+“cash” (as in <cite>self.cash</cite>), and it is the currency that <cite>self.portfolio_value</cite> uses.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p>The quote asset for the strategy</p>
+</dd>
+<dt class="field-even">Return type</dt>
+<dd class="field-even"><p><a class="reference internal" href="entities.asset.html#entities.asset.Asset" title="entities.asset.Asset">Asset</a></p>
+</dd>
+</dl>
+<p class="rubric">Example</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">log_message</span><span class="p">(</span><span class="sa">f</span><span class="s2">"The quote asset for this strategy is </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">quote_asset</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 </pre></div>
 </div>
 </dd></dl>

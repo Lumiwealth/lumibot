@@ -184,6 +184,7 @@
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.cancel_order.html">self.cancel_order</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.cancel_orders.html">self.cancel_orders</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.cancel_open_orders.html">self.cancel_open_orders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_selling_order.html">self.get_selling_order</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.sell_all.html">self.sell_all</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_order.html">self.get_order</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_orders.html">self.get_orders</a></li>
@@ -245,20 +246,21 @@
 </ul>
 </li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="strategy_properties.html">Strategy Properties</a><input class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.cash.html">self.cash</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.portfolio_value.html">self.portfolio_value</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.first_iteration.html">self.first_iteration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.is_backtesting.html">self.is_backtesting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.quote_asset.html">self.quote_asset</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.name.html">self.name</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.initial_budget.html">self.initial_budget</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.minutes_before_closing.html">self.minutes_before_closing</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.minutes_before_opening.html">self.minutes_before_opening</a></li>
-<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.unspent_money.html">self.unspent_money</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.sleeptime.html">self.sleeptime</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.parameters.html">self.parameters</a></li>
-<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.is_backtesting.html">self.is_backtesting</a></li>
-<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.portfolio_value.html">self.portfolio_value</a></li>
-<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.cash.html">self.cash</a></li>
-<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.first_iteration.html">self.first_iteration</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.last_on_trading_iteration_datetime.html">self.last_on_trading_iteration_datetime</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.timezone.html">self.timezone</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.pytz.html">self.pytz</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.unspent_money.html">self.unspent_money</a></li>
 </ul>
 </li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="backtesting.html">Backtesting</a><input class="toctree-checkbox" id="toctree-checkbox-9" name="toctree-checkbox-9" role="switch" type="checkbox"/><label for="toctree-checkbox-9"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
@@ -335,34 +337,37 @@
 <tr class="row-even"><td><p><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.cancel_open_orders.html#strategies.strategy.Strategy.cancel_open_orders" title="strategies.strategy.Strategy.cancel_open_orders"><code class="xref py py-obj docutils literal notranslate"><span class="pre">cancel_open_orders</span></code></a>()</p></td>
 <td><p>Cancel all the strategy open orders.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.sell_all.html#strategies.strategy.Strategy.sell_all" title="strategies.strategy.Strategy.sell_all"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sell_all</span></code></a>([cancel_open_orders])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_selling_order.html#strategies.strategy.Strategy.get_selling_order" title="strategies.strategy.Strategy.get_selling_order"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_selling_order</span></code></a>(position)</p></td>
+<td><p>Get the selling order for a position.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.sell_all.html#strategies.strategy.Strategy.sell_all" title="strategies.strategy.Strategy.sell_all"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sell_all</span></code></a>([cancel_open_orders])</p></td>
 <td><p>Sell all strategy positions.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_order.html#strategies.strategy.Strategy.get_order" title="strategies.strategy.Strategy.get_order"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_order</span></code></a>(identifier)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_order.html#strategies.strategy.Strategy.get_order" title="strategies.strategy.Strategy.get_order"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_order</span></code></a>(identifier)</p></td>
 <td><p>Get a tracked order given an identifier.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_orders.html#strategies.strategy.Strategy.get_orders" title="strategies.strategy.Strategy.get_orders"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_orders</span></code></a>()</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_orders.html#strategies.strategy.Strategy.get_orders" title="strategies.strategy.Strategy.get_orders"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_orders</span></code></a>()</p></td>
 <td><p>Get all the current open orders.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_position.html#strategies.strategy.Strategy.get_position" title="strategies.strategy.Strategy.get_position"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_position</span></code></a>(asset)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_position.html#strategies.strategy.Strategy.get_position" title="strategies.strategy.Strategy.get_position"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_position</span></code></a>(asset)</p></td>
 <td><p>Get a tracked position given an asset for the current strategy.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_positions.html#strategies.strategy.Strategy.get_positions" title="strategies.strategy.Strategy.get_positions"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_positions</span></code></a>()</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_positions.html#strategies.strategy.Strategy.get_positions" title="strategies.strategy.Strategy.get_positions"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_positions</span></code></a>()</p></td>
 <td><p>Get all positions for the account.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_tracked_order.html#strategies.strategy.Strategy.get_tracked_order" title="strategies.strategy.Strategy.get_tracked_order"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_tracked_order</span></code></a>(identifier)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_tracked_order.html#strategies.strategy.Strategy.get_tracked_order" title="strategies.strategy.Strategy.get_tracked_order"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_tracked_order</span></code></a>(identifier)</p></td>
 <td><p>Deprecated, will be removed in the future.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_tracked_orders.html#strategies.strategy.Strategy.get_tracked_orders" title="strategies.strategy.Strategy.get_tracked_orders"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_tracked_orders</span></code></a>(identifier)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_tracked_orders.html#strategies.strategy.Strategy.get_tracked_orders" title="strategies.strategy.Strategy.get_tracked_orders"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_tracked_orders</span></code></a>(identifier)</p></td>
 <td><p>Deprecated, will be removed in the future.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_tracked_position.html#strategies.strategy.Strategy.get_tracked_position" title="strategies.strategy.Strategy.get_tracked_position"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_tracked_position</span></code></a>(asset)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_tracked_position.html#strategies.strategy.Strategy.get_tracked_position" title="strategies.strategy.Strategy.get_tracked_position"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_tracked_position</span></code></a>(asset)</p></td>
 <td><p>Deprecated, will be removed in the future.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_tracked_positions.html#strategies.strategy.Strategy.get_tracked_positions" title="strategies.strategy.Strategy.get_tracked_positions"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_tracked_positions</span></code></a>()</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_tracked_positions.html#strategies.strategy.Strategy.get_tracked_positions" title="strategies.strategy.Strategy.get_tracked_positions"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_tracked_positions</span></code></a>()</p></td>
 <td><p>Deprecated, will be removed in the future.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_asset_potential_total.html#strategies.strategy.Strategy.get_asset_potential_total" title="strategies.strategy.Strategy.get_asset_potential_total"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_asset_potential_total</span></code></a>(asset)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_asset_potential_total.html#strategies.strategy.Strategy.get_asset_potential_total" title="strategies.strategy.Strategy.get_asset_potential_total"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_asset_potential_total</span></code></a>(asset)</p></td>
 <td><p>Get the potential total for the asset (orders + positions).</p></td>
 </tr>
 </tbody>

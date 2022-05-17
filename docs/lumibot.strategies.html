@@ -184,6 +184,7 @@
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.cancel_order.html">self.cancel_order</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.cancel_orders.html">self.cancel_orders</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.cancel_open_orders.html">self.cancel_open_orders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_selling_order.html">self.get_selling_order</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.sell_all.html">self.sell_all</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_order.html">self.get_order</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_orders.html">self.get_orders</a></li>
@@ -245,20 +246,21 @@
 </ul>
 </li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="strategy_properties.html">Strategy Properties</a><input class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.cash.html">self.cash</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.portfolio_value.html">self.portfolio_value</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.first_iteration.html">self.first_iteration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.is_backtesting.html">self.is_backtesting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.quote_asset.html">self.quote_asset</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.name.html">self.name</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.initial_budget.html">self.initial_budget</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.minutes_before_closing.html">self.minutes_before_closing</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.minutes_before_opening.html">self.minutes_before_opening</a></li>
-<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.unspent_money.html">self.unspent_money</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.sleeptime.html">self.sleeptime</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.parameters.html">self.parameters</a></li>
-<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.is_backtesting.html">self.is_backtesting</a></li>
-<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.portfolio_value.html">self.portfolio_value</a></li>
-<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.cash.html">self.cash</a></li>
-<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.first_iteration.html">self.first_iteration</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.last_on_trading_iteration_datetime.html">self.last_on_trading_iteration_datetime</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.timezone.html">self.timezone</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.pytz.html">self.pytz</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.unspent_money.html">self.unspent_money</a></li>
 </ul>
 </li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="backtesting.html">Backtesting</a><input class="toctree-checkbox" id="toctree-checkbox-9" name="toctree-checkbox-9" role="switch" type="checkbox"/><label for="toctree-checkbox-9"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
@@ -1225,7 +1227,7 @@ from the Bars object, use <code class="docutils literal notranslate"><span class
 <p>Extract 2 rows of SPY data with one day timestep between each row
 with the latest data being 24h ago (timedelta(days=1)) (in a backtest)</p>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Get the data for SPY for the last 2 days</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">bars</span> <span class="o">=</span>  <span class="bp">self</span><span class="o">.</span><span class="n">get_symbol_bars</span><span class="p">(</span><span class="s2">"SPY"</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">"day"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">bars</span> <span class="o">=</span>  <span class="bp">self</span><span class="o">.</span><span class="n">get_historical_prices</span><span class="p">(</span><span class="s2">"SPY"</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">"day"</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># To get the DataFrame of SPY data</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">df</span> <span class="o">=</span> <span class="n">bars</span><span class="o">.</span><span class="n">df</span>
 <span class="go">&gt;&gt;&gt;</span>
@@ -1236,7 +1238,7 @@ with the latest data being 24h ago (timedelta(days=1)) (in a backtest)</p>
 </pre></div>
 </div>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Get the data for AAPL for the last 30 minutes</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">bars</span> <span class="o">=</span>  <span class="bp">self</span><span class="o">.</span><span class="n">get_symbol_bars</span><span class="p">(</span><span class="s2">"AAPL"</span><span class="p">,</span> <span class="mi">30</span><span class="p">,</span> <span class="s2">"minute"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">bars</span> <span class="o">=</span>  <span class="bp">self</span><span class="o">.</span><span class="n">get_historical_prices</span><span class="p">(</span><span class="s2">"AAPL"</span><span class="p">,</span> <span class="mi">30</span><span class="p">,</span> <span class="s2">"minute"</span><span class="p">)</span>
 <span class="go">&gt;&gt;&gt;</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Then, to get the DataFrame of SPY data</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">df</span> <span class="o">=</span> <span class="n">bars</span><span class="o">.</span><span class="n">df</span>
@@ -1246,7 +1248,7 @@ with the latest data being 24h ago (timedelta(days=1)) (in a backtest)</p>
 </div>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Get the historical data for an AAPL option for the last 30 minutes</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">asset</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_asset</span><span class="p">(</span><span class="s2">"AAPL"</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s2">"option"</span><span class="p">,</span> <span class="n">expiration</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">(</span><span class="mi">2020</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">strike</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">right</span><span class="o">=</span><span class="s2">"call"</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">bars</span> <span class="o">=</span>  <span class="bp">self</span><span class="o">.</span><span class="n">get_symbol_bars</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="mi">30</span><span class="p">,</span> <span class="s2">"minute"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">bars</span> <span class="o">=</span>  <span class="bp">self</span><span class="o">.</span><span class="n">get_historical_prices</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="mi">30</span><span class="p">,</span> <span class="s2">"minute"</span><span class="p">)</span>
 <span class="go">&gt;&gt;&gt;</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Then, to get the DataFrame of SPY data</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">df</span> <span class="o">=</span> <span class="n">bars</span><span class="o">.</span><span class="n">df</span>
@@ -1258,7 +1260,7 @@ with the latest data being 24h ago (timedelta(days=1)) (in a backtest)</p>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">asset_base</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">symbol</span><span class="o">=</span><span class="s2">"BTC"</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s2">"crypto"</span><span class="p">),</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">asset_quote</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">symbol</span><span class="o">=</span><span class="s2">"USDT"</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s2">"crypto"</span><span class="p">),</span>
 <span class="go">&gt;&gt;&gt;</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">bars</span> <span class="o">=</span>  <span class="bp">self</span><span class="o">.</span><span class="n">get_symbol_bars</span><span class="p">(</span><span class="n">asset_base</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">"day"</span><span class="p">,</span> <span class="n">quote</span><span class="o">=</span><span class="n">asset_quote</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">bars</span> <span class="o">=</span>  <span class="bp">self</span><span class="o">.</span><span class="n">get_historical_prices</span><span class="p">(</span><span class="n">asset_base</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">"day"</span><span class="p">,</span> <span class="n">quote</span><span class="o">=</span><span class="n">asset_quote</span><span class="p">)</span>
 <span class="go">&gt;&gt;&gt;</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Then, to get the DataFrame of SPY data</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">df</span> <span class="o">=</span> <span class="n">bars</span><span class="o">.</span><span class="n">df</span>
@@ -1395,7 +1397,7 @@ retrieved.</p>
 </dd></dl>
 <dl class="py method">
 <dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.get_last_prices">
-<span class="sig-name descname"><span class="pre">get_last_prices</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">assets</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.get_last_prices" title="Permalink to this definition">¶</a></dt>
+<span class="sig-name descname"><span class="pre">get_last_prices</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">assets</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quote</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.get_last_prices" title="Permalink to this definition">¶</a></dt>
 <dd><p>Takes a list of assets and returns the last known prices</p>
 <p>Makes an active call to the market to retrieve the last price. In backtesting will provide the close of the last complete bar.</p>
 <dl class="field-list simple">

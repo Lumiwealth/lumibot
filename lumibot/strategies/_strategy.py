@@ -7,6 +7,7 @@ from decimal import Decimal
 
 import jsonpickle
 import pandas as pd
+from attr import has
 
 from lumibot import LUMIBOT_DEFAULT_PYTZ
 from lumibot.backtesting import BacktestingBroker
@@ -198,7 +199,7 @@ class _Strategy:
         self._analysis = {}
 
         # Storing parameters for the initialize method
-        if type(self.parameters) != dict:
+        if not hasattr(self, "parameters") or type(self.parameters) != dict:
             self.parameters = {}
         self.parameters = {**self.parameters, **kwargs}
         self.parameters = {**self.parameters, **parameters}

@@ -187,26 +187,6 @@ class Strategy(_Strategy):
         self._sleeptime = value
 
     @property
-    def parameters(self):
-        """Returns the parameters of the strategy. This is a dictionary with the strategy parameters.
-
-        Returns
-        -------
-        dict:
-            The parameters of the strategy.
-
-        Example
-        -------
-        >>> self.log_message(f'Strategy parameters: {self.parameters}')
-        """
-        return self.parameters
-
-    @parameters.setter
-    def parameters(self, value):
-        self.parameters = value
-        self.on_parameters_updated(self.parameters)
-
-    @property
     def is_backtesting(self):
         """Returns True if the strategy is running in backtesting mode.
 

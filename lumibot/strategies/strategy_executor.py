@@ -289,11 +289,6 @@ class StrategyExecutor(Thread):
 
     def _trace_stats(self, context, snapshot_before):
         if context is None:
-            logging.warning(
-                "on_trading_iteration context is not available. "
-                "The context is generally unavailable whe debugging "
-                "with IDEs like pycharm etc..."
-            )
             result = {}
         else:
             result = self.strategy.trace_stats(context, snapshot_before)

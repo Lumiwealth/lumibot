@@ -1,4 +1,5 @@
 import sys
+from asyncio.log import logger
 from copy import deepcopy
 from functools import wraps
 
@@ -23,11 +24,15 @@ def call_function_get_frame(func, *args, **kwargs):
             frame = _frame
         return trace
 
-    sys.settrace(snatch_locals)
-    try:
+    if trace is None:
+        sys.settrace(snatch_locals)
+        try:
+            result = func(*args, **kwargs)
+        finally:
+            sys.settrace(trace)
+    else:
         result = func(*args, **kwargs)
-    finally:
-        sys.settrace(trace)
+
     return frame, result
 
 
@@ -55,7 +60,10 @@ def append_locals(func_input):
     @wraps(func_input)
     def func_output(*args, **kwargs):
         frame, result = call_function_get_frame(func_input, *args, **kwargs)
-        func_output.locals = frame.f_locals
+        if frame is not None:
+            func_output.locals = frame.f_locals
+        else:
+            func_output.locals = None
         return result
 
     return func_output

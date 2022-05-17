@@ -1,4 +1,4 @@
-The best backtesting and live algorithmic trading library in the world.
+Backtesting and trading for stocks, options, crypto, futures and more!
 
 # Documentation
 

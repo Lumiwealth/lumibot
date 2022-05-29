@@ -63,11 +63,11 @@ class AlpacaData(DataSource):
         )
 
     def _pull_source_symbol_bars(
-        self, asset, length, timestep=MIN_TIMESTEP, timeshift=None
+        self, asset, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None
     ):
         """pull broker bars for a given asset"""
         response = self._pull_source_bars(
-            [asset], length, timestep=timestep, timeshift=timeshift
+            [asset], length, timestep=timestep, timeshift=timeshift, quote=quote
         )
         return response[asset]
 
@@ -187,7 +187,9 @@ class AlpacaData(DataSource):
 
         return df_ret[df_ret.close > 0]
 
-    def _pull_source_bars(self, assets, length, timestep=MIN_TIMESTEP, timeshift=None):
+    def _pull_source_bars(
+        self, assets, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None
+    ):
         """pull broker bars for a list assets"""
         parsed_timestep = self._parse_source_timestep(timestep, reverse=True)
         kwargs = dict(limit=length)
@@ -198,13 +200,15 @@ class AlpacaData(DataSource):
 
         result = {}
         for asset in assets:
-            data = self.get_barset_from_api(self.api, asset, parsed_timestep, **kwargs)
+            data = self.get_barset_from_api(
+                self.api, asset, parsed_timestep, quote=quote, **kwargs
+            )
             result[asset] = data
 
         return result
 
-    def _parse_source_symbol_bars(self, response, asset):
+    def _parse_source_symbol_bars(self, response, asset, quote=None):
         # TODO: Alpaca return should also include dividend yield
         response["return"] = response["close"].pct_change()
-        bars = Bars(response, self.SOURCE, asset, raw=response)
+        bars = Bars(response, self.SOURCE, asset, raw=response, quote=quote)
         return bars

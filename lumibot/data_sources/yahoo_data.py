@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timedelta
 
 from lumibot.data_sources.exceptions import NoDataFound
@@ -40,8 +41,13 @@ class YahooData(DataSource):
         return data
 
     def _pull_source_symbol_bars(
-        self, asset, length, timestep=MIN_TIMESTEP, timeshift=None
+        self, asset, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None
     ):
+        if quote is not None:
+            logging.warning(
+                f"quote is not implemented for YahooData, but {quote} was passed as the quote"
+            )
+
         self._parse_source_timestep(timestep, reverse=True)
         if asset in self._data_store:
             data = self._data_store[asset]
@@ -59,8 +65,16 @@ class YahooData(DataSource):
         result = data.tail(length)
         return result
 
-    def _pull_source_bars(self, assets, length, timestep=MIN_TIMESTEP, timeshift=None):
+    def _pull_source_bars(
+        self, assets, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None
+    ):
         """pull broker bars for a list assets"""
+
+        if quote is not None:
+            logging.warning(
+                f"quote is not implemented for YahooData, but {quote} was passed as the quote"
+            )
+
         self._parse_source_timestep(timestep, reverse=True)
         missing_assets = [
             asset.symbol for asset in assets if asset not in self._data_store
@@ -78,6 +92,11 @@ class YahooData(DataSource):
             )
         return result
 
-    def _parse_source_symbol_bars(self, response, asset):
+    def _parse_source_symbol_bars(self, response, asset, quote=None):
+        if quote is not None:
+            logging.warning(
+                f"quote is not implemented for YahooData, but {quote} was passed as the quote"
+            )
+
         bars = Bars(response, self.SOURCE, asset, raw=response)
         return bars

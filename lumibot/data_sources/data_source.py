@@ -6,7 +6,8 @@ import numpy
 
 from lumibot import LUMIBOT_DEFAULT_PYTZ, LUMIBOT_DEFAULT_TIMEZONE
 from lumibot.entities import Asset, AssetsMapping
-from lumibot.tools import get_chunks
+from lumibot.tools import get_chunks, get_risk_free_rate
+from lumibot.tools.black_scholes import BS
 
 from .exceptions import UnavailabeTimestep
 
@@ -89,29 +90,31 @@ class DataSource:
         raise UnavailabeTimestep(self.SOURCE, timestep)
 
     def _pull_source_symbol_bars(
-        self, asset, length, timestep=MIN_TIMESTEP, timeshift=None
+        self, asset, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None
     ):
         """pull source bars for a given asset"""
         pass
 
-    def _pull_source_bars(self, assets, length, timestep=MIN_TIMESTEP, timeshift=None):
+    def _pull_source_bars(
+        self, assets, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None
+    ):
         pass
 
-    def _parse_source_symbol_bars(self, response, asset):
+    def _parse_source_symbol_bars(self, response, asset, quote=None):
         pass
 
-    def _parse_source_bars(self, response):
+    def _parse_source_bars(self, response, quote=None):
         result = {}
         for asset, data in response.items():
             if data is None or isinstance(data, float):
                 result[asset] = data
                 continue
-            result[asset] = self._parse_source_symbol_bars(data, asset)
+            result[asset] = self._parse_source_symbol_bars(data, asset, quote=quote)
         return result
 
     # =================Public Market Data Methods==================
 
-    def get_symbol_bars(self, asset, length, timestep="", timeshift=None):
+    def get_symbol_bars(self, asset, length, timestep="", timeshift=None, quote=None):
         """Get bars for a given asset"""
         if isinstance(asset, str):
             asset = Asset(symbol=asset)
@@ -120,14 +123,14 @@ class DataSource:
             timestep = self.get_timestep()
 
         response = self._pull_source_symbol_bars(
-            asset, length, timestep=timestep, timeshift=timeshift
+            asset, length, timestep=timestep, timeshift=timeshift, quote=quote
         )
         if isinstance(response, float):
             return response
         elif response is None:
             return None
 
-        bars = self._parse_source_symbol_bars(response, asset)
+        bars = self._parse_source_symbol_bars(response, asset, quote=quote)
         return bars
 
     def get_bars(
@@ -138,6 +141,7 @@ class DataSource:
         timeshift=None,
         chunk_size=100,
         max_workers=200,
+        quote=None,
     ):
         """Get bars for the list of assets"""
         assets = [Asset(symbol=a) if isinstance(a, str) else a for a in assets]
@@ -148,7 +152,7 @@ class DataSource:
         ) as executor:
             tasks = []
             func = lambda args, kwargs: self._pull_source_bars(*args, **kwargs)
-            kwargs = dict(timestep=timestep, timeshift=timeshift)
+            kwargs = dict(timestep=timestep, timeshift=timeshift, quote=quote)
             kwargs = {k: v for k, v in kwargs.items() if v is not None}
             for chunk in chunks:
                 tasks.append(executor.submit(func, (chunk, length), kwargs))
@@ -156,7 +160,7 @@ class DataSource:
             result = {}
             for task in as_completed(tasks):
                 response = task.result()
-                parsed = self._parse_source_bars(response)
+                parsed = self._parse_source_bars(response, quote=quote)
                 result = {**result, **parsed}
 
         return result
@@ -166,7 +170,7 @@ class DataSource:
         if timestep is None:
             timestep = self.get_timestep()
 
-        bars = self.get_symbol_bars(asset, 1, timestep=timestep)
+        bars = self.get_symbol_bars(asset, 1, timestep=timestep, quote=quote)
         if isinstance(bars, float):
             return bars
         elif bars is None:
@@ -182,11 +186,11 @@ class DataSource:
         if timestep is None:
             timestep = self.MIN_TIMESTEP
         result = {}
-        assets_bars = self.get_bars(assets, 1, timestep=timestep)
+        assets_bars = self.get_bars(assets, 1, timestep=timestep, quote=quote)
         for asset, bars in assets_bars.items():
             if isinstance(bars, float):
                 result[asset] = bars
-            elif bars is not None:
+            elif bars is not None and hasattr(bars, "df") and len(bars.df) > 0:
                 last_value = bars.df.iloc[0].close
                 result[asset] = last_value
         if self.SOURCE == "CCXT":
@@ -222,3 +226,63 @@ class DataSource:
                 result[asset] = bars.get_last_dividend()
 
         return AssetsMapping(result)
+
+    def get_greeks(
+        self,
+        asset,
+        implied_volatility=False,
+        delta=False,
+        option_price=False,
+        pv_dividend=False,
+        gamma=False,
+        vega=False,
+        theta=False,
+        underlying_price=False,
+    ):
+        """Returns Greeks in backtesting. """
+        underlying_asset = Asset(symbol=asset.symbol, asset_type="stock")
+        und_price = self.get_last_price(underlying_asset)
+
+        opt_price = self.get_last_price(asset)
+
+        interest = get_risk_free_rate() * 100
+        current_date = self.get_datetime().date()
+        days_to_expiration = (asset.expiration - current_date).days
+        if asset.right == "CALL":
+            iv = BS(
+                [und_price, float(asset.strike), interest, days_to_expiration],
+                callPrice=opt_price,
+            )
+        elif asset.right == "PUT":
+            iv = BS(
+                [und_price, float(asset.strike), interest, days_to_expiration],
+                putPrice=opt_price,
+            )
+
+        c = BS(
+            [und_price, float(asset.strike), interest, days_to_expiration],
+            volatility=iv.impliedVolatility,
+        )
+
+        is_call = True if asset.right == "CALL" else False
+
+        result = dict(
+            implied_volatility=iv.impliedVolatility,
+            delta=c.callDelta if is_call else c.putDelta,
+            option_price=c.callPrice if is_call else c.putPrice,
+            pv_dividend=None,  # (No equiv )
+            gamma=c.gamma,
+            vega=c.vega,
+            theta=c.callTheta if is_call else c.putTheta,
+            underlying_price=und_price,
+        )
+
+        greeks = dict()
+        for greek, value in result.items():
+            if eval(greek):
+                greeks[greek] = value
+
+        if len(greeks) == 0:
+            greeks = result
+
+        return greeks

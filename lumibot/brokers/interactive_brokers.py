@@ -565,7 +565,10 @@ class IBWrapper(EWrapper):
 
     # Single tick
     def init_tick(self):
-        self.tick = list()
+        self.tick = None
+        self.tick_type_used = None
+        self.tick_request_id = None
+        self.tick_asset = None
         tick_queue = queue.Queue()
         self.my_tick_queue = tick_queue
         return tick_queue
@@ -573,13 +576,28 @@ class IBWrapper(EWrapper):
     def tickPrice(self, reqId, tickType, price, attrib):
         if not hasattr(self, "tick"):
             self.init_tick()
+            self.tick_request_id = reqId
+
+        # tickType == 4 is last price, tickType == 9 is last close (from previous day)
+        # See details here: https://interactivebrokers.github.io/tws-api/tick_types.html
         if tickType == 4:
-            self.tick.append(price)
+            self.tick = price
+            self.tick_type_used = tickType
+
+        # If the last price is not available, then use yesterday's closing price
+        # This can happen if the market is closed
+        if tickType == 9 and self.tick is None:
+            self.tick = price
+            self.tick_type_used = tickType
 
     def tickSnapshotEnd(self, reqId):
         super().tickSnapshotEnd(reqId)
         if hasattr(self, "my_tick_queue"):
-            self.my_tick_queue.put(self.tick)
+            self.my_tick_queue.put([self.tick])
+            if self.tick_type_used == 9:
+                logging.warning(
+                    f"Last price for {self.tick_asset} not found. Using yesterday's closing price of {self.tick} instead. reqId = {reqId}"
+                )
         if hasattr(self, "my_greek_queue"):
             self.my_greek_queue.put(self.greek)
 
@@ -938,7 +956,7 @@ class IBClient(EClient):
     def __init__(self, wrapper):
         ## Set up with a wrapper inside
         EClient.__init__(self, wrapper)
-        self.max_wait_time = 11
+        self.max_wait_time = 13
         self.reqId = 10000
 
     def get_reqid(self):
@@ -975,6 +993,7 @@ class IBClient(EClient):
     ):
         if not greek:
             tick_storage = self.wrapper.init_tick()
+            self.tick_asset = asset
         elif greek:
             greek_storage = self.wrapper.init_greek()
 
@@ -983,6 +1002,7 @@ class IBClient(EClient):
             currency=asset.currency,
         )
         reqId = self.get_reqid()
+        self.tick_request_id = reqId
 
         if not greek:
             self.reqMktData(reqId, contract, "", True, False, [])
@@ -997,7 +1017,7 @@ class IBClient(EClient):
         except queue.Empty:
             data_type = f"{'tick' if not greek else 'greek'}"
             logging.error(
-                f"Unable to get data. The Interactive Brokers queue was empty or max time reached for {data_type} data."
+                f"Unable to get data for {self.tick_asset}. The Interactive Brokers queue was empty or max time reached for {data_type} data. reqId: {reqId}"
             )
             requested_tick = None
             requested_greek = None

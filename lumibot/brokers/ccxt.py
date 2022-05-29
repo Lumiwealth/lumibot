@@ -78,6 +78,18 @@ class Ccxt(CcxtData, Broker):
         )
         return None
 
+    def is_margin_enabled(self):
+        """Check if the broker is using margin trading"""
+        return "margin" in self.api_keys and self.api_keys["margin"] == True
+
+    def _fetch_balance(self):
+        params = {}
+
+        if self.is_margin_enabled():
+            params["type"] = "margin"
+
+        return self.api.fetch_balance(params)
+
     # =========Positions functions==================
     def _get_balances_at_broker(self, quote_asset):
         """Get's the current actual cash, positions value, and total
@@ -96,26 +108,8 @@ class Ccxt(CcxtData, Broker):
         total_cash_value = 0
         positions_value = 0
         # Get the market values for each pair held.
-        balances = self.api.fetch_balance()
+        balances = self._fetch_balance()
 
-        # Broker may return different formatting for `fetch_balance()`
-        # Example balances_info:
-        # [
-        # {
-        # 'id': '869d3e3d-2053-4dac-87d7-bbf344de4854',
-        # 'currency': 'BAT',
-        # 'balance': '1000000.0000000000000000',
-        # 'hold': '0.0000000000000000',
-        # 'available': '1000000',
-        # 'profile_id': 'a278bfa5-beec-4fc8-b84b-e7244856e6bb',
-        # 'trading_enabled': True
-        # },
-        # {
-        # 'id': 'b8b2fbea-0350-4036-a9b1-f654e911b760',
-        # 'currency': 'BTC',
-        # ...
-        # }
-        # ]
         currency_key = "currency"
         if self.api.exchangeId == "coinbasepro":
             balances_info = []
@@ -238,7 +232,7 @@ class Ccxt(CcxtData, Broker):
 
     def _pull_broker_positions(self):
         """Get the broker representation of all positions"""
-        response = self.api.fetch_balance()
+        response = self._fetch_balance()
 
         if self.api.exchangeId == "binance":
             return response["info"]["balances"]
@@ -283,12 +277,21 @@ class Ccxt(CcxtData, Broker):
     def _pull_broker_order(self, id):
         """Get a broker order representation by its id"""
         open_orders = self._pull_broker_open_orders()
-        closed_orders = self.api.fetch_closed_orders()
+        closed_orders = self._pull_broker_closed_orders()
         all_orders = open_orders + closed_orders
 
         response = [order for order in all_orders if order["id"] == id]
 
         return response[0] if len(response) > 0 else None
+
+    def _pull_broker_closed_orders(self):
+        params = {}
+        if self.is_margin_enabled():
+            params["tradeType"] = "MARGIN_TRADE"
+
+        closed_orders = self.api.fetch_closed_orders(params)
+
+        return closed_orders
 
     def _pull_broker_open_orders(self):
         """Get the broker open orders"""
@@ -310,7 +313,12 @@ class Ccxt(CcxtData, Broker):
                     )
                     self.sleep(net_rate_limit)
             self.fetch_open_orders_last_request_time = datetime.datetime.now()
-        orders = self.api.fetch_open_orders()
+
+        params = {}
+        if self.is_margin_enabled():
+            params["tradeType"] = "MARGIN_TRADE"
+
+        orders = self.api.fetch_open_orders(params=params)
         return orders
 
     def _flatten_order(self, order):

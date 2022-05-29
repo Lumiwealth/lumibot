@@ -1,7 +1,6 @@
 import pandas as pd
 
 from lumibot.entities import Asset, AssetsMapping, Bars
-from lumibot.tools.black_scholes import BS
 
 from .data_source import DataSource
 
@@ -169,8 +168,12 @@ class PandasData(DataSource):
 
     def get_last_price(self, asset, timestep=None, quote=None):
         # Takes an asset and returns the last known price
-        if asset in self._data_store:
-            return self._data_store[asset].get_last_price(self.get_datetime())
+        asset_to_find = asset
+        if quote is not None:
+            asset_to_find = (asset, quote)
+
+        if asset_to_find in self._data_store:
+            return self._data_store[asset_to_find].get_last_price(self.get_datetime())
         else:
             return None
 
@@ -180,11 +183,11 @@ class PandasData(DataSource):
             timestep = self.MIN_TIMESTEP
         result = {}
         for asset in assets:
-            result[asset] = self.get_last_price(asset, timestep=timestep)
+            result[asset] = self.get_last_price(asset, timestep=timestep, quote=quote)
         return result
 
     def _pull_source_symbol_bars(
-        self, asset, length, timestep=MIN_TIMESTEP, timeshift=0
+        self, asset, length, timestep=MIN_TIMESTEP, timeshift=0, quote=None
     ):
         if not timeshift:
             timeshift = 0
@@ -202,21 +205,23 @@ class PandasData(DataSource):
         res = data.get_bars(now, length=length, timestep=timestep, timeshift=timeshift)
         return res
 
-    def _pull_source_bars(self, assets, length, timestep=MIN_TIMESTEP, timeshift=None):
+    def _pull_source_bars(
+        self, assets, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None
+    ):
         """pull broker bars for a list assets"""
         self._parse_source_timestep(timestep, reverse=True)
 
         result = {}
         for asset in assets:
             result[asset] = self._pull_source_symbol_bars(
-                asset, length, timestep=timestep, timeshift=timeshift
+                asset, length, timestep=timestep, timeshift=timeshift, quote=quote
             )
         return result
 
-    def _parse_source_symbol_bars(self, response, asset):
+    def _parse_source_symbol_bars(self, response, asset, quote=None):
         """parse broker response for a single asset"""
         asset1 = asset
-        asset2 = None
+        asset2 = quote
         if isinstance(asset, tuple):
             asset1, asset2 = asset
         bars = Bars(response, self.SOURCE, asset1, quote=asset2, raw=response)
@@ -398,62 +403,3 @@ class PandasData(DataSource):
                 strikes.append(float(store_asset.strike))
 
         return sorted(list(set(strikes)))
-
-    def get_greeks(
-        self,
-        asset,
-        implied_volatility=False,
-        delta=False,
-        option_price=False,
-        pv_dividend=False,
-        gamma=False,
-        vega=False,
-        theta=False,
-        underlying_price=False,
-    ):
-        """Returns Greeks in backtesting. """
-        underlying_asset = self.get_asset_by_symbol(asset.symbol, asset_type="stock")[0]
-        und_price = self.get_last_price(underlying_asset)
-
-        opt_price = self.get_last_price(asset)
-
-        interest = 1.0
-        days_to_expiration = (asset.expiration - self._datetime.date()).days
-        if asset.right == "CALL":
-            iv = BS(
-                [und_price, float(asset.strike), interest, days_to_expiration],
-                callPrice=opt_price,
-            )
-        elif asset.right == "PUT":
-            iv = BS(
-                [und_price, float(asset.strike), interest, days_to_expiration],
-                putPrice=opt_price,
-            )
-
-        c = BS(
-            [und_price, float(asset.strike), interest, days_to_expiration],
-            volatility=iv.impliedVolatility,
-        )
-
-        is_call = True if asset.right == "CALL" else False
-
-        result = dict(
-            implied_volatility=iv.impliedVolatility,
-            delta=c.callDelta if is_call else c.putDelta,
-            option_price=c.callPrice if is_call else c.putPrice,
-            pv_dividend=None,  # (No equiv )
-            gamma=c.gamma,
-            vega=c.vega,
-            theta=c.callTheta if is_call else c.putTheta,
-            underlying_price=und_price,
-        )
-
-        greeks = dict()
-        for greek, value in result.items():
-            if eval(greek):
-                greeks[greek] = value
-
-        if len(greeks) == 0:
-            greeks = result
-
-        return greeks

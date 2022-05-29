@@ -46,6 +46,7 @@ class CcxtData(DataSource):
                 )
             )
 
+        self.api_keys = api_keys
         self.api = exchange_class(api_keys)
         is_sandbox = True if "sandbox" not in api_keys else api_keys["sandbox"]
         self.api.set_sandbox_mode(is_sandbox)
@@ -54,15 +55,17 @@ class CcxtData(DataSource):
         self.api.enableRateLimit = True
 
     def _pull_source_symbol_bars(
-        self, asset, length, timestep=MIN_TIMESTEP, timeshift=None
+        self, asset, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None
     ):
         """pull broker bars for a given asset"""
         response = self._pull_source_bars(
-            [asset], length, timestep=timestep, timeshift=timeshift
+            [asset], length, timestep=timestep, timeshift=timeshift, quote=quote
         )
         return response[asset]
 
-    def _pull_source_bars(self, assets, length, timestep=MIN_TIMESTEP, timeshift=None):
+    def _pull_source_bars(
+        self, assets, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None
+    ):
         """pull broker bars for a list assets"""
         parsed_timestep = self._parse_source_timestep(timestep, reverse=True)
         kwargs = dict(limit=length)
@@ -74,6 +77,8 @@ class CcxtData(DataSource):
         for asset in assets:
             if isinstance(asset, tuple):
                 symbol = f"{asset[0].symbol.upper()}/{asset[1].symbol.upper()}"
+            elif quote is not None:
+                symbol = f"{asset.symbol.upper()}/{quote.symbol.upper()}"
             else:
                 symbol = asset
             data = self.get_barset_from_api(self.api, symbol, parsed_timestep, **kwargs)
@@ -153,7 +158,10 @@ class CcxtData(DataSource):
             elif last_curr_end > endunix:
                 break
 
-            curr_start = last_curr_end
+            if curr_start == last_curr_end:
+                break
+            else:
+                curr_start = last_curr_end
 
             # Sleep for half a second every rate_limit requests to prevent rate limiting issues
             if cnt % rate_limit == 0:
@@ -169,10 +177,10 @@ class CcxtData(DataSource):
 
         return df_ret
 
-    def _parse_source_symbol_bars(self, response, asset):
+    def _parse_source_symbol_bars(self, response, asset, quote=None):
         # Parse the dataframe returned from CCXT.
         response["return"] = response["close"].pct_change()
-        bars = Bars(response, self.SOURCE, asset[0], quote=asset[1], raw=response)
+        bars = Bars(response, self.SOURCE, asset, quote=quote, raw=response)
         return bars
 
     def get_last_price(self, asset, quote=None):

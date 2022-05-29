@@ -215,6 +215,10 @@
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_chain.html">self.get_chain</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_chains.html">self.get_chains</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_greeks.html">self.get_greeks</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_strikes.html">self.get_strikes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_expiration.html">self.get_expiration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_multiplier.html">self.get_multiplier</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.options_expiry_to_datetime_date.html">self.options_expiry_to_datetime_date</a></li>
 </ul>
 </li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.datetime.html">DateTime</a><input class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
@@ -256,7 +260,6 @@
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.minutes_before_closing.html">self.minutes_before_closing</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.minutes_before_opening.html">self.minutes_before_opening</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.sleeptime.html">self.sleeptime</a></li>
-<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.parameters.html">self.parameters</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.last_on_trading_iteration_datetime.html">self.last_on_trading_iteration_datetime</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.timezone.html">self.timezone</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.pytz.html">self.pytz</a></li>
@@ -349,19 +352,16 @@
 <tr class="row-even"><td><p><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.sleeptime.html#strategies.strategy.Strategy.sleeptime" title="strategies.strategy.Strategy.sleeptime"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sleeptime</span></code></a></p></td>
 <td><p>Get or set the current sleep time for the strategy.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.parameters.html#strategies.strategy.Strategy.parameters" title="strategies.strategy.Strategy.parameters"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parameters</span></code></a></p></td>
-<td><p>Returns the parameters of the strategy.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.last_on_trading_iteration_datetime.html#strategies.strategy.Strategy.last_on_trading_iteration_datetime" title="strategies.strategy.Strategy.last_on_trading_iteration_datetime"><code class="xref py py-obj docutils literal notranslate"><span class="pre">last_on_trading_iteration_datetime</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.last_on_trading_iteration_datetime.html#strategies.strategy.Strategy.last_on_trading_iteration_datetime" title="strategies.strategy.Strategy.last_on_trading_iteration_datetime"><code class="xref py py-obj docutils literal notranslate"><span class="pre">last_on_trading_iteration_datetime</span></code></a></p></td>
 <td><p>Returns the datetime of the last iteration.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.timezone.html#strategies.strategy.Strategy.timezone" title="strategies.strategy.Strategy.timezone"><code class="xref py py-obj docutils literal notranslate"><span class="pre">timezone</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.timezone.html#strategies.strategy.Strategy.timezone" title="strategies.strategy.Strategy.timezone"><code class="xref py py-obj docutils literal notranslate"><span class="pre">timezone</span></code></a></p></td>
 <td><p>Returns the timezone of the data source.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.pytz.html#strategies.strategy.Strategy.pytz" title="strategies.strategy.Strategy.pytz"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pytz</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.pytz.html#strategies.strategy.Strategy.pytz" title="strategies.strategy.Strategy.pytz"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pytz</span></code></a></p></td>
 <td><p>Returns the pytz object of the data source.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.unspent_money.html#strategies.strategy.Strategy.unspent_money" title="strategies.strategy.Strategy.unspent_money"><code class="xref py py-obj docutils literal notranslate"><span class="pre">unspent_money</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.unspent_money.html#strategies.strategy.Strategy.unspent_money" title="strategies.strategy.Strategy.unspent_money"><code class="xref py py-obj docutils literal notranslate"><span class="pre">unspent_money</span></code></a></p></td>
 <td><p>Deprecated, will be removed in the future.</p></td>
 </tr>
 </tbody>

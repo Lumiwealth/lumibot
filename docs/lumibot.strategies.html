@@ -215,6 +215,10 @@
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_chain.html">self.get_chain</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_chains.html">self.get_chains</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_greeks.html">self.get_greeks</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_strikes.html">self.get_strikes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_expiration.html">self.get_expiration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_multiplier.html">self.get_multiplier</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.options_expiry_to_datetime_date.html">self.options_expiry_to_datetime_date</a></li>
 </ul>
 </li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.datetime.html">DateTime</a><input class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
@@ -256,7 +260,6 @@
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.minutes_before_closing.html">self.minutes_before_closing</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.minutes_before_opening.html">self.minutes_before_opening</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.sleeptime.html">self.sleeptime</a></li>
-<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.parameters.html">self.parameters</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.last_on_trading_iteration_datetime.html">self.last_on_trading_iteration_datetime</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.timezone.html">self.timezone</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.pytz.html">self.pytz</a></li>
@@ -1363,8 +1366,12 @@ same as get_symbol_bars take as first parameter a list of symbols.</p>
 In backtesting will provide the close of the last complete bar.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><p><strong>asset</strong> (<em>Asset object</em>) – Asset object for which the last closed price will be
-retrieved.</p>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>asset</strong> (<em>Asset object</em>) – Asset object for which the last closed price will be
+retrieved.</p></li>
+<li><p><strong>quote</strong> (<em>Asset object</em>) – Quote asset object for which the last closed price will be
+retrieved. This is required for cryptocurrency pairs.</p></li>
+</ul>
 </dd>
 <dt class="field-even">Returns</dt>
 <dd class="field-even"><p>Last closed price as either a float or Decimal object.</p>
@@ -1402,7 +1409,11 @@ retrieved.</p>
 <p>Makes an active call to the market to retrieve the last price. In backtesting will provide the close of the last complete bar.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><p><strong>assets</strong> (<em>list of Asset objects</em>) – List of Asset objects for which the last closed price will be retrieved.</p>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>assets</strong> (<em>list of Asset objects</em>) – List of Asset objects for which the last closed price will be retrieved.</p></li>
+<li><p><strong>quote</strong> (<em>Asset object</em>) – Quote asset object for which the last closed price will be
+retrieved. This is required for cryptocurrency pairs.</p></li>
+</ul>
 </dd>
 <dt class="field-even">Returns</dt>
 <dd class="field-even"><p>Last known closing prices as either a list of floats or Decimal objects.</p>
@@ -2300,23 +2311,6 @@ statistics when backtesting finishes</p>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">date</span> <span class="o">=</span> <span class="s2">"20200101"</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">expiry_date</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">options_expiry_to_datetime_date</span><span class="p">(</span><span class="n">date</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">log_message</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Expiry date for </span><span class="si">{</span><span class="n">date</span><span class="si">}</span><span class="s2"> is </span><span class="si">{</span><span class="n">expiry_date</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-</pre></div>
-</div>
-</dd></dl>
-<dl class="py property">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.parameters">
-<em class="property"><span class="pre">property</span> </em><span class="sig-name descname"><span class="pre">parameters</span></span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.parameters" title="Permalink to this definition">¶</a></dt>
-<dd><p>Returns the parameters of the strategy. This is a dictionary with the strategy parameters.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Returns</dt>
-<dd class="field-odd"><p>The parameters of the strategy.</p>
-</dd>
-<dt class="field-even">Return type</dt>
-<dd class="field-even"><p>dict</p>
-</dd>
-</dl>
-<p class="rubric">Example</p>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">log_message</span><span class="p">(</span><span class="sa">f</span><span class="s1">'Strategy parameters: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="si">}</span><span class="s1">'</span><span class="p">)</span>
 </pre></div>
 </div>
 </dd></dl>

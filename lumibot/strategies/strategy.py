@@ -1656,6 +1656,9 @@ class Strategy(_Strategy):
         asset : Asset object
             Asset object for which the last closed price will be
             retrieved.
+        quote : Asset object
+            Quote asset object for which the last closed price will be
+            retrieved. This is required for cryptocurrency pairs.
 
         Returns
         -------
@@ -1682,8 +1685,6 @@ class Strategy(_Strategy):
         >>> self.log_message(f"Last price for BTC/USDT is {last_price}")
         """
         asset = self._set_asset_mapping(asset)
-        # TODO: Get rid of passing assets as tuples, and switch instead to only using quote
-        # asset = self.crypto_assets_to_tuple(asset, quote)
 
         try:
             return self.broker.get_last_price(asset, quote=quote)
@@ -1706,6 +1707,9 @@ class Strategy(_Strategy):
         ----------
         assets : list of Asset objects
             List of Asset objects for which the last closed price will be retrieved.
+        quote : Asset object
+            Quote asset object for which the last closed price will be
+            retrieved. This is required for cryptocurrency pairs.
 
         Returns
         -------
@@ -1722,7 +1726,7 @@ class Strategy(_Strategy):
         if symbol_asset:
             assets = [self._set_asset_mapping(asset) for asset in assets]
 
-        asset_prices = self.broker.get_last_prices(assets)
+        asset_prices = self.broker.get_last_prices(assets, quote=quote)
 
         if symbol_asset:
             return {a.symbol: p for a, p in asset_prices.items()}

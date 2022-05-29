@@ -57,15 +57,17 @@ class InteractiveBrokersData(DataSource):
             )
 
     def _pull_source_symbol_bars(
-        self, asset, length, timestep=MIN_TIMESTEP, timeshift=None
+        self, asset, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None
     ):
         """pull broker bars for a given asset"""
         response = self._pull_source_bars(
-            [asset], length, timestep=timestep, timeshift=timeshift
+            [asset], length, timestep=timestep, timeshift=timeshift, quote=quote
         )
         return response[asset]
 
-    def _pull_source_bars(self, assets, length, timestep=MIN_TIMESTEP, timeshift=None):
+    def _pull_source_bars(
+        self, assets, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None
+    ):
         """pull broker bars for a list assets"""
 
         response = dict()
@@ -144,7 +146,7 @@ class InteractiveBrokersData(DataSource):
                 response[asset] = df
         return response
 
-    def _parse_source_symbol_bars(self, response, asset):
+    def _parse_source_symbol_bars(self, response, asset, quote=None):
         # Catch empty dataframe.
         if isinstance(response, float) or response.empty:
             bars = Bars(response, self.SOURCE, asset, raw=response)
@@ -172,7 +174,7 @@ class InteractiveBrokersData(DataSource):
             ]
         ]
 
-        bars = Bars(df, self.SOURCE, asset, raw=response)
+        bars = Bars(df, self.SOURCE, asset, raw=response, quote=quote)
         return bars
 
     def _start_realtime_bars(self, asset, keep_bars=12):
@@ -198,8 +200,8 @@ class InteractiveBrokersData(DataSource):
                 result = self.ib.get_tick(asset)
                 if result:
                     response[asset] = result[0]
-                get_data_attempt = max_attempts
-                continue
+                    break
+                get_data_attempt += 1
             except:
                 get_data_attempt += 1
         if asset not in response:
@@ -209,81 +211,6 @@ class InteractiveBrokersData(DataSource):
     def _get_tick(self, asset):
         result = self.ib.get_tick(asset, greek=False)
         return result
-
-    def _get_greeks(
-        self,
-        asset,
-        implied_volatility=False,
-        delta=False,
-        option_price=False,
-        pv_dividend=False,
-        gamma=False,
-        vega=False,
-        theta=False,
-        underlying_price=False,
-    ):
-        """Returns the greeks for the option asset at the current
-        bar.
-
-        Will return all the greeks available unless any of the
-        individual greeks are selected, then will only return those
-        greeks.
-
-        Parameters
-        ----------
-        asset : Asset
-            Option asset only for with greeks are desired.
-        implied_volatility : boolean
-            True to get the implied volatility. (default: True)
-        delta : boolean
-            True to get the option delta value. (default: True)
-        option_price : boolean
-            True to get the option price. (default: True)
-        pv_dividend : boolean
-            True to get the present value of dividends expected on the
-            option's  underlying. (default: True)
-        gamma : boolean
-            True to get the option gamma value. (default: True)
-        vega : boolean
-            True to get the option vega value. (default: True)
-        theta : boolean
-            True to get the option theta value. (default: True)
-        underlying_price : boolean
-            True to get the price of the underlying. (default: True)
-
-        Returns
-        -------
-        Returns a dictionary with greeks as keys and greek values as values.
-
-        implied_volatility : float
-            The implied volatility.
-        delta : float
-            The option delta value.
-        option_price : float
-            The option price.
-        pv_dividend : float
-            The present value of dividends expected on the option's
-            underlying.
-        gamma : float
-            The option gamma value.
-        vega : float
-            The option vega value.
-        theta : float
-            The option theta value.
-        underlying_price :
-            The price of the underlying.
-        """
-
-        result = self.ib.get_tick(asset, greek=True)
-        greeks = dict()
-        for greek, value in result.items():
-            if eval(greek):
-                greeks[greek] = value
-
-        if len(greeks) == 0:
-            greeks = result
-
-        return greeks
 
     def get_yesterday_dividend(self, asset):
         """ Unavailable """

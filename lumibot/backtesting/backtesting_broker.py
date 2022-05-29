@@ -493,11 +493,11 @@ class BacktestingBroker(Broker):
     # =========Market functions=======================
     def get_last_price(self, asset, quote=None):
         """Takes an asset asset and returns the last known price"""
-        return self._data_source.get_last_price(asset)
+        return self._data_source.get_last_price(asset, quote=quote)
 
     def get_last_prices(self, symbols, quote=None):
         """Takes a list of symbols and returns the last known prices"""
-        return self._data_source.get_last_prices(symbols)
+        return self._data_source.get_last_prices(symbols, quote=quote)
 
     def get_last_bar(self, asset):
         """Returns OHLCV dictionary for last bar of the asset."""

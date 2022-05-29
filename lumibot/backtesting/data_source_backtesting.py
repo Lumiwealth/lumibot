@@ -45,7 +45,9 @@ class DataSourceBacktesting(DataSource):
             self.backtesting_started,
         )
 
-    def _pull_source_symbol_bars(self, asset, length, timestep=None, timeshift=0):
+    def _pull_source_symbol_bars(
+        self, asset, length, timestep=None, timeshift=0, quote=None
+    ):
         if timestep is None:
             timestep = self.get_timestep()
         if self.LIVE_DATA_SOURCE.SOURCE == "YAHOO":
@@ -69,7 +71,12 @@ class DataSourceBacktesting(DataSource):
                 f" {self.LIVE_DATA_SOURCE.SOURCE}"
             )
         result = self.LIVE_DATA_SOURCE._pull_source_symbol_bars(
-            self, asset, length, timestep=timestep, timeshift=backtesting_timeshift
+            self,
+            asset,
+            length,
+            timestep=timestep,
+            timeshift=backtesting_timeshift,
+            quote=quote,
         )
 
         if result is None:

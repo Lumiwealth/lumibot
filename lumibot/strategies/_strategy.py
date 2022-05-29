@@ -840,7 +840,7 @@ class _Strategy:
             "quote_asset": str(quote_asset),
             "benchmark_asset": str(benchmark_asset),
             "starting_positions": str(starting_positions),
-            "parameters": parameters,
+            "parameters": strategy.parameters,
         }
 
         os.makedirs(os.path.dirname(settings_file), exist_ok=True)

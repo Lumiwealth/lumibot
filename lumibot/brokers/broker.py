@@ -776,3 +776,27 @@ class Broker:
         if len(self._trade_event_log_df) > 0:
             output_df = self._trade_event_log_df.set_index("time")
             output_df.to_csv(filename)
+
+    def _get_greeks(
+        self,
+        asset,
+        implied_volatility=False,
+        delta=False,
+        option_price=False,
+        pv_dividend=False,
+        gamma=False,
+        vega=False,
+        theta=False,
+        underlying_price=False,
+    ):
+        return self.get_greeks(
+            asset,
+            implied_volatility=implied_volatility,
+            delta=delta,
+            option_price=option_price,
+            pv_dividend=pv_dividend,
+            gamma=gamma,
+            vega=vega,
+            theta=theta,
+            underlying_price=underlying_price,
+        )

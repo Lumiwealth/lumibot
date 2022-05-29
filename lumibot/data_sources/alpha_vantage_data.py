@@ -38,7 +38,7 @@ class AlphaVantageData(DataSource):
         return result
 
     def _pull_source_symbol_bars(
-        self, asset, length, timestep=MIN_TIMESTEP, timeshift=None
+        self, asset, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None
     ):
         symbol = asset.symbol
 
@@ -59,7 +59,7 @@ class AlphaVantageData(DataSource):
                         data = data.set_index("timestamp")
                     elif "time" in data.columns:
                         data = data.set_index("time")
-        
+
                     got_data = True
 
             if not got_data:
@@ -95,7 +95,6 @@ class AlphaVantageData(DataSource):
             )
             self._data_store[asset] = data
 
-
         data = data[data.index <= self._datetime]
 
         # TODO: Make timeshift work
@@ -108,18 +107,20 @@ class AlphaVantageData(DataSource):
 
         return data
 
-    def _pull_source_bars(self, assets, length, timestep=MIN_TIMESTEP, timeshift=None):
+    def _pull_source_bars(
+        self, assets, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None
+    ):
         """pull broker bars for a list assets"""
 
         result = {}
         for asset in assets:
             asset_data = self._pull_source_symbol_bars(
-                asset, length, timestep, timeshift
+                asset, length, timestep, timeshift, quote=quote
             )
             result[asset] = asset_data
 
         return result
 
-    def _parse_source_symbol_bars(self, response, asset):
-        bars = Bars(response, self.SOURCE, asset, raw=response)
+    def _parse_source_symbol_bars(self, response, asset, quote=None):
+        bars = Bars(response, self.SOURCE, asset, raw=response, quote=quote)
         return bars

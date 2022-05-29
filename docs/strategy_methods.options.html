@@ -215,6 +215,10 @@
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_chain.html">self.get_chain</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_chains.html">self.get_chains</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_greeks.html">self.get_greeks</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_strikes.html">self.get_strikes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_expiration.html">self.get_expiration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_multiplier.html">self.get_multiplier</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.options_expiry_to_datetime_date.html">self.options_expiry_to_datetime_date</a></li>
 </ul>
 </li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.datetime.html">DateTime</a><input class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
@@ -256,7 +260,6 @@
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.minutes_before_closing.html">self.minutes_before_closing</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.minutes_before_opening.html">self.minutes_before_opening</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.sleeptime.html">self.sleeptime</a></li>
-<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.parameters.html">self.parameters</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.last_on_trading_iteration_datetime.html">self.last_on_trading_iteration_datetime</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.timezone.html">self.timezone</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.pytz.html">self.pytz</a></li>
@@ -327,6 +330,18 @@
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_greeks.html#strategies.strategy.Strategy.get_greeks" title="strategies.strategy.Strategy.get_greeks"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_greeks</span></code></a>(asset[, implied_volatility, ...])</p></td>
 <td><p>Returns the greeks for the option asset at the current bar.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_strikes.html#strategies.strategy.Strategy.get_strikes" title="strategies.strategy.Strategy.get_strikes"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_strikes</span></code></a>(asset)</p></td>
+<td><p>Returns a list of strikes for a give underlying asset.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_expiration.html#strategies.strategy.Strategy.get_expiration" title="strategies.strategy.Strategy.get_expiration"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_expiration</span></code></a>(chains[, exchange])</p></td>
+<td><p>Returns expiration dates for an option chain for a particular exchange.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_multiplier.html#strategies.strategy.Strategy.get_multiplier" title="strategies.strategy.Strategy.get_multiplier"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_multiplier</span></code></a>(chains[, exchange])</p></td>
+<td><p>Returns option chain for a particular exchange.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.options_expiry_to_datetime_date.html#strategies.strategy.Strategy.options_expiry_to_datetime_date" title="strategies.strategy.Strategy.options_expiry_to_datetime_date"><code class="xref py py-obj docutils literal notranslate"><span class="pre">options_expiry_to_datetime_date</span></code></a>(date)</p></td>
+<td><p>Converts an IB Options expiry to datetime.date.</p></td>
 </tr>
 </tbody>
 </table></div>

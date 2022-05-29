@@ -13,3 +13,7 @@ Options methods are meant for managing options, including getting option chains,
     get_chain
     get_chains
     get_greeks
+    get_strikes
+    get_expiration
+    get_multiplier
+    options_expiry_to_datetime_date

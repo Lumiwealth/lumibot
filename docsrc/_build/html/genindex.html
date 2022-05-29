@@ -214,6 +214,10 @@
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_chain.html">self.get_chain</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_chains.html">self.get_chains</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_greeks.html">self.get_greeks</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_strikes.html">self.get_strikes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_expiration.html">self.get_expiration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_multiplier.html">self.get_multiplier</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.options_expiry_to_datetime_date.html">self.options_expiry_to_datetime_date</a></li>
 </ul>
 </li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.datetime.html">DateTime</a><input class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
@@ -255,7 +259,6 @@
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.minutes_before_closing.html">self.minutes_before_closing</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.minutes_before_opening.html">self.minutes_before_opening</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.sleeptime.html">self.sleeptime</a></li>
-<li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.parameters.html">self.parameters</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.last_on_trading_iteration_datetime.html">self.last_on_trading_iteration_datetime</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.timezone.html">self.timezone</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/strategies.strategy.Strategy.pytz.html">self.pytz</a></li>
@@ -701,9 +704,11 @@
         </ul></li>
         <li><a href="entities.bar.html#entities.bar.Bar.get_empty_bar">get_empty_bar() (entities.bar.Bar class method)</a>
 </li>
-        <li><a href="lumibot.backtesting.html#lumibot.backtesting.backtesting_broker.BacktestingBroker.get_expiration">get_expiration() (lumibot.backtesting.backtesting_broker.BacktestingBroker method)</a>
+        <li><a href="strategy_methods.options/strategies.strategy.Strategy.get_expiration.html#strategies.strategy.Strategy.get_expiration">get_expiration() (in module strategies.strategy.Strategy)</a>
 
         <ul>
+          <li><a href="lumibot.backtesting.html#lumibot.backtesting.backtesting_broker.BacktestingBroker.get_expiration">(lumibot.backtesting.backtesting_broker.BacktestingBroker method)</a>
+</li>
           <li><a href="lumibot.data_sources.html#lumibot.data_sources.pandas.PandasData.get_expiration">(lumibot.data_sources.pandas.PandasData method)</a>
 </li>
           <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.get_expiration">(lumibot.strategies.strategy.Strategy method)</a>
@@ -712,6 +717,8 @@
         <li><a href="strategy_methods.options/strategies.strategy.Strategy.get_greeks.html#strategies.strategy.Strategy.get_greeks">get_greeks() (in module strategies.strategy.Strategy)</a>
 
         <ul>
+          <li><a href="lumibot.data_sources.html#lumibot.data_sources.data_source.DataSource.get_greeks">(lumibot.data_sources.data_source.DataSource method)</a>
+</li>
           <li><a href="lumibot.data_sources.html#lumibot.data_sources.pandas.PandasData.get_greeks">(lumibot.data_sources.pandas.PandasData method)</a>
 </li>
           <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.get_greeks">(lumibot.strategies.strategy.Strategy method)</a>
@@ -789,9 +796,11 @@
         </ul></li>
         <li><a href="entities.bars.html#entities.bars.Bars.get_momentum">get_momentum() (entities.bars.Bars method)</a>, <a href="entities.bars.html#id3">[1]</a>
 </li>
-        <li><a href="lumibot.backtesting.html#lumibot.backtesting.backtesting_broker.BacktestingBroker.get_multiplier">get_multiplier() (lumibot.backtesting.backtesting_broker.BacktestingBroker method)</a>
+        <li><a href="strategy_methods.options/strategies.strategy.Strategy.get_multiplier.html#strategies.strategy.Strategy.get_multiplier">get_multiplier() (in module strategies.strategy.Strategy)</a>
 
         <ul>
+          <li><a href="lumibot.backtesting.html#lumibot.backtesting.backtesting_broker.BacktestingBroker.get_multiplier">(lumibot.backtesting.backtesting_broker.BacktestingBroker method)</a>
+</li>
           <li><a href="lumibot.data_sources.html#lumibot.data_sources.pandas.PandasData.get_multiplier">(lumibot.data_sources.pandas.PandasData method)</a>
 </li>
           <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.get_multiplier">(lumibot.strategies.strategy.Strategy method)</a>
@@ -859,9 +868,11 @@
           <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.get_selling_order">(lumibot.strategies.strategy.Strategy method)</a>
 </li>
         </ul></li>
-        <li><a href="lumibot.backtesting.html#lumibot.backtesting.backtesting_broker.BacktestingBroker.get_strikes">get_strikes() (lumibot.backtesting.backtesting_broker.BacktestingBroker method)</a>
+        <li><a href="strategy_methods.options/strategies.strategy.Strategy.get_strikes.html#strategies.strategy.Strategy.get_strikes">get_strikes() (in module strategies.strategy.Strategy)</a>
 
         <ul>
+          <li><a href="lumibot.backtesting.html#lumibot.backtesting.backtesting_broker.BacktestingBroker.get_strikes">(lumibot.backtesting.backtesting_broker.BacktestingBroker method)</a>
+</li>
           <li><a href="lumibot.data_sources.html#lumibot.data_sources.pandas.PandasData.get_strikes">(lumibot.data_sources.pandas.PandasData method)</a>
 </li>
           <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.get_strikes">(lumibot.strategies.strategy.Strategy method)</a>
@@ -1305,8 +1316,12 @@
           <li><a href="entities.bar.html#id4">(entities.bar.Bar property)</a>
 </li>
         </ul></li>
-        <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.options_expiry_to_datetime_date">options_expiry_to_datetime_date() (lumibot.strategies.strategy.Strategy method)</a>
+        <li><a href="strategy_methods.options/strategies.strategy.Strategy.options_expiry_to_datetime_date.html#strategies.strategy.Strategy.options_expiry_to_datetime_date">options_expiry_to_datetime_date() (in module strategies.strategy.Strategy)</a>
+
+        <ul>
+          <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.options_expiry_to_datetime_date">(lumibot.strategies.strategy.Strategy method)</a>
 </li>
+        </ul></li>
         <li><a href="entities.order.html#entities.order.Order">Order (class in entities.order)</a>
 </li>
         <li><a href="entities.order.html#entities.order.Order.Transaction">Order.Transaction (class in entities.order)</a>
@@ -1321,12 +1336,6 @@
     <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="lumibot.data_sources.html#lumibot.data_sources.pandas.PandasData">PandasData (class in lumibot.data_sources.pandas)</a>
 </li>
-        <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.parameters">parameters (lumibot.strategies.strategy.Strategy property)</a>
-
-        <ul>
-          <li><a href="strategy_properties/strategies.strategy.Strategy.parameters.html#strategies.strategy.Strategy.parameters">(strategies.strategy.Strategy property)</a>
-</li>
-        </ul></li>
         <li><a href="entities.bars.html#entities.bars.Bars.parse_bar_list">parse_bar_list() (entities.bars.Bars class method)</a>
 </li>
         <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.portfolio_value">portfolio_value (lumibot.strategies.strategy.Strategy property)</a>
@@ -1335,10 +1344,10 @@
           <li><a href="strategy_properties/strategies.strategy.Strategy.portfolio_value.html#strategies.strategy.Strategy.portfolio_value">(strategies.strategy.Strategy property)</a>
 </li>
         </ul></li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="entities.position.html#entities.position.Position">Position (class in entities.position)</a>
 </li>
+    </ul></td>
+    <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.positions">positions (lumibot.strategies.strategy.Strategy property)</a>
 </li>
         <li><a href="entities.asset.html#entities.asset.Asset.precision">precision (entities.asset.Asset attribute)</a>, <a href="entities.asset.html#id4">[1]</a>

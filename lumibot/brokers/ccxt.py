@@ -479,9 +479,13 @@ class Ccxt(CcxtData, Broker):
                 )
                 return
         args = self.create_order_args(order)
-
+        
+        params = {}
+        if self.is_margin_enabled():
+            params['tradeType'] = 'MARGIN_TRADE'
+            
         try:
-            response = self.api.create_order(*args)
+            response = self.api.create_order(*args, params=params)
             order.set_identifier(response["id"])
             order.update_status(response["status"])
             order.update_raw(response)

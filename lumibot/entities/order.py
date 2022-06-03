@@ -35,6 +35,7 @@ class Order:
         pair=None,
         date_created=None,
         type=None,
+        trading_fee=None,
     ):
         """Order class for managing individual orders.
 
@@ -122,6 +123,8 @@ class Order:
             The date the order was created.
         type : str
             The type of order. Possible values are: `market`, `limit`, `stop`, `stop_limit`, `trail`, `trail_limit`, `bracket`, `bracket_limit`, `bracket_stop`, `bracket_stop_limit`.
+        trading_fee : TradingFee
+            The trading fee associated with the order, defaults to None.
         Examples
         --------
         >>> from lumibot.entities import Asset
@@ -193,7 +196,7 @@ class Order:
         self.symbol = self.asset.symbol
         self.identifier = None
         self.status = "unprocessed"
-        self._date_created = None
+        self._date_created = date_created
         self.side = None
         self.time_in_force = time_in_force
         self.good_till_date = good_till_date

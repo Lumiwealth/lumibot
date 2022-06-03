@@ -16,11 +16,13 @@ def warning_time_sleep(sleeptime):
             [re.match(expr, thread_name) for expr in authorized_threads_with_sleep]
         ):
             warned_against_calling_time_sleep = True
-            logging.critical(
-                "Time.sleep has been called within thread %s."
-                "time.sleep should be used with caution within lumibot, "
-                "especially in backtesting mode." % thread_name
-            )
+            # TODO: Look into this warning being handled more gracefully. Right now it
+            # is being called too often
+            # logging.critical(
+            #     "Time.sleep has been called within thread %s."
+            #     "time.sleep should be used with caution within lumibot, "
+            #     "especially in backtesting mode." % thread_name
+            # )
 
     default_time_sleep(sleeptime)
 

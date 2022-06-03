@@ -184,7 +184,7 @@ class StrategyExecutor(Thread):
                                 if olumi != obroker:
                                     setattr(order_lumi, order_attr, obroker)
                                     logging.warning(
-                                        f"We would adjust {order_lumi}, {order_attr}, to be {obroker} her."
+                                        f"We are adjusting the {order_attr} of the order {order_lumi}, from {olumi} to be {obroker} because what we have in memory does not match the broker."
                                     )
                         else:
                             # Add to order in lumibot.

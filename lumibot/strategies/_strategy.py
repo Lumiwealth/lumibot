@@ -611,6 +611,8 @@ class _Strategy:
         save_tearsheet=True,
         show_tearsheet=True,
         parameters={},
+        buy_trading_fees=[],
+        sell_trading_fees=[],
         **kwargs,
     ):
         """Backtest a strategy.

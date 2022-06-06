@@ -22,7 +22,6 @@ class Position:
         # internal variables
         self._raw = None
 
-
         if orders is not None and not isinstance(orders, list):
             raise ValueError(
                 "orders parameter must be a list of orders. received type %s"
@@ -40,7 +39,10 @@ class Position:
             self.orders = orders
 
     def __repr__(self):
-        repr = "%f shares of %s" % (self.quantity, self.symbol)
+        repr =  "%f shares of %s" % (
+            self.quantity,
+            self.asset
+        )
         return repr
 
     @property
@@ -61,10 +63,10 @@ class Position:
 
     @hold.deleter
     def hold(self):
-        if self.asset.asset_type != 'crypto':
+        if self.asset.asset_type != "crypto":
             return 0
         else:
-            self._available = Decimal('0')
+            self._available = Decimal("0")
 
     @property
     def available(self):
@@ -76,21 +78,32 @@ class Position:
 
     @available.deleter
     def available(self):
-        if self.asset.asset_type != 'crypto':
+        if self.asset.asset_type != "crypto":
             return 0
         else:
-            self._available = Decimal('0')
+            self._available = Decimal("0")
 
     def value_type(self, value):
         # Used to check the number types for hold and available.
-        if self.asset.asset_type != 'crypto':
+        if self.asset.asset_type != "crypto":
             return 0
 
         default_precision = 8
-        precision = self.asset.precision if hasattr(self, "asset.precision") else default_precision
+        precision = (
+            self.asset.precision
+            if hasattr(self, "asset.precision")
+            else default_precision
+        )
         if isinstance(value, Decimal):
             return value.quantize(Decimal(precision))
-        elif isinstance(value, (int, float, str,)):
+        elif isinstance(
+            value,
+            (
+                int,
+                float,
+                str,
+            ),
+        ):
             return Decimal(str(value)).quantize(Decimal(precision))
 
     def get_selling_order(self, quote_asset=None):
@@ -108,9 +121,13 @@ class Position:
         """
         order = None
         if self.quantity < 0:
-            order = entities.Order(self.strategy, self.asset, abs(self.quantity), "buy", quote=quote_asset)
+            order = entities.Order(
+                self.strategy, self.asset, abs(self.quantity), "buy", quote=quote_asset
+            )
         else:
-            order = entities.Order(self.strategy, self.asset, self.quantity, "sell", quote=quote_asset)
+            order = entities.Order(
+                self.strategy, self.asset, self.quantity, "sell", quote=quote_asset
+            )
         return order
 
     def add_order(self, order, quantity):

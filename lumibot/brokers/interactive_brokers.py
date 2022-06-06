@@ -161,7 +161,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
 
     def _pull_broker_positions(self):
         """Get the broker representation of all positions"""
-        return [d for d in self.ib.get_positions() if d["position"] > 0]
+        return [d for d in self.ib.get_positions()]
 
     # =======Orders and assets functions=========
 

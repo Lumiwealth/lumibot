@@ -126,6 +126,7 @@ class AlpacaData(DataSource):
 
         curr_start = start.isoformat(timespec="seconds")
 
+
         cnt = 0
         last_curr_end = None
         loop_limit = 1000 if limit > 1000 else limit

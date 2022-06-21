@@ -11,7 +11,7 @@ from attr import has
 
 from lumibot import LUMIBOT_DEFAULT_PYTZ
 from lumibot.backtesting import BacktestingBroker
-from lumibot.entities import Asset, Position
+from lumibot.entities import Asset, Position, TradingFee
 from lumibot.tools import (
     create_tearsheet,
     day_deduplicate,
@@ -49,6 +49,8 @@ class _Strategy:
         name=None,
         budget=None,
         parameters={},
+        buy_trading_fees=[],
+        sell_trading_fees=[],
         **kwargs,
     ):
         # Handling positional arguments.
@@ -59,6 +61,9 @@ class _Strategy:
         # `name`, `budget` and `broker`
 
         # TODO: Break up this function, too long!
+
+        self.buy_trading_fees = buy_trading_fees
+        self.sell_trading_fees = sell_trading_fees
 
         if len(args) == 1:
             if isinstance(args[0], str):
@@ -670,6 +675,10 @@ class _Strategy:
         parameters : dict
             A dictionary of parameters to pass to the strategy. These parameters
             must be set up within the initialize() method.
+        buy_trading_fees : list of TradingFee objects
+            A list of TradingFee objects to apply to the buy orders during backtests.
+        sell_trading_fees : list of TradingFee objects
+            A list of TradingFee objects to apply to the sell orders during backtests.
 
         Returns
         -------
@@ -801,6 +810,8 @@ class _Strategy:
             config=config,
             auto_adjust=auto_adjust,
             pandas_data=pandas_data,
+            buy_trading_fees=buy_trading_fees,
+            sell_trading_fees=sell_trading_fees,
             **kwargs,
         )
         backtesting_broker = BacktestingBroker(data_source)

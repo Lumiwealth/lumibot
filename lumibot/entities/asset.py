@@ -111,7 +111,7 @@ class Asset(BaseModel, frozen=True, extra="forbid"):
     multiplier: int = 1
     currency: Optional[str] = "USD"
     precision: Optional[str] = None
-    _asset_types: list = ["stock", "option", "future", "forex", "crypto"]
+    _asset_types: list = ["stock", "option", "future", "forex", "crypto", "index"]
     _right: list = ["CALL", "PUT"]
 
     def __repr__(self):

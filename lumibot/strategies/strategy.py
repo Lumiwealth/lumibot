@@ -1645,7 +1645,7 @@ class Strategy(_Strategy):
             self.name, cancel_open_orders=cancel_open_orders, strategy=self
         )
 
-    def get_last_price(self, asset, quote=None):
+    def get_last_price(self, asset, quote=None, exchange=None):
         """Takes an asset and returns the last known price
 
         Makes an active call to the market to retrieve the last price.
@@ -1687,7 +1687,7 @@ class Strategy(_Strategy):
         asset = self._set_asset_mapping(asset)
 
         try:
-            return self.broker.get_last_price(asset, quote=quote)
+            return self.broker.get_last_price(asset, quote=quote, exchange=exchange)
         except Exception as e:
             self.log_message(f"Could not get last price for {asset}")
             self.log_message(f"{e}")
@@ -1698,7 +1698,7 @@ class Strategy(_Strategy):
         asset = self._set_asset_mapping(asset)
         return self.broker._get_tick(asset)
 
-    def get_last_prices(self, assets, quote=None):
+    def get_last_prices(self, assets, quote=None, exchange=None):
         """Takes a list of assets and returns the last known prices
 
         Makes an active call to the market to retrieve the last price. In backtesting will provide the close of the last complete bar.
@@ -1726,7 +1726,9 @@ class Strategy(_Strategy):
         if symbol_asset:
             assets = [self._set_asset_mapping(asset) for asset in assets]
 
-        asset_prices = self.broker.get_last_prices(assets, quote=quote)
+        asset_prices = self.broker.get_last_prices(
+            assets, quote=quote, exchange=exchange
+        )
 
         if symbol_asset:
             return {a.symbol: p for a, p in asset_prices.items()}

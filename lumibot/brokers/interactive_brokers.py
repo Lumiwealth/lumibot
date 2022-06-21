@@ -512,6 +512,7 @@ TYPE_MAP = dict(
     option="OPT",
     future="FUT",
     forex="CASH",
+    index="IND",
 )
 
 DATE_MAP = dict(
@@ -995,6 +996,7 @@ class IBClient(EClient):
         self,
         asset="",
         greek=False,
+        exchange="SMART",
     ):
         if not greek:
             tick_storage = self.wrapper.init_tick()
@@ -1005,6 +1007,7 @@ class IBClient(EClient):
         contract = self.create_contract(
             asset,
             currency=asset.currency,
+            exchange=exchange,
         )
         reqId = self.get_reqid()
         self.tick_request_id = reqId
@@ -1303,6 +1306,8 @@ class IBApp(IBWrapper, IBClient):
             contract.currency = "USD"
         elif asset.asset_type == "forex":
             contract.exchange = "IDEALPRO"
+        elif asset.asset_type == "index":
+            pass
         else:
             raise ValueError(
                 f"The asset {asset.symbol} has a type of {asset.asset_type}. "

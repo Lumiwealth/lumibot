@@ -562,16 +562,16 @@ class Broker:
 
     # =========Market functions=======================
 
-    def get_last_price(self, asset, quote=None):
+    def get_last_price(self, asset, quote=None, exchange=None):
         """Takes an asset asset and returns the last known price"""
         pass
 
-    def get_last_prices(self, assets, quote=None):
+    def get_last_prices(self, assets, quote=None, exchange=None):
         """Takes a list of assets and returns the last known prices"""
         pass
 
     def _get_tick(self, order):
-        raise NotImplementedError(f"Tic data is not available for {self.name}")
+        raise NotImplementedError(f"Tick data is not available for {self.name}")
 
     # =========Subscribers/Strategies functions==============
 

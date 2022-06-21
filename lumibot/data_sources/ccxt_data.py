@@ -183,13 +183,13 @@ class CcxtData(DataSource):
         bars = Bars(response, self.SOURCE, asset, quote=quote, raw=response)
         return bars
 
-    def get_last_price(self, asset, quote=None):
+    def get_last_price(self, asset, quote=None, exchange=None):
         if quote is not None:
             symbol = f"{asset.symbol}/{quote.symbol}"
         else:
             symbol = asset.symbol
 
-        trade = self.api.fetch_trades(symbol, limit=1)[0]
-        price = trade["price"]
+        ticker = self.api.fetch_ticker(symbol)
+        price = ticker["last"]
 
         return price

@@ -166,7 +166,7 @@ class PandasData(DataSource):
             )
         return dt_index
 
-    def get_last_price(self, asset, timestep=None, quote=None):
+    def get_last_price(self, asset, timestep=None, quote=None, exchange=None):
         # Takes an asset and returns the last known price
         asset_to_find = asset
         if quote is not None:
@@ -177,7 +177,7 @@ class PandasData(DataSource):
         else:
             return None
 
-    def get_last_prices(self, assets, timestep=None, quote=None):
+    def get_last_prices(self, assets, timestep=None, quote=None, exchange=None):
         # Takes a list of assets and returns dictionary of last known prices for each.
         if timestep is None:
             timestep = self.MIN_TIMESTEP

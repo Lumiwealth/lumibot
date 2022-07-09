@@ -366,7 +366,8 @@ class StrategyExecutor(Thread):
         when an exception is raised and the bot crashes"""
         self.strategy.log_message("Executing the on_bot_crash event method")
         self.strategy.on_bot_crash(error)
-        self.strategy._dump_stats()
+        if self.broker.IS_BACKTESTING_BROKER:
+            self.strategy._dump_stats()
 
     def _on_abrupt_closing(self, error):
         """Use this lifecycle event to execute code
@@ -566,7 +567,11 @@ class StrategyExecutor(Thread):
                 # The bot crashed so log the error, call the on_bot_crash method, and continue
                 logging.error(e)
                 logging.error(traceback.format_exc())
-                self._on_bot_crash(e)
+                try:
+                    self._on_bot_crash(e)
+                except Exception as e:
+                    logging.error(e)
+                    logging.error(traceback.format_exc())
 
                 # Only stop the strategy if it's time, otherwise keep running the bot
                 if not self._strategy_sleep():

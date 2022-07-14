@@ -188,8 +188,8 @@ class Ccxt(CcxtData, Broker):
                 f"the total value of the holdings."
             )
 
-        gross_positions_value = float(positions_value)
-        net_liquidation_value = float(positions_value)
+        gross_positions_value = float(positions_value) + float(total_cash_value)
+        net_liquidation_value = float(positions_value) + float(total_cash_value)
 
         return (total_cash_value, gross_positions_value, net_liquidation_value)
 
@@ -479,11 +479,11 @@ class Ccxt(CcxtData, Broker):
                 )
                 return
         args = self.create_order_args(order)
-        
+
         params = {}
         if self.is_margin_enabled():
-            params['tradeType'] = 'MARGIN_TRADE'
-            
+            params["tradeType"] = "MARGIN_TRADE"
+
         try:
             response = self.api.create_order(*args, params=params)
             order.set_identifier(response["id"])

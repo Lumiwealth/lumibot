@@ -63,8 +63,19 @@ class AlpacaData(DataSource):
         )
 
     def _pull_source_symbol_bars(
-        self, asset, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None
+        self,
+        asset,
+        length,
+        timestep=MIN_TIMESTEP,
+        timeshift=None,
+        quote=None,
+        exchange=None,
     ):
+        if exchange is not None:
+            logging.warning(
+                f"the exchange parameter is not implemented for AlpacaData, but {exchange} was passed as the exchange"
+            )
+            
         """pull broker bars for a given asset"""
         response = self._pull_source_bars(
             [asset], length, timestep=timestep, timeshift=timeshift, quote=quote
@@ -125,7 +136,6 @@ class AlpacaData(DataSource):
                 start = end - timedelta(days=limit)
 
         curr_start = start.isoformat(timespec="seconds")
-
 
         cnt = 0
         last_curr_end = None

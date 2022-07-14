@@ -38,8 +38,19 @@ class AlphaVantageData(DataSource):
         return result
 
     def _pull_source_symbol_bars(
-        self, asset, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None
+        self,
+        asset,
+        length,
+        timestep=MIN_TIMESTEP,
+        timeshift=None,
+        quote=None,
+        exchange=None,
     ):
+        if exchange is not None:
+            logging.warning(
+                f"the exchange parameter is not implemented for AlphaVantageData, but {exchange} was passed as the exchange"
+            )
+
         symbol = asset.symbol
 
         # Check if file exists in the current folder, if not then download the data

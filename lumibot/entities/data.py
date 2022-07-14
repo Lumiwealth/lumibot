@@ -407,7 +407,7 @@ class Data:
 
         return df_dict
 
-    def get_bars(self, dt, length=1, timestep=MIN_TIMESTEP, timeshift=0):
+    def get_bars(self, dt, length=1, timestep=MIN_TIMESTEP, timeshift=0, exchange=None):
         """Returns a dictionary of the data.
 
         Parameters

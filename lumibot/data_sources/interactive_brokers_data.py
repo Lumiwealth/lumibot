@@ -57,18 +57,38 @@ class InteractiveBrokersData(DataSource):
             )
 
     def _pull_source_symbol_bars(
-        self, asset, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None
+        self,
+        asset,
+        length,
+        timestep=MIN_TIMESTEP,
+        timeshift=None,
+        quote=None,
+        exchange=None,
     ):
         """pull broker bars for a given asset"""
         response = self._pull_source_bars(
-            [asset], length, timestep=timestep, timeshift=timeshift, quote=quote
+            [asset],
+            length,
+            timestep=timestep,
+            timeshift=timeshift,
+            quote=quote,
+            exchange=exchange,
         )
         return response[asset]
 
     def _pull_source_bars(
-        self, assets, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None
+        self,
+        assets,
+        length,
+        timestep=MIN_TIMESTEP,
+        timeshift=None,
+        quote=None,
+        exchange=None,
     ):
         """pull broker bars for a list assets"""
+
+        if exchange is None:
+            exchange = "SMART"
 
         response = dict()
 
@@ -103,6 +123,7 @@ class InteractiveBrokersData(DataSource):
                     2,
                     False,
                     [],
+                    exchange=exchange,
                 )
 
                 df = pd.DataFrame(result)
@@ -194,7 +215,7 @@ class InteractiveBrokersData(DataSource):
     def get_last_price(self, asset, timestep=None, quote=None, exchange=None):
         if exchange is None:
             exchange = "SMART"
-            
+
         response = dict()
         get_data_attempt = 0
         max_attempts = 2

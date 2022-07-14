@@ -1061,10 +1061,11 @@ class IBClient(EClient):
         formatDate=2,
         keepUpToDate=False,
         chartOptions=[],
+        exchange="SMART",
     ):
         historical_storage = self.wrapper.init_historical()
 
-        contract = self.create_contract(symbol)
+        contract = self.create_contract(symbol, exchange=exchange)
         # Call the historical data.
         self.reqHistoricalData(
             self.get_reqid(),

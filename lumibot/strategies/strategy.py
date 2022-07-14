@@ -2362,6 +2362,7 @@ class Strategy(_Strategy):
         timestep="",
         timeshift=None,
         quote=None,
+        exchange=None,
     ):
         """Get historical pricing data for a given symbol or asset.
 
@@ -2388,6 +2389,8 @@ class Strategy(_Strategy):
         quote : Asset
             The quote currency for crypto currencies (eg. USD, USDT, EUR, ...).
             Default is the quote asset for the strategy.
+        exchange : str
+            The exchange to pull the historical data from. Default is None (decided based on the broker)
 
         Returns
         -------
@@ -2454,7 +2457,7 @@ class Strategy(_Strategy):
         if not timestep:
             timestep = self.data_source.MIN_TIMESTEP
         return self.data_source.get_symbol_bars(
-            asset, length, timestep=timestep, timeshift=timeshift
+            asset, length, timestep=timestep, timeshift=timeshift, exchange=exchange
         )
 
     def get_symbol_bars(
@@ -2464,6 +2467,7 @@ class Strategy(_Strategy):
         timestep="",
         timeshift=None,
         quote=None,
+        exchange=None,
     ):
         """This method is deprecated and will be removed in a future version. Please use self.get_historical_prices() instead."""
         logger.warning(
@@ -2471,7 +2475,12 @@ class Strategy(_Strategy):
         )
 
         return self.get_historical_prices(
-            asset, length, timestep=timestep, timeshift=timeshift, quote=quote
+            asset,
+            length,
+            timestep=timestep,
+            timeshift=timeshift,
+            quote=quote,
+            exchange=exchange,
         )
 
     def get_historical_prices_for_assets(
@@ -2482,6 +2491,7 @@ class Strategy(_Strategy):
         timeshift=None,
         chunk_size=100,
         max_workers=200,
+        exchange=None,
     ):
         """Get historical pricing data for the list of assets.
 
@@ -2545,6 +2555,7 @@ class Strategy(_Strategy):
             timeshift=timeshift,
             chunk_size=chunk_size,
             max_workers=max_workers,
+            exchange=exchange,
         )
 
     def get_bars(
@@ -2555,6 +2566,7 @@ class Strategy(_Strategy):
         timeshift=None,
         chunk_size=100,
         max_workers=200,
+        exchange=None,
     ):
         """This method is deprecated and will be removed in a future version. Please use self.get_historical_prices_for_assets() instead."""
         logger.warning(
@@ -2568,6 +2580,7 @@ class Strategy(_Strategy):
             timeshift=timeshift,
             chunk_size=chunk_size,
             max_workers=max_workers,
+            exchange=exchange,
         )
 
     def start_realtime_bars(self, asset, keep_bars=30):

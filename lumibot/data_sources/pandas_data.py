@@ -1,3 +1,5 @@
+import logging
+
 import pandas as pd
 
 from lumibot.entities import Asset, AssetsMapping, Bars
@@ -187,8 +189,19 @@ class PandasData(DataSource):
         return result
 
     def _pull_source_symbol_bars(
-        self, asset, length, timestep=MIN_TIMESTEP, timeshift=0, quote=None
+        self,
+        asset,
+        length,
+        timestep=MIN_TIMESTEP,
+        timeshift=0,
+        quote=None,
+        exchange=None,
     ):
+        if exchange is not None:
+            logging.warning(
+                f"the exchange parameter is not implemented for PandasData, but {exchange} was passed as the exchange"
+            )
+
         if not timeshift:
             timeshift = 0
 

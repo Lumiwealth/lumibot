@@ -41,8 +41,19 @@ class YahooData(DataSource):
         return data
 
     def _pull_source_symbol_bars(
-        self, asset, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None
+        self,
+        asset,
+        length,
+        timestep=MIN_TIMESTEP,
+        timeshift=None,
+        quote=None,
+        exchange=None,
     ):
+        if exchange is not None:
+            logging.warning(
+                f"the exchange parameter is not implemented for YahooData, but {exchange} was passed as the exchange"
+            )
+
         if quote is not None:
             logging.warning(
                 f"quote is not implemented for YahooData, but {quote} was passed as the quote"

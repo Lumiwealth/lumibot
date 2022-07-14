@@ -90,7 +90,13 @@ class DataSource:
         raise UnavailabeTimestep(self.SOURCE, timestep)
 
     def _pull_source_symbol_bars(
-        self, asset, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None
+        self,
+        asset,
+        length,
+        timestep=MIN_TIMESTEP,
+        timeshift=None,
+        quote=None,
+        exchange=None,
     ):
         """pull source bars for a given asset"""
         pass
@@ -114,7 +120,9 @@ class DataSource:
 
     # =================Public Market Data Methods==================
 
-    def get_symbol_bars(self, asset, length, timestep="", timeshift=None, quote=None):
+    def get_symbol_bars(
+        self, asset, length, timestep="", timeshift=None, quote=None, exchange=None
+    ):
         """Get bars for a given asset"""
         if isinstance(asset, str):
             asset = Asset(symbol=asset)
@@ -123,7 +131,12 @@ class DataSource:
             timestep = self.get_timestep()
 
         response = self._pull_source_symbol_bars(
-            asset, length, timestep=timestep, timeshift=timeshift, quote=quote
+            asset,
+            length,
+            timestep=timestep,
+            timeshift=timeshift,
+            quote=quote,
+            exchange=exchange,
         )
         if isinstance(response, float):
             return response
@@ -142,6 +155,7 @@ class DataSource:
         chunk_size=100,
         max_workers=200,
         quote=None,
+        exchange=None,
     ):
         """Get bars for the list of assets"""
         assets = [Asset(symbol=a) if isinstance(a, str) else a for a in assets]
@@ -152,7 +166,9 @@ class DataSource:
         ) as executor:
             tasks = []
             func = lambda args, kwargs: self._pull_source_bars(*args, **kwargs)
-            kwargs = dict(timestep=timestep, timeshift=timeshift, quote=quote)
+            kwargs = dict(
+                timestep=timestep, timeshift=timeshift, quote=quote, exchange=exchange
+            )
             kwargs = {k: v for k, v in kwargs.items() if v is not None}
             for chunk in chunks:
                 tasks.append(executor.submit(func, (chunk, length), kwargs))

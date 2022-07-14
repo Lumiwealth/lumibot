@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timedelta
 
 import pandas as pd
@@ -46,8 +47,13 @@ class DataSourceBacktesting(DataSource):
         )
 
     def _pull_source_symbol_bars(
-        self, asset, length, timestep=None, timeshift=0, quote=None
+        self, asset, length, timestep=None, timeshift=0, quote=None, exchange=None
     ):
+        if exchange is not None:
+            logging.warning(
+                f"the exchange parameter is not implemented for DataSourceBacktesting, but {exchange} was passed as the exchange"
+            )
+
         if timestep is None:
             timestep = self.get_timestep()
         if self.LIVE_DATA_SOURCE.SOURCE == "YAHOO":

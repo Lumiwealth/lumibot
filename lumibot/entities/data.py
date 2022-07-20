@@ -33,6 +33,10 @@ class Data:
         If not supplied, then default is 2359 hrs.
     timestep : str
         Either "minute" (default) or "day"
+    localize_timezone : str or None
+        If not None, then localize the timezone of the dataframe to the
+        given timezone as a string. The values can be any supported by tz_localize,
+        e.g. "US/Eastern", "UTC", etc.
 
     Attributes
     ----------
@@ -110,6 +114,7 @@ class Data:
         trading_hours_end=datetime.time(23, 59),
         timestep="minute",
         quote=None,
+        timezone=None,
     ):
 
         self.asset = asset
@@ -126,7 +131,30 @@ class Data:
             self.quote = quote
 
         self.timestep = timestep
+
         self.df = self.columns(df)
+
+        # Check if the index is datetime (it has to be), and if it's not then try to find it in the columns
+        if self.df.index.dtype != "datetime64[ns]":
+            date_cols = [
+                "Date",
+                "date",
+                "Time",
+                "time",
+                "Datetime",
+                "datetime",
+                "timestamp",
+                "Timestamp",
+            ]
+            for date_col in date_cols:
+                if date_col in self.df.columns:
+                    self.df[date_col] = pd.to_datetime(self.df[date_col])
+                    self.df = self.df.set_index(date_col)
+                    break
+
+        if timezone is not None:
+            self.df.index = self.df.index.tz_localize(timezone)
+
         self.df = self.set_date_format(self.df)
         self.df = self.df.sort_index()
 

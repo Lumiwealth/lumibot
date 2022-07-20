@@ -258,11 +258,11 @@ class Alpaca(AlpacaData, Broker):
             f"The type {type} is not in the ASSET_TYPE_MAP in the Alpaca Module."
         )
 
-    def _parse_broker_order(self, response, strategy):
+    def _parse_broker_order(self, response, strategy_name, strategy_object):
         """parse a broker order representation
         to an order object"""
         order = Order(
-            strategy,
+            strategy_name,
             Asset(
                 symbol=response.symbol,
                 asset_type=response.asset_class,
@@ -296,9 +296,9 @@ class Alpaca(AlpacaData, Broker):
         and all the derived ones"""
         orders = [order]
         if order._raw.legs:
-            strategy = order.strategy
+            strategy_name = order.strategy
             for json_sub_order in order._raw.legs:
-                sub_order = self._parse_broker_order(json_sub_order, strategy)
+                sub_order = self._parse_broker_order(json_sub_order, strategy_name)
                 orders.append(sub_order)
 
         return orders

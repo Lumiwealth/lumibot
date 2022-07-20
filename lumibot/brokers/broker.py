@@ -417,18 +417,22 @@ class Broker:
 
         return quantity
 
-    def _parse_broker_order(self, response, strategy):
+    def _parse_broker_order(self, response, strategy_name, strategy_object):
         """parse a broker order representation
         to an order object"""
         pass
 
-    def _parse_broker_orders(self, broker_orders, strategy):
+    def _parse_broker_orders(self, broker_orders, strategy_name, strategy_object):
         """parse a list of broker orders into a
         list of order objects"""
         result = []
         if broker_orders is not None:
             for broker_order in broker_orders:
-                result.append(self._parse_broker_order(broker_order, strategy))
+                result.append(
+                    self._parse_broker_order(
+                        broker_order, strategy_name, strategy_object=strategy_object
+                    )
+                )
         else:
             logging.warning(
                 "No orders found in broker._parse_broker_orders: the broker_orders object is None"
@@ -440,11 +444,11 @@ class Broker:
         """Get a broker order representation by its id"""
         pass
 
-    def _pull_order(self, identifier, strategy):
+    def _pull_order(self, identifier, strategy_name):
         """pull and parse a broker order by id"""
         response = self._pull_broker_order(identifier)
         if response:
-            order = self._parse_broker_order(response, strategy)
+            order = self._parse_broker_order(response, strategy_name)
             return order
         return None
 
@@ -452,11 +456,13 @@ class Broker:
         """Get the broker open orders"""
         pass
 
-    def _pull_open_orders(self, strategy):
+    def _pull_open_orders(self, strategy_name, strategy_object):
         """Get a list of order objects representing the open
         orders"""
         response = self._pull_broker_open_orders()
-        result = self._parse_broker_orders(response, strategy)
+        result = self._parse_broker_orders(
+            response, strategy_name, strategy_object=strategy_object
+        )
         return result
 
     def submit_order(self, order):

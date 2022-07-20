@@ -170,7 +170,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
 
     # =======Orders and assets functions=========
 
-    def _parse_broker_order(self, response, strategy):
+    def _parse_broker_order(self, response, strategy_name, strategy_object):
         """Parse a broker order representation
         to an order object"""
 
@@ -194,7 +194,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
             strike = response.contract.strike
 
         order = OrderLum(
-            strategy,
+            strategy_name,
             Asset(
                 symbol=response.contract.localSymbol,
                 asset_type=[
@@ -212,6 +212,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
             stop_price=response.auxPrice if response.auxPrice != 0 else None,
             time_in_force=response.tif,
             good_till_date=response.goodTillDate,
+            quote=strategy_object.quote_asset,
         )
         order._transmitted = True
         order.set_identifier(response.orderId)

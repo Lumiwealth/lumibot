@@ -192,7 +192,7 @@ class BacktestingBroker(Broker):
 
     # =======Orders and assets functions=========
 
-    def _parse_broker_order(self, response, strategy):
+    def _parse_broker_order(self, response, strategy_name, strategy_object):
         """parse a broker order representation
         to an order object"""
         order = response

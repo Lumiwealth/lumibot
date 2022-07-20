@@ -248,12 +248,12 @@ class Ccxt(CcxtData, Broker):
             )
 
     # =======Orders and assets functions=========
-    def _parse_broker_order(self, response, strategy):
+    def _parse_broker_order(self, response, strategy_name, strategy_object):
         """parse a broker order representation
         to an order object"""
         pair = response["symbol"].split("/")
         order = Order(
-            strategy,
+            strategy_name,
             Asset(
                 symbol=pair[0],
                 asset_type="crypto",
@@ -327,9 +327,9 @@ class Ccxt(CcxtData, Broker):
         and all the derived ones"""
         orders = [order]
         if "legs" in order._raw and order._raw.legs:
-            strategy = order.strategy
+            strategy_name = order.strategy
             for json_sub_order in order._raw.legs:
-                sub_order = self._parse_broker_order(json_sub_order, strategy)
+                sub_order = self._parse_broker_order(json_sub_order, strategy_name)
                 orders.append(sub_order)
 
         return orders

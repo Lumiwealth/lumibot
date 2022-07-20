@@ -134,8 +134,18 @@ class Data:
 
         self.df = self.columns(df)
 
+        # Check if the index is datetime (it has to be), and if it's not then try to find it in the columns
         if self.df.index.dtype != "datetime64[ns]":
-            date_cols = ["Date", "date", "Time", "time", "timestamp", "Timestamp"]
+            date_cols = [
+                "Date",
+                "date",
+                "Time",
+                "time",
+                "Datetime",
+                "datetime",
+                "timestamp",
+                "Timestamp",
+            ]
             for date_col in date_cols:
                 if date_col in self.df.columns:
                     self.df[date_col] = pd.to_datetime(self.df[date_col])

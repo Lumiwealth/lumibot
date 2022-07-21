@@ -131,6 +131,9 @@ class Asset(BaseModel, frozen=True, extra="forbid"):
             return f"{self.symbol}"
 
     def __eq__(self, other):
+        if other is None:
+            return False
+
         return (
             self.symbol == other.symbol
             and self.asset_type == other.asset_type

@@ -204,10 +204,11 @@ class _Strategy:
         self._analysis = {}
 
         # Storing parameters for the initialize method
-        if not hasattr(self, "parameters") or type(self.parameters) != dict:
+        if not hasattr(self, "parameters") or type(self.parameters) != dict or self.parameters is None:
             self.parameters = {}
         self.parameters = {**self.parameters, **kwargs}
-        self.parameters = {**self.parameters, **parameters}
+        if parameters is not None and type(self.parameters) == dict:
+            self.parameters = {**self.parameters, **parameters}
 
         self._strategy_returns_df = None
         self._benchmark_returns_df = None

@@ -72,7 +72,7 @@ class Trader:
         return self._strategies
 
     def stop_all(self):
-        logging.info("Stopping all strategies")
+        logging.info("Stopping all strategies for this trader")
         self._stop_pool()
 
     def _set_logger(self):

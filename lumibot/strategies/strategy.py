@@ -4,6 +4,7 @@ from asyncio.log import logger
 from decimal import Decimal
 
 import pandas as pd
+from termcolor import colored
 
 from lumibot.entities import Asset, Order
 
@@ -300,7 +301,7 @@ class Strategy(_Strategy):
 
     # =======Helper methods=======================
 
-    def log_message(self, message):
+    def log_message(self, message, color=None):
         """Logs an info message prefixed with the strategy name.
 
         Uses python logging to log the message at the `info` level.
@@ -310,6 +311,9 @@ class Strategy(_Strategy):
         ----------
         message : str
             String message for logging.
+
+        color : str
+            Color of the message. Eg. `"red"` or `"green"`.
 
         Returns
         -------
@@ -321,6 +325,8 @@ class Strategy(_Strategy):
         >>> self.log_message('Sending a buy order')
         """
         message = f"{self._log_strat_name()}: {message}"
+        if color is not None:
+            message = colored(message, color)
         logging.info(message)
 
         return message

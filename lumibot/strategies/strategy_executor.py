@@ -7,6 +7,8 @@ from functools import wraps
 from queue import Empty, Queue
 from threading import Event, Lock, Thread
 
+from termcolor import colored
+
 from lumibot.tools import append_locals, lumibot_time, staticdecorator
 
 
@@ -441,16 +443,16 @@ class StrategyExecutor(Thread):
         else:
             raise ValueError(sleeptime_err_msg)
 
-        if units not in "SMHD":
+        if units not in "SMHDsmhd":
             raise ValueError(sleeptime_err_msg)
 
-        if units == "S":
+        if units == "S" or units == "s":
             strategy_sleeptime = time
-        elif units == "M":
+        elif units == "M" or units == "m":
             strategy_sleeptime = 60 * time
-        elif units == "H":
+        elif units == "H" or units == "h":
             strategy_sleeptime = 60 * 60 * time
-        elif units == "D":
+        elif units == "D" or units == "d":
             strategy_sleeptime = 60 * 60 * 24 * time
         else:
             strategy_sleeptime = time
@@ -462,7 +464,9 @@ class StrategyExecutor(Thread):
         ):
             return False
         else:
-            self.strategy.log_message(f"Sleeping for {strategy_sleeptime} seconds")
+            self.strategy.log_message(
+                colored(f"Sleeping for {strategy_sleeptime} seconds", color="blue")
+            )
             # TODO: next line speed implication: medium (371 microseconds)
             self.safe_sleep(strategy_sleeptime)
 

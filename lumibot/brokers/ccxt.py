@@ -162,7 +162,7 @@ class Ccxt(CcxtData, Broker):
             else:
                 total_balance = currency_info["balance"]
 
-            units = Decimal(total_balance).quantize(Decimal(str(precision_amount)))
+            units = Decimal(total_balance) 
 
             attempts = 0
             max_attempts = 3
@@ -176,7 +176,7 @@ class Ccxt(CcxtData, Broker):
             if last_price is None:
                 last_price = 0
 
-            price = Decimal(last_price).quantize(Decimal(str(precision_price)))
+            price = Decimal(last_price)
 
             value = units * price
             positions_value += value

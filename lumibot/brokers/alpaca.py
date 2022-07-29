@@ -9,6 +9,7 @@ from decimal import Decimal
 import alpaca_trade_api as tradeapi
 from dateutil import tz
 from numpy import str0
+from termcolor import colored
 
 from lumibot.data_sources import AlpacaData
 from lumibot.entities import Asset, Order, Position
@@ -358,13 +359,19 @@ class Alpaca(AlpacaData, Broker):
             message = str(e)
             if "stop price must not be greater than base price / 1.001" in message:
                 logging.info(
-                    "%r did not go through because the share base price became lesser than the stop loss price."
-                    % order
+                    colored(
+                        "%r did not go through because the share base price became lesser than the stop loss price."
+                        % order,
+                        color="red",
+                    )
                 )
             else:
                 logging.info(
-                    "%r did not go through. The following error occured: %s"
-                    % (order, e)
+                    colored(
+                        "%r did not go through. The following error occured: %s"
+                        % (order, e),
+                        color="red",
+                    )
                 )
 
         return order
@@ -453,6 +460,7 @@ class Alpaca(AlpacaData, Broker):
         Run forever and block until exception is raised.
         initial_channels is the channels to start with.
         """
+        self.stream.loop = asyncio.new_event_loop()
         loop = self.stream.loop
         should_renew = True  # should renew connection if it disconnects
         while should_renew:

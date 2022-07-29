@@ -10,6 +10,7 @@ from threading import RLock, Thread
 import pandas as pd
 import pandas_market_calendars as mcal
 from dateutil import tz
+from termcolor import colored
 
 from lumibot.data_sources import DataSource
 from lumibot.entities import Order, Position
@@ -83,7 +84,10 @@ class Broker:
                     flat_orders = self._flatten_order(order)
                     for flat_order in flat_orders:
                         logging.info(
-                            "%r was sent to broker %s" % (flat_order, self.name)
+                            colored(
+                                "%r was sent to broker %s" % (flat_order, self.name),
+                                color="green",
+                            )
                         )
                         self._unprocessed_orders.append(flat_order)
 
@@ -115,7 +119,7 @@ class Broker:
             self._filled_positions.append(pos)
 
     def _process_new_order(self, order):
-        logging.info("New %r was submitted." % order)
+        logging.info(colored("New %r was submitted." % order, color="green"))
         self._unprocessed_orders.remove(order.identifier, key="identifier")
         order.update_status(self.NEW_ORDER)
         order.set_new()
@@ -162,7 +166,10 @@ class Broker:
 
     def _process_filled_order(self, order, price, quantity):
         logging.info(
-            f"Filled Transaction: {order.side} {quantity} of {order.asset.symbol} at {price:,.8f} {'USD'} per share"
+            colored(
+                f"Filled Transaction: {order.side} {quantity} of {order.asset.symbol} at {price:,.8f} {'USD'} per share",
+                color="green",
+            )
         )
         logging.info(f"{order} was filled")
         self._new_orders.remove(order.identifier, key="identifier")

@@ -360,11 +360,6 @@ class Order:
         if not isinstance(value, Decimal):
             if isinstance(value, float):
                 value = Decimal(str(value))
-            else:
-                try:
-                    assert isinstance(value, int), error_msg
-                except TypeError as error:
-                    logging.info(error)
 
         quantity = Decimal(value)
         self._quantity = check_quantity(
@@ -382,12 +377,7 @@ class Order:
                 f"{self.symbol} {self.asset.expiration} "
                 f"{self.asset.right} {self.asset.strike}"
             )
-        repr = "%s order of | %f %s %s |" % (
-            self.type,
-            self.quantity,
-            self.rep_asset,
-            self.side,
-        )
+        repr = f"{self.type} order of | {self.quantity} {self.rep_asset} {self.side} |"
         if self.order_class:
             repr = "%s of class %s" % (repr, self.order_class)
         repr = "%s with status %s" % (repr, self.status)

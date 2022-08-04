@@ -49,7 +49,7 @@ setuptools.setup(
         "pytest",
         "scipy",
         "quantstats",
-        "ccxt>=1.61.51",
+        "ccxt>=1.91.75",
         "termcolor",
         "jsonpickle",
     ],

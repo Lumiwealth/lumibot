@@ -48,16 +48,35 @@ class AlpacaData(DataSource):
 
         # Connection to alpaca REST API
         self.config = config
-        self.api_key = config.API_KEY
-        self.api_secret = config.API_SECRET
-        if hasattr(config, "ENDPOINT"):
+
+        if "API_KEY" in config:
+            self.api_key = config["API_KEY"]
+        elif hasattr(config, "API_KEY"):
+            self.api_key = config.API_KEY
+        else:
+            raise ValueError("API_KEY not found in config")
+
+        if "API_SECRET" in config:
+            self.api_secret = config["API_SECRET"]
+        elif hasattr(config, "API_SECRET"):
+            self.api_secret = config.API_SECRET
+        else:
+            raise ValueError("API_SECRET not found in config")
+
+        if "ENDPOINT" in config:
+            self.endpoint = config["ENDPOINT"]
+        elif hasattr(config, "ENDPOINT"):
             self.endpoint = URL(config.ENDPOINT)
         else:
             self.endpoint = URL("https://paper-api.alpaca.markets")
-        if hasattr(config, "VERSION"):
+
+        if "VERSION" in config:
+            self.version = config["VERSION"]
+        elif hasattr(config, "VERSION"):
             self.version = config.VERSION
         else:
             self.version = "v2"
+
         self.api = tradeapi.REST(
             self.api_key, self.api_secret, self.endpoint, self.version
         )
@@ -75,7 +94,7 @@ class AlpacaData(DataSource):
             logging.warning(
                 f"the exchange parameter is not implemented for AlpacaData, but {exchange} was passed as the exchange"
             )
-            
+
         """pull broker bars for a given asset"""
         response = self._pull_source_bars(
             [asset], length, timestep=timestep, timeshift=timeshift, quote=quote

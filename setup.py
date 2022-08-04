@@ -19,7 +19,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="lumibot",
-    version="2.2.7",
+    version="2.2.8",
     author="Robert Grzesik",
     author_email="rob@lumiwealth.com",
     description="Backtesting and Trading Library, Made by Lumiwealth",
@@ -49,7 +49,7 @@ setuptools.setup(
         "pytest",
         "scipy",
         "quantstats",
-        "ccxt>=1.91.75",
+        "ccxt==1.91.75",
         "termcolor",
         "jsonpickle",
     ],

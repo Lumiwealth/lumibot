@@ -48,7 +48,7 @@ setuptools.setup(
         "bcrypt",
         "pytest",
         "scipy",
-        "quantstats==0.0.59",
+        "quantstats",
         "ccxt==1.61.51",
         "termcolor",
         "jsonpickle",

@@ -49,28 +49,28 @@ class AlpacaData(DataSource):
         # Connection to alpaca REST API
         self.config = config
 
-        if "API_KEY" in config:
+        if type(config) == dict and "API_KEY" in config:
             self.api_key = config["API_KEY"]
         elif hasattr(config, "API_KEY"):
             self.api_key = config.API_KEY
         else:
             raise ValueError("API_KEY not found in config")
 
-        if "API_SECRET" in config:
+        if type(config) == dict and "API_SECRET" in config:
             self.api_secret = config["API_SECRET"]
         elif hasattr(config, "API_SECRET"):
             self.api_secret = config.API_SECRET
         else:
             raise ValueError("API_SECRET not found in config")
 
-        if "ENDPOINT" in config:
+        if type(config) == dict and "ENDPOINT" in config:
             self.endpoint = config["ENDPOINT"]
         elif hasattr(config, "ENDPOINT"):
             self.endpoint = URL(config.ENDPOINT)
         else:
             self.endpoint = URL("https://paper-api.alpaca.markets")
 
-        if "VERSION" in config:
+        if type(config) == dict and "VERSION" in config:
             self.version = config["VERSION"]
         elif hasattr(config, "VERSION"):
             self.version = config.VERSION

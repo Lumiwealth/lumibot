@@ -325,6 +325,13 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         try:
             summary = self.ib.get_account_summary()
         except:
+            logger.error(
+                f"Could not get broker balances. Please check your broker "
+                f"configuration and make sure that TWS is running with the "
+                f"correct configuration. For more information, please "
+                f"see the documentation here: https://lumibot.lumiwealth.com/brokers.interactive_brokers.html"
+            )
+
             return None
         finally:
             if summary is None:

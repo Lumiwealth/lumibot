@@ -148,13 +148,21 @@ class _Strategy:
         self._first_iteration = True
         self._last_on_trading_iteration_datetime = None
         if not self._is_backtesting:
-            (
-                self._cash,
-                self._position_value,
-                self._portfolio_value,
-            ) = self.broker._get_balances_at_broker(self.quote_asset)
-            # Set initial positions if live trading.
-            self.broker._set_initial_positions(self._name)
+            broker_balances = self.broker._get_balances_at_broker(self.quote_asset)
+
+            if broker_balances is not None:
+                (
+                    self._cash,
+                    self._position_value,
+                    self._portfolio_value,
+                ) = broker_balances
+                # Set initial positions if live trading.
+                self.broker._set_initial_positions(self._name)
+            else:
+                logger.error(
+                    "Unable to get balances (cash, portfolio value, etc) from broker. "
+                    "Please check your broker and your broker configuration."
+                )
         else:
             if budget is None:
                 if self.cash is None:
@@ -204,7 +212,11 @@ class _Strategy:
         self._analysis = {}
 
         # Storing parameters for the initialize method
-        if not hasattr(self, "parameters") or type(self.parameters) != dict or self.parameters is None:
+        if (
+            not hasattr(self, "parameters")
+            or type(self.parameters) != dict
+            or self.parameters is None
+        ):
             self.parameters = {}
         self.parameters = {**self.parameters, **kwargs}
         if parameters is not None and type(self.parameters) == dict:
@@ -307,7 +319,12 @@ class _Strategy:
     def _update_portfolio_value(self):
         """updates self.portfolio_value"""
         if not self._is_backtesting:
-            return self.broker._get_balances_at_broker(self.quote_asset)[2]
+            broker_balances = self.broker._get_balances_at_broker(self.quote_asset)
+
+            if broker_balances is not None:
+                return broker_balances[2]
+            else:
+                return None
 
         with self._executor.lock:
             # Used for traditional brokers, for crypto this could be 0

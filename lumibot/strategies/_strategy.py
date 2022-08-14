@@ -148,21 +148,7 @@ class _Strategy:
         self._first_iteration = True
         self._last_on_trading_iteration_datetime = None
         if not self._is_backtesting:
-            broker_balances = self.broker._get_balances_at_broker(self.quote_asset)
-
-            if broker_balances is not None:
-                (
-                    self._cash,
-                    self._position_value,
-                    self._portfolio_value,
-                ) = broker_balances
-                # Set initial positions if live trading.
-                self.broker._set_initial_positions(self._name)
-            else:
-                logger.error(
-                    "Unable to get balances (cash, portfolio value, etc) from broker. "
-                    "Please check your broker and your broker configuration."
-                )
+            self.update_broker_balances()
         else:
             if budget is None:
                 if self.cash is None:
@@ -313,6 +299,45 @@ class _Strategy:
     def _log_strat_name(self):
         """Returns the name of the strategy as a string if not default"""
         return f"{self._name} " if self._name != None else ""
+
+    def update_broker_balances(self, force_update=True):
+        """Updates the broker's balances"""
+        if "last_broker_balances_update" not in self.__dict__:
+            self.last_broker_balances_update = None
+
+        UPDATE_INTERVAL = 60
+        if (
+            self.last_broker_balances_update is None
+            or force_update
+            or (
+                self.last_broker_balances_update
+                + datetime.timedelta(seconds=UPDATE_INTERVAL)
+                < datetime.datetime.now()
+            )
+        ):
+
+            broker_balances = self.broker._get_balances_at_broker(self.quote_asset)
+
+            if broker_balances is not None:
+                (
+                    self._cash,
+                    self._position_value,
+                    self._portfolio_value,
+                ) = broker_balances
+                # Set initial positions if live trading.
+                self.broker._set_initial_positions(self._name)
+
+                self.last_broker_balances_update = datetime.datetime.now()
+                return True
+
+            else:
+                logger.error(
+                    "Unable to get balances (cash, portfolio value, etc) from broker. "
+                    "Please check your broker and your broker configuration."
+                )
+                return False
+        else:
+            logger.debug("Balances already updated recently. Skipping update.")
 
     # =============Auto updating functions=============
 

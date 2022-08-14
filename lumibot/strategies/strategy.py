@@ -229,6 +229,9 @@ class Strategy(_Strategy):
         >>> self.log_message(self.portfolio_value)
 
         """
+
+        self.update_broker_balances(force_update=False)
+
         return self._portfolio_value
 
     @property
@@ -251,6 +254,8 @@ class Strategy(_Strategy):
         >>> # Get the current cash available in the account
         >>> self.log_message(self.cash)
         """
+
+        self.update_broker_balances(force_update=False)
 
         cash_position = self.get_position(self.quote_asset)
         quantity = cash_position.quantity if cash_position else None

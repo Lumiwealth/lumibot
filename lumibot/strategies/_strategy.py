@@ -301,7 +301,20 @@ class _Strategy:
         return f"{self._name} " if self._name != None else ""
 
     def update_broker_balances(self, force_update=True):
-        """Updates the broker's balances"""
+        """Updates the broker's balances, including cash and portfolio value
+
+        Parameters
+        ----------
+        force_update : bool, optional
+            If True, forces the broker to update the balances immediately.
+            If False, the broker will only update the balances if the last
+            update was more than 1 minute ago. The default is True.
+
+        Returns
+        -------
+        bool
+            True if the broker's balances were updated, False otherwise
+        """
         if "last_broker_balances_update" not in self.__dict__:
             self.last_broker_balances_update = None
 

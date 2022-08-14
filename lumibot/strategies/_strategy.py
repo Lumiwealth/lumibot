@@ -149,6 +149,9 @@ class _Strategy:
         self._last_on_trading_iteration_datetime = None
         if not self._is_backtesting:
             self.update_broker_balances()
+
+            # Set initial positions if live trading.
+            self.broker._set_initial_positions(self._name)
         else:
             if budget is None:
                 if self.cash is None:
@@ -337,8 +340,6 @@ class _Strategy:
                     self._position_value,
                     self._portfolio_value,
                 ) = broker_balances
-                # Set initial positions if live trading.
-                self.broker._set_initial_positions(self._name)
 
                 self.last_broker_balances_update = datetime.datetime.now()
                 return True

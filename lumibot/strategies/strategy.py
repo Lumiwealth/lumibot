@@ -345,7 +345,7 @@ class Strategy(_Strategy):
         side,
         limit_price=None,
         stop_price=None,
-        time_in_force="day",
+        time_in_force="gtc",
         good_till_date=None,
         take_profit_price=None,
         stop_loss_price=None,

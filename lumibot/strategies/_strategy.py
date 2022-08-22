@@ -318,6 +318,9 @@ class _Strategy:
         bool
             True if the broker's balances were updated, False otherwise
         """
+        if self._is_backtesting:
+            return True
+
         if "last_broker_balances_update" not in self.__dict__:
             self.last_broker_balances_update = None
 

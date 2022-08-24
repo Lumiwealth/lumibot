@@ -114,9 +114,17 @@ class AlpacaData(DataSource):
             symbol = asset.symbol
 
         if isinstance(asset, tuple) and asset[0].asset_type == "crypto":
-            trade = self.api.get_latest_crypto_trade(symbol, exchange="CBSE")
+            try:
+                trade = self.api.get_latest_crypto_trade(symbol, exchange="CBSE")
+            except:
+                # Fallback exchange if the crypto trade is not found
+                trade = self.api.get_latest_crypto_trade(symbol, exchange="FTXU")
         elif isinstance(asset, Asset) and asset.asset_type == "crypto":
-            trade = self.api.get_latest_crypto_trade(symbol, exchange="CBSE")
+            try:
+                trade = self.api.get_latest_crypto_trade(symbol, exchange="CBSE")
+            except:
+                # Fallback exchange if the crypto trade is not found
+                trade = self.api.get_latest_crypto_trade(symbol, exchange="FTXU")
         else:
             trade = self.api.get_latest_trade(symbol)
 

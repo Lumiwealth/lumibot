@@ -1700,7 +1700,7 @@ class Strategy(_Strategy):
         try:
             return self.broker.get_last_price(asset, quote=quote, exchange=exchange)
         except Exception as e:
-            self.log_message(f"Could not get last price for {asset}")
+            self.log_message(f"Could not get last price for {asset}", color="red")
             self.log_message(f"{e}")
             return None
 

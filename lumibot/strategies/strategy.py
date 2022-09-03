@@ -978,22 +978,22 @@ class Strategy(_Strategy):
 
         return self.broker.get_tracked_positions(self.name)
 
-    def get_historical_account_value(self):
+    def get_historical_bot_stats(self):
         """Get the historical account value.
 
         Returns
         -------
-        float
-            The historical account value.
+        pandas.DataFrame
+            The historical bot stats.
 
         Example
         -------
-        >>> # Get the historical account value
-        >>> account_value = self.get_historical_account_value()
-        >>> # Show the historical account value
+        >>> # Get the historical bot stats
+        >>> bot_stats = self.get_historical_bot_stats()
+        >>> # Show the historical bot stats
         >>> self.log_message(account_value)
         """
-        return self.broker.get_historical_account_value()
+        return self.stats.set_index("datetime")
 
     @property
     def positions(self):

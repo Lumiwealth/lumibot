@@ -393,28 +393,23 @@ class Alpaca(AlpacaData, Broker):
 
     # =======Account functions=========
 
-    def _parse_historical_account_value(self, df_account_values):
-        output = []
-        for index, row in df_account_values.iterrows():
-            entry = {
-                "date": index,
-                "equity": row["equity"],
-                "profit_loss": row["profit_loss"],
-                "profit_loss_pct": row["profit_loss_pct"],
-            }
-            output.append(entry)
-
-        return output
-
     def get_historical_account_value(self):
         """Get the historical account value of the account."""
         response_day = self.api.get_portfolio_history(period="12M", timeframe="1D")
-        daily = self._parse_historical_account_value(response_day.df)
 
-        response_hour = self.api.get_portfolio_history(period="30D", timeframe="1H")
-        hourly = self._parse_historical_account_value(response_hour.df)
+        response_hour = self.api.get_portfolio_history(
+            period="30D", timeframe="1H", extended_hours=True
+        )
 
-        return {"hourly": hourly, "daily": daily}
+        response_minute = self.api.get_portfolio_history(
+            period="1D", timeframe="1Min", extended_hours=True
+        )
+
+        return {
+            "minute": response_minute.df,
+            "hour": response_hour.df,
+            "day": response_day.df,
+        }
 
     # =======Stream functions=========
 

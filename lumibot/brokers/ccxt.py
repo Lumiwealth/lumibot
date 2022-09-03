@@ -162,7 +162,7 @@ class Ccxt(CcxtData, Broker):
             else:
                 total_balance = currency_info["balance"]
 
-            units = Decimal(total_balance) 
+            units = Decimal(total_balance)
 
             attempts = 0
             max_attempts = 3
@@ -722,7 +722,7 @@ class Ccxt(CcxtData, Broker):
     def get_historical_account_value(self):
         logging.error(
             "The function get_historical_account_value is not "
-            "implemented yet for Crypto currencies."
+            "implemented yet for CCXT."
         )
         return {"hourly": None, "daily": None}
 

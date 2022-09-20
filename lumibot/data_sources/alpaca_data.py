@@ -101,7 +101,7 @@ class AlpacaData(DataSource):
         )
         return response[asset]
 
-    def get_last_price(self, asset, quote=None, exchange=None):
+    def get_last_price(self, asset, quote=None, exchange=None, **kwargs):
         if quote is not None:
             # If the quote is not None, we use it even if the asset is a tuple
             if isinstance(asset, tuple):

@@ -275,24 +275,6 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         """Cancel all the strategy open orders"""
         self.ib.reqGlobalCancel()
 
-    def sell_all(self, strategy_name, cancel_open_orders=True, strategy=None):
-        """Sell all positions"""
-        logging.warning("Strategy %s: sell all" % strategy_name)
-        if cancel_open_orders:
-            self.cancel_open_orders(strategy_name)
-
-        orders = []
-        positions = self.get_tracked_positions(strategy_name)
-
-        for position in positions:
-            size = position.quantity
-            if size == 0:
-                continue
-            side = "sell" if size > 0 else "buy"
-            close_order = OrderLum(strategy_name, position.asset, size, side)
-            orders.append(close_order)
-        self.submit_orders(orders)
-
     # =========Market functions=======================
 
     def get_tradable_assets(self, easy_to_borrow=None, filter_func=None):
@@ -600,7 +582,7 @@ class IBWrapper(EWrapper):
 
         # If the last price is not available, then use yesterday's closing price
         # This can happen if the market is closed
-        if tickType == 9 and self.tick is None:
+        if tickType == 9 and self.tick is None and self.should_use_last_close:
             self.tick = price
             self.tick_type_used = tickType
 
@@ -1001,11 +983,10 @@ class IBClient(EClient):
         return requested_time
 
     def get_tick(
-        self,
-        asset="",
-        greek=False,
-        exchange="SMART",
+        self, asset="", greek=False, exchange="SMART", should_use_last_close=True
     ):
+        self.should_use_last_close = should_use_last_close
+
         if not greek:
             tick_storage = self.wrapper.init_tick()
             self.tick_asset = asset

@@ -1656,7 +1656,9 @@ class Strategy(_Strategy):
             self.name, cancel_open_orders=cancel_open_orders, strategy=self
         )
 
-    def get_last_price(self, asset, quote=None, exchange=None):
+    def get_last_price(
+        self, asset, quote=None, exchange=None, should_use_last_close=True
+    ):
         """Takes an asset and returns the last known price
 
         Makes an active call to the market to retrieve the last price.
@@ -1670,6 +1672,12 @@ class Strategy(_Strategy):
         quote : Asset object
             Quote asset object for which the last closed price will be
             retrieved. This is required for cryptocurrency pairs.
+        exchange : str
+            Exchange name for which the last closed price will be
+            retrieved. This is required for some cryptocurrency pairs.
+        should_use_last_close : bool
+            If False, it will make Interactive Brokers only return the
+            price of an asset if it has been trading today. Defaults to True.
 
         Returns
         -------
@@ -1698,7 +1706,12 @@ class Strategy(_Strategy):
         asset = self._set_asset_mapping(asset)
 
         try:
-            return self.broker.get_last_price(asset, quote=quote, exchange=exchange)
+            return self.broker.get_last_price(
+                asset,
+                quote=quote,
+                exchange=exchange,
+                should_use_last_close=should_use_last_close,
+            )
         except Exception as e:
             self.log_message(f"Could not get last price for {asset}", color="red")
             self.log_message(f"{e}")

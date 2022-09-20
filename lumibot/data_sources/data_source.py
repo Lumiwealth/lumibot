@@ -181,7 +181,7 @@ class DataSource:
 
         return result
 
-    def get_last_price(self, asset, timestep=None, quote=None, exchange=None):
+    def get_last_price(self, asset, timestep=None, quote=None, exchange=None, **kwargs):
         """Takes an asset and returns the last known price"""
         if timestep is None:
             timestep = self.get_timestep()
@@ -197,7 +197,9 @@ class DataSource:
             close = Decimal(close.item())
         return close
 
-    def get_last_prices(self, assets, timestep=None, quote=None, exchange=None):
+    def get_last_prices(
+        self, assets, timestep=None, quote=None, exchange=None, **kwargs
+    ):
         """Takes a list of assets and returns the last known prices"""
         if timestep is None:
             timestep = self.MIN_TIMESTEP

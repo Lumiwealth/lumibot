@@ -19,7 +19,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="lumibot",
-    version="2.3.6",
+    version="2.3.7",
     author="Robert Grzesik",
     author_email="rob@lumiwealth.com",
     description="Backtesting and Trading Library, Made by Lumiwealth",
@@ -35,9 +35,9 @@ setuptools.setup(
         "yfinance>=0.1.70",
         "matplotlib==3.3.3",
         "quandl",
-        "pandas>=1.4.0",
+        "pandas==1.4.0",
         "pandas_datareader",
-        "pandas_market_calendars>=3.4",
+        "pandas_market_calendars==3.4",
         "plotly",
         "flask-socketio",
         "flask-sqlalchemy",

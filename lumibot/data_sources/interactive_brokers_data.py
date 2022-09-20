@@ -212,7 +212,7 @@ class InteractiveBrokersData(DataSource):
         self.ib.cancel_realtime_bars(asset)
         return 0
 
-    def get_last_price(self, asset, timestep=None, quote=None, exchange=None):
+    def get_last_price(self, asset, timestep=None, quote=None, exchange=None, **kwargs):
         if exchange is None:
             exchange = "SMART"
 
@@ -221,7 +221,15 @@ class InteractiveBrokersData(DataSource):
         max_attempts = 2
         while get_data_attempt < max_attempts:
             try:
-                result = self.ib.get_tick(asset, exchange=exchange)
+                if "should_use_last_close" in kwargs:
+                    should_use_last_close = kwargs["should_use_last_close"]
+                else:
+                    should_use_last_close = True
+                result = self.ib.get_tick(
+                    asset,
+                    exchange=exchange,
+                    should_use_last_close=should_use_last_close,
+                )
                 if result:
                     response[asset] = result[0]
                     break

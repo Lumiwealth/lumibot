@@ -306,6 +306,13 @@ class Alpaca(AlpacaData, Broker):
 
     def _submit_order(self, order):
         """Submit an order for an asset"""
+
+        # For Alpaca, only "gtc" and "ioc" orders are supported for crypto
+        # TODO: change this if Alpaca allows new order types for crypto
+        if order.asset.asset_type == "crypto":
+            if order.time_in_force != "gtc" or "ioc":
+                order.time_in_force = "gtc"
+
         kwargs = {
             "type": order.type,
             "order_class": order.order_class,

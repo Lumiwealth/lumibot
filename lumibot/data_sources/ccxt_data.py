@@ -67,7 +67,7 @@ class CcxtData(DataSource):
             logging.warning(
                 f"the exchange parameter is not implemented for CcxtData, but {exchange} was passed as the exchange"
             )
-            
+
         """pull broker bars for a given asset"""
         response = self._pull_source_bars(
             [asset], length, timestep=timestep, timeshift=timeshift, quote=quote
@@ -194,7 +194,7 @@ class CcxtData(DataSource):
         bars = Bars(response, self.SOURCE, asset, quote=quote, raw=response)
         return bars
 
-    def get_last_price(self, asset, quote=None, exchange=None):
+    def get_last_price(self, asset, quote=None, exchange=None, **kwargs):
         if quote is not None:
             symbol = f"{asset.symbol}/{quote.symbol}"
         else:

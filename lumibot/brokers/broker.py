@@ -575,11 +575,11 @@ class Broker:
 
     # =========Market functions=======================
 
-    def get_last_price(self, asset, quote=None, exchange=None):
+    def get_last_price(self, asset, quote=None, exchange=None, **kwargs):
         """Takes an asset asset and returns the last known price"""
         pass
 
-    def get_last_prices(self, assets, quote=None, exchange=None):
+    def get_last_prices(self, assets, quote=None, exchange=None, **kwargs):
         """Takes a list of assets and returns the last known prices"""
         pass
 

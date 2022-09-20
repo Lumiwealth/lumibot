@@ -491,11 +491,11 @@ class BacktestingBroker(Broker):
                 return 0
 
     # =========Market functions=======================
-    def get_last_price(self, asset, quote=None, exchange=None):
+    def get_last_price(self, asset, quote=None, exchange=None, **kwargs):
         """Takes an asset asset and returns the last known price"""
         return self._data_source.get_last_price(asset, quote=quote)
 
-    def get_last_prices(self, symbols, quote=None, exchange=None):
+    def get_last_prices(self, symbols, quote=None, exchange=None, **kwargs):
         """Takes a list of symbols and returns the last known prices"""
         return self._data_source.get_last_prices(symbols, quote=quote)
 

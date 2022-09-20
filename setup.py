@@ -35,7 +35,7 @@ setuptools.setup(
         "yfinance>=0.1.70",
         "matplotlib==3.3.3",
         "quandl",
-        "pandas>=1.4.0",
+        "pandas==1.4.0",
         "pandas_datareader",
         "pandas_market_calendars==3.4",
         "plotly",

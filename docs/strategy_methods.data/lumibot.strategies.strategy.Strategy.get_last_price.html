@@ -317,7 +317,7 @@
 <h1>self.get_last_price<a class="headerlink" href="#self-get-last-price" title="Permalink to this headline">¶</a></h1>
 <dl class="py function">
 <dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.get_last_price">
-<span class="sig-prename descclassname"><span class="pre">lumibot.strategies.strategy.Strategy.</span></span><span class="sig-name descname"><span class="pre">get_last_price</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quote</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.get_last_price" title="Permalink to this definition">¶</a></dt>
+<span class="sig-prename descclassname"><span class="pre">lumibot.strategies.strategy.Strategy.</span></span><span class="sig-name descname"><span class="pre">get_last_price</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quote</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exchange</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">should_use_last_close</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.get_last_price" title="Permalink to this definition">¶</a></dt>
 <dd><p>Takes an asset and returns the last known price</p>
 <p>Makes an active call to the market to retrieve the last price.
 In backtesting will provide the close of the last complete bar.</p>
@@ -328,6 +328,10 @@ In backtesting will provide the close of the last complete bar.</p>
 retrieved.</p></li>
 <li><p><strong>quote</strong> (<em>Asset object</em>) – Quote asset object for which the last closed price will be
 retrieved. This is required for cryptocurrency pairs.</p></li>
+<li><p><strong>exchange</strong> (<em>str</em>) – Exchange name for which the last closed price will be
+retrieved. This is required for some cryptocurrency pairs.</p></li>
+<li><p><strong>should_use_last_close</strong> (<em>bool</em>) – If False, it will make Interactive Brokers only return the
+price of an asset if it has been trading today. Defaults to True.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns</dt>

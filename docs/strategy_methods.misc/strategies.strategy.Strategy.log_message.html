@@ -317,13 +317,16 @@
 <h1>self.log_message<a class="headerlink" href="#self-log-message" title="Permalink to this headline">¶</a></h1>
 <dl class="py function">
 <dt class="sig sig-object py" id="strategies.strategy.Strategy.log_message">
-<span class="sig-prename descclassname"><span class="pre">strategies.strategy.Strategy.</span></span><span class="sig-name descname"><span class="pre">log_message</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">message</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#strategies.strategy.Strategy.log_message" title="Permalink to this definition">¶</a></dt>
+<span class="sig-prename descclassname"><span class="pre">strategies.strategy.Strategy.</span></span><span class="sig-name descname"><span class="pre">log_message</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">message</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">color</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#strategies.strategy.Strategy.log_message" title="Permalink to this definition">¶</a></dt>
 <dd><p>Logs an info message prefixed with the strategy name.</p>
 <p>Uses python logging to log the message at the <cite>info</cite> level.
 Logging goes to the logging file, not the console.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><p><strong>message</strong> (<em>str</em>) – String message for logging.</p>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>message</strong> (<em>str</em>) – String message for logging.</p></li>
+<li><p><strong>color</strong> (<em>str</em>) – Color of the message. Eg. <cite>“red”</cite> or <cite>“green”</cite>.</p></li>
+</ul>
 </dd>
 <dt class="field-even">Returns</dt>
 <dd class="field-even"><p><strong>message</strong> – Strategy name plus the original message.</p>

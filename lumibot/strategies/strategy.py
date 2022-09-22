@@ -864,7 +864,7 @@ class Strategy(_Strategy):
             return None
         if timedelta is None:
             timedelta = self.minutes_before_opening
-        return self.broker._await_market_to_open(timedelta)
+        return self.broker._await_market_to_open(timedelta, strategy=self)
 
     def await_market_to_close(self, timedelta=None):
         """Sleep until market closes.
@@ -892,7 +892,7 @@ class Strategy(_Strategy):
             return None
         if timedelta is None:
             timedelta = self.minutes_before_closing
-        return self.broker._await_market_to_close(timedelta)
+        return self.broker._await_market_to_close(timedelta, strategy=self)
 
     @staticmethod
     def crypto_assets_to_tuple(base, quote):

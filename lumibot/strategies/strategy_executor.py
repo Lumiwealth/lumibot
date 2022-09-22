@@ -500,11 +500,11 @@ class StrategyExecutor(Thread):
             ]
 
             self.broker._update_datetime(dt)
-            # Is this update money dividends in the right place? Maybe after orders. or both
-            if self.broker.IS_BACKTESTING_BROKER:
-                self.broker.process_pending_orders(strategy=self.strategy.name)
+
             self.strategy._update_cash_with_dividends()
             self._on_trading_iteration()
+            if self.broker.IS_BACKTESTING_BROKER:
+                self.broker.process_pending_orders(strategy=self.strategy)
             return
 
         if not is_247 and (
@@ -536,11 +536,11 @@ class StrategyExecutor(Thread):
             ):
                 break
 
-            if self.broker.IS_BACKTESTING_BROKER:
-                self.broker.process_pending_orders(strategy=self.strategy.name)
-
             # TODO: next line speed implication: v high (7563 microseconds) _on_trading_iteration()
             self._on_trading_iteration()
+
+            if self.broker.IS_BACKTESTING_BROKER:
+                self.broker.process_pending_orders(strategy=self.strategy)
 
             # Sleep until the next trading iteration
             # TODO: next line speed implication: high (2625 microseconds) _strategy_sleep()

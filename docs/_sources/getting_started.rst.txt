@@ -143,4 +143,30 @@ Here it is all together:
     trader.add_strategy(strategy)
     trader.run_all()
 
-Or you can download the file here: https://github.com/Lumiwealth/lumibot/blob/master/getting_started/simple_start_single_file.py
+Or you can download the file here: https://github.com/Lumiwealth/lumibot/blob/master/example_strategies/simple_start_single_file.py
+
+
+Adding Trading Fees
+************************
+
+If you want to add trading fees to your backtesting, you can do so by setting up your backtesting like this:
+
+.. code-block:: python
+
+    # Create two trading fees, one that is a percentage and one that is a flat fee
+    trading_fee_1 = TradingFee(flat_fee=5) # $5 flat fee
+    trading_fee_2 = TradingFee(percent_fee=0.01) # 1% trading fee
+
+    # Backtest this strategy
+    backtesting_start = datetime(2020, 1, 1)
+    backtesting_end = datetime(2020, 12, 31)
+    strategy.backtest(
+        YahooDataBacktesting,
+        backtesting_start,
+        backtesting_end,
+        parameters= {
+            "symbol": "SPY"
+        },
+        buy_trading_fees=[trading_fee_1, trading_fee_2],
+        sell_trading_fees=[trading_fee_1, trading_fee_2],
+    )

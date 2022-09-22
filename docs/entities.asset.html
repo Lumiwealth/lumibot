@@ -159,6 +159,7 @@
 <li class="toctree-l1"><a class="reference internal" href="index.html">Home</a></li>
 <li class="toctree-l1"><a class="reference external" href="https://lumiwealth.circle.so/c/lumibot/">Community/Forum</a></li>
 <li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting Started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html#adding-trading-fees">Adding Trading Fees</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="lifecycle_methods.html">Lifecycle Methods</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.initialize.html">def initialize</a></li>
 <li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_trading_iteration.html">def on_trading_iteration</a></li>
@@ -285,6 +286,7 @@
 <li class="toctree-l2"><a class="reference internal" href="entities.dataline.html">Dataline</a></li>
 <li class="toctree-l2"><a class="reference internal" href="entities.order.html">Order</a></li>
 <li class="toctree-l2"><a class="reference internal" href="entities.position.html">Position</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.trading_fee.html">Trading Fee</a></li>
 </ul>
 </li>
 </ul>
@@ -404,8 +406,8 @@ symbol if option. For Forex: The base currency.</p>
 </dl>
 </dd></dl>
 <dl class="py attribute">
-<dt class="sig sig-object py">
-<span class="sig-name descname"><span class="pre">asset_type</span> <span class="pre">(string,</span> <span class="pre">default</span></span></dt>
+<dt class="sig sig-object py" id="entities.asset.Asset.asset_type">
+<span class="sig-name descname"><span class="pre">asset_type</span></span><a class="headerlink" href="#entities.asset.Asset.asset_type" title="Permalink to this definition">¶</a></dt>
 <dd><p>One of the following:
 - ‘stock’
 - ‘option’
@@ -414,7 +416,7 @@ symbol if option. For Forex: The base currency.</p>
 - ‘crypto’</p>
 <dl class="field-list simple">
 <dt class="field-odd">Type</dt>
-<dd class="field-odd"><p><cite>stock</cite>)</p>
+<dd class="field-odd"><p>(string, default: <cite>stock</cite>)</p>
 </dd>
 </dl>
 </dd></dl>
@@ -547,44 +549,44 @@ symbol if option. For Forex: The base currency.</p>
 </pre></div>
 </div>
 <dl class="py attribute">
-<dt class="sig sig-object py" id="entities.asset.Asset.asset_type">
-<span class="sig-name descname"><span class="pre">asset_type</span></span><em class="property"><span class="pre">:</span> <span class="pre">str</span></em><a class="headerlink" href="#entities.asset.Asset.asset_type" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="id0">
+<span class="sig-name descname"><span class="pre">asset_type</span></span><em class="property"><span class="pre">:</span> <span class="pre">str</span></em><a class="headerlink" href="#id0" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 <dl class="py method">
-<dt class="sig sig-object py" id="id0">
-<em class="property"><span class="pre">classmethod</span> </em><span class="sig-name descname"><span class="pre">asset_type_must_be_one_of</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#id0" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-<dl class="py attribute">
 <dt class="sig sig-object py" id="id1">
-<span class="sig-name descname"><span class="pre">currency</span></span><em class="property"><span class="pre">:</span> <span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#id1" title="Permalink to this definition">¶</a></dt>
+<em class="property"><span class="pre">classmethod</span> </em><span class="sig-name descname"><span class="pre">asset_type_must_be_one_of</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#id1" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="id2">
-<span class="sig-name descname"><span class="pre">expiration</span></span><em class="property"><span class="pre">:</span> <span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">datetime.date</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#id2" title="Permalink to this definition">¶</a></dt>
+<span class="sig-name descname"><span class="pre">currency</span></span><em class="property"><span class="pre">:</span> <span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#id2" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="id3">
-<span class="sig-name descname"><span class="pre">multiplier</span></span><em class="property"><span class="pre">:</span> <span class="pre">int</span></em><a class="headerlink" href="#id3" title="Permalink to this definition">¶</a></dt>
+<span class="sig-name descname"><span class="pre">expiration</span></span><em class="property"><span class="pre">:</span> <span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">datetime.date</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#id3" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="id4">
-<span class="sig-name descname"><span class="pre">precision</span></span><em class="property"><span class="pre">:</span> <span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#id4" title="Permalink to this definition">¶</a></dt>
+<span class="sig-name descname"><span class="pre">multiplier</span></span><em class="property"><span class="pre">:</span> <span class="pre">int</span></em><a class="headerlink" href="#id4" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="id5">
-<span class="sig-name descname"><span class="pre">right</span></span><em class="property"><span class="pre">:</span> <span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#id5" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="id6">
-<em class="property"><span class="pre">classmethod</span> </em><span class="sig-name descname"><span class="pre">right_must_be_one_of</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#id6" title="Permalink to this definition">¶</a></dt>
+<span class="sig-name descname"><span class="pre">precision</span></span><em class="property"><span class="pre">:</span> <span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#id5" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 <dl class="py attribute">
+<dt class="sig sig-object py" id="id6">
+<span class="sig-name descname"><span class="pre">right</span></span><em class="property"><span class="pre">:</span> <span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#id6" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+<dl class="py method">
 <dt class="sig sig-object py" id="id7">
-<span class="sig-name descname"><span class="pre">strike</span></span><em class="property"><span class="pre">:</span> <span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">float</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#id7" title="Permalink to this definition">¶</a></dt>
+<em class="property"><span class="pre">classmethod</span> </em><span class="sig-name descname"><span class="pre">right_must_be_one_of</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#id7" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="id8">
-<span class="sig-name descname"><span class="pre">symbol</span></span><em class="property"><span class="pre">:</span> <span class="pre">str</span></em><a class="headerlink" href="#id8" title="Permalink to this definition">¶</a></dt>
+<span class="sig-name descname"><span class="pre">strike</span></span><em class="property"><span class="pre">:</span> <span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">float</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#id8" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id9">
+<span class="sig-name descname"><span class="pre">symbol</span></span><em class="property"><span class="pre">:</span> <span class="pre">str</span></em><a class="headerlink" href="#id9" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 </dd></dl>
 <dl class="py class">

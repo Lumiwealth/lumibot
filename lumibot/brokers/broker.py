@@ -292,7 +292,7 @@ class Broker:
         running live or in backtesting mode"""
         time.sleep(sleeptime)
 
-    def _await_market_to_open(self, timedelta=None):
+    def _await_market_to_open(self, timedelta=None, strategy=None):
         """Executes infinite loop until market opens"""
         isOpen = self.is_market_open()
         if not isOpen:
@@ -304,7 +304,7 @@ class Broker:
             logging.info("Sleeping until the market opens")
             self.sleep(sleeptime)
 
-    def _await_market_to_close(self, timedelta=None):
+    def _await_market_to_close(self, timedelta=None, strategy=None):
         """Sleep until market closes"""
         isOpen = self.is_market_open()
         if isOpen:
@@ -751,6 +751,7 @@ class Broker:
                 "price": price,
                 "filled_quantity": filled_quantity,
                 "multiplier": multiplier,
+                "trade_cost": stored_order.trade_cost,
             }
             # append row to the dataframe
             self._trade_event_log_df = pd.concat(

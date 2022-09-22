@@ -2,7 +2,7 @@
 <html class="no-js">
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
-    <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="prev" title="Order" href="entities.order.html" />
+    <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Trading Fee" href="entities.trading_fee.html" /><link rel="prev" title="Order" href="entities.order.html" />
 
     <meta name="generator" content="sphinx-4.2.0, furo 2021.10.09"/>
         <title>Position - Lumibot documentation</title>
@@ -135,7 +135,7 @@
           <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
         </button>
       </div>
-      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+      <label class="toc-overlay-icon toc-header-icon no-toc" for="__toc">
         <div class="visually-hidden">Toggle table of contents sidebar</div>
         <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
       </label>
@@ -159,6 +159,7 @@
 <li class="toctree-l1"><a class="reference internal" href="index.html">Home</a></li>
 <li class="toctree-l1"><a class="reference external" href="https://lumiwealth.circle.so/c/lumibot/">Community/Forum</a></li>
 <li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting Started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html#adding-trading-fees">Adding Trading Fees</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="lifecycle_methods.html">Lifecycle Methods</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.initialize.html">def initialize</a></li>
 <li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_trading_iteration.html">def on_trading_iteration</a></li>
@@ -285,6 +286,7 @@
 <li class="toctree-l2"><a class="reference internal" href="entities.dataline.html">Dataline</a></li>
 <li class="toctree-l2"><a class="reference internal" href="entities.order.html">Order</a></li>
 <li class="toctree-l2 current current-page"><a class="current reference internal" href="#">Position</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.trading_fee.html">Trading Fee</a></li>
 </ul>
 </li>
 </ul>
@@ -307,31 +309,70 @@
               <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
             </button>
           </div>
-          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+          <label class="toc-overlay-icon toc-content-icon no-toc" for="__toc">
             <div class="visually-hidden">Toggle table of contents sidebar</div>
             <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
           </label>
         </div>
         <article role="main">
-          <div class="section" id="position">
-<h1>Position<a class="headerlink" href="#position" title="Permalink to this headline">¶</a></h1>
-<p>This object represents a position. Each position belongs to a specific strategy. Position object has the following properties</p>
-<ul class="simple">
-<li><p>strategy (str): the strategy name that this order belongs to</p></li>
-<li><p>symbol (str): the string representation of the asset e.g. “GOOG” for Google</p></li>
-<li><p>quantity (int): the number of shares held</p></li>
-<li><p>orders (list(order)): a list of orders objects responsible for the current state of the position</p></li>
-</ul>
-<p>Position objects have also the following helper methods</p>
-<ul class="simple">
-<li><p>get_selling_order(): returns an order for selling all the shares attached to this position.</p></li>
-</ul>
-<div class="section" id="module-entities.position">
-<span id="documentation"></span><h2>Documentation<a class="headerlink" href="#module-entities.position" title="Permalink to this headline">¶</a></h2>
+          <div class="section" id="module-entities.position">
+<span id="position"></span><h1>Position<a class="headerlink" href="#module-entities.position" title="Permalink to this headline">¶</a></h1>
 <dl class="py class">
 <dt class="sig sig-object py" id="entities.position.Position">
 <em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">entities.position.</span></span><span class="sig-name descname"><span class="pre">Position</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">strategy</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quantity</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">orders</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">available</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.position.Position" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>This is a Position object. It is used to keep track of the quantity of an asset owned in a strategy.
+Position objects are retreived from the broker using the get_positions() or get_position() methods.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="entities.position.Position.strategy">
+<span class="sig-name descname"><span class="pre">strategy</span></span><a class="headerlink" href="#entities.position.Position.strategy" title="Permalink to this definition">¶</a></dt>
+<dd><p>The strategy that owns this position.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type</dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="entities.position.Position.asset">
+<span class="sig-name descname"><span class="pre">asset</span></span><a class="headerlink" href="#entities.position.Position.asset" title="Permalink to this definition">¶</a></dt>
+<dd><p>The asset that this position is for.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type</dt>
+<dd class="field-odd"><p><a class="reference internal" href="entities.asset.html#entities.asset.Asset" title="entities.asset.Asset">Asset</a></p>
+</dd>
+</dl>
+</dd></dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="entities.position.Position.symbol">
+<span class="sig-name descname"><span class="pre">symbol</span></span><a class="headerlink" href="#entities.position.Position.symbol" title="Permalink to this definition">¶</a></dt>
+<dd><p>The symbol of the asset.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type</dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="entities.position.Position.quantity">
+<span class="sig-name descname"><span class="pre">quantity</span></span><a class="headerlink" href="#entities.position.Position.quantity" title="Permalink to this definition">¶</a></dt>
+<dd><p>The quantity of the asset owned.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type</dt>
+<dd class="field-odd"><p>float</p>
+</dd>
+</dl>
+</dd></dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="entities.position.Position.orders">
+<span class="sig-name descname"><span class="pre">orders</span></span><a class="headerlink" href="#entities.position.Position.orders" title="Permalink to this definition">¶</a></dt>
+<dd><p>The orders that have been executed for this position.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type</dt>
+<dd class="field-odd"><p>list of Order</p>
+</dd>
+</dl>
+</dd></dl>
 <dl class="py method">
 <dt class="sig sig-object py" id="entities.position.Position.add_order">
 <span class="sig-name descname"><span class="pre">add_order</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">order</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quantity</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.position.Position.add_order" title="Permalink to this definition">¶</a></dt>
@@ -361,8 +402,8 @@
 <em class="property"><span class="pre">property</span> </em><span class="sig-name descname"><span class="pre">hold</span></span><a class="headerlink" href="#entities.position.Position.hold" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 <dl class="py property">
-<dt class="sig sig-object py" id="entities.position.Position.quantity">
-<em class="property"><span class="pre">property</span> </em><span class="sig-name descname"><span class="pre">quantity</span></span><a class="headerlink" href="#entities.position.Position.quantity" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="id0">
+<em class="property"><span class="pre">property</span> </em><span class="sig-name descname"><span class="pre">quantity</span></span><a class="headerlink" href="#id0" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 <dl class="py method">
 <dt class="sig sig-object py" id="entities.position.Position.value_type">
@@ -370,14 +411,21 @@
 <dd></dd></dl>
 </dd></dl>
 </div>
-</div>
 
         </article>
       </div>
       <footer>
         
         <div class="related-pages">
-          
+          <a class="next-page" href="entities.trading_fee.html">
+              <div class="page-info">
+                <div class="context">
+                  <span>Next</span>
+                </div>
+                <div class="title">Trading Fee</div>
+              </div>
+              <svg><use href="#svg-arrow-right"></use></svg>
+            </a>
           <a class="prev-page" href="entities.order.html">
               <svg><use href="#svg-arrow-right"></use></svg>
               <div class="page-info">
@@ -405,27 +453,8 @@
         
       </footer>
     </div>
-    <aside class="toc-drawer">
+    <aside class="toc-drawer no-toc">
       
-      
-      <div class="toc-sticky toc-scroll">
-        <div class="toc-title-container">
-          <span class="toc-title">
-            Contents
-          </span>
-        </div>
-        <div class="toc-tree-container">
-          <div class="toc-tree">
-            <ul>
-<li><a class="reference internal" href="#">Position</a><ul>
-<li><a class="reference internal" href="#module-entities.position">Documentation</a></li>
-</ul>
-</li>
-</ul>
-
-          </div>
-        </div>
-      </div>
       
       
     </aside>

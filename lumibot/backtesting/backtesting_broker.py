@@ -1,11 +1,13 @@
 import logging
 import traceback
+from ast import Or
 from datetime import datetime, timedelta
+from decimal import Decimal
 from functools import wraps
 from secrets import token_hex
 
 from lumibot.brokers import Broker
-from lumibot.entities import Order, Position
+from lumibot.entities import Order, Position, TradingFee
 from lumibot.tools import get_trading_days
 from lumibot.trading_builtins import CustomStream
 
@@ -143,23 +145,33 @@ class BacktestingBroker(Broker):
         delta = trading_day.market_close - now
         return delta.total_seconds()
 
-    def _await_market_to_open(self, timedelta=None):
+    def _await_market_to_open(self, timedelta=None, strategy=None):
         if (
             self._data_source.SOURCE == "PANDAS"
             and self._data_source._timestep == "day"
         ):
             return
+
+        # Process outstanding orders first before waiting for market to open
+        # or else they don't get processed until the next day
+        self.process_pending_orders(strategy=strategy)
+
         time_to_open = self.get_time_to_open()
         if timedelta is not None:
             time_to_open -= 60 * timedelta
         self._update_datetime(time_to_open)
 
-    def _await_market_to_close(self, timedelta=None):
+    def _await_market_to_close(self, timedelta=None, strategy=None):
         if (
             self._data_source.SOURCE == "PANDAS"
             and self._data_source._timestep == "day"
         ):
             return
+
+        # Process outstanding orders first before waiting for market to close
+        # or else they don't get processed until the next day
+        self.process_pending_orders(strategy=strategy)
+
         time_to_close = self.get_time_to_close()
         if timedelta is not None:
             time_to_close -= 60 * timedelta
@@ -339,6 +351,31 @@ class BacktestingBroker(Broker):
 
         return orders_closing_contracts
 
+    def calculate_trade_cost(self, order: Order, strategy, price: float):
+        """Calculate the trade cost of an order for a given strategy"""
+        trade_cost = 0
+        trading_fees = []
+        if order.side == "buy":
+            trading_fees: list[TradingFee] = strategy.buy_trading_fees
+        elif order.side == "sell":
+            trading_fees: list[TradingFee] = strategy.sell_trading_fees
+
+        for trading_fee in trading_fees:
+            if trading_fee.taker == True and order.type in [
+                "market",
+                "stop",
+            ]:
+                trade_cost += trading_fee.flat_fee
+                trade_cost += Decimal(price) * trading_fee.percent_fee
+            elif trading_fee.maker == True and order.type in [
+                "limit",
+                "stop_limit",
+            ]:
+                trade_cost += trading_fee.flat_fee
+                trade_cost += Decimal(price) * trading_fee.percent_fee
+
+        return trade_cost
+
     def process_pending_orders(self, strategy):
         """Used to evaluate and execute open orders in backtesting.
 
@@ -353,11 +390,11 @@ class BacktestingBroker(Broker):
         """
 
         # Process expired contracts.
-        pending_orders = self.expired_contracts(strategy)
+        pending_orders = self.expired_contracts(strategy.name)
 
         pending_orders += [
             order
-            for order in self.get_tracked_orders(strategy)
+            for order in self.get_tracked_orders(strategy.name)
             if order.status in ["unprocessed", "new"]
         ]
 
@@ -380,15 +417,7 @@ class BacktestingBroker(Broker):
 
             if self._data_source.SOURCE == "YAHOO":
                 ohlc = self.get_last_bar(asset)
-                dt = ohlc.df.index[-1]
-                open = ohlc.df.open[-1]
-                high = ohlc.df.high[-1]
-                low = ohlc.df.low[-1]
-                close = ohlc.df.close[-1]
-                volume = ohlc.df.volume[-1]
 
-            elif self._data_source.SOURCE == "ALPHA_VANTAGE":
-                ohlc = self.get_last_bar(asset)
                 dt = ohlc.df.index[-1]
                 open = ohlc.df.open[-1]
                 high = ohlc.df.high[-1]
@@ -411,15 +440,17 @@ class BacktestingBroker(Broker):
 
             # Determine transaction price.
             if order.type == "market":
-                price = open
+                price = close
             elif order.type == "limit":
-                price = self.limit_order(order.limit_price, order.side, open, high, low)
+                price = self.limit_order(
+                    order.limit_price, order.side, close, high, low
+                )
             elif order.type == "stop":
-                price = self.stop_order(order.stop_price, order.side, open, high, low)
+                price = self.stop_order(order.stop_price, order.side, close, high, low)
             elif order.type == "stop_limit":
                 if not order.price_triggered:
                     price = self.stop_order(
-                        order.stop_price, order.side, open, high, low
+                        order.stop_price, order.side, close, high, low
                     )
                     if price != 0:
                         price = self.limit_order(
@@ -428,11 +459,11 @@ class BacktestingBroker(Broker):
                         order.price_triggered = True
                 elif order.price_triggered:
                     price = self.limit_order(
-                        order.limit_price, order.side, open, high, low
+                        order.limit_price, order.side, close, high, low
                     )
             else:
                 raise ValueError(
-                    f"Order type {order.type} is not allowable in backtesting."
+                    f"Order type {order.type} is not implemented for backtesting."
                 )
 
             if price != 0:
@@ -447,6 +478,12 @@ class BacktestingBroker(Broker):
                         )
                         self._new_orders.append(flat_order)
 
+                trade_cost = self.calculate_trade_cost(order, strategy, price)
+
+                new_cash = strategy.cash - float(trade_cost)
+                strategy._set_cash_position(new_cash)
+                order.trade_cost = float(trade_cost)
+
                 self.stream.dispatch(
                     self.FILLED_ORDER,
                     order=order,
@@ -456,36 +493,36 @@ class BacktestingBroker(Broker):
             else:
                 continue
 
-    def limit_order(self, limit_price, side, open, high, low):
+    def limit_order(self, limit_price, side, close, high, low):
         """Limit order logic."""
         if side == "buy":
-            if limit_price >= open:
-                return open
-            elif limit_price < open and limit_price >= low:
+            if limit_price >= close:
+                return close
+            elif limit_price < close and limit_price >= low:
                 return limit_price
             elif limit_price < low:
                 return 0
         elif side == "sell":
-            if limit_price <= open:
-                return open
-            elif limit_price > open and limit_price <= high:
+            if limit_price <= close:
+                return close
+            elif limit_price > close and limit_price <= high:
                 return limit_price
             elif limit_price > high:
                 return 0
 
-    def stop_order(self, stop_price, side, open, high, low):
+    def stop_order(self, stop_price, side, close, high, low):
         """Stop order logic."""
         if side == "buy":
-            if stop_price <= open:
-                return open
-            elif stop_price > open and stop_price <= high:
+            if stop_price <= close:
+                return close
+            elif stop_price > close and stop_price <= high:
                 return stop_price
             elif stop_price > high:
                 return 0
         elif side == "sell":
-            if stop_price >= open:
-                return open
-            elif stop_price < open and stop_price >= low:
+            if stop_price >= close:
+                return close
+            elif stop_price < close and stop_price >= low:
                 return stop_price
             elif stop_price < low:
                 return 0

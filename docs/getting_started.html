@@ -135,7 +135,7 @@
           <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
         </button>
       </div>
-      <label class="toc-overlay-icon toc-header-icon no-toc" for="__toc">
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
         <div class="visually-hidden">Toggle table of contents sidebar</div>
         <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
       </label>
@@ -159,6 +159,7 @@
 <li class="toctree-l1"><a class="reference internal" href="index.html">Home</a></li>
 <li class="toctree-l1"><a class="reference external" href="https://lumiwealth.circle.so/c/lumibot/">Community/Forum</a></li>
 <li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Getting Started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="#adding-trading-fees">Adding Trading Fees</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="lifecycle_methods.html">Lifecycle Methods</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.initialize.html">def initialize</a></li>
 <li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_trading_iteration.html">def on_trading_iteration</a></li>
@@ -285,6 +286,7 @@
 <li class="toctree-l2"><a class="reference internal" href="entities.dataline.html">Dataline</a></li>
 <li class="toctree-l2"><a class="reference internal" href="entities.order.html">Order</a></li>
 <li class="toctree-l2"><a class="reference internal" href="entities.position.html">Position</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.trading_fee.html">Trading Fee</a></li>
 </ul>
 </li>
 </ul>
@@ -307,7 +309,7 @@
               <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
             </button>
           </div>
-          <label class="toc-overlay-icon toc-content-icon no-toc" for="__toc">
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
             <div class="visually-hidden">Toggle table of contents sidebar</div>
             <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
           </label>
@@ -451,7 +453,30 @@
 <span class="n">trader</span><span class="o">.</span><span class="n">run_all</span><span class="p">()</span>
 </pre></div>
 </div>
-<p>Or you can download the file here: <a class="reference external" href="https://github.com/Lumiwealth/lumibot/blob/master/getting_started/simple_start_single_file.py">https://github.com/Lumiwealth/lumibot/blob/master/getting_started/simple_start_single_file.py</a></p>
+<p>Or you can download the file here: <a class="reference external" href="https://github.com/Lumiwealth/lumibot/blob/master/example_strategies/simple_start_single_file.py">https://github.com/Lumiwealth/lumibot/blob/master/example_strategies/simple_start_single_file.py</a></p>
+</div>
+<div class="section" id="adding-trading-fees">
+<h1>Adding Trading Fees<a class="headerlink" href="#adding-trading-fees" title="Permalink to this headline">¶</a></h1>
+<p>If you want to add trading fees to your backtesting, you can do so by setting up your backtesting like this:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Create two trading fees, one that is a percentage and one that is a flat fee</span>
+<span class="n">trading_fee_1</span> <span class="o">=</span> <span class="n">TradingFee</span><span class="p">(</span><span class="n">flat_fee</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span> <span class="c1"># $5 flat fee</span>
+<span class="n">trading_fee_2</span> <span class="o">=</span> <span class="n">TradingFee</span><span class="p">(</span><span class="n">percent_fee</span><span class="o">=</span><span class="mf">0.01</span><span class="p">)</span> <span class="c1"># 1% trading fee</span>
+
+<span class="c1"># Backtest this strategy</span>
+<span class="n">backtesting_start</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">2020</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+<span class="n">backtesting_end</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">2020</span><span class="p">,</span> <span class="mi">12</span><span class="p">,</span> <span class="mi">31</span><span class="p">)</span>
+<span class="n">strategy</span><span class="o">.</span><span class="n">backtest</span><span class="p">(</span>
+    <span class="n">YahooDataBacktesting</span><span class="p">,</span>
+    <span class="n">backtesting_start</span><span class="p">,</span>
+    <span class="n">backtesting_end</span><span class="p">,</span>
+    <span class="n">parameters</span><span class="o">=</span> <span class="p">{</span>
+        <span class="s2">"symbol"</span><span class="p">:</span> <span class="s2">"SPY"</span>
+    <span class="p">},</span>
+    <span class="n">buy_trading_fees</span><span class="o">=</span><span class="p">[</span><span class="n">trading_fee_1</span><span class="p">,</span> <span class="n">trading_fee_2</span><span class="p">],</span>
+    <span class="n">sell_trading_fees</span><span class="o">=</span><span class="p">[</span><span class="n">trading_fee_1</span><span class="p">,</span> <span class="n">trading_fee_2</span><span class="p">],</span>
+<span class="p">)</span>
+</pre></div>
+</div>
 </div>
 
         </article>
@@ -495,8 +520,25 @@
         
       </footer>
     </div>
-    <aside class="toc-drawer no-toc">
+    <aside class="toc-drawer">
       
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            Contents
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">Getting Started</a></li>
+<li><a class="reference internal" href="#adding-trading-fees">Adding Trading Fees</a></li>
+</ul>
+
+          </div>
+        </div>
+      </div>
       
       
     </aside>

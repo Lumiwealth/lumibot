@@ -259,16 +259,21 @@ def plot_returns(
     buys = df_final.copy()
     buys[strategy_name] = buys[strategy_name].fillna(method="bfill")
     buys = buys.loc[df_final["side"] == "buy"]
-    buys["plotly_text"] = (
+    buys["plotly_text_buys"] = (
         buys["filled_quantity"].astype(str)
         + " "
         + buys["symbol"]
-        + " @price="
+        + "<br>"
+        + "Price: "
         + buys["price"].astype(str)
+        + "<br>"
+        + "Trade Cost: "
+        + buys["trade_cost"].astype(str)
     )
+    # buys["Trade Cost"] = buys["trade_cost"]
     buys.index.name = "datetime"
     buys = (
-        buys.groupby(["datetime", strategy_name])["plotly_text"]
+        buys.groupby(["datetime", strategy_name])["plotly_text_buys"]
         .apply(lambda x: "<br>".join(x))
         .reset_index()
     )
@@ -285,7 +290,7 @@ def plot_returns(
             marker_color="green",
             marker_size=15,
             hovertemplate="Bought<br>%{text}<br>%{x|%b %d %Y %I:%M:%S %p}<extra></extra>",
-            text=buys["plotly_text"],
+            text=buys["plotly_text_buys"],
         )
     )
 
@@ -293,16 +298,20 @@ def plot_returns(
     sells = df_final.copy()
     sells[strategy_name] = sells[strategy_name].fillna(method="bfill")
     sells = sells.loc[df_final["side"] == "sell"]
-    sells["plotly_text"] = (
+    sells["plotly_text_sells"] = (
         sells["filled_quantity"].astype(str)
         + " "
         + sells["symbol"]
-        + " @price="
+        + "<br>"
+        + "Price: "
         + sells["price"].astype(str)
+        + "<br>"
+        + "Trade Cost: "
+        + sells["trade_cost"].astype(str)
     )
     sells.index.name = "datetime"
     sells = (
-        sells.groupby(["datetime", strategy_name])["plotly_text"]
+        sells.groupby(["datetime", strategy_name])["plotly_text_sells"]
         .apply(lambda x: "<br>".join(x))
         .reset_index()
     )
@@ -319,7 +328,7 @@ def plot_returns(
             marker_size=15,
             marker_symbol="triangle-down",
             hovertemplate="Sold<br>%{text}<br>%{x|%b %d %Y %I:%M:%S %p}<extra></extra>",
-            text=buys["plotly_text"],
+            text=sells["plotly_text_sells"],
         )
     )
     bm_text = f"Compared With {benchmark_name}" if benchmark_name else ""

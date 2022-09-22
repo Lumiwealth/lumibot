@@ -47,7 +47,7 @@ class DataSourceBacktesting(DataSource):
         )
 
     def _pull_source_symbol_bars(
-        self, asset, length, timestep=None, timeshift=0, quote=None, exchange=None
+        self, asset, length, timestep=None, timeshift=None, quote=None, exchange=None
     ):
         if exchange is not None:
             logging.warning(
@@ -57,16 +57,7 @@ class DataSourceBacktesting(DataSource):
         if timestep is None:
             timestep = self.get_timestep()
         if self.LIVE_DATA_SOURCE.SOURCE == "YAHOO":
-            now = datetime.now()
-            now_local = self.localize_datetime(now)
-            backtesting_timeshift = now_local - self._datetime
-            if timeshift:
-                backtesting_timeshift += timeshift
-
-            if timestep == "day":
-                backtesting_timeshift += timedelta(days=1)
-            elif timestep == "minute":
-                backtesting_timeshift += timedelta(minutes=1)
+            backtesting_timeshift = timeshift
         elif self.LIVE_DATA_SOURCE.SOURCE == "PANDAS":
             backtesting_timeshift = timeshift
         elif self.LIVE_DATA_SOURCE.SOURCE == "ALPHA_VANTAGE":

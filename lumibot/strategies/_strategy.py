@@ -871,8 +871,6 @@ class _Strategy:
             config=config,
             auto_adjust=auto_adjust,
             pandas_data=pandas_data,
-            buy_trading_fees=buy_trading_fees,
-            sell_trading_fees=sell_trading_fees,
             **kwargs,
         )
         backtesting_broker = BacktestingBroker(data_source)
@@ -892,6 +890,8 @@ class _Strategy:
             name=name,
             budget=budget,
             parameters=parameters,
+            buy_trading_fees=buy_trading_fees,
+            sell_trading_fees=sell_trading_fees,
             **kwargs,
         )
         trader.add_strategy(strategy)

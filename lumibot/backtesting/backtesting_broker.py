@@ -1,11 +1,13 @@
 import logging
 import traceback
+from ast import Or
 from datetime import datetime, timedelta
+from decimal import Decimal
 from functools import wraps
 from secrets import token_hex
 
 from lumibot.brokers import Broker
-from lumibot.entities import Order, Position
+from lumibot.entities import Order, Position, TradingFee
 from lumibot.tools import get_trading_days
 from lumibot.trading_builtins import CustomStream
 
@@ -349,6 +351,31 @@ class BacktestingBroker(Broker):
 
         return orders_closing_contracts
 
+    def calculate_trade_cost(self, order: Order, strategy, price: float):
+        """Calculate the trade cost of an order for a given strategy"""
+        trade_cost = 0
+        trading_fees = []
+        if order.side == "buy":
+            trading_fees: list[TradingFee] = strategy.buy_trading_fees
+        elif order.side == "sell":
+            trading_fees: list[TradingFee] = strategy.sell_trading_fees
+
+        for trading_fee in trading_fees:
+            if trading_fee.taker == True and order.type in [
+                "market",
+                "stop",
+            ]:
+                trade_cost += trading_fee.flat_fee
+                trade_cost += Decimal(price) * trading_fee.percent_fee
+            elif trading_fee.maker == True and order.type in [
+                "limit",
+                "stop_limit",
+            ]:
+                trade_cost += trading_fee.flat_fee
+                trade_cost += Decimal(price) * trading_fee.percent_fee
+
+        return trade_cost
+
     def process_pending_orders(self, strategy):
         """Used to evaluate and execute open orders in backtesting.
 
@@ -390,15 +417,7 @@ class BacktestingBroker(Broker):
 
             if self._data_source.SOURCE == "YAHOO":
                 ohlc = self.get_last_bar(asset)
-                dt = ohlc.df.index[-1]
-                open = ohlc.df.open[-1]
-                high = ohlc.df.high[-1]
-                low = ohlc.df.low[-1]
-                close = ohlc.df.close[-1]
-                volume = ohlc.df.volume[-1]
 
-            elif self._data_source.SOURCE == "ALPHA_VANTAGE":
-                ohlc = self.get_last_bar(asset)
                 dt = ohlc.df.index[-1]
                 open = ohlc.df.open[-1]
                 high = ohlc.df.high[-1]
@@ -444,7 +463,7 @@ class BacktestingBroker(Broker):
                     )
             else:
                 raise ValueError(
-                    f"Order type {order.type} is not allowable in backtesting."
+                    f"Order type {order.type} is not implemented for backtesting."
                 )
 
             if price != 0:
@@ -459,7 +478,12 @@ class BacktestingBroker(Broker):
                         )
                         self._new_orders.append(flat_order)
 
-                # TODO: Add commission and slippage trading fees here
+                trade_cost = self.calculate_trade_cost(order, strategy, price)
+
+                new_cash = strategy.cash - float(trade_cost)
+                strategy._set_cash_position(new_cash)
+                order.trade_cost = float(trade_cost)
+
                 self.stream.dispatch(
                     self.FILLED_ORDER,
                     order=order,

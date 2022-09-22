@@ -751,6 +751,7 @@ class Broker:
                 "price": price,
                 "filled_quantity": filled_quantity,
                 "multiplier": multiplier,
+                "trade_cost": stored_order.trade_cost,
             }
             # append row to the dataframe
             self._trade_event_log_df = pd.concat(

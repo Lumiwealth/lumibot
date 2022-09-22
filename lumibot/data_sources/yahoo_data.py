@@ -68,10 +68,13 @@ class YahooData(DataSource):
                 raise NoDataFound(self.SOURCE, asset.symbol)
             data = self._append_data(asset, data)
 
+
+        end = self._datetime
         if timeshift:
-            end = datetime.now() - timeshift
-            end = self.to_default_timezone(end)
-            data = data[data.index <= end]
+            end = end - timeshift
+    
+        end = self.to_default_timezone(end)
+        data = data[data.index <= end]
 
         result = data.tail(length)
         return result

@@ -143,23 +143,33 @@ class BacktestingBroker(Broker):
         delta = trading_day.market_close - now
         return delta.total_seconds()
 
-    def _await_market_to_open(self, timedelta=None):
+    def _await_market_to_open(self, timedelta=None, strategy=None):
         if (
             self._data_source.SOURCE == "PANDAS"
             and self._data_source._timestep == "day"
         ):
             return
+
+        # Process outstanding orders first before waiting for market to open
+        # or else they don't get processed until the next day
+        self.process_pending_orders(strategy=strategy)
+
         time_to_open = self.get_time_to_open()
         if timedelta is not None:
             time_to_open -= 60 * timedelta
         self._update_datetime(time_to_open)
 
-    def _await_market_to_close(self, timedelta=None):
+    def _await_market_to_close(self, timedelta=None, strategy=None):
         if (
             self._data_source.SOURCE == "PANDAS"
             and self._data_source._timestep == "day"
         ):
             return
+
+        # Process outstanding orders first before waiting for market to close
+        # or else they don't get processed until the next day
+        self.process_pending_orders(strategy=strategy)
+
         time_to_close = self.get_time_to_close()
         if timedelta is not None:
             time_to_close -= 60 * timedelta
@@ -353,11 +363,11 @@ class BacktestingBroker(Broker):
         """
 
         # Process expired contracts.
-        pending_orders = self.expired_contracts(strategy)
+        pending_orders = self.expired_contracts(strategy.name)
 
         pending_orders += [
             order
-            for order in self.get_tracked_orders(strategy)
+            for order in self.get_tracked_orders(strategy.name)
             if order.status in ["unprocessed", "new"]
         ]
 
@@ -411,15 +421,17 @@ class BacktestingBroker(Broker):
 
             # Determine transaction price.
             if order.type == "market":
-                price = open
+                price = close
             elif order.type == "limit":
-                price = self.limit_order(order.limit_price, order.side, open, high, low)
+                price = self.limit_order(
+                    order.limit_price, order.side, close, high, low
+                )
             elif order.type == "stop":
-                price = self.stop_order(order.stop_price, order.side, open, high, low)
+                price = self.stop_order(order.stop_price, order.side, close, high, low)
             elif order.type == "stop_limit":
                 if not order.price_triggered:
                     price = self.stop_order(
-                        order.stop_price, order.side, open, high, low
+                        order.stop_price, order.side, close, high, low
                     )
                     if price != 0:
                         price = self.limit_order(
@@ -428,7 +440,7 @@ class BacktestingBroker(Broker):
                         order.price_triggered = True
                 elif order.price_triggered:
                     price = self.limit_order(
-                        order.limit_price, order.side, open, high, low
+                        order.limit_price, order.side, close, high, low
                     )
             else:
                 raise ValueError(
@@ -447,6 +459,7 @@ class BacktestingBroker(Broker):
                         )
                         self._new_orders.append(flat_order)
 
+                # TODO: Add commission and slippage trading fees here
                 self.stream.dispatch(
                     self.FILLED_ORDER,
                     order=order,
@@ -456,36 +469,36 @@ class BacktestingBroker(Broker):
             else:
                 continue
 
-    def limit_order(self, limit_price, side, open, high, low):
+    def limit_order(self, limit_price, side, close, high, low):
         """Limit order logic."""
         if side == "buy":
-            if limit_price >= open:
-                return open
-            elif limit_price < open and limit_price >= low:
+            if limit_price >= close:
+                return close
+            elif limit_price < close and limit_price >= low:
                 return limit_price
             elif limit_price < low:
                 return 0
         elif side == "sell":
-            if limit_price <= open:
-                return open
-            elif limit_price > open and limit_price <= high:
+            if limit_price <= close:
+                return close
+            elif limit_price > close and limit_price <= high:
                 return limit_price
             elif limit_price > high:
                 return 0
 
-    def stop_order(self, stop_price, side, open, high, low):
+    def stop_order(self, stop_price, side, close, high, low):
         """Stop order logic."""
         if side == "buy":
-            if stop_price <= open:
-                return open
-            elif stop_price > open and stop_price <= high:
+            if stop_price <= close:
+                return close
+            elif stop_price > close and stop_price <= high:
                 return stop_price
             elif stop_price > high:
                 return 0
         elif side == "sell":
-            if stop_price >= open:
-                return open
-            elif stop_price < open and stop_price >= low:
+            if stop_price >= close:
+                return close
+            elif stop_price < close and stop_price >= low:
                 return stop_price
             elif stop_price < low:
                 return 0

@@ -5,4 +5,4 @@ from .data import Data
 from .dataline import Dataline
 from .order import Order
 from .position import Position
-from .trading_fee import RealizedTradingFee, TradingFee
+from .trading_fee import TradingFee

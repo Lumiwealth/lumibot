@@ -37,7 +37,7 @@ class Asset(BaseModel, frozen=True, extra="forbid"):
     symbol : string (required)
         The symbol used to retrieve stock quotes if stock. The underlying
         symbol if option. For Forex: The base currency.
-    asset_type (string, default: `stock`)
+    asset_type : (string, default: `stock`)
         One of the following:
         - 'stock'
         - 'option'

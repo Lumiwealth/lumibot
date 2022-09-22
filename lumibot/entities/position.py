@@ -4,6 +4,24 @@ import lumibot.entities as entities
 
 
 class Position:
+    """
+    This is a Position object. It is used to keep track of the quantity of an asset owned in a strategy.
+    Position objects are retreived from the broker using the get_positions() or get_position() methods.
+
+    Attributes
+    ----------
+    strategy : str
+        The strategy that owns this position.
+    asset : Asset
+        The asset that this position is for.
+    symbol : str
+        The symbol of the asset.
+    quantity : float
+        The quantity of the asset owned.
+    orders : list of Order
+        The orders that have been executed for this position.
+    """
+
     def __init__(self, strategy, asset, quantity, orders=None, hold=0, available=0):
         self.strategy = strategy
         self.asset = asset
@@ -39,10 +57,7 @@ class Position:
             self.orders = orders
 
     def __repr__(self):
-        repr =  "%f shares of %s" % (
-            self.quantity,
-            self.asset
-        )
+        repr = "%f shares of %s" % (self.quantity, self.asset)
         return repr
 
     @property

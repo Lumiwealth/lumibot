@@ -16,3 +16,4 @@ Here's a list of the main entities in Lumibot:
    entities.dataline
    entities.order
    entities.position
+   entities.trading_fee

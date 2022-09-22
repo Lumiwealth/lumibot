@@ -2,10 +2,10 @@
 <html class="no-js">
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
-    <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Asset" href="entities.asset.html" /><link rel="prev" title="Interactive Brokers" href="brokers.interactive_brokers.html" />
+    <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="prev" title="Position" href="entities.position.html" />
 
     <meta name="generator" content="sphinx-4.2.0, furo 2021.10.09"/>
-        <title>Entities - Lumibot documentation</title>
+        <title>Trading Fee - Lumibot documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=0254c309f5cadf746f1a613e7677379ac9c8cdcd" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?digest=16fb25fabf47304eee183a5e9af80b1ba98259b1" />
@@ -278,7 +278,7 @@
 <li class="toctree-l2"><a class="reference internal" href="brokers.interactive_brokers.html">Interactive Brokers</a></li>
 </ul>
 </li>
-<li class="toctree-l1 current has-children current-page"><a class="current reference internal" href="#">Entities</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-11" name="toctree-checkbox-11" role="switch" type="checkbox"/><label for="toctree-checkbox-11"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l1 current has-children"><a class="reference internal" href="entities.html">Entities</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-11" name="toctree-checkbox-11" role="switch" type="checkbox"/><label for="toctree-checkbox-11"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="entities.asset.html">Asset</a></li>
 <li class="toctree-l2"><a class="reference internal" href="entities.bar.html">Bar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="entities.bars.html">Bars</a></li>
@@ -286,7 +286,7 @@
 <li class="toctree-l2"><a class="reference internal" href="entities.dataline.html">Dataline</a></li>
 <li class="toctree-l2"><a class="reference internal" href="entities.order.html">Order</a></li>
 <li class="toctree-l2"><a class="reference internal" href="entities.position.html">Position</a></li>
-<li class="toctree-l2"><a class="reference internal" href="entities.trading_fee.html">Trading Fee</a></li>
+<li class="toctree-l2 current current-page"><a class="current reference internal" href="#">Trading Fee</a></li>
 </ul>
 </li>
 </ul>
@@ -315,23 +315,55 @@
           </label>
         </div>
         <article role="main">
-          <div class="section" id="entities">
-<h1>Entities<a class="headerlink" href="#entities" title="Permalink to this headline">¶</a></h1>
-<p>Entities are the main object types that are passed around within Lumibot to place orders, get to know your positions, load data and more.</p>
-<p>Here’s a list of the main entities in Lumibot:</p>
-<div class="toctree-wrapper compound">
-<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="entities.asset.html">Asset</a></li>
-<li class="toctree-l1"><a class="reference internal" href="entities.bar.html">Bar</a></li>
-<li class="toctree-l1"><a class="reference internal" href="entities.bars.html">Bars</a></li>
-<li class="toctree-l1"><a class="reference internal" href="entities.data.html">Data</a></li>
-<li class="toctree-l1"><a class="reference internal" href="entities.dataline.html">Dataline</a></li>
-<li class="toctree-l1"><a class="reference internal" href="entities.order.html">Order</a></li>
-<li class="toctree-l1"><a class="reference internal" href="entities.position.html">Position</a></li>
-<li class="toctree-l1"><a class="reference internal" href="entities.trading_fee.html">Trading Fee</a></li>
+          <div class="section" id="module-entities.trading_fee">
+<span id="trading-fee"></span><h1>Trading Fee<a class="headerlink" href="#module-entities.trading_fee" title="Permalink to this headline">¶</a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="entities.trading_fee.TradingFee">
+<em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">entities.trading_fee.</span></span><span class="sig-name descname"><span class="pre">TradingFee</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">flat_fee</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">percent_fee</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">maker</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">taker</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.trading_fee.TradingFee" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>TradingFee class. Used to define the trading fees for a broker in a strategy/backtesting.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>flat_fee</strong> (<em>Decimal</em><em>, </em><em>float</em><em>, or </em><em>None</em>) – Flat fee to pay for each order. This is a fixed fee that is paid for each order in the quote currency.</p></li>
+<li><p><strong>percentage_fee</strong> (<em>Decimal</em><em>, </em><em>float</em><em>, or </em><em>None</em>) – Percentage fee to pay for each order. This is a percentage of the order value that is paid for each order in the quote currency.</p></li>
+<li><p><strong>maker</strong> (<em>bool</em>) – Whether this fee is a maker fee (applies to limit orders).
+Default is True, which means that this fee will be used on limit orders.</p></li>
+<li><p><strong>taker</strong> (<em>bool</em>) – Whether this fee is a taker fee (applies to market orders).
+Default is True, which means that this fee will be used on market orders.</p></li>
 </ul>
+</dd>
+</dl>
+<p class="rubric">Example</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">trading_fee_1</span> <span class="o">=</span> <span class="n">TradingFee</span><span class="p">(</span><span class="n">flat_fee</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span> <span class="c1"># $5 flat fee</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">trading_fee_2</span> <span class="o">=</span> <span class="n">TradingFee</span><span class="p">(</span><span class="n">percent_fee</span><span class="o">=</span><span class="mf">0.01</span><span class="p">)</span> <span class="c1"># 1%% fee</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">backtesting_start</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">2022</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">backtesting_end</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">2022</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">result</span> <span class="o">=</span> <span class="n">MyStrategy</span><span class="o">.</span><span class="n">backtest</span><span class="p">(</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">YahooDataBacktesting</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">backtesting_start</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">backtesting_end</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">buy_trading_fees</span><span class="o">=</span><span class="p">[</span><span class="n">trading_fee_1</span><span class="p">,</span> <span class="n">trading_fee_2</span><span class="p">],</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">)</span>
+</pre></div>
 </div>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="entities.trading_fee.TradingFee.flat_fee">
+<span class="sig-name descname"><span class="pre">flat_fee</span></span><em class="property"><span class="pre">:</span> <span class="pre">decimal.Decimal</span></em><em class="property"> <span class="pre">=</span> <span class="pre">0</span></em><a class="headerlink" href="#entities.trading_fee.TradingFee.flat_fee" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="entities.trading_fee.TradingFee.maker">
+<span class="sig-name descname"><span class="pre">maker</span></span><em class="property"><span class="pre">:</span> <span class="pre">bool</span></em><em class="property"> <span class="pre">=</span> <span class="pre">False</span></em><a class="headerlink" href="#entities.trading_fee.TradingFee.maker" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="entities.trading_fee.TradingFee.percent_fee">
+<span class="sig-name descname"><span class="pre">percent_fee</span></span><em class="property"><span class="pre">:</span> <span class="pre">decimal.Decimal</span></em><em class="property"> <span class="pre">=</span> <span class="pre">0</span></em><a class="headerlink" href="#entities.trading_fee.TradingFee.percent_fee" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="entities.trading_fee.TradingFee.taker">
+<span class="sig-name descname"><span class="pre">taker</span></span><em class="property"><span class="pre">:</span> <span class="pre">bool</span></em><em class="property"> <span class="pre">=</span> <span class="pre">False</span></em><a class="headerlink" href="#entities.trading_fee.TradingFee.taker" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+</dd></dl>
 </div>
 
         </article>
@@ -339,23 +371,15 @@
       <footer>
         
         <div class="related-pages">
-          <a class="next-page" href="entities.asset.html">
-              <div class="page-info">
-                <div class="context">
-                  <span>Next</span>
-                </div>
-                <div class="title">Asset</div>
-              </div>
-              <svg><use href="#svg-arrow-right"></use></svg>
-            </a>
-          <a class="prev-page" href="brokers.interactive_brokers.html">
+          
+          <a class="prev-page" href="entities.position.html">
               <svg><use href="#svg-arrow-right"></use></svg>
               <div class="page-info">
                 <div class="context">
                   <span>Previous</span>
                 </div>
                 
-                <div class="title">Interactive Brokers</div>
+                <div class="title">Position</div>
                 
               </div>
             </a>
@@ -367,7 +391,7 @@
               and
               <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
               <a href="https://github.com/pradyunsg/furo">Furo theme</a>. |
-            <a class="muted-link" href="_sources/entities.rst.txt"
+            <a class="muted-link" href="_sources/entities.trading_fee.rst.txt"
                rel="nofollow">
               Show Source
             </a>

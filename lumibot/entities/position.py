@@ -15,7 +15,7 @@ class Position:
     asset : Asset
         The asset that this position is for.
     symbol : str
-        The symbol of the asset.
+        The symbol of the asset. e.g. AAPL for Apple stock.
     quantity : float
         The quantity of the asset owned.
     orders : list of Order

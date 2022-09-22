@@ -20,7 +20,7 @@ class TradingFee:
     Example
     --------
     >>> trading_fee_1 = TradingFee(flat_fee=5) # $5 flat fee
-    >>> trading_fee_2 = TradingFee(percent_fee=0.01) # 1%% fee
+    >>> trading_fee_2 = TradingFee(percent_fee=0.01) # 1% fee
     >>> backtesting_start = datetime(2022, 1, 1)
     >>> backtesting_end = datetime(2022, 6, 1)
     >>> result = MyStrategy.backtest(

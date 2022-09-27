@@ -1,8 +1,11 @@
 import logging
 from datetime import datetime, timedelta
+from decimal import Decimal
+
+import numpy
 
 from lumibot.data_sources.exceptions import NoDataFound
-from lumibot.entities import Bars
+from lumibot.entities import Asset, Bars
 from lumibot.tools import YahooHelper as yh
 
 from .data_source import DataSource
@@ -68,13 +71,13 @@ class YahooData(DataSource):
                 raise NoDataFound(self.SOURCE, asset.symbol)
             data = self._append_data(asset, data)
 
-
-        end = self._datetime
+        # End should be yesterday because otherwise you can see the future
+        end = self._datetime - timedelta(days=1)
         if timeshift:
             end = end - timeshift
-    
+
         end = self.to_default_timezone(end)
-        data = data[data.index <= end]
+        data = data[data.index < end]
 
         result = data.tail(length)
         return result
@@ -114,3 +117,22 @@ class YahooData(DataSource):
 
         bars = Bars(response, self.SOURCE, asset, raw=response)
         return bars
+
+    def get_last_price(self, asset, timestep=None, quote=None, exchange=None, **kwargs):
+        """Takes an asset and returns the last known price"""
+        if timestep is None:
+            timestep = self.get_timestep()
+
+        # Use -1 timeshift to get the price for the current bar (otherwise gets yesterdays prices)
+        bars = self.get_symbol_bars(
+            asset, 1, timestep=timestep, quote=quote, timeshift=timedelta(days=-1)
+        )
+        if isinstance(bars, float):
+            return bars
+        elif bars is None:
+            return None
+
+        open = bars.df.iloc[0].open
+        if type(open) == numpy.int64:
+            open = Decimal(open.item())
+        return open

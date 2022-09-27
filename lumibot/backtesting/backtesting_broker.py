@@ -3,6 +3,7 @@ import traceback
 from ast import Or
 from datetime import datetime, timedelta
 from decimal import Decimal
+from email.utils import quote
 from functools import wraps
 from secrets import token_hex
 
@@ -366,13 +367,17 @@ class BacktestingBroker(Broker):
                 "stop",
             ]:
                 trade_cost += trading_fee.flat_fee
-                trade_cost += Decimal(price) * trading_fee.percent_fee
+                trade_cost += (
+                    Decimal(price) * Decimal(order.quantity) * trading_fee.percent_fee
+                )
             elif trading_fee.maker == True and order.type in [
                 "limit",
                 "stop_limit",
             ]:
                 trade_cost += trading_fee.flat_fee
-                trade_cost += Decimal(price) * trading_fee.percent_fee
+                trade_cost += (
+                    Decimal(price) * Decimal(order.quantity) * trading_fee.percent_fee
+                )
 
         return trade_cost
 
@@ -416,7 +421,10 @@ class BacktestingBroker(Broker):
             filled_quantity = order.quantity
 
             if self._data_source.SOURCE == "YAHOO":
-                ohlc = self.get_last_bar(asset)
+                timeshift = timedelta(days=-1)
+                ohlc = strategy.get_historical_prices(
+                    asset, 1, timeshift=timeshift, quote=order.quote
+                )
 
                 dt = ohlc.df.index[-1]
                 open = ohlc.df.open[-1]
@@ -426,17 +434,19 @@ class BacktestingBroker(Broker):
                 volume = ohlc.df.volume[-1]
 
             elif self._data_source.SOURCE == "PANDAS":
-                data = self._data_source._data_store[asset]
-                ohlc = data._get_bars_dict(self.datetime, length=1)
+                ohlc = strategy.get_historical_prices(
+                    asset, 1, quote=order.quote, timeshift=-1
+                )
+
                 if ohlc is None:
                     self.cancel_order(order)
                     continue
-                dt = ohlc["datetime"][-1]
-                open = ohlc["open"][-1]
-                high = ohlc["high"][-1]
-                low = ohlc["low"][-1]
-                close = ohlc["close"][-1]
-                volume = ohlc["volume"][-1]
+                dt = ohlc.df.index[-1]
+                open = ohlc.df["open"][-1]
+                high = ohlc.df["high"][-1]
+                low = ohlc.df["low"][-1]
+                close = ohlc.df["close"][-1]
+                volume = ohlc.df["volume"][-1]
 
             # Determine transaction price.
             if order.type == "market":

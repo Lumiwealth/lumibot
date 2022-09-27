@@ -269,6 +269,7 @@ def plot_returns(
         + "<br>"
         + "Trade Cost: "
         + buys["trade_cost"].astype(str)
+        + "<br>"
     )
     # buys["Trade Cost"] = buys["trade_cost"]
     buys.index.name = "datetime"
@@ -308,6 +309,7 @@ def plot_returns(
         + "<br>"
         + "Trade Cost: "
         + sells["trade_cost"].astype(str)
+        + "<br>"
     )
     sells.index.name = "datetime"
     sells = (

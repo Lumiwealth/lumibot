@@ -2,6 +2,7 @@ import datetime
 import logging
 from asyncio.log import logger
 from decimal import Decimal
+from typing import Union
 
 import pandas as pd
 from termcolor import colored
@@ -2214,7 +2215,7 @@ class Strategy(_Strategy):
             length, timestep=timestep, timeshift=timeshift
         )
 
-    def localize_datetime(self, dt):
+    def localize_datetime(self, dt: datetime.datetime):
         """Returns a datetime localized to the data source's timezone.
 
         Parameters
@@ -2235,7 +2236,7 @@ class Strategy(_Strategy):
         """
         return self.data_source.localize_datetime(dt)
 
-    def to_default_timezone(self, dt):
+    def to_default_timezone(self, dt: datetime.datetime):
         """Returns a datetime localized to the data source's default timezone.
 
         Parameters
@@ -2262,13 +2263,13 @@ class Strategy(_Strategy):
 
     def create_asset(
         self,
-        symbol,
-        asset_type="stock",
-        expiration=None,
-        strike="",
-        right=None,
-        multiplier=1,
-        currency="USD",
+        symbol: str,
+        asset_type: str = "stock",
+        expiration: datetime.datetime = None,
+        strike: str = "",
+        right: str = None,
+        multiplier: int = 1,
+        currency: str = "USD",
     ):
         """Creates an asset object. This is used to create an asset object.
 
@@ -2381,12 +2382,12 @@ class Strategy(_Strategy):
 
     def get_historical_prices(
         self,
-        asset,
-        length,
-        timestep="",
-        timeshift=None,
-        quote=None,
-        exchange=None,
+        asset: Union[Asset, str],
+        length: int,
+        timestep: str = "",
+        timeshift: datetime.timedelta = None,
+        quote: Asset = None,
+        exchange: str = None,
     ):
         """Get historical pricing data for a given symbol or asset.
 

@@ -82,7 +82,6 @@ class Data:
         Set start and end dates.
     trim_data
         Trim the dataframe to match the desired backtesting dates.
-
     to_datalines
         Create numpy datalines from existing date index and columns.
     get_iter_count
@@ -330,6 +329,11 @@ class Data:
         # Validates if the provided date, length, timeshift, and timestep
         # will return data. Runs function if data, returns None if no data.
         def checker(self, *args, **kwargs):
+            if type(kwargs.get("length", 1)) not in [int, float]:
+                raise TypeError(
+                    f"Length must be an integer. {type(kwargs.get('length', 1))} was provided."
+                )
+
             dt = args[0]
             # Check if the iter date is outside of this data's date range.
             if dt < self.datetime_start or dt > self.datetime_end:
@@ -383,7 +387,7 @@ class Data:
 
     @check_data
     def get_last_price(self, dt, length=1, timeshift=0):
-        """Returns the last price of the data.
+        """Returns the last known price of the data.
 
         Parameters
         ----------
@@ -400,8 +404,7 @@ class Data:
         -------
         float
         """
-        # Get the last close price.
-        return self.datalines["close"].dataline[self.get_iter_count(dt)]
+        return self.datalines["open"].dataline[self.get_iter_count(dt)]
 
     @check_data
     def _get_bars_dict(self, dt, length=1, timestep=None, timeshift=0):
@@ -424,7 +427,7 @@ class Data:
 
         """
         # Get bars.
-        end_row = self.get_iter_count(dt) + 1 - timeshift
+        end_row = self.get_iter_count(dt) - timeshift
         start_row = end_row - length
         if start_row < 0:
             start_row = 0

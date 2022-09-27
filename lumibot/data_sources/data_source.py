@@ -1,8 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
-from decimal import Decimal
-
-import numpy
 
 from lumibot import LUMIBOT_DEFAULT_PYTZ, LUMIBOT_DEFAULT_TIMEZONE
 from lumibot.entities import Asset, AssetsMapping
@@ -183,19 +180,7 @@ class DataSource:
 
     def get_last_price(self, asset, timestep=None, quote=None, exchange=None, **kwargs):
         """Takes an asset and returns the last known price"""
-        if timestep is None:
-            timestep = self.get_timestep()
-
-        bars = self.get_symbol_bars(asset, 1, timestep=timestep, quote=quote)
-        if isinstance(bars, float):
-            return bars
-        elif bars is None:
-            return None
-
-        close = bars.df.iloc[0].close
-        if type(close) == numpy.int64:
-            close = Decimal(close.item())
-        return close
+        pass
 
     def get_last_prices(
         self, assets, timestep=None, quote=None, exchange=None, **kwargs
@@ -203,14 +188,13 @@ class DataSource:
         """Takes a list of assets and returns the last known prices"""
         if timestep is None:
             timestep = self.MIN_TIMESTEP
+
         result = {}
-        assets_bars = self.get_bars(assets, 1, timestep=timestep, quote=quote)
-        for asset, bars in assets_bars.items():
-            if isinstance(bars, float):
-                result[asset] = bars
-            elif bars is not None and hasattr(bars, "df") and len(bars.df) > 0:
-                last_value = bars.df.iloc[0].close
-                result[asset] = last_value
+        for asset in assets:
+            result[asset] = self.get_last_price(
+                asset, timestep=timestep, quote=quote, exchange=exchange, **kwargs
+            )
+
         if self.SOURCE == "CCXT":
             return result
         else:

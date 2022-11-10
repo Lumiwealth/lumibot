@@ -1,11 +1,10 @@
 import datetime
-from pandas import Timestamp
 
-from credentials import InteractiveBrokersConfig, AlpacaConfig
-from lumibot.brokers.interactive_brokers import InteractiveBrokersData
+from credentials import AlpacaConfig, InteractiveBrokersConfig
+from lumibot.brokers.interactive_brokers import (InteractiveBrokers,
+                                                 InteractiveBrokersData)
 from lumibot.data_sources.alpaca_data import AlpacaData
-from lumibot.brokers.interactive_brokers import InteractiveBrokers
-
+from pandas import Timestamp
 
 
 class TestDataBroker:
@@ -109,10 +108,10 @@ class TestDataBroker:
         ap = self.alpaca_data.get_datetime_range(20, timestep="day")
         self.print_or_test(name, ib, ap)
 
-    def test_get_symbol_bars(self):
+    def test_get_historical_prices(self):
         name = "get_symbol_bar"
-        ib = self.ib_broker.get_symbol_bars(self.T1, length=5, timestep="day")
-        ap = self.alpaca_data.get_symbol_bars(self.T1, length=5, timestep="day")
+        ib = self.ib_broker.get_historical_prices(self.T1, length=5, timestep="day")
+        ap = self.alpaca_data.get_historical_prices(self.T1, length=5, timestep="day")
 
         ib_prices_sum = (
             ib.df[["open", "high", "low", "close"]].sum(axis=1).tail(1).values[0]

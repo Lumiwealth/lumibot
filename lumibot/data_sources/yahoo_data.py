@@ -3,7 +3,6 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 
 import numpy
-
 from lumibot.data_sources.exceptions import NoDataFound
 from lumibot.entities import Asset, Bars
 from lumibot.tools import YahooHelper as yh
@@ -124,7 +123,7 @@ class YahooData(DataSource):
             timestep = self.get_timestep()
 
         # Use -1 timeshift to get the price for the current bar (otherwise gets yesterdays prices)
-        bars = self.get_symbol_bars(
+        bars = self.get_historical_prices(
             asset, 1, timestep=timestep, quote=quote, timeshift=timedelta(days=-1)
         )
         if isinstance(bars, float):

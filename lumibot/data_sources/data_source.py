@@ -117,7 +117,7 @@ class DataSource:
 
     # =================Public Market Data Methods==================
 
-    def get_symbol_bars(
+    def get_historical_prices(
         self, asset, length, timestep="", timeshift=None, quote=None, exchange=None
     ):
         """Get bars for a given asset"""
@@ -211,7 +211,7 @@ class DataSource:
     def get_yesterday_dividend(self, asset):
         """Return dividend per share for a given
         asset for the day before"""
-        bars = self.get_symbol_bars(
+        bars = self.get_historical_prices(
             asset, 1, timestep="day", timeshift=timedelta(days=0)
         )
         return bars.get_last_dividend()

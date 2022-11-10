@@ -8,7 +8,6 @@ import pandas as pd
 from alpaca_trade_api.common import URL
 from alpaca_trade_api.entity import Bar
 from alpaca_trade_api.rest import TimeFrame, TimeFrameUnit
-
 from lumibot.entities import Asset, Bars
 
 from .data_source import DataSource
@@ -104,7 +103,9 @@ class AlpacaData(DataSource):
     def get_last_price(self, asset, quote=None, exchange=None, **kwargs):
         if quote is not None:
             # If the quote is not None, we use it even if the asset is a tuple
-            if isinstance(asset, tuple):
+            if type(asset) == Asset and asset.asset_type == "stock":
+                symbol = asset.symbol
+            elif isinstance(asset, tuple):
                 symbol = f"{asset[0].symbol}{quote.symbol}"
             else:
                 symbol = f"{asset.symbol}{quote.symbol}"

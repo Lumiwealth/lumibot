@@ -2,7 +2,6 @@ import datetime
 import logging
 
 import pandas as pd
-
 from lumibot import LUMIBOT_DEFAULT_PYTZ as DEFAULT_PYTZ
 from lumibot.tools.helpers import to_datetime_aware
 
@@ -128,6 +127,11 @@ class Data:
             )
         else:
             self.quote = quote
+            
+        if timestep not in ["minute", "day"]:
+            raise ValueError(
+                f"Timestep must be either 'minute' or 'day', the value you enetered ({timestep}) is not currently supported."
+            )
 
         self.timestep = timestep
 
@@ -426,17 +430,18 @@ class Data:
         dict
 
         """
+
         # Get bars.
         end_row = self.get_iter_count(dt) - timeshift
         start_row = end_row - length
         if start_row < 0:
             start_row = 0
 
-        df_dict = {}
+        dict = {}
         for dl_name, dl in self.datalines.items():
-            df_dict[dl_name] = dl.dataline[start_row:end_row]
+            dict[dl_name] = dl.dataline[start_row:end_row]
 
-        return df_dict
+        return dict
 
     def get_bars(self, dt, length=1, timestep=MIN_TIMESTEP, timeshift=0, exchange=None):
         """Returns a dictionary of the data.
@@ -448,7 +453,7 @@ class Data:
         length : int
             The number of periods to get the data.
         timestep : str
-            The frequency of the data to get the data.
+            The frequency of the data to get the data. Only minute and day are supported.
         timeshift : int
             The number of periods to shift the data.
 
@@ -457,9 +462,50 @@ class Data:
         pandas.DataFrame
 
         """
-        df_dict = self._get_bars_dict(
-            dt, length=length, timestep=self.timestep, timeshift=timeshift
-        )
-        if df_dict is not None:
-            return pd.DataFrame(df_dict).set_index("datetime")
-        return None
+        if timestep == "minute" and self.timestep == "day":
+            raise ValueError(
+                "You are requesting minute data from a daily data source. This is not supported."
+            )
+            
+        if timestep != "minute" and timestep != "day":
+            raise ValueError(
+                f"Only minute and day are supported for timestep. You provided: {timestep}"
+            )
+            
+        if timestep == "day" and self.timestep == "minute":
+            # If the data is minute data and we are requesting daily data then multiply the length by 1440
+            length = length * 1440
+
+            dict = self._get_bars_dict(
+                dt, length=length, timestep="minute", timeshift=timeshift
+            )
+            
+            if dict is None:
+                return None
+            
+            df = pd.DataFrame(dict).set_index("datetime")
+            
+            df_dict = df.resample("D") .agg(
+                    {
+                        "open": "first",
+                        "high": "max",
+                        "low": "min",
+                        "close": "last",
+                        "volume": "sum",
+                    }
+                )
+            
+            
+            dict = df_dict.to_dict(orient="list")
+            
+            return df
+        else:
+            dict = self._get_bars_dict(
+                dt, length=length, timestep=timestep, timeshift=timeshift
+            )
+            
+            if dict is None:
+                return None
+            
+            df = pd.DataFrame(dict).set_index("datetime")
+            return df

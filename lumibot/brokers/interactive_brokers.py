@@ -85,18 +85,21 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         )
         current_time = datetime.datetime.now().astimezone(tz=tz.tzlocal())
         if self.is_market_open():
-            return None
+            return 0
         else:
-            return open_time.timestamp() - current_time.timestamp()
+            result = open_time.timestamp() - current_time.timestamp()
+            return result
 
     def get_time_to_close(self):
         """Return the remaining time for the market to close in seconds"""
         close_time = self.utc_to_local(self.market_hours(close=True))
         current_time = datetime.datetime.now().astimezone(tz=tz.tzlocal())
+        # return close_time.timestamp() - current_time.timestamp()
         if self.is_market_open():
-            return close_time.timestamp() - current_time.timestamp()
+            result = close_time.timestamp() - current_time.timestamp()
+            return result
         else:
-            return None
+            return 0
 
     # =========Positions functions==================
 

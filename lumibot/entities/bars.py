@@ -277,7 +277,7 @@ class Bars:
         Examples
         --------
         >>> # Get the 15 minute bars for the last hour
-        >>> bars = self.get_symbol_bars("AAPL", 60, "minute")
+        >>> bars = self.get_historical_prices("AAPL", 60, "minute")
         >>> bars_agg = bars.aggregate_bars("15Min")
         """
         new_df = self.df.groupby(pd.Grouper(freq=frequency)).agg(

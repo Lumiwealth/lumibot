@@ -8,7 +8,6 @@ import pandas as pd
 from alpaca_trade_api.common import URL
 from alpaca_trade_api.entity import Bar
 from alpaca_trade_api.rest import TimeFrame, TimeFrameUnit
-
 from lumibot.entities import Asset, Bars
 
 from .data_source import DataSource
@@ -81,30 +80,12 @@ class AlpacaData(DataSource):
             self.api_key, self.api_secret, self.endpoint, self.version
         )
 
-    def _pull_source_symbol_bars(
-        self,
-        asset,
-        length,
-        timestep=MIN_TIMESTEP,
-        timeshift=None,
-        quote=None,
-        exchange=None,
-    ):
-        if exchange is not None:
-            logging.warning(
-                f"the exchange parameter is not implemented for AlpacaData, but {exchange} was passed as the exchange"
-            )
-
-        """pull broker bars for a given asset"""
-        response = self._pull_source_bars(
-            [asset], length, timestep=timestep, timeshift=timeshift, quote=quote
-        )
-        return response[asset]
-
     def get_last_price(self, asset, quote=None, exchange=None, **kwargs):
         if quote is not None:
             # If the quote is not None, we use it even if the asset is a tuple
-            if isinstance(asset, tuple):
+            if type(asset) == Asset and asset.asset_type == "stock":
+                symbol = asset.symbol
+            elif isinstance(asset, tuple):
                 symbol = f"{asset[0].symbol}{quote.symbol}"
             else:
                 symbol = f"{asset.symbol}{quote.symbol}"
@@ -234,7 +215,7 @@ class AlpacaData(DataSource):
         if timeshift:
             end = datetime.now() - timeshift
             end = self.to_default_timezone(end)
-            kwargs["end"] = self._format_datetime(end)
+            kwargs["end"] = end
 
         result = {}
         for asset in assets:
@@ -244,6 +225,26 @@ class AlpacaData(DataSource):
             result[asset] = data
 
         return result
+
+    def _pull_source_symbol_bars(
+        self,
+        asset,
+        length,
+        timestep=MIN_TIMESTEP,
+        timeshift=None,
+        quote=None,
+        exchange=None,
+    ):
+        if exchange is not None:
+            logging.warning(
+                f"the exchange parameter is not implemented for AlpacaData, but {exchange} was passed as the exchange"
+            )
+
+        """pull broker bars for a given asset"""
+        response = self._pull_source_bars(
+            [asset], length, timestep=timestep, timeshift=timeshift, quote=quote
+        )
+        return response[asset]
 
     def _parse_source_symbol_bars(self, response, asset, quote=None):
         # TODO: Alpaca return should also include dividend yield

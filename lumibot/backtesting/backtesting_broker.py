@@ -126,8 +126,6 @@ class BacktestingBroker(Broker):
 
     # TODO: speed up this function, it is a major bottleneck
     def get_time_to_close(self):
-        import time
-
         """Return the remaining time for the market to close in seconds"""
         now = self.datetime
         # TODO: speed up the next line. next line speed implication: v high (1738 microseconds)
@@ -548,7 +546,7 @@ class BacktestingBroker(Broker):
 
     def get_last_bar(self, asset):
         """Returns OHLCV dictionary for last bar of the asset."""
-        return self._data_source.get_symbol_bars(asset, 1)
+        return self._data_source.get_historical_prices(asset, 1)
 
     def get_chains(self, asset):
         return self._data_source.get_chains(asset)

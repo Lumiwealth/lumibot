@@ -5,9 +5,8 @@ from decimal import Decimal
 from typing import Union
 
 import pandas as pd
-from termcolor import colored
-
 from lumibot.entities import Asset, Order
+from termcolor import colored
 
 from ._strategy import _Strategy
 
@@ -2481,7 +2480,7 @@ class Strategy(_Strategy):
         asset = self.crypto_assets_to_tuple(asset, quote)
         if not timestep:
             timestep = self.data_source.MIN_TIMESTEP
-        return self.data_source.get_symbol_bars(
+        return self.data_source.get_historical_prices(
             asset, length, timestep=timestep, timeshift=timeshift, exchange=exchange
         )
 
@@ -2549,7 +2548,7 @@ class Strategy(_Strategy):
         -------
         dictionary : Asset : bars
             Return a dictionary bars for a given list of symbols. Works the
-            same as get_symbol_bars take as first parameter a list of symbols.
+            same as get_historical_prices take as first parameter a list of symbols.
 
         Example
         -------

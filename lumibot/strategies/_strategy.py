@@ -324,7 +324,7 @@ class _Strategy:
         if "last_broker_balances_update" not in self.__dict__:
             self.last_broker_balances_update = None
 
-        UPDATE_INTERVAL = 60
+        UPDATE_INTERVAL = 59
         if (
             self.last_broker_balances_update is None
             or force_update

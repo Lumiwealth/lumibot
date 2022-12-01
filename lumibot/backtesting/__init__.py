@@ -2,5 +2,5 @@ from .alpaca_backtesting import AlpacaBacktesting
 from .alpha_vantage_backtesting import AlphaVantageBacktesting
 from .backtesting_broker import BacktestingBroker
 from .data_source_backtesting import DataSourceBacktesting
-from .yahoo_backtesting import YahooDataBacktesting
 from .pandas_backtesting import PandasDataBacktesting
+from .yahoo_backtesting import YahooDataBacktesting

@@ -1216,8 +1216,7 @@ class Strategy(_Strategy):
         >>>    asset_type="option",
         >>>    expiration_date="2020-01-01",
         >>>    strike_price=100.00,
-        >>>    right="call",
-        >>>    multiplier=100)
+        >>>    right="call")
         >>> order = self.create_order(asset, 10, "sell")
         >>> self.submit_order(order)
 
@@ -2306,7 +2305,7 @@ class Strategy(_Strategy):
         >>> asset = self.create_asset("AAPL", asset_type="stock")
 
         >>> # Will create an option object
-        >>> asset = self.create_asset("AAPL", asset_type="option", expiration=datetime.datetime(2020, 1, 1), strike=100, right="call")
+        >>> asset = self.create_asset("AAPL", asset_type="option", expiration=datetime.datetime(2020, 1, 1), strike=100, right="CALL")
 
         >>> # Will create a future object
         >>> asset = self.create_asset("AAPL", asset_type="future", multiplier=100)
@@ -2315,7 +2314,7 @@ class Strategy(_Strategy):
         >>> asset = self.create_asset("AAPL", asset_type="stock", currency="EUR")
 
         >>> # Will create an option object with a different currency
-        >>> asset = self.create_asset("AAPL", asset_type="option", expiration=datetime.datetime(2020, 1, 1), strike=100, right="call", currency="EUR")
+        >>> asset = self.create_asset("AAPL", asset_type="option", expiration=datetime.datetime(2020, 1, 1), strike=100, right="CALL", currency="EUR")
 
         >>> # Will create a future object with a different currency
         >>> asset = self.create_asset("AAPL", asset_type="future", multiplier=100, currency="EUR")
@@ -2747,7 +2746,8 @@ class Strategy(_Strategy):
         Example
         -------
         >>> # Get the dividends for SPY and TLT
-        >>> assets = [self.create_asset("SPY"), self.create_asset("TLT")]
+        >>> from lumibot.entities import Asset
+        >>> assets = [Asset("SPY"), Asset("TLT")]
         >>> self.get_yesterday_dividends(assets)
 
         """

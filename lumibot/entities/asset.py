@@ -85,7 +85,6 @@ class Asset(BaseModel, frozen=True, extra="forbid"):
     >>>     expiration=datetime.date(2021, 11, 26),
     >>>     strike=155,
     >>>     right= 'CALL',
-    >>>     multiplier=100,
     >>>     currency="USD"
     >>> )
 
@@ -113,6 +112,17 @@ class Asset(BaseModel, frozen=True, extra="forbid"):
     precision: Optional[str] = None
     _asset_types: list = ["stock", "option", "future", "forex", "crypto", "index"]
     _right: list = ["CALL", "PUT"]
+
+    def __init__(self, symbol: str, asset_type: str = "stock", **data):
+        # Multiplier for options must always be 100
+        if data.get("asset_type") == "option":
+            data["multiplier"] = 100
+
+        # Make sure right is upper case
+        if data.get("right") is not None:
+            data["right"] = data.get("right").upper()
+
+        super().__init__(symbol=symbol, asset_type=asset_type, **data)
 
     def __repr__(self):
         if self.asset_type == "future":

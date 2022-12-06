@@ -14,6 +14,7 @@ import quantstats as qs
 from lumibot import LUMIBOT_DEFAULT_PYTZ
 from lumibot.entities.asset import Asset
 from lumibot.tools import to_datetime_aware
+from plotly.subplots import make_subplots
 
 from .yahoo_helper import YahooHelper as yh
 
@@ -190,7 +191,6 @@ def plot_returns(
     show_plot=True,
     initial_budget=1,
 ):
-
     dfs_concat = []
 
     _df1 = strategy_df.copy()
@@ -205,12 +205,24 @@ def plot_returns(
     _df2 = _df2.sort_index(ascending=True)
     _df2.index.name = "datetime"
     _df2[benchmark_name] = (1 + _df2["return"]).cumprod()
+
     # TODO: fix the warning here "A value is trying to be set on a copy of a slice from a DataFrame"
     _df2[benchmark_name][0] = 1
     _df2[benchmark_name] = _df2[benchmark_name] * initial_budget
-    dfs_concat.append(_df2[benchmark_name])
 
+    dfs_concat.append(_df2[benchmark_name])
     df_final = pd.concat(dfs_concat, join="outer", axis=1)
+
+    # Get the ratio of the strategy to the initial_budget
+    close_ratio = initial_budget / benchmark_df["Close"].iloc[0]
+    open_ratio = initial_budget / benchmark_df["Open"].iloc[0]
+    high_ratio = initial_budget / benchmark_df["High"].iloc[0]
+    low_ratio = initial_budget / benchmark_df["Low"].iloc[0]
+
+    df_final["Close"] = benchmark_df["Close"] * close_ratio
+    df_final["Open"] = benchmark_df["Open"] * open_ratio
+    df_final["High"] = benchmark_df["High"] * high_ratio
+    df_final["Low"] = benchmark_df["Low"] * low_ratio
 
     if trades_df is None or trades_df.empty:
         logging.info("There were no trades in this backtest.")
@@ -221,7 +233,10 @@ def plot_returns(
             trades_df, how="outer", left_index=True, right_index=True
         )
 
-    fig = go.Figure()
+    # fig = go.Figure()
+    fig = make_subplots(specs=[[{"secondary_y": True}]])
+
+    # Strategy line
     fig.add_trace(
         go.Scatter(
             x=df_final.index,
@@ -232,6 +247,8 @@ def plot_returns(
             hovertemplate="Value: %{y:$,.2f}<br>%{x|%b %d %Y %I:%M:%S %p}<extra></extra>",
         )
     )
+
+    # Benchmark line
     fig.add_trace(
         go.Scatter(
             x=df_final.index,
@@ -242,6 +259,19 @@ def plot_returns(
             hovertemplate="Value: %{y:$,.2f}<br>%{x|%b %d %Y %I:%M:%S %p}<extra></extra>",
         )
     )
+
+    # Add a candlestick trace for the OHLCV benchmark data
+    fig.add_trace(
+        go.Candlestick(
+            x=df_final.index,
+            open=df_final["Open"],
+            close=df_final["Close"],
+            low=df_final["Low"],
+            high=df_final["High"],
+        ),
+    )
+
+    # Cash line
     fig.add_trace(
         go.Scatter(
             x=df_final.index,
@@ -250,12 +280,13 @@ def plot_returns(
             name="cash",
             connectgaps=True,
             hovertemplate="Value: %{y:$,.2f}<br>%{x|%b %d %Y %I:%M:%S %p}<extra></extra>",
-        )
+        ),
+        secondary_y=True,
     )
 
     vshift = 0.01
 
-    # Buys
+    # Buy ticks
     buys = df_final.copy()
     buys[strategy_name] = buys[strategy_name].fillna(method="bfill")
     buys = buys.loc[df_final["side"] == "buy"]
@@ -271,7 +302,6 @@ def plot_returns(
         + buys["trade_cost"].astype(str)
         + "<br>"
     )
-    # buys["Trade Cost"] = buys["trade_cost"]
     buys.index.name = "datetime"
     buys = (
         buys.groupby(["datetime", strategy_name])["plotly_text_buys"]
@@ -280,7 +310,6 @@ def plot_returns(
     )
     buys = buys.set_index("datetime")
     buys["buy_shift"] = buys[strategy_name] * (1 - vshift)
-
     fig.add_trace(
         go.Scatter(
             x=buys.index,
@@ -295,7 +324,7 @@ def plot_returns(
         )
     )
 
-    # Sells
+    # Sell ticks
     sells = df_final.copy()
     sells[strategy_name] = sells[strategy_name].fillna(method="bfill")
     sells = sells.loc[df_final["side"] == "sell"]
@@ -319,7 +348,6 @@ def plot_returns(
     )
     sells = sells.set_index("datetime")
     sells["sell_shift"] = sells[strategy_name] * (1 + vshift)
-
     fig.add_trace(
         go.Scatter(
             x=sells.index,
@@ -333,6 +361,8 @@ def plot_returns(
             text=sells["plotly_text_sells"],
         )
     )
+
+    # Set title and layout
     bm_text = f"Compared With {benchmark_name}" if benchmark_name else ""
     fig.update_layout(
         title_text=f"{strategy_name} {bm_text}",
@@ -340,6 +370,11 @@ def plot_returns(
         template="plotly_dark",
     )
 
+    # Set y-axes titles
+    fig.update_yaxes(title_text="Strategy/Benchmark", secondary_y=False)
+    fig.update_yaxes(title_text="Cash", secondary_y=True)
+
+    # Create graph
     fig.write_html(plot_file_html, auto_open=show_plot)
 
 

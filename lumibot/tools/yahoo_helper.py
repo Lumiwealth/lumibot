@@ -3,7 +3,6 @@ import os
 import pickle
 
 import yfinance as yf
-
 from lumibot import LUMIBOT_CACHE_FOLDER, LUMIBOT_DEFAULT_PYTZ
 
 from .helpers import get_lumibot_datetime
@@ -178,11 +177,11 @@ class YahooHelper:
         # Adjust the time when we are getting daily stock data to the beginning of the day
         # This way the times line up when backtesting daily data
         info = YahooHelper.get_symbol_info(symbol)
-        if info.get("market") == "us_market":
-            df.index = df.index.tz_localize(info.get("exchangeTimezoneName"))
-            df.index = df.index.map(lambda t: t.replace(hour=9, minute=30))
-        elif info.get("market") == "ccc_market":
-            df.index = df.index.tz_localize(info.get("exchangeTimezoneName"))
+        if info.get("info").get("market") == "us_market":
+            df.index = df.index.tz_localize(info.get("info").get("exchangeTimezoneName"))
+            df.index = df.index.map(lambda t: t.replace(hour=16, minute=0))
+        elif info.get("info").get("market") == "ccc_market":
+            df.index = df.index.tz_localize(info.get("info").get("exchangeTimezoneName"))
             df.index = df.index.map(lambda t: t.replace(hour=23, minute=59))
 
         df = YahooHelper.process_df(df, asset_info=info)

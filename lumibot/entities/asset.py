@@ -114,6 +114,13 @@ class Asset(BaseModel, frozen=True, extra="forbid"):
     _asset_types: list = ["stock", "option", "future", "forex", "crypto", "index"]
     _right: list = ["CALL", "PUT"]
 
+    def __init__(self, **data):
+        # Multiplier for options must always be 100
+        if data.get("asset_type") == "option":
+            data["multiplier"] = 100
+
+        super().__init__(**data)
+
     def __repr__(self):
         if self.asset_type == "future":
             return f"{self.symbol} {self.expiration}"

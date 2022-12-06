@@ -13,7 +13,6 @@ from ibapi.client import *
 from ibapi.contract import *
 from ibapi.order import *
 from ibapi.wrapper import *
-
 from lumibot.data_sources import InteractiveBrokersData
 
 # Naming conflict on Order between IB and Lumibot.
@@ -191,7 +190,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
             multiplier = response.contract.multiplier
 
         right = None
-        strike = ""
+        strike = None
         if response.contract.secType == "OPT":
             right = "CALL" if response.contract.right == "C" else "PUT"
             strike = response.contract.strike

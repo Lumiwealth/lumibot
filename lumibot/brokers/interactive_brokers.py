@@ -1,13 +1,11 @@
 import datetime
+import logging
 import time
-import traceback
 from collections import deque
-from datetime import timezone
 from decimal import Decimal
 from threading import Thread
 
 import pandas as pd
-import pandas_market_calendars as mcal
 from dateutil import tz
 from ibapi.client import *
 from ibapi.contract import *
@@ -64,11 +62,14 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         """Return True if market is open else False"""
         open_time = self.utc_to_local(self.market_hours(close=False))
         close_time = self.utc_to_local(self.market_hours(close=True))
+        current_time = self.utc_to_local(pd.Timestamp.now())
 
-        current_time = datetime.datetime.now().astimezone(tz=tz.tzlocal())
         if self.market == "24/7":
             return True
-        return (current_time >= open_time) and (close_time >= current_time)
+        elif (current_time >= open_time) and (current_time <= close_time):
+            return True
+        else:
+            return False
 
     def get_time_to_open(self):
         """Return the remaining time for the market to open in seconds"""
@@ -82,7 +83,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         open_time = (
             open_time_this_day if open_time_this_day > now else open_time_next_day
         )
-        current_time = datetime.datetime.now().astimezone(tz=tz.tzlocal())
+        current_time = self.utc_to_local(pd.Timestamp.now())
         if self.is_market_open():
             return 0
         else:
@@ -92,7 +93,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
     def get_time_to_close(self):
         """Return the remaining time for the market to close in seconds"""
         close_time = self.utc_to_local(self.market_hours(close=True))
-        current_time = datetime.datetime.now().astimezone(tz=tz.tzlocal())
+        current_time = self.utc_to_local(pd.Timestamp.now())
         # return close_time.timestamp() - current_time.timestamp()
         if self.is_market_open():
             result = close_time.timestamp() - current_time.timestamp()
@@ -164,9 +165,15 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
     def _pull_broker_positions(self):
         """Get the broker representation of all positions"""
         positions = []
-        for position in self.ib.get_positions():
-            if position["position"] != 0:
-                positions.append(position)
+        ib_positions = self.ib.get_positions()
+        if ib_positions:
+            for position in ib_positions:
+                if position["position"] != 0:
+                    positions.append(position)
+        else:
+            logging.warning(
+                "No positions found at interactive brokers. Please check your connection."
+            )
 
         return positions
 

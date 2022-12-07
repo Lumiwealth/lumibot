@@ -7,9 +7,8 @@ from functools import wraps
 from queue import Empty, Queue
 from threading import Event, Lock, Thread
 
-from termcolor import colored
-
 from lumibot.tools import append_locals, lumibot_time, staticdecorator
+from termcolor import colored
 
 
 class StrategyExecutor(Thread):
@@ -507,17 +506,16 @@ class StrategyExecutor(Thread):
                 self.broker.process_pending_orders(strategy=self.strategy)
             return
 
-        if not is_247 and (
-            not has_data_source
-            or (has_data_source and self.broker._data_source.SOURCE != "PANDAS")
-        ):
-            self.strategy.await_market_to_open()  # set new time and bar length. Check if hit bar max
-            # or date max.
-            if not self.broker.is_market_open():
-                self._before_market_opens()
-            self.strategy._update_cash_with_dividends()
-
         if not is_247:
+            if not has_data_source or (
+                has_data_source and self.broker._data_source.SOURCE != "PANDAS"
+            ):
+                self.strategy.await_market_to_open()  # set new time and bar length. Check if hit bar max
+                # or date max.
+                if not self.broker.is_market_open():
+                    self._before_market_opens()
+                self.strategy._update_cash_with_dividends()
+
             self.strategy.await_market_to_open(timedelta=0)
             self._before_starting_trading()
 
@@ -549,8 +547,7 @@ class StrategyExecutor(Thread):
 
         self.strategy.await_market_to_close()
         if self.broker.is_market_open():
-            self._before_market_closes()  # perhaps the user could set the time of day based on
-            # their data that the market closes?
+            self._before_market_closes()  # perhaps the user could set the time of day based on their data that the market closes?
 
         self.strategy.await_market_to_close(timedelta=0)
         self._after_market_closes()

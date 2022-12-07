@@ -950,6 +950,34 @@ class Strategy(_Strategy):
         )
         return self.get_positions()
 
+    def get_portfolio_value(self):
+        """Get the current portfolio value (cash + net equity).
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        float
+            The current portfolio value.
+        """
+        return self.portfolio_value
+
+    def get_cash(self):
+        """Get the current cash value in your account.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        float
+            The current cash value.
+        """
+        return self.cash
+
     def get_positions(self):
         """Get all positions for the account.
 

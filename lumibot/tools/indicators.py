@@ -9,6 +9,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import quantstats as qs
+
 # import lumibot.data_sources.alpha_vantage as av
 from lumibot import LUMIBOT_DEFAULT_PYTZ
 from lumibot.entities.asset import Asset
@@ -259,16 +260,16 @@ def plot_returns(
         )
     )
 
-    # Add a candlestick trace for the OHLCV benchmark data
-    fig.add_trace(
-        go.Candlestick(
-            x=df_final.index,
-            open=df_final["Open"],
-            close=df_final["Close"],
-            low=df_final["Low"],
-            high=df_final["High"],
-        ),
-    )
+    # # Add a candlestick trace for the OHLCV benchmark data
+    # fig.add_trace(
+    #     go.Candlestick(
+    #         x=df_final.index,
+    #         open=df_final["Open"],
+    #         close=df_final["Close"],
+    #         low=df_final["Low"],
+    #         high=df_final["High"],
+    #     ),
+    # )
 
     # Cash line
     fig.add_trace(
@@ -407,7 +408,7 @@ def create_tearsheet(
     df["benchmark"] = df["Close"].pct_change().fillna(0)
     df = df.loc[:, ["strategy", "benchmark"]]
     df.index = df.index.tz_localize(None)
-    
+
     # df = df.iloc[::2]
 
     # Uncomment for debugging

@@ -13,8 +13,6 @@ Data methods are made to get data for you to use in your strategies. You can use
     get_last_prices
     get_historical_prices
     get_historical_prices_for_assets
-    get_symbol_bars
-    get_bars
     start_realtime_bars
     get_realtime_bars
     cancel_realtime_bars

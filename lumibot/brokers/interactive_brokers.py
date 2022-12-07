@@ -12,7 +12,6 @@ from ibapi.contract import *
 from ibapi.order import *
 from ibapi.wrapper import *
 from lumibot.data_sources import InteractiveBrokersData
-
 # Naming conflict on Order between IB and Lumibot.
 from lumibot.entities import Asset
 from lumibot.entities import Order as OrderLum
@@ -40,7 +39,19 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
 
         # Connection to interactive brokers
         self.ib = None
-        self.start_ib(config.IP, config.SOCKET_PORT, config.CLIENT_ID)
+        
+        # check if the config is a dict
+        if isinstance(config, dict):
+            ip = config["IP"]
+            socket_port = config["SOCKET_PORT"]
+            client_id = config["CLIENT_ID"]
+        else:
+            ip = config.IP
+            socket_port = config.SOCKET_PORT
+            client_id = config.CLIENT_ID
+            
+        self.start_ib(ip, socket_port, client_id)
+        
         self.market = None
 
     def start_ib(self, ip, socket_port, client_id):

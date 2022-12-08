@@ -12,6 +12,7 @@ from ibapi.contract import *
 from ibapi.order import *
 from ibapi.wrapper import *
 from lumibot.data_sources import InteractiveBrokersData
+
 # Naming conflict on Order between IB and Lumibot.
 from lumibot.entities import Asset
 from lumibot.entities import Order as OrderLum
@@ -39,7 +40,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
 
         # Connection to interactive brokers
         self.ib = None
-        
+
         # check if the config is a dict
         if isinstance(config, dict):
             ip = config["IP"]
@@ -49,9 +50,9 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
             ip = config.IP
             socket_port = config.SOCKET_PORT
             client_id = config.CLIENT_ID
-            
+
         self.start_ib(ip, socket_port, client_id)
-        
+
         self.market = None
 
     def start_ib(self, ip, socket_port, client_id):
@@ -1311,9 +1312,8 @@ class IBApp(IBWrapper, IBClient):
             contract.multiplier = asset.multiplier
             contract.primaryExchange = "CBOE"
         elif asset.asset_type == "future":
-            contract.lastTradeDateOrContractMonth = asset.expiration.strftime("%Y%m")
-            contract.primaryExchange = "GLOBEX"
-            contract.currency = "USD"
+            contract.includeExpired = True
+            contract.lastTradeDateOrContractMonth = asset.expiration.strftime("%Y%m%d")
         elif asset.asset_type == "forex":
             contract.exchange = "IDEALPRO"
         elif asset.asset_type == "index":

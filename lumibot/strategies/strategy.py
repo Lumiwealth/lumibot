@@ -1729,6 +1729,14 @@ class Strategy(_Strategy):
         >>> quote = Asset(symbol="USD", asset_type="forex")
         >>> last_price = self.get_last_price(base, quote=quote)
         >>> self.log_message(f"Last price for BTC/USDT is {last_price}")
+
+        >>> # Will return the last price for a futures asset
+        >>> self.base = Asset(
+        >>>     symbol="ES",
+        >>>     asset_type="future",
+        >>>     expiration=date(2022, 12, 16),
+        >>> )
+        >>> price = self.get_last_price(asset=self.base, exchange="CME")
         """
         asset = self._set_asset_mapping(asset)
 

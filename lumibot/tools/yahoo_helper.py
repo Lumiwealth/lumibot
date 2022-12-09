@@ -117,10 +117,6 @@ class YahooHelper:
         else:
             df.index = df.index.tz_convert(LUMIBOT_DEFAULT_PYTZ)
 
-        df["Adj Ratio"] = df["Adj Close"] / df["Close"]
-        df["Adj Open"] = df["Open"] * df["Adj Ratio"]
-        df["Adj High"] = df["High"] * df["Adj Ratio"]
-        df["Adj Low"] = df["Low"] * df["Adj Ratio"]
         return df
 
     # ===================Data download method=============================
@@ -266,8 +262,7 @@ class YahooHelper:
 
     @staticmethod
     def get_symbol_day_data(symbol, auto_adjust=True, caching=True):
-        df = YahooHelper.fetch_symbol_day_data(symbol, caching=caching)
-        result = YahooHelper.format_df(df, auto_adjust)
+        result = YahooHelper.fetch_symbol_day_data(symbol, caching=caching)
         return result
 
     @staticmethod

@@ -8,7 +8,6 @@ from decimal import Decimal
 import jsonpickle
 import pandas as pd
 from attr import has
-
 from lumibot import LUMIBOT_DEFAULT_PYTZ
 from lumibot.backtesting import BacktestingBroker
 from lumibot.entities import Asset, Position, TradingFee
@@ -166,6 +165,9 @@ class _Strategy:
                 )
                 self._set_cash_position(budget)
 
+            ##############################################
+            ### TODO: Should all this just use _update_portfolio_value()?
+            ### START
             self._portfolio_value = self.cash
 
             store_assets = list(self.broker._data_source._data_store.keys())
@@ -187,6 +189,9 @@ class _Strategy:
 
             else:
                 self._position_value = 0
+
+            ### END
+            ##############################################
 
         self._initial_budget = budget
         self._minutes_before_closing = minutes_before_closing

@@ -419,9 +419,14 @@ class BacktestingBroker(Broker):
             filled_quantity = order.quantity
 
             if self._data_source.SOURCE == "YAHOO":
-                timeshift = timedelta(days=-1)
+                timeshift = timedelta(
+                    days=-1
+                )  # Is negative so that we get today (normally would get yesterday's data to prevent lookahead bias)
                 ohlc = strategy.get_historical_prices(
-                    asset, 1, timeshift=timeshift, quote=order.quote
+                    asset,
+                    1,
+                    quote=order.quote,
+                    timeshift=timeshift,
                 )
 
                 dt = ohlc.df.index[-1]

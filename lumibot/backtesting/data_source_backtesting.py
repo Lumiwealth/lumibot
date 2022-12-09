@@ -2,7 +2,6 @@ import logging
 from datetime import datetime, timedelta
 
 import pandas as pd
-
 from lumibot.data_sources import DataSource
 from lumibot.tools import print_progress_bar, to_datetime_aware
 
@@ -79,6 +78,4 @@ class DataSourceBacktesting(DataSource):
         if result is None:
             return result
         else:
-            filter_criteria = result.index <= self._datetime
-            result = result[filter_criteria]
             return result

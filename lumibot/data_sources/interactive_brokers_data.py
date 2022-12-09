@@ -1,7 +1,6 @@
 import datetime
 
 import pandas as pd
-
 from lumibot.entities import Bars
 
 from .data_source import DataSource
@@ -119,7 +118,7 @@ class InteractiveBrokersData(DataSource):
                     self._parse_duration(length, timestep),
                     parsed_timestep,
                     type,
-                    1,
+                    0,
                     2,
                     False,
                     [],

@@ -9,7 +9,6 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import quantstats as qs
-
 # import lumibot.data_sources.alpha_vantage as av
 from lumibot import LUMIBOT_DEFAULT_PYTZ
 from lumibot.entities.asset import Asset
@@ -167,6 +166,7 @@ def get_symbol_returns(symbol, start=datetime(1900, 1, 1), end=datetime.now()):
     returns_df["pct_change"] = returns_df["Close"].pct_change()
     returns_df["div_yield"] = returns_df["Dividends"] / returns_df["Close"]
     returns_df["return"] = returns_df["pct_change"] + returns_df["div_yield"]
+    returns_df["symbol_cumprod"] = (1 + returns_df["return"]).cumprod()
 
     return returns_df
 
@@ -342,7 +342,7 @@ def plot_returns(
     )
     sells.index.name = "datetime"
     sells = (
-        sells.groupby(["datetime", strategy_name])["plotly_text_sells"]
+        sells.groupby(["datetime", strategy_name], group_keys=True)["plotly_text_sells"]
         .apply(lambda x: "<br>".join(x))
         .reset_index()
     )
@@ -404,8 +404,8 @@ def create_tearsheet(
     df["Close"] = df["Close"].ffill()
     df = df.resample("D").ffill()
     df["strategy"] = df["portfolio_value"].pct_change().fillna(0)
-    # df["strategy"] = df["strategy"].shift(-1)
-    df["benchmark"] = df["Close"].pct_change().fillna(0)
+    df["benchmark"] = df["symbol_cumprod"].pct_change().fillna(0)
+
     df = df.loc[:, ["strategy", "benchmark"]]
     df.index = df.index.tz_localize(None)
 

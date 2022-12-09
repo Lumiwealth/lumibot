@@ -70,15 +70,18 @@ class YahooData(DataSource):
                 raise NoDataFound(self.SOURCE, asset.symbol)
             data = self._append_data(asset, data)
 
+        # Get the last minute of self._datetime to get the current bar
+        dt = self._datetime.replace(hour=23, minute=59, second=59, microsecond=999999)
+
         # End should be yesterday because otherwise you can see the future
-        end = self._datetime - timedelta(days=1)
+        end = dt - timedelta(days=1)
         if timeshift:
             end = end - timeshift
 
         end = self.to_default_timezone(end)
-        data = data[data.index < end]
+        result_data = data[data.index < end]
 
-        result = data.tail(length)
+        result = result_data.tail(length)
         return result
 
     def _pull_source_bars(
@@ -122,9 +125,8 @@ class YahooData(DataSource):
         if timestep is None:
             timestep = self.get_timestep()
 
-        # Use -1 timeshift to get the price for the current bar (otherwise gets yesterdays prices)
         bars = self.get_historical_prices(
-            asset, 1, timestep=timestep, quote=quote, timeshift=timedelta(days=-1)
+            asset, 1, timestep=timestep, quote=quote  # , timeshift=timedelta(days=-1)
         )
         if isinstance(bars, float):
             return bars

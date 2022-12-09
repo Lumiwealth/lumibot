@@ -1067,7 +1067,7 @@ class IBClient(EClient):
         parsed_duration="1 D",
         parsed_timestep="1 day",
         type="TRADES",
-        useRTH=1,
+        useRTH=0,
         formatDate=2,
         keepUpToDate=False,
         chartOptions=[],

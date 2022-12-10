@@ -9,6 +9,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import quantstats as qs
+
 # import lumibot.data_sources.alpha_vantage as av
 from lumibot import LUMIBOT_DEFAULT_PYTZ
 from lumibot.entities.asset import Asset
@@ -167,6 +168,7 @@ def get_symbol_returns(symbol, start=datetime(1900, 1, 1), end=datetime.now()):
     returns_df["div_yield"] = returns_df["Dividends"] / returns_df["Close"]
     returns_df["return"] = returns_df["pct_change"] + returns_df["div_yield"]
     returns_df["symbol_cumprod"] = (1 + returns_df["return"]).cumprod()
+    returns_df.loc[returns_df.index[0], "symbol_cumprod"] = 1
 
     return returns_df
 
@@ -206,8 +208,7 @@ def plot_returns(
     _df2.index.name = "datetime"
     _df2[benchmark_name] = (1 + _df2["return"]).cumprod()
 
-    # TODO: fix the warning here "A value is trying to be set on a copy of a slice from a DataFrame"
-    _df2[benchmark_name][0] = 1
+    _df2.loc[_df2.index[0], benchmark_name] = 1
     _df2[benchmark_name] = _df2[benchmark_name] * initial_budget
 
     dfs_concat.append(_df2[benchmark_name])
@@ -259,17 +260,6 @@ def plot_returns(
             hovertemplate="Value: %{y:$,.2f}<br>%{x|%b %d %Y %I:%M:%S %p}<extra></extra>",
         )
     )
-
-    # # Add a candlestick trace for the OHLCV benchmark data
-    # fig.add_trace(
-    #     go.Candlestick(
-    #         x=df_final.index,
-    #         open=df_final["Open"],
-    #         close=df_final["Close"],
-    #         low=df_final["Low"],
-    #         high=df_final["High"],
-    #     ),
-    # )
 
     # Cash line
     fig.add_trace(
@@ -368,11 +358,28 @@ def plot_returns(
         title_text=f"{strategy_name} {bm_text}",
         title_font_size=30,
         template="plotly_dark",
+        xaxis_rangeselector_font_color="black",
+        xaxis_rangeselector_activecolor="grey",
+        xaxis_rangeselector_bgcolor="white",
     )
 
     # Set y-axes titles
     fig.update_yaxes(title_text="Strategy/Benchmark", secondary_y=False)
     fig.update_yaxes(title_text="Cash", secondary_y=True)
+    fig.update_xaxes(
+        rangeslider_visible=True,
+        rangeselector=dict(
+            buttons=list(
+                [
+                    dict(count=1, label="1m", step="month", stepmode="backward"),
+                    dict(count=6, label="6m", step="month", stepmode="backward"),
+                    dict(count=1, label="YTD", step="year", stepmode="todate"),
+                    dict(count=1, label="1y", step="year", stepmode="backward"),
+                    dict(step="all"),
+                ]
+            )
+        ),
+    )
 
     # Create graph
     fig.write_html(plot_file_html, auto_open=show_plot)
@@ -387,41 +394,35 @@ def create_tearsheet(
     show_tearsheet,
 ):
     _df1 = df1.copy()
-    if _df1["return"].abs().sum() == 0:
-        return None
-    _df1["strategy"] = _df1["return"]
-
     _df2 = df2.copy()
-    _df2["benchmark"] = _df2["return"]
-
-    # Uncomment for debugging
-    # _df1.to_csv(f"df1-original.csv")
-    # _df2.to_csv(f"df2-original.csv")
 
     df = pd.concat([_df1, _df2], join="outer", axis=1)
     df.index = pd.to_datetime(df.index)
     df["portfolio_value"] = df["portfolio_value"].ffill()
-    df["Close"] = df["Close"].ffill()
-    df = df.resample("D").ffill()
+    df["symbol_cumprod"] = df["symbol_cumprod"].ffill()
+    df.loc[df.index[0], "symbol_cumprod"] = 1
+
+    # df = df.resample("D").ffill()
+    df = df.groupby(df.index.date).last()
     df["strategy"] = df["portfolio_value"].pct_change().fillna(0)
     df["benchmark"] = df["symbol_cumprod"].pct_change().fillna(0)
 
-    df = df.loc[:, ["strategy", "benchmark"]]
-    df.index = df.index.tz_localize(None)
-
-    # df = df.iloc[::2]
+    df_final = df.loc[:, ["strategy", "benchmark"]]
+    df_final.index = pd.to_datetime(df_final.index)
+    df_final.index = df_final.index.tz_localize(None)
 
     # Uncomment for debugging
     # _df1.to_csv(f"df1.csv")
     # _df2.to_csv(f"df2.csv")
-    # df.to_csv(f"df-final.csv")
+    # df.to_csv(f"df.csv")
+    # df_final.to_csv(f"df_final.csv")
 
     bm_text = f"Compared to {benchmark_asset}" if benchmark_asset else ""
     title = f"{strat_name} {bm_text}"
 
     qs.reports.html(
-        df["strategy"],
-        df["benchmark"],
+        df_final["strategy"],
+        df_final["benchmark"],
         title=title,
         output=True,
         download_filename=tearsheet_file,

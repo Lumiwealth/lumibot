@@ -1,11 +1,11 @@
 import datetime
 import multiprocessing
 import os
-import pandas as pd
-import pytest
 import shutil
 from time import time
 
+import pandas as pd
+import pytest
 from lumibot.backtesting import PandasDataBacktesting
 from lumibot.entities import Asset, Data
 from lumibot.strategies.examples import (
@@ -77,40 +77,40 @@ mapping = {
         "pandas_data": pandas_data,
         "logfile": "logs/log_momentum.txt",
     },
-    "diversification": {
-        "class": Diversification,
-        "backtesting_datasource": PandasDataBacktesting,
-        "kwargs": {},
-        "config": None,
-        "pandas_data": pandas_data,
-        "logfile": "logs/log_diversification.txt",
-    },
-    "debt_trading": {
-        "class": DebtTrading,
-        "backtesting_datasource": PandasDataBacktesting,
-        "kwargs": {},
-        "config": None,
-        "pandas_data": pandas_data,
-        "logfile": "logs/log_debt.txt",
-    },
-    "buy_and_hold": {
-        "class": BuyAndHold,
-        "backtesting_datasource": PandasDataBacktesting,
-        "kwargs": {},
-        "backtesting_cache": False,
-        "config": None,
-        "pandas_data": pandas_data,
-        "logfile": "logs/log_buyhold.txt",
-    },
-    "simple": {
-        "class": Simple,
-        "backtesting_datasource": PandasDataBacktesting,
-        "kwargs": {},
-        "backtesting_cache": False,
-        "config": None,
-        "pandas_data": pandas_data,
-        "logfile": "logs/log_simple.txt",
-    },
+    # "diversification": {
+    #     "class": Diversification,
+    #     "backtesting_datasource": PandasDataBacktesting,
+    #     "kwargs": {},
+    #     "config": None,
+    #     "pandas_data": pandas_data,
+    #     "logfile": "logs/log_diversification.txt",
+    # },
+    # "debt_trading": {
+    #     "class": DebtTrading,
+    #     "backtesting_datasource": PandasDataBacktesting,
+    #     "kwargs": {},
+    #     "config": None,
+    #     "pandas_data": pandas_data,
+    #     "logfile": "logs/log_debt.txt",
+    # },
+    # "buy_and_hold": {
+    #     "class": BuyAndHold,
+    #     "backtesting_datasource": PandasDataBacktesting,
+    #     "kwargs": {},
+    #     "backtesting_cache": False,
+    #     "config": None,
+    #     "pandas_data": pandas_data,
+    #     "logfile": "logs/log_buyhold.txt",
+    # },
+    # "simple": {
+    #     "class": Simple,
+    #     "backtesting_datasource": PandasDataBacktesting,
+    #     "kwargs": {},
+    #     "backtesting_cache": False,
+    #     "config": None,
+    #     "pandas_data": pandas_data,
+    #     "logfile": "logs/log_simple.txt",
+    # },
 }
 
 
@@ -145,7 +145,7 @@ def run_test(strategy_name):
         show_plot=False,
         save_tearsheet=False,
         show_tearsheet=False,
-        name = strategy_name,
+        name=strategy_name,
         budget=40000,
         **kwargs,
     )
@@ -202,11 +202,18 @@ def test_integration():
     }
     for strategy, results in agg_results.items():
         assert round(results["cagr"], 5) == round(expected_result[strategy]["cagr"], 5)
-        assert round(results["romad"], 5) == round(expected_result[strategy]["romad"], 5)
-        assert round(results["sharpe"], 5) == round(expected_result[strategy]["sharpe"], 5)
-        assert round(results["total_return"], 5) == round(expected_result[strategy][
-                                                              "total_return"], 5)
-        assert round(results["volatility"], 5) == round(expected_result[strategy]["volatility"], 5)
+        assert round(results["romad"], 5) == round(
+            expected_result[strategy]["romad"], 5
+        )
+        assert round(results["sharpe"], 5) == round(
+            expected_result[strategy]["sharpe"], 5
+        )
+        assert round(results["total_return"], 5) == round(
+            expected_result[strategy]["total_return"], 5
+        )
+        assert round(results["volatility"], 5) == round(
+            expected_result[strategy]["volatility"], 5
+        )
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -217,6 +224,7 @@ def cleanup(request):
         shutil.rmtree("logs")
 
     request.addfinalizer(remove_test_dir)
+
 
 if __name__ == "__main__":
     test_integration()

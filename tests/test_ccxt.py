@@ -1,16 +1,11 @@
-import datetime
 from decimal import Decimal
-from pathlib import Path
 
-import pandas as pd
 import pytest
 from credentials import BINANCE_CONFIG
+
 from lumibot.brokers.ccxt import Ccxt
 from lumibot.entities.asset import Asset
-from lumibot.entities.bars import Bars
-from lumibot.entities.order import Order
 from lumibot.entities.position import Position
-from pandas import Timestamp
 
 # Skip all the tests in this file
 # pytestmark = pytest.mark.skip("all tests still WIP")

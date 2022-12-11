@@ -3,13 +3,14 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
+from pandas import Timestamp
+
 from credentials import ALPACA_CONFIG
 from lumibot.brokers.alpaca import Alpaca
 from lumibot.entities.asset import Asset
 from lumibot.entities.bars import Bars
 from lumibot.entities.order import Order
 from lumibot.entities.position import Position
-from pandas import Timestamp
 
 # Skip all the tests in this file
 # pytestmark = pytest.mark.skip("all tests still WIP")

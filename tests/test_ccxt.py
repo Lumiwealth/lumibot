@@ -1,19 +1,18 @@
-import datetime
 from decimal import Decimal
-import pandas as pd
-from pandas import Timestamp
-from pathlib import Path
-import pytest
 
-from credentials import CcxtConfig
+import pytest
+from credentials import BINANCE_CONFIG
+
 from lumibot.brokers.ccxt import Ccxt
 from lumibot.entities.asset import Asset
-from lumibot.entities.bars import Bars
-from lumibot.entities.order import Order
 from lumibot.entities.position import Position
 
+# Skip all the tests in this file
+# pytestmark = pytest.mark.skip("all tests still WIP")
+pytest.skip("all tests still WIP", allow_module_level=True)
+
 exchange_id = "binance"
-ccxt = Ccxt(CcxtConfig.EXCHANGE_KEYS[exchange_id])
+ccxt = Ccxt(BINANCE_CONFIG)
 
 
 def test_get_timestamp(monkeypatch):
@@ -137,7 +136,7 @@ params = [
         },
         "0.00000001",
     ),
-(
+    (
         "binance",
         "binance",
         {
@@ -146,22 +145,23 @@ params = [
             "free": 1000,
         },
         "8",
-    )
+    ),
 ]
+
 
 @pytest.mark.parametrize(vars, params)
 def test__parse_broker_position(broker, exchangeId, position, precision, monkeypatch):
 
     monkeypatch.setattr(ccxt.api, "exchangeId", exchangeId)
 
-    if exchangeId == 'binance':
-        symbol = position['asset']
-        precision = str(10**-Decimal(precision))
+    if exchangeId == "binance":
+        symbol = position["asset"]
+        precision = str(10 ** -Decimal(precision))
         quantity = Decimal(position["free"]) + Decimal(position["locked"])
         hold = position["locked"]
         available = position["free"]
     else:
-        symbol = position['currency']
+        symbol = position["currency"]
         quantity = Decimal(position["balance"])
         hold = position["hold"]
         available = position["available"]

@@ -37,3 +37,4 @@ venv
 my_dev
 /data/SPY_Minute.csv
 data/SRNE_Minute.csv
+.vscode/**

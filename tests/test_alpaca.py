@@ -1,17 +1,22 @@
 import datetime
-import pandas as pd
-from pandas import Timestamp
 from pathlib import Path
-import pytest
 
-from credentials import AlpacaConfig
+import pandas as pd
+import pytest
+from pandas import Timestamp
+
+from credentials import ALPACA_CONFIG
 from lumibot.brokers.alpaca import Alpaca
 from lumibot.entities.asset import Asset
 from lumibot.entities.bars import Bars
 from lumibot.entities.order import Order
 from lumibot.entities.position import Position
 
-alpaca = Alpaca(AlpacaConfig)
+# Skip all the tests in this file
+# pytestmark = pytest.mark.skip("all tests still WIP")
+pytest.skip("all tests still WIP", allow_module_level=True)
+
+alpaca = Alpaca(ALPACA_CONFIG)
 
 
 def test_get_timestamp(monkeypatch):

@@ -182,9 +182,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
                 if position["position"] != 0:
                     positions.append(position)
         else:
-            logging.info(
-                "No positions found at interactive brokers."
-            )
+            logging.info("No positions found at interactive brokers.")
 
         return positions
 
@@ -1290,7 +1288,7 @@ class IBApp(IBWrapper, IBClient):
     def create_contract(
         self,
         asset,
-        exchange="SMART",
+        exchange=None,
         currency="USD",
         primaryExchange="ISLAND",
     ):
@@ -1299,7 +1297,10 @@ class IBApp(IBWrapper, IBClient):
 
         contract.symbol = str(asset.symbol).upper()
         contract.secType = TYPE_MAP[asset.asset_type]
-        contract.exchange = exchange
+        if exchange is None:
+            contract.exchange = "SMART"
+        else:
+            contract.exchange = exchange
         contract.currency = currency
 
         if asset.asset_type == "stock":
@@ -1311,6 +1312,8 @@ class IBApp(IBWrapper, IBClient):
             contract.multiplier = asset.multiplier
             contract.primaryExchange = "CBOE"
         elif asset.asset_type == "future":
+            if exchange is None:
+                contract.exchange = "CME"
             contract.includeExpired = True
             contract.lastTradeDateOrContractMonth = asset.expiration.strftime("%Y%m%d")
         elif asset.asset_type == "forex":

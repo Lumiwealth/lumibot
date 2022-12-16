@@ -353,7 +353,7 @@ class Strategy(_Strategy):
         trail_price=None,
         trail_percent=None,
         position_filled=False,
-        exchange="SMART",
+        exchange=None,
         quote=None,
         pair=None,
     ):

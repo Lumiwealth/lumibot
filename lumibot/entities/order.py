@@ -29,7 +29,7 @@ class Order:
         time_in_force="day",
         good_till_date=None,
         sec_type=None,
-        exchange="SMART",
+        exchange=None,
         position_filled=False,
         quote=None,
         pair=None,
@@ -113,7 +113,7 @@ class Order:
             The order has been filled.
         exchange : str
             The exchange where the order will be placed.
-            Default = `SMART`
+            Default = None
         quote : Asset
             This is the base cryptocurrency. For example, if trading
             `BTC/ETH` this parameter will be 'ETH' (as an Asset object).

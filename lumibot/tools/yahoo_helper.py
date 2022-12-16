@@ -174,10 +174,26 @@ class YahooHelper:
         # This way the times line up when backtesting daily data
         info = YahooHelper.get_symbol_info(symbol)
         if info.get("info").get("market") == "us_market":
-            df.index = df.index.tz_localize(info.get("info").get("exchangeTimezoneName"))
+            # Check if the timezone is already set, if not set it to the default timezone
+            if df.index.tzinfo is None:
+                df.index = df.index.tz_localize(
+                    info.get("info").get("exchangeTimezoneName")
+                )
+            else:
+                df.index = df.index.tz_convert(
+                    info.get("info").get("exchangeTimezoneName")
+                )
             df.index = df.index.map(lambda t: t.replace(hour=16, minute=0))
         elif info.get("info").get("market") == "ccc_market":
-            df.index = df.index.tz_localize(info.get("info").get("exchangeTimezoneName"))
+            # Check if the timezone is already set, if not set it to the default timezone
+            if df.index.tzinfo is None:
+                df.index = df.index.tz_localize(
+                    info.get("info").get("exchangeTimezoneName")
+                )
+            else:
+                df.index = df.index.tz_convert(
+                    info.get("info").get("exchangeTimezoneName")
+                )
             df.index = df.index.map(lambda t: t.replace(hour=23, minute=59))
 
         df = YahooHelper.process_df(df, asset_info=info)

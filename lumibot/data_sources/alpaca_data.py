@@ -210,6 +210,11 @@ class AlpacaData(DataSource):
         self, assets, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None
     ):
         """pull broker bars for a list assets"""
+        if timeshift is None and timestep == "day":
+            # Alpaca throws an error if we don't do this and don't have a data subscription because
+            # they require a subscription for historical data less than 15 minutes old
+            timeshift = timedelta(minutes=16)
+
         parsed_timestep = self._parse_source_timestep(timestep, reverse=True)
         kwargs = dict(limit=length)
         if timeshift:

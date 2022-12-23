@@ -212,7 +212,7 @@ class DataSource:
         """Return dividend per share for a given
         asset for the day before"""
         bars = self.get_historical_prices(
-            asset, 1, timestep="day", timeshift=timedelta(days=0)
+            asset, 1, timestep="day"
         )
         return bars.get_last_dividend()
 
@@ -221,7 +221,7 @@ class DataSource:
         assets for the day before"""
         result = {}
         assets_bars = self.get_bars(
-            assets, 1, timestep="day", timeshift=timedelta(days=0)
+            assets, 1, timestep="day"
         )
         for asset, bars in assets_bars.items():
             if bars is not None:

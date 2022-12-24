@@ -113,7 +113,7 @@ class _Strategy:
                     assert pandas_data != None
                 except AssertionError:
                     raise ValueError(
-                        f"Please add a pandas dataframe as an input parameter. "
+                        f"Pandas data is required when using pandas for backtesting. Please add a pandas dataframe as an input parameter. "
                         f"Use the following: 'pandas_data': your_dataframe "
                     )
                 self.broker._trading_days = self.data_source.load_data()
@@ -821,6 +821,15 @@ class _Strategy:
                 "included `datasource_class`, `backtesting_start`,  and `backtesting_end` \n"
                 "for your three positional arguments. \n"
             )
+
+        if datasource_class.SOURCE == "PANDAS":
+            try:
+                assert pandas_data != None and len(pandas_data) > 0
+            except AssertionError:
+                raise ValueError(
+                    f"Pandas data is required when using pandas for backtesting. Please add a pandas dataframe as an input parameter. "
+                    f"Use the following: 'pandas_data': your_dataframe "
+                )
 
         if name is None:
             name = cls.__name__

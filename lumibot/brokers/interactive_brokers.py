@@ -12,6 +12,7 @@ from ibapi.contract import *
 from ibapi.order import *
 from ibapi.wrapper import *
 from lumibot.data_sources import InteractiveBrokersData
+
 # Naming conflict on Order between IB and Lumibot.
 from lumibot.entities import Asset
 from lumibot.entities import Order as OrderLum
@@ -1196,7 +1197,8 @@ class IBClient(EClient):
 
         return requested_orders
 
-    def cancel_order(self, order_id):
+    def cancel_order(self, order):
+        order_id = order.identifier
         if not order_id or not isinstance(order_id, int):
             logging.info(
                 f"An attempt to cancel an order without supplying a proper "

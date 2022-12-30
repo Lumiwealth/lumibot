@@ -12,7 +12,6 @@ from ibapi.contract import *
 from ibapi.order import *
 from ibapi.wrapper import *
 from lumibot.data_sources import InteractiveBrokersData
-
 # Naming conflict on Order between IB and Lumibot.
 from lumibot.entities import Asset
 from lumibot.entities import Order as OrderLum
@@ -525,7 +524,7 @@ TYPE_MAP = dict(
 )
 
 DATE_MAP = dict(
-    future="%Y%m",
+    future="%Y%m%d",
     option="%Y%m%d",
 )
 

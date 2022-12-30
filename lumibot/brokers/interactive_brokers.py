@@ -286,9 +286,9 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         order.update_status("submitted")
         return order
 
-    def cancel_order(self, order_id):
+    def cancel_order(self, order):
         """Cancel an order"""
-        self.ib.cancel_order(order_id)
+        self.ib.cancel_order(order)
 
     def cancel_open_orders(self, strategy=None):
         """Cancel all the strategy open orders"""
@@ -1202,7 +1202,7 @@ class IBClient(EClient):
         if not order_id or not isinstance(order_id, int):
             logging.info(
                 f"An attempt to cancel an order without supplying a proper "
-                f"`order_id` was made. This was your `order_id` {order_id}. "
+                f"`order_id` was made. This was your `order_id`: {order_id}. "
                 f"An integer is required. No action was taken."
             )
             return

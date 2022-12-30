@@ -124,14 +124,6 @@ class YahooHelper:
     @staticmethod
     def download_symbol_info(symbol):
         ticker = yf.Ticker(symbol)
-        try:
-            ticker._get_fundamentals()
-        except (ValueError, KeyError):
-            return {
-                "ticker": ticker.ticker,
-                "last_update": get_lumibot_datetime(),
-                "error": True,
-            }
 
         try:
             options = ticker.options

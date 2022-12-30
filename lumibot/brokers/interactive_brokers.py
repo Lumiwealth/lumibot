@@ -12,7 +12,6 @@ from ibapi.contract import *
 from ibapi.order import *
 from ibapi.wrapper import *
 from lumibot.data_sources import InteractiveBrokersData
-
 # Naming conflict on Order between IB and Lumibot.
 from lumibot.entities import Asset
 from lumibot.entities import Order as OrderLum
@@ -286,9 +285,9 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         order.update_status("submitted")
         return order
 
-    def cancel_order(self, order_id):
+    def cancel_order(self, order):
         """Cancel an order"""
-        self.ib.cancel_order(order_id)
+        self.ib.cancel_order(order)
 
     def cancel_open_orders(self, strategy=None):
         """Cancel all the strategy open orders"""
@@ -525,7 +524,7 @@ TYPE_MAP = dict(
 )
 
 DATE_MAP = dict(
-    future="%Y%m",
+    future="%Y%m%d",
     option="%Y%m%d",
 )
 
@@ -1202,7 +1201,7 @@ class IBClient(EClient):
         if not order_id or not isinstance(order_id, int):
             logging.info(
                 f"An attempt to cancel an order without supplying a proper "
-                f"`order_id` was made. This was your `order_id` {order_id}. "
+                f"`order_id` was made. This was your `order_id`: {order_id}. "
                 f"An integer is required. No action was taken."
             )
             return

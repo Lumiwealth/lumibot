@@ -11,15 +11,9 @@ from attr import has
 from lumibot import LUMIBOT_DEFAULT_PYTZ
 from lumibot.backtesting import BacktestingBroker
 from lumibot.entities import Asset, Position, TradingFee
-from lumibot.tools import (
-    create_tearsheet,
-    day_deduplicate,
-    get_risk_free_rate,
-    get_symbol_returns,
-    plot_returns,
-    stats_summary,
-    to_datetime_aware,
-)
+from lumibot.tools import (create_tearsheet, day_deduplicate,
+                           get_risk_free_rate, get_symbol_returns,
+                           plot_returns, stats_summary, to_datetime_aware)
 from lumibot.traders import Trader
 
 from .strategy_executor import StrategyExecutor
@@ -202,7 +196,8 @@ class _Strategy:
 
         # Stats related variables
         self._stats_file = stats_file
-        self._stats = pd.DataFrame()
+        self._stats = None
+        self._stats_list = []
         self._analysis = {}
 
         # Storing parameters for the initialize method
@@ -493,9 +488,10 @@ class _Strategy:
     # =============Stats functions=====================
 
     def _append_row(self, row):
-        self._stats = pd.concat([self._stats, pd.DataFrame(row, index=[0])])
+        self._stats_list.append(row)
 
     def _format_stats(self):
+        self._stats = pd.DataFrame(self._stats_list)
         if "datetime" in self._stats.columns:
             self._stats = self._stats.set_index("datetime")
         self._stats["return"] = self._stats["portfolio_value"].pct_change()
@@ -509,7 +505,7 @@ class _Strategy:
                 current_stream_handler_level = handler.level
                 handler.setLevel(logging.INFO)
         logger.setLevel(logging.INFO)
-        if not self._stats.empty:
+        if len(self._stats_list) > 0:
             self._format_stats()
             if self._stats_file:
                 self._stats.to_csv(self._stats_file)
@@ -838,7 +834,7 @@ class _Strategy:
         datestring = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         if plot_file_html is None:
             plot_file_html = (
-                f"logs/{name + '_' if name != None else ''}{datestring}.html"
+                f"logs/{name + '_' if name != None else ''}{datestring}_trades.html"
             )
         if stats_file is None:
             stats_file = (

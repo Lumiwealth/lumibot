@@ -150,7 +150,6 @@ class Asset(BaseModel, frozen=True, extra="forbid"):
             and self.expiration == other.expiration
             and self.strike == other.strike
             and self.right == other.right
-            and self.multiplier == other.multiplier
         )
 
     @validator("asset_type")

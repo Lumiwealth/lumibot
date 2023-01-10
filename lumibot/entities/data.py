@@ -127,7 +127,7 @@ class Data:
             )
         else:
             self.quote = quote
-            
+
         if timestep not in ["minute", "day"]:
             raise ValueError(
                 f"Timestep must be either 'minute' or 'day', the value you enetered ({timestep}) is not currently supported."
@@ -286,6 +286,7 @@ class Data:
 
         iter_index = pd.Series(df.index)
         self.iter_index = pd.Series(iter_index.index, index=iter_index)
+        self.iter_index_dict = self.iter_index.to_dict()
 
         self.datalines = dict()
         self.to_datalines()
@@ -320,12 +321,15 @@ class Data:
         # Return the index location for a given datetime.
 
         # Check if the date is in the dataframe, if not then get the last
-        # known data
+        # known data (this speeds up the process)
         i = None
-        if dt in self.iter_index:
-            i = self.iter_index[dt]
+
+        # Search for dt in self.iter_index_dict
+        if dt in self.iter_index_dict:
+            i = self.iter_index_dict[dt]
         else:
-            i = self.iter_index.loc[self.iter_index.index < dt][-1]
+            # If not found, get the last known data
+            i = self.iter_index.asof(dt)
 
         return i
 
@@ -345,13 +349,12 @@ class Data:
                     f"The date you are looking for ({dt}) for ({self.asset}) is outside of the data's date range ({self.datetime_start} to {self.datetime_end})."
                 )
 
-            # Check if the date is in the dataframe, if not then get the last
-            # known data
-            i = None
-            if dt in self.iter_index:
-                i = self.iter_index[dt]
+            # Search for dt in self.iter_index_dict
+            if dt in self.iter_index_dict:
+                i = self.iter_index_dict[dt]
             else:
-                i = self.iter_index.loc[self.iter_index.index < dt][-1]
+                # If not found, get the last known data
+                i = self.iter_index.asof(dt)
 
             data_index = i + 1 - kwargs.get("length", 1) - kwargs.get("timeshift", 0)
             is_data = data_index >= 0
@@ -466,12 +469,12 @@ class Data:
             raise ValueError(
                 "You are requesting minute data from a daily data source. This is not supported."
             )
-            
+
         if timestep != "minute" and timestep != "day":
             raise ValueError(
                 f"Only minute and day are supported for timestep. You provided: {timestep}"
             )
-            
+
         if timestep == "day" and self.timestep == "minute":
             # If the data is minute data and we are requesting daily data then multiply the length by 1440
             length = length * 1440
@@ -479,33 +482,32 @@ class Data:
             dict = self._get_bars_dict(
                 dt, length=length, timestep="minute", timeshift=timeshift
             )
-            
+
             if dict is None:
                 return None
-            
+
             df = pd.DataFrame(dict).set_index("datetime")
-            
-            df_dict = df.resample("D") .agg(
-                    {
-                        "open": "first",
-                        "high": "max",
-                        "low": "min",
-                        "close": "last",
-                        "volume": "sum",
-                    }
-                )
-            
-            
+
+            df_dict = df.resample("D").agg(
+                {
+                    "open": "first",
+                    "high": "max",
+                    "low": "min",
+                    "close": "last",
+                    "volume": "sum",
+                }
+            )
+
             dict = df_dict.to_dict(orient="list")
-            
+
             return df
         else:
             dict = self._get_bars_dict(
                 dt, length=length, timestep=timestep, timeshift=timeshift
             )
-            
+
             if dict is None:
                 return None
-            
+
             df = pd.DataFrame(dict).set_index("datetime")
             return df

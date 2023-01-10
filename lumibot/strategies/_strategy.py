@@ -202,7 +202,8 @@ class _Strategy:
 
         # Stats related variables
         self._stats_file = stats_file
-        self._stats = pd.DataFrame()
+        self._stats = None
+        self._stats_list = []
         self._analysis = {}
 
         # Storing parameters for the initialize method
@@ -228,7 +229,7 @@ class _Strategy:
         for key in self.__dict__:
             if key[0] != "_" and key not in ignored_fields:
                 try:
-                    result[key] = deepcopy(self.__dict__[key])
+                    result[key] = self.__dict__[key]
                 except:
                     pass
                     # logging.warning(
@@ -244,7 +245,7 @@ class _Strategy:
                 "_sleeptime",
                 "_is_backtesting",
             ]:
-                result[key[1:]] = deepcopy(self.__dict__[key])
+                result[key[1:]] = self.__dict__[key]
 
         return result
 
@@ -493,9 +494,10 @@ class _Strategy:
     # =============Stats functions=====================
 
     def _append_row(self, row):
-        self._stats = pd.concat([self._stats, pd.DataFrame(row, index=[0])])
+        self._stats_list.append(row)
 
     def _format_stats(self):
+        self._stats = pd.DataFrame(self._stats_list)
         if "datetime" in self._stats.columns:
             self._stats = self._stats.set_index("datetime")
         self._stats["return"] = self._stats["portfolio_value"].pct_change()
@@ -509,7 +511,7 @@ class _Strategy:
                 current_stream_handler_level = handler.level
                 handler.setLevel(logging.INFO)
         logger.setLevel(logging.INFO)
-        if not self._stats.empty:
+        if len(self._stats_list) > 0:
             self._format_stats()
             if self._stats_file:
                 self._stats.to_csv(self._stats_file)
@@ -838,7 +840,7 @@ class _Strategy:
         datestring = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         if plot_file_html is None:
             plot_file_html = (
-                f"logs/{name + '_' if name != None else ''}{datestring}.html"
+                f"logs/{name + '_' if name != None else ''}{datestring}_trades.html"
             )
         if stats_file is None:
             stats_file = (

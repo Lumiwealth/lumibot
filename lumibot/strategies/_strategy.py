@@ -11,9 +11,15 @@ from attr import has
 from lumibot import LUMIBOT_DEFAULT_PYTZ
 from lumibot.backtesting import BacktestingBroker
 from lumibot.entities import Asset, Position, TradingFee
-from lumibot.tools import (create_tearsheet, day_deduplicate,
-                           get_risk_free_rate, get_symbol_returns,
-                           plot_returns, stats_summary, to_datetime_aware)
+from lumibot.tools import (
+    create_tearsheet,
+    day_deduplicate,
+    get_risk_free_rate,
+    get_symbol_returns,
+    plot_returns,
+    stats_summary,
+    to_datetime_aware,
+)
 from lumibot.traders import Trader
 
 from .strategy_executor import StrategyExecutor
@@ -223,7 +229,7 @@ class _Strategy:
         for key in self.__dict__:
             if key[0] != "_" and key not in ignored_fields:
                 try:
-                    result[key] = deepcopy(self.__dict__[key])
+                    result[key] = self.__dict__[key]
                 except:
                     pass
                     # logging.warning(
@@ -239,7 +245,7 @@ class _Strategy:
                 "_sleeptime",
                 "_is_backtesting",
             ]:
-                result[key[1:]] = deepcopy(self.__dict__[key])
+                result[key[1:]] = self.__dict__[key]
 
         return result
 

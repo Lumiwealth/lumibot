@@ -286,7 +286,7 @@ class Data:
 
         iter_index = pd.Series(df.index)
         self.iter_index = pd.Series(iter_index.index, index=iter_index)
-        # self.iter_index_series = pd.Series(np.arange(len(self.iter_index)), index=self.iter_index.index)
+        self.iter_index_dict = self.iter_index.to_dict()
 
         self.datalines = dict()
         self.to_datalines()
@@ -324,8 +324,12 @@ class Data:
         # known data (this speeds up the process)
         i = None
 
-        dts = self.iter_index.asof(dt)
-        i = self.iter_index.iloc[dts]
+        # Search for dt in self.iter_index_dict
+        if dt in self.iter_index_dict:
+            i = self.iter_index_dict[dt]
+        else:
+            # If not found, get the last known data
+            i = self.iter_index.asof(dt)
 
         return i
 
@@ -345,10 +349,12 @@ class Data:
                     f"The date you are looking for ({dt}) for ({self.asset}) is outside of the data's date range ({self.datetime_start} to {self.datetime_end})."
                 )
 
-            # Check if the date is in the dataframe, if not then get the last
-            # known data
-            dts = self.iter_index.asof(dt)
-            i = self.iter_index.iloc[dts]
+            # Search for dt in self.iter_index_dict
+            if dt in self.iter_index_dict:
+                i = self.iter_index_dict[dt]
+            else:
+                # If not found, get the last known data
+                i = self.iter_index.asof(dt)
 
             data_index = i + 1 - kwargs.get("length", 1) - kwargs.get("timeshift", 0)
             is_data = data_index >= 0

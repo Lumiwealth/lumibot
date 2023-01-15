@@ -125,31 +125,11 @@ class YahooHelper:
     def download_symbol_info(symbol):
         ticker = yf.Ticker(symbol)
 
-        try:
-            options = ticker.options
-        except:
-            options = ()
-
         return {
             "ticker": ticker.ticker,
             "last_update": get_lumibot_datetime(),
             "error": False,
-            "recommendations": ticker.recommendations,
-            "calendar": ticker.calendar,
-            "major_holders": ticker.major_holders,
-            "institutional_holders": ticker.institutional_holders,
             "info": ticker.info,
-            "sustainability": ticker.sustainability,
-            "earnings": ticker.earnings,
-            "quarterly_earnings": ticker.quarterly_earnings,
-            "financials": ticker.financials,
-            "quarterly_financials": ticker.quarterly_financials,
-            "balance_sheet": ticker.balance_sheet,
-            "quarterly_balance_sheet": ticker.quarterly_balance_sheet,
-            "cashflow": ticker.cashflow,
-            "quarterly_cashflow": ticker.quarterly_cashflow,
-            "isin": ticker.isin,
-            "options": options,
         }
 
     @staticmethod

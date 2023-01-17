@@ -513,11 +513,10 @@ class Broker:
         orders = self.get_tracked_orders(strategy)
         self.cancel_orders(orders)
 
-    def wait_orders_clear(self, strategy, max_loop=8):
+    def wait_orders_clear(self, strategy, max_loop=5):
         # Returns true if outstanding orders for a strategy are complete.
 
-        out_orders = True
-        while out_orders or max_loop > 0:
+        while max_loop > 0:
 
             outstanding_orders = [
                 order

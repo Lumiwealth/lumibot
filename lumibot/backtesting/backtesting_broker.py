@@ -17,11 +17,6 @@ class BacktestingBroker(Broker):
     # Metainfo
     IS_BACKTESTING_BROKER = True
 
-    CannotPredictFuture = ValueError(
-        "Cannot predict the future. Backtesting datetime already in the present. "
-        "Check if your backtesting end time is set after available data."
-    )
-
     def __init__(self, data_source, connect_stream=True, max_workers=20):
         # Calling init methods
         self.name = "backtesting"
@@ -105,7 +100,7 @@ class BacktestingBroker(Broker):
         now = self.datetime
         search = self._trading_days[now < self._trading_days.market_open]
         if search.empty:
-            raise self.CannotPredictFuture
+            logging.error("Cannot predict future")
 
         return search.market_open[0].to_pydatetime()
 
@@ -115,7 +110,7 @@ class BacktestingBroker(Broker):
 
         search = self._trading_days[now < self._trading_days.market_close]
         if search.empty:
-            raise self.CannotPredictFuture
+            logging.error("Cannot predict future")
 
         trading_day = search.iloc[0]
         if now >= trading_day.market_open:
@@ -131,7 +126,7 @@ class BacktestingBroker(Broker):
         # TODO: speed up the next line. next line speed implication: v high (1738 microseconds)
         search = self._trading_days[now < self._trading_days.market_close]
         if search.empty:
-            raise self.CannotPredictFuture
+            logging.error("Cannot predict future")
 
         # TODO: speed up the next line. next line speed implication: high (910 microseconds)
         trading_day = search.iloc[0]

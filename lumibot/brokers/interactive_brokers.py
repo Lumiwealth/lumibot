@@ -66,52 +66,6 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         clock = self.ib.get_timestamp()
         return clock
 
-    def market_close_time(self):
-        return self.utc_to_local(self.market_hours(close=True))
-
-    def is_market_open(self):
-        """Return True if market is open else False"""
-        open_time = self.utc_to_local(self.market_hours(close=False))
-        close_time = self.utc_to_local(self.market_hours(close=True))
-        current_time = self.utc_to_local(pd.Timestamp.now())
-
-        if self.market == "24/7":
-            return True
-        elif (current_time >= open_time) and (current_time <= close_time):
-            return True
-        else:
-            return False
-
-    def get_time_to_open(self):
-        """Return the remaining time for the market to open in seconds"""
-        open_time_this_day = self.utc_to_local(
-            self.market_hours(close=False, next=False)
-        )
-        open_time_next_day = self.utc_to_local(
-            self.market_hours(close=False, next=True)
-        )
-        now = self.utc_to_local(datetime.datetime.now())
-        open_time = (
-            open_time_this_day if open_time_this_day > now else open_time_next_day
-        )
-        current_time = self.utc_to_local(pd.Timestamp.now())
-        if self.is_market_open():
-            return 0
-        else:
-            result = open_time.timestamp() - current_time.timestamp()
-            return result
-
-    def get_time_to_close(self):
-        """Return the remaining time for the market to close in seconds"""
-        close_time = self.utc_to_local(self.market_hours(close=True))
-        current_time = self.utc_to_local(pd.Timestamp.now())
-        # return close_time.timestamp() - current_time.timestamp()
-        if self.is_market_open():
-            result = close_time.timestamp() - current_time.timestamp()
-            return result
-        else:
-            return 0
-
     # =========Positions functions==================
 
     def _parse_broker_position(self, broker_position, strategy, orders=None):
@@ -288,10 +242,6 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
     def cancel_order(self, order):
         """Cancel an order"""
         self.ib.cancel_order(order)
-
-    def cancel_open_orders(self, strategy=None):
-        """Cancel all the strategy open orders"""
-        self.ib.reqGlobalCancel()
 
     # =========Market functions=======================
 

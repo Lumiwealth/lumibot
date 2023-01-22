@@ -65,7 +65,11 @@ class YahooData(DataSource):
         if asset in self._data_store:
             data = self._data_store[asset]
         else:
-            data = yh.get_symbol_data(asset.symbol, auto_adjust=self.auto_adjust)
+            data = yh.get_symbol_data(
+                asset.symbol,
+                auto_adjust=self.auto_adjust,
+                last_needed_datetime=self.datetime_end,
+            )
             if data.shape[0] == 0:
                 raise NoDataFound(self.SOURCE, asset.symbol)
             data = self._append_data(asset, data)

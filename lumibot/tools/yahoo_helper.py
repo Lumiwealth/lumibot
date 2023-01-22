@@ -18,23 +18,26 @@ class _YahooData:
         self.data = data
         self.file_name = "%s_%s.pickle" % (symbol, type)
 
-    def is_up_to_date(self):
+    def is_up_to_date(self, last_needed_datetime=None):
+        if last_needed_datetime is None:
+            last_needed_datetime = get_lumibot_datetime()
+
         if self.type == DAY_DATA:
-            today = get_lumibot_datetime().date()
+            last_needed_date = last_needed_datetime.date()
             last_day = self.data.index[-1].to_pydatetime().date()
 
             # ip_up_to_date will always return False on holidays even though
             # the data is up to date because the market is still closed
-            return last_day == today
+            return last_day >= last_needed_date
 
         if self.type == INFO_DATA:
             if self.data.get("error"):
                 return False
 
-            today = get_lumibot_datetime().date()
+            last_needed_date = last_needed_datetime.date()
             last_day = self.data.get("last_update").date()
 
-            return last_day == today
+            return last_day >= last_needed_date
 
         return False
 
@@ -194,11 +197,11 @@ class YahooHelper:
     # ===================Cache retrieval and dumping=====================
 
     @staticmethod
-    def fetch_symbol_info(symbol, caching=True):
+    def fetch_symbol_info(symbol, caching=True, last_needed_datetime=None):
         if caching:
             cached_data = YahooHelper.check_pickle_file(symbol, INFO_DATA)
             if cached_data:
-                if cached_data.is_up_to_date():
+                if cached_data.is_up_to_date(last_needed_datetime=last_needed_datetime):
                     return cached_data.data
 
         # Caching is disabled or no previous data found
@@ -208,11 +211,11 @@ class YahooHelper:
         return data
 
     @staticmethod
-    def fetch_symbol_day_data(symbol, caching=True):
+    def fetch_symbol_day_data(symbol, caching=True, last_needed_datetime=None):
         if caching:
             cached_data = YahooHelper.check_pickle_file(symbol, DAY_DATA)
             if cached_data:
-                if cached_data.is_up_to_date():
+                if cached_data.is_up_to_date(last_needed_datetime=last_needed_datetime):
                     return cached_data.data
 
         # Caching is disabled or no previous data found
@@ -249,15 +252,28 @@ class YahooHelper:
         return YahooHelper.fetch_symbol_info(symbol, caching=caching)
 
     @staticmethod
-    def get_symbol_day_data(symbol, auto_adjust=True, caching=True):
-        result = YahooHelper.fetch_symbol_day_data(symbol, caching=caching)
+    def get_symbol_day_data(
+        symbol, auto_adjust=True, caching=True, last_needed_datetime=None
+    ):
+        result = YahooHelper.fetch_symbol_day_data(
+            symbol, caching=caching, last_needed_datetime=last_needed_datetime
+        )
         return result
 
     @staticmethod
-    def get_symbol_data(symbol, timestep="day", auto_adjust=True, caching=True):
+    def get_symbol_data(
+        symbol,
+        timestep="day",
+        auto_adjust=True,
+        caching=True,
+        last_needed_datetime=None,
+    ):
         if timestep == "day":
             return YahooHelper.get_symbol_day_data(
-                symbol, auto_adjust=auto_adjust, caching=caching
+                symbol,
+                auto_adjust=auto_adjust,
+                caching=caching,
+                last_needed_datetime=last_needed_datetime,
             )
         else:
             raise ValueError("Unknown timestep %s" % timestep)

@@ -1,5 +1,8 @@
 import datetime
+import json
+import logging
 
+import requests
 from dateutil import tz
 from lumibot.data_sources import TradovateData
 
@@ -17,54 +20,103 @@ class Tradovate(TradovateData, Broker):
         Broker.__init__(self, name=self.NAME, connect_stream=connect_stream)
         self.market = "us_futures"
 
+        self.url = config["URL"]
+        self.username = config["USERNAME"]
+        self.password = config["PASSWORD"]
+        self.cid = config["CID"]
+        self.sec = config["SEC"]
+        self.account_name = config["ACCOUNT_NAME"]
+
+        # TODO: Must renew access token every 24 hours
+        self.get_access_token(
+            self.username,
+            self.password,
+            self.cid,
+            self.sec,
+            self.url,
+        )
+
+        self.get_account_id(self.access_token, self.url, self.account_name)
+
+    def get_account_id(self, access_token, url, account_name):
+        url = f"{url}/account/list"
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }
+        response = requests.get(url, headers=headers)
+
+        account_info = response.json()
+
+        if len(account_info) == 0:
+            raise Exception("Tradovate did not return any accounts!")
+        else:
+            for account in account_info:
+                if (
+                    account["name"] == account_name
+                    or account["nickname"] == account_name
+                ):
+                    self.account_id = account["id"]
+                    self.account_name = account["name"]
+                    break
+
+            if self.account_id is None:
+                raise Exception(
+                    f"Could not find an account named '{account_name}' at Tradovate! Please check that your ACCOUNT_NAME is correct."
+                )
+
+            return self.account_id
+
+    def get_access_token(self, username, password, cid, sec, url):
+        body = {
+            "name": username,
+            "password": password,
+            # "appId": "lumibot 1",
+            # "appVersion": "1.0",
+            "cid": cid,
+            "sec": sec,
+            "deviceId": "123e4567-e89b-12d3-a456-426614174000",
+        }
+
+        response = requests.post(
+            f"{url}/auth/accesstokenrequest",
+            # method: 'POST',
+            # mode: 'cors',
+            headers={
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            },
+            json=body,
+        )
+
+        if response.status_code == 200:
+            login_response = response.json()
+
+            if "accessToken" in login_response:
+                access_token = login_response["accessToken"]
+                print("Login successful!")
+
+                self.access_token = access_token
+
+                return access_token
+            else:
+                errorText = ""
+                if "errorText" in login_response:
+                    errorText = login_response["errorText"]
+
+                raise Exception(f"Login to Tradovate failed! {errorText}")
+        else:
+            raise Exception(
+                f"Login to Tradovate failed! Status code: {response.status_code}. Please check that your credentials are correct."
+            )
+
     # =========Clock functions=====================
 
     def get_timestamp(self):
         """return current timestamp"""
-        clock = self.ib.get_timestamp()
-        return clock
-
-    def market_close_time(self):
-        return self.utc_to_local(self.market_hours(close=True))
-
-    def is_market_open(self):
-        """Return True if market is open else False"""
-        open_time = self.utc_to_local(self.market_hours(close=False))
-        close_time = self.utc_to_local(self.market_hours(close=True))
-
-        current_time = datetime.datetime.now().astimezone(tz=tz.tzlocal())
-        if self.market == "24/7":
-            return True
-        return (current_time >= open_time) and (close_time >= current_time)
-
-    def get_time_to_open(self):
-        """Return the remaining time for the market to open in seconds"""
-        open_time_this_day = self.utc_to_local(
-            self.market_hours(close=False, next=False)
-        )
-        open_time_next_day = self.utc_to_local(
-            self.market_hours(close=False, next=True)
-        )
-        now = self.utc_to_local(datetime.datetime.now())
-        open_time = (
-            open_time_this_day if open_time_this_day > now else open_time_next_day
-        )
-        current_time = datetime.datetime.now().astimezone(tz=tz.tzlocal())
-        if self.is_market_open():
-            return 0
-        else:
-            result = open_time.timestamp() - current_time.timestamp()
-            return result
-
-    def get_time_to_close(self):
-        """Return the remaining time for the market to close in seconds"""
-        close_time = self.utc_to_local(self.market_hours(close=True))
-        current_time = datetime.datetime.now().astimezone(tz=tz.tzlocal())
-        if self.is_market_open():
-            result = close_time.timestamp() - current_time.timestamp()
-            return result
-        else:
-            return 0
+        logging.error("get_timestamp() not implemented for Tradovate")
+        return None
 
     # =========Positions functions==================
 

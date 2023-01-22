@@ -19,7 +19,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="lumibot",
-    version="2.4.12",
+    version="2.4.13",
     author="Robert Grzesik",
     author_email="rob@lumiwealth.com",
     description="Backtesting and Trading Library, Made by Lumiwealth",
@@ -29,7 +29,7 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     install_requires=[
         "pydantic",
-        "alpaca_trade_api==1.5.1",
+        "alpaca_trade_api==2.3.0",
         "alpha_vantage",
         "ibapi==9.81.1.post1",
         "yfinance==0.2.4",
@@ -49,7 +49,7 @@ setuptools.setup(
         "pytest",
         "scipy",
         "quantstats==0.0.59",
-        "ccxt==1.61.51",
+        "ccxt==2.6.58",
         "termcolor",
         "jsonpickle",
     ],

@@ -49,10 +49,12 @@ class Broker:
             self._orders_thread = None
             self._start_orders_thread()
 
+        # Disabling the stream for now
+        # TODO: Enable the stream for Alpaca with the new library version
         # setting the stream object
-        self.stream = self._get_stream_object()
-        if connect_stream:
-            self._launch_stream()
+        # self.stream = self._get_stream_object()
+        # if connect_stream:
+        #     self._launch_stream()
 
     @property
     def _tracked_orders(self):
@@ -258,6 +260,9 @@ class Broker:
         check if the limit timestamp was reached"""
         return True
 
+    def market_close_time(self):
+        return self.utc_to_local(self.market_hours(close=True))
+
     def is_market_open(self):
         """Determines if the market is open.
 
@@ -275,15 +280,42 @@ class Broker:
         >>> self.is_market_open()
         True
         """
-        pass
+        open_time = self.utc_to_local(self.market_hours(close=False))
+        close_time = self.utc_to_local(self.market_hours(close=True))
+
+        current_time = datetime.datetime.now().astimezone(tz=tz.tzlocal())
+        if self.market == "24/7":
+            return True
+        return (current_time >= open_time) and (close_time >= current_time)
 
     def get_time_to_open(self):
         """Return the remaining time for the market to open in seconds"""
-        pass
+        open_time_this_day = self.utc_to_local(
+            self.market_hours(close=False, next=False)
+        )
+        open_time_next_day = self.utc_to_local(
+            self.market_hours(close=False, next=True)
+        )
+        now = self.utc_to_local(datetime.datetime.now())
+        open_time = (
+            open_time_this_day if open_time_this_day > now else open_time_next_day
+        )
+        current_time = datetime.datetime.now().astimezone(tz=tz.tzlocal())
+        if self.is_market_open():
+            return 0
+        else:
+            result = open_time.timestamp() - current_time.timestamp()
+            return result
 
     def get_time_to_close(self):
         """Return the remaining time for the market to close in seconds"""
-        pass
+        close_time = self.utc_to_local(self.market_hours(close=True))
+        current_time = datetime.datetime.now().astimezone(tz=tz.tzlocal())
+        if self.is_market_open():
+            result = close_time.timestamp() - current_time.timestamp()
+            return result
+        else:
+            return 0
 
     def sleep(self, sleeptime):
         """The broker custom method for sleeping.
@@ -563,13 +595,6 @@ class Broker:
                 order = position.get_selling_order()
                 orders.append(order)
         self.submit_orders(orders)
-
-        if not self.IS_BACKTESTING_BROKER:
-            orders_result = self.wait_orders_clear(strategy_name)
-            if not orders_result:
-                logging.info(
-                    "From sell_all, orders were still outstanding after the sell all event"
-                )
 
     # =========Market functions=======================
 

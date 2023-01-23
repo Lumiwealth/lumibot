@@ -50,10 +50,9 @@ class Broker:
             self._start_orders_thread()
 
         # setting the stream object
+        self.stream = self._get_stream_object()
         if connect_stream:
-            self.stream = self._get_stream_object()
-            if self.stream is not None:
-                self._launch_stream()
+            self._launch_stream()
 
     @property
     def _tracked_orders(self):

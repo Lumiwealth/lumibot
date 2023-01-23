@@ -457,9 +457,8 @@ class Alpaca(AlpacaData, Broker):
                         % (identifier, self.name)
                     )
                     return False
-
-                price = data.price if hasattr(data, "price") else None
-                filled_quantity = data.qty if hasattr(data, "qty") else None
+                price = data.get("price", None)
+                filled_quantity = data.get("qty", None)
                 self._process_trade_event(
                     stored_order,
                     type_event,

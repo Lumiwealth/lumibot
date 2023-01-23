@@ -7,12 +7,12 @@ from datetime import timezone
 from decimal import Decimal
 
 import alpaca_trade_api as tradeapi
+from alpaca_trade_api.stream import Stream
 from dateutil import tz
-from numpy import str0
-from termcolor import colored
-
 from lumibot.data_sources import AlpacaData
 from lumibot.entities import Asset, Order, Position
+from numpy import str0
+from termcolor import colored
 
 from .broker import Broker
 
@@ -422,19 +422,33 @@ class Alpaca(AlpacaData, Broker):
 
     def _get_stream_object(self):
         """get the broker stream connection"""
-        stream = tradeapi.StreamConn(self.api_key, self.api_secret, self.endpoint)
+        # Disabling the stream for now
+        # TODO: Enable the stream for Alpaca with the new library version
+        # pass
+        feed = "iex"  # <- replace to SIP if you have PRO subscription
+        stream = Stream(
+            self.api_key,
+            self.api_secret,
+            base_url=self.endpoint,
+            data_feed=feed,
+            raw_data=True,
+        )
+
+        # stream = tradeapi.StreamConn(self.api_key, self.api_secret, self.endpoint)
         return stream
 
-    def _register_stream_events(self):
-        """Register the function on_trade_event
-        to be executed on each trade_update event"""
+    def _run_stream(self):
+        """Overloading default alpaca_trade_api.STreamCOnnect().run()
+        Run forever and block until exception is raised.
+        initial_channels is the channels to start with.
+        """
 
-        @self.stream.on(r"^trade_updates$")
-        async def on_trade_event(conn, channel, data):
+        async def _trade_update(trade_update):
             self._orders_queue.join()
             try:
-                logged_order = data.order
-                type_event = data.event
+                data = trade_update["data"]
+                logged_order = data["order"]
+                type_event = data["event"]
                 identifier = logged_order.get("id")
                 stored_order = self.get_tracked_order(identifier)
                 if stored_order is None:
@@ -457,11 +471,6 @@ class Alpaca(AlpacaData, Broker):
             except:
                 logging.error(traceback.format_exc())
 
-    def _run_stream(self):
-        """Overloading default alpaca_trade_api.STreamCOnnect().run()
-        Run forever and block until exception is raised.
-        initial_channels is the channels to start with.
-        """
         self.stream.loop = asyncio.new_event_loop()
         loop = self.stream.loop
         should_renew = True  # should renew connection if it disconnects
@@ -470,17 +479,16 @@ class Alpaca(AlpacaData, Broker):
                 if loop.is_closed():
                     self.stream.loop = asyncio.new_event_loop()
                     loop = self.stream.loop
-                loop.run_until_complete(self.stream.subscribe(["trade_updates"]))
+                self.stream.subscribe_trade_updates(_trade_update)
                 self._stream_established()
-                loop.run_until_complete(self.stream.consume())
+                loop.run_until_complete(self.stream.run())
             except KeyboardInterrupt:
                 logging.info("Exiting on Interrupt")
                 should_renew = False
             except Exception as e:
                 m = "consume cancelled" if isinstance(e, CancelledError) else e
                 logging.error(f"error while consuming ws messages: {m}")
-                if self.stream._debug:
-                    logging.error(traceback.format_exc())
+                logging.error(traceback.format_exc())
                 loop.run_until_complete(self.stream.close(should_renew))
                 if loop.is_running():
                     loop.close()

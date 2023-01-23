@@ -49,12 +49,11 @@ class Broker:
             self._orders_thread = None
             self._start_orders_thread()
 
-        # Disabling the stream for now
-        # TODO: Enable the stream for Alpaca with the new library version
         # setting the stream object
-        # self.stream = self._get_stream_object()
-        # if connect_stream:
-        #     self._launch_stream()
+        if connect_stream:
+            self.stream = self._get_stream_object()
+            if self.stream is not None:
+                self._launch_stream()
 
     @property
     def _tracked_orders(self):

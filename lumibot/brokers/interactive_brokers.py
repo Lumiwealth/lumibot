@@ -1288,7 +1288,7 @@ class IBApp(IBWrapper, IBClient):
                     f"order. The bracket order for {order.symbol} is cancelled."
                 )
                 return []
-            parent = Order()
+            parent = Order()  
             parent.orderId = (
                 order.identifier if order.identifier else self.nextOrderId()
             )
@@ -1299,7 +1299,7 @@ class IBApp(IBWrapper, IBClient):
             parent.transmit = False
 
             takeProfit = Order()
-            takeProfit.orderId = parent.orderId + 1
+            takeProfit.orderId = self.nextOrderId() 
             takeProfit.action = "SELL" if parent.action == "BUY" else "BUY"
             takeProfit.orderType = "LMT"
             takeProfit.totalQuantity = order.quantity
@@ -1308,7 +1308,7 @@ class IBApp(IBWrapper, IBClient):
             takeProfit.transmit = False
 
             stopLoss = Order()
-            stopLoss.orderId = parent.orderId + 2
+            stopLoss.orderId = self.nextOrderId() 
             stopLoss.action = "SELL" if parent.action == "BUY" else "BUY"
             stopLoss.orderType = "STP"
             stopLoss.auxPrice = order.stop_loss_price
@@ -1340,7 +1340,7 @@ class IBApp(IBWrapper, IBClient):
 
             if order.take_profit_price:
                 takeProfit = Order()
-                takeProfit.orderId = parent.orderId + 1
+                takeProfit.orderId = self.nextOrderId()
                 takeProfit.action = "SELL" if parent.action == "BUY" else "BUY"
                 takeProfit.orderType = "LMT"
                 takeProfit.totalQuantity = order.quantity
@@ -1351,7 +1351,7 @@ class IBApp(IBWrapper, IBClient):
 
             elif order.stop_loss_price:
                 stopLoss = Order()
-                stopLoss.orderId = parent.orderId + 1
+                stopLoss.orderId = self.nextOrderId()
                 stopLoss.action = "SELL" if parent.action == "BUY" else "BUY"
                 stopLoss.orderType = "STP"
                 stopLoss.auxPrice = order.stop_loss_price
@@ -1376,7 +1376,7 @@ class IBApp(IBWrapper, IBClient):
             takeProfit.ocaType = 1
 
             stopLoss = Order()
-            stopLoss.orderId = takeProfit.orderId + 1
+            stopLoss.orderId = self.nextOrderId()
             stopLoss.action = order.side.upper()
             stopLoss.orderType = "STP"
             stopLoss.totalQuantity = order.quantity

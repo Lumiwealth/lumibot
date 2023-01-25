@@ -242,10 +242,10 @@ class PandasData(DataSource):
         bars = Bars(response, self.SOURCE, asset1, quote=asset2, raw=response)
         return bars
 
-    def get_yesterday_dividend(self, asset):
+    def get_yesterday_dividend(self, asset, quote=None):
         pass
 
-    def get_yesterday_dividends(self, assets):
+    def get_yesterday_dividends(self, assets, quote=None):
         pass
 
     # =======Options methods.=================

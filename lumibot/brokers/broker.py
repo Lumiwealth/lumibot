@@ -282,7 +282,7 @@ class Broker:
         open_time = self.utc_to_local(self.market_hours(close=False))
         close_time = self.utc_to_local(self.market_hours(close=True))
 
-        current_time = datetime.datetime.now().astimezone(tz=tz.tzlocal())
+        current_time = datetime.now().astimezone(tz=tz.tzlocal())
         if self.market == "24/7":
             return True
         return (current_time >= open_time) and (close_time >= current_time)
@@ -295,11 +295,11 @@ class Broker:
         open_time_next_day = self.utc_to_local(
             self.market_hours(close=False, next=True)
         )
-        now = self.utc_to_local(datetime.datetime.now())
+        now = self.utc_to_local(datetime.now())
         open_time = (
             open_time_this_day if open_time_this_day > now else open_time_next_day
         )
-        current_time = datetime.datetime.now().astimezone(tz=tz.tzlocal())
+        current_time = datetime.now().astimezone(tz=tz.tzlocal())
         if self.is_market_open():
             return 0
         else:
@@ -309,7 +309,7 @@ class Broker:
     def get_time_to_close(self):
         """Return the remaining time for the market to close in seconds"""
         close_time = self.utc_to_local(self.market_hours(close=True))
-        current_time = datetime.datetime.now().astimezone(tz=tz.tzlocal())
+        current_time = datetime.now().astimezone(tz=tz.tzlocal())
         if self.is_market_open():
             result = close_time.timestamp() - current_time.timestamp()
             return result

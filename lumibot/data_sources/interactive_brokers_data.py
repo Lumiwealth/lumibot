@@ -243,10 +243,10 @@ class InteractiveBrokersData(DataSource):
         result = self.ib.get_tick(asset, greek=False)
         return result
 
-    def get_yesterday_dividend(self, asset):
+    def get_yesterday_dividend(self, asset, quote=None):
         """ Unavailable """
         return 0
 
-    def get_yesterday_dividends(self, asset):
+    def get_yesterday_dividends(self, asset, quote=None):
         """ Unavailable """
         return None

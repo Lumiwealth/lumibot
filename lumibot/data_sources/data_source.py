@@ -208,7 +208,7 @@ class DataSource:
         # Return a list of tradable assets.
         raise NotImplementedError(self.__class__.__name__ + ".get_tradable_assets")
 
-    def get_yesterday_dividend(self, asset):
+    def get_yesterday_dividend(self, asset, quote=None):
         """Return dividend per share for a given
         asset for the day before"""
         bars = self.get_historical_prices(

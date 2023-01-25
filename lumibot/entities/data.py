@@ -138,7 +138,7 @@ class Data:
         self.df = self.columns(df)
 
         # Check if the index is datetime (it has to be), and if it's not then try to find it in the columns
-        if self.df.index.dtype != "datetime64[ns]":
+        if str(self.df.index.dtype).startswith("datetime") is False:
             date_cols = [
                 "Date",
                 "date",

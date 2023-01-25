@@ -2788,7 +2788,7 @@ class Strategy(_Strategy):
 
         """
         assets = [self._set_asset_mapping(asset) for asset in assets]
-        return self.data_source.get_yesterday_dividends(assets)
+        return self.data_source.get_yesterday_dividends(assets, quote=self.quote_asset)
 
     def update_parameters(self, parameters):
         """Update the parameters of the strategy.

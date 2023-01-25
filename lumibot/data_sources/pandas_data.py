@@ -1,7 +1,6 @@
 import logging
 
 import pandas as pd
-
 from lumibot.entities import Asset, AssetsMapping, Bars
 
 from .data_source import DataSource
@@ -151,7 +150,8 @@ class PandasData(DataSource):
         dt_index = None
         for asset, data in self._data_store.items():
             if dt_index is None:
-                dt_index = data.df.index
+                df = data.df
+                dt_index = df.index
             else:
                 dt_index = dt_index.join(data.df.index, how="outer")
         if self.datetime_end < dt_index[0]:
@@ -179,7 +179,9 @@ class PandasData(DataSource):
         else:
             return None
 
-    def get_last_prices(self, assets, timestep=None, quote=None, exchange=None, **kwargs):
+    def get_last_prices(
+        self, assets, timestep=None, quote=None, exchange=None, **kwargs
+    ):
         # Takes a list of assets and returns dictionary of last known prices for each.
         if timestep is None:
             timestep = self.MIN_TIMESTEP

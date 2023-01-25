@@ -216,12 +216,12 @@ class DataSource:
         )
         return bars.get_last_dividend()
 
-    def get_yesterday_dividends(self, assets):
+    def get_yesterday_dividends(self, assets, quote=None):
         """Return dividend per share for a list of
         assets for the day before"""
         result = {}
         assets_bars = self.get_bars(
-            assets, 1, timestep="day"
+            assets, 1, timestep="day", quote=quote
         )
         for asset, bars in assets_bars.items():
             if bars is not None:

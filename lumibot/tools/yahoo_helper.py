@@ -127,12 +127,24 @@ class YahooHelper:
     @staticmethod
     def download_symbol_info(symbol):
         ticker = yf.Ticker(symbol)
+        
+        try:
+            info = ticker.info
+        except Exception as e:
+            logging.error(f"Error while downloading symbol info for {symbol}, setting info to None for now.")
+            logging.error(e)
+            return {
+                "ticker": symbol,
+                "last_update": get_lumibot_datetime(),
+                "error": True,
+                "info": None,
+            }
 
         return {
             "ticker": ticker.ticker,
             "last_update": get_lumibot_datetime(),
             "error": False,
-            "info": ticker.info,
+            "info": info,
         }
 
     @staticmethod
@@ -148,7 +160,7 @@ class YahooHelper:
         # Adjust the time when we are getting daily stock data to the beginning of the day
         # This way the times line up when backtesting daily data
         info = YahooHelper.get_symbol_info(symbol)
-        if info.get("info").get("market") == "us_market":
+        if info.get("info") and info.get("info").get("market") == "us_market":
             # Check if the timezone is already set, if not set it to the default timezone
             if df.index.tzinfo is None:
                 df.index = df.index.tz_localize(
@@ -159,7 +171,7 @@ class YahooHelper:
                     info.get("info").get("exchangeTimezoneName")
                 )
             df.index = df.index.map(lambda t: t.replace(hour=16, minute=0))
-        elif info.get("info").get("market") == "ccc_market":
+        elif info.get("info") and info.get("info").get("market") == "ccc_market":
             # Check if the timezone is already set, if not set it to the default timezone
             if df.index.tzinfo is None:
                 df.index = df.index.tz_localize(

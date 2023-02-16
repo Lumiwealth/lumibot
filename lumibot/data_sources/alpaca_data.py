@@ -138,7 +138,6 @@ class AlpacaData(DataSource):
 
         if start is None:
             if str(freq) == "1Min":
-                limit += 1
                 start = end - timedelta(minutes=limit)
             elif str(freq) == "1Day":
                 start = end - timedelta(days=limit)
@@ -251,7 +250,7 @@ class AlpacaData(DataSource):
         )
         return response[asset]
 
-    def _parse_source_symbol_bars(self, response, asset, quote=None):
+    def _parse_source_symbol_bars(self, response, asset, quote=None, length=None):
         # TODO: Alpaca return should also include dividend yield
         response["return"] = response["close"].pct_change()
         bars = Bars(response, self.SOURCE, asset, raw=response, quote=quote)

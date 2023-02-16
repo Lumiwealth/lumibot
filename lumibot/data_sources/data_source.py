@@ -103,7 +103,7 @@ class DataSource:
     ):
         pass
 
-    def _parse_source_symbol_bars(self, response, asset, quote=None):
+    def _parse_source_symbol_bars(self, response, asset, quote=None, length=None):
         pass
 
     def _parse_source_bars(self, response, quote=None):
@@ -140,7 +140,7 @@ class DataSource:
         elif response is None:
             return None
 
-        bars = self._parse_source_symbol_bars(response, asset, quote=quote)
+        bars = self._parse_source_symbol_bars(response, asset, quote=quote, length=length)
         return bars
 
     def get_bars(

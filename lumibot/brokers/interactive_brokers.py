@@ -1029,7 +1029,7 @@ class IBClient(EClient):
             contract,
             end_date_time,
             parsed_duration,
-            parsed_timestep,
+            parsed_timestep, # barSizeSetting
             type,
             useRTH,
             formatDate,

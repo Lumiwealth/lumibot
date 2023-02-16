@@ -233,7 +233,7 @@ class PandasData(DataSource):
             )
         return result
 
-    def _parse_source_symbol_bars(self, response, asset, quote=None):
+    def _parse_source_symbol_bars(self, response, asset, quote=None, length=None):
         """parse broker response for a single asset"""
         asset1 = asset
         asset2 = quote

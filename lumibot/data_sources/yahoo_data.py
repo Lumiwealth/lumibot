@@ -115,7 +115,7 @@ class YahooData(DataSource):
             )
         return result
 
-    def _parse_source_symbol_bars(self, response, asset, quote=None):
+    def _parse_source_symbol_bars(self, response, asset, quote=None, length=None):
         if quote is not None:
             logging.warning(
                 f"quote is not implemented for YahooData, but {quote} was passed as the quote"

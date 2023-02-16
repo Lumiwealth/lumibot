@@ -1,4 +1,5 @@
 import datetime
+import math
 
 import pandas as pd
 from lumibot.entities import Bars
@@ -17,11 +18,56 @@ class InteractiveBrokersData(DataSource):
     MIN_TIMESTEP = "minute"
     TIMESTEP_MAPPING = [
         {
+            "timestep": "second",
+            "representations": [
+                "1 secs",
+            ],
+        },
+        {
             "timestep": "minute",
             "representations": [
                 "1 min",
+                
             ],
         },
+        {
+            "timestep": "5 minutes",
+            "representations": [
+                "5 mins",
+            ],
+        },
+        {
+            "timestep": "15 minutea",
+            "representations": [
+                "15 mins",
+            ],
+        },
+        {
+            "timestep": "30 minutes",
+            "representations": [
+                "30 mins",
+            ],
+        },
+        {
+            "timestep": "1 hour", 
+            "representations": [
+                "1 hour",
+            ],
+        },
+
+        {
+            "timestep": "4 hours", 
+            "representations": [
+                "4 hours",
+            ],
+        },    
+        {
+            "timestep": "2 hours", 
+            "representations": [
+                "2 hours",
+            ],
+        },    
+
         {
             "timestep": "day",
             "representations": [
@@ -44,11 +90,28 @@ class InteractiveBrokersData(DataSource):
         self.chunk_size = min(chunk_size, 100)
 
     def _parse_duration(self, length, timestep):
+        # If the timestemp includes a number, then separate it from the unit.
+        if timestep[0].isdigit():
+            x = timestep.split(" ")
+            digit = int(x[0])
+            freq = x[1].lower()
+        else:
+            digit = 1
+            freq = timestep.lower()
+
         # Converts length and timestep into IB `durationStr`
-        if timestep == "minute":
+        if "second" in freq:
             # IB has a max for seconds of 86400.
-            return f"{str(min(length * 60, 86400))} S"
-        elif timestep == "day":
+            return f"{str(min(length, 86400))} S"
+        elif "minute" in freq:
+            # IB does not allow minutes to be used as a duration.
+            divisor = 24*60/digit
+            return f"{str(math.ceil(length/divisor))} D"
+        elif "hour" in freq:
+            # IB does not allow hours to be used as a duration.
+            divisor = 24/digit
+            return f"{str(math.ceil(length/divisor))} D"
+        elif "day" in freq:
             return f"{str(length)} D"
         else:
             raise ValueError(
@@ -153,32 +216,36 @@ class InteractiveBrokersData(DataSource):
                     )
                     continue
 
-                if parsed_timestep == "1 min":
+                if "min" in parsed_timestep or "hour" in parsed_timestep:
                     df["date"] = (
                         pd.to_datetime(df["date"], unit="s", origin="unix")
                         .dt.tz_localize("UTC")
                         .dt.tz_convert(self.DEFAULT_TIMEZONE)
                     )
                     df = df.iloc[-length:, :]
-                elif parsed_timestep == "1 day":
+                elif "day" in parsed_timestep:
                     df["date"] = pd.to_datetime(df["date"], format="%Y%m%d")
                     df["date"] = df["date"].dt.tz_localize(self.DEFAULT_TIMEZONE)
+                
+                    df = df.iloc[-length:, :]
+                
                 response[asset] = df
         return response
 
-    def _parse_source_symbol_bars(self, response, asset, quote=None):
+    def _parse_source_symbol_bars(self, response, asset, quote=None, length=None):
         # Catch empty dataframe.
         if isinstance(response, float) or response.empty:
             bars = Bars(response, self.SOURCE, asset, raw=response)
             return bars
         df = response.copy()
-        df["date"] = pd.to_datetime(df["date"])
+        #df["date"] = pd.to_datetime(df["date"], unit='s')
         df = df.set_index("date")
         df["price_change"] = df["close"].pct_change()
         df["dividend"] = 0
         df["stock_splits"] = 0
         df["dividend_yield"] = df["dividend"] / df["close"]
         df["return"] = df["dividend_yield"] + df["price_change"]
+        #df = df.tail(length)
         df = df[
             [
                 "open",

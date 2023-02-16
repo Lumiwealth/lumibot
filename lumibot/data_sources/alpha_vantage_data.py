@@ -132,6 +132,6 @@ class AlphaVantageData(DataSource):
 
         return result
 
-    def _parse_source_symbol_bars(self, response, asset, quote=None):
+    def _parse_source_symbol_bars(self, response, asset, quote=None, length=None):
         bars = Bars(response, self.SOURCE, asset, raw=response, quote=quote)
         return bars

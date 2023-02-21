@@ -198,6 +198,7 @@ class PandasData(DataSource):
         timeshift=0,
         quote=None,
         exchange=None,
+        include_after_hours=True
     ):
         if exchange is not None:
             logging.warning(
@@ -221,7 +222,7 @@ class PandasData(DataSource):
         return res
 
     def _pull_source_bars(
-        self, assets, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None
+        self, assets, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None,  include_after_hours=True
     ):
         """pull broker bars for a list assets"""
         self._parse_source_timestep(timestep, reverse=True)

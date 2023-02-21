@@ -46,7 +46,7 @@ class DataSourceBacktesting(DataSource):
         )
 
     def _pull_source_symbol_bars(
-        self, asset, length, timestep=None, timeshift=None, quote=None, exchange=None
+        self, asset, length, timestep=None, timeshift=None, quote=None, exchange=None, include_after_hours=True
     ):
         if exchange is not None:
             logging.warning(

@@ -94,12 +94,13 @@ class DataSource:
         timeshift=None,
         quote=None,
         exchange=None,
+        include_after_hours=True
     ):
         """pull source bars for a given asset"""
         pass
 
     def _pull_source_bars(
-        self, assets, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None
+        self, assets, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None,  include_after_hours=True
     ):
         pass
 
@@ -118,7 +119,7 @@ class DataSource:
     # =================Public Market Data Methods==================
 
     def get_historical_prices(
-        self, asset, length, timestep="", timeshift=None, quote=None, exchange=None
+        self, asset, length, timestep="", timeshift=None, quote=None, exchange=None, include_after_hours=True
     ):
         """Get bars for a given asset"""
         if isinstance(asset, str):
@@ -134,6 +135,7 @@ class DataSource:
             timeshift=timeshift,
             quote=quote,
             exchange=exchange,
+            include_after_hours=include_after_hours
         )
         if isinstance(response, float):
             return response
@@ -153,6 +155,7 @@ class DataSource:
         max_workers=200,
         quote=None,
         exchange=None,
+        include_after_hours=True
     ):
         """Get bars for the list of assets"""
         assets = [Asset(symbol=a) if isinstance(a, str) else a for a in assets]
@@ -164,7 +167,7 @@ class DataSource:
             tasks = []
             func = lambda args, kwargs: self._pull_source_bars(*args, **kwargs)
             kwargs = dict(
-                timestep=timestep, timeshift=timeshift, quote=quote, exchange=exchange
+                timestep=timestep, timeshift=timeshift, quote=quote, exchange=exchange, include_after_hours=include_after_hours
             )
             kwargs = {k: v for k, v in kwargs.items() if v is not None}
             for chunk in chunks:

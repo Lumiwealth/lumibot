@@ -50,6 +50,7 @@ class YahooData(DataSource):
         timeshift=None,
         quote=None,
         exchange=None,
+        include_after_hours=True
     ):
         if exchange is not None:
             logging.warning(
@@ -89,7 +90,7 @@ class YahooData(DataSource):
         return result
 
     def _pull_source_bars(
-        self, assets, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None
+        self, assets, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None, include_after_hours=False
     ):
         """pull broker bars for a list assets"""
 

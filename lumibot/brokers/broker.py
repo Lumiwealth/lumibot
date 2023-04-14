@@ -115,7 +115,8 @@ class Broker:
 
     def _set_initial_positions(self, strategy):
         """ Set initial positions """
-        for pos in self._pull_positions(strategy):
+        positions = self._pull_positions(strategy)
+        for pos in positions:
             self._filled_positions.append(pos)
 
     def _process_new_order(self, order):
@@ -392,15 +393,15 @@ class Broker:
         of the corresponding asset"""
         pass
 
-    def _pull_broker_positions(self):
+    def _pull_broker_positions(self, strategy=None):
         """Get the broker representation of all positions"""
         pass
 
     def _pull_positions(self, strategy):
         """Get the account positions. return a list of
         position objects"""
-        response = self._pull_broker_positions()
-        result = self._parse_broker_positions(response, strategy)
+        response = self._pull_broker_positions(strategy)
+        result = self._parse_broker_positions(response, strategy.name)
         return result
 
     def _pull_position(self, strategy, asset):

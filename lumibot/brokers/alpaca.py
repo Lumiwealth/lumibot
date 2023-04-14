@@ -245,7 +245,7 @@ class Alpaca(AlpacaData, Broker):
         response = self.api.get_position(asset)
         return response
 
-    def _pull_broker_positions(self):
+    def _pull_broker_positions(self, strategy=None):
         """Get the broker representation of all positions"""
         response = self.api.list_positions()
         return response

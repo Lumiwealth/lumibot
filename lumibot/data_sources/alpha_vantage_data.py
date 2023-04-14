@@ -45,6 +45,7 @@ class AlphaVantageData(DataSource):
         timeshift=None,
         quote=None,
         exchange=None,
+        include_after_hours=True
     ):
         if exchange is not None:
             logging.warning(

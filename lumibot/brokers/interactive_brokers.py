@@ -127,7 +127,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         result = result[result["Symbol"] == asset].squeeze()
         return result
 
-    def _pull_broker_positions(self):
+    def _pull_broker_positions(self, strategy=None):
         """Get the broker representation of all positions"""
         positions = []
         ib_positions = self.ib.get_positions()

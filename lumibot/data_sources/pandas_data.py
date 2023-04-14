@@ -28,16 +28,29 @@ class PandasData(DataSource):
     @staticmethod
     def _set_pandas_data_keys(pandas_data):
         new_pandas_data = {}
-        for k, data in pandas_data.items():
+
+        def _get_new_pandas_data_key(data):
             if isinstance(data.asset, Asset) and data.asset.asset_type != "crypto":
-                key = data.asset
+                return data.asset
             elif isinstance(data.asset, tuple) and data.asset[0].asset_type == "crypto":
-                key = data.asset
+                return data.asset
             elif isinstance(data.asset, Asset) and data.asset.asset_type == "crypto":
-                key = (data.asset, data.quote)
+                return (data.asset, data.quote)
             else:
                 raise ValueError("Asset must be an Asset or a tuple of Asset and quote")
-            new_pandas_data[key] = data
+
+        # Check if pandas_data is a dictionary
+        if isinstance(pandas_data, dict):
+            for k, data in pandas_data.items():
+                key = _get_new_pandas_data_key(data)
+                new_pandas_data[key] = data
+
+        # Check if pandas_data is a list
+        elif isinstance(pandas_data, list):
+            for data in pandas_data:
+                key = _get_new_pandas_data_key(data)
+                new_pandas_data[key] = data
+
         return new_pandas_data
 
     def load_data(self):
@@ -198,6 +211,7 @@ class PandasData(DataSource):
         timeshift=0,
         quote=None,
         exchange=None,
+        include_after_hours=True,
     ):
         if exchange is not None:
             logging.warning(
@@ -221,7 +235,13 @@ class PandasData(DataSource):
         return res
 
     def _pull_source_bars(
-        self, assets, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None
+        self,
+        assets,
+        length,
+        timestep=MIN_TIMESTEP,
+        timeshift=None,
+        quote=None,
+        include_after_hours=True,
     ):
         """pull broker bars for a list assets"""
         self._parse_source_timestep(timestep, reverse=True)

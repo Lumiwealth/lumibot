@@ -185,7 +185,7 @@ class BacktestingBroker(Broker):
         response = Position("", asset, quantity, orders=orders)
         return response
 
-    def _pull_broker_positions(self):
+    def _pull_broker_positions(self, strategy=None):
         """Get the broker representation of all positions"""
         response = self._filled_positions.__items
         return response
@@ -432,8 +432,13 @@ class BacktestingBroker(Broker):
                 volume = ohlc.df.volume[-1]
 
             elif self._data_source.SOURCE == "PANDAS":
+                # This is a hack to get around the fact that we need to get the previous day's data to prevent lookahead bias.
                 ohlc = strategy.get_historical_prices(
-                    asset, 1, quote=order.quote, timeshift=-1
+                    asset,
+                    1,
+                    quote=order.quote,
+                    timeshift=-1,
+                    timestep=self._data_source._timestep,
                 )
 
                 if ohlc is None:

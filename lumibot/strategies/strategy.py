@@ -356,6 +356,7 @@ class Strategy(_Strategy):
         exchange=None,
         quote=None,
         pair=None,
+        custom_params={},
     ):
         """Creates a new order for this specific strategy. Once created, an order must still be submitted.
 
@@ -432,6 +433,9 @@ class Strategy(_Strategy):
             This is the currency that the main coin being bought or sold
             will exchange in. For example, if trading ``BTC/ETH`` this
             parameter will be 'ETH' (as an Asset object).
+        custom_params : dict
+            A dictionary of custom parameters that can be used to pass additional information to the broker. This is useful for passing custom parameters to the broker that are not supported by Lumibot.
+            Eg. `custom_params={"leverage": 3}` for Kraken margin trading.
 
         Returns
         -------
@@ -610,6 +614,7 @@ class Strategy(_Strategy):
             date_created=self.get_datetime(),
             quote=quote,
             pair=pair,
+            custom_params=custom_params,
         )
         return order
 
@@ -2422,6 +2427,7 @@ class Strategy(_Strategy):
         timeshift: datetime.timedelta = None,
         quote: Asset = None,
         exchange: str = None,
+        include_after_hours: bool = True,
     ):
         """Get historical pricing data for a given symbol or asset.
 
@@ -2450,6 +2456,8 @@ class Strategy(_Strategy):
             Default is the quote asset for the strategy.
         exchange : str
             The exchange to pull the historical data from. Default is None (decided based on the broker)
+        include_after_hours : bool
+            Whether to include after hours data. Default is True. Currently only works with Interactive Brokers.
 
         Returns
         -------
@@ -2516,7 +2524,12 @@ class Strategy(_Strategy):
         if not timestep:
             timestep = self.data_source.MIN_TIMESTEP
         return self.data_source.get_historical_prices(
-            asset, length, timestep=timestep, timeshift=timeshift, exchange=exchange
+            asset,
+            length,
+            timestep=timestep,
+            timeshift=timeshift,
+            exchange=exchange,
+            include_after_hours=include_after_hours,
         )
 
     def get_symbol_bars(
@@ -2551,6 +2564,7 @@ class Strategy(_Strategy):
         chunk_size=100,
         max_workers=200,
         exchange=None,
+        include_after_hours=True,
     ):
         """Get historical pricing data for the list of assets.
 
@@ -2578,6 +2592,9 @@ class Strategy(_Strategy):
             ``None`` by default. If specified indicates the time shift from
             the present. If  backtesting in Pandas, use integer representing
             number of bars.
+        include_after_hours : bool
+            ``True`` by default. If ``False``, only return bars that are during
+            regular trading hours. If ``True``, return all bars. Currently only works for Interactive Brokers.
 
         Returns
         -------

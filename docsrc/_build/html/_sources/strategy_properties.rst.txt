@@ -19,7 +19,6 @@ Inside your strategy you can also get a lot of information about the state of th
     minutes_before_closing
     minutes_before_opening
     sleeptime
-    parameters
     last_on_trading_iteration_datetime
     timezone
     pytz

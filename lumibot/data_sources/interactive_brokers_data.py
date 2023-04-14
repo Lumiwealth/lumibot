@@ -27,7 +27,6 @@ class InteractiveBrokersData(DataSource):
             "timestep": "minute",
             "representations": [
                 "1 min",
-                
             ],
         },
         {
@@ -37,7 +36,13 @@ class InteractiveBrokersData(DataSource):
             ],
         },
         {
-            "timestep": "15 minutea",
+            "timestep": "10 minutes",
+            "representations": [
+                "10 mins",
+            ],
+        },
+        {
+            "timestep": "15 minutes",
             "representations": [
                 "15 mins",
             ],
@@ -49,25 +54,23 @@ class InteractiveBrokersData(DataSource):
             ],
         },
         {
-            "timestep": "1 hour", 
+            "timestep": "1 hour",
             "representations": [
                 "1 hour",
             ],
         },
-
         {
-            "timestep": "4 hours", 
-            "representations": [
-                "4 hours",
-            ],
-        },    
-        {
-            "timestep": "2 hours", 
+            "timestep": "2 hours",
             "representations": [
                 "2 hours",
             ],
-        },    
-
+        },
+        {
+            "timestep": "4 hours",
+            "representations": [
+                "4 hours",
+            ],
+        },
         {
             "timestep": "day",
             "representations": [
@@ -105,16 +108,17 @@ class InteractiveBrokersData(DataSource):
             return f"{str(min(length, 86400))} S"
         elif "minute" in freq:
             # IB does not allow minutes to be used as a duration.
-            divisor = 24*60/digit
-            num_mins = length/divisor
-            num_mins = num_mins*5
-            return f"{str(math.ceil(num_mins))} D"
+            divisor = 24 * 60 / digit
+            num_days = length / divisor
+            # Add a buffer to the number of days because of market hours
+            num_days = num_days * 2
+            return f"{str(math.ceil(num_days))} D"
         elif "hour" in freq:
             # IB does not allow hours to be used as a duration.
-            divisor = 24/digit
-            num_days = length/divisor
-            # Add a 50% buffer to the number of days because of market hours 
-            num_days = num_days*3
+            divisor = 24 / digit
+            num_days = length / divisor
+            # Add a buffer to the number of days because of market hours
+            num_days = num_days * 2
             return f"{str(math.ceil(num_days))} D"
         elif "day" in freq:
             return f"{str(length)} D"
@@ -131,7 +135,7 @@ class InteractiveBrokersData(DataSource):
         timeshift=None,
         quote=None,
         exchange=None,
-        include_after_hours=True
+        include_after_hours=True,
     ):
         """pull broker bars for a given asset"""
         response = self._pull_source_bars(
@@ -141,9 +145,9 @@ class InteractiveBrokersData(DataSource):
             timeshift=timeshift,
             quote=quote,
             exchange=exchange,
-            include_after_hours=include_after_hours
+            include_after_hours=include_after_hours,
         )
-        return response[asset]
+        return response.get(asset)
 
     def _pull_source_bars(
         self,
@@ -153,7 +157,7 @@ class InteractiveBrokersData(DataSource):
         timeshift=None,
         quote=None,
         exchange=None,
-        include_after_hours=True
+        include_after_hours=True,
     ):
         """pull broker bars for a list assets"""
 
@@ -189,7 +193,7 @@ class InteractiveBrokersData(DataSource):
                     self._parse_duration(length, timestep),
                     parsed_timestep,
                     type,
-                    0 if include_after_hours else 1, #useRTH
+                    0 if include_after_hours else 1,  # useRTH
                     2,
                     False,
                     [],
@@ -234,9 +238,9 @@ class InteractiveBrokersData(DataSource):
                 elif "day" in parsed_timestep:
                     df["date"] = pd.to_datetime(df["date"], format="%Y%m%d")
                     df["date"] = df["date"].dt.tz_localize(self.DEFAULT_TIMEZONE)
-                
+
                     df = df.iloc[-length:, :]
-                
+
                 response[asset] = df
         return response
 
@@ -246,14 +250,14 @@ class InteractiveBrokersData(DataSource):
             bars = Bars(response, self.SOURCE, asset, raw=response)
             return bars
         df = response.copy()
-        #df["date"] = pd.to_datetime(df["date"], unit='s')
+        # df["date"] = pd.to_datetime(df["date"], unit='s')
         df = df.set_index("date")
         df["price_change"] = df["close"].pct_change()
         df["dividend"] = 0
         df["stock_splits"] = 0
         df["dividend_yield"] = df["dividend"] / df["close"]
         df["return"] = df["dividend_yield"] + df["price_change"]
-        #df = df.tail(length)
+        # df = df.tail(length)
         df = df[
             [
                 "open",

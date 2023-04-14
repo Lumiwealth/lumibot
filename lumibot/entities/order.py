@@ -36,6 +36,7 @@ class Order:
         date_created=None,
         type=None,
         trade_cost: float = None,
+        custom_params={},
     ):
         """Order class for managing individual orders.
 
@@ -125,6 +126,9 @@ class Order:
             The type of order. Possible values are: `market`, `limit`, `stop`, `stop_limit`, `trail`, `trail_limit`, `bracket`, `bracket_limit`, `bracket_stop`, `bracket_stop_limit`.
         trade_cost : float
             The cost of this order in the quote currency.
+        custom_params : dict
+            A dictionary of custom parameters that can be used to pass additional information to the broker. This is useful for passing custom parameters to the broker that are not supported by Lumibot.
+            Eg. `custom_params={"leverage": 3}` for Kraken margin trading.
         Examples
         --------
         >>> from lumibot.entities import Asset
@@ -215,6 +219,7 @@ class Order:
         self.dependent_order_filled = False
         self.type = type
         self.trade_cost = trade_cost
+        self.custom_params = custom_params
 
         # Options:
         self.exchange = exchange

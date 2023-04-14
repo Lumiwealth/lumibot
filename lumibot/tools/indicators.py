@@ -9,7 +9,6 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import quantstats as qs
-
 # import lumibot.data_sources.alpha_vantage as av
 from lumibot import LUMIBOT_DEFAULT_PYTZ
 from lumibot.entities.asset import Asset
@@ -410,6 +409,11 @@ def create_tearsheet(
     df_final = df.loc[:, ["strategy", "benchmark"]]
     df_final.index = pd.to_datetime(df_final.index)
     df_final.index = df_final.index.tz_localize(None)
+    
+    # Check if df_final is empty and return if it is
+    if df_final.empty or df_final["benchmark"].isnull().all() or df_final["strategy"].isnull().all():
+        logging.warning("No data to create tearsheet, skipping")
+        return
 
     # Uncomment for debugging
     # _df1.to_csv(f"df1.csv")

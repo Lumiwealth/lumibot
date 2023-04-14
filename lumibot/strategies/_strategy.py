@@ -11,15 +11,9 @@ from attr import has
 from lumibot import LUMIBOT_DEFAULT_PYTZ
 from lumibot.backtesting import BacktestingBroker
 from lumibot.entities import Asset, Position, TradingFee
-from lumibot.tools import (
-    create_tearsheet,
-    day_deduplicate,
-    get_risk_free_rate,
-    get_symbol_returns,
-    plot_returns,
-    stats_summary,
-    to_datetime_aware,
-)
+from lumibot.tools import (create_tearsheet, day_deduplicate,
+                           get_risk_free_rate, get_symbol_returns,
+                           plot_returns, stats_summary, to_datetime_aware)
 from lumibot.traders import Trader
 
 from .strategy_executor import StrategyExecutor
@@ -150,7 +144,7 @@ class _Strategy:
             self.update_broker_balances()
 
             # Set initial positions if live trading.
-            self.broker._set_initial_positions(self._name)
+            self.broker._set_initial_positions(self)
         else:
             if budget is None:
                 if self.cash is None:
@@ -724,8 +718,9 @@ class _Strategy:
             The file to write the plot html to.
         trades_file : str
             The file to write the trades to.
-        pandas_data : pandas.DataFrame
-            The pandas data to use.
+        pandas_data : list
+            A list of Data objects that are used when the datasource_class object is set to PandasDataBacktesting.
+            This contains all the data that will be used in backtesting.
         quote_asset : Asset (crypto)
             An Asset object for the crypto currency that will get used
             as a valuation asset for measuring overall porfolio values.

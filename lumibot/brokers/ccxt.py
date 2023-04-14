@@ -2,7 +2,6 @@ import asyncio
 import datetime
 import logging
 import traceback
-
 # from asyncio import CancelledError
 from datetime import timezone
 from decimal import Decimal, getcontext
@@ -111,22 +110,23 @@ class Ccxt(CcxtData, Broker):
         balances = self._fetch_balance()
 
         currency_key = "currency"
-        if self.api.exchangeId == "coinbasepro":
+        if self.api.exchangeId in ["coinbasepro", "kucoin", "kraken", "coinbase"]:
             balances_info = []
-            for bal in balances["info"]:
-                if Decimal(bal["balance"]) != Decimal("0"):
-                    balances_info.append(bal)
+            reserved_keys = ["total", "free", "used", "info", "timestamp", "datetime"]
+            for key in balances:
+                if key in reserved_keys:
+                    continue
+                bal = balances[key]["total"]
+                if Decimal(bal) != Decimal("0"):
+                    balances_info.append({"currency": key, "balance": bal})
+
+        # TODO: Test binance and switch it to the way we do it for coinbasepro and others if possible
         elif self.api.exchangeId == "binance":
             balances_info = []
             for bal in balances["info"]["balances"]:
                 if (Decimal(bal["free"]) + Decimal(bal["locked"])) != Decimal("0"):
                     balances_info.append(bal)
             currency_key = "asset"
-        elif self.api.exchangeId == "kucoin":
-            balances_info = []
-            for bal in balances["info"]["data"]:
-                if Decimal(bal["balance"]) != Decimal("0"):
-                    balances_info.append(bal)
         else:
             raise NotImplementedError(f"{self.api.exchangeId} not implemented yet.")
 
@@ -139,9 +139,10 @@ class Ccxt(CcxtData, Broker):
                 continue
 
             # Check for three USD markets.
-            market = f"{currency}/{quote_asset.symbol}"
-            if market not in self.api.markets:
-                market = None
+            market_string = f"{currency}/{quote_asset.symbol}"
+            market = None
+            if market_string in self.api.markets:
+                market = market_string
 
             if market is None:
                 no_valuation.append(currency)
@@ -199,19 +200,16 @@ class Ccxt(CcxtData, Broker):
 
         if self.api.exchangeId == "binance":
             symbol = position["asset"]
-            precision = str(10 ** -self.api.currencies["BTC"]["precision"])
+            precision = str(10 ** -self.api.currencies[symbol]["precision"])
             quantity = Decimal(position["free"]) + Decimal(position["locked"])
             hold = position["locked"]
             available = position["free"]
         else:
             symbol = position["currency"]
-            precision = str(self.api.currencies["BTC"]["precision"])
-            quantity = Decimal(position["balance"])
-            if self.api.exchangeId == "kucoin":
-                hold = position["holds"]
-            else:
-                hold = position["hold"]
-            available = position["available"]
+            precision = str(self.api.currencies[symbol]["precision"])
+            quantity = Decimal(position["total"])
+            hold = position["used"]
+            available = position["free"]
 
         asset = Asset(
             symbol=symbol,
@@ -219,10 +217,10 @@ class Ccxt(CcxtData, Broker):
             precision=precision,
         )
 
-        position = Position(
+        position_return = Position(
             strategy, asset, quantity, hold=hold, available=available, orders=orders
         )
-        return position
+        return position_return
 
     def _pull_broker_position(self, asset):
         """Given a asset, get the broker representation
@@ -230,16 +228,32 @@ class Ccxt(CcxtData, Broker):
         response = self._pull_broker_positions()["info"][asset.symbol]
         return response
 
-    def _pull_broker_positions(self):
+    def _pull_broker_positions(self, strategy=None):
         """Get the broker representation of all positions"""
         response = self._fetch_balance()
 
         if self.api.exchangeId == "binance":
             return response["info"]["balances"]
-        elif self.api.exchangeId == "coinbasepro":
-            return response["info"]
-        elif self.api.exchangeId == "kucoin":
-            return response["info"]["data"]
+        elif self.api.exchangeId in ["kraken", "kucoin", "coinbasepro", "coinbase"]:
+            balances_info = []
+            reserved_keys = [
+                "total",
+                "free",
+                "used",
+                "info",
+                "timestamp",
+                "datetime",
+                strategy.quote_asset.symbol,
+            ]
+            for key in response:
+                if key in reserved_keys:
+                    continue
+                bals = response[key]
+                if Decimal(bals["total"]) != Decimal("0"):
+                    bals["currency"] = key
+                    balances_info.append(bals)
+
+            return balances_info
         else:
             raise NotImplementedError(
                 f"{self.api.exchangeId} not implemented yet. \
@@ -340,6 +354,7 @@ class Ccxt(CcxtData, Broker):
         # Orders limited.
         order_class = ""
         order_types = ["market", "limit", "stop_limit"]
+        # TODO: Is this actually true?? Try testing this with a bunch of different exchanges.
         markets_error_message = (
             f"Only `market`, `limit`, or `stop_limit` orders work "
             f"with crypto currency markets."
@@ -386,7 +401,7 @@ class Ccxt(CcxtData, Broker):
             )
             try:
                 if limits["amount"]["min"] is not None:
-                    assert order.quantity >= limits["amount"]["min"]
+                    assert Decimal(order.quantity) >= Decimal(limits["amount"]["min"])
             except AssertionError:
                 logging.warning(
                     f"\nThe order {order} was rejected as the order quantity \n"
@@ -449,33 +464,30 @@ class Ccxt(CcxtData, Broker):
 
             try:
                 if limits["cost"]["min"] is not None:
-                    assert (
-                        getattr(order, price_type) * order.quantity
-                        >= limits["cost"]["min"]
-                    )
+                    price = Decimal(getattr(order, price_type))
+                    qty = Decimal(order.quantity)
+                    limit_min = Decimal(limits["cost"]["min"])
+                    assert (price * qty) >= limit_min
             except AssertionError:
                 logging.warning(
                     f"\nThe order {order} was rejected as the order total cost \n"
                     f"was less then the minimum allowed for {order.pair}. The minimum cost "
-                    f"is {limits['cost']['min'] * order.quantity} \n"
-                    f"The cost for this order was "
-                    f"{(getattr(order, price_type) * order.quantity):4.9f} \n"
+                    f"is {limits['cost']['min']} \n"
+                    f"The cost for this order was only {(getattr(order, price_type) * order.quantity):4.9f} \n"
                 )
                 return
 
             try:
                 if limits["cost"]["max"] is not None:
-                    assert (
-                        getattr(order, price_type) * order.quantity
-                        <= limits["cost"]["max"]
+                    assert getattr(order, price_type) * order.quantity <= Decimal(
+                        limits["cost"]["max"]
                     )
             except AssertionError:
                 logging.warning(
                     f"\nThe order {order} was rejected as the order total cost \n"
                     f"was greater then the maximum allowed for {order.pair}. The maximum cost "
-                    f"is {limits['cost']['max'] * order.quantity} \n"
-                    f"The cost for this order was "
-                    f"{(getattr(order, price_type) * order.quantity):4.9f} \n"
+                    f"is {limits['cost']['max']} \n"
+                    f"The cost for this order was {(getattr(order, price_type) * order.quantity):4.9f} \n"
                 )
                 return
         args = self.create_order_args(order)
@@ -484,7 +496,14 @@ class Ccxt(CcxtData, Broker):
         if self.is_margin_enabled():
             params["tradeType"] = "MARGIN_TRADE"
 
+        # if self.api.exchangeId == "coinbase" and order.type == "market":
+        #     params["createMarketBuyOrderRequiresPrice"] = False
+
         try:
+            # Add order.custom_params to params
+            if hasattr(order, "custom_params") and order.custom_params is not None:
+                params.update(order.custom_params)
+
             response = self.api.create_order(*args, params=params)
             order.set_identifier(response["id"])
             order.update_status(response["status"])
@@ -637,39 +656,7 @@ class Ccxt(CcxtData, Broker):
 
             return args
 
-        elif broker == "coinbasepro":
-            params = {}
-            if order.type in ["stop_limit"]:
-                params = {
-                    "stop": "entry" if order.side == "buy" else "loss",
-                    "stop_price": str(order.stop_price),
-                }
-
-                # Remove items with None values
-                params = {k: v for k, v in params.items() if v}
-
-            order_type_map = dict(
-                market="market",
-                stop="market",
-                limit="limit",
-                stop_limit="limit",
-            )
-
-            args = [
-                order.pair,
-                order_type_map[order.type],
-                order.side,
-                str(order.quantity),  # check this with coinbase.
-            ]
-            if order_type_map[order.type] == "limit":
-                args.append(str(order.limit_price))
-
-            if len(params) > 0:
-                args.append(params)
-
-            return args
-
-        elif broker == "kucoin":
+        elif broker in ["kraken", "kucoin", "coinbasepro", "coinbase"]:
             params = {}
             if order.type in ["stop_limit"]:
                 params = {

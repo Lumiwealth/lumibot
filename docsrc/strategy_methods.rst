@@ -13,6 +13,7 @@ Check out the list of available strategy methods below:
    
    strategy_methods.orders
    strategy_methods.data
+   strategy_methods.parameters
    strategy_methods.options
    strategy_methods.datetime
    strategy_methods.misc

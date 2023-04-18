@@ -399,7 +399,7 @@ class BacktestingBroker(Broker):
             return
 
         for order in pending_orders:
-            if order.dependent_order_filled:
+            if order.dependent_order_filled or order.status == self.CANCELED_ORDER:
                 continue
 
             # Check validity if current date > valid date, cancel order. todo valid date
@@ -480,7 +480,10 @@ class BacktestingBroker(Broker):
 
             if price != 0:
                 if order.dependent_order:
-                    self.cancel_order(order.dependent_order)
+                    order.dependent_order.dependent_order_filled = True
+                    strategy.broker.cancel_order(order.dependent_order)
+
+                    # self.cancel_order(order.dependent_order)
 
                 if order.order_class in ["bracket", "oto"]:
                     orders = self._flatten_order(order)

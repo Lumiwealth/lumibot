@@ -1,6 +1,7 @@
 import logging
 from collections import namedtuple
 from decimal import Decimal
+from secrets import token_hex
 from threading import Event
 
 import lumibot.entities as entities
@@ -198,7 +199,7 @@ class Order:
             self.quote = quote
 
         self.symbol = self.asset.symbol
-        self.identifier = None
+        self.identifier = token_hex(16)
         self.status = "unprocessed"
         self._date_created = date_created
         self.side = None

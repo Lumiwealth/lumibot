@@ -9,6 +9,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import quantstats as qs
+
 # import lumibot.data_sources.alpha_vantage as av
 from lumibot import LUMIBOT_DEFAULT_PYTZ
 from lumibot.entities.asset import Asset
@@ -279,18 +280,27 @@ def plot_returns(
     buys = df_final.copy()
     buys[strategy_name] = buys[strategy_name].fillna(method="bfill")
     buys = buys.loc[df_final["side"] == "buy"]
-    buys["plotly_text_buys"] = (
-        buys["filled_quantity"].astype(str)
-        + " "
-        + buys["symbol"]
-        + "<br>"
-        + "Price: "
-        + buys["price"].astype(str)
-        + "<br>"
-        + "Trade Cost: "
-        + buys["trade_cost"].astype(str)
-        + "<br>"
-    )
+
+    def generate_plotly_text(row):
+        if row["status"] != "canceled":
+            return (
+                row["status"]
+                + "<br>"
+                + str(row["filled_quantity"])
+                + " "
+                + row["symbol"]
+                + "<br>"
+                + "Price: "
+                + str(row["price"])
+                + "<br>"
+                + "Trade Cost: "
+                + str(row["trade_cost"])
+                + "<br>"
+            )
+        else:
+            return row["status"] + "<br>" + row["symbol"] + "<br>"
+
+    buys["plotly_text_buys"] = buys.apply(generate_plotly_text, axis=1)
     buys.index.name = "datetime"
     buys = (
         buys.groupby(["datetime", strategy_name])["plotly_text_buys"]
@@ -317,18 +327,27 @@ def plot_returns(
     sells = df_final.copy()
     sells[strategy_name] = sells[strategy_name].fillna(method="bfill")
     sells = sells.loc[df_final["side"] == "sell"]
-    sells["plotly_text_sells"] = (
-        sells["filled_quantity"].astype(str)
-        + " "
-        + sells["symbol"]
-        + "<br>"
-        + "Price: "
-        + sells["price"].astype(str)
-        + "<br>"
-        + "Trade Cost: "
-        + sells["trade_cost"].astype(str)
-        + "<br>"
-    )
+
+    def generate_plotly_text(row):
+        if row["status"] != "canceled":
+            return (
+                row["status"]
+                + "<br>"
+                + str(row["filled_quantity"])
+                + " "
+                + row["symbol"]
+                + "<br>"
+                + "Price: "
+                + str(row["price"])
+                + "<br>"
+                + "Trade Cost: "
+                + str(row["trade_cost"])
+                + "<br>"
+            )
+        else:
+            return row["status"] + "<br>" + row["symbol"] + "<br>"
+
+    sells["plotly_text_sells"] = sells.apply(generate_plotly_text, axis=1)
     sells.index.name = "datetime"
     sells = (
         sells.groupby(["datetime", strategy_name], group_keys=True)["plotly_text_sells"]
@@ -409,9 +428,13 @@ def create_tearsheet(
     df_final = df.loc[:, ["strategy", "benchmark"]]
     df_final.index = pd.to_datetime(df_final.index)
     df_final.index = df_final.index.tz_localize(None)
-    
+
     # Check if df_final is empty and return if it is
-    if df_final.empty or df_final["benchmark"].isnull().all() or df_final["strategy"].isnull().all():
+    if (
+        df_final.empty
+        or df_final["benchmark"].isnull().all()
+        or df_final["strategy"].isnull().all()
+    ):
         logging.warning("No data to create tearsheet, skipping")
         return
 

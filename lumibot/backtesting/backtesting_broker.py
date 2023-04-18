@@ -5,7 +5,6 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from email.utils import quote
 from functools import wraps
-from secrets import token_hex
 
 from lumibot.brokers import Broker
 from lumibot.entities import Order, Position, TradingFee
@@ -298,7 +297,7 @@ class BacktestingBroker(Broker):
 
     def submit_order(self, order):
         """Submit an order for an asset"""
-        order.set_identifier(token_hex(16))
+
         order.update_raw(order)
         return order
 

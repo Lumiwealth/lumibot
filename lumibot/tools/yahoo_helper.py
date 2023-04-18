@@ -68,8 +68,14 @@ class YahooHelper:
                 YahooHelper.LUMIBOT_YAHOO_CACHE_FOLDER, file_name
             )
             if os.path.exists(pickle_file_path):
-                with open(pickle_file_path, "rb") as f:
-                    return pickle.load(f)
+                try:
+                    with open(pickle_file_path, "rb") as f:
+                        return pickle.load(f)
+                except Exception as e:
+                    logging.error(
+                        "Error while loading pickle file %s: %s" % (pickle_file_path, e)
+                    )
+                    return None
 
         return None
 
@@ -127,11 +133,13 @@ class YahooHelper:
     @staticmethod
     def download_symbol_info(symbol):
         ticker = yf.Ticker(symbol)
-        
+
         try:
             info = ticker.info
         except Exception as e:
-            logging.error(f"Error while downloading symbol info for {symbol}, setting info to None for now.")
+            logging.error(
+                f"Error while downloading symbol info for {symbol}, setting info to None for now."
+            )
             logging.error(e)
             return {
                 "ticker": symbol,
@@ -151,6 +159,12 @@ class YahooHelper:
     def get_symbol_info(symbol):
         ticker = yf.Ticker(symbol)
         return ticker.info
+
+    @staticmethod
+    def get_symbol_last_price(symbol):
+        ticker = yf.Ticker(symbol)
+        fast_info = ticker.fast_info
+        return fast_info["last_price"]
 
     @staticmethod
     def download_symbol_day_data(symbol):
@@ -360,8 +374,8 @@ class YahooHelper:
     @staticmethod
     def get_risk_free_rate(with_logging=True, caching=True):
         # 13 Week Treasury Rate (^IRX)
-        irx_data = YahooHelper.fetch_symbol_info("^IRX", caching=caching)
-        risk_free_rate = irx_data["info"]["regularMarketPrice"] / 100
+        irx_price = YahooHelper.get_symbol_last_price("^IRX")
+        risk_free_rate = irx_price / 100
         if with_logging:
             logging.info(f"Risk Free Rate {risk_free_rate * 100:0.2f}%")
 

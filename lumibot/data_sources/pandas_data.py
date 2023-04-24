@@ -231,7 +231,14 @@ class PandasData(DataSource):
         # result = data.tail(length)
 
         now = self.get_datetime()
-        res = data.get_bars(now, length=length, timestep=timestep, timeshift=timeshift)
+        try:
+            res = data.get_bars(now, length=length, timestep=timestep, timeshift=timeshift)
+        # Return None if data.get_bars returns a ValueError
+        except ValueError as e:
+            logging.warning(
+                f"{e}"
+            )
+            res = None
         return res
 
     def _pull_source_bars(
@@ -251,6 +258,10 @@ class PandasData(DataSource):
             result[asset] = self._pull_source_symbol_bars(
                 asset, length, timestep=timestep, timeshift=timeshift, quote=quote
             )
+            # remove assets that have no data from the result
+            if result[asset] is None:
+                result.pop(asset)
+            
         return result
 
     def _parse_source_symbol_bars(self, response, asset, quote=None, length=None):

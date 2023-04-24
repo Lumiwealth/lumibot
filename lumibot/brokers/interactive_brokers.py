@@ -912,6 +912,7 @@ class IBWrapper(EWrapper):
     def securityDefinitionOptionParameterEnd(self, reqId):
         super().securityDefinitionOptionParameterEnd(reqId)
         self.my_option_params_queue.put(self.option_params_dict)
+        
 
 
 class IBClient(EClient):

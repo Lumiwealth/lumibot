@@ -2,6 +2,7 @@ import asyncio
 import datetime
 import logging
 import traceback
+
 # from asyncio import CancelledError
 from datetime import timezone
 from decimal import Decimal, getcontext
@@ -385,7 +386,7 @@ class Ccxt(CcxtData, Broker):
 
         limits = market["limits"]
         precision = market["precision"]
-        if self.api.exchangeId == "binance" or "kucoin":
+        if self.api.exchangeId == "binance" or self.api.exchangeId == "kucoin":
             precision_amount = str(10 ** -precision["amount"])
         else:
             precision_amount = str(precision["amount"])

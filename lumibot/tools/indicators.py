@@ -300,28 +300,33 @@ def plot_returns(
         else:
             return row["status"] + "<br>" + row["symbol"] + "<br>"
 
-    buys["plotly_text_buys"] = buys.apply(generate_plotly_text, axis=1)
-    buys.index.name = "datetime"
-    buys = (
-        buys.groupby(["datetime", strategy_name])["plotly_text_buys"]
-        .apply(lambda x: "<br>".join(x))
-        .reset_index()
-    )
-    buys = buys.set_index("datetime")
-    buys["buy_shift"] = buys[strategy_name] * (1 - vshift)
-    fig.add_trace(
-        go.Scatter(
-            x=buys.index,
-            y=buys["buy_shift"],
-            mode="markers",
-            name="buy",
-            marker_symbol="triangle-up",
-            marker_color="green",
-            marker_size=15,
-            hovertemplate="Bought<br>%{text}<br>%{x|%b %d %Y %I:%M:%S %p}<extra></extra>",
-            text=buys["plotly_text_buys"],
+    buy_ticks_df = buys.apply(generate_plotly_text, axis=1)
+
+    # Check if there are any sell ticks
+    if not buy_ticks_df.empty:
+        buys["plotly_text_buys"] = buy_ticks_df
+
+        buys.index.name = "datetime"
+        buys = (
+            buys.groupby(["datetime", strategy_name])["plotly_text_buys"]
+            .apply(lambda x: "<br>".join(x))
+            .reset_index()
         )
-    )
+        buys = buys.set_index("datetime")
+        buys["buy_shift"] = buys[strategy_name] * (1 - vshift)
+        fig.add_trace(
+            go.Scatter(
+                x=buys.index,
+                y=buys["buy_shift"],
+                mode="markers",
+                name="buy",
+                marker_symbol="triangle-up",
+                marker_color="green",
+                marker_size=15,
+                hovertemplate="Bought<br>%{text}<br>%{x|%b %d %Y %I:%M:%S %p}<extra></extra>",
+                text=buys["plotly_text_buys"],
+            )
+        )
 
     # Sell ticks
     sells = df_final.copy()
@@ -347,28 +352,34 @@ def plot_returns(
         else:
             return row["status"] + "<br>" + row["symbol"] + "<br>"
 
-    sells["plotly_text_sells"] = sells.apply(generate_plotly_text, axis=1)
-    sells.index.name = "datetime"
-    sells = (
-        sells.groupby(["datetime", strategy_name], group_keys=True)["plotly_text_sells"]
-        .apply(lambda x: "<br>".join(x))
-        .reset_index()
-    )
-    sells = sells.set_index("datetime")
-    sells["sell_shift"] = sells[strategy_name] * (1 + vshift)
-    fig.add_trace(
-        go.Scatter(
-            x=sells.index,
-            y=sells["sell_shift"],
-            mode="markers",
-            name="sell",
-            marker_color="red",
-            marker_size=15,
-            marker_symbol="triangle-down",
-            hovertemplate="Sold<br>%{text}<br>%{x|%b %d %Y %I:%M:%S %p}<extra></extra>",
-            text=sells["plotly_text_sells"],
+    sells_ticks_df = sells.apply(generate_plotly_text, axis=1)
+
+    # Check if there are any sell ticks
+    if not sells_ticks_df.empty:
+        sells["plotly_text_sells"] = sells_ticks_df
+        sells.index.name = "datetime"
+        sells = (
+            sells.groupby(["datetime", strategy_name], group_keys=True)[
+                "plotly_text_sells"
+            ]
+            .apply(lambda x: "<br>".join(x))
+            .reset_index()
         )
-    )
+        sells = sells.set_index("datetime")
+        sells["sell_shift"] = sells[strategy_name] * (1 + vshift)
+        fig.add_trace(
+            go.Scatter(
+                x=sells.index,
+                y=sells["sell_shift"],
+                mode="markers",
+                name="sell",
+                marker_color="red",
+                marker_size=15,
+                marker_symbol="triangle-down",
+                hovertemplate="Sold<br>%{text}<br>%{x|%b %d %Y %I:%M:%S %p}<extra></extra>",
+                text=sells["plotly_text_sells"],
+            )
+        )
 
     # Set title and layout
     bm_text = f"Compared With {benchmark_name}" if benchmark_name else ""

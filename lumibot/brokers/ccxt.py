@@ -1,14 +1,12 @@
-import asyncio
 import datetime
 import logging
-import traceback
 
 # from asyncio import CancelledError
-from datetime import timezone
-from decimal import Decimal, getcontext
+from decimal import ROUND_DOWN, Decimal
 
 from lumibot.data_sources import CcxtData
 from lumibot.entities import Asset, Order, Position
+from termcolor import colored
 
 from .broker import Broker
 
@@ -386,42 +384,60 @@ class Ccxt(CcxtData, Broker):
 
         limits = market["limits"]
         precision = market["precision"]
-        if self.api.exchangeId == "binance" or self.api.exchangeId == "kucoin":
+        if self.api.exchangeId in ["binance", "kucoin"]:
             precision_amount = str(10 ** -precision["amount"])
+        elif self.api.exchangeId == "kraken":
+            initial_precision_amount = Decimal(str(precision["amount"]))
+
+            # Remove a few decimal places because Kraken precision amount is wrong and it's causing orders to fail.
+            precision_exp_modifier = 2
+            initial_precision_exp = abs(initial_precision_amount.as_tuple().exponent)
+            new_precision_exp = initial_precision_exp - precision_exp_modifier
+            factor = 10 ** new_precision_exp
+            precision_amount = Decimal(1) / Decimal(factor)
         else:
             precision_amount = str(precision["amount"])
 
         # Convert the amount to Decimal.
         if hasattr(order, "quantity") and getattr(order, "quantity") is not None:
             qty = Decimal(getattr(order, "quantity"))
-            new_qty = qty.quantize(Decimal(precision_amount))
+            new_qty = qty.quantize(precision_amount, rounding=ROUND_DOWN)
+
+            if new_qty <= Decimal(0):
+                logging.warning(
+                    f"The order {order} was rejected as the order quantity is 0 or less after rounding down to the exchange minimum precision amount of {precision_amount}."
+                )
+                return
+
             setattr(
                 order,
                 "quantity",
                 new_qty,
             )
-            try:
-                if limits["amount"]["min"] is not None:
-                    assert Decimal(order.quantity) >= Decimal(limits["amount"]["min"])
-            except AssertionError:
-                logging.warning(
-                    f"\nThe order {order} was rejected as the order quantity \n"
-                    f"was less then the minimum allowed for {order.pair}. The minimum order quantity is {limits['amount']['min']} \n"
-                    f"The quantity for this order was {order.quantity} \n"
-                )
-                return
 
-            try:
-                if limits["amount"]["max"] is not None:
-                    assert order.quantity <= limits["amount"]["max"]
-            except AssertionError:
-                logging.warning(
-                    f"\nThe order {order} was rejected as the order quantity \n"
-                    f"was greater then the maximum allowed for {order.pair}. The maximum order "
-                    f"quantity is {limits['amount']['max']} \n"
-                    f"The quantity for this order was {order.quantity} \n"
-                )
-                return
+            # TODO: Remove this if really not needed by several brokers (keeping for now because it's a big change and need to monitor first).
+            # try:
+            #     if limits["amount"]["min"] is not None:
+            #         assert Decimal(order.quantity) >= Decimal(limits["amount"]["min"])
+            # except AssertionError:
+            #     logging.warning(
+            #         f"\nThe order {order} was rejected as the order quantity \n"
+            #         f"was less then the minimum allowed for {order.pair}. The minimum order quantity is {limits['amount']['min']} \n"
+            #         f"The quantity for this order was {order.quantity} \n"
+            #     )
+            #     return
+
+            # try:
+            #     if limits["amount"]["max"] is not None:
+            #         assert order.quantity <= limits["amount"]["max"]
+            # except AssertionError:
+            #     logging.warning(
+            #         f"\nThe order {order} was rejected as the order quantity \n"
+            #         f"was greater then the maximum allowed for {order.pair}. The maximum order "
+            #         f"quantity is {limits['amount']['max']} \n"
+            #         f"The quantity for this order was {order.quantity} \n"
+            #     )
+            #     return
 
         # Convert the price to Decimal.
         for price_type in [
@@ -513,10 +529,10 @@ class Ccxt(CcxtData, Broker):
         except Exception as e:
             order.set_error(e)
             message = str(e)
-            logging.info(
-                "%r did not go through. The following error occurred: %s"
-                % (order, message)
+            full_message = (
+                f"{order} did not go through. The following error occurred: {message}"
             )
+            logging.info(colored(full_message, "red"))
 
         return order
 

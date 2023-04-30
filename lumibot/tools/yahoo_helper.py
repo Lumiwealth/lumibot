@@ -163,8 +163,8 @@ class YahooHelper:
     @staticmethod
     def get_symbol_last_price(symbol):
         ticker = yf.Ticker(symbol)
-        fast_info = ticker.fast_info
-        return fast_info["last_price"]
+        info = ticker.info
+        return info["last_price"]
 
     @staticmethod
     def download_symbol_day_data(symbol):

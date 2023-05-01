@@ -211,7 +211,7 @@ class Broker:
             )
             self._filled_positions.append(position)
         else:
-            position.quantity += quote_quantity
+            position._quantity += quote_quantity
 
     # =========Clock functions=====================
 

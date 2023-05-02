@@ -62,7 +62,13 @@ class Position:
 
     @property
     def quantity(self):
-        return float(self._quantity)
+        result = float(self._quantity)
+
+        # If result is less than 0.000001, return 0.0 to avoid rounding errors.
+        if abs(result) < 0.000001:
+            return 0.0
+
+        return result
 
     @quantity.setter
     def quantity(self, value):

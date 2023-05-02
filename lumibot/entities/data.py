@@ -488,7 +488,7 @@ class Data:
 
             df = pd.DataFrame(dict).set_index("datetime")
 
-            df_dict = df.resample("D").agg(
+            df_result = df.resample("D").agg(
                 {
                     "open": "first",
                     "high": "max",
@@ -497,10 +497,8 @@ class Data:
                     "volume": "sum",
                 }
             )
-
-            dict = df_dict.to_dict(orient="list")
-
-            return df
+            
+            return df_result
         else:
             dict = self._get_bars_dict(
                 dt, length=length, timestep=timestep, timeshift=timeshift

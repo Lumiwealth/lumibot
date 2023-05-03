@@ -1761,16 +1761,6 @@ class Strategy(_Strategy):
         """Takes an asset asset and returns the last known price"""
         asset = self._set_asset_mapping(asset)
         return self.broker._get_tick(asset)
-    
-    def get_bid_price(self, asset):
-        """Takes an asset asset and returns the last known price"""
-        asset = self._set_asset_mapping(asset)
-        return self.broker._get_bid_price(asset)
-    
-    def get_ask_price(self, asset):
-        """Takes an asset asset and returns the last known price"""
-        asset = self._set_asset_mapping(asset)
-        return self.broker._get_ask_price(asset)
 
     def get_last_prices(self, assets, quote=None, exchange=None):
         """Takes a list of assets and returns the last known prices

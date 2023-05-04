@@ -206,7 +206,7 @@ class AlpacaData(DataSource):
         return df_ret[df_ret.close > 0]
 
     def _pull_source_bars(
-        self, assets, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None,  include_after_hours=True
+        self, assets, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None,  include_after_hours=True, bid_ask=False
     ):
         """pull broker bars for a list assets"""
         if timeshift is None and timestep == "day":
@@ -238,7 +238,8 @@ class AlpacaData(DataSource):
         timeshift=None,
         quote=None,
         exchange=None,
-        include_after_hours=True
+        include_after_hours=True,
+        bid_ask=False
     ):
         if exchange is not None:
             logging.warning(
@@ -251,7 +252,7 @@ class AlpacaData(DataSource):
         )
         return response[asset]
 
-    def _parse_source_symbol_bars(self, response, asset, quote=None, length=None):
+    def _parse_source_symbol_bars(self, response, asset, quote=None, length=None, bid_ask=False):
         # TODO: Alpaca return should also include dividend yield
         response["return"] = response["close"].pct_change()
         bars = Bars(response, self.SOURCE, asset, raw=response, quote=quote)

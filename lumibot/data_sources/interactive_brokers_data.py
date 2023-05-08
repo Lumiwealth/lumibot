@@ -336,6 +336,10 @@ class InteractiveBrokersData(DataSource):
     def _get_tick(self, asset):
         result = self.ib.get_tick(asset, greek=False)
         return result
+    
+    def _get_tick_size(self, asset):
+        result = self.ib.get_tick_size(asset)
+        return result
 
     def get_yesterday_dividend(self, asset, quote=None):
         """ Unavailable """

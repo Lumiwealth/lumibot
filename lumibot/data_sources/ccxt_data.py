@@ -62,8 +62,7 @@ class CcxtData(DataSource):
         timeshift=None,
         quote=None,
         exchange=None,
-        include_after_hours=True,
-        bid_ask=False
+        include_after_hours=True
     ):
         if exchange is not None:
             logging.warning(
@@ -77,7 +76,7 @@ class CcxtData(DataSource):
         return response[asset]
 
     def _pull_source_bars(
-        self, assets, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None,  include_after_hours=True, bid_ask=False
+        self, assets, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None,  include_after_hours=True
     ):
         """pull broker bars for a list assets"""
         parsed_timestep = self._parse_source_timestep(timestep, reverse=True)
@@ -190,7 +189,7 @@ class CcxtData(DataSource):
 
         return df_ret
 
-    def _parse_source_symbol_bars(self, response, asset, quote=None, length=None, bid_ask=False):
+    def _parse_source_symbol_bars(self, response, asset, quote=None, length=None):
         # Parse the dataframe returned from CCXT.
         response["return"] = response["close"].pct_change()
         bars = Bars(response, self.SOURCE, asset, quote=quote, raw=response)

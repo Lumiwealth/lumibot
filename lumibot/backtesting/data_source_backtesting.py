@@ -18,6 +18,9 @@ class DataSourceBacktesting(DataSource):
         self._iter_count = None
         self.backtesting_started = backtesting_started
 
+        # Subtract one minute from the datetime_end so that the strategy stops right before the datetime_end
+        self.datetime_end -= timedelta(minutes=1)
+
     def get_datetime(self):
         return self._datetime
 
@@ -46,7 +49,14 @@ class DataSourceBacktesting(DataSource):
         )
 
     def _pull_source_symbol_bars(
-        self, asset, length, timestep=None, timeshift=None, quote=None, exchange=None, include_after_hours=True
+        self,
+        asset,
+        length,
+        timestep=None,
+        timeshift=None,
+        quote=None,
+        exchange=None,
+        include_after_hours=True,
     ):
         if exchange is not None:
             logging.warning(

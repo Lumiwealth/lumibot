@@ -343,13 +343,17 @@ class Data:
                 )
 
             dt = args[0]
+
             # Check if the iter date is outside of this data's date range.
-            if dt < self.datetime_start or dt > self.datetime_end:
+            if dt < self.datetime_start:
                 raise ValueError(
                     f"The date you are looking for ({dt}) for ({self.asset}) is outside of the data's date range ({self.datetime_start} to {self.datetime_end})."
                 )
 
             # Search for dt in self.iter_index_dict
+            if getattr(self, "iter_index_dict", None) is None:
+                self.repair_times_and_fill(self.df.index)
+
             if dt in self.iter_index_dict:
                 i = self.iter_index_dict[dt]
             else:
@@ -362,7 +366,6 @@ class Data:
                 raise ValueError(
                     f"The date you are looking for ({dt}) is outside of the data's date range ({self.datetime_start} to {self.datetime_end}) after accounting for a length of {kwargs.get('length', 1)} and a timeshift of {kwargs.get('timeshift', 0)}. Keep in mind that the length you are requesting must also be available in your data, in this case we are {data_index} rows away from the data you need."
                 )
-                return None
 
             res = func(self, *args, **kwargs)
             # print(f"Results last price: {res}")
@@ -411,7 +414,8 @@ class Data:
         -------
         float
         """
-        return self.datalines["open"].dataline[self.get_iter_count(dt)]
+        iter_count = self.get_iter_count(dt)
+        return self.datalines["open"].dataline[iter_count]
 
     @check_data
     def _get_bars_dict(self, dt, length=1, timestep=None, timeshift=0):
@@ -497,7 +501,7 @@ class Data:
                     "volume": "sum",
                 }
             )
-            
+
             return df_result
         else:
             dict = self._get_bars_dict(

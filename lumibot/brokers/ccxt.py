@@ -1,6 +1,5 @@
 import datetime
 import logging
-
 # from asyncio import CancelledError
 from decimal import ROUND_DOWN, Decimal
 
@@ -261,7 +260,7 @@ class Ccxt(CcxtData, Broker):
             )
 
     # =======Orders and assets functions=========
-    def _parse_broker_order(self, response, strategy_name, strategy_object):
+    def _parse_broker_order(self, response, strategy_name, strategy_object=None):
         """parse a broker order representation
         to an order object"""
         pair = response["symbol"].split("/")

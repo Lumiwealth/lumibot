@@ -4,9 +4,8 @@ from datetime import datetime
 
 import pandas as pd
 import pandas_market_calendars as mcal
-from termcolor import colored
-
 from lumibot import LUMIBOT_DEFAULT_PYTZ
+from termcolor import colored
 
 
 def get_chunks(l, chunk_size):
@@ -35,11 +34,11 @@ def deduplicate_sequence(seq, key=""):
     return seq
 
 
-def get_trading_days():
+def get_trading_days(market="NYSE", start_date="1950-01-01", end_date=None):
     format_datetime = lambda dt: dt.to_pydatetime().astimezone(LUMIBOT_DEFAULT_PYTZ)
     today = get_lumibot_datetime().date()
-    nyse = mcal.get_calendar("NYSE")
-    days = nyse.schedule(start_date="1950-01-01", end_date=today)
+    nyse = mcal.get_calendar(market)
+    days = nyse.schedule(start_date=start_date, end_date=end_date or today)
     days.market_open = days.market_open.apply(format_datetime)
     days.market_close = days.market_close.apply(format_datetime)
     return days

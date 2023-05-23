@@ -3,13 +3,13 @@ import math
 import os
 import webbrowser
 from datetime import datetime, timedelta
+from decimal import Decimal
 
 import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import quantstats as qs
-
 # import lumibot.data_sources.alpha_vantage as av
 from lumibot import LUMIBOT_DEFAULT_PYTZ
 from lumibot.entities.asset import Asset
@@ -283,20 +283,67 @@ def plot_returns(
 
     def generate_plotly_text(row):
         if row["status"] != "canceled":
-            return (
-                row["status"]
-                + "<br>"
-                + str(row["filled_quantity"])
-                + " "
-                + row["symbol"]
-                + "<br>"
-                + "Price: "
-                + str(row["price"])
-                + "<br>"
-                + "Trade Cost: "
-                + str(row["trade_cost"])
-                + "<br>"
-            )
+            if row["sec_type"] == "option":
+                return (
+                    row["status"]
+                    + "<br>"
+                    + str(row["filled_quantity"])
+                    + " "
+                    + row["symbol"]
+                    + " Option"
+                    + "<br>"
+                    + "Strike: "
+                    + str(row["asset.strike"])
+                    + "<br>"
+                    + "Expiration: "
+                    + str(row["asset.expiration"])
+                    + "<br>"
+                    + "Price: "
+                    + str(row["price"])
+                    + "<br>"
+                    + "Amount Transacted: "
+                    + str(
+                        # Round to 2 decimal places and add commas for thousands
+                        (
+                            Decimal(row["price"])
+                            * Decimal(row["filled_quantity"])
+                            * Decimal(row["asset.multiplier"])
+                        )
+                        .quantize(Decimal("0.01"))
+                        .__format__(",f")
+                    )
+                    + "<br>"
+                    + "Trade Cost: "
+                    + str(row["trade_cost"])
+                    + "<br>"
+                )
+            else:
+                return (
+                    row["status"]
+                    + "<br>"
+                    + str(row["filled_quantity"])
+                    + " "
+                    + row["symbol"]
+                    + "<br>"
+                    + "Price: "
+                    + str(row["price"])
+                    + "<br>"
+                    + "Amount Transacted: "
+                    + str(
+                        # Round to 2 decimal places and add commas for thousands
+                        (
+                            Decimal(row["price"])
+                            * Decimal(row["filled_quantity"])
+                            * Decimal(row["asset.multiplier"])
+                        )
+                        .quantize(Decimal("0.01"))
+                        .__format__(",f")
+                    )
+                    + "<br>"
+                    + "Trade Cost: "
+                    + str(row["trade_cost"])
+                    + "<br>"
+                )
         else:
             return row["status"] + "<br>" + row["symbol"] + "<br>"
 
@@ -332,25 +379,6 @@ def plot_returns(
     sells = df_final.copy()
     sells[strategy_name] = sells[strategy_name].fillna(method="bfill")
     sells = sells.loc[df_final["side"] == "sell"]
-
-    def generate_plotly_text(row):
-        if row["status"] != "canceled":
-            return (
-                row["status"]
-                + "<br>"
-                + str(row["filled_quantity"])
-                + " "
-                + row["symbol"]
-                + "<br>"
-                + "Price: "
-                + str(row["price"])
-                + "<br>"
-                + "Trade Cost: "
-                + str(row["trade_cost"])
-                + "<br>"
-            )
-        else:
-            return row["status"] + "<br>" + row["symbol"] + "<br>"
 
     sells_ticks_df = sells.apply(generate_plotly_text, axis=1)
 
@@ -457,6 +485,11 @@ def create_tearsheet(
 
     bm_text = f"Compared to {benchmark_asset}" if benchmark_asset else ""
     title = f"{strat_name} {bm_text}"
+
+    # If all the values are 0, then we can't create a tearsheet
+    if df_final["benchmark"].sum() == 0 or df_final["strategy"].sum() == 0:
+        logging.error("Not enough data to create a tearsheet, skipping")
+        return
 
     qs.reports.html(
         df_final["strategy"],

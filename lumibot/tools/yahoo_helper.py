@@ -121,6 +121,10 @@ class YahooHelper:
     def process_df(df, asset_info=None):
         df = df.dropna().copy()
 
+        # If the df is empty, return it
+        if df.empty:
+            return df
+
         if df.index.tzinfo is None:
             df.index = df.index.tz_localize(LUMIBOT_DEFAULT_PYTZ)
         else:
@@ -247,6 +251,11 @@ class YahooHelper:
         # Caching is disabled or no previous data found
         # or data found not up to date
         data = YahooHelper.download_symbol_day_data(symbol)
+
+        # Check if the data is empty
+        if data.empty:
+            return data
+
         YahooHelper.dump_pickle_file(symbol, DAY_DATA, data)
         return data
 

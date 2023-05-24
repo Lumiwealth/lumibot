@@ -928,7 +928,7 @@ class Strategy(_Strategy):
 
         Parameters
         ----------
-        asset : Asset
+        asset : Asset or str
             Asset object who's traded positions is sought.
 
         Returns
@@ -945,6 +945,14 @@ class Strategy(_Strategy):
         >>> self.log_message(position.quantity)
 
         """
+
+        # Check if asset is an Asset object or a string
+        if not (isinstance(asset, Asset) or isinstance(asset, str)):
+            logger.error(
+                f"Asset in get_position() must be an Asset object or a string. You entered {asset}."
+            )
+            return None
+
         asset = self._set_asset_mapping(asset)
         return self.broker.get_tracked_position(self.name, asset)
 
@@ -1699,7 +1707,7 @@ class Strategy(_Strategy):
 
         Parameters
         ----------
-        asset : Asset object
+        asset : Asset object or str
             Asset object for which the last closed price will be
             retrieved.
         quote : Asset object
@@ -1744,6 +1752,13 @@ class Strategy(_Strategy):
         >>> )
         >>> price = self.get_last_price(asset=self.base, exchange="CME")
         """
+        # Check if the Asset object is a string or Asset object
+        if not (isinstance(asset, Asset) or isinstance(asset, str)):
+            logger.error(
+                f"Asset in get_last_price() must be a string or Asset object. Got {asset} of type {type(asset)}"
+            )
+            return None
+
         asset = self._set_asset_mapping(asset)
 
         try:

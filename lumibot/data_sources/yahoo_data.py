@@ -72,7 +72,12 @@ class YahooData(DataSource):
                 last_needed_datetime=self.datetime_end,
             )
             if data.shape[0] == 0:
-                raise NoDataFound(self.SOURCE, asset.symbol)
+                message = (
+                    f"{self.SOURCE} did not return data for symbol {asset}. "
+                    f"Make sure there is no symbol typo or use another data source"
+                )
+                logging.error(message)
+                return None
             data = self._append_data(asset, data)
 
         # Get the last minute of self._datetime to get the current bar

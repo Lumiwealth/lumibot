@@ -197,7 +197,7 @@ class Position:
             for transaction in order.transactions:
                 qty = float(transaction.quantity)
                 qty = qty if order.side == 'buy' else -qty
-                # print(f'Cost_basis {order.asset}: {order} - qty: {qty} price: {transaction.price}')
+                print(f'Cost_basis {order.asset}: {order} - qty: {qty} price: {transaction.price}')
                 if qty > 0.0:
                     buys.append(MutableTrans(quantity=qty, price=transaction.price))
                 elif qty < 0.0:
@@ -227,4 +227,4 @@ class Position:
             total_qty += transaction.quantity
 
         self.cost_basis = cost_price
-        # print(f'Cost_basis updated: {cost_price}')
+        print(f'Cost_basis updated: {cost_price}')

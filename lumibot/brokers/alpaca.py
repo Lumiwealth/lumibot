@@ -5,6 +5,7 @@ import traceback
 from asyncio import CancelledError
 from datetime import timezone
 from decimal import Decimal
+import uuid
 
 import alpaca_trade_api as tradeapi
 from alpaca_trade_api.stream import Stream
@@ -238,8 +239,51 @@ class Alpaca(AlpacaData, Broker):
         quantity = position["qty"]
         # Set the cost_basis of the position
         cost_basis = float(position["cost_basis"])
+        print(f'Alpaca cost basis for {asset} - {cost_basis}')
+
+        # TLNG - Check if this symbol is already managed by our strategy
+        all_known_positions = self._filled_positions + self._untracked_positions
+        if position["symbol"] not in [pos.symbol for pos in all_known_positions]:
+            # If it's not, check if it should be
+            strategy = self._confirm_strategy_for_broker_position(position, strategy)
+
         position = Position(strategy, asset, quantity, orders=orders, cost_basis=cost_basis)
         return position
+    
+    def _confirm_strategy_for_broker_position(self, position, strategy):
+        print(f'Dealing with {position["symbol"]}')
+        qty_left = float(position['qty'])
+        order_ids = []
+        activities = self.api.get_activities(activity_types='FILL', page_size=100)
+
+        while True:
+            for activity in activities:
+                if qty_left == 0.0:
+                    break
+                if activity.symbol == position['symbol']:
+                    qty = float(activity.qty) if activity.side == 'buy' else -float(activity.qty)
+                    # print(f'We found an activity for {position.symbol} - qty: {qty} - {activity.side} @ {activity.transaction_time}')
+                    qty_left -= qty
+                    order_ids.append(activity.order_id)
+            if qty_left != 0.0:
+                print(f'Were still looking for {qty_left} of {position["symbol"]}')
+                activities = self.api.get_activities(activity_types='FILL', page_token=activity.id, page_size=100)
+                # time.sleep(0.5)
+            else:
+                break
+
+        for order_id in order_ids:
+            order = self.api.get_order(order_id=order_id)
+            client_order_id_split = order.client_order_id.split(':')
+            if len(client_order_id_split) > 0:
+                if client_order_id_split[0] == strategy:
+                    return strategy
+
+        return 'UNTRACKED'
+               
+
+        
+        
 
     def _pull_broker_position(self, asset):
         """Given a asset, get the broker representation
@@ -315,6 +359,10 @@ class Alpaca(AlpacaData, Broker):
             if order.time_in_force != "gtc" or "ioc":
                 order.time_in_force = "gtc"
 
+        # Generate a client_order_id that starts with the strategy name and after that has a uid. Max 48 characters
+        # as per Alpacas spec.
+        client_order_id = (order.strategy + ":" + str(uuid.uuid4()))[0:48]
+
         kwargs = {
             "type": order.type,
             "order_class": order.order_class,
@@ -323,6 +371,9 @@ class Alpaca(AlpacaData, Broker):
             "stop_price": str(order.stop_price) if order.stop_price else None,
             "trail_price": str(order.trail_price) if order.trail_price else None,
             "trail_percent": order.trail_percent,
+            "client_order_id": client_order_id, # TLNG
+            "extended_hours": True, # TODO: Remove this line!
+            "time_in_force": "day", # TODO: Remove this line!
         }
         # Remove items with None values
         kwargs = {k: v for k, v in kwargs.items() if v}

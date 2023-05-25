@@ -61,6 +61,8 @@ class DataSourceBacktesting(DataSource):
             backtesting_timeshift = timeshift
         elif self.LIVE_DATA_SOURCE.SOURCE == "ALPHA_VANTAGE":
             backtesting_timeshift = timeshift
+        elif self.LIVE_DATA_SOURCE.SOURCE == "REST":
+            backtesting_timeshift = timeshift
         else:
             raise ValueError(
                 f"An incorrect data source type was received. Received"

@@ -1,6 +1,17 @@
 from decimal import Decimal, getcontext
-
 import lumibot.entities as entities
+
+from collections import deque
+from dataclasses import dataclass
+
+@dataclass
+class MutableTrans:
+    '''
+    This is just a convenience class to use in the cost_basis_calculation. It contains the same data as the
+    Transactions named tuple from order.py, but it is mutable which makes it easier to use.
+    '''
+    quantity: float
+    price: float
 
 
 class Position:
@@ -22,7 +33,7 @@ class Position:
         The orders that have been executed for this position.
     """
 
-    def __init__(self, strategy, asset, quantity, orders=None, hold=0, available=0):
+    def __init__(self, strategy, asset, quantity, orders=None, hold=0, available=0, cost_basis=0.0):
         self.strategy = strategy
         self.asset = asset
         self.symbol = self.asset.symbol
@@ -56,6 +67,16 @@ class Position:
                     )
             self.orders = orders
 
+        # cost_basis is the amount of money it took to aquire this position
+        # it can be derived from summarising all orders, or can be aquired from Alpaca
+        self.cost_basis = cost_basis
+        self.calculate_cost_basis_from_orders = False
+
+        # If we didn't receive cost basis from the broker, try to calculate it from the orders.
+        if self.cost_basis == 0.0:
+            self.calculate_cost_basis_from_orders = True
+            self.update_cost_basis_from_orders()
+            
     def __repr__(self):
         repr = "%f shares of %s" % (self.quantity, self.asset)
         return repr
@@ -73,6 +94,10 @@ class Position:
     @quantity.setter
     def quantity(self, value):
         self._quantity = Decimal(value)
+
+    @property
+    def avg_entry_price(self):
+        return self.cost_basis / self.quantity if self.quantity else 0.0
 
     @property
     def hold(self):
@@ -156,3 +181,50 @@ class Position:
         self._quantity += Decimal(increment)
         if order not in self.orders:
             self.orders.append(order)
+            
+        # Update cost_basis to include this order as well
+        if self.calculate_cost_basis_from_orders:
+            self.update_cost_basis_from_orders()
+
+
+    def update_cost_basis_from_orders(self):
+        ''' Update positions cost_basis based on available orders and their transactions. '''
+
+        # Separate all transactions in buys and sells
+        buys = deque()
+        sells = deque()
+        for order in self.orders:
+            for transaction in order.transactions:
+                qty = float(transaction.quantity)
+                qty = qty if order.side == 'buy' else -qty
+                # print(f'Cost_basis {order.asset}: {order} - qty: {qty} price: {transaction.price}')
+                if qty > 0.0:
+                    buys.append(MutableTrans(quantity=qty, price=transaction.price))
+                elif qty < 0.0:
+                    sells.append(MutableTrans(quantity=qty, price=transaction.price))
+
+        # Emulate FIFO to determine cost basis
+        # Loop all buys/sells until one of the lists run out
+        while True:
+            if len(buys) == 0 or len(sells) == 0:
+                break
+            diff = buys[0].quantity - abs(sells[0].quantity)
+            if diff > 0.0:
+                sells.popleft()
+                buys[0].quantity = diff
+            elif diff < 0.0:
+                buys.popleft()
+                sells[0].quantity = diff
+            else:
+                sells.popleft()
+                buys.popleft()
+
+        # After FIFOing all transactions, what we have left are the shares that makes up the cost basis.
+        cost_price = 0.0
+        total_qty = 0.0
+        for transaction in list(buys + sells):
+            cost_price += transaction.quantity * transaction.price
+            total_qty += transaction.quantity
+
+        self.cost_basis = cost_price
+        # print(f'Cost_basis updated: {cost_price}')

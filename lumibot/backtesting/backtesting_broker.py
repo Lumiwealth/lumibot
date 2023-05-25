@@ -449,6 +449,29 @@ class BacktestingBroker(Broker):
                 low = ohlc.df["low"][-1]
                 close = ohlc.df["close"][-1]
                 volume = ohlc.df["volume"][-1]
+                
+            elif self._data_source.SOURCE == "REST":
+                timeshift = timedelta(
+                    minutes=0
+                )
+                ohlc = strategy.get_historical_prices(
+                    asset,
+                    1,
+                    quote=order.quote,
+                    timeshift=timeshift,
+                    timestep=self._data_source._timestep,
+                )
+
+                if ohlc is None:
+                    self.cancel_order(order)
+                    continue
+                dt = ohlc.df.index[-1]
+                open = ohlc.df["open"][-1]
+                high = ohlc.df["high"][-1]
+                low = ohlc.df["low"][-1]
+                close = ohlc.df["close"][-1]
+                volume = ohlc.df["volume"][-1]
+                
 
             # Determine transaction price.
             if order.type == "market":

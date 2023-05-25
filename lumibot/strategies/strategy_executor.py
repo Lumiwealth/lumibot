@@ -136,6 +136,11 @@ class StrategyExecutor(Thread):
                     # Compare to existing lumi position.
                     if position_lumi.quantity != position.quantity:
                         position_lumi.quantity = position.quantity
+
+                    # TODO: Check this and make sure it works for all brokers etc
+                    # TODO: what is a cost basis and an average_entry_price for a short position?
+                    # TODO: Compare our calculated average_entry_price (and also the cost_basis) based on orders vs. based on Alpaca
+                    position_lumi.cost_basis = position.cost_basis
                 else:
                     # Add to positions in lumibot, position does not exist
                     # in lumibot.

@@ -236,9 +236,8 @@ class Alpaca(AlpacaData, Broker):
             )
 
         quantity = position["qty"]
+        # Set the cost_basis of the position
         cost_basis = float(position["cost_basis"])
-        # TLNG
-        print(f'Alpaca position cost basis {cost_basis}: {position}')        
         position = Position(strategy, asset, quantity, orders=orders, cost_basis=cost_basis)
         return position
 

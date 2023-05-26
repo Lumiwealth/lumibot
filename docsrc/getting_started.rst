@@ -1,7 +1,16 @@
+What is Lumibot?
+************************
+
+Lumibot is a Python library made by Lumiwealth (https://www.lumiwealth.com) that allows you to create trading strategies and backtest them. It also allows you to run your strategies live on a paper trading account. You can also use Lumibot to run your strategies live on a real trading account, but we recommend you start with paper trading first.
+
+Lumibot is designed to be easy to use, but also powerful. It is designed to be used by both beginners and advanced users. It is also designed to be flexible, so you can use it to create any kind of trading strategy you want. It is also designed to be fast, so you can backtest your strategies quickly.
+
 Getting Started
 ************************
 
-Currently Alpaca and Interactive Brokers are available as a brokerage services. This quickstart is about using Alpaca services. After the quickstart will be instructions specific to Interactive Brokers.
+Welcome to Lumibot! This guide will help you get started with Lumibot, we hope you enjoy it!
+
+Here are the steps to get started using the Alpaca broker, if you want to use a different broker, you can see the list of supported brokers under the brokers section.
 
 1. Install the package on your computer
 
@@ -23,38 +32,45 @@ Currently Alpaca and Interactive Brokers are available as a brokerage services. 
 
 .. code-block:: python
 
-    class AlpacaConfig:
+    ALPACA_CONFIG = {
         # Put your own Alpaca key here:
-        API_KEY = "YOUR_ALPACA_API_KEY"
+        "API_KEY": "YOUR_ALPACA_API_KEY",
         # Put your own Alpaca secret here:
-        API_SECRET = "YOUR_ALPACA_SECRET"
+        "API_SECRET": "YOUR_ALPACA_SECRET",
         # If you want to go live, you must change this. It is currently set for paper trading
-        ENDPOINT = "https://paper-api.alpaca.markets"
+        "ENDPOINT": "https://paper-api.alpaca.markets"
+    }
 
 5. Create a strategy class (See strategy section) e.g. class MyStrategy(Strategy) or import an example from our libraries, like this:
 
 .. code-block:: python
 
     class MyStrategy(Strategy):
+        # Custom parameters
+        parameters = {
+            "symbol": "SPY",
+            "quantity": 1,
+            "side": "buy"
+        }
+
         def initialize(self, symbol=""):
             # Will make on_trading_iteration() run every 180 minutes
             self.sleeptime = "180M"
 
-            # Custom parameters
-            self.symbol = symbol
-            self.quantity = 1
-            self.side = "buy"
-
         def on_trading_iteration(self):
-            self.order = self.create_order(self.symbol, self.quantity, self.side)
-            self.submit_order(self.order)
+            symbol = self.parameters["symbol"]
+            quantity = self.parameters["quantity"]
+            side = self.parameters["side"]
+
+            order = self.create_order(symbol, quantity, side)
+            self.submit_order(order)
 
 6. Instantiate the Trader, Alpaca and strategy classes like so:
 
 .. code-block:: python
 
     trader = Trader()
-    broker = Alpaca(AlpacaConfig)
+    broker = Alpaca(ALPACA_CONFIG)
     strategy = MyStrategy(name=strategy_name, budget=budget, broker=broker, symbol="SPY")
 
 
@@ -95,13 +111,14 @@ Here it is all together:
     from lumibot.traders import Trader
 
 
-    class AlpacaConfig:
+    ALPACA_CONFIG = {
         # Put your own Alpaca key here:
-        API_KEY = "YOUR_ALPACA_API_KEY"
+        "API_KEY": "YOUR_ALPACA_API_KEY",
         # Put your own Alpaca secret here:
-        API_SECRET = "YOUR_ALPACA_SECRET"
+        "API_SECRET": "YOUR_ALPACA_SECRET",
         # If you want to go live, you must change this. It is currently set for paper trading
-        ENDPOINT = "https://paper-api.alpaca.markets"
+        "ENDPOINT": "https://paper-api.alpaca.markets"
+    }
 
 
     class MyStrategy(Strategy):
@@ -120,7 +137,7 @@ Here it is all together:
 
 
     trader = Trader()
-    broker = Alpaca(AlpacaConfig)
+    broker = Alpaca(ALPACA_CONFIG)
     strategy = MyStrategy(
         broker=broker, 
         parameters= {

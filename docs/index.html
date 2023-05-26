@@ -2,7 +2,7 @@
 <html class="no-js">
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
-    <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Getting Started" href="getting_started.html" />
+    <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="What is Lumibot?" href="getting_started.html" />
 
     <meta name="generator" content="sphinx-4.2.0, furo 2021.10.09"/>
         <title>Lumibot documentation</title>
@@ -158,7 +158,8 @@
   <ul class="current">
 <li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Home</a></li>
 <li class="toctree-l1"><a class="reference external" href="https://lumiwealth.circle.so/c/lumibot/">Community/Forum</a></li>
-<li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting Started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html">What is Lumibot?</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html#getting-started">Getting Started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="getting_started.html#adding-trading-fees">Adding Trading Fees</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="lifecycle_methods.html">Lifecycle Methods</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.initialize.html">def initialize</a></li>
@@ -277,6 +278,7 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="brokers.html">Brokers</a><input class="toctree-checkbox" id="toctree-checkbox-11" name="toctree-checkbox-11" role="switch" type="checkbox"/><label for="toctree-checkbox-11"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="brokers.alpaca.html">Alpaca</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.interactive_brokers.html">Interactive Brokers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.ccxt.html">Crypto Brokers (Using CCXT)</a></li>
 </ul>
 </li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="entities.html">Entities</a><input class="toctree-checkbox" id="toctree-checkbox-12" name="toctree-checkbox-12" role="switch" type="checkbox"/><label for="toctree-checkbox-12"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
@@ -447,13 +449,14 @@
 <span class="kn">from</span> <span class="nn">lumibot.strategies.strategy</span> <span class="kn">import</span> <span class="n">Strategy</span>
 <span class="kn">from</span> <span class="nn">lumibot.traders</span> <span class="kn">import</span> <span class="n">Trader</span>
 
-<span class="k">class</span> <span class="nc">AlpacaConfig</span><span class="p">:</span>
-   <span class="c1"># Put your own Alpaca key here (you can find it when you log into Alpaca)</span>
-   <span class="n">API_KEY</span> <span class="o">=</span> <span class="s2">"YOUR_ALPACA_API_KEY"</span>
-   <span class="c1"># Put your own Alpaca secret here (you can find it when you log into Alpaca)</span>
-   <span class="n">API_SECRET</span> <span class="o">=</span> <span class="s2">"YOUR_ALPACA_SECRET"</span>
-   <span class="c1"># If you want to go live, you must change this. It is currently set for paper trading</span>
-   <span class="n">ENDPOINT</span> <span class="o">=</span> <span class="s2">"https://paper-api.alpaca.markets"</span>
+<span class="n">ALPACA_CONFIG</span> <span class="o">=</span> <span class="p">{</span>
+     <span class="c1"># Put your own Alpaca key here:</span>
+     <span class="s2">"API_KEY"</span><span class="p">:</span> <span class="s2">"YOUR_ALPACA_API_KEY"</span><span class="p">,</span>
+     <span class="c1"># Put your own Alpaca secret here:</span>
+     <span class="s2">"API_SECRET"</span><span class="p">:</span> <span class="s2">"YOUR_ALPACA_SECRET"</span><span class="p">,</span>
+     <span class="c1"># If you want to go live, you must change this. It is currently set for paper trading</span>
+     <span class="s2">"ENDPOINT"</span><span class="p">:</span> <span class="s2">"https://paper-api.alpaca.markets"</span>
+ <span class="p">}</span>
 
 
 <span class="c1"># A simple strategy that buys AAPL on the first day and hold it</span>
@@ -467,7 +470,7 @@
 
 
 <span class="n">trader</span> <span class="o">=</span> <span class="n">Trader</span><span class="p">()</span>
-<span class="n">broker</span> <span class="o">=</span> <span class="n">Alpaca</span><span class="p">(</span><span class="n">AlpacaConfig</span><span class="p">)</span>
+<span class="n">broker</span> <span class="o">=</span> <span class="n">Alpaca</span><span class="p">(</span><span class="n">ALPACA_CONFIG</span><span class="p">)</span>
 <span class="n">strategy</span> <span class="o">=</span> <span class="n">MyStrategy</span><span class="p">(</span><span class="n">broker</span><span class="o">=</span><span class="n">broker</span><span class="p">)</span>
 
 <span class="c1"># Run the strategy live</span>
@@ -525,7 +528,8 @@
 <ul class="current">
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Home</a></li>
 <li class="toctree-l1"><a class="reference external" href="https://lumiwealth.circle.so/c/lumibot/">Community/Forum</a></li>
-<li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting Started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html">What is Lumibot?</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html#getting-started">Getting Started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="getting_started.html#adding-trading-fees">Adding Trading Fees</a></li>
 <li class="toctree-l1"><a class="reference internal" href="lifecycle_methods.html">Lifecycle Methods</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.initialize.html">def initialize</a><ul>
@@ -692,6 +696,12 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.interactive_brokers.html">Interactive Brokers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.ccxt.html">Crypto Brokers (Using CCXT)</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="brokers.ccxt.html#configuration-settings">Configuration Settings</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.ccxt.html#running-your-strategy">Running Your Strategy</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.ccxt.html#full-example-strategy">Full Example Strategy</a></li>
+</ul>
+</li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="entities.html">Entities</a><ul>
@@ -742,7 +752,7 @@
                 <div class="context">
                   <span>Next</span>
                 </div>
-                <div class="title">Getting Started</div>
+                <div class="title">What is Lumibot?</div>
               </div>
               <svg><use href="#svg-arrow-right"></use></svg>
             </a>

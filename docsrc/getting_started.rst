@@ -188,9 +188,64 @@ If you want to add trading fees to your backtesting, you can do so by setting up
         YahooDataBacktesting,
         backtesting_start,
         backtesting_end,
+        # You can also pass in parameters to the backtesting class, this will override the parameters in the strategy
         parameters= {
             "symbol": "SPY"
         },
         buy_trading_fees=[trading_fee_1, trading_fee_2],
         sell_trading_fees=[trading_fee_1, trading_fee_2],
     )
+
+Profiling to Improve Performance
+********************************
+
+Sometimes you may want to profile your code to see where it is spending the most time and improve performance.
+
+We recommend using the `yappi` library to profile your code. You can install it with the following command in your terminal:
+
+.. code-block:: bash
+
+    pip install yappi
+
+Once installed, you can use `yappi` to profile your code like this:
+
+.. code-block:: python
+
+    import yappi
+
+    yappi.start()
+    # Run your code here, eg. a backtest
+    MachineLearningLongShort.backtest(
+        PandasDataBacktesting,
+        backtesting_start,
+        backtesting_end,
+        pandas_data=pandas_data,
+        benchmark_asset="TQQQ",
+    )
+    # Stop the profiler
+    yappi.stop()
+
+    # Save the results
+    threads = yappi.get_thread_stats()
+    for thread in threads:
+        print(
+            "Function stats for (%s) (%d)" % (thread.name, thread.id)
+        )  # it is the Thread.__class__.__name__
+        yappi.get_func_stats(ctx_id=thread.id).save(
+            f"profile_{thread.name}.out", type="pstat"
+        )
+
+This will create a `.out` file for each thread that you can then analyze to see where your code is spending the most time.
+
+Viewing the Results
+-------------------
+
+We recommend using snakeviz to view the results. You can install it with `pip install snakeviz`. You can then use it to view the results like this:
+
+.. code-block:: bash
+
+    pip install snakeviz
+
+.. code-block:: bash
+
+    snakeviz profile_MachineLearningLongShort.out

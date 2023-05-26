@@ -43,11 +43,15 @@ class Alpaca(AlpacaData, Broker):
     --------
     >>> # Connect to Alpaca
     >>> from lumibot.brokers import Alpaca
-    >>> class AlpacaConfig:
-    ...     API_KEY = 'your_api_key'
-    ...     SECRET_KEY = 'your_secret_key'
-    ...     ENDPOINT = 'https://paper-api.alpaca.markets'
-    >>> alpaca = Alpaca(AlpacaConfig)
+    >>> ALPACA_CONFIG = {
+    ...     # Put your own Alpaca key here:
+    ...     "API_KEY": "YOUR_API_KEY",
+    ...     # Put your own Alpaca secret here:
+    ...     "API_SECRET": "YOUR_API_SECRET",
+    ...     # If you want to go live, you must change this
+    ...     "ENDPOINT": "https://paper-api.alpaca.markets",
+    ... }
+    >>> alpaca = Alpaca(ALPACA_CONFIG)
     >>> print(alpaca.get_time_to_open())
     >>> print(alpaca.get_time_to_close())
     >>> print(alpaca.is_market_open())
@@ -57,13 +61,14 @@ class Alpaca(AlpacaData, Broker):
     >>> from lumibot.brokers import Alpaca
     >>> from lumibot.traders import Trader
     >>>
-    >>> class AlpacaConfig:
+    >>> ALPACA_CONFIG = {
     ...     # Put your own Alpaca key here:
-    ...     API_KEY = "YOUR_API_KEY"
+    ...     "API_KEY": "YOUR_API_KEY",
     ...     # Put your own Alpaca secret here:
-    ...     API_SECRET = "YOUR_API_SECRET"
+    ...     "API_SECRET": "YOUR_API_SECRET",
     ...     # If you want to go live, you must change this
-    ...     ENDPOINT = "https://paper-api.alpaca.markets"
+    ...     "ENDPOINT": "https://paper-api.alpaca.markets",
+    ... }
     >>>
     >>> class AlpacaStrategy(Strategy):
     ...     def on_trading_interation(self):
@@ -75,7 +80,7 @@ class Alpaca(AlpacaData, Broker):
     ...                 side="buy",
     ...             )
     >>>
-    >>> alpaca = Alpaca(AlpacaConfig)
+    >>> alpaca = Alpaca(ALPACA_CONFIG)
     >>> strategy = AlpacaStrategy(broker=alpaca)
     >>> trader = Trader()
     >>> trader.add_strategy(strategy)

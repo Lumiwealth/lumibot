@@ -122,18 +122,24 @@ Here it is all together:
 
 
     class MyStrategy(Strategy):
+        # Custom parameters
+        parameters = {
+            "symbol": "SPY",
+            "quantity": 1,
+            "side": "buy"
+        }
+
         def initialize(self, symbol=""):
             # Will make on_trading_iteration() run every 180 minutes
             self.sleeptime = "180M"
 
-            # Custom parameters
-            self.symbol = symbol
-            self.quantity = 1
-            self.side = "buy"
-
         def on_trading_iteration(self):
-            self.order = self.create_order(self.symbol, self.quantity, self.side)
-            self.submit_order(self.order)
+            symbol = self.parameters["symbol"]
+            quantity = self.parameters["quantity"]
+            side = self.parameters["side"]
+
+            order = self.create_order(symbol, quantity, side)
+            self.submit_order(order)
 
 
     trader = Trader()
@@ -151,6 +157,7 @@ Here it is all together:
         YahooDataBacktesting,
         backtesting_start,
         backtesting_end,
+        # You can also pass in parameters to the backtesting class, this will override the parameters in the strategy
         parameters= {
             "symbol": "SPY"
         },

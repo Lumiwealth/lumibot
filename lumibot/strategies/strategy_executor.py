@@ -7,7 +7,7 @@ from functools import wraps
 from queue import Empty, Queue
 from threading import Event, Lock, Thread
 
-from lumibot.tools import append_locals, lumibot_time, staticdecorator
+from lumibot.tools import append_locals, get_trading_days, lumibot_time, staticdecorator
 from termcolor import colored
 
 
@@ -478,6 +478,7 @@ class StrategyExecutor(Thread):
         """
         has_data_source = hasattr(self.broker, "_data_source")
         is_247 = hasattr(self.broker, "market") and self.broker.market == "24/7"
+
         # Process pandas daily and get out.
         if (
             has_data_source
@@ -529,8 +530,7 @@ class StrategyExecutor(Thread):
             # Stop after we pass the backtesting end date
             if (
                 self.broker.IS_BACKTESTING_BROKER
-                and self.broker.datetime.date()
-                > self.broker._data_source.datetime_end.date()
+                and self.broker.datetime > self.broker._data_source.datetime_end
             ):
                 break
 
@@ -557,6 +557,10 @@ class StrategyExecutor(Thread):
         self.broker.sleep = self.safe_sleep
 
         self._initialize()
+
+        # Get the trading days based on the market that the strategy is trading on
+        market = self.broker.market
+        self.broker._trading_days = get_trading_days(market)
 
         #####
         # The main loop for running any strategy

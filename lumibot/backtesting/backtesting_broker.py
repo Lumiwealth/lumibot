@@ -25,8 +25,8 @@ class BacktestingBroker(Broker):
         if not data_source.IS_BACKTESTING_DATA_SOURCE:
             raise ValueError("object %r is not a backtesting data_source" % data_source)
         self._data_source = data_source
-        if data_source.SOURCE != "PANDAS":
-            self._trading_days = get_trading_days()
+
+        # self._trading_days = get_trading_days()
 
         Broker.__init__(self, name=self.name, connect_stream=connect_stream)
 
@@ -83,8 +83,12 @@ class BacktestingBroker(Broker):
         """In production mode always returns True.
         Needs to be overloaded for backtesting to
         check if the limit datetime was reached"""
+
+        # If we are at the end of the data source, we should stop
         if self.datetime >= self._data_source.datetime_end:
             return False
+
+        # All other cases we should continue
         return True
 
     def is_market_open(self):
@@ -123,9 +127,10 @@ class BacktestingBroker(Broker):
         """Return the remaining time for the market to close in seconds"""
         now = self.datetime
         # TODO: speed up the next line. next line speed implication: v high (1738 microseconds)
-        search = self._trading_days[now < self._trading_days.market_close]
+        search = self._trading_days[now <= self._trading_days.market_close]
         if search.empty:
             logging.error("Cannot predict future")
+            return 0
 
         # TODO: speed up the next line. next line speed implication: high (910 microseconds)
         trading_day = search.iloc[0]
@@ -197,7 +202,7 @@ class BacktestingBroker(Broker):
 
     # =======Orders and assets functions=========
 
-    def _parse_broker_order(self, response, strategy_name, strategy_object):
+    def _parse_broker_order(self, response, strategy_name, strategy_object=None):
         """parse a broker order representation
         to an order object"""
         order = response
@@ -399,7 +404,7 @@ class BacktestingBroker(Broker):
             return
 
         for order in pending_orders:
-            if order.dependent_order_filled:
+            if order.dependent_order_filled or order.status == self.CANCELED_ORDER:
                 continue
 
             # Check validity if current date > valid date, cancel order. todo valid date
@@ -480,7 +485,10 @@ class BacktestingBroker(Broker):
 
             if price != 0:
                 if order.dependent_order:
-                    self.cancel_order(order.dependent_order)
+                    order.dependent_order.dependent_order_filled = True
+                    strategy.broker.cancel_order(order.dependent_order)
+
+                    # self.cancel_order(order.dependent_order)
 
                 if order.order_class in ["bracket", "oto"]:
                     orders = self._flatten_order(order)

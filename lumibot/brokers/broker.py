@@ -211,7 +211,7 @@ class Broker:
             )
             self._filled_positions.append(position)
         else:
-            position.quantity += quote_quantity
+            position._quantity += quote_quantity
 
     # =========Clock functions=====================
 
@@ -455,12 +455,12 @@ class Broker:
 
         return quantity
 
-    def _parse_broker_order(self, response, strategy_name, strategy_object):
+    def _parse_broker_order(self, response, strategy_name, strategy_object=None):
         """parse a broker order representation
         to an order object"""
         pass
 
-    def _parse_broker_orders(self, broker_orders, strategy_name, strategy_object):
+    def _parse_broker_orders(self, broker_orders, strategy_name, strategy_object=None):
         """parse a list of broker orders into a
         list of order objects"""
         result = []
@@ -775,10 +775,16 @@ class Broker:
                 "filled_quantity": filled_quantity,
                 "multiplier": multiplier,
                 "trade_cost": stored_order.trade_cost,
+                "time_in_force": stored_order.time_in_force,
+                "asset.right": stored_order.asset.right,
+                "asset.strike": stored_order.asset.strike,
+                "asset.multiplier": stored_order.asset.multiplier,
+                "asset.expiration": stored_order.asset.expiration,
             }
             # append row to the dataframe
+            new_row_df = pd.DataFrame(new_row, index=[0])
             self._trade_event_log_df = pd.concat(
-                [self._trade_event_log_df, pd.DataFrame(new_row, index=[0])], axis=0
+                [self._trade_event_log_df, new_row_df], axis=0
             )
 
         return

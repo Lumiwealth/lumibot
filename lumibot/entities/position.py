@@ -62,7 +62,13 @@ class Position:
 
     @property
     def quantity(self):
-        return self._quantity
+        result = float(self._quantity)
+
+        # If result is less than 0.000001, return 0.0 to avoid rounding errors.
+        if abs(result) < 0.000001:
+            return 0.0
+
+        return result
 
     @quantity.setter
     def quantity(self, value):
@@ -145,8 +151,8 @@ class Position:
             )
         return order
 
-    def add_order(self, order, quantity):
+    def add_order(self, order: entities.Order, quantity: Decimal):
         increment = quantity if order.side == order.BUY else -quantity
-        self.quantity += increment
+        self._quantity += Decimal(increment)
         if order not in self.orders:
             self.orders.append(order)

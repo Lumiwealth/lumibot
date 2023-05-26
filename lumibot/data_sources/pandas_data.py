@@ -22,7 +22,7 @@ class PandasData(DataSource):
         self._data_store = {}
         self._date_index = None
         self._date_supply = None
-        self._timestep = "day"
+        self._timestep = "minute"
         self._expiries_exist = False
 
     @staticmethod
@@ -30,11 +30,10 @@ class PandasData(DataSource):
         new_pandas_data = {}
 
         def _get_new_pandas_data_key(data):
-            if isinstance(data.asset, Asset) and data.asset.asset_type != "crypto":
+            # Always save the asset as a tuple of Asset and quote
+            if isinstance(data.asset, tuple):
                 return data.asset
-            elif isinstance(data.asset, tuple) and data.asset[0].asset_type == "crypto":
-                return data.asset
-            elif isinstance(data.asset, Asset) and data.asset.asset_type == "crypto":
+            elif isinstance(data.asset, Asset):
                 return (data.asset, data.quote)
             else:
                 raise ValueError("Asset must be an Asset or a tuple of Asset and quote")
@@ -66,7 +65,10 @@ class PandasData(DataSource):
             > 0
         )
         self._date_index = self.update_date_index()
-        self._timestep = list(self._data_store.values())[0].timestep
+
+        if len(self._data_store.values()) > 0:
+            self._timestep = list(self._data_store.values())[0].timestep
+
         pcal = self.get_trading_days_pandas()
         self._date_index = self.clean_trading_times(self._date_index, pcal)
         for asset, data in self._data_store.items():
@@ -92,18 +94,33 @@ class PandasData(DataSource):
 
     def get_trading_days_pandas(self):
         pcal = pd.DataFrame(self._date_index)
-        pcal.columns = ["datetime"]
-        pcal["date"] = pcal["datetime"].dt.date
-        return pcal.groupby("date").agg(
-            market_open=(
-                "datetime",
-                "first",
-            ),
-            market_close=(
-                "datetime",
-                "last",
-            ),
-        )
+
+        if pcal.empty:
+            # Create a dummy dataframe that spans the entire date range with market_open and market_close set to 00:00:00 and 23:59:59 respectively.
+            result = pd.DataFrame(
+                index=pd.date_range(
+                    start=self.datetime_start, end=self.datetime_end, freq="D"
+                ),
+                columns=["market_open", "market_close"],
+            )
+            result["market_open"] = result.index.floor("D")
+            result["market_close"] = result.index.ceil("D") - pd.Timedelta("1s")
+            return result
+
+        else:
+            pcal.columns = ["datetime"]
+            pcal["date"] = pcal["datetime"].dt.date
+            result = pcal.groupby("date").agg(
+                market_open=(
+                    "datetime",
+                    "first",
+                ),
+                market_close=(
+                    "datetime",
+                    "last",
+                ),
+            )
+            return result
 
     def get_assets(self):
         return list(self._data_store.keys())
@@ -152,7 +169,8 @@ class PandasData(DataSource):
     def get_tradable_assets(self, dt, length=1, timestep="minute", timeshift=0):
         # Returns list of assets that can be traded. Empty list if None.
         tradable = list()
-        for asset, data in self._data_store.items():
+        for item, data in self._data_store.items():
+            asset = item[0]
             if data.is_tradable(
                 dt, length=length, timestep=timestep, timeshift=timeshift
             ):
@@ -167,28 +185,42 @@ class PandasData(DataSource):
                 dt_index = df.index
             else:
                 dt_index = dt_index.join(data.df.index, how="outer")
-        if self.datetime_end < dt_index[0]:
-            raise ValueError(
-                f"The ending date for the backtest was set for {self.datetime_end}. "
-                f"The earliest data entered is {dt_index[0]}. \nNo backtest can "
-                f"be run since there is no data before the backtest end date."
+
+        if dt_index is None:
+            # Build a dummy index
+            freq = "1T" if self._timestep == "minute" else "1D"
+            dt_index = pd.date_range(
+                start=self.datetime_start, end=self.datetime_end, freq=freq
             )
-        elif self.datetime_start > dt_index[-1]:
-            raise ValueError(
-                f"The starting date for the backtest was set for {self.datetime_start}. "
-                f"The latest data entered is {dt_index[-1]}. \nNo backtest can "
-                f"be run since there is no data after the backtest start date."
-            )
+
+        else:
+            if self.datetime_end < dt_index[0]:
+                raise ValueError(
+                    f"The ending date for the backtest was set for {self.datetime_end}. "
+                    f"The earliest data entered is {dt_index[0]}. \nNo backtest can "
+                    f"be run since there is no data before the backtest end date."
+                )
+            elif self.datetime_start > dt_index[-1]:
+                raise ValueError(
+                    f"The starting date for the backtest was set for {self.datetime_start}. "
+                    f"The latest data entered is {dt_index[-1]}. \nNo backtest can "
+                    f"be run since there is no data after the backtest start date."
+                )
+
         return dt_index
 
     def get_last_price(self, asset, timestep=None, quote=None, exchange=None, **kwargs):
         # Takes an asset and returns the last known price
-        asset_to_find = asset
-        if quote is not None:
-            asset_to_find = (asset, quote)
+        tuple_to_find = self.find_asset_in_data_store(asset, quote)
 
-        if asset_to_find in self._data_store:
-            return self._data_store[asset_to_find].get_last_price(self.get_datetime())
+        if tuple_to_find in self._data_store:
+            data = self._data_store[tuple_to_find]
+            try:
+                dt = self.get_datetime()
+                return data.get_last_price(dt)
+            except Exception as e:
+                print(f"Error getting last price for {tuple_to_find}: {e}")
+                return None
         else:
             return None
 
@@ -202,6 +234,19 @@ class PandasData(DataSource):
         for asset in assets:
             result[asset] = self.get_last_price(asset, timestep=timestep, quote=quote)
         return result
+
+    def find_asset_in_data_store(self, asset, quote=None):
+        if asset in self._data_store:
+            return asset
+        elif quote is not None:
+            asset = (asset, quote)
+            if asset in self._data_store:
+                return asset
+        elif isinstance(asset, Asset) and asset.asset_type in ["option", "future", "stock"]:
+            asset = (asset, Asset("USD", "forex"))
+            if asset in self._data_store:
+                return asset
+        return None
 
     def _pull_source_symbol_bars(
         self,
@@ -221,8 +266,10 @@ class PandasData(DataSource):
         if not timeshift:
             timeshift = 0
 
-        if asset in self._data_store:
-            data = self._data_store[asset]
+        asset_to_find = self.find_asset_in_data_store(asset, quote)
+
+        if asset_to_find in self._data_store:
+            data = self._data_store[asset_to_find]
         else:
             raise ValueError(
                 f"The asset: `{asset}` does not exist or does not have data."
@@ -231,7 +278,14 @@ class PandasData(DataSource):
         # result = data.tail(length)
 
         now = self.get_datetime()
-        res = data.get_bars(now, length=length, timestep=timestep, timeshift=timeshift)
+        try:
+            res = data.get_bars(
+                now, length=length, timestep=timestep, timeshift=timeshift
+            )
+        # Return None if data.get_bars returns a ValueError
+        except ValueError as e:
+            logging.warning(f"{e}")
+            res = None
         return res
 
     def _pull_source_bars(
@@ -251,6 +305,10 @@ class PandasData(DataSource):
             result[asset] = self._pull_source_symbol_bars(
                 asset, length, timestep=timestep, timeshift=timeshift, quote=quote
             )
+            # remove assets that have no data from the result
+            if result[asset] is None:
+                result.pop(asset)
+
         return result
 
     def _parse_source_symbol_bars(self, response, asset, quote=None, length=None):
@@ -299,7 +357,8 @@ class PandasData(DataSource):
 
         expirations = []
         strikes = []
-        for store_asset, data in self._data_store.items():
+        for store_item, data in self._data_store.items():
+            store_asset = store_item[0]
             if store_asset.asset_type != "option":
                 continue
             if store_asset.symbol != asset.symbol:
@@ -428,7 +487,8 @@ class PandasData(DataSource):
             Sorted list of strikes as floats.
         """
         strikes = []
-        for store_asset, data in self._data_store.items():
+        for store_item, data in self._data_store.items():
+            store_asset = store_item[0]
             if (
                 store_asset.asset_type == "option"
                 and store_asset.symbol == asset.symbol

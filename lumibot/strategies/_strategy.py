@@ -9,7 +9,7 @@ import jsonpickle
 import pandas as pd
 from attr import has
 from lumibot import LUMIBOT_DEFAULT_PYTZ
-from lumibot.backtesting import BacktestingBroker
+from lumibot.backtesting import BacktestingBroker, PolygonDataBacktesting
 from lumibot.entities import Asset, Position, TradingFee
 from lumibot.tools import (create_tearsheet, day_deduplicate,
                            get_risk_free_rate, get_symbol_returns,
@@ -103,14 +103,7 @@ class _Strategy:
         if self._is_backtesting:
             self.data_source = self.broker._data_source
             if self.data_source.SOURCE == "PANDAS":
-                try:
-                    assert pandas_data != None
-                except AssertionError:
-                    raise ValueError(
-                        f"Pandas data is required when using pandas for backtesting. Please add a pandas dataframe as an input parameter. "
-                        f"Use the following: 'pandas_data': your_dataframe "
-                    )
-                self.broker._trading_days = self.data_source.load_data()
+                self.data_source.load_data()
 
             # Create initial starting positions.
             self.starting_positions = starting_positions
@@ -412,7 +405,7 @@ class _Strategy:
                             f"A security has returned a price of None while trying "
                             f"to set the portfolio value. This usually happens when there "
                             f"is no data data available for the Asset or pair. "
-                            f"Please ensure data exist at "
+                            f"Please ensure data exists at "
                             f"{self.broker.datetime} for the security: \n"
                             f"symbol: {asset.symbol}, \n"
                             f"type: {asset.asset_type}, \n"
@@ -425,7 +418,7 @@ class _Strategy:
                             f"A security has returned a price of None while trying "
                             f"to set the portfolio value. This usually happens when there "
                             f"is no data data available for the Asset or pair. "
-                            f"Please ensure data exist at "
+                            f"Please ensure data exists at "
                             f"{self.broker.datetime} for the pair: {asset}"
                         )
                 if isinstance(asset, tuple):
@@ -680,6 +673,8 @@ class _Strategy:
         parameters={},
         buy_trading_fees=[],
         sell_trading_fees=[],
+        polygon_api_key=None,
+        polygon_has_paid_subscription=False,
         **kwargs,
     ):
         """Backtest a strategy.
@@ -742,6 +737,10 @@ class _Strategy:
             A list of TradingFee objects to apply to the buy orders during backtests.
         sell_trading_fees : list of TradingFee objects
             A list of TradingFee objects to apply to the sell orders during backtests.
+        polygon_api_key : str
+            The polygon api key to use for polygon data. Only required if you are using PolygonDataBacktesting as the datasource_class.
+        polygon_has_paid_subscription : bool
+            Whether or not you have a paid subscription to Polygon. Only required if you are using PolygonDataBacktesting as the datasource_class.
 
         Returns
         -------
@@ -775,6 +774,7 @@ class _Strategy:
 
 
         """
+        
         positional_args_error_message = (
             "Please do not use `name' or 'budget' as positional arguments. \n"
             "These have been changed to keyword arguments. For example, \n"
@@ -819,17 +819,15 @@ class _Strategy:
                 "for your three positional arguments. \n"
             )
 
-        if datasource_class.SOURCE == "PANDAS":
-            try:
-                assert pandas_data != None and len(pandas_data) > 0
-            except AssertionError:
-                raise ValueError(
-                    f"Pandas data is required when using pandas for backtesting. Please add a pandas dataframe as an input parameter. "
-                    f"Use the following: 'pandas_data': your_dataframe "
-                )
-
         if name is None:
             name = cls.__name__
+            
+            
+        # Make sure polygon_api_key is set if using PolygonDataBacktesting
+        if datasource_class == PolygonDataBacktesting and polygon_api_key is None:
+            raise ValueError(
+                "Please set `polygon_api_key` to your API key from polygon.io in the backtest() function if you are using PolygonDataBacktesting. If you don't have one, you can get a free API key from https://polygon.io/."
+            )
 
         # Filename defaults
         datestring = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -882,6 +880,8 @@ class _Strategy:
             config=config,
             auto_adjust=auto_adjust,
             pandas_data=pandas_data,
+            polygon_api_key=polygon_api_key,
+            has_paid_subscription=polygon_has_paid_subscription,
             **kwargs,
         )
         backtesting_broker = BacktestingBroker(data_source)

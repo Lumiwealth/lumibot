@@ -19,7 +19,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="lumibot",
-    version="2.5.2",
+    version="2.6.1",
     author="Robert Grzesik",
     author_email="rob@lumiwealth.com",
     description="Backtesting and Trading Library, Made by Lumiwealth",
@@ -32,10 +32,10 @@ setuptools.setup(
         "alpaca_trade_api==2.3.0",
         "alpha_vantage",
         "ibapi==9.81.1.post1",
-        "yfinance==0.2.10",
+        "yfinance>=0.2.18",
         "matplotlib>=3.3.3",
         "quandl",
-        "pandas>=1.4.0",
+        "pandas>=1.4.0,<2.0.0",  # pandas v2 currently causing issues with quant stats (v0.0.59)
         "pandas_datareader",
         "pandas_market_calendars>=4.1.2",
         "plotly",

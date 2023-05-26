@@ -47,13 +47,14 @@ Once you have backtested your strategy and found it to be profitable on historic
    from lumibot.strategies.strategy import Strategy
    from lumibot.traders import Trader
 
-   class AlpacaConfig:
-      # Put your own Alpaca key here (you can find it when you log into Alpaca)
-      API_KEY = "YOUR_ALPACA_API_KEY"
-      # Put your own Alpaca secret here (you can find it when you log into Alpaca)
-      API_SECRET = "YOUR_ALPACA_SECRET"
-      # If you want to go live, you must change this. It is currently set for paper trading
-      ENDPOINT = "https://paper-api.alpaca.markets"
+   ALPACA_CONFIG = {
+        # Put your own Alpaca key here:
+        "API_KEY": "YOUR_ALPACA_API_KEY",
+        # Put your own Alpaca secret here:
+        "API_SECRET": "YOUR_ALPACA_SECRET",
+        # If you want to go live, you must change this. It is currently set for paper trading
+        "ENDPOINT": "https://paper-api.alpaca.markets"
+    }
 
 
    # A simple strategy that buys AAPL on the first day and hold it
@@ -67,7 +68,7 @@ Once you have backtested your strategy and found it to be profitable on historic
 
 
    trader = Trader()
-   broker = Alpaca(AlpacaConfig)
+   broker = Alpaca(ALPACA_CONFIG)
    strategy = MyStrategy(broker=broker)
 
    # Run the strategy live

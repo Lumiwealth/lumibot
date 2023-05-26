@@ -1,7 +1,7 @@
 import logging
+import uuid
 from collections import namedtuple
 from decimal import Decimal
-from secrets import token_hex
 from threading import Event
 
 import lumibot.entities as entities
@@ -38,6 +38,7 @@ class Order:
         type=None,
         trade_cost: float = None,
         custom_params={},
+        identifier=None,
     ):
         """Order class for managing individual orders.
 
@@ -199,7 +200,7 @@ class Order:
             self.quote = quote
 
         self.symbol = self.asset.symbol
-        self.identifier = token_hex(16)
+        self.identifier = identifier if identifier else uuid.uuid4().hex
         self.status = "unprocessed"
         self._date_created = date_created
         self.side = None

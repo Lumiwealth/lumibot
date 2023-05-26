@@ -259,7 +259,7 @@ class Alpaca(AlpacaData, Broker):
             f"The type {type} is not in the ASSET_TYPE_MAP in the Alpaca Module."
         )
 
-    def _parse_broker_order(self, response, strategy_name, strategy_object):
+    def _parse_broker_order(self, response, strategy_name, strategy_object=None):
         """parse a broker order representation
         to an order object"""
         order = Order(

@@ -12,6 +12,7 @@ from ibapi.contract import *
 from ibapi.order import *
 from ibapi.wrapper import *
 from lumibot.data_sources import InteractiveBrokersData
+
 # Naming conflict on Order between IB and Lumibot.
 from lumibot.entities import Asset
 from lumibot.entities import Order as OrderLum
@@ -142,7 +143,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
 
     # =======Orders and assets functions=========
 
-    def _parse_broker_order(self, response, strategy_name, strategy_object):
+    def _parse_broker_order(self, response, strategy_name, strategy_object=None):
         """Parse a broker order representation
         to an order object"""
 
@@ -1029,7 +1030,7 @@ class IBClient(EClient):
             contract,
             end_date_time,
             parsed_duration,
-            parsed_timestep, # barSizeSetting
+            parsed_timestep,  # barSizeSetting
             type,
             useRTH,
             formatDate,
@@ -1288,7 +1289,7 @@ class IBApp(IBWrapper, IBClient):
                     f"order. The bracket order for {order.symbol} is cancelled."
                 )
                 return []
-            parent = Order()  
+            parent = Order()
             parent.orderId = (
                 order.identifier if order.identifier else self.nextOrderId()
             )
@@ -1299,7 +1300,7 @@ class IBApp(IBWrapper, IBClient):
             parent.transmit = False
 
             takeProfit = Order()
-            takeProfit.orderId = self.nextOrderId() 
+            takeProfit.orderId = self.nextOrderId()
             takeProfit.action = "SELL" if parent.action == "BUY" else "BUY"
             takeProfit.orderType = "LMT"
             takeProfit.totalQuantity = order.quantity
@@ -1308,7 +1309,7 @@ class IBApp(IBWrapper, IBClient):
             takeProfit.transmit = False
 
             stopLoss = Order()
-            stopLoss.orderId = self.nextOrderId() 
+            stopLoss.orderId = self.nextOrderId()
             stopLoss.action = "SELL" if parent.action == "BUY" else "BUY"
             stopLoss.orderType = "STP"
             stopLoss.auxPrice = order.stop_loss_price

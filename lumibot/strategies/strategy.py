@@ -5,6 +5,7 @@ from decimal import Decimal
 from typing import Union
 
 import pandas as pd
+import pandas_market_calendars as mcal
 from lumibot.entities import Asset, Order
 from termcolor import colored
 
@@ -927,7 +928,7 @@ class Strategy(_Strategy):
 
         Parameters
         ----------
-        asset : Asset
+        asset : Asset or str
             Asset object who's traded positions is sought.
 
         Returns
@@ -944,6 +945,14 @@ class Strategy(_Strategy):
         >>> self.log_message(position.quantity)
 
         """
+
+        # Check if asset is an Asset object or a string
+        if not (isinstance(asset, Asset) or isinstance(asset, str)):
+            logger.error(
+                f"Asset in get_position() must be an Asset object or a string. You entered {asset}."
+            )
+            return None
+
         asset = self._set_asset_mapping(asset)
         return self.broker.get_tracked_position(self.name, asset)
 
@@ -1698,7 +1707,7 @@ class Strategy(_Strategy):
 
         Parameters
         ----------
-        asset : Asset object
+        asset : Asset object or str
             Asset object for which the last closed price will be
             retrieved.
         quote : Asset object
@@ -1743,6 +1752,13 @@ class Strategy(_Strategy):
         >>> )
         >>> price = self.get_last_price(asset=self.base, exchange="CME")
         """
+        # Check if the Asset object is a string or Asset object
+        if not (isinstance(asset, Asset) or isinstance(asset, str)):
+            logger.error(
+                f"Asset in get_last_price() must be a string or Asset object. Got {asset} of type {type(asset)}"
+            )
+            return None
+
         asset = self._set_asset_mapping(asset)
 
         try:
@@ -1962,7 +1978,7 @@ class Strategy(_Strategy):
         ----------
         asset : Asset object
             Asset object as normally used for an option but without
-            the strike information.
+            the strike information. The Asset object must be an option asset type.
 
         Returns
         -------
@@ -1986,6 +2002,54 @@ class Strategy(_Strategy):
             return None
 
         return sorted(list(set(cd.contract.strike for cd in contract_details)))
+
+    def get_option_expiration_after_date(self, dt: datetime.date):
+        """Returns the next option expiration date after the given date.
+
+        Parameters
+        ----------
+        dt : datetime.date
+            The date to find the next option expiration date after.
+
+        Returns
+        -------
+        datetime.date
+            The next option expiration date after the given date.
+
+        Example
+        -------
+        >>> # Will return the next option expiration date after the given date
+        >>> dt = datetime.date(2021, 1, 1)
+        >>> next_option_expiration = self.get_next_option_expiration(dt)
+        """
+
+        # Get the Friday before the 3rd Saturday of next month
+        expiration = (
+            dt
+            + pd.tseries.offsets.BusinessMonthEnd(1)
+            + pd.tseries.offsets.Week(3)
+            - pd.tseries.offsets.Week(weekday=4)
+        )
+
+        # Check if the market is open on the expiration date, if not then get the previous open day
+        nyse = mcal.get_calendar("NYSE")
+
+        # Get the schedule for all the days that the market is open between the given date and the proposed expiration date
+        end_date = expiration + pd.tseries.offsets.BusinessDay(
+            2
+        )  # Add 2 days to include the expiration date, in case it is a holiday
+        schedule = nyse.schedule(start_date=dt, end_date=end_date)
+
+        # Change the schedule index timezone to be the same as the expiration date timezone
+        schedule.index = schedule.index.tz_localize(expiration.tzinfo)
+
+        # Check if the expiration date is in the schedule, if not then get the previous open day. Make sure they're only comparing dates, not times
+        if expiration.date() not in schedule.index.date:
+            # Find the date in the schedule that is right before the expiration date
+            previous_open_day = schedule.index[schedule.index < expiration][-1]
+            return previous_open_day.date()
+        else:
+            return expiration.date()
 
     def get_greeks(
         self,

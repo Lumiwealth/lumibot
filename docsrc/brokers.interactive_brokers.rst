@@ -17,10 +17,11 @@ Set up your credentials as follows:
 
 .. code-block:: python
 
-    class InteractiveBrokersConfig:
-        SOCKET_PORT = 7497 
-        CLIENT_ID = "your Master API Client ID three digit number"
-        IP = "127.0.0.1"
+    INTERACTIVE_BROKERS_CONFIG = {
+        "SOCKET_PORT": 7497,
+        "CLIENT_ID": "your Master API Client ID three digit number",
+        "IP": "127.0.0.1",
+    }
 
 Set up your entry point file as above, except using Interactive Brokers. Here is an example of a completed file:
 
@@ -31,16 +32,14 @@ Set up your entry point file as above, except using Interactive Brokers. Here is
     # Import interactive brokers
     from lumibot.brokers import InteractiveBrokers
     from lumibot.strategies.examples import Strangle
-    from credentials import InteractiveBrokersConfig
+    from credentials import INTERACTIVE_BROKERS_CONFIG
 
-    budget = 40000
-    logfile = "logs/test.log"
 
-    trader = Trader(logfile=logfile)
+    trader = Trader()
     # Initialize interactive brokers
-    interactive_brokers = InteractiveBrokers(InteractiveBrokersConfig)
+    interactive_brokers = InteractiveBrokers(INTERACTIVE_BROKERS_CONFIG)
 
-    strategy = Strangle(name="option", budget=budget, broker=interactive_brokers)
+    strategy = Strangle(broker=interactive_brokers)
     trader.add_strategy(strategy)
     trader.run_all()
 

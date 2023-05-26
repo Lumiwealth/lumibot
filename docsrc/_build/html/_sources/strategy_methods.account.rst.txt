@@ -11,3 +11,5 @@ Account management functions are used to get your accoutn value, cash, etc. You 
 
     get_portfolio_value
     get_cash
+    get_position
+    get_positions

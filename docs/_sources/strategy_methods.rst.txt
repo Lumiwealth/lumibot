@@ -12,6 +12,7 @@ Check out the list of available strategy methods below:
    :caption: Contents:
    
    strategy_methods.orders
+   strategy_methods.account
    strategy_methods.data
    strategy_methods.parameters
    strategy_methods.options

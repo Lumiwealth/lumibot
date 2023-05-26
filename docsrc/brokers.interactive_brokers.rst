@@ -13,7 +13,7 @@ Once installed, navigate in Trader Workstation to ``File -> Global Configuration
 
 .. image:: interactive_brokers.png
 
-Set up your credentials as follows:
+Set up your credentials as follows in ``credentials.py``:
 
 .. code-block:: python
 

@@ -13,3 +13,4 @@ Lumibot has two modes for backtesting.
    backtesting.all
    backtesting.yahoo
    backtesting.pandas
+   backtesting.polygon

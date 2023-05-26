@@ -219,6 +219,7 @@
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_expiration.html">self.get_expiration</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_multiplier.html">self.get_multiplier</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.options_expiry_to_datetime_date.html">self.options_expiry_to_datetime_date</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_option_expiration_after_date.html">self.get_option_expiration_after_date</a></li>
 </ul>
 </li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.datetime.html">DateTime</a><input class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
@@ -270,6 +271,7 @@
 <li class="toctree-l2"><a class="reference internal" href="backtesting.all.html">All Backtesting</a></li>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.yahoo.html">Yahoo</a></li>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.pandas.html">Pandas (CSV or other data)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.polygon.html">Polygon.io Backtesting</a></li>
 </ul>
 </li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="brokers.html">Brokers</a><input class="toctree-checkbox" id="toctree-checkbox-11" name="toctree-checkbox-11" role="switch" type="checkbox"/><label for="toctree-checkbox-11"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
@@ -458,7 +460,7 @@ check if the limit datetime was reached</p>
 <span id="data-source-backtesting"></span><h2>Data Source Backtesting<a class="headerlink" href="#module-lumibot.backtesting.data_source_backtesting" title="Permalink to this headline">¶</a></h2>
 <dl class="py class">
 <dt class="sig sig-object py" id="lumibot.backtesting.data_source_backtesting.DataSourceBacktesting">
-<em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">lumibot.backtesting.data_source_backtesting.</span></span><span class="sig-name descname"><span class="pre">DataSourceBacktesting</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">datetime_start</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">datetime_end</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">backtesting_started</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">datetime.datetime(2023,</span> <span class="pre">4,</span> <span class="pre">14,</span> <span class="pre">11,</span> <span class="pre">51,</span> <span class="pre">50,</span> <span class="pre">542742)</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.data_source_backtesting.DataSourceBacktesting" title="Permalink to this definition">¶</a></dt>
+<em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">lumibot.backtesting.data_source_backtesting.</span></span><span class="sig-name descname"><span class="pre">DataSourceBacktesting</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">datetime_start</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">datetime_end</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">backtesting_started</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">datetime.datetime(2023,</span> <span class="pre">5,</span> <span class="pre">26,</span> <span class="pre">0,</span> <span class="pre">5,</span> <span class="pre">40,</span> <span class="pre">403396)</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.data_source_backtesting.DataSourceBacktesting" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="lumibot.data_sources.html#lumibot.data_sources.data_source.DataSource" title="lumibot.data_sources.data_source.DataSource"><code class="xref py py-class docutils literal notranslate"><span class="pre">lumibot.data_sources.data_source.DataSource</span></code></a></p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="lumibot.backtesting.data_source_backtesting.DataSourceBacktesting.IS_BACKTESTING_DATA_SOURCE">

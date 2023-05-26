@@ -219,6 +219,7 @@
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_expiration.html">self.get_expiration</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_multiplier.html">self.get_multiplier</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.options_expiry_to_datetime_date.html">self.options_expiry_to_datetime_date</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_option_expiration_after_date.html">self.get_option_expiration_after_date</a></li>
 </ul>
 </li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.datetime.html">DateTime</a><input class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
@@ -270,6 +271,7 @@
 <li class="toctree-l2"><a class="reference internal" href="backtesting.all.html">All Backtesting</a></li>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.yahoo.html">Yahoo</a></li>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.pandas.html">Pandas (CSV or other data)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.polygon.html">Polygon.io Backtesting</a></li>
 </ul>
 </li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="brokers.html">Brokers</a><input class="toctree-checkbox" id="toctree-checkbox-11" name="toctree-checkbox-11" role="switch" type="checkbox"/><label for="toctree-checkbox-11"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
@@ -1235,7 +1237,7 @@ number of bars.</p></li>
 <li><p><strong>quote</strong> (<a class="reference internal" href="entities.asset.html#entities.asset.Asset" title="entities.asset.Asset"><em>Asset</em></a>) – The quote currency for crypto currencies (eg. USD, USDT, EUR, …).
 Default is the quote asset for the strategy.</p></li>
 <li><p><strong>exchange</strong> (<em>str</em>) – The exchange to pull the historical data from. Default is None (decided based on the broker)</p></li>
-<li><p><strong>include_after_hours</strong> (<em>bool</em>) – Whether to include after hours data. Default is True.   Currently only works with Interactive Brokers.</p></li>
+<li><p><strong>include_after_hours</strong> (<em>bool</em>) – Whether to include after hours data. Default is True. Currently only works with Interactive Brokers.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns</dt>
@@ -1390,7 +1392,7 @@ In backtesting will provide the close of the last complete bar.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>asset</strong> (<em>Asset object</em>) – Asset object for which the last closed price will be
+<li><p><strong>asset</strong> (<em>Asset object</em><em> or </em><em>str</em>) – Asset object for which the last closed price will be
 retrieved.</p></li>
 <li><p><strong>quote</strong> (<em>Asset object</em>) – Quote asset object for which the last closed price will be
 retrieved. This is required for cryptocurrency pairs.</p></li>
@@ -1494,6 +1496,28 @@ exchange.</p>
 </div>
 </dd></dl>
 <dl class="py method">
+<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.get_option_expiration_after_date">
+<span class="sig-name descname"><span class="pre">get_option_expiration_after_date</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dt</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">datetime.date</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.get_option_expiration_after_date" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns the next option expiration date after the given date.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>dt</strong> (<em>datetime.date</em>) – The date to find the next option expiration date after.</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>The next option expiration date after the given date.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>datetime.date</p>
+</dd>
+</dl>
+<p class="rubric">Example</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Will return the next option expiration date after the given date</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dt</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">date</span><span class="p">(</span><span class="mi">2021</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">next_option_expiration</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_next_option_expiration</span><span class="p">(</span><span class="n">dt</span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+<dl class="py method">
 <dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.get_order">
 <span class="sig-name descname"><span class="pre">get_order</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">identifier</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.get_order" title="Permalink to this definition">¶</a></dt>
 <dd><p>Get a tracked order given an identifier. Check the details of the order including status, etc.</p>
@@ -1583,7 +1607,7 @@ strategy.</p>
 in the current strategy.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><p><strong>asset</strong> (<a class="reference internal" href="entities.asset.html#entities.asset.Asset" title="entities.asset.Asset"><em>Asset</em></a>) – Asset object who’s traded positions is sought.</p>
+<dd class="field-odd"><p><strong>asset</strong> (<a class="reference internal" href="entities.asset.html#entities.asset.Asset" title="entities.asset.Asset"><em>Asset</em></a><em> or </em><em>str</em>) – Asset object who’s traded positions is sought.</p>
 </dd>
 <dt class="field-even">Returns</dt>
 <dd class="field-even"><p>A position object for the assset if there is a tracked
@@ -1754,7 +1778,7 @@ exchange.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><p><strong>asset</strong> (<em>Asset object</em>) – Asset object as normally used for an option but without
-the strike information.</p>
+the strike information. The Asset object must be an option asset type.</p>
 </dd>
 <dt class="field-even">Returns</dt>
 <dd class="field-even"><p>Sorted list of strikes as floats.</p>

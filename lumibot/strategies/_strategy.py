@@ -9,17 +9,11 @@ import jsonpickle
 import pandas as pd
 from attr import has
 from lumibot import LUMIBOT_DEFAULT_PYTZ
-from lumibot.backtesting import BacktestingBroker
+from lumibot.backtesting import BacktestingBroker, PolygonDataBacktesting
 from lumibot.entities import Asset, Position, TradingFee
-from lumibot.tools import (
-    create_tearsheet,
-    day_deduplicate,
-    get_risk_free_rate,
-    get_symbol_returns,
-    plot_returns,
-    stats_summary,
-    to_datetime_aware,
-)
+from lumibot.tools import (create_tearsheet, day_deduplicate,
+                           get_risk_free_rate, get_symbol_returns,
+                           plot_returns, stats_summary, to_datetime_aware)
 from lumibot.traders import Trader
 
 from .strategy_executor import StrategyExecutor
@@ -780,6 +774,7 @@ class _Strategy:
 
 
         """
+        
         positional_args_error_message = (
             "Please do not use `name' or 'budget' as positional arguments. \n"
             "These have been changed to keyword arguments. For example, \n"
@@ -826,6 +821,13 @@ class _Strategy:
 
         if name is None:
             name = cls.__name__
+            
+            
+        # Make sure polygon_api_key is set if using PolygonDataBacktesting
+        if datasource_class == PolygonDataBacktesting and polygon_api_key is None:
+            raise ValueError(
+                "Please set `polygon_api_key` to your API key from polygon.io in the backtest() function if you are using PolygonDataBacktesting. If you don't have one, you can get a free API key from https://polygon.io/."
+            )
 
         # Filename defaults
         datestring = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")

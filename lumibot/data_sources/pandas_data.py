@@ -242,7 +242,7 @@ class PandasData(DataSource):
             asset = (asset, quote)
             if asset in self._data_store:
                 return asset
-        elif asset.asset_type in ["option", "future", "stock"]:
+        elif isinstance(asset, Asset) and asset.asset_type in ["option", "future", "stock"]:
             asset = (asset, Asset("USD", "forex"))
             if asset in self._data_store:
                 return asset

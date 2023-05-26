@@ -219,6 +219,7 @@
 <li class="toctree-l3"><a class="reference internal" href="../strategy_methods.options/strategies.strategy.Strategy.get_expiration.html">self.get_expiration</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../strategy_methods.options/strategies.strategy.Strategy.get_multiplier.html">self.get_multiplier</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../strategy_methods.options/strategies.strategy.Strategy.options_expiry_to_datetime_date.html">self.options_expiry_to_datetime_date</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../strategy_methods.options/strategies.strategy.Strategy.get_option_expiration_after_date.html">self.get_option_expiration_after_date</a></li>
 </ul>
 </li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../strategy_methods.datetime.html">DateTime</a><input class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
@@ -270,6 +271,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../backtesting.all.html">All Backtesting</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../backtesting.yahoo.html">Yahoo</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../backtesting.pandas.html">Pandas (CSV or other data)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../backtesting.polygon.html">Polygon.io Backtesting</a></li>
 </ul>
 </li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../brokers.html">Brokers</a><input class="toctree-checkbox" id="toctree-checkbox-11" name="toctree-checkbox-11" role="switch" type="checkbox"/><label for="toctree-checkbox-11"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
@@ -325,7 +327,7 @@ strategy.</p>
 in the current strategy.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><p><strong>asset</strong> (<a class="reference internal" href="../entities.asset.html#entities.asset.Asset" title="entities.asset.Asset"><em>Asset</em></a>) – Asset object who’s traded positions is sought.</p>
+<dd class="field-odd"><p><strong>asset</strong> (<a class="reference internal" href="../entities.asset.html#entities.asset.Asset" title="entities.asset.Asset"><em>Asset</em></a><em> or </em><em>str</em>) – Asset object who’s traded positions is sought.</p>
 </dd>
 <dt class="field-even">Returns</dt>
 <dd class="field-even"><p>A position object for the assset if there is a tracked

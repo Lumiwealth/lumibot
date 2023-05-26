@@ -974,7 +974,7 @@ class Strategy(_Strategy):
         Returns
         -------
         float
-            The current portfolio value.
+            The current portfolio value, which is the sum of the cash and net equity. This is the total value of your account, which is the amount of money you would have if you sold all your assets and closed all your positions. For crypto assets, this is the total value of your account in the quote asset (eg. USDT if that is your quote asset).
         """
         return self.portfolio_value
 
@@ -988,7 +988,7 @@ class Strategy(_Strategy):
         Returns
         -------
         float
-            The current cash value.
+            The current cash value. This is the amount of cash you have in your account, which is the amount of money you can use to buy assets. For crypto assets, this is the amount of the quote asset you have in your account (eg. USDT if that is your quote asset).
         """
         return self.cash
 

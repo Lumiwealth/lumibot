@@ -13,6 +13,7 @@ When building strategies, lifecycle methods needs to be overloaded. Trading logi
    :maxdepth: 2
    :caption: Contents:
    
+   lifecycle_methods.summary
    lifecycle_methods.initialize
    lifecycle_methods.on_trading_iteration
    lifecycle_methods.before_market_opens

@@ -161,6 +161,7 @@
 <li class="toctree-l1 current current-page"><a class="current reference internal" href="#">What is Lumibot?</a></li>
 <li class="toctree-l1"><a class="reference internal" href="#getting-started">Getting Started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="#adding-trading-fees">Adding Trading Fees</a></li>
+<li class="toctree-l1"><a class="reference internal" href="#profiling-to-improve-performance">Profiling to Improve Performance</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="lifecycle_methods.html">Lifecycle Methods</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.initialize.html">def initialize</a></li>
 <li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_trading_iteration.html">def on_trading_iteration</a></li>
@@ -283,10 +284,8 @@
 </li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="entities.html">Entities</a><input class="toctree-checkbox" id="toctree-checkbox-12" name="toctree-checkbox-12" role="switch" type="checkbox"/><label for="toctree-checkbox-12"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="entities.asset.html">Asset</a></li>
-<li class="toctree-l2"><a class="reference internal" href="entities.bar.html">Bar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="entities.bars.html">Bars</a></li>
 <li class="toctree-l2"><a class="reference internal" href="entities.data.html">Data</a></li>
-<li class="toctree-l2"><a class="reference internal" href="entities.dataline.html">Dataline</a></li>
 <li class="toctree-l2"><a class="reference internal" href="entities.order.html">Order</a></li>
 <li class="toctree-l2"><a class="reference internal" href="entities.position.html">Position</a></li>
 <li class="toctree-l2"><a class="reference internal" href="entities.trading_fee.html">Trading Fee</a></li>
@@ -431,18 +430,24 @@
 
 
 <span class="k">class</span> <span class="nc">MyStrategy</span><span class="p">(</span><span class="n">Strategy</span><span class="p">):</span>
+    <span class="c1"># Custom parameters</span>
+    <span class="n">parameters</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">"symbol"</span><span class="p">:</span> <span class="s2">"SPY"</span><span class="p">,</span>
+        <span class="s2">"quantity"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+        <span class="s2">"side"</span><span class="p">:</span> <span class="s2">"buy"</span>
+    <span class="p">}</span>
+
     <span class="k">def</span> <span class="nf">initialize</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">symbol</span><span class="o">=</span><span class="s2">""</span><span class="p">):</span>
         <span class="c1"># Will make on_trading_iteration() run every 180 minutes</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">sleeptime</span> <span class="o">=</span> <span class="s2">"180M"</span>
 
-        <span class="c1"># Custom parameters</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">symbol</span> <span class="o">=</span> <span class="n">symbol</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">quantity</span> <span class="o">=</span> <span class="mi">1</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">side</span> <span class="o">=</span> <span class="s2">"buy"</span>
-
     <span class="k">def</span> <span class="nf">on_trading_iteration</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">symbol</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">quantity</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">side</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">order</span><span class="p">)</span>
+        <span class="n">symbol</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">[</span><span class="s2">"symbol"</span><span class="p">]</span>
+        <span class="n">quantity</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">[</span><span class="s2">"quantity"</span><span class="p">]</span>
+        <span class="n">side</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">[</span><span class="s2">"side"</span><span class="p">]</span>
+
+        <span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">symbol</span><span class="p">,</span> <span class="n">quantity</span><span class="p">,</span> <span class="n">side</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
 
 
 <span class="n">trader</span> <span class="o">=</span> <span class="n">Trader</span><span class="p">()</span>
@@ -460,6 +465,7 @@
     <span class="n">YahooDataBacktesting</span><span class="p">,</span>
     <span class="n">backtesting_start</span><span class="p">,</span>
     <span class="n">backtesting_end</span><span class="p">,</span>
+    <span class="c1"># You can also pass in parameters to the backtesting class, this will override the parameters in the strategy</span>
     <span class="n">parameters</span><span class="o">=</span> <span class="p">{</span>
         <span class="s2">"symbol"</span><span class="p">:</span> <span class="s2">"SPY"</span>
     <span class="p">},</span>
@@ -486,6 +492,7 @@
     <span class="n">YahooDataBacktesting</span><span class="p">,</span>
     <span class="n">backtesting_start</span><span class="p">,</span>
     <span class="n">backtesting_end</span><span class="p">,</span>
+    <span class="c1"># You can also pass in parameters to the backtesting class, this will override the parameters in the strategy</span>
     <span class="n">parameters</span><span class="o">=</span> <span class="p">{</span>
         <span class="s2">"symbol"</span><span class="p">:</span> <span class="s2">"SPY"</span>
     <span class="p">},</span>
@@ -493,6 +500,51 @@
     <span class="n">sell_trading_fees</span><span class="o">=</span><span class="p">[</span><span class="n">trading_fee_1</span><span class="p">,</span> <span class="n">trading_fee_2</span><span class="p">],</span>
 <span class="p">)</span>
 </pre></div>
+</div>
+</div>
+<div class="section" id="profiling-to-improve-performance">
+<h1>Profiling to Improve Performance<a class="headerlink" href="#profiling-to-improve-performance" title="Permalink to this headline">¶</a></h1>
+<p>Sometimes you may want to profile your code to see where it is spending the most time and improve performance.</p>
+<p>We recommend using the <cite>yappi</cite> library to profile your code. You can install it with the following command in your terminal:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>yappi
+</pre></div>
+</div>
+<p>Once installed, you can use <cite>yappi</cite> to profile your code like this:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">yappi</span>
+
+<span class="n">yappi</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+<span class="c1"># Run your code here, eg. a backtest</span>
+<span class="n">MachineLearningLongShort</span><span class="o">.</span><span class="n">backtest</span><span class="p">(</span>
+    <span class="n">PandasDataBacktesting</span><span class="p">,</span>
+    <span class="n">backtesting_start</span><span class="p">,</span>
+    <span class="n">backtesting_end</span><span class="p">,</span>
+    <span class="n">pandas_data</span><span class="o">=</span><span class="n">pandas_data</span><span class="p">,</span>
+    <span class="n">benchmark_asset</span><span class="o">=</span><span class="s2">"TQQQ"</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="c1"># Stop the profiler</span>
+<span class="n">yappi</span><span class="o">.</span><span class="n">stop</span><span class="p">()</span>
+
+<span class="c1"># Save the results</span>
+<span class="n">threads</span> <span class="o">=</span> <span class="n">yappi</span><span class="o">.</span><span class="n">get_thread_stats</span><span class="p">()</span>
+<span class="k">for</span> <span class="n">thread</span> <span class="ow">in</span> <span class="n">threads</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span>
+        <span class="s2">"Function stats for (</span><span class="si">%s</span><span class="s2">) (</span><span class="si">%d</span><span class="s2">)"</span> <span class="o">%</span> <span class="p">(</span><span class="n">thread</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">thread</span><span class="o">.</span><span class="n">id</span><span class="p">)</span>
+    <span class="p">)</span>  <span class="c1"># it is the Thread.__class__.__name__</span>
+    <span class="n">yappi</span><span class="o">.</span><span class="n">get_func_stats</span><span class="p">(</span><span class="n">ctx_id</span><span class="o">=</span><span class="n">thread</span><span class="o">.</span><span class="n">id</span><span class="p">)</span><span class="o">.</span><span class="n">save</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s2">"profile_</span><span class="si">{</span><span class="n">thread</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">.out"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="s2">"pstat"</span>
+    <span class="p">)</span>
+</pre></div>
+</div>
+<p>This will create a <cite>.out</cite> file for each thread that you can then analyze to see where your code is spending the most time.</p>
+<div class="section" id="viewing-the-results">
+<h2>Viewing the Results<a class="headerlink" href="#viewing-the-results" title="Permalink to this headline">¶</a></h2>
+<p>We recommend using snakeviz to view the results. You can install it with <cite>pip install snakeviz</cite>. You can then use it to view the results like this:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>snakeviz
+</pre></div>
+</div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>snakeviz<span class="w"> </span>profile_MachineLearningLongShort.out
+</pre></div>
+</div>
 </div>
 </div>
 
@@ -552,6 +604,10 @@
 <li><a class="reference internal" href="#">What is Lumibot?</a></li>
 <li><a class="reference internal" href="#getting-started">Getting Started</a></li>
 <li><a class="reference internal" href="#adding-trading-fees">Adding Trading Fees</a></li>
+<li><a class="reference internal" href="#profiling-to-improve-performance">Profiling to Improve Performance</a><ul>
+<li><a class="reference internal" href="#viewing-the-results">Viewing the Results</a></li>
+</ul>
+</li>
 </ul>
 
           </div>

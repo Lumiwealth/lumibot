@@ -2,6 +2,8 @@ Backtesting and trading for stocks, options, crypto, futures and more!
 
 # Documentation
 
+To get started with Lumibot, you can check out our documentation below.
+
 **Check out the documentation for the project here: <http://lumibot.lumiwealth.com/>**
 
 # Community
@@ -25,44 +27,3 @@ If you need extra help building your algorithm, we have courses to help you out.
 # License
 
 This library is covered by the MIT license for open sourced software which can be found here: <https://github.com/Lumiwealth/lumibot/blob/master/LICENSE>
-
-# Profiling and Optimization Tips to Improve Performance
-
-## Profiling
-
-We recommend using yappi to profile your code. You can install it with `pip install yappi`. You can then use it to profile your code like this:
-
-```python
-import yappi
-
-yappi.start()
-# Run your code here, eg. a backtest
-MachineLearningLongShort.backtest(
-    PandasDataBacktesting,
-    backtesting_start,
-    backtesting_end,
-    pandas_data=pandas_data,
-    benchmark_asset="TQQQ",
-)
-# Stop the profiler
-yappi.stop()
-
-# Save the results
-threads = yappi.get_thread_stats()
-for thread in threads:
-    print(
-        "Function stats for (%s) (%d)" % (thread.name, thread.id)
-    )  # it is the Thread.__class__.__name__
-    yappi.get_func_stats(ctx_id=thread.id).save(
-        f"profile_{thread.name}.out", type="pstat"
-    )
-
-```
-
-## Viewing the results
-
-We recommend using snakeviz to view the results. You can install it with `pip install snakeviz`. You can then use it to view the results like this:
-
-```bash
-snakeviz profile_MachineLearningLongShort.out
-```

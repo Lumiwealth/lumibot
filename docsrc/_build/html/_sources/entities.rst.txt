@@ -10,10 +10,8 @@ Here's a list of the main entities in Lumibot:
    :caption: Contents:
    
    entities.asset
-   entities.bar
    entities.bars
    entities.data
-   entities.dataline
    entities.order
    entities.position
    entities.trading_fee

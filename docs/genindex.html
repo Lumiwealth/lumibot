@@ -160,6 +160,7 @@
 <li class="toctree-l1"><a class="reference internal" href="getting_started.html">What is Lumibot?</a></li>
 <li class="toctree-l1"><a class="reference internal" href="getting_started.html#getting-started">Getting Started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="getting_started.html#adding-trading-fees">Adding Trading Fees</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html#profiling-to-improve-performance">Profiling to Improve Performance</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="lifecycle_methods.html">Lifecycle Methods</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.initialize.html">def initialize</a></li>
 <li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_trading_iteration.html">def on_trading_iteration</a></li>
@@ -282,10 +283,8 @@
 </li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="entities.html">Entities</a><input class="toctree-checkbox" id="toctree-checkbox-12" name="toctree-checkbox-12" role="switch" type="checkbox"/><label for="toctree-checkbox-12"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="entities.asset.html">Asset</a></li>
-<li class="toctree-l2"><a class="reference internal" href="entities.bar.html">Bar</a></li>
 <li class="toctree-l2"><a class="reference internal" href="entities.bars.html">Bars</a></li>
 <li class="toctree-l2"><a class="reference internal" href="entities.data.html">Data</a></li>
-<li class="toctree-l2"><a class="reference internal" href="entities.dataline.html">Dataline</a></li>
 <li class="toctree-l2"><a class="reference internal" href="entities.order.html">Order</a></li>
 <li class="toctree-l2"><a class="reference internal" href="entities.position.html">Position</a></li>
 <li class="toctree-l2"><a class="reference internal" href="entities.trading_fee.html">Trading Fee</a></li>
@@ -410,8 +409,6 @@
 </li>
         <li><a href="lumibot.backtesting.html#lumibot.backtesting.backtesting_broker.BacktestingBroker">BacktestingBroker (class in lumibot.backtesting.backtesting_broker)</a>
 </li>
-        <li><a href="entities.bar.html#entities.bar.Bar">Bar (class in entities.bar)</a>
-</li>
         <li><a href="entities.bars.html#entities.bars.Bars">Bars (class in entities.bars)</a>
 </li>
         <li><a href="lifecycle_methods.before_market_closes.html#strategies.strategy.Strategy.before_market_closes">before_market_closes() (in module strategies.strategy.Strategy)</a>
@@ -474,29 +471,21 @@
           <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.cancel_realtime_bars">(lumibot.strategies.strategy.Strategy method)</a>
 </li>
         </ul></li>
+    </ul></td>
+    <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.cash">cash (lumibot.strategies.strategy.Strategy property)</a>
 
         <ul>
           <li><a href="strategy_properties/strategies.strategy.Strategy.cash.html#strategies.strategy.Strategy.cash">(strategies.strategy.Strategy property)</a>
 </li>
         </ul></li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="entities.order.html#entities.order.Order.cash_pending">cash_pending() (entities.order.Order method)</a>
 </li>
         <li><a href="entities.data.html#entities.data.Data.check_data">check_data() (entities.data.Data method)</a>, <a href="entities.data.html#id0">[1]</a>
 </li>
         <li><a href="lumibot.data_sources.html#lumibot.data_sources.pandas.PandasData.clean_trading_times">clean_trading_times() (lumibot.data_sources.pandas.PandasData method)</a>
 </li>
-        <li><a href="entities.bar.html#entities.bar.Bar.close">close (entities.bar.Bar attribute)</a>
-
-        <ul>
-          <li><a href="entities.bar.html#id0">(entities.bar.Bar property)</a>
-</li>
-        </ul></li>
         <li><a href="entities.data.html#entities.data.Data.columns">columns() (entities.data.Data method)</a>, <a href="entities.data.html#id1">[1]</a>
-</li>
-        <li><a href="entities.bar.html#entities.bar.Bar.COMPARAISON_PROP">COMPARAISON_PROP (entities.bar.Bar attribute)</a>
 </li>
         <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.create_asset">create_asset() (lumibot.strategies.strategy.Strategy method)</a>
 </li>
@@ -520,8 +509,6 @@
     <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="entities.data.html#entities.data.Data">Data (class in entities.data)</a>
 </li>
-        <li><a href="entities.dataline.html#entities.dataline.Dataline">Dataline (class in entities.dataline)</a>
-</li>
         <li><a href="entities.data.html#entities.data.Data.datalines">datalines (entities.data.Data attribute)</a>
 </li>
         <li><a href="lumibot.data_sources.html#lumibot.data_sources.data_source.DataSource">DataSource (class in lumibot.data_sources.data_source)</a>
@@ -530,36 +517,18 @@
 </li>
         <li><a href="entities.data.html#entities.data.Data.date_end">date_end (entities.data.Data attribute)</a>
 </li>
-        <li><a href="entities.data.html#entities.data.Data.date_start">date_start (entities.data.Data attribute)</a>
-</li>
-        <li><a href="entities.bar.html#entities.bar.Bar.datetime">datetime (entities.bar.Bar property)</a>
-
-        <ul>
-          <li><a href="lumibot.backtesting.html#lumibot.backtesting.backtesting_broker.BacktestingBroker.datetime">(lumibot.backtesting.backtesting_broker.BacktestingBroker property)</a>
-</li>
-        </ul></li>
     </ul></td>
     <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="entities.bar.html#entities.bar.Bar.DEFAULT_PYTZ">DEFAULT_PYTZ (entities.bar.Bar attribute)</a>
-
-        <ul>
-          <li><a href="lumibot.data_sources.html#lumibot.data_sources.data_source.DataSource.DEFAULT_PYTZ">(lumibot.data_sources.data_source.DataSource attribute)</a>
+        <li><a href="entities.data.html#entities.data.Data.date_start">date_start (entities.data.Data attribute)</a>
 </li>
-        </ul></li>
-        <li><a href="entities.bar.html#entities.bar.Bar.DEFAULT_TIMEZONE">DEFAULT_TIMEZONE (entities.bar.Bar attribute)</a>
-
-        <ul>
-          <li><a href="lumibot.data_sources.html#lumibot.data_sources.data_source.DataSource.DEFAULT_TIMEZONE">(lumibot.data_sources.data_source.DataSource attribute)</a>
+        <li><a href="lumibot.backtesting.html#lumibot.backtesting.backtesting_broker.BacktestingBroker.datetime">datetime (lumibot.backtesting.backtesting_broker.BacktestingBroker property)</a>
 </li>
-        </ul></li>
+        <li><a href="lumibot.data_sources.html#lumibot.data_sources.data_source.DataSource.DEFAULT_PYTZ">DEFAULT_PYTZ (lumibot.data_sources.data_source.DataSource attribute)</a>
+</li>
+        <li><a href="lumibot.data_sources.html#lumibot.data_sources.data_source.DataSource.DEFAULT_TIMEZONE">DEFAULT_TIMEZONE (lumibot.data_sources.data_source.DataSource attribute)</a>
+</li>
         <li><a href="entities.data.html#entities.data.Data.df">df (entities.data.Data attribute)</a>
 </li>
-        <li><a href="entities.bar.html#entities.bar.Bar.dividend">dividend (entities.bar.Bar attribute)</a>
-
-        <ul>
-          <li><a href="entities.bar.html#id1">(entities.bar.Bar property)</a>
-</li>
-        </ul></li>
     </ul></td>
   </tr></table>
 </section>
@@ -573,13 +542,6 @@
 
         <ul>
           <li><a href="entities.asset.html#module-entities.asset">module</a>
-</li>
-        </ul></li>
-        <li>
-    entities.bar
-
-        <ul>
-          <li><a href="entities.bar.html#module-entities.bar">module</a>
 </li>
         </ul></li>
         <li>
@@ -597,21 +559,14 @@
 </li>
         </ul></li>
         <li>
-    entities.dataline
-
-        <ul>
-          <li><a href="entities.dataline.html#module-entities.dataline">module</a>
-</li>
-        </ul></li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li>
     entities.order
 
         <ul>
           <li><a href="entities.order.html#module-entities.order">module</a>
 </li>
         </ul></li>
+    </ul></td>
+    <td style="width: 33%; vertical-align: top;"><ul>
         <li>
     entities.position
 
@@ -724,8 +679,6 @@
           <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.get_datetime_range">(lumibot.strategies.strategy.Strategy method)</a>
 </li>
         </ul></li>
-        <li><a href="entities.bar.html#entities.bar.Bar.get_empty_bar">get_empty_bar() (entities.bar.Bar class method)</a>
-</li>
         <li><a href="strategy_methods.options/strategies.strategy.Strategy.get_expiration.html#strategies.strategy.Strategy.get_expiration">get_expiration() (in module strategies.strategy.Strategy)</a>
 
         <ul>
@@ -1014,14 +967,6 @@
   <h2>H</h2>
   <table style="width: 100%" class="indextable genindextable"><tr>
     <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="entities.bar.html#entities.bar.Bar.high">high (entities.bar.Bar attribute)</a>
-
-        <ul>
-          <li><a href="entities.bar.html#id2">(entities.bar.Bar property)</a>
-</li>
-        </ul></li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="entities.position.html#entities.position.Position.hold">hold (entities.position.Position property)</a>
 </li>
     </ul></td>
@@ -1114,12 +1059,6 @@
 
         <ul>
           <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.log_message">(lumibot.strategies.strategy.Strategy method)</a>
-</li>
-        </ul></li>
-        <li><a href="entities.bar.html#entities.bar.Bar.low">low (entities.bar.Bar attribute)</a>
-
-        <ul>
-          <li><a href="entities.bar.html#id3">(entities.bar.Bar property)</a>
 </li>
         </ul></li>
         <li>
@@ -1227,13 +1166,9 @@
         <ul>
           <li><a href="entities.asset.html#module-entities.asset">entities.asset</a>
 </li>
-          <li><a href="entities.bar.html#module-entities.bar">entities.bar</a>
-</li>
           <li><a href="entities.bars.html#module-entities.bars">entities.bars</a>
 </li>
           <li><a href="entities.data.html#module-entities.data">entities.data</a>
-</li>
-          <li><a href="entities.dataline.html#module-entities.dataline">entities.dataline</a>
 </li>
           <li><a href="entities.order.html#module-entities.order">entities.order</a>
 </li>
@@ -1342,12 +1277,6 @@
           <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.on_trading_iteration">(lumibot.strategies.strategy.Strategy method)</a>
 </li>
         </ul></li>
-        <li><a href="entities.bar.html#entities.bar.Bar.open">open (entities.bar.Bar attribute)</a>
-
-        <ul>
-          <li><a href="entities.bar.html#id4">(entities.bar.Bar property)</a>
-</li>
-        </ul></li>
         <li><a href="strategy_methods.options/strategies.strategy.Strategy.options_expiry_to_datetime_date.html#strategies.strategy.Strategy.options_expiry_to_datetime_date">options_expiry_to_datetime_date() (in module strategies.strategy.Strategy)</a>
 
         <ul>
@@ -1432,8 +1361,6 @@
   <h2>R</h2>
   <table style="width: 100%" class="indextable genindextable"><tr>
     <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="entities.bar.html#entities.bar.Bar.raw">raw (entities.bar.Bar property)</a>
-</li>
         <li><a href="entities.data.html#entities.data.Data.repair_times_and_fill">repair_times_and_fill() (entities.data.Data method)</a>, <a href="entities.data.html#id5">[1]</a>
 </li>
         <li><a href="entities.asset.html#entities.asset.Asset.right">right (entities.asset.Asset attribute)</a>, <a href="entities.asset.html#id6">[1]</a>
@@ -1514,6 +1441,8 @@
           <li><a href="strategy_properties/strategies.strategy.Strategy.sleeptime.html#strategies.strategy.Strategy.sleeptime">(strategies.strategy.Strategy property)</a>
 </li>
         </ul></li>
+    </ul></td>
+    <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="lumibot.data_sources.html#lumibot.data_sources.data_source.DataSource.SOURCE">SOURCE (lumibot.data_sources.data_source.DataSource attribute)</a>
 
         <ul>
@@ -1522,8 +1451,6 @@
           <li><a href="lumibot.data_sources.html#lumibot.data_sources.yahoo.YahooData.SOURCE">(lumibot.data_sources.yahoo.YahooData attribute)</a>
 </li>
         </ul></li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="entities.bars.html#entities.bars.Bars.split">split() (entities.bars.Bars method)</a>
 </li>
         <li><a href="strategy_methods.data/lumibot.strategies.strategy.Strategy.start_realtime_bars.html#lumibot.strategies.strategy.Strategy.start_realtime_bars">start_realtime_bars() (in module lumibot.strategies.strategy.Strategy)</a>
@@ -1536,12 +1463,6 @@
 </li>
         <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.stats_file">stats_file (lumibot.strategies.strategy.Strategy property)</a>
 </li>
-        <li><a href="entities.bar.html#entities.bar.Bar.stock_splits">stock_splits (entities.bar.Bar attribute)</a>
-
-        <ul>
-          <li><a href="entities.bar.html#id5">(entities.bar.Bar property)</a>
-</li>
-        </ul></li>
         <li><a href="lumibot.traders.html#lumibot.traders.trader.Trader.stop_all">stop_all() (lumibot.traders.trader.Trader method)</a>
 </li>
         <li><a href="lumibot.backtesting.html#lumibot.backtesting.backtesting_broker.BacktestingBroker.stop_order">stop_order() (lumibot.backtesting.backtesting_broker.BacktestingBroker method)</a>
@@ -1586,12 +1507,6 @@
     <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="entities.trading_fee.html#entities.trading_fee.TradingFee.taker">taker (entities.trading_fee.TradingFee attribute)</a>
 </li>
-        <li><a href="entities.bar.html#entities.bar.Bar.timestamp">timestamp (entities.bar.Bar attribute)</a>
-
-        <ul>
-          <li><a href="entities.bar.html#id6">(entities.bar.Bar property)</a>
-</li>
-        </ul></li>
         <li><a href="entities.data.html#entities.data.Data.timestep">timestep (entities.data.Data attribute)</a>
 </li>
         <li><a href="entities.data.html#entities.data.Data.TIMESTEP_MAPPING">TIMESTEP_MAPPING (entities.data.Data attribute)</a>
@@ -1612,8 +1527,6 @@
         </ul></li>
         <li><a href="entities.data.html#entities.data.Data.to_datalines">to_datalines() (entities.data.Data method)</a>, <a href="entities.data.html#id9">[1]</a>
 </li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="strategy_methods.datetime/strategies.strategy.Strategy.to_default_timezone.html#strategies.strategy.Strategy.to_default_timezone">to_default_timezone() (in module strategies.strategy.Strategy)</a>
 
         <ul>
@@ -1622,6 +1535,8 @@
           <li><a href="lumibot.strategies.html#lumibot.strategies.strategy.Strategy.to_default_timezone">(lumibot.strategies.strategy.Strategy method)</a>
 </li>
         </ul></li>
+    </ul></td>
+    <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="entities.order.html#entities.order.Order.to_position">to_position() (entities.order.Order method)</a>
 </li>
         <li><a href="lifecycle_methods.trace_stats.html#strategies.strategy.Strategy.trace_stats">trace_stats() (in module strategies.strategy.Strategy)</a>
@@ -1654,8 +1569,6 @@
           <li><a href="strategy_properties/strategies.strategy.Strategy.unspent_money.html#strategies.strategy.Strategy.unspent_money">(strategies.strategy.Strategy property)</a>
 </li>
         </ul></li>
-        <li><a href="entities.bar.html#entities.bar.Bar.update">update() (entities.bar.Bar method)</a>, <a href="entities.bar.html#id7">[1]</a>
-</li>
         <li><a href="lumibot.data_sources.html#lumibot.data_sources.pandas.PandasData.update_date_index">update_date_index() (lumibot.data_sources.pandas.PandasData method)</a>
 </li>
     </ul></td>
@@ -1680,14 +1593,6 @@
     <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="entities.position.html#entities.position.Position.value_type">value_type() (entities.position.Position method)</a>
 </li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="entities.bar.html#entities.bar.Bar.volume">volume (entities.bar.Bar attribute)</a>
-
-        <ul>
-          <li><a href="entities.bar.html#id8">(entities.bar.Bar property)</a>
-</li>
-        </ul></li>
     </ul></td>
   </tr></table>
 </section>

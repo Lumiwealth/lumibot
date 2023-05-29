@@ -30,6 +30,8 @@ def get_price_data_from_polygon(
     has_paid_subscription: bool = False,
     quote_asset: Asset = None,
 ):
+    print(f"Getting pricing data for {asset} from Polygon...")
+    
     df_all = None
     df_csv = None
 

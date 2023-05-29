@@ -793,6 +793,9 @@ class _Strategy:
             "        **kwargs,\n"
             "    )"
         )
+        
+        # Print start message
+        print(f"Starting backtest for {cls.__name__}...")
 
         # Handling positional arguments.
         if len(args) == 3:

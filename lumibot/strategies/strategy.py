@@ -1760,11 +1760,16 @@ class Strategy(_Strategy):
             return None
 
         asset = self._set_asset_mapping(asset)
+        
+        if quote is None:
+            quote_asset = self.quote_asset
+        else:
+            quote_asset = quote
 
         try:
             return self.broker.get_last_price(
                 asset,
-                quote=quote,
+                quote=quote_asset,
                 exchange=exchange,
                 should_use_last_close=should_use_last_close,
             )

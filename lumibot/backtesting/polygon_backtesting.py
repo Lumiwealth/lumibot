@@ -23,12 +23,12 @@ class PolygonDataBacktesting(DataSourceBacktesting, PandasData):
         datetime_end,
         pandas_data=None,
         polygon_api_key=None,
-        polygon_has_paid_subscription=False,
+        has_paid_subscription=False,
         **kwargs,
     ):
         self.LIVE_DATA_SOURCE = PandasData
         self.polygon_api_key = polygon_api_key
-        self.has_paid_subscription = polygon_has_paid_subscription
+        self.has_paid_subscription = has_paid_subscription
         PandasData.__init__(self, pandas_data, **kwargs)
         DataSourceBacktesting.__init__(self, datetime_start, datetime_end)
 

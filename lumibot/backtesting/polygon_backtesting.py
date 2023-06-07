@@ -116,7 +116,11 @@ class PolygonDataBacktesting(DataSourceBacktesting, PandasData):
             search_asset = (search_asset, quote_asset)
 
         # Check if we have data for this asset
-        if search_asset not in self.pandas_data:
+        if search_asset in self.pandas_data:
+            # Return None if we already have data for this asset
+            return None
+        
+        else:
             # Download data from Polygon
             try:
                 # Convert timestep string to timedelta and get start datetime
@@ -150,8 +154,6 @@ class PolygonDataBacktesting(DataSourceBacktesting, PandasData):
             pandas_data_updated = self._set_pandas_data_keys(pandas_data)
 
             return pandas_data_updated
-
-        return None
 
     def _pull_source_symbol_bars(
         self,

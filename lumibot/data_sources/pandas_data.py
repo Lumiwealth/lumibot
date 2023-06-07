@@ -284,7 +284,7 @@ class PandasData(DataSource):
             )
         # Return None if data.get_bars returns a ValueError
         except ValueError as e:
-            logging.warning(f"{e}")
+            raise ValueError(f"Error getting bars for {asset}: {e}")
             res = None
         return res
 

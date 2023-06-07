@@ -30,20 +30,20 @@ def get_price_data_from_polygon(
     has_paid_subscription: bool = False,
     quote_asset: Asset = None,
 ):
-    print(f"Getting pricing data for {asset} from Polygon...")
+    print(f"\nGetting pricing data for {asset} from Polygon...")
     
     df_all = None
     df_csv = None
 
     LUMIBOT_POLYGON_CACHE_FOLDER = os.path.join(LUMIBOT_CACHE_FOLDER, "polygon")
-    cache_filename = f"{asset.asset_type}_{asset.symbol}.csv"
+    cache_filename = f"{asset.asset_type}_{asset.symbol}_{timespan}.csv"
 
     # If It's an option then also add the expiration date, strike price and right to the filename
     if asset.asset_type == "option":
         # Make asset.expiration datetime into a string like "YYMMDD"
         expiry_string = asset.expiration.strftime("%y%m%d")
 
-        cache_filename = f"{asset.asset_type}_{asset.symbol}_{expiry_string}_{asset.strike}_{asset.right}.csv"
+        cache_filename = f"{asset.asset_type}_{asset.symbol}_{expiry_string}_{asset.strike}_{asset.right}_{timespan}.csv"
 
     cache_file = os.path.join(LUMIBOT_POLYGON_CACHE_FOLDER, cache_filename)
 

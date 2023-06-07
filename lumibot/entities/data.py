@@ -360,7 +360,9 @@ class Data:
                 # If not found, get the last known data
                 i = self.iter_index.asof(dt)
 
-            data_index = i + 1 - kwargs.get("length", 1) - kwargs.get("timeshift", 0)
+            length = kwargs.get("length", 1)
+            timeshift = kwargs.get("timeshift", 0)
+            data_index = i + 1 - length - timeshift
             is_data = data_index >= 0
             if not is_data:
                 raise ValueError(

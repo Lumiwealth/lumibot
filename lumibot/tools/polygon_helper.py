@@ -40,6 +40,11 @@ def get_price_data_from_polygon(
 
     # If It's an option then also add the expiration date, strike price and right to the filename
     if asset.asset_type == "option":
+        if asset.expiration is None:
+            raise ValueError(
+                f"Expiration date is required for option {asset} but it is None"
+            )
+            
         # Make asset.expiration datetime into a string like "YYMMDD"
         expiry_string = asset.expiration.strftime("%y%m%d")
 

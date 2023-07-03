@@ -443,8 +443,13 @@ class Data:
         # Get bars.
         end_row = self.get_iter_count(dt) - timeshift
         start_row = end_row - length
+        
         if start_row < 0:
             start_row = 0
+            
+        # Cast both start_row and end_row to int
+        start_row = int(start_row)
+        end_row = int(end_row)
 
         dict = {}
         for dl_name, dl in self.datalines.items():

@@ -110,6 +110,7 @@ class Asset(BaseModel, frozen=True, extra="forbid"):
     multiplier: int = 1
     currency: Optional[str] = "USD"
     precision: Optional[str] = None
+    
     _asset_types: list = ["stock", "option", "future", "forex", "crypto", "index"]
     _right: list = ["CALL", "PUT"]
 
@@ -157,9 +158,9 @@ class Asset(BaseModel, frozen=True, extra="forbid"):
         # TODO: check if this works!
         if v == "us_equity":
             v = "stock"
-        elif v not in cls._asset_types:
+        elif v not in cls._asset_types.default:
             raise ValueError(
-                f"`asset_type` must be one of {', '.join(cls._asset_types)}"
+                f"`asset_type` must be one of {', '.join(cls._asset_types.default)}"
             )
         return v
 
@@ -169,9 +170,9 @@ class Asset(BaseModel, frozen=True, extra="forbid"):
             return
 
         v = v.upper()
-        if v not in cls._right:
+        if v not in cls._right.default:
             raise ValueError(
-                f"`right` is {v} must be one of {', '.join(cls._right)}, upper case."
+                f"`right` is {v} must be one of {', '.join(cls._right.default)}, upper case."
             )
         return v
 

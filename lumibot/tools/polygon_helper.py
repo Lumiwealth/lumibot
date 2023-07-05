@@ -95,7 +95,7 @@ def get_price_data_from_polygon(
                 # TODO: Also check if we are missing data in the middle of the range
                 # We have all the data we need, break out of the loop
                 break
-            elif last_row.name <= cur_start:
+            elif last_row.name <= cur_start and not first_iteration:
                 # Polygon doesn't have any more data for this asset, break out of the loop
                 break
             # If it's an option then we need to check if the last row is past the expiration date

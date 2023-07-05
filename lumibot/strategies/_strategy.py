@@ -825,6 +825,26 @@ class _Strategy:
         if name is None:
             name = cls.__name__
             
+        ##############################################  
+        # Check the data types of the parameters
+        ##############################################
+        
+        # Check datasource_class
+        if not isinstance(datasource_class, type):
+            raise ValueError(
+                f"`datasource_class` must be a class. You passed in {datasource_class}"
+            )
+            
+        # Check backtesting_start and backtesting_end
+        if not isinstance(backtesting_start, datetime.datetime):    
+            raise ValueError(
+                f"`backtesting_start` must be a datetime object. You passed in {backtesting_start}"
+            )
+        if not isinstance(backtesting_end, datetime.datetime):
+            raise ValueError(
+                f"`backtesting_end` must be a datetime object. You passed in {backtesting_end}"
+            )
+            
             
         # Make sure polygon_api_key is set if using PolygonDataBacktesting
         if datasource_class == PolygonDataBacktesting and polygon_api_key is None:

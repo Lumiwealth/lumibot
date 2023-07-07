@@ -609,6 +609,9 @@ class Broker:
     def _get_tick(self, order):
         raise NotImplementedError(f"Tick data is not available for {self.name}")
 
+    def _get_tick_size(self, order):
+        raise NotImplementedError(f"Tick data is not available for {self.name}")
+
     # =========Subscribers/Strategies functions==============
 
     def _add_subscriber(self, subscriber):

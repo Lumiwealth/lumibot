@@ -94,7 +94,8 @@ class DataSource:
         timeshift=None,
         quote=None,
         exchange=None,
-        include_after_hours=True
+        include_after_hours=True,
+        bid_ask=False,
     ):
         """pull source bars for a given asset"""
         pass
@@ -119,7 +120,7 @@ class DataSource:
     # =================Public Market Data Methods==================
 
     def get_historical_prices(
-        self, asset, length, timestep="", timeshift=None, quote=None, exchange=None, include_after_hours=True
+        self, asset, length, timestep="", timeshift=None, quote=None, exchange=None, include_after_hours=True, bid_ask=False
     ):
         """Get bars for a given asset"""
         if isinstance(asset, str):
@@ -135,7 +136,8 @@ class DataSource:
             timeshift=timeshift,
             quote=quote,
             exchange=exchange,
-            include_after_hours=include_after_hours
+            include_after_hours=include_after_hours,
+            bid_ask=bid_ask,
         )
         if isinstance(response, float):
             return response

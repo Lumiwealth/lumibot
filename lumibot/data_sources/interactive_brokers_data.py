@@ -136,6 +136,7 @@ class InteractiveBrokersData(DataSource):
         quote=None,
         exchange=None,
         include_after_hours=True,
+        bid_ask=False,
     ):
         """pull broker bars for a given asset"""
         response = self._pull_source_bars(
@@ -146,6 +147,7 @@ class InteractiveBrokersData(DataSource):
             quote=quote,
             exchange=exchange,
             include_after_hours=include_after_hours,
+            bid_ask=bid_ask,
         )
         return response.get(asset)
 
@@ -158,6 +160,7 @@ class InteractiveBrokersData(DataSource):
         quote=None,
         exchange=None,
         include_after_hours=True,
+        bid_ask=False,
     ):
         """pull broker bars for a list assets"""
 
@@ -176,6 +179,9 @@ class InteractiveBrokersData(DataSource):
         else:
             end_date_time = ""
             type = "TRADES"
+
+        if bid_ask:
+            type = "BID_ASK"
 
         # Call data.
         reqId = 0
@@ -240,7 +246,10 @@ class InteractiveBrokersData(DataSource):
                     df["date"] = df["date"].dt.tz_localize(self.DEFAULT_TIMEZONE)
 
                     df = df.iloc[-length:, :]
-
+                
+                # Rename columns if we are pulling bid/ask data.
+                if type == "BID_ASK":
+                    df.rename(columns={"open": "averageBid", "high": "ask", "low": "bid", "close": "averageAsk"}, inplace=True)
                 response[asset] = df
         return response
 
@@ -250,30 +259,36 @@ class InteractiveBrokersData(DataSource):
             bars = Bars(response, self.SOURCE, asset, raw=response)
             return bars
         df = response.copy()
-        # df["date"] = pd.to_datetime(df["date"], unit='s')
-        df = df.set_index("date")
-        df["price_change"] = df["close"].pct_change()
-        df["dividend"] = 0
-        df["stock_splits"] = 0
-        df["dividend_yield"] = df["dividend"] / df["close"]
-        df["return"] = df["dividend_yield"] + df["price_change"]
-        # df = df.tail(length)
-        df = df[
-            [
-                "open",
-                "high",
-                "low",
-                "close",
-                "volume",
-                "price_change",
-                "dividend",
-                "stock_splits",
-                "dividend_yield",
-                "return",
+        # Handle bid_ask data.
+        if "averageBid" in df.columns:
+            bid_ask = True
+            df = df.set_index("date")
+        else:
+            bid_ask = False
+            # df["date"] = pd.to_datetime(df["date"], unit='s')
+            df = df.set_index("date")
+            df["price_change"] = df["close"].pct_change()
+            df["dividend"] = 0
+            df["stock_splits"] = 0
+            df["dividend_yield"] = df["dividend"] / df["close"]
+            df["return"] = df["dividend_yield"] + df["price_change"]
+            # df = df.tail(length)
+            df = df[
+                [
+                    "open",
+                    "high",
+                    "low",
+                    "close",
+                    "volume",
+                    "price_change",
+                    "dividend",
+                    "stock_splits",
+                    "dividend_yield",
+                    "return",
+                ]
             ]
-        ]
 
-        bars = Bars(df, self.SOURCE, asset, raw=response, quote=quote)
+        bars = Bars(df, self.SOURCE, asset, raw=response, quote=quote, bid_ask=bid_ask)
         return bars
 
     def _start_realtime_bars(self, asset, keep_bars=12):

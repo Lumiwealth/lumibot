@@ -94,9 +94,10 @@ class Bars:
     >>> self.log_message(df["close"][-1])
     """
 
-    def __init__(self, df, source, asset, quote=None, raw=None):
+    def __init__(self, df, source, asset, quote=None, raw=None, bid_ask=False):
         """
         df columns: open, high, low, close, volume, dividend, stock_splits
+        df columns (if bid_ask == True): averageBid, ask, bid, averageAsk, volume, dividend, stock_splits
         df index: pd.Timestamp localized at the timezone America/New_York
         """
         if df.shape[0] == 0:
@@ -110,6 +111,7 @@ class Bars:
             self.symbol = asset.symbol.upper()
         self.quote = quote
         self._raw = raw
+        self.bid_ask = bid_ask
 
     def __repr__(self):
         return repr(self.df)
@@ -280,19 +282,35 @@ class Bars:
         >>> bars = self.get_historical_prices("AAPL", 60, "minute")
         >>> bars_agg = bars.aggregate_bars("15Min")
         """
-        new_df = self.df.groupby(pd.Grouper(freq=frequency)).agg(
-            {
-                "open": "first",
-                "close": "last",
-                "low": "min",
-                "high": "max",
-                "volume": "sum",
-            }
-        )
-        new_df.columns = ["open", "close", "low", "high", "volume"]
-        new_df = new_df.dropna()
+        # Handle bid/ask bars
+        if "averageBid" in self.df.columns:
+            new_df = self.df.groupby(pd.Grouper(freq=frequency)).agg(
+                {
+                    "averageBid": "mean",
+                    "averageAsk": "mean",
+                    "bid": "last",
+                    "ask": "last",
+                    "volume": "sum",
+                }
+            )
+            new_df.columns = ["averageBid", "averageAsk", "bid", "ask", "volume"]
+            new_df = new_df.dropna()
 
-        new_bars = Bars(new_df, self.source, self.asset)
+            new_bars = Bars(new_df, self.source, self.asset)
+        else:
+            new_df = self.df.groupby(pd.Grouper(freq=frequency)).agg(
+                {
+                    "open": "first",
+                    "close": "last",
+                    "low": "min",
+                    "high": "max",
+                    "volume": "sum",
+                }
+            )
+            new_df.columns = ["open", "close", "low", "high", "volume"]
+            new_df = new_df.dropna()
+
+            new_bars = Bars(new_df, self.source, self.asset)
 
         return new_bars
 

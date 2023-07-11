@@ -2497,6 +2497,7 @@ class Strategy(_Strategy):
         quote: Asset = None,
         exchange: str = None,
         include_after_hours: bool = True,
+        bid_ask: bool = False,
     ):
         """Get historical pricing data for a given symbol or asset.
 
@@ -2527,6 +2528,8 @@ class Strategy(_Strategy):
             The exchange to pull the historical data from. Default is None (decided based on the broker)
         include_after_hours : bool
             Whether to include after hours data. Default is True. Currently only works with Interactive Brokers.
+        bid_ask : bool
+            Whether to retrieve bid and ask data rather than OHLC. Default is False. Currently only works with Interactive Brokers.
 
         Returns
         -------
@@ -2599,6 +2602,7 @@ class Strategy(_Strategy):
             timeshift=timeshift,
             exchange=exchange,
             include_after_hours=include_after_hours,
+            bid_ask=bid_ask,
         )
 
     def get_symbol_bars(

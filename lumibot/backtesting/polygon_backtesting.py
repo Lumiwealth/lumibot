@@ -176,6 +176,27 @@ class PolygonDataBacktesting(DataSourceBacktesting, PandasData):
         return super()._pull_source_symbol_bars(
             asset, length, timestep, timeshift, quote, exchange, include_after_hours
         )
+        
+    # Get pricing data for an asset for the entire backtesting period
+    def get_historical_prices_between_dates(
+        self, asset, timestep="minute", quote=None, exchange=None, include_after_hours=True, start_date=None, end_date=None
+    ):
+        pandas_data_update = self.update_pandas_data(
+            asset, quote, 1, timestep, polygon_helper
+        )
+        if pandas_data_update is not None:
+            # Add the keys to the self.pandas_data dictionary
+            self.pandas_data.update(pandas_data_update)
+
+        response = super()._pull_source_symbol_bars_between_dates(
+            asset, timestep, quote, exchange, include_after_hours, start_date, end_date
+        )
+
+        if response is None:
+            return None
+
+        bars = self._parse_source_symbol_bars(response, asset, quote=quote)
+        return bars
 
     def get_last_price(
         self, asset, timestep="minute", quote=None, exchange=None, **kwargs

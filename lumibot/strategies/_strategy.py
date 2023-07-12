@@ -13,7 +13,8 @@ from lumibot.backtesting import BacktestingBroker, PolygonDataBacktesting
 from lumibot.entities import Asset, Position, TradingFee
 from lumibot.tools import (create_tearsheet, day_deduplicate,
                            get_risk_free_rate, get_symbol_returns,
-                           plot_returns, stats_summary, to_datetime_aware)
+                           plot_indicators, plot_returns, stats_summary,
+                           to_datetime_aware)
 from lumibot.traders import Trader
 
 from .strategy_executor import StrategyExecutor
@@ -95,6 +96,12 @@ class _Strategy:
         self._benchmark_asset = benchmark_asset
         self._backtesting_start = backtesting_start
         self._backtesting_end = backtesting_end
+        
+        # Initialize the chart markers dataframe
+        self._chart_markers_df = pd.DataFrame(columns=["name", "symbol", "color", "size", "detail_text"])
+        
+        # Initialize the chart lines dataframe
+        self._chart_lines_df = pd.DataFrame(columns=["name" , "value", "color", "style", "size", "detail_text"])
 
         # Hold the asset objects for strings for stocks only.
         self._asset_mapping = dict()
@@ -546,16 +553,43 @@ class _Strategy:
                 # is at the start of the day, so the graph cuts short. This may be needed
                 # for other timeframes as well
                 backtesting_end_adjusted = self._backtesting_end
-                # if self.broker.market == "24/7":
-                #     backtesting_end_adjusted = (
-                #         self._backtesting_end + datetime.timedelta(days=1)
-                #     )
 
-                self._benchmark_returns_df = get_symbol_returns(
-                    self._benchmark_asset,
-                    self._backtesting_start,
-                    backtesting_end_adjusted,
-                )
+                # If we are using the polgon data source, then get the benchmark returns from polygon
+                if type(self.data_source) == PolygonDataBacktesting:
+                    benchmark_asset = self._benchmark_asset
+                    # If the benchmark asset is a string, then convert it to an Asset object
+                    if isinstance(benchmark_asset, str):
+                        benchmark_asset = Asset(benchmark_asset)
+                    
+                    timestep = "minute"
+                    # If the strategy sleeptime is in days then use daily data, eg. "1D"
+                    if "D" in str(self._sleeptime):
+                        timestep = "day"
+                    
+                    bars = self.data_source.get_historical_prices_between_dates(
+                        benchmark_asset,
+                        timestep,
+                        start_date=self._backtesting_start,
+                        end_date=backtesting_end_adjusted,
+                        quote=self._quote_asset,
+                    )
+                    df = bars.df
+                    
+                    # Add returns column
+                    df["return"] = df["close"].pct_change()
+                    
+                    # Add the symbol_cumprod column
+                    df["symbol_cumprod"] = (1 + df["return"]).cumprod()
+                    
+                    self._benchmark_returns_df = df
+                    
+                # If we are using the any other data source, then get the benchmark returns from yahoo
+                else:
+                    self._benchmark_returns_df = get_symbol_returns(
+                        self._benchmark_asset,
+                        self._backtesting_start,
+                        backtesting_end_adjusted,
+                    )
 
                 self._benchmark_analysis = stats_summary(
                     self._benchmark_returns_df, self._risk_free_rate
@@ -611,12 +645,34 @@ class _Strategy:
                 self._strategy_returns_df,
                 f"{self._log_strat_name()}Strategy",
                 self._benchmark_returns_df,
-                self._benchmark_asset,
+                str(self._benchmark_asset),
                 plot_file_html,
                 trades_df,
                 show_plot,
                 initial_budget=self._initial_budget,
+                # chart_markers_df=self._chart_markers_df,
+                # chart_lines_df=self._chart_lines_df,
             )
+            
+    def plot_indicators(
+        self,
+        plot_file_html="indicators.html",
+        chart_markers_df=None,
+        chart_lines_df=None,
+    ):  
+        # Check if we have at least one indicator to plot
+        if chart_markers_df is None and chart_lines_df is None:
+            return None
+        
+        # Plot the indicators
+        plot_indicators(
+            plot_file_html,
+            chart_markers_df,
+            chart_lines_df,
+            f"{self._log_strat_name()}Strategy Indicators",
+        )
+        
+        
 
     def tearsheet(
         self,
@@ -643,6 +699,7 @@ class _Strategy:
                 self._benchmark_returns_df,
                 self._benchmark_asset,
                 show_tearsheet,
+                risk_free_rate=self._risk_free_rate,
             )
 
     @classmethod
@@ -675,6 +732,7 @@ class _Strategy:
         sell_trading_fees=[],
         polygon_api_key=None,
         polygon_has_paid_subscription=False,
+        indicators_file=None,
         **kwargs,
     ):
         """Backtest a strategy.
@@ -707,8 +765,8 @@ class _Strategy:
             The name of the strategy.
         budget : float
             The initial budget to use for the backtest.
-        benchmark_asset : str
-            The benchmark asset to use for the backtest to compare to.
+        benchmark_asset : str or Asset
+            The benchmark asset to use for the backtest to compare to. If it is a string then it will be converted to a stock Asset object.
         plot_file_html : str
             The file to write the plot html to.
         trades_file : str
@@ -741,6 +799,8 @@ class _Strategy:
             The polygon api key to use for polygon data. Only required if you are using PolygonDataBacktesting as the datasource_class.
         polygon_has_paid_subscription : bool
             Whether or not you have a paid subscription to Polygon. Only required if you are using PolygonDataBacktesting as the datasource_class.
+        indicators_file : str
+            The file to write the indicators to.
 
         Returns
         -------
@@ -765,11 +825,14 @@ class _Strategy:
         >>> backtesting_start = datetime(2018, 1, 1)
         >>> backtesting_end = datetime(2018, 1, 31)
         >>>
+        >>> # The benchmark asset to use for the backtest to compare to
+        >>> benchmark_asset = Asset(symbol="QQQ", asset_type="stock")
+        >>>
         >>> backtest = MyStrategy.backtest(
         >>>     datasource_class=YahooDataBacktesting,
         >>>     backtesting_start=backtesting_start,
         >>>     backtesting_end=backtesting_end,
-        >>>     benchmark_asset="QQQ", # The benchmark asset to use for the backtest to compare to.
+        >>>     benchmark_asset=benchmark_asset,
         >>> )
 
 
@@ -876,6 +939,10 @@ class _Strategy:
             settings_file = (
                 f"logs/{name + '_' if name != None else ''}{datestring}_settings.json"
             )
+        if indicators_file is None:
+            indicators_file = (
+                f"logs/{name + '_' if name != None else ''}{datestring}_indicators.html"
+            )
 
         if not cls.IS_BACKTESTABLE:
             logging.warning(
@@ -971,6 +1038,12 @@ class _Strategy:
             plot_file_html,
             backtesting_broker._trade_event_log_df,
             show_plot=show_plot,
+        )
+        
+        strategy.plot_indicators(
+            indicators_file,
+            strategy._chart_markers_df,
+            strategy._chart_lines_df,
         )
 
         strategy.tearsheet(

@@ -456,9 +456,42 @@ class Data:
             dict[dl_name] = dl.dataline[start_row:end_row]
 
         return dict
+    
+    def _get_bars_between_dates_dict(self, timestep=None, start_date=None, end_date=None):
+        """Returns a dictionary of all the data available between the start and end dates.
+        
+        Parameters
+        ----------
+        timestep : str
+            The frequency of the data to get the data.
+        start_date : datetime.datetime
+            The start date to get the data for.
+        end_date : datetime.datetime
+            The end date to get the data for.
+            
+        Returns
+        -------
+        dict
+        """
+        
+        end_row = self.get_iter_count(end_date)
+        start_row = self.get_iter_count(start_date)
+        
+        if start_row < 0:
+            start_row = 0
+            
+        # Cast both start_row and end_row to int
+        start_row = int(start_row)
+        end_row = int(end_row)
+        
+        dict = {}
+        for dl_name, dl in self.datalines.items():
+            dict[dl_name] = dl.dataline[start_row:end_row]
+            
+        return dict
 
     def get_bars(self, dt, length=1, timestep=MIN_TIMESTEP, timeshift=0, exchange=None):
-        """Returns a dictionary of the data.
+        """Returns a dataframe of the data.
 
         Parameters
         ----------
@@ -520,3 +553,76 @@ class Data:
 
             df = pd.DataFrame(dict).set_index("datetime")
             return df
+        
+    def get_bars_between_dates(self, timestep=MIN_TIMESTEP, exchange=None, start_date=None, end_date=None):
+        """Returns a dataframe of all the data available between the start and end dates.
+        
+        Parameters
+        ----------
+        timestep : str
+            The frequency of the data to get the data. Only minute and day are supported.
+        exchange : str
+            The exchange to get the data for.
+        start_date : datetime.datetime
+            The start date to get the data for.
+        end_date : datetime.datetime
+            The end date to get the data for.
+            
+        Returns
+        -------
+        pandas.DataFrame
+        """
+        
+        if timestep == "minute" and self.timestep == "day":
+            raise ValueError(
+                "You are requesting minute data from a daily data source. This is not supported."
+            )
+            
+        if timestep != "minute" and timestep != "day":
+            raise ValueError(
+                f"Only minute and day are supported for timestep. You provided: {timestep}"
+            )
+            
+        if timestep == "day" and self.timestep == "minute":
+            # If the data is minute data and we are requesting daily data then multiply the length by 1440
+            length = length * 1440
+
+            dict = self._get_bars_between_dates_dict(
+                timestep=timestep,
+                start_date=start_date,
+                end_date=end_date
+            )
+            
+            if dict is None:
+                return None
+            
+            df = pd.DataFrame(dict).set_index("datetime")
+            
+            df_result = df.resample("D").agg(
+                {
+                    "open": "first",
+                    "high": "max",
+                    "low": "min",
+                    "close": "last",
+                    "volume": "sum",
+                }
+            )
+            
+            return df_result
+        
+        else:
+            dict = self._get_bars_between_dates_dict(
+                timestep=timestep,
+                start_date=start_date,
+                end_date=end_date
+            )
+            
+            if dict is None:
+                return None
+            
+            df = pd.DataFrame(dict).set_index("datetime")
+            return df
+        
+        
+
+   

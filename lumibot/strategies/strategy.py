@@ -4,6 +4,7 @@ from asyncio.log import logger
 from decimal import Decimal
 from typing import Union
 
+import numpy as np
 import pandas as pd
 import pandas_market_calendars as mcal
 from lumibot.entities import Asset, Order
@@ -2487,7 +2488,169 @@ class Strategy(_Strategy):
             multiplier=multiplier,
             currency=currency,
         )
-
+        
+    def add_marker(self, name, symbol="circle", value=None, color=None, size=None, detail_text=None, dt=None):
+        """Adds a marker to the trades chart.
+        
+        Parameters
+        ----------
+        name : str
+            The name of the marker. This is used to display the name on the graph. Eg. "Overbought", "Oversold", "Stop Loss", "Take Profit", ...
+        symbol : str
+            The symbol of the marker. Possible values are 'circle', 'circle-open', 'circle-dot', 'circle-open-dot', 'square', 'square-open', 'square-dot', 'square-open-dot', 'diamond', 'diamond-open', 'diamond-dot', 'diamond-open-dot', 'cross', 'cross-open', 'cross-dot', 'cross-open-dot', 'x', 'x-open', 'x-dot', 'x-open-dot', 'triangle-up', 'triangle-up-open', 'triangle-up-dot', 'triangle-up-open-dot', 'triangle-down', 'triangle-down-open', 'triangle-down-dot', 'triangle-down-open-dot', 'triangle-left', 'triangle-left-open', 'triangle-left-dot', 'triangle-left-open-dot', 'triangle-right', 'triangle-right-open', 'triangle-right-dot', 'triangle-right-open-dot', 'triangle-ne', 'triangle-ne-open', 'triangle-ne-dot', 'triangle-ne-open-dot', 'triangle-se', 'triangle-se-open', 'triangle-se-dot', 'triangle-se-open-dot', 'triangle-sw', 'triangle-sw-open', 'triangle-sw-dot', 'triangle-sw-open-dot', 'triangle-nw', 'triangle-nw-open', 'triangle-nw-dot', 'triangle-nw-open-dot', 'pentagon', 'pentagon-open', 'pentagon-dot', 'pentagon-open-dot', 'hexagon', 'hexagon-open', 'hexagon-dot', 'hexagon-open-dot', 'hexagon2', 'hexagon2-open', 'hexagon2-dot', 'hexagon2-open-dot', 'octagon', 'octagon-open', 'octagon-dot', 'octagon-open-dot', 'star', 'star-open', 'star-dot', 'star-open-dot', 'hexagram', 'hexagram-open', 'hexagram-dot', 'hexagram-open-dot', 'star-triangle-up', 'star-triangle-up-open', 'star-triangle-up-dot', 'star-triangle-up-open-dot', 'star-triangle-down', 'star-triangle-down-open', 'star-triangle-down-dot', 'star-triangle-down-open-dot', 'star-square', 'star-square-open', 'star-square-dot', 'star-square-open-dot', 'star-diamond', 'star-diamond-open', 'star-diamond-dot', 'star-diamond-open-dot', 'diamond-tall', 'diamond-tall-open', 'diamond-tall-dot', 'diamond-tall-open-dot', 'diamond-wide', 'diamond-wide-open', 'diamond-wide-dot', 'diamond-wide-open-dot', 'hourglass', 'hourglass-open', 'bowtie', 'bowtie-open', 'circle-cross', 'circle-cross-open', 'circle-x', 'circle-x-open', 'square-cross', 'square-cross-open', 'square-x', 'square-x-open', 'diamond-cross', 'diamond-cross-open', 'diamond-x', 'diamond-x-open', 'cross-thin', 'cross-thin-open', 'x-thin', 'x-thin-open', 'asterisk', 'asterisk-open', 'hash', 'hash-open', 'hash-dot', 'hash-open-dot', 'y-up', 'y-up-open', 'y-down', 'y-down-open', 'y-left', 'y-left-open', 'y-right', 'y-right-open', 'line-ew', 'line-ew-open', 'line-ns', 'line-ns-open', 'line-ne', 'line-ne-open', 'line-nw', 'line-nw-open', 'arrow-up', 'arrow-up-open', 'arrow-down', 'arrow-down-open', 'arrow-left', 'arrow-left-open', 'arrow-right', 'arrow-right-open', 'arrow-bar-up', 'arrow-bar-up-open', 'arrow-bar-down', 'arrow-bar-down-open', 'arrow-bar-left', 'arrow-bar-left-open', 'arrow-bar-right', 'arrow-bar-right-open', 'arrow', 'arrow-open', 'arrow-wide', 'arrow-wide-open'
+        value : float or int
+            The value of the marker. Default is the current portfolio value.
+        color : str
+            The color of the marker. Possible values are "red", "green", "blue", "yellow", "orange", "purple", "pink", "brown", "black", and "white".
+        size : int
+            The size of the marker.
+        detail_text : str
+            The text to display when the marker is hovered over.
+        dt : datetime.datetime or pandas.Timestamp
+            The datetime of the marker. Default is the current datetime.
+            
+        Example
+        -------
+        >>> # Will add a marker to the chart
+        >>> self.add_chart_marker("Overbought", symbol="circle", color="red", size=10)
+        """
+        
+        # Check that the parameters are valid
+        if type(name) != str:
+            raise ValueError(f"Invalid name parameter in add_marker() method. Name must be a string but instead got {name}, which is a type {type(name)}.")
+        
+        if type(symbol) != str:
+            raise ValueError(f"Invalid symbol parameter in add_marker() method. Symbol must be a string but instead got {symbol}, which is a type {type(symbol)}.")
+        
+        if value is not None and type(value) not in [float, int, np.float64]:
+            raise ValueError(f"Invalid value parameter in add_marker() method. Value must be a float or int but instead got {value}, which is a type {type(value)}.")
+             
+        if color is not None and type(color) != str:
+            raise ValueError(f"Invalid color parameter in add_marker() method. Color must be a string but instead got {color}, which is a type {type(color)}.")
+        
+        if size is not None and type(size) != int:
+            raise ValueError(f"Invalid size parameter in add_marker() method. Size must be an int but instead got {size}, which is a type {type(size)}.")
+        
+        if detail_text is not None and type(detail_text) != str:
+            raise ValueError(f"Invalid detail_text parameter in add_marker() method. Detail_text must be a string but instead got {detail_text}, which is a type {type(detail_text)}.")
+        
+        if dt is not None and type(dt) not in [datetime.datetime, pd.Timestamp]:
+            raise ValueError(f"Invalid dt parameter in add_marker() method. Dt must be a datetime.datetime but instead got {dt}, which is a type {type(dt)}.")
+               
+        # If no datetime is specified, use the current datetime
+        if dt is None:
+            dt = self.get_datetime()
+        
+        # If no value is specified, use the current portfolio value
+        if value is None:
+            value = self.get_portfolio_value()
+            
+        # Check for duplicate markers
+        if self._chart_markers_df is not None and len(self._chart_markers_df) > 0:
+            if len(self._chart_markers_df[
+                (self._chart_markers_df["datetime"] == dt) & 
+                (self._chart_markers_df["name"] == name) & 
+                (self._chart_markers_df["symbol"] == symbol)]) > 0:
+                self.log_message(f"Duplicate marker found. Marker not added.")
+                return
+            
+        self._chart_markers_df = pd.concat([self._chart_markers_df, pd.DataFrame(
+            {
+                "datetime": dt,
+                "name": name, 
+                "symbol": symbol, 
+                "color": color, 
+                "size": size, 
+                "value": value,
+                "detail_text": detail_text,
+            }, index=[0])], ignore_index=True)
+         
+    def get_markers_df(self):
+        """Returns the markers on the trades chart.
+        
+        Returns
+        -------
+        pandas.DataFrame
+            The markers on the trades chart.
+        """
+        
+        return self._chart_markers_df
+        
+    def add_line(self, name, value, color=None, style="solid", width=None, detail_text=None, dt=None):
+        """Adds a line data point to the trades chart.
+        
+        Parameters
+        ----------
+        name : str
+            The name of the line. This is used to display the name on the graph. Eg. "Overbought", "Oversold", "Stop Loss", "Take Profit", ...
+        value : float or int
+            The value of the line.
+        color : str
+            The color of the line. Possible values are "red", "green", "blue", "yellow", "orange", "purple", "pink", "brown", "black", "white", "gray", "lightgray", "darkgray", "lightblue", "darkblue", "lightgreen", "darkgreen", "lightred", "darkred" and any hex color code.
+        style : str
+            The style of the line. Possible values are "solid", "dotted", and "dashed".
+        width : int
+            The width of the line.
+        detail_text : str
+            The text to display when the line is hovered over.
+        dt : datetime.datetime or pandas.Timestamp
+            The datetime of the line. Default is the current datetime.
+            
+        Example
+        -------
+        >>> # Will add a line to the chart
+        >>> self.add_chart_line("Overbought", value=80, color="red", style="dotted", width=2)
+        """  
+        
+        # Check that the parameters are valid
+        if type(name) != str:
+            raise ValueError(f"Invalid name parameter in add_line() method. Name must be a string but instead got {name}, which is a type {type(name)}.")
+        
+        if type(value) not in [float, int, np.float64]:
+            raise ValueError(f"Invalid value parameter in add_line() method. Value must be a float or int but instead got {value}, which is a type {type(value)}.")      
+                    
+        if color is not None and type(color) != str:
+            raise ValueError(f"Invalid color parameter in add_line() method. Color must be a string but instead got {color}, which is a type {type(color)}.")
+        
+        if type(style) != str:
+            raise ValueError(f"Invalid style parameter in add_line() method. Style must be a string but instead got {style}, which is a type {type(style)}.")
+        
+        if width is not None and type(width) != int:
+            raise ValueError(f"Invalid width parameter in add_line() method. Width must be an int but instead got {width}, which is a type {type(width)}.")
+        
+        if detail_text is not None and type(detail_text) != str:
+            raise ValueError(f"Invalid detail_text parameter in add_line() method. Detail_text must be a string but instead got {detail_text}, which is a type {type(detail_text)}.")
+        
+        if dt is not None and type(dt) not in [datetime.datetime, pd.Timestamp]:
+            raise ValueError(f"Invalid dt parameter in add_line() method. Dt must be a datetime.datetime but instead got {dt}, which is a type {type(dt)}.")
+                    
+                    
+        # If no datetime is specified, use the current datetime
+        if dt is None:
+            dt = self.get_datetime()
+            
+        self._chart_lines_df = pd.concat([self._chart_lines_df, pd.DataFrame(
+            {
+                "datetime": dt,
+                "name": name,
+                "value": value,
+                "color": color,
+                "style": style,
+                "width": width,
+                "detail_text": detail_text,
+                }, index=[0])], ignore_index=True)
+        
+    def get_lines_df(self):
+        """Returns the lines on the trades chart.
+        
+        Returns
+        -------
+        pandas.DataFrame
+            The lines on the trades chart.
+        """
+        
+        return self._chart_lines_df
+        
     def get_historical_prices(
         self,
         asset: Union[Asset, str],

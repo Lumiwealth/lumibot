@@ -6,6 +6,7 @@ from decimal import Decimal
 from email.utils import quote
 from functools import wraps
 
+import pandas as pd
 from lumibot.brokers import Broker
 from lumibot.entities import Order, Position, TradingFee
 from lumibot.tools import get_trading_days
@@ -25,8 +26,12 @@ class BacktestingBroker(Broker):
         if not data_source.IS_BACKTESTING_DATA_SOURCE:
             raise ValueError("object %r is not a backtesting data_source" % data_source)
         self._data_source = data_source
-
-        # self._trading_days = get_trading_days()
+        
+        # Initialize the chart markers dataframe
+        self._chart_markers_df = pd.DataFrame(columns=["name", "symbol", "color", "size", "detail_text"])
+        
+        # Initialize the chart lines dataframe
+        self._chart_lines_df = pd.DataFrame(columns=["name" , "value", "color", "style", "size", "detail_text"])
 
         Broker.__init__(self, name=self.name, connect_stream=connect_stream)
 
@@ -114,6 +119,7 @@ class BacktestingBroker(Broker):
         search = self._trading_days[now < self._trading_days.market_close]
         if search.empty:
             logging.error("Cannot predict future")
+            return 0
 
         trading_day = search.iloc[0]
         if now >= trading_day.market_open:

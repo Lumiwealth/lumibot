@@ -159,6 +159,27 @@ def performance(_df, risk_free, prefix=""):
 
 
 def get_symbol_returns(symbol, start=datetime(1900, 1, 1), end=datetime.now()):
+    """Get the returns for a symbol between two dates
+    
+    Parameters
+    ----------
+    symbol : str
+        The symbol to get the returns for
+    start : datetime, optional
+        The start date, by default datetime(1900, 1, 1)
+    end : datetime, optional
+        The end date, by default datetime.now()
+        
+    Returns
+    -------
+    pd.DataFrame
+        A dataframe with the returns for the symbol. Includes the columns:  
+        - pct_change: The percent change in the Close price
+        - div_yield: The dividend yield
+        - return: The pct_change + div_yield
+        - symbol_cumprod: The cumulative product of (1 + return)
+
+    """
     # Making start and end datetime aware
     returns_df = yh.get_symbol_data(symbol)
     returns_df = returns_df.loc[
@@ -182,6 +203,158 @@ def calculate_returns(symbol, start=datetime(1900, 1, 1), end=datetime.now()):
 
     performance(benchmark_df, risk_free_rate, symbol)
 
+def plot_indicators(
+    plot_file_html="indicators.html",
+    chart_markers_df=None,
+    chart_lines_df=None,
+    strategy_name=None,
+    show_plot=True,
+):
+    print("Creating indicators plot...")
+    
+    fig = make_subplots(specs=[[{"secondary_y": True}]])
+    
+    has_chart_data = False
+    
+    ###############################
+    ## Chart Markers
+    ###############################
+    
+    def generate_marker_plotly_text(row):
+        if row["detail_text"] is None:
+            return (
+                "Value: "
+                + str(row["value"])
+            )
+        else:
+            return (
+                "Value: "
+                + str(row["value"])
+                + "<br>"
+                + row["detail_text"]
+            )
+    
+    # Plot the chart markers
+    if chart_markers_df is not None and not chart_markers_df.empty:
+        chart_markers_df = chart_markers_df.copy()
+        chart_markers_df["detail_text"] = chart_markers_df.apply(
+            generate_marker_plotly_text, axis=1
+        )
+        
+        # Loop over the marker names and create a new trace for each one
+        for marker_name in chart_markers_df["name"].unique():
+            # Get the marker data for this marker name
+            marker_df = chart_markers_df.loc[chart_markers_df["name"] == marker_name]
+            
+            # Get the marker symbol
+            marker_symbol = marker_df["symbol"].iloc[0]
+            
+            # Get the marker size
+            marker_size = marker_df["size"].iloc[0]
+            marker_size = marker_size if marker_size else 25
+            
+            # Create a new trace for this marker name
+            fig.add_trace(
+                go.Scatter(
+                    x=marker_df["datetime"],
+                    y=marker_df["value"],
+                    mode="markers",
+                    name=marker_name,
+                    marker_color=marker_df["color"],
+                    marker_size=marker_size,
+                    marker_symbol=marker_symbol,
+                    hovertemplate=f"{marker_name}<br>%{{text}}<br>%{{x|%b %d %Y %I:%M:%S %p}}<extra></extra>",
+                    text=marker_df["detail_text"],
+                )
+            )
+            
+        has_chart_data = True
+            
+    ###############################
+    ## Chart Lines
+    ###############################
+    
+    def generate_line_plotly_text(row):
+        if row["detail_text"] is None:
+            return (
+                "Value: "
+                + str(row["value"])
+            )
+        else:
+            return (
+                "Value: "
+                + str(row["value"])
+                + "<br>"
+                + row["detail_text"]
+            )
+            
+    # Plot the chart lines
+    if chart_lines_df is not None and not chart_lines_df.empty:
+        chart_lines_df = chart_lines_df.copy()
+        chart_lines_df["detail_text"] = chart_lines_df.apply(
+            generate_line_plotly_text, axis=1
+        )
+        
+        # Loop over the line names and create a new trace for each one
+        for line_name in chart_lines_df["name"].unique():
+            # Get the line data for this line name
+            line_df = chart_lines_df.loc[chart_lines_df["name"] == line_name]
+            
+            # Get the color for this line name
+            color = line_df["color"].iloc[0]
+            
+            # Create a new trace for this line name
+            fig.add_trace(
+                go.Scatter(
+                    x=line_df["datetime"],
+                    y=line_df["value"],
+                    mode="lines",
+                    name=line_name,
+                    line_color=color,
+                    hovertemplate=f"{line_name}<br>%{{text}}<br>%{{x|%b %d %Y %I:%M:%S %p}}<extra></extra>",
+                    text=line_df["detail_text"],
+                )
+            )
+            
+        has_chart_data = True
+            
+    ###############################
+    ## Chart Titles and Layouts
+    ###############################
+
+    if has_chart_data:
+        # Set title and layout
+        fig.update_layout(
+            title_text=f"Indicators for {strategy_name}",
+            title_font_size=30,
+            template="plotly_dark",
+            xaxis_rangeselector_font_color="black",
+            xaxis_rangeselector_activecolor="grey",
+            xaxis_rangeselector_bgcolor="white",
+        )
+
+        # Set y-axes titles
+        fig.update_yaxes(title_text="Axis 1", secondary_y=False)
+        fig.update_yaxes(title_text="Axis 2", secondary_y=True)
+        fig.update_xaxes(
+            rangeslider_visible=True,
+            rangeselector=dict(
+                buttons=list(
+                    [
+                        dict(count=1, label="1m", step="month", stepmode="backward"),
+                        dict(count=6, label="6m", step="month", stepmode="backward"),
+                        dict(count=1, label="YTD", step="year", stepmode="todate"),
+                        dict(count=1, label="1y", step="year", stepmode="backward"),
+                        dict(step="all"),
+                    ]
+                )
+            ),
+        )
+
+        # Create graph
+        fig.write_html(plot_file_html, auto_open=show_plot)
+            
+    
 
 def plot_returns(
     strategy_df,
@@ -192,7 +365,11 @@ def plot_returns(
     trades_df=None,
     show_plot=True,
     initial_budget=1,
+    # chart_markers_df=None,
+    # chart_lines_df=None,
 ):
+    print("Creating trades plot...")
+    
     dfs_concat = []
 
     _df1 = strategy_df.copy()
@@ -213,17 +390,20 @@ def plot_returns(
 
     dfs_concat.append(_df2[benchmark_name])
     df_final = pd.concat(dfs_concat, join="outer", axis=1)
+    
+    # Make all the benchmark_df columns lowercase
+    benchmark_df.columns = benchmark_df.columns.str.lower()
 
     # Get the ratio of the strategy to the initial_budget
-    close_ratio = initial_budget / benchmark_df["Close"].iloc[0]
-    open_ratio = initial_budget / benchmark_df["Open"].iloc[0]
-    high_ratio = initial_budget / benchmark_df["High"].iloc[0]
-    low_ratio = initial_budget / benchmark_df["Low"].iloc[0]
+    close_ratio = initial_budget / benchmark_df["close"].iloc[0]
+    open_ratio = initial_budget / benchmark_df["open"].iloc[0]
+    high_ratio = initial_budget / benchmark_df["high"].iloc[0]
+    low_ratio = initial_budget / benchmark_df["low"].iloc[0]
 
-    df_final["Close"] = benchmark_df["Close"] * close_ratio
-    df_final["Open"] = benchmark_df["Open"] * open_ratio
-    df_final["High"] = benchmark_df["High"] * high_ratio
-    df_final["Low"] = benchmark_df["Low"] * low_ratio
+    df_final["Close"] = benchmark_df["close"] * close_ratio
+    df_final["Open"] = benchmark_df["open"] * open_ratio
+    df_final["High"] = benchmark_df["high"] * high_ratio
+    df_final["Low"] = benchmark_df["low"] * low_ratio
 
     if trades_df is None or trades_df.empty:
         logging.info("There were no trades in this backtest.")
@@ -245,7 +425,7 @@ def plot_returns(
             mode="lines",
             name=strategy_name,
             connectgaps=True,
-            hovertemplate="Value: %{y:$,.2f}<br>%{x|%b %d %Y %I:%M:%S %p}<extra></extra>",
+            hovertemplate=f"{strategy_name}<br>Portfolio Value: %{{y:$,.2f}}<br>%{{x|%b %d %Y %I:%M:%S %p}}<extra></extra>",
         )
     )
 
@@ -257,7 +437,7 @@ def plot_returns(
             mode="lines",
             name=benchmark_name,
             connectgaps=True,
-            hovertemplate="Value: %{y:$,.2f}<br>%{x|%b %d %Y %I:%M:%S %p}<extra></extra>",
+            hovertemplate=f"{benchmark_name}<br>Portfolio Value: %{{y:$,.2f}}<br>%{{x|%b %d %Y %I:%M:%S %p}}<extra></extra>",
         )
     )
 
@@ -269,19 +449,22 @@ def plot_returns(
             mode="lines",
             name="cash",
             connectgaps=True,
-            hovertemplate="Value: %{y:$,.2f}<br>%{x|%b %d %Y %I:%M:%S %p}<extra></extra>",
+            hovertemplate="Cash<br>Value: %{y:$,.2f}<br>%{x|%b %d %Y %I:%M:%S %p}<extra></extra>",
         ),
         secondary_y=True,
     )
 
-    vshift = 0.01
+    # Use a % of the range of df_final[strategy_name] to shift the buy and sell ticks
+    max = df_final[strategy_name].max()
+    min = df_final[strategy_name].min()
+    vshift = (max - min) * 0.15
 
     # Buy ticks
     buys = df_final.copy()
     buys[strategy_name] = buys[strategy_name].fillna(method="bfill")
     buys = buys.loc[df_final["side"] == "buy"]
 
-    def generate_plotly_text(row):
+    def generate_buysell_plotly_text(row):
         if row["status"] != "canceled":
             if row["sec_type"] == "option":
                 return (
@@ -347,9 +530,9 @@ def plot_returns(
         else:
             return row["status"] + "<br>" + row["symbol"] + "<br>"
 
-    buy_ticks_df = buys.apply(generate_plotly_text, axis=1)
+    buy_ticks_df = buys.apply(generate_buysell_plotly_text, axis=1)
 
-    # Check if there are any sell ticks
+    # Plot the buy ticks
     if not buy_ticks_df.empty:
         buys["plotly_text_buys"] = buy_ticks_df
 
@@ -360,7 +543,7 @@ def plot_returns(
             .reset_index()
         )
         buys = buys.set_index("datetime")
-        buys["buy_shift"] = buys[strategy_name] * (1 - vshift)
+        buys["buy_shift"] = buys[strategy_name] - vshift
         fig.add_trace(
             go.Scatter(
                 x=buys.index,
@@ -374,15 +557,19 @@ def plot_returns(
                 text=buys["plotly_text_buys"],
             )
         )
+        
+    ###############################
+    # Plot the sell ticks
+    ###############################
 
     # Sell ticks
     sells = df_final.copy()
     sells[strategy_name] = sells[strategy_name].fillna(method="bfill")
     sells = sells.loc[df_final["side"] == "sell"]
 
-    sells_ticks_df = sells.apply(generate_plotly_text, axis=1)
+    sells_ticks_df = sells.apply(generate_buysell_plotly_text, axis=1)
 
-    # Check if there are any sell ticks
+    # Plot the sell ticks
     if not sells_ticks_df.empty:
         sells["plotly_text_sells"] = sells_ticks_df
         sells.index.name = "datetime"
@@ -394,7 +581,7 @@ def plot_returns(
             .reset_index()
         )
         sells = sells.set_index("datetime")
-        sells["sell_shift"] = sells[strategy_name] * (1 + vshift)
+        sells["sell_shift"] = sells[strategy_name] + vshift
         fig.add_trace(
             go.Scatter(
                 x=sells.index,
@@ -408,6 +595,11 @@ def plot_returns(
                 text=sells["plotly_text_sells"],
             )
         )
+        
+    
+    ###############################
+    ## Chart Titles and Layouts
+    ###############################
 
     # Set title and layout
     bm_text = f"Compared With {benchmark_name}" if benchmark_name else ""
@@ -449,17 +641,20 @@ def create_tearsheet(
     df2,
     benchmark_asset,
     show_tearsheet,
+    risk_free_rate,
 ):
+    print("Creating tearsheet...")
+    
     _df1 = df1.copy()
     _df2 = df2.copy()
 
     df = pd.concat([_df1, _df2], join="outer", axis=1)
     df.index = pd.to_datetime(df.index)
     df["portfolio_value"] = df["portfolio_value"].ffill()
+        
     df["symbol_cumprod"] = df["symbol_cumprod"].ffill()
     df.loc[df.index[0], "symbol_cumprod"] = 1
 
-    # df = df.resample("D").ffill()
     df = df.groupby(df.index.date).last()
     df["strategy"] = df["portfolio_value"].pct_change().fillna(0)
     df["benchmark"] = df["symbol_cumprod"].pct_change().fillna(0)
@@ -486,18 +681,25 @@ def create_tearsheet(
     bm_text = f"Compared to {benchmark_asset}" if benchmark_asset else ""
     title = f"{strat_name} {bm_text}"
 
-    # If all the values are 0, then we can't create a tearsheet
-    if df_final["benchmark"].sum() == 0 or df_final["strategy"].sum() == 0:
-        logging.error("Not enough data to create a tearsheet, skipping")
+    # Check if all the values are equal to 0
+    if df_final["benchmark"].sum() == 0:
+        logging.error("Not enough data to create a tearsheet, the benchmark dataframe has no data. Skipping")
+        return
+    # Check if all the values are equal to 0
+    if df_final["strategy"].sum() == 0:
+        logging.error("Not enough data to create a tearsheet, the strategy dataframe has no data. Skipping")
         return
 
+    # TODO: Add the risk free rate, it's currently 0% which is wrong
     qs.reports.html(
         df_final["strategy"],
         df_final["benchmark"],
         title=title,
         output=True,
         download_filename=tearsheet_file,
+        rf=risk_free_rate,
         # match_dates=True,
+        # TODO: Add the risk free rate
     )
     if show_tearsheet:
         url = "file://" + os.path.abspath(str(tearsheet_file))
@@ -507,7 +709,8 @@ def create_tearsheet(
 def get_risk_free_rate():
     try:
         result = yh.get_risk_free_rate()
-    except:
+    except Exception as e:
+        logging.error(f"Error getting the risk free rate: {e}")
         result = 0
 
     return result

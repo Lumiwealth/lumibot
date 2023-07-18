@@ -683,11 +683,11 @@ def create_tearsheet(
 
     # Check if all the values are equal to 0
     if df_final["benchmark"].sum() == 0:
-        logging.error("Not enough data to create a tearsheet, the benchmark dataframe has no data. Skipping")
+        logging.error("Not enough data to create a tearsheet, at least 2 days of data are required. Skipping")
         return
     # Check if all the values are equal to 0
     if df_final["strategy"].sum() == 0:
-        logging.error("Not enough data to create a tearsheet, the strategy dataframe has no data. Skipping")
+        logging.error("Not enough data to create a tearsheet, at least 2 days of data are required. Skipping")
         return
 
     # TODO: Add the risk free rate, it's currently 0% which is wrong

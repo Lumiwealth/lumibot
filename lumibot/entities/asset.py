@@ -158,9 +158,9 @@ class Asset(BaseModel, frozen=True, extra="forbid"):
         # TODO: check if this works!
         if v == "us_equity":
             v = "stock"
-        elif v not in cls._asset_types.default:
+        elif v not in cls._asset_types:
             raise ValueError(
-                f"`asset_type` must be one of {', '.join(cls._asset_types.default)}"
+                f"`asset_type` must be one of {', '.join(cls._asset_types)}"
             )
         return v
 
@@ -170,9 +170,9 @@ class Asset(BaseModel, frozen=True, extra="forbid"):
             return
 
         v = v.upper()
-        if v not in cls._right.default:
+        if v not in cls._right:
             raise ValueError(
-                f"`right` is {v} must be one of {', '.join(cls._right.default)}, upper case."
+                f"`right` is {v} must be one of {', '.join(cls._right)}, upper case."
             )
         return v
 

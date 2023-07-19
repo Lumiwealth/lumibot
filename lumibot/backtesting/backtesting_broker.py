@@ -348,6 +348,11 @@ class BacktestingBroker(Broker):
                 position.asset.expiration is not None
                 and position.asset.expiration <= self.datetime.date()
             ):
+                # If it's the same day as the expiration, we need to check the time to see if it's after market close
+                time_to_close = self.get_time_to_close()
+                if position.asset.expiration == self.datetime.date() and time_to_close > (15 * 60):
+                    continue
+                    
                 logging.warn(
                     f"Automatically selling expired contract for asset {position.asset}"
                 )
@@ -484,6 +489,10 @@ class BacktestingBroker(Broker):
                     price = self.limit_order(
                         order.limit_price, order.side, close, high, low
                     )
+            elif order.type == "trailing_stop":
+                raise ValueError(
+                    f"Order type {order.type} is not implemented for backtesting."
+                )
             else:
                 raise ValueError(
                     f"Order type {order.type} is not implemented for backtesting."

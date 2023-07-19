@@ -122,7 +122,7 @@ def get_price_data_from_polygon(
                     time.sleep(WAIT_TIME)
 
         # Make sure we are not in an endless loop
-        if last_cur_start is not None and last_cur_start == cur_start:
+        if last_cur_start is not None and last_cur_start == cur_start and not first_iteration:
             # We already got data for this date, break out of the loop
             break
         last_cur_start = cur_start

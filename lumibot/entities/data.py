@@ -365,9 +365,10 @@ class Data:
             data_index = i + 1 - length - timeshift
             is_data = data_index >= 0
             if not is_data:
-                raise ValueError(
-                    f"The date you are looking for ({dt}) is outside of the data's date range ({self.datetime_start} to {self.datetime_end}) after accounting for a length of {kwargs.get('length', 1)} and a timeshift of {kwargs.get('timeshift', 0)}. Keep in mind that the length you are requesting must also be available in your data, in this case we are {data_index} rows away from the data you need."
-                )
+                # Log a warning
+                logging.warning(
+                    f"The date you are looking for ({dt}) is outside of the data's date range ({self.datetime_start} to {self.datetime_end}) after accounting for a length of {kwargs.get('length', 1)} and a timeshift of {kwargs.get('timeshift', 0)}. Keep in mind that the length you are requesting must also be available in your data, in this case we are {data_index} rows away from the data you need."                
+                    )
 
             res = func(self, *args, **kwargs)
             # print(f"Results last price: {res}")

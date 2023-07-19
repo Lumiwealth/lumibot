@@ -457,7 +457,7 @@ def plot_returns(
     # Use a % of the range of df_final[strategy_name] to shift the buy and sell ticks
     max = df_final[strategy_name].max()
     min = df_final[strategy_name].min()
-    vshift = (max - min) * 0.15
+    vshift = (max - min) * 0.10
 
     # Buy ticks
     buys = df_final.copy()

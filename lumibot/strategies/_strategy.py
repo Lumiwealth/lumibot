@@ -908,6 +908,13 @@ class _Strategy:
                 f"`backtesting_end` must be a datetime object. You passed in {backtesting_end}"
             )
             
+
+        # Check that backtesting end is after backtesting start
+        if backtesting_end <= backtesting_start:
+            raise ValueError(
+                f"`backtesting_end` must be after `backtesting_start`. You passed in {backtesting_end} and {backtesting_start}"
+            )
+            
             
         # Make sure polygon_api_key is set if using PolygonDataBacktesting
         if datasource_class == PolygonDataBacktesting and polygon_api_key is None:

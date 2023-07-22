@@ -65,16 +65,8 @@ class StrategyExecutor(Thread):
     def safe_sleep(self, sleeptime):
         """internal function for sleeping"""
         if not self.broker.IS_BACKTESTING_BROKER:
-            # Define a function that checks the queue and processes events
-
-            # Calculate the time until the next minute
-            now = datetime.now()
-            next_minute = (now + timedelta(minutes=1)).replace(second=0, microsecond=0)
-            seconds_until_next_minute = (next_minute - now).total_seconds()
-            print("Seconds until next minute: ", seconds_until_next_minute)
-
-            #Wait until the next minute
-            time.sleep(seconds_until_next_minute)
+            # If we are running live, APScheduler handles this now.
+            pass
 
         else:
             self.process_queue()
@@ -356,8 +348,8 @@ class StrategyExecutor(Thread):
         # If we are running live, we need to check if it's time to execute the trading iteration.
         if not self.strategy.is_backtesting:
             self.cron_count += 1
-            print("Cron count: ", self.cron_count)
-            print("Cron target: ", self.cron_count_target)
+            # print("Cron count: ", self.cron_count)
+            # print("Cron target: ", self.cron_count_target)
             ## Check if it's time to execute the trading iteration.
             if self.cron_count >= self.cron_count_target:
                 self.cron_count = 0
@@ -374,7 +366,6 @@ class StrategyExecutor(Thread):
         # Time consuming
         on_trading_iteration()
 
-        print("Finished on_trading_iteration")
         self.strategy._first_iteration = False
         self._strategy_context = on_trading_iteration.locals
         self.strategy._last_on_trading_iteration_datetime = datetime.now()

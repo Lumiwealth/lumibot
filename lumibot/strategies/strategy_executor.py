@@ -6,6 +6,12 @@ from datetime import datetime
 from functools import wraps
 from queue import Empty, Queue
 from threading import Event, Lock, Thread
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.jobstores.memory import MemoryJobStore
+
+from apscheduler.triggers.cron import CronTrigger
+
+from datetime import timedelta
 
 from lumibot.tools import append_locals, get_trading_days, lumibot_time, staticdecorator
 from termcolor import colored
@@ -30,6 +36,14 @@ class StrategyExecutor(Thread):
         self.broker = self.strategy.broker
         self.result = {}
 
+
+        jobstores = {"default": MemoryJobStore(),
+                     "On_Trading_Iteration": MemoryJobStore()}
+        self.scheduler = BackgroundScheduler(jobstores=jobstores)
+        self.cron_count_target = 0
+        self.cron_count = 0
+        self.check_queue_stop_event = Event()
+
     @property
     def name(self):
         return self.strategy._name
@@ -38,23 +52,30 @@ class StrategyExecutor(Thread):
     def should_continue(self):
         return not self.stop_event.isSet()
 
+
+    def check_queue(self):
+        # Define a function that checks the queue and processes the queue. This is run continuously in a separate thread in live.
+        while not self.check_queue_stop_event.is_set():
+            try:
+                self.process_queue()
+            except Empty:
+                pass
+            time.sleep(1)
+
     def safe_sleep(self, sleeptime):
         """internal function for sleeping"""
         if not self.broker.IS_BACKTESTING_BROKER:
-            start = time.time()
-            end = start + sleeptime
+            # Define a function that checks the queue and processes events
 
-            while self.should_continue:
-                # Setting timeout to 1s to allow listening
-                # to key interrupts
-                timeout = min(end - time.time(), 1)
-                if timeout <= 0:
-                    break
-                try:
-                    event, payload = self.queue.get(timeout=timeout)
-                    self.process_event(event, payload)
-                except Empty:
-                    pass
+            # Calculate the time until the next minute
+            now = datetime.now()
+            next_minute = (now + timedelta(minutes=1)).replace(second=0, microsecond=0)
+            seconds_until_next_minute = (next_minute - now).total_seconds()
+            print("Seconds until next minute: ", seconds_until_next_minute)
+
+            #Wait until the next minute
+            time.sleep(seconds_until_next_minute)
+
         else:
             self.process_queue()
             self.broker._update_datetime(sleeptime)
@@ -89,15 +110,15 @@ class StrategyExecutor(Thread):
                     self.strategy.quote_asset
                 )
                 if (
-                    cash_broker is None
-                    and cash_broker_retries < cash_broker_max_retries
+                        cash_broker is None
+                        and cash_broker_retries < cash_broker_max_retries
                 ):
                     logging.info("Unable to get cash from broker, trying again.")
                     cash_broker_retries += 1
                     continue
                 elif (
-                    cash_broker is None
-                    and cash_broker_retries >= cash_broker_max_retries
+                        cash_broker is None
+                        and cash_broker_retries >= cash_broker_max_retries
                 ):
                     logging.info(
                         f"Unable to get the cash balance after {cash_broker_max_retries} "
@@ -331,6 +352,21 @@ class StrategyExecutor(Thread):
     @trace_stats
     @sync_broker
     def _on_trading_iteration(self):
+
+        # If we are running live, we need to check if it's time to execute the trading iteration.
+        if not self.strategy.is_backtesting:
+            self.cron_count += 1
+            print("Cron count: ", self.cron_count)
+            print("Cron target: ", self.cron_count_target)
+            ## Check if it's time to execute the trading iteration.
+            if self.cron_count >= self.cron_count_target:
+                self.cron_count = 0
+            else:
+                return
+
+        start_time = datetime.now()
+        logging.info(f"Trading iteration started at {start_time}")
+
         self._strategy_context = None
         self.strategy.log_message("Executing the on_trading_iteration lifecycle method")
         on_trading_iteration = append_locals(self.strategy.on_trading_iteration)
@@ -338,10 +374,14 @@ class StrategyExecutor(Thread):
         # Time consuming
         on_trading_iteration()
 
+        print("Finished on_trading_iteration")
         self.strategy._first_iteration = False
         self._strategy_context = on_trading_iteration.locals
         self.strategy._last_on_trading_iteration_datetime = datetime.now()
         self.process_queue()
+
+        end_time = datetime.now()
+        logging.info(f"Trading iteration ended at {end_time}")
 
     @lifecycle_method
     def _before_market_closes(self):
@@ -404,11 +444,45 @@ class StrategyExecutor(Thread):
 
         # Let our listener know that an order has been filled (set in the callback)
         if hasattr(self.strategy, "_filled_order_callback") and callable(
-            self.strategy._filled_order_callback
+                self.strategy._filled_order_callback
         ):
             self.strategy._filled_order_callback(
                 self, position, order, price, quantity, multiplier
             )
+
+    def calculate_strategy_trigger(self):
+        """Calculate the strategy's trigger"""
+        self.strategy.log_message("Calculating the trigger")
+        sleeptime_err_msg = (
+            f"You can set the sleep time as an integer which will be interpreted as "
+            f"minutes. eg: sleeptime = 50 would be 50 minutes. Conversely, you can enter "
+            f"the time as a string with the duration numbers first, followed by the time "
+            f"units: 'M' for minutes, 'S' for seconds eg: '300S' is 300 seconds."
+        )
+        if isinstance(self.strategy.sleeptime, int):
+            units = "M"
+            time = self.strategy.sleeptime
+        elif isinstance(self.strategy.sleeptime, str):
+            units = self.strategy.sleeptime[-1:]
+            time = int(self.strategy.sleeptime[:-1])
+        else:
+            raise ValueError(sleeptime_err_msg)
+
+        if units not in "SMHDsmhd":
+            raise ValueError(sleeptime_err_msg)
+
+        self.cron_count_target = time
+
+        kwargs = {}
+        if units == "S" or units == "s":
+            kwargs['second'] = "*"
+        elif units == "M" or units == "m":
+            kwargs['minute'] = "*"
+        elif units == "H" or units == "h":
+            kwargs['hour'] = "*"
+        elif units == "D" or units == "d":
+            kwargs['day'] = "*"
+        return CronTrigger(**kwargs)
 
     # TODO: speed up this function, it's a major bottleneck for backtesting
     def _strategy_sleep(self):
@@ -424,7 +498,7 @@ class StrategyExecutor(Thread):
             time_to_close = self.broker.get_time_to_close()
 
             time_to_before_closing = (
-                time_to_close - self.strategy.minutes_before_closing * 60
+                    time_to_close - self.strategy.minutes_before_closing * 60
             )
 
         sleeptime_err_msg = (
@@ -457,9 +531,9 @@ class StrategyExecutor(Thread):
             strategy_sleeptime = time
 
         if (
-            not self.should_continue
-            or strategy_sleeptime == 0
-            or time_to_before_closing <= 0
+                not self.should_continue
+                or strategy_sleeptime == 0
+                or time_to_before_closing <= 0
         ):
             return False
         else:
@@ -476,14 +550,17 @@ class StrategyExecutor(Thread):
         """This is really intraday trading method. Timeframes of less than a day, seconds,
         minutes, hours.
         """
+
         has_data_source = hasattr(self.broker, "_data_source")
         is_247 = hasattr(self.broker, "market") and self.broker.market == "24/7"
+        if is_247:
+            time_to_close = float("inf")
 
         # Process pandas daily and get out.
         if (
-            has_data_source
-            and self.broker._data_source.SOURCE == "PANDAS"
-            and self.broker._data_source._timestep == "day"
+                has_data_source
+                and self.broker._data_source.SOURCE == "PANDAS"
+                and self.broker._data_source._timestep == "day"
         ):
             if self.broker._data_source._iter_count is None:
                 # Get the first date from _date_index equal or greater than
@@ -502,14 +579,16 @@ class StrategyExecutor(Thread):
             self.broker._update_datetime(dt)
 
             self.strategy._update_cash_with_dividends()
+
             self._on_trading_iteration()
+
             if self.broker.IS_BACKTESTING_BROKER:
                 self.broker.process_pending_orders(strategy=self.strategy)
             return
 
         if not is_247:
             if not has_data_source or (
-                has_data_source and self.broker._data_source.SOURCE != "PANDAS"
+                    has_data_source and self.broker._data_source.SOURCE != "PANDAS"
             ):
                 self.strategy.await_market_to_open()  # set new time and bar length. Check if hit bar max
                 # or date max.
@@ -522,28 +601,78 @@ class StrategyExecutor(Thread):
 
             time_to_close = self.broker.get_time_to_close()
 
+        if not self.strategy.is_backtesting:
+
+            ## Start APScheduler for the trading iteration
+            self.scheduler.start()
+            chosen_trigger = self.calculate_strategy_trigger()
+            self.scheduler.add_job(self._on_trading_iteration, chosen_trigger, id="OTIM", name="On Trading Iteration Main Thread", jobstore="On_Trading_Iteration")
+            time_to_close = self.broker.get_time_to_close()
+            should_we_stop = (time_to_close <= self.strategy.minutes_before_closing * 60)
+
+            # Start the check_queue thread
+            check_queue_thread = Thread(target=self.check_queue)
+            check_queue_thread.start()
+
+            while True:
+                jobs = self.scheduler.get_jobs()
+                broker_continue = self.broker.should_continue()
+                should_continue = self.should_continue
+                is_247_or_should_we_stop = not is_247 or not should_we_stop
+
+                # print("Jobs: ", jobs)
+                # print("Broker continue: ", broker_continue)
+                # print("Should continue: ", should_continue)
+                # print("Is 24/7 or should we stop: ", is_247_or_should_we_stop)
+
+                if not jobs:
+                    print("Breaking loop because no jobs.")
+                    break
+                if not broker_continue:
+                    print("Breaking loop because broker should not continue.")
+                    break
+                if not should_continue:
+                    print("Breaking loop because should not continue.")
+                    break
+                if not is_247_or_should_we_stop:
+                    print("Breaking loop because it's 24/7 and time to stop.")
+                    break
+
+                time.sleep(1)  # Sleep to save CPU
+
+
+        #
+        # print("Scheduler jobs after loop: ", self.scheduler.get_jobs())
+        # print("Should continue broker after loop: ", self.broker.should_continue())
+        # print("Should continue after loop: ", self.should_continue)
+        # print("Is 24/7 afterloop ", is_247)
+
         #####
         # The main loop for backtesting if strategy is 24 hours
         ####
         # TODO: speed up this loop for backtesting (it's a major bottleneck)
-        while is_247 or (time_to_close > self.strategy.minutes_before_closing * 60):
-            # Stop after we pass the backtesting end date
-            if (
-                self.broker.IS_BACKTESTING_BROKER
-                and self.broker.datetime > self.broker._data_source.datetime_end
-            ):
-                break
 
-            # TODO: next line speed implication: v high (7563 microseconds) _on_trading_iteration()
-            self._on_trading_iteration()
+        if self.strategy.is_backtesting:
 
-            if self.broker.IS_BACKTESTING_BROKER:
-                self.broker.process_pending_orders(strategy=self.strategy)
+            while is_247 or (time_to_close > self.strategy.minutes_before_closing * 60):
+                # Stop after we pass the backtesting end date
+                if (
+                        self.broker.IS_BACKTESTING_BROKER
+                        and self.broker.datetime > self.broker._data_source.datetime_end
+                ):
+                    break
 
-            # Sleep until the next trading iteration
-            # TODO: next line speed implication: high (2625 microseconds) _strategy_sleep()
-            if not self._strategy_sleep():
-                break
+                # TODO: next line speed implication: v high (7563 microseconds) _on_trading_iteration()
+                self._on_trading_iteration()
+
+                if self.broker.IS_BACKTESTING_BROKER:
+                    self.broker.process_pending_orders(strategy=self.strategy)
+
+                # Sleep until the next trading iteration
+                # TODO: next line speed implication: high (2625 microseconds) _strategy_sleep()
+
+                if not self._strategy_sleep():
+                    break
 
         self.strategy.await_market_to_close()
         if self.broker.is_market_open():

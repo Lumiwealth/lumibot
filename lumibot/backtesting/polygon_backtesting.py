@@ -1,6 +1,5 @@
-from polygon import RESTClient
-
 from datetime import timedelta
+
 from lumibot.data_sources import PandasData
 from lumibot.entities import Asset, Data
 from lumibot.tools import polygon_helper
@@ -213,51 +212,3 @@ class PolygonDataBacktesting(DataSourceBacktesting, PandasData):
             print(f"Error get_last_price from Polygon: {e}")
 
         return super().get_last_price(asset, timestep, quote, exchange, **kwargs)
-
-    def get_chains(self, asset):
-        """
-        Integrates the Polygon client library into the LumiBot backtest for Options Data in the same structure as Interactive Brokers options chain data
-        
-        Parameters
-        ----------
-        asset : Asset
-            The asset to get data for.
-        
-        Returns
-        -------
-        dictionary:
-            A dictionary nested with a dictionarty of Polygon Option Contracts information broken out by Exchange, with embedded lists for Expirations and Strikes
-            {'SMART': {'TradingClass': 'SPY', 'Multiplier': 100, 'Expirations': [], 'Strikes': []}} 
-
-            - `TradingClass` (str) eg: `FB`
-            - `Multiplier` (str) eg: `100`
-            - `Expirations` (list of str) eg: [`20230616`, ...]
-            - `Strikes` (list of floats) eg: [`100.0`, ...]
-        """
-        
-        # API Key for Polygon
-        polygon_client = RESTClient(self.polygon_api_key)
-
-        # All Option Contracts | get_chains matching IBKR | {'SMART': {'TradingClass': 'SPY', 'Multiplier': 100, 'Expirations': [], 'Strikes': []}} 
-        option_contracts = {"SMART": {"TradingClass": None, "Multiplier": None, "Expirations": [], "Strikes": []}}
-
-        # All Contracts | to match lumitbot, more inputs required from get_chains()
-        for polygon_contract in polygon_client.list_options_contracts(underlying_ticker=asset.symbol, limit=1000):
-
-            # Contract Data | Attributes
-            Exchange = polygon_contract.primary_exchange
-            TradingClass = polygon_contract.underlying_ticker
-            Multiplier = polygon_contract.shares_per_contract
-            Expirations = polygon_contract.expiration_date
-            Strikes = polygon_contract.strike_price
-
-            # Return to Loop and Skip if Multipler is not 100 because non-standard contracts are not supported
-            if Multiplier != 100:
-                continue
-
-            option_contracts["SMART"]["TradingClass"] = TradingClass
-            option_contracts["SMART"]["Multiplier"] = Multiplier
-            option_contracts["SMART"]["Expirations"].append(Expirations)
-            option_contracts["SMART"]["Strikes"].append(Strikes)
-        
-        return option_contracts

@@ -202,14 +202,14 @@ def get_price_data_from_polygon(
                 asset.right,
                 asset.strike,
             )
+            
+            poly_start = cur_start - timedelta(days=4) # Subtract 4 days because options data can be very sparse
+            poly_end = end + timedelta(days=4) # Add 4 days because options data can be very sparse
 
             result = polygon_client.get_full_range_aggregate_bars(
                 symbol,
-                from_date=cur_start
-                - timedelta(
-                    minutes=1
-                ),  # We need to subtract 1 minute because of a bug in polygon
-                to_date=end,
+                from_date=poly_start, 
+                to_date=poly_end,  
                 timespan=timespan,
                 run_parallel=False,
                 warnings=False,

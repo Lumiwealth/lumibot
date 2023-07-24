@@ -316,7 +316,7 @@ class PandasData(DataSource):
             
         try:
             res = data.get_bars_between_dates(
-                start_date=start_date, end_date=end_date
+                start_date=start_date, end_date=end_date, timestep=timestep
             )
         # Return None if data.get_bars returns a ValueError
         except ValueError as e:

@@ -1753,6 +1753,14 @@ class Strategy(_Strategy):
         >>> )
         >>> price = self.get_last_price(asset=self.base, exchange="CME")
         """
+        
+        # Check if the asset is valid
+        if asset is None or (type(asset) == Asset and asset.is_valid() is False):
+            logging.error(
+                f"Asset in get_last_price() must be a valid asset. Got {asset} of type {type(asset)}. You may be missing some of the required parameters for the asset type (eg. strike price for options, expiry for options/futures, etc)."
+            )
+            return None
+        
         # Check if the Asset object is a string or Asset object
         if not (isinstance(asset, Asset) or isinstance(asset, str)):
             logger.error(

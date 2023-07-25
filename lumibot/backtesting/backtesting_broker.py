@@ -425,9 +425,14 @@ class BacktestingBroker(Broker):
                 else (order.asset, order.quote)
             )
 
-            price = 0
+            price = None
             filled_quantity = order.quantity
+            
+            #############################
+            # Get OHLCV data for the asset
+            #############################
 
+            # Get the OHLCV data for the asset if we're using the YAHOO data source
             if self._data_source.SOURCE == "YAHOO":
                 timeshift = timedelta(
                     days=-1
@@ -446,6 +451,7 @@ class BacktestingBroker(Broker):
                 close = ohlc.df.close[-1]
                 volume = ohlc.df.volume[-1]
 
+            # Get the OHLCV data for the asset if we're using the PANDAS data source
             elif self._data_source.SOURCE == "PANDAS":
                 # This is a hack to get around the fact that we need to get the previous day's data to prevent lookahead bias.
                 ohlc = strategy.get_historical_prices(
@@ -465,16 +471,22 @@ class BacktestingBroker(Broker):
                 low = ohlc.df["low"][-1]
                 close = ohlc.df["close"][-1]
                 volume = ohlc.df["volume"][-1]
-
+                
+            #############################
             # Determine transaction price.
+            #############################
+            
             if order.type == "market":
                 price = close
+                
             elif order.type == "limit":
                 price = self.limit_order(
                     order.limit_price, order.side, close, high, low
                 )
+                
             elif order.type == "stop":
                 price = self.stop_order(order.stop_price, order.side, close, high, low)
+                
             elif order.type == "stop_limit":
                 if not order.price_triggered:
                     price = self.stop_order(
@@ -489,16 +501,36 @@ class BacktestingBroker(Broker):
                     price = self.limit_order(
                         order.limit_price, order.side, close, high, low
                     )
+                    
             elif order.type == "trailing_stop":
-                raise ValueError(
-                    f"Order type {order.type} is not implemented for backtesting."
-                )
+                if order.trail_stop_price is not None:
+                    # Check if we have hit the trail stop price for a sell order
+                    if order.side == "sell":
+                        if low <= order.trail_stop_price:
+                            price = low
+                            
+                    # Check if we have hit the trail stop price for a buy order
+                    elif order.side == "buy":
+                        if high >= order.trail_stop_price:
+                            price = high
+                
+                # Get the assets last price
+                asset_price = self.get_last_price(order.asset)
+                
+                # Update the stop price if the price has moved up
+                order.update_trail_stop_price(asset_price)
+                
             else:
                 raise ValueError(
                     f"Order type {order.type} is not implemented for backtesting."
                 )
 
-            if price != 0:
+            #############################
+            # Fill the order.
+            #############################
+            
+            # If the price is not None, then the order has been filled
+            if price is not None:
                 if order.dependent_order:
                     order.dependent_order.dependent_order_filled = True
                     strategy.broker.cancel_order(order.dependent_order)

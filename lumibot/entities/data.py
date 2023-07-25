@@ -589,8 +589,6 @@ class Data:
             )
             
         if timestep == "day" and self.timestep == "minute":
-            # If the data is minute data and we are requesting daily data then multiply the length by 1440
-            length = length * 1440
 
             dict = self._get_bars_between_dates_dict(
                 timestep=timestep,

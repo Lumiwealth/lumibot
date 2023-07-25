@@ -7,12 +7,11 @@ from threading import Event
 import lumibot.entities as entities
 from lumibot.tools.types import check_positive, check_price, check_quantity
 
+SELL = "sell"
+BUY = "buy"
 
 class Order:
     Transaction = namedtuple("Transaction", ["quantity", "price"])
-
-    SELL = "sell"
-    BUY = "buy"
 
     def __init__(
         self,
@@ -222,6 +221,7 @@ class Order:
         self.type = type
         self.trade_cost = trade_cost
         self.custom_params = custom_params
+        self.trail_stop_price = None
 
         # Options:
         self.exchange = exchange
@@ -250,10 +250,26 @@ class Order:
         self.quantity = quantity
 
         # setting the side
-        if side not in [self.BUY, self.SELL]:
+        if side not in [BUY, SELL]:
             raise ValueError("Side must be either sell or buy, got %r instead" % side)
         self.side = side
 
+        self._set_type(limit_price, stop_price, take_profit_price, stop_loss_price, stop_loss_limit_price, trail_price, trail_percent, position_filled)
+            
+    def update_trail_stop_price(self, price):
+        """Update the trail stop price.
+        This will be used to determine if a trailing stop order should be triggered in a backtest.
+        
+        Parameters
+        ----------
+        
+        price : float
+            The last price of the asset. For trailing stop orders, this is the price that will be used to update the trail last price.
+        """
+        
+        self.trail_stop_price = price
+
+    def _set_type(self, limit_price, stop_price, take_profit_price, stop_loss_price, stop_loss_limit_price, trail_price, trail_percent, position_filled):
         if self.type is None:
             self.type = "market"
             if position_filled:
@@ -409,7 +425,7 @@ class Order:
             cash_value = self.quantity * strategy.get_last_price(self.asset)
         else:
             cash_value = quantity_unfilled * self.transactions[-1].price
-        if self.side == self.SELL:
+        if self.side == SELL:
             return cash_value
         else:
             return -cash_value
@@ -433,7 +449,7 @@ class Order:
 
     def to_position(self, quantity):
         position_qty = quantity
-        if self.side == self.SELL:
+        if self.side == SELL:
             position_qty = -quantity
 
         position = entities.Position(
@@ -446,7 +462,7 @@ class Order:
 
     def get_increment(self):
         increment = self.quantity
-        if self.side == self.SELL:
+        if self.side == SELL:
             increment = -increment
         return increment
 

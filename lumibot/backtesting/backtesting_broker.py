@@ -503,15 +503,15 @@ class BacktestingBroker(Broker):
                     )
                     
             elif order.type == "trailing_stop":
-                if order.trail_stop_price is not None:
+                if order._trail_stop_price is not None:
                     # Check if we have hit the trail stop price for a sell order
                     if order.side == "sell":
-                        if low <= order.trail_stop_price:
+                        if low <= order._trail_stop_price:
                             price = low
                             
                     # Check if we have hit the trail stop price for a buy order
                     elif order.side == "buy":
-                        if high >= order.trail_stop_price:
+                        if high >= order._trail_stop_price:
                             price = high
                 
                 # Get the assets last price

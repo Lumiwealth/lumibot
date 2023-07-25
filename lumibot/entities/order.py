@@ -221,7 +221,7 @@ class Order:
         self.type = type
         self.trade_cost = trade_cost
         self.custom_params = custom_params
-        self.trail_stop_price = None
+        self._trail_stop_price = None
 
         # Options:
         self.exchange = exchange
@@ -264,10 +264,60 @@ class Order:
         ----------
         
         price : float
-            The last price of the asset. For trailing stop orders, this is the price that will be used to update the trail last price.
+            The last price of the asset. For trailing stop orders, this is the price that will be used to update the trail stop price.
         """
         
-        self.trail_stop_price = price
+        # If the order is not a trailing stop order, then do nothing.
+        if self.type != "trailing_stop":
+            return
+        
+        # Update the trail stop price if we have a trail_percent
+        if self.trail_percent is not None:
+            # Get potential trail stop price
+            if self.side == "buy":
+                potential_trail_stop_price = price * (1 + self.trail_percent)
+            elif self.side == "sell":
+                potential_trail_stop_price = price * (1 - self.trail_percent)
+            
+            # Set the trail stop price if it has not been set yet.
+            if self._trail_stop_price is None:
+                self._trail_stop_price = potential_trail_stop_price
+                return
+            
+            # Ratchet down the trail stop price for a buy order if the price has decreased.
+            if self.side == "buy" and potential_trail_stop_price < self._trail_stop_price:
+                # Update the trail stop price
+                self._trail_stop_price = potential_trail_stop_price
+            
+            # Ratchet up the trail stop price for a sell order if the price has increased.
+            if self.side == "sell" and potential_trail_stop_price > self._trail_stop_price:
+                # Update the trail stop price
+                self._trail_stop_price = potential_trail_stop_price
+        
+        # Update the trail stop price if we have a trail_price
+        if self.trail_price is not None:
+            # Get potential trail stop price
+            if self.side == "buy":
+                potential_trail_stop_price = price + self.trail_price
+            elif self.side == "sell":
+                potential_trail_stop_price = price - self.trail_price
+            else:
+                raise ValueError(f"side must be either 'buy' or 'sell'. Got {self.side} instead.")
+            
+            # Set the trail stop price if it has not been set yet.
+            if self._trail_stop_price is None:
+                self._trail_stop_price = potential_trail_stop_price
+                return
+            
+            # Ratchet down the trail stop price for a buy order if the price has decreased.
+            if self.side == "buy" and potential_trail_stop_price < self._trail_stop_price:
+                # Update the trail stop price
+                self._trail_stop_price = potential_trail_stop_price
+            
+            # Ratchet up the trail stop price for a sell order if the price has increased.
+            if self.side == "sell" and potential_trail_stop_price > self._trail_stop_price:
+                # Update the trail stop price
+                self._trail_stop_price = potential_trail_stop_price
 
     def _set_type(self, limit_price, stop_price, take_profit_price, stop_loss_price, stop_loss_limit_price, trail_price, trail_percent, position_filled):
         if self.type is None:

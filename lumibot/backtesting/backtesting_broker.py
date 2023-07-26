@@ -346,11 +346,11 @@ class BacktestingBroker(Broker):
         for position in positions:
             if (
                 position.asset.expiration is not None
-                and position.asset.expiration <= self.datetime.date()
+                and position.asset.expiration.date() <= self.datetime.date()
             ):
                 # If it's the same day as the expiration, we need to check the time to see if it's after market close
                 time_to_close = self.get_time_to_close()
-                if position.asset.expiration == self.datetime.date() and time_to_close > (15 * 60):
+                if position.asset.expiration.date() == self.datetime.date() and time_to_close > (15 * 60):
                     continue
                     
                 logging.warn(

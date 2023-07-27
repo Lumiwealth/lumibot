@@ -71,8 +71,10 @@ class StrategyExecutor(Thread):
 
     def safe_sleep(self, sleeptime):
         # This method should only be run in back testing. If it's running during live, something has gone wrong.
-        self.process_queue()
-        self.broker._update_datetime(sleeptime)
+        
+        if self.strategy.is_backtesting:
+            self.process_queue()
+            self.broker._update_datetime(sleeptime)
 
     @staticdecorator
     @staticmethod

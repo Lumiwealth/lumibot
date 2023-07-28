@@ -1,6 +1,5 @@
 from collections import UserDict
-from datetime import date
-from typing import Optional
+from datetime import date, datetime
 
 
 class Asset:
@@ -102,24 +101,29 @@ class Asset:
 
     symbol: str
     asset_type: str = "stock"
-    expiration: Optional[date] = None
-    strike: Optional[float] = 0.0
-    right: Optional[str] = None
+    expiration: date = None
+    strike: float = 0.0
+    right: str = None
     multiplier: int = 1
-    currency: Optional[str] = "USD"
-    precision: Optional[str] = None
+    currency: str = "USD"
+    precision: str = None
     
     _asset_types: list = ["stock", "option", "future", "forex", "crypto", "index"]
     _right: list = ["CALL", "PUT"]
 
-    def __init__(self, symbol: str, asset_type: str = "stock", expiration: Optional[date] = None, strike: Optional[float] = 0.0, right: Optional[str] = None, multiplier: int = 1, currency: Optional[str] = "USD", precision: Optional[str] = None):
+    def __init__(self, symbol: str, asset_type: str = "stock", expiration: date = None, strike: float = 0.0, right: str = None, multiplier: int = 1, currency: str = "USD", precision: str = None):
         self.symbol = symbol
         self.asset_type = asset_type
-        self.expiration = expiration
         self.strike = strike
         self.multiplier = multiplier
         self.currency = currency
         self.precision = precision
+        
+        # If the expiration is a datetime object, convert it to date
+        if type(expiration) == datetime:
+            self.expiration = expiration.date()
+        else:
+            self.expiration = expiration
         
         # Multiplier for options must always be 100
         if asset_type == "option":

@@ -612,7 +612,7 @@ class Broker:
     # =========Subscribers/Strategies functions==============
 
     def _add_subscriber(self, subscriber):
-        """Adding a new strategy as a subscriber for thes broker"""
+        """Adding a new strategy as a subscriber for the broker"""
         self._subscribers.append(subscriber)
 
     def _get_subscriber(self, name):

@@ -1,3 +1,5 @@
+import logging
+import traceback
 from datetime import timedelta
 
 from lumibot.data_sources import PandasData
@@ -143,6 +145,8 @@ class PolygonDataBacktesting(DataSourceBacktesting, PandasData):
                     has_paid_subscription=self.has_paid_subscription,
                 )
             except Exception as e:
+                logging.error(traceback.format_exc())
+                
                 raise Exception(f"Error getting data from Polygon: {e}")
 
             if df is None:

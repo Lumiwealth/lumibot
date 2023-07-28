@@ -152,7 +152,7 @@ class Position:
         return order
 
     def add_order(self, order: entities.Order, quantity: Decimal):
-        increment = quantity if order.side == order.BUY else -quantity
+        increment = quantity if order.side == "buy" else -quantity
         self._quantity += Decimal(increment)
         if order not in self.orders:
             self.orders.append(order)

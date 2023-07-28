@@ -424,8 +424,8 @@ class Strategy(_Strategy):
         trail_percent : float
             Trailing stop orders allow you to continuously and
             automatically keep updating the stop price threshold based
-            on the stock price movement. `trail_price` sets the
-            trailing price in percent.
+            on the stock price movement. Eg. 0.05 would be a 5% trailing stop.
+            `trail_percent` sets the trailing price in percent.
         position_filled : bool
             The order has been filled.
         exchange : str
@@ -1753,6 +1753,14 @@ class Strategy(_Strategy):
         >>> )
         >>> price = self.get_last_price(asset=self.base, exchange="CME")
         """
+        
+        # Check if the asset is valid
+        if asset is None or (type(asset) == Asset and asset.is_valid() is False):
+            logging.error(
+                f"Asset in get_last_price() must be a valid asset. Got {asset} of type {type(asset)}. You may be missing some of the required parameters for the asset type (eg. strike price for options, expiry for options/futures, etc)."
+            )
+            return None
+        
         # Check if the Asset object is a string or Asset object
         if not (isinstance(asset, Asset) or isinstance(asset, str)):
             logger.error(

@@ -645,6 +645,11 @@ def create_tearsheet(
 ):
     print("Creating tearsheet...")
     
+    # Check if df1 or df2 are empty and return if they are
+    if df1 is None or df2 is None or df1.empty or df2.empty:
+        logging.error("No data to create tearsheet, skipping")
+        return
+    
     _df1 = df1.copy()
     _df2 = df2.copy()
 

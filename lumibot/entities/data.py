@@ -323,6 +323,10 @@ class Data:
         # Check if the date is in the dataframe, if not then get the last
         # known data (this speeds up the process)
         i = None
+        
+        # Check if we have the iter_index_dict, if not then repair the times and fill (which will create the iter_index_dict)
+        if getattr(self, "iter_index_dict", None) is None:
+            self.repair_times_and_fill(self.df.index)
 
         # Search for dt in self.iter_index_dict
         if dt in self.iter_index_dict:
@@ -347,7 +351,7 @@ class Data:
             # Check if the iter date is outside of this data's date range.
             if dt < self.datetime_start:
                 raise ValueError(
-                    f"The date you are looking for ({dt}) for ({self.asset}) is outside of the data's date range ({self.datetime_start} to {self.datetime_end})."
+                    f"The date you are looking for ({dt}) for ({self.asset}) is outside of the data's date range ({self.datetime_start} to {self.datetime_end}). This could be because the data for this asset does not exist for the date you are looking for, or something else."
                 )
 
             # Search for dt in self.iter_index_dict
@@ -585,8 +589,6 @@ class Data:
             )
             
         if timestep == "day" and self.timestep == "minute":
-            # If the data is minute data and we are requesting daily data then multiply the length by 1440
-            length = length * 1440
 
             dict = self._get_bars_between_dates_dict(
                 timestep=timestep,

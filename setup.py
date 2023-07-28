@@ -52,6 +52,7 @@ setuptools.setup(
         "ccxt==3.0.61",
         "termcolor",
         "jsonpickle",
+        'apscheduler',
     ],
     classifiers=[
         "Programming Language :: Python :: 3",

@@ -19,7 +19,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="lumibot",
-    version="2.7.4",
+    version="2.7.5",
     author="Robert Grzesik",
     author_email="rob@lumiwealth.com",
     description="Backtesting and Trading Library, Made by Lumiwealth",
@@ -52,7 +52,7 @@ setuptools.setup(
         "ccxt==3.0.61",
         "termcolor",
         "jsonpickle",
-        'apscheduler',
+        'apscheduler==3.10.1',
     ],
     classifiers=[
         "Programming Language :: Python :: 3",

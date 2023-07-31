@@ -568,14 +568,14 @@ class BacktestingBroker(Broker):
             elif limit_price < close and limit_price >= low:
                 return limit_price
             elif limit_price < low:
-                return 0
+                return None
         elif side == "sell":
             if limit_price <= close:
                 return close
             elif limit_price > close and limit_price <= high:
                 return limit_price
             elif limit_price > high:
-                return 0
+                return None
 
     def stop_order(self, stop_price, side, close, high, low):
         """Stop order logic."""
@@ -585,14 +585,14 @@ class BacktestingBroker(Broker):
             elif stop_price > close and stop_price <= high:
                 return stop_price
             elif stop_price > high:
-                return 0
+                return None
         elif side == "sell":
             if stop_price >= close:
                 return close
             elif stop_price < close and stop_price >= low:
                 return stop_price
             elif stop_price < low:
-                return 0
+                return None
 
     # =========Market functions=======================
     def get_last_price(self, asset, quote=None, exchange=None, **kwargs):

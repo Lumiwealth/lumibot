@@ -473,6 +473,8 @@ def plot_returns(
                     + str(row["filled_quantity"])
                     + " "
                     + row["symbol"]
+                    + " "
+                    + row["asset.right"]
                     + " Option"
                     + "<br>"
                     + "Strike: "
@@ -635,10 +637,10 @@ def plot_returns(
 
 
 def create_tearsheet(
-    df1,
+    strategy_df,
     strat_name,
     tearsheet_file,
-    df2,
+    benchmark_df,
     benchmark_asset,
     show_tearsheet,
     risk_free_rate,
@@ -646,16 +648,19 @@ def create_tearsheet(
     print("Creating tearsheet...")
     
     # Check if df1 or df2 are empty and return if they are
-    if df1 is None or df2 is None or df1.empty or df2.empty:
+    if strategy_df is None or benchmark_df is None or strategy_df.empty or benchmark_df.empty:
         logging.error("No data to create tearsheet, skipping")
         return
     
-    _df1 = df1.copy()
-    _df2 = df2.copy()
+    _strategy_df = strategy_df.copy()
+    _benchmark_df = benchmark_df.copy()
 
-    df = pd.concat([_df1, _df2], join="outer", axis=1)
+    df = pd.concat([_strategy_df, _benchmark_df], join="outer", axis=1)
     df.index = pd.to_datetime(df.index)
     df["portfolio_value"] = df["portfolio_value"].ffill()
+    
+    # If the portfolio_value is NaN, backfill it because sometimes the benchmark starts before the strategy
+    df["portfolio_value"] = df["portfolio_value"].fillna(method="bfill")
         
     df["symbol_cumprod"] = df["symbol_cumprod"].ffill()
     df.loc[df.index[0], "symbol_cumprod"] = 1
@@ -690,10 +695,16 @@ def create_tearsheet(
     if df_final["benchmark"].sum() == 0:
         logging.error("Not enough data to create a tearsheet, at least 2 days of data are required. Skipping")
         return
+    
     # Check if all the values are equal to 0
     if df_final["strategy"].sum() == 0:
         logging.error("Not enough data to create a tearsheet, at least 2 days of data are required. Skipping")
         return
+    
+    # # If the dataframe is 1 day or shorter, then we can't calculate the stats
+    # if len(df_final) <= 2:
+    #     logging.error("Not enough data to create a tearsheet, at least 2 days of data are required. Skipping")
+    #     return
 
     # TODO: Add the risk free rate, it's currently 0% which is wrong
     qs.reports.html(

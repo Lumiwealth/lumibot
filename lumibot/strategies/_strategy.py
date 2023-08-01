@@ -97,8 +97,11 @@ class _Strategy:
         self._backtesting_start = backtesting_start
         self._backtesting_end = backtesting_end
         
-        # Initialize the chart markers dataframe
-        self._chart_markers_df = pd.DataFrame(columns=["name", "symbol", "color", "size", "detail_text"])
+        # Initialize the chart markers list
+        self._chart_markers_list = []
+        
+        # Initialize the chart lines list
+        self._chart_lines_list = []
 
         # Hold the asset objects for strings for stocks only.
         self._asset_mapping = dict()
@@ -212,9 +215,6 @@ class _Strategy:
         self._benchmark_returns_df = None
 
         self._filled_order_callback = filled_order_callback
-        
-        # Initialize the chart lines list
-        self._chart_lines_list = []
 
     # =============Internal functions===================
     def _copy_dict(self):
@@ -1048,9 +1048,12 @@ class _Strategy:
         # Create chart lines dataframe
         chart_lines_df = pd.DataFrame(strategy._chart_lines_list)
         
+        # Create chart markers dataframe
+        chart_markers_df = pd.DataFrame(strategy._chart_markers_list)
+        
         strategy.plot_indicators(
             indicators_file,
-            strategy._chart_markers_df,
+            chart_markers_df,
             chart_lines_df,
         )
 

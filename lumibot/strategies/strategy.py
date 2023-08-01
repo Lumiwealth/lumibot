@@ -2554,24 +2554,25 @@ class Strategy(_Strategy):
             value = self.get_portfolio_value()
             
         # Check for duplicate markers
-        if self._chart_markers_df is not None and len(self._chart_markers_df) > 0:
-            if len(self._chart_markers_df[
-                (self._chart_markers_df["datetime"] == dt) & 
-                (self._chart_markers_df["name"] == name) & 
-                (self._chart_markers_df["symbol"] == symbol)]) > 0:
-                self.log_message(f"Duplicate marker found. Marker not added.")
-                return
+        if len(self._chart_markers_list) > 0:
+            timestamp = dt.timestamp()
+            for marker in self._chart_markers_list:
+                if marker["timestamp"] == timestamp and marker["name"] == name and marker["symbol"] == symbol:
+                    self.log_message(f"Duplicate marker found. Marker not added.")
+                    return
             
-        self._chart_markers_df = pd.concat([self._chart_markers_df, pd.DataFrame(
+        self._chart_markers_list.append(
             {
                 "datetime": dt,
+                "timestamp": dt.timestamp(), # This is to speed up the process of finding duplicate markers
                 "name": name, 
                 "symbol": symbol, 
                 "color": color, 
                 "size": size, 
                 "value": value,
                 "detail_text": detail_text,
-            }, index=[0])], ignore_index=True)
+            }
+        )
          
     def get_markers_df(self):
         """Returns the markers on the trades chart.
@@ -2582,7 +2583,9 @@ class Strategy(_Strategy):
             The markers on the trades chart.
         """
         
-        return self._chart_markers_df
+        df = pd.DataFrame(self._chart_markers_list)
+        
+        return df
         
     def add_line(self, name, value, color=None, style="solid", width=None, detail_text=None, dt=None):
         """Adds a line data point to the trades chart.
@@ -2658,6 +2661,7 @@ class Strategy(_Strategy):
         pandas.DataFrame
             The lines on the trades chart.
         """
+        
         df = pd.DataFrame(self._chart_lines_list)
         
         return df

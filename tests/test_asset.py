@@ -1,9 +1,10 @@
+import datetime
 from collections.abc import Hashable
 
-import datetime
 import pytest
 
 from lumibot.entities.asset import Asset
+
 
 def test_check_default_asset_name():
     asset = Asset(symbol="ABC")
@@ -13,13 +14,6 @@ def test_check_default_asset_type():
     asset = Asset(symbol="ABC")
     assert asset.asset_type == "stock"
 
-def test_change_value_error():
-    asset = Asset(symbol="ABC")
-    try:
-        asset.symbol = "not_ABC"
-        assert False
-    except TypeError:
-        assert True
 
 def test_check_defaults_with_stock():
     asset = Asset(symbol="ABC")

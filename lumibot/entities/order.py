@@ -10,6 +10,7 @@ from lumibot.tools.types import check_positive, check_price, check_quantity
 SELL = "sell"
 BUY = "buy"
 
+
 class Order:
     Transaction = namedtuple("Transaction", ["quantity", "price"])
 
@@ -28,7 +29,6 @@ class Order:
         trail_percent=None,
         time_in_force="day",
         good_till_date=None,
-        sec_type=None,
         exchange=None,
         position_filled=False,
         quote=None,
@@ -133,7 +133,7 @@ class Order:
         Examples
         --------
         >>> from lumibot.entities import Asset
-        >>> from lumibot.order import Order
+        >>> from lumibot.entities import Order
         >>> asset = Asset("MSFT", "stock")
         >>> order = self.create_order(
         ...     asset,
@@ -183,9 +183,6 @@ class Order:
         if isinstance(asset, str):
             asset = entities.Asset(symbol=asset)
 
-        if sec_type is None:
-            sec_type = asset.asset_type
-
         # Initialization default values
         self.strategy = strategy
 
@@ -225,7 +222,6 @@ class Order:
 
         # Options:
         self.exchange = exchange
-        self.sec_type = sec_type
 
         # Cryptocurrency market.
         self.pair = (
@@ -276,9 +272,10 @@ class Order:
             # Get potential trail stop price
             if self.side == "buy":
                 potential_trail_stop_price = price * (1 + self.trail_percent)
-            elif self.side == "sell":
+            # Buy/Sell are the only valid sides, so we can use else here.
+            else:
                 potential_trail_stop_price = price * (1 - self.trail_percent)
-            
+
             # Set the trail stop price if it has not been set yet.
             if self._trail_stop_price is None:
                 self._trail_stop_price = potential_trail_stop_price
@@ -425,12 +422,6 @@ class Order:
     @quantity.setter
     def quantity(self, value):
         # All non-crypto assets must be of type 'int'.
-        error_msg = (
-            f"Quantity for {self.asset} which is a "
-            f"{self.asset.asset_type}, must be of type 'int'."
-            f"The value {value} was entered which is a {type(value)}."
-        )
-
         if not isinstance(value, Decimal):
             if isinstance(value, float):
                 value = Decimal(str(value))
@@ -451,11 +442,11 @@ class Order:
                 f"{self.symbol} {self.asset.expiration} "
                 f"{self.asset.right} {self.asset.strike}"
             )
-        repr = f"{self.type} order of | {self.quantity} {self.rep_asset} {self.side} |"
+        repr_str = f"{self.type} order of | {self.quantity} {self.rep_asset} {self.side} |"
         if self.order_class:
-            repr = "%s of class %s" % (repr, self.order_class)
-        repr = "%s with status %s" % (repr, self.status)
-        return repr
+            repr_str = "%s of class %s" % (repr_str, self.order_class)
+        repr_str = "%s with status %s" % (repr_str, self.status)
+        return repr_str
 
     def set_identifier(self, identifier):
         self.identifier = identifier
@@ -517,11 +508,8 @@ class Order:
         return increment
 
     def is_option(self):
-        # Return true if this order is an option.
-        if self.sec_type == "OPT":
-            return True
-        else:
-            return False
+        """Return true if this order is an option."""
+        return True if self.asset.asset_type == "option" else False
 
     # ======Setting the events methods===========
 

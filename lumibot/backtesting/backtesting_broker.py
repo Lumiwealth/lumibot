@@ -26,12 +26,6 @@ class BacktestingBroker(Broker):
         if not data_source.IS_BACKTESTING_DATA_SOURCE:
             raise ValueError("object %r is not a backtesting data_source" % data_source)
         self._data_source = data_source
-        
-        # Initialize the chart markers dataframe
-        self._chart_markers_df = pd.DataFrame(columns=["name", "symbol", "color", "size", "detail_text"])
-        
-        # Initialize the chart lines dataframe
-        self._chart_lines_df = pd.DataFrame(columns=["name" , "value", "color", "style", "size", "detail_text"])
 
         Broker.__init__(self, name=self.name, connect_stream=connect_stream)
 

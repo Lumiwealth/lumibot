@@ -99,9 +99,6 @@ class _Strategy:
         
         # Initialize the chart markers dataframe
         self._chart_markers_df = pd.DataFrame(columns=["name", "symbol", "color", "size", "detail_text"])
-        
-        # Initialize the chart lines dataframe
-        self._chart_lines_df = pd.DataFrame(columns=["name" , "value", "color", "style", "size", "detail_text"])
 
         # Hold the asset objects for strings for stocks only.
         self._asset_mapping = dict()
@@ -215,6 +212,9 @@ class _Strategy:
         self._benchmark_returns_df = None
 
         self._filled_order_callback = filled_order_callback
+        
+        # Initialize the chart lines list
+        self._chart_lines_list = []
 
     # =============Internal functions===================
     def _copy_dict(self):
@@ -650,8 +650,6 @@ class _Strategy:
                 trades_df,
                 show_plot,
                 initial_budget=self._initial_budget,
-                # chart_markers_df=self._chart_markers_df,
-                # chart_lines_df=self._chart_lines_df,
             )
             
     def plot_indicators(
@@ -1047,10 +1045,13 @@ class _Strategy:
             show_plot=show_plot,
         )
         
+        # Create chart lines dataframe
+        chart_lines_df = pd.DataFrame(strategy._chart_lines_list)
+        
         strategy.plot_indicators(
             indicators_file,
             strategy._chart_markers_df,
-            strategy._chart_lines_df,
+            chart_lines_df,
         )
 
         strategy.tearsheet(

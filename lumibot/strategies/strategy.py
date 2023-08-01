@@ -2637,7 +2637,8 @@ class Strategy(_Strategy):
         if dt is None:
             dt = self.get_datetime()
             
-        self._chart_lines_df = pd.concat([self._chart_lines_df, pd.DataFrame(
+        # Whenever you want to add a new line, use the following code
+        self._chart_lines_list.append(
             {
                 "datetime": dt,
                 "name": name,
@@ -2646,7 +2647,8 @@ class Strategy(_Strategy):
                 "style": style,
                 "width": width,
                 "detail_text": detail_text,
-                }, index=[0])], ignore_index=True)
+            }
+        )
         
     def get_lines_df(self):
         """Returns the lines on the trades chart.
@@ -2656,8 +2658,9 @@ class Strategy(_Strategy):
         pandas.DataFrame
             The lines on the trades chart.
         """
+        df = pd.DataFrame(self._chart_lines_list)
         
-        return self._chart_lines_df
+        return df
         
     def get_historical_prices(
         self,

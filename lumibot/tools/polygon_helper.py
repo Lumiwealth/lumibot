@@ -170,9 +170,15 @@ def get_price_data_from_polygon(
             df = pd.DataFrame(result)
 
         elif asset.asset_type == "forex":
+            # If quote_asset is None, throw an error
+            if quote_asset is None:
+                raise ValueError(
+                    f"quote_asset is required for asset type {asset.asset_type}"
+                )
+            
             polygon_client = polygon.ForexClient(api_key)
 
-            symbol = asset.symbol
+            symbol = f"C:{asset.symbol}{quote_asset.symbol}"
             result = polygon_client.get_full_range_aggregate_bars(
                 symbol,
                 from_date=cur_start

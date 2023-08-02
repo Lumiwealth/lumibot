@@ -2777,6 +2777,7 @@ class Strategy(_Strategy):
             timeshift=timeshift,
             exchange=exchange,
             include_after_hours=include_after_hours,
+            quote=quote,
         )
 
     def get_symbol_bars(
@@ -2861,6 +2862,13 @@ class Strategy(_Strategy):
         >>> bars =  self.get_historical_prices_for_assets(["AAPL", "GOOG"], 30, "minute")
         >>> for asset in bars:
         >>>     self.log_message(asset.df)
+        
+        >>> # Get the price data for EURUSD for the last 2 days
+        >>> from lumibot.entities import Asset
+        >>> asset_base = Asset(symbol="EUR", asset_type="forex")
+        >>> asset_quote = Asset(symbol="USD", asset_type="forex")
+        >>> bars =  self.get_historical_prices_for_assets(asset_base, 2, "day", quote=asset_quote)
+        >>> df = bars.df
 
 
         """

@@ -20,9 +20,6 @@ todos.txt
 test_bot.py
 .vscode
 
-# TODO: This shouldn't be an excluded file
-test_strategy.py
-
 # Pypi deployment
 build
 dist

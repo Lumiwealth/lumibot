@@ -376,7 +376,7 @@ class StrategyExecutor(Thread):
 
         # Time-consuming
         on_trading_iteration()
-
+    
         self.strategy._first_iteration = False
         self._strategy_context = on_trading_iteration.locals
         self.strategy._last_on_trading_iteration_datetime = datetime.now()

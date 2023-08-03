@@ -5,7 +5,7 @@ import pandas as pd
 import pytest
 from pandas import Timestamp
 
-from credentials import ALPACA_CONFIG
+# from credentials import ALPACA_CONFIG  # Put back in when ready to test
 from lumibot.brokers.alpaca import Alpaca
 from lumibot.entities.asset import Asset
 from lumibot.entities.bars import Bars

@@ -21,3 +21,27 @@ class TestOrderBasics:
         asset = Asset("SPY", asset_type="option")
         order = Order(asset=asset, quantity=10, side="buy", strategy='abc')
         assert order.is_option()
+
+    def test_get_filled_price(self):
+        asset = Asset("SPY")
+        buy_order = Order(strategy='abc', asset=asset, side="buy", quantity=100)
+        buy_order.transactions = [
+            Order.Transaction(quantity=50, price=20.0),
+            Order.Transaction(quantity=50, price=30.0)
+        ]
+
+        # Order not yet filled
+        assert buy_order.get_filled_price() == 0
+
+        # Order filled
+        buy_order.position_filled = True
+        assert buy_order.get_filled_price() == 25.0
+
+        # Ensure Weighted Average used
+        sell_order = Order(strategy='abc', asset=asset, side="sell", quantity=100)
+        sell_order.transactions = [
+            Order.Transaction(quantity=80, price=30.0),
+            Order.Transaction(quantity=20, price=40.0)
+        ]
+        sell_order.position_filled = True
+        assert sell_order.get_filled_price() == 32.0

@@ -111,7 +111,7 @@ class Asset:
     _asset_types: list = ["stock", "option", "future", "forex", "crypto", "index"]
     _right: list = ["CALL", "PUT"]
 
-    def __init__(self, symbol: str, asset_type: str = "stock", expiration: date | None = None, strike: float = 0.0, right: str = None, multiplier: int = 1, currency: str = "USD", precision: str = None):
+    def __init__(self, symbol: str, asset_type: str = "stock", expiration: date = None, strike: float = 0.0, right: str = None, multiplier: int = 1, currency: str = "USD", precision: str = None):
         self.symbol = symbol
         self.asset_type = asset_type
         self.strike = strike

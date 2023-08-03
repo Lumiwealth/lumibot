@@ -19,6 +19,7 @@ todos.txt
 *.pem
 test_bot.py
 .vscode
+.coverage*
 
 # Pypi deployment
 build

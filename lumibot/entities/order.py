@@ -471,6 +471,24 @@ class Order:
         else:
             return -cash_value
 
+    def get_fill_price(self) -> float:
+        """
+        Get the weighted average filled price for this order. Option contracts often encounter partial fills,
+        so the weighted average is the only valid price that can be used for PnL calculations.
+
+        Returns
+        -------
+        float
+            The weighted average filled price for this order. 0.0 will be returned if the order
+            has not yet been filled.
+        """
+        # Only calculate on filled orders
+        if not self.transactions or not self.quantity:
+            return 0.0
+
+        # calculate the weighted average filled price since options often encounter partial fills
+        return round(sum([x.price * x.quantity for x in self.transactions]) / self.quantity, 2)
+
     def update_status(self, status):
         self.status = status
 

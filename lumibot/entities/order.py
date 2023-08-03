@@ -483,7 +483,7 @@ class Order:
             has not yet been filled.
         """
         # Only calculate on filled orders
-        if not self.transactions or not self.position_filled:
+        if not self.transactions or not self.position_filled or not self.quantity:
             return 0.0
 
         # calculate the weighted average filled price since options often encounter partial fills

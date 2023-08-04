@@ -1,0 +1,37 @@
+# Additional items here based on your project needs.
+# How this is different from setup.py is ... complicated.
+#    StackOverflow Answer: https://stackoverflow.com/a/33685899
+#
+# The short version is that setup.py is for installing the package
+# and requirements.txt is for installing the dependencies and that these are
+# meant for different audiences. So we duplicate the lists of modules :(
+#
+# More Long Answer:
+#   https://towardsdatascience.com/requirements-vs-setuptools-python-ae3ee66e28af
+
+### ----- Requirements for the package ----- ###
+polygon==1.1.0
+alpaca_trade_api==2.3.0
+alpha_vantage
+ibapi==9.81.1.post1
+yfinance>=0.2.18
+matplotlib>=3.3.3
+quandl
+pandas>=1.4.0<2.0.0  # pandas v2 currently causing issues with quant stats (v0.0.59)
+pandas_datareader
+pandas_market_calendars>=4.1.2
+plotly
+flask-socketio
+flask-sqlalchemy
+flask-marshmallow
+marshmallow-sqlalchemy
+flask-security
+email_validator
+bcrypt
+pytest
+scipy
+quantstats==0.0.59
+ccxt==3.0.61
+termcolor
+jsonpickle
+apscheduler==3.10.1

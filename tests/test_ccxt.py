@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 import pytest
-from credentials import BINANCE_CONFIG
+# from credentials import BINANCE_CONFIG  # Put back in when ready to test
 
 from lumibot.brokers.ccxt import Ccxt
 from lumibot.entities.asset import Asset

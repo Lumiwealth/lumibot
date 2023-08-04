@@ -6,13 +6,15 @@ To get started with Lumibot, you can check out our documentation below.
 
 **Check out the documentation for the project here: <http://lumibot.lumiwealth.com/>**
 
+# Running Tests
+
+TODO: Add this section
+
 # Community
 
-If you want to learn more about Lumibot or Algorithmic Trading then you will love out communities! You can join us on our forum or Discord.
+If you want to learn more about Lumibot or Algorithmic Trading then you will love out communities! You can join us on Discord.
 
-**To join/view our forum: <https://lumiwealth.circle.so/c/lumibot/>**
-
-**To join us on Discord: <https://discord.gg/TmMsJCKY3T>**
+**Join us on Discord: <https://discord.gg/TmMsJCKY3T>**
 
 # Courses
 

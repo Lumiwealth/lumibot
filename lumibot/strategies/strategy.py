@@ -609,9 +609,6 @@ class Strategy(_Strategy):
             trail_price=trail_price,
             trail_percent=trail_percent,
             exchange=exchange,
-            sec_type=asset.asset_type
-            if isinstance(asset, Asset)
-            else asset[0].asset_type,
             position_filled=position_filled,
             date_created=self.get_datetime(),
             quote=quote,
@@ -2558,11 +2555,9 @@ class Strategy(_Strategy):
             timestamp = dt.timestamp()
             for marker in self._chart_markers_list:
                 if marker["timestamp"] == timestamp and marker["name"] == name and marker["symbol"] == symbol:
-                    self.log_message(f"Duplicate marker found. Marker not added.")
-                    return
-            
-        self._chart_markers_list.append(
-            {
+                    return None
+                
+        new_marker = {
                 "datetime": dt,
                 "timestamp": dt.timestamp(), # This is to speed up the process of finding duplicate markers
                 "name": name, 
@@ -2572,7 +2567,11 @@ class Strategy(_Strategy):
                 "value": value,
                 "detail_text": detail_text,
             }
-        )
+            
+            
+        self._chart_markers_list.append(new_marker)
+        
+        return new_marker
          
     def get_markers_df(self):
         """Returns the markers on the trades chart.

@@ -26,11 +26,11 @@ class _Strategy:
     def __init__(
         self,
         *args,
-        broker=None,
+        broker = None,
         data_source=None,
         minutes_before_closing=5,
         minutes_before_opening=60,
-        sleeptime=1,
+        sleeptime="1M",
         stats_file=None,
         risk_free_rate=None,
         benchmark_asset="SPY",
@@ -45,8 +45,54 @@ class _Strategy:
         parameters={},
         buy_trading_fees=[],
         sell_trading_fees=[],
+        force_start_immediately=True,
         **kwargs,
     ):
+        """Initializes a Strategy object.
+        
+        Parameters
+        ----------
+        broker : Broker
+            The broker to use for the strategy. Required. For backtesting, use the BacktestingBroker class.
+        data_source : DataSource
+            The data source to use for the strategy. Required.
+        minutes_before_closing : int
+            The number of minutes before closing that the before_market_closes lifecycle method will be called and the strategy will be stopped.
+        minutes_before_opening : int
+            The number of minutes before opening that the before_market_opens lifecycle method will be called.
+        sleeptime : str
+            The number of seconds to sleep between the start of each iteration of the strategy (on_trading_iteration). For example "1S" for 1 second, "5M" for 5 minutes, "2H" for 2 hours, or "1D" for 1 day. Defaults to "1M" (1 minute).
+        stats_file : str
+            The file name to save the stats to.
+        risk_free_rate : float
+            The risk free rate to use for calculating the Sharpe ratio.
+        benchmark_asset : Asset or str
+            The asset to use as the benchmark for the strategy. Defaults to "SPY". Strings are converted to Asset objects with an asset_type="stock".
+        backtesting_start : datetime
+            The date and time to start backtesting from. Required for backtesting.
+        backtesting_end : datetime
+            The date and time to end backtesting. Required for backtesting.
+        pandas_data : pd.DataFrame
+            The pandas dataframe to use for backtesting. Required if using the PandasDataBacktesting data source.
+        quote_asset : Asset
+            The asset to use as the quote asset. Defaults to a USD forex Asset object.
+        starting_positions : dict
+            A dictionary of starting positions to use for backtesting. The keys are the symbols of the assets and the values are the quantities of the assets to start with.
+        filled_order_callback : function
+            A function to call when an order is filled. The function should take two parameters: the strategy object and the order object.
+        name : str
+            The name of the strategy. Defaults to the name of the class.
+        budget : float
+            The starting budget to use for backtesting. Defaults to $100,000.
+        parameters : dict
+            A dictionary of parameters to use for the strategy, this will override parameters set in the strategy class. The keys are the names of the parameters and the values are the values of the parameters. Defaults to an empty dictionary.
+        buy_trading_fees : list
+            A list of TradingFee objects to use for buying assets. Defaults to an empty list.
+        sell_trading_fees : list
+            A list of TradingFee objects to use for selling assets. Defaults to an empty list.
+        force_start_immidiately : bool
+            If True, the strategy will start immediately. If False, the strategy will wait until the market opens to start. Defaults to True.
+        """
         # Handling positional arguments.
         # If there is one positional argument, it is assumed to be `broker`.
         # If there are two positional arguments, they are assumed to be
@@ -96,6 +142,9 @@ class _Strategy:
         self._benchmark_asset = benchmark_asset
         self._backtesting_start = backtesting_start
         self._backtesting_end = backtesting_end
+        
+        # Force start immediately if we are backtesting
+        self.force_start_immediately = force_start_immediately
         
         # Initialize the chart markers list
         self._chart_markers_list = []

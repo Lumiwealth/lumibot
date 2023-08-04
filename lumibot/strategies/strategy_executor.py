@@ -2,7 +2,7 @@ import inspect
 import logging
 import time
 import traceback
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import wraps
 from queue import Empty, Queue
 from threading import Event, Lock, Thread
@@ -41,7 +41,10 @@ class StrategyExecutor(Thread):
 
         # Instantiate a BackgroundScheduler with the job stores we just defined. This scheduler will be used to store
         # the jobs that we create later and execute them at the correct time.
-        self.scheduler = BackgroundScheduler(jobstores=job_stores)
+        from tzlocal import get_localzone
+        local_tz = get_localzone()
+        
+        self.scheduler = BackgroundScheduler(jobstores=job_stores, timezone=local_tz.zone)
 
         # Initialize a target count and a current count for cron jobs to 0.
         # These are used to determine when to execute the on_trading_iteration method.
@@ -367,11 +370,10 @@ class StrategyExecutor(Thread):
                 # on_trading_iteration method.
                 return
 
-        start_time = datetime.now()
-        logging.info(f"Trading iteration started at {start_time}")
+        start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         self._strategy_context = None
-        self.strategy.log_message("Executing the on_trading_iteration lifecycle method")
+        self.strategy.log_message(f"Executing the on_trading_iteration lifecycle method at {start_time}", color="blue")
         on_trading_iteration = append_locals(self.strategy.on_trading_iteration)
 
         # Time-consuming
@@ -382,8 +384,16 @@ class StrategyExecutor(Thread):
         self.strategy._last_on_trading_iteration_datetime = datetime.now()
         self.process_queue()
 
-        end_time = datetime.now()
-        logging.info(f"Trading iteration ended at {end_time}")
+        end_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        next_run_time = self.get_next_ap_scheduler_run_time()
+        if next_run_time is not None:
+            # Format the date to be used in the log message.
+            dt_str = next_run_time.strftime("%Y-%m-%d %H:%M:%S")                
+            self.strategy.log_message(f"Trading iteration ended at {end_time}, next run time scheduled at {dt_str}", color="blue")
+            
+        else:
+            self.strategy.log_message(f"Trading iteration ended at {end_time}", color="blue")
 
     @lifecycle_method
     def _before_market_closes(self):
@@ -453,11 +463,16 @@ class StrategyExecutor(Thread):
             )
 
     # This method calculates the trigger for the strategy based on the 'sleeptime' attribute of the strategy.
-    def calculate_strategy_trigger(self):
-
-        # Log a message that the trigger calculation is starting.
-        self.strategy.log_message("Calculating the trigger")
-
+    def calculate_strategy_trigger(self, force_start_immediately=True):
+        """Calculate the trigger for the strategy based on the 'sleeptime' attribute of the strategy.
+        
+        Parameters
+        ----------
+        
+        force_start_immediately : bool, optional
+            When sleeptime is in days (eg. self.sleeptime = "1D") Whether to start the strategy immediately or wait until the market opens. The default is True.
+        """
+        
         # Define a standard error message about acceptable formats for 'sleeptime'.
         sleeptime_err_msg = (
             f"You can set the sleep time as an integer which will be interpreted as "
@@ -492,11 +507,63 @@ class StrategyExecutor(Thread):
             kwargs['minute'] = "*"
         elif units in "Hh":
             kwargs['hour'] = "*"
+            
+            # Start immediately (at the closest minute) if force_start_immediately is True
+            if force_start_immediately:
+                # Get the current time in local timezone
+                local_time = datetime.now().astimezone()
+                
+                # Add one minute to the local_time
+                local_time = local_time + timedelta(minutes=1)
+                
+                # Get the minute
+                minute = local_time.minute
+                
+                # Minute with 0 in front if less than 10
+                kwargs['minute'] = f"0{minute}" if minute < 10 else str(minute)
+            
+            
         elif units in "Dd":
             kwargs['day'] = "*"
-
-        # Log the calculated cron trigger.
-        self.strategy.log_message(f"Cron Trigger Calculated As: {kwargs}")
+            
+            # Start immediately (at the closest minute) if force_start_immediately is True
+            if force_start_immediately:
+                # Get the current time in local timezone
+                local_time = datetime.now().astimezone()
+                
+                # Add one minute to the local_time
+                local_time = local_time + timedelta(minutes=1)
+                
+                # Get the hour
+                hour = local_time.hour
+                
+                # Get the minute
+                minute = local_time.minute
+            
+                # Hour with 0 in front if less than 10
+                kwargs['hour'] = f"0{hour}" if hour < 10 else str(hour)
+                # Minute with 0 in front if less than 10
+                kwargs['minute'] = f"0{minute}" if minute < 10 else str(minute)
+               
+            # Start at the market open time 
+            else:
+                # Get the market hours for the strategy
+                open_time_this_day = self.broker.utc_to_local(
+                    self.broker.market_hours(close=False, next=False)
+                )
+                
+                # Get the hour
+                hour = open_time_this_day.hour
+                
+                # Get the minute
+                minute = open_time_this_day.minute
+            
+                # Hour with 0 in front if less than 10
+                kwargs['hour'] = f"0{hour}" if hour < 10 else str(hour)
+                # Minute with 0 in front if less than 10
+                kwargs['minute'] = f"0{minute}" if minute < 10 else str(minute)
+                
+                logging.warning(f"The strategy will run at {kwargs['hour']}:{kwargs['minute']} every day. If instead you want to start right now and run every {time_raw} days then set force_start_immediately=True in the strategy's initialization.")
 
         # Return a CronTrigger object with the calculated settings.
         return CronTrigger(**kwargs)
@@ -621,17 +688,20 @@ class StrategyExecutor(Thread):
             time_to_close = self.broker.get_time_to_close()
 
         if not self.strategy.is_backtesting:
-
             ## Start APScheduler for the trading session.
             self.scheduler.start()
+            
             # Choose the cron trigger for the strategy based on the desired sleep time.
-            chosen_trigger = self.calculate_strategy_trigger()
+            chosen_trigger = self.calculate_strategy_trigger(force_start_immediately=self.strategy.force_start_immediately)
+            
             # Add the on_trading_iteration method to the scheduler with the chosen trigger.
             self.scheduler.add_job(self._on_trading_iteration, chosen_trigger, id="OTIM",
                                    name="On Trading Iteration Main Thread", jobstore="On_Trading_Iteration")
+            
             # Get the time to close.
             time_to_close = self.broker.get_time_to_close()
-            # check if it's time to stop the strategy based on the time to close and the strategy's minutes before
+            
+            # Check if it's time to stop the strategy based on the time to close and the strategy's minutes before
             # closing.
             should_we_stop = (time_to_close <= self.strategy.minutes_before_closing * 60)
 
@@ -639,11 +709,18 @@ class StrategyExecutor(Thread):
             # been added to the queue and executing them.
             check_queue_thread = Thread(target=self.check_queue)
             check_queue_thread.start()
+            
+            next_run_time = self.get_next_ap_scheduler_run_time()
+            if next_run_time is not None:
+                # Format the date to be used in the log message.
+                dt_str = next_run_time.strftime("%Y-%m-%d %H:%M:%S")
+                self.strategy.log_message(f"Strategy will start running at: {dt_str}", color="blue")
 
             # Loop until the strategy should stop.
             while True:
                 # Get the current jobs from the scheduler.
                 jobs = self.scheduler.get_jobs()
+                
                 # Check if the broker should continue.
                 broker_continue = self.broker.should_continue()
                 # Check if the strategy should continue.
@@ -699,6 +776,19 @@ class StrategyExecutor(Thread):
 
         self.strategy.await_market_to_close(timedelta=0)
         self._after_market_closes()
+        
+    def get_next_ap_scheduler_run_time(self):
+        # Check if scheduler object exists.
+        if self.scheduler is None or not isinstance(self.scheduler, BackgroundScheduler):
+            return None
+        
+        # Get the current jobs from the scheduler.
+        jobs = self.scheduler.get_jobs()
+        
+        # Log the next run time of the on_trading_iteration method.
+        next_run_time = jobs[0].next_run_time
+        
+        return next_run_time
 
     def run(self):
         # Overloading the broker sleep method

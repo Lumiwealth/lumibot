@@ -234,8 +234,9 @@ class Broker:
 
         Returns
         -------
-        [type]
-            [description]
+        market open or close: Timestamp
+            Timestamp of the market open or close time depending on the parameters passed
+        
         """
 
         market = self.market if self.market is not None else market

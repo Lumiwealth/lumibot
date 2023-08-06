@@ -8,13 +8,8 @@ import pandas as pd
 import pytest
 from lumibot.backtesting import PandasDataBacktesting
 from lumibot.entities import Asset, Data
-from lumibot.strategies.examples import (
-    BuyAndHold,
-    DebtTrading,
-    Diversification,
-    Momentum,
-    Simple,
-)
+from lumibot.strategies.examples import (BuyAndHold, DebtTrading,
+                                         Diversification, Momentum, Simple)
 from lumibot.traders import Trader
 
 os.makedirs("./logs", exist_ok=True)

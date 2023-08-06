@@ -40,11 +40,8 @@ class StrategyExecutor(Thread):
                       "On_Trading_Iteration": MemoryJobStore()}
 
         # Instantiate a BackgroundScheduler with the job stores we just defined. This scheduler will be used to store
-        # the jobs that we create later and execute them at the correct time.
-        from tzlocal import get_localzone
-        local_tz = get_localzone()
-        
-        self.scheduler = BackgroundScheduler(jobstores=job_stores, timezone=local_tz.zone)
+        # the jobs that we create later and execute them at the correct time.        
+        self.scheduler = BackgroundScheduler(jobstores=job_stores)
 
         # Initialize a target count and a current count for cron jobs to 0.
         # These are used to determine when to execute the on_trading_iteration method.

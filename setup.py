@@ -39,7 +39,7 @@ setuptools.setup(
         "pandas_datareader",
         "pandas_market_calendars>=4.1.2",
         "plotly",
-        "flask>=2.2.2"
+        "flask>=2.2.2",
         "flask-socketio",
         "flask-sqlalchemy",
         "flask-marshmallow",

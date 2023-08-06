@@ -782,6 +782,9 @@ class StrategyExecutor(Thread):
         # Get the current jobs from the scheduler.
         jobs = self.scheduler.get_jobs()
         
+        if not jobs or len(jobs) == 0:
+            return None
+        
         # Log the next run time of the on_trading_iteration method.
         next_run_time = jobs[0].next_run_time
         

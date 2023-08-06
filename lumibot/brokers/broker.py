@@ -769,7 +769,6 @@ class Broker:
                 "exchange": stored_order.exchange,
                 "symbol": stored_order.symbol,
                 "side": stored_order.side,
-                "sec_type": stored_order.sec_type,
                 "type": stored_order.type,
                 "status": stored_order.status,
                 "price": price,
@@ -781,6 +780,7 @@ class Broker:
                 "asset.strike": stored_order.asset.strike,
                 "asset.multiplier": stored_order.asset.multiplier,
                 "asset.expiration": stored_order.asset.expiration,
+                "asset.asset_type": stored_order.asset.asset_type,
             }
             # append row to the dataframe
             new_row_df = pd.DataFrame(new_row, index=[0])

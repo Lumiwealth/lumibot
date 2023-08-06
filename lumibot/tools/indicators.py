@@ -466,7 +466,7 @@ def plot_returns(
 
     def generate_buysell_plotly_text(row):
         if row["status"] != "canceled":
-            if row["sec_type"] == "option":
+            if row["asset.asset_type"] == "option":
                 return (
                     row["status"]
                     + "<br>"

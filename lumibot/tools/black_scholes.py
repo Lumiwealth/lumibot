@@ -1,4 +1,5 @@
-from math import log, e
+from math import e, log
+
 try:
 	from scipy.stats import norm
 except ImportError:
@@ -271,10 +272,15 @@ class BS:
 		if volatility:
 			self.volatility = float(volatility) / 100
 
-			self._a_ = self.volatility * self.daysToExpiration**0.5
-			self._d1_ = (log(self.underlyingPrice / self.strikePrice) + \
-					(self.interestRate + (self.volatility**2) / 2) * \
-					self.daysToExpiration) / self._a_
+			self._a_ = self.volatility * self.daysToExpiration ** 0.5
+			try:
+				self._d1_ = (log(self.underlyingPrice / self.strikePrice) + \
+						(self.interestRate + (self.volatility**2) / 2) * \
+						self.daysToExpiration) / self._a_
+			except ZeroDivisionError:
+				# TODO: This happens when daysToExpiration is zero, how should we deal with this?
+				self._d1_ = 0
+    
 			self._d2_ = self._d1_ - self._a_
 			if performance:
 				[self.callPrice, self.putPrice] = self._price()

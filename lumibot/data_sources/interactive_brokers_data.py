@@ -234,12 +234,12 @@ class InteractiveBrokersData(DataSource):
                         .dt.tz_localize("UTC")
                         .dt.tz_convert(self.DEFAULT_TIMEZONE)
                     )
-                    df = df.iloc[-length:, :]
+                    df = df.iloc[-int(length):, :]
                 elif "day" in parsed_timestep:
                     df["date"] = pd.to_datetime(df["date"], format="%Y%m%d")
                     df["date"] = df["date"].dt.tz_localize(self.DEFAULT_TIMEZONE)
 
-                    df = df.iloc[-length:, :]
+                    df = df.iloc[-int(length):, :]
 
                 response[asset] = df
         return response

@@ -8,6 +8,7 @@
 # Cache files
 lumibot/cache
 **/*.pkl
+.pytest*
 
 # Development files
 venv
@@ -18,6 +19,7 @@ todos.txt
 *.pem
 test_bot.py
 .vscode
+.coverage*
 
 # Pypi deployment
 build
@@ -32,8 +34,6 @@ setup.py
 /technical_analysis.pyx
 /lumibot/tests/test_ib_broker.py
 test.csv
-test_strategy.py
-venv
 my_dev
 /data/SPY_Minute.csv
 data/SRNE_Minute.csv

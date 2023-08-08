@@ -1,3 +1,5 @@
+import logging
+import traceback
 from datetime import timedelta
 
 from lumibot.data_sources import PandasData
@@ -23,12 +25,12 @@ class PolygonDataBacktesting(DataSourceBacktesting, PandasData):
         datetime_end,
         pandas_data=None,
         polygon_api_key=None,
-        polygon_has_paid_subscription=False,
+        has_paid_subscription=False,
         **kwargs,
     ):
         self.LIVE_DATA_SOURCE = PandasData
         self.polygon_api_key = polygon_api_key
-        self.has_paid_subscription = polygon_has_paid_subscription
+        self.has_paid_subscription = has_paid_subscription
         PandasData.__init__(self, pandas_data, **kwargs)
         DataSourceBacktesting.__init__(self, datetime_start, datetime_end)
 
@@ -116,7 +118,11 @@ class PolygonDataBacktesting(DataSourceBacktesting, PandasData):
             search_asset = (search_asset, quote_asset)
 
         # Check if we have data for this asset
-        if search_asset not in self.pandas_data:
+        if search_asset in self.pandas_data:
+            # Return None if we already have data for this asset
+            return None
+        
+        else:
             # Download data from Polygon
             try:
                 # Convert timestep string to timedelta and get start datetime
@@ -139,6 +145,8 @@ class PolygonDataBacktesting(DataSourceBacktesting, PandasData):
                     has_paid_subscription=self.has_paid_subscription,
                 )
             except Exception as e:
+                logging.error(traceback.format_exc())
+                
                 raise Exception(f"Error getting data from Polygon: {e}")
 
             if df is None:
@@ -150,8 +158,6 @@ class PolygonDataBacktesting(DataSourceBacktesting, PandasData):
             pandas_data_updated = self._set_pandas_data_keys(pandas_data)
 
             return pandas_data_updated
-
-        return None
 
     def _pull_source_symbol_bars(
         self,
@@ -174,6 +180,27 @@ class PolygonDataBacktesting(DataSourceBacktesting, PandasData):
         return super()._pull_source_symbol_bars(
             asset, length, timestep, timeshift, quote, exchange, include_after_hours
         )
+        
+    # Get pricing data for an asset for the entire backtesting period
+    def get_historical_prices_between_dates(
+        self, asset, timestep="minute", quote=None, exchange=None, include_after_hours=True, start_date=None, end_date=None
+    ):
+        pandas_data_update = self.update_pandas_data(
+            asset, quote, 1, timestep, polygon_helper
+        )
+        if pandas_data_update is not None:
+            # Add the keys to the self.pandas_data dictionary
+            self.pandas_data.update(pandas_data_update)
+
+        response = super()._pull_source_symbol_bars_between_dates(
+            asset, timestep, quote, exchange, include_after_hours, start_date, end_date
+        )
+
+        if response is None:
+            return None
+
+        bars = self._parse_source_symbol_bars(response, asset, quote=quote)
+        return bars
 
     def get_last_price(
         self, asset, timestep="minute", quote=None, exchange=None, **kwargs

@@ -30,18 +30,25 @@ def get_price_data_from_polygon(
     has_paid_subscription: bool = False,
     quote_asset: Asset = None,
 ):
+    print(f"\nGetting pricing data for {asset} / {quote_asset} from Polygon...")
+    
     df_all = None
     df_csv = None
 
     LUMIBOT_POLYGON_CACHE_FOLDER = os.path.join(LUMIBOT_CACHE_FOLDER, "polygon")
-    cache_filename = f"{asset.asset_type}_{asset.symbol}.csv"
+    cache_filename = f"{asset.asset_type}_{asset.symbol}_{timespan}.csv"
 
     # If It's an option then also add the expiration date, strike price and right to the filename
     if asset.asset_type == "option":
+        if asset.expiration is None:
+            raise ValueError(
+                f"Expiration date is required for option {asset} but it is None"
+            )
+            
         # Make asset.expiration datetime into a string like "YYMMDD"
         expiry_string = asset.expiration.strftime("%y%m%d")
 
-        cache_filename = f"{asset.asset_type}_{asset.symbol}_{expiry_string}_{asset.strike}_{asset.right}.csv"
+        cache_filename = f"{asset.asset_type}_{asset.symbol}_{expiry_string}_{asset.strike}_{asset.right}_{timespan}.csv"
 
     cache_file = os.path.join(LUMIBOT_POLYGON_CACHE_FOLDER, cache_filename)
 
@@ -88,7 +95,7 @@ def get_price_data_from_polygon(
                 # TODO: Also check if we are missing data in the middle of the range
                 # We have all the data we need, break out of the loop
                 break
-            elif last_row.name <= cur_start:
+            elif last_row.name <= cur_start and not first_iteration:
                 # Polygon doesn't have any more data for this asset, break out of the loop
                 break
             # If it's an option then we need to check if the last row is past the expiration date
@@ -115,7 +122,7 @@ def get_price_data_from_polygon(
                     time.sleep(WAIT_TIME)
 
         # Make sure we are not in an endless loop
-        if last_cur_start is not None and last_cur_start == cur_start:
+        if last_cur_start is not None and last_cur_start == cur_start and not first_iteration:
             # We already got data for this date, break out of the loop
             break
         last_cur_start = cur_start
@@ -163,9 +170,15 @@ def get_price_data_from_polygon(
             df = pd.DataFrame(result)
 
         elif asset.asset_type == "forex":
+            # If quote_asset is None, throw an error
+            if quote_asset is None:
+                raise ValueError(
+                    f"quote_asset is required for asset type {asset.asset_type}"
+                )
+            
             polygon_client = polygon.ForexClient(api_key)
 
-            symbol = asset.symbol
+            symbol = f"C:{asset.symbol}{quote_asset.symbol}"
             result = polygon_client.get_full_range_aggregate_bars(
                 symbol,
                 from_date=cur_start
@@ -195,14 +208,14 @@ def get_price_data_from_polygon(
                 asset.right,
                 asset.strike,
             )
+            
+            poly_start = cur_start - timedelta(days=4) # Subtract 4 days because options data can be very sparse
+            poly_end = end + timedelta(days=4) # Add 4 days because options data can be very sparse
 
             result = polygon_client.get_full_range_aggregate_bars(
                 symbol,
-                from_date=cur_start
-                - timedelta(
-                    minutes=1
-                ),  # We need to subtract 1 minute because of a bug in polygon
-                to_date=end,
+                from_date=poly_start, 
+                to_date=poly_end,  
                 timespan=timespan,
                 run_parallel=False,
                 warnings=False,

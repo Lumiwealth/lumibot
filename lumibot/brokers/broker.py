@@ -234,8 +234,9 @@ class Broker:
 
         Returns
         -------
-        [type]
-            [description]
+        market open or close: Timestamp
+            Timestamp of the market open or close time depending on the parameters passed
+        
         """
 
         market = self.market if self.market is not None else market
@@ -612,7 +613,7 @@ class Broker:
     # =========Subscribers/Strategies functions==============
 
     def _add_subscriber(self, subscriber):
-        """Adding a new strategy as a subscriber for thes broker"""
+        """Adding a new strategy as a subscriber for the broker"""
         self._subscribers.append(subscriber)
 
     def _get_subscriber(self, name):
@@ -768,7 +769,6 @@ class Broker:
                 "exchange": stored_order.exchange,
                 "symbol": stored_order.symbol,
                 "side": stored_order.side,
-                "sec_type": stored_order.sec_type,
                 "type": stored_order.type,
                 "status": stored_order.status,
                 "price": price,
@@ -780,6 +780,7 @@ class Broker:
                 "asset.strike": stored_order.asset.strike,
                 "asset.multiplier": stored_order.asset.multiplier,
                 "asset.expiration": stored_order.asset.expiration,
+                "asset.asset_type": stored_order.asset.asset_type,
             }
             # append row to the dataframe
             new_row_df = pd.DataFrame(new_row, index=[0])

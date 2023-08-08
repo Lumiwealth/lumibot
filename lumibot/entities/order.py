@@ -7,12 +7,12 @@ from threading import Event
 import lumibot.entities as entities
 from lumibot.tools.types import check_positive, check_price, check_quantity
 
+SELL = "sell"
+BUY = "buy"
+
 
 class Order:
     Transaction = namedtuple("Transaction", ["quantity", "price"])
-
-    SELL = "sell"
-    BUY = "buy"
 
     def __init__(
         self,
@@ -29,7 +29,6 @@ class Order:
         trail_percent=None,
         time_in_force="day",
         good_till_date=None,
-        sec_type=None,
         exchange=None,
         position_filled=False,
         quote=None,
@@ -134,7 +133,7 @@ class Order:
         Examples
         --------
         >>> from lumibot.entities import Asset
-        >>> from lumibot.order import Order
+        >>> from lumibot.entities import Order
         >>> asset = Asset("MSFT", "stock")
         >>> order = self.create_order(
         ...     asset,
@@ -184,9 +183,6 @@ class Order:
         if isinstance(asset, str):
             asset = entities.Asset(symbol=asset)
 
-        if sec_type is None:
-            sec_type = asset.asset_type
-
         # Initialization default values
         self.strategy = strategy
 
@@ -222,10 +218,10 @@ class Order:
         self.type = type
         self.trade_cost = trade_cost
         self.custom_params = custom_params
+        self._trail_stop_price = None
 
         # Options:
         self.exchange = exchange
-        self.sec_type = sec_type
 
         # Cryptocurrency market.
         self.pair = (
@@ -250,10 +246,77 @@ class Order:
         self.quantity = quantity
 
         # setting the side
-        if side not in [self.BUY, self.SELL]:
+        if side not in [BUY, SELL]:
             raise ValueError("Side must be either sell or buy, got %r instead" % side)
         self.side = side
 
+        self._set_type(limit_price, stop_price, take_profit_price, stop_loss_price, stop_loss_limit_price, trail_price, trail_percent, position_filled)
+            
+    def update_trail_stop_price(self, price):
+        """Update the trail stop price.
+        This will be used to determine if a trailing stop order should be triggered in a backtest.
+        
+        Parameters
+        ----------
+        
+        price : float
+            The last price of the asset. For trailing stop orders, this is the price that will be used to update the trail stop price.
+        """
+        
+        # If the order is not a trailing stop order, then do nothing.
+        if self.type != "trailing_stop":
+            return
+        
+        # Update the trail stop price if we have a trail_percent
+        if self.trail_percent is not None:
+            # Get potential trail stop price
+            if self.side == "buy":
+                potential_trail_stop_price = price * (1 + self.trail_percent)
+            # Buy/Sell are the only valid sides, so we can use else here.
+            else:
+                potential_trail_stop_price = price * (1 - self.trail_percent)
+
+            # Set the trail stop price if it has not been set yet.
+            if self._trail_stop_price is None:
+                self._trail_stop_price = potential_trail_stop_price
+                return
+            
+            # Ratchet down the trail stop price for a buy order if the price has decreased.
+            if self.side == "buy" and potential_trail_stop_price < self._trail_stop_price:
+                # Update the trail stop price
+                self._trail_stop_price = potential_trail_stop_price
+            
+            # Ratchet up the trail stop price for a sell order if the price has increased.
+            if self.side == "sell" and potential_trail_stop_price > self._trail_stop_price:
+                # Update the trail stop price
+                self._trail_stop_price = potential_trail_stop_price
+        
+        # Update the trail stop price if we have a trail_price
+        if self.trail_price is not None:
+            # Get potential trail stop price
+            if self.side == "buy":
+                potential_trail_stop_price = price + self.trail_price
+            elif self.side == "sell":
+                potential_trail_stop_price = price - self.trail_price
+            else:
+                raise ValueError(f"side must be either 'buy' or 'sell'. Got {self.side} instead.")
+            
+            # Set the trail stop price if it has not been set yet.
+            if self._trail_stop_price is None:
+                self._trail_stop_price = potential_trail_stop_price
+                return
+            
+            # Ratchet down the trail stop price for a buy order if the price has decreased.
+            if self.side == "buy" and potential_trail_stop_price < self._trail_stop_price:
+                # Update the trail stop price
+                self._trail_stop_price = potential_trail_stop_price
+            
+            # Ratchet up the trail stop price for a sell order if the price has increased.
+            if self.side == "sell" and potential_trail_stop_price > self._trail_stop_price:
+                # Update the trail stop price
+                self._trail_stop_price = potential_trail_stop_price
+
+    def _set_type(self, limit_price, stop_price, take_profit_price, stop_loss_price, stop_loss_limit_price, trail_price, trail_percent, position_filled):
         if self.type is None:
             self.type = "market"
             if position_filled:
@@ -359,12 +422,6 @@ class Order:
     @quantity.setter
     def quantity(self, value):
         # All non-crypto assets must be of type 'int'.
-        error_msg = (
-            f"Quantity for {self.asset} which is a "
-            f"{self.asset.asset_type}, must be of type 'int'."
-            f"The value {value} was entered which is a {type(value)}."
-        )
-
         if not isinstance(value, Decimal):
             if isinstance(value, float):
                 value = Decimal(str(value))
@@ -385,11 +442,11 @@ class Order:
                 f"{self.symbol} {self.asset.expiration} "
                 f"{self.asset.right} {self.asset.strike}"
             )
-        repr = f"{self.type} order of | {self.quantity} {self.rep_asset} {self.side} |"
+        repr_str = f"{self.type} order of | {self.quantity} {self.rep_asset} {self.side} |"
         if self.order_class:
-            repr = "%s of class %s" % (repr, self.order_class)
-        repr = "%s with status %s" % (repr, self.status)
-        return repr
+            repr_str = "%s of class %s" % (repr_str, self.order_class)
+        repr_str = "%s with status %s" % (repr_str, self.status)
+        return repr_str
 
     def set_identifier(self, identifier):
         self.identifier = identifier
@@ -409,10 +466,28 @@ class Order:
             cash_value = self.quantity * strategy.get_last_price(self.asset)
         else:
             cash_value = quantity_unfilled * self.transactions[-1].price
-        if self.side == self.SELL:
+        if self.side == SELL:
             return cash_value
         else:
             return -cash_value
+
+    def get_fill_price(self) -> float:
+        """
+        Get the weighted average filled price for this order. Option contracts often encounter partial fills,
+        so the weighted average is the only valid price that can be used for PnL calculations.
+
+        Returns
+        -------
+        float
+            The weighted average filled price for this order. 0.0 will be returned if the order
+            has not yet been filled.
+        """
+        # Only calculate on filled orders
+        if not self.transactions or not self.quantity:
+            return 0.0
+
+        # calculate the weighted average filled price since options often encounter partial fills
+        return round(sum([x.price * x.quantity for x in self.transactions]) / self.quantity, 2)
 
     def update_status(self, status):
         self.status = status
@@ -433,7 +508,7 @@ class Order:
 
     def to_position(self, quantity):
         position_qty = quantity
-        if self.side == self.SELL:
+        if self.side == SELL:
             position_qty = -quantity
 
         position = entities.Position(
@@ -446,16 +521,13 @@ class Order:
 
     def get_increment(self):
         increment = self.quantity
-        if self.side == self.SELL:
+        if self.side == SELL:
             increment = -increment
         return increment
 
     def is_option(self):
-        # Return true if this order is an option.
-        if self.sec_type == "OPT":
-            return True
-        else:
-            return False
+        """Return true if this order is an option."""
+        return True if self.asset.asset_type == "option" else False
 
     # ======Setting the events methods===========
 

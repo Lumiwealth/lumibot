@@ -252,7 +252,13 @@ class DataSource:
 
         interest = get_risk_free_rate() * 100
         current_date = self.get_datetime().date()
-        days_to_expiration = (asset.expiration - current_date).days
+        
+        # If asset expiration is a datetime object, convert it to date
+        expiration = asset.expiration
+        if type(expiration) == datetime:
+            expiration = expiration.date()
+        
+        days_to_expiration = (expiration - current_date).days
         if asset.right == "CALL":
             iv = BS(
                 [und_price, float(asset.strike), interest, days_to_expiration],

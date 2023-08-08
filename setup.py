@@ -19,7 +19,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="lumibot",
-    version="2.6.2",
+    version="2.7.11",
     author="Robert Grzesik",
     author_email="rob@lumiwealth.com",
     description="Backtesting and Trading Library, Made by Lumiwealth",
@@ -28,7 +28,6 @@ setuptools.setup(
     url="https://github.com/Lumiwealth/lumibot",
     packages=setuptools.find_packages(),
     install_requires=[
-        "pydantic",
         "polygon==1.1.0",
         "alpaca_trade_api==2.3.0",
         "alpha_vantage",
@@ -40,11 +39,12 @@ setuptools.setup(
         "pandas_datareader",
         "pandas_market_calendars>=4.1.2",
         "plotly",
+        "flask>=2.2.2",
         "flask-socketio",
         "flask-sqlalchemy",
         "flask-marshmallow",
-        "marshmallow-sqlalchemy",
         "flask-security",
+        "marshmallow-sqlalchemy",
         "email_validator",
         "bcrypt",
         "pytest",
@@ -53,6 +53,7 @@ setuptools.setup(
         "ccxt==3.0.61",
         "termcolor",
         "jsonpickle",
+        'apscheduler==3.10.1',
     ],
     classifiers=[
         "Programming Language :: Python :: 3",

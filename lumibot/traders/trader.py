@@ -79,6 +79,8 @@ class Trader:
         """Setting Logging to both console and a file if logfile is specified"""
         logging.getLogger("urllib3").setLevel(logging.ERROR)
         logging.getLogger("requests").setLevel(logging.ERROR)
+        logging.getLogger('apscheduler.scheduler').setLevel(logging.ERROR)
+        logging.getLogger('apscheduler.executors.default').setLevel(logging.ERROR)
 
         logger = logging.getLogger()
 

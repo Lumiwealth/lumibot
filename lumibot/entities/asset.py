@@ -1,11 +1,8 @@
 from collections import UserDict
-from datetime import date
-from typing import Optional
-
-from pydantic import BaseModel, validator
+from datetime import date, datetime
 
 
-class Asset(BaseModel, frozen=True, extra="forbid"):
+class Asset:
     """
     This is a base class for Assets including stocks, futures, options,
     forex, and crypto.
@@ -104,26 +101,44 @@ class Asset(BaseModel, frozen=True, extra="forbid"):
 
     symbol: str
     asset_type: str = "stock"
-    expiration: Optional[date] = None
-    strike: Optional[float] = 0.0
-    right: Optional[str] = None
+    expiration: date = None
+    strike: float = 0.0
+    right: str = None
     multiplier: int = 1
-    currency: Optional[str] = "USD"
-    precision: Optional[str] = None
+    currency: str = "USD"
+    precision: str = None
+    
     _asset_types: list = ["stock", "option", "future", "forex", "crypto", "index"]
     _right: list = ["CALL", "PUT"]
 
-    def __init__(self, symbol: str, asset_type: str = "stock", **data):
+    def __init__(self, symbol: str, asset_type: str = "stock", expiration: date = None, strike: float = 0.0, right: str = None, multiplier: int = 1, currency: str = "USD", precision: str = None):
+        self.symbol = symbol
+        self.asset_type = asset_type
+        self.strike = strike
+        self.multiplier = multiplier
+        self.currency = currency
+        self.precision = precision
+        
+        # If the expiration is a datetime object, convert it to date
+        if isinstance(expiration, datetime):
+            self.expiration = expiration.date()
+        else:
+            self.expiration = expiration
+        
         # Multiplier for options must always be 100
-        if data.get("asset_type") == "option":
-            data["multiplier"] = 100
+        if asset_type == "option":
+            self.multiplier = 100
 
         # Make sure right is upper case
-        if data.get("right") is not None:
-            data["right"] = data.get("right").upper()
+        if right is not None:
+            self.right = right.upper()
+            
+        self.asset_type_must_be_one_of(self.asset_type)
+        self.right_must_be_one_of(self.right)
 
-        super().__init__(symbol=symbol, asset_type=asset_type, **data)
-
+    def __hash__(self):
+        return hash((self.symbol, self.asset_type, self.expiration, self.strike, self.right))
+    
     def __repr__(self):
         if self.asset_type == "future":
             return f"{self.symbol} {self.expiration}"
@@ -152,28 +167,51 @@ class Asset(BaseModel, frozen=True, extra="forbid"):
             and self.right == other.right
         )
 
-    @validator("asset_type")
-    def asset_type_must_be_one_of(cls, v):
+    def asset_type_must_be_one_of(self, v):
         # TODO: check if this works!
         if v == "us_equity":
             v = "stock"
-        elif v not in cls._asset_types:
+        elif v not in self._asset_types:
             raise ValueError(
-                f"`asset_type` must be one of {', '.join(cls._asset_types)}"
+                f"`asset_type` must be one of {', '.join(self._asset_types)}"
             )
         return v
 
-    @validator("right")
-    def right_must_be_one_of(cls, v):
+    def right_must_be_one_of(self, v):
         if v is None:
             return
 
         v = v.upper()
-        if v not in cls._right:
+        if v not in self._right:
             raise ValueError(
-                f"`right` is {v} must be one of {', '.join(cls._right)}, upper case."
+                f"`right` is {v} must be one of {', '.join(self._right)}, upper case."
             )
         return v
+    
+    def is_valid(self):
+        # All assets should have a symbol
+        if self.symbol is None:
+            return False
+        
+        # All assets should have an asset type
+        if self.asset_type is None:
+            return False
+        
+        # If it's an option it should have an expiration date, strike and right
+        if self.asset_type == "option":
+            if self.expiration is None:
+                return False
+            if self.strike is None:
+                return False
+            if self.right is None:
+                return False
+            
+        # If it's a future it should have an expiration date
+        if self.asset_type == "future":
+            if self.expiration is None:
+                return False
+            
+        return True
 
 
 class AssetsMapping(UserDict):

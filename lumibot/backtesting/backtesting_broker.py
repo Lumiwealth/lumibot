@@ -6,6 +6,7 @@ from decimal import Decimal
 from email.utils import quote
 from functools import wraps
 
+import pandas as pd
 from lumibot.brokers import Broker
 from lumibot.entities import Order, Position, TradingFee
 from lumibot.tools import get_trading_days
@@ -25,8 +26,6 @@ class BacktestingBroker(Broker):
         if not data_source.IS_BACKTESTING_DATA_SOURCE:
             raise ValueError("object %r is not a backtesting data_source" % data_source)
         self._data_source = data_source
-
-        # self._trading_days = get_trading_days()
 
         Broker.__init__(self, name=self.name, connect_stream=connect_stream)
 
@@ -114,6 +113,7 @@ class BacktestingBroker(Broker):
         search = self._trading_days[now < self._trading_days.market_close]
         if search.empty:
             logging.error("Cannot predict future")
+            return 0
 
         trading_day = search.iloc[0]
         if now >= trading_day.market_open:
@@ -342,6 +342,11 @@ class BacktestingBroker(Broker):
                 position.asset.expiration is not None
                 and position.asset.expiration <= self.datetime.date()
             ):
+                # If it's the same day as the expiration, we need to check the time to see if it's after market close
+                time_to_close = self.get_time_to_close()
+                if position.asset.expiration == self.datetime.date() and time_to_close > (15 * 60):
+                    continue
+                    
                 logging.warn(
                     f"Automatically selling expired contract for asset {position.asset}"
                 )
@@ -414,9 +419,14 @@ class BacktestingBroker(Broker):
                 else (order.asset, order.quote)
             )
 
-            price = 0
+            price = None
             filled_quantity = order.quantity
+            
+            #############################
+            # Get OHLCV data for the asset
+            #############################
 
+            # Get the OHLCV data for the asset if we're using the YAHOO data source
             if self._data_source.SOURCE == "YAHOO":
                 timeshift = timedelta(
                     days=-1
@@ -435,6 +445,7 @@ class BacktestingBroker(Broker):
                 close = ohlc.df.close[-1]
                 volume = ohlc.df.volume[-1]
 
+            # Get the OHLCV data for the asset if we're using the PANDAS data source
             elif self._data_source.SOURCE == "PANDAS":
                 # This is a hack to get around the fact that we need to get the previous day's data to prevent lookahead bias.
                 ohlc = strategy.get_historical_prices(
@@ -454,16 +465,22 @@ class BacktestingBroker(Broker):
                 low = ohlc.df["low"][-1]
                 close = ohlc.df["close"][-1]
                 volume = ohlc.df["volume"][-1]
-
+                
+            #############################
             # Determine transaction price.
+            #############################
+            
             if order.type == "market":
                 price = close
+                
             elif order.type == "limit":
                 price = self.limit_order(
                     order.limit_price, order.side, close, high, low
                 )
+                
             elif order.type == "stop":
                 price = self.stop_order(order.stop_price, order.side, close, high, low)
+                
             elif order.type == "stop_limit":
                 if not order.price_triggered:
                     price = self.stop_order(
@@ -478,12 +495,36 @@ class BacktestingBroker(Broker):
                     price = self.limit_order(
                         order.limit_price, order.side, close, high, low
                     )
+                    
+            elif order.type == "trailing_stop":
+                if order._trail_stop_price is not None:
+                    # Check if we have hit the trail stop price for a sell order
+                    if order.side == "sell":
+                        if low <= order._trail_stop_price:
+                            price = low
+                            
+                    # Check if we have hit the trail stop price for a buy order
+                    elif order.side == "buy":
+                        if high >= order._trail_stop_price:
+                            price = high
+                
+                # Get the assets last price
+                asset_price = self.get_last_price(order.asset)
+                
+                # Update the stop price if the price has moved up
+                order.update_trail_stop_price(asset_price)
+                
             else:
                 raise ValueError(
                     f"Order type {order.type} is not implemented for backtesting."
                 )
 
-            if price != 0:
+            #############################
+            # Fill the order.
+            #############################
+            
+            # If the price is not None, then the order has been filled
+            if price is not None:
                 if order.dependent_order:
                     order.dependent_order.dependent_order_filled = True
                     strategy.broker.cancel_order(order.dependent_order)
@@ -521,14 +562,14 @@ class BacktestingBroker(Broker):
             elif limit_price < close and limit_price >= low:
                 return limit_price
             elif limit_price < low:
-                return 0
+                return None
         elif side == "sell":
             if limit_price <= close:
                 return close
             elif limit_price > close and limit_price <= high:
                 return limit_price
             elif limit_price > high:
-                return 0
+                return None
 
     def stop_order(self, stop_price, side, close, high, low):
         """Stop order logic."""
@@ -538,14 +579,14 @@ class BacktestingBroker(Broker):
             elif stop_price > close and stop_price <= high:
                 return stop_price
             elif stop_price > high:
-                return 0
+                return None
         elif side == "sell":
             if stop_price >= close:
                 return close
             elif stop_price < close and stop_price >= low:
                 return stop_price
             elif stop_price < low:
-                return 0
+                return None
 
     # =========Market functions=======================
     def get_last_price(self, asset, quote=None, exchange=None, **kwargs):

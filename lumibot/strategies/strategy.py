@@ -485,7 +485,7 @@ class Strategy(_Strategy):
         >>>                "sell",
         >>>                take_profit_price=limit,
         >>>                stop_loss_price=stop_loss,
-        >>>                position_filled=True,
+        >>>                position_filled=True, # Needed for OCO orders (or else it will think it's a bracket order)
         >>>            )
 
         >>> # For a bracket order
@@ -1387,6 +1387,17 @@ class Strategy(_Strategy):
         >>> order = self.create_order(asset_base, 0.1, "buy", limit_price="41325", stop_price="41300", quote=asset_quote)
         >>> or...
         >>> order = self.create_order((asset_base, asset_quote), 0.1, "buy", limit_price="41325", stop_price="41300",)
+        >>> self.submit_order(order)
+        
+        >>> # For an OCO order
+        >>> order = self.create_order(
+        >>>                "SPY",
+        >>>                100,
+        >>>                "sell",
+        >>>                take_profit_price=limit,
+        >>>                stop_loss_price=stop_loss,
+        >>>                position_filled=True, # Needed for OCO orders (or else it will think it's a bracket order)
+        >>>            )
         >>> self.submit_order(order)
 
         """

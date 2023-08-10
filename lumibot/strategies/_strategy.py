@@ -428,7 +428,7 @@ class _Strategy:
             assets = []
             for asset in assets_original:
                 if asset != self.quote_asset:
-                    if asset.asset_type == "crypto" and self.quote_asset != asset:
+                    if asset.asset_type == "crypto" or asset.asset_type == "forex":
                         asset = (asset, self.quote_asset)
                     assets.append(asset)
 

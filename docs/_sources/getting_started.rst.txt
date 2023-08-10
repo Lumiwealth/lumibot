@@ -213,8 +213,12 @@ Once installed, you can use `yappi` to profile your code like this:
 
     import yappi
 
+    # Start the profiler
     yappi.start()
+
+    #######
     # Run your code here, eg. a backtest
+    #######
     MachineLearningLongShort.backtest(
         PandasDataBacktesting,
         backtesting_start,
@@ -222,6 +226,7 @@ Once installed, you can use `yappi` to profile your code like this:
         pandas_data=pandas_data,
         benchmark_asset="TQQQ",
     )
+
     # Stop the profiler
     yappi.stop()
 
@@ -232,7 +237,7 @@ Once installed, you can use `yappi` to profile your code like this:
             "Function stats for (%s) (%d)" % (thread.name, thread.id)
         )  # it is the Thread.__class__.__name__
         yappi.get_func_stats(ctx_id=thread.id).save(
-            f"profile_{thread.name}.out", type="pstat"
+            f"profile{thread.name}.out", type="pstat"
         )
 
 This will create a `.out` file for each thread that you can then analyze to see where your code is spending the most time.
@@ -248,4 +253,7 @@ We recommend using snakeviz to view the results. You can install it with `pip in
 
 .. code-block:: bash
 
-    snakeviz profile_MachineLearningLongShort.out
+    snakeviz profile_MainThread.out
+
+
+I personally like changing the style to sunburst, I find it to be easier to understand.

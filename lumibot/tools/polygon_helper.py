@@ -6,6 +6,7 @@ import pandas as pd
 import polygon
 from lumibot import LUMIBOT_CACHE_FOLDER, LUMIBOT_DEFAULT_TIMEZONE
 from lumibot.entities import Asset
+from polygon import RESTClient
 
 WAIT_TIME = 60
 
@@ -127,41 +128,44 @@ def get_price_data_from_polygon(
             break
         last_cur_start = cur_start
 
-        # If it is a crypto asset, we need to use the CryptoClient
+        # Crypto Asset for Backtesting
         if asset.asset_type == "crypto":
-            polygon_client = polygon.CryptoClient(api_key)
-
+            
+            # RESTClient connection for Polygon Crypto API; traded_asset uniqueness: quote asset can be USD or non-USD, symbol is unique structure
+            polygon_client = RESTClient(api_key)
             quote_asset_symbol = quote_asset.symbol if quote_asset else "USD"
             symbol = f"X:{asset.symbol}{quote_asset_symbol}"
-            result = polygon_client.get_full_range_aggregate_bars(
-                symbol,
-                from_date=cur_start
+            result = polygon_client.get_aggs(
+                ticker=symbol,
+                from_=cur_start  # polygon-api-client docs say 'from' but that is a reserved word in python
                 - timedelta(
                     minutes=1
-                ),  # We need to subtract 1 minute because of a bug in polygon
-                to_date=end,
+                ),  # We need to subtract 1 minute because of a bug in polygon - does this exist in polygon-api-client?
+                to=end,
                 timespan=timespan,
-                run_parallel=False,
-                warnings=False,
+                # run_parallel=False,  # no reference in the polygon-api-client docs
+                # warnings=False,  # no reference in the polygon-api-client docs
             )
 
             df = pd.DataFrame(result)
 
+        # Stock-Equity Asset for Backtesting
         elif asset.asset_type == "stock":
-            polygon_client = polygon.StocksClient(api_key)
-
+            
+            # RESTClient connection for Polygon Stock-Equity API; traded_asset is standard
+            polygon_client = RESTClient(api_key)
             symbol = asset.symbol
             try:
-                result = polygon_client.get_full_range_aggregate_bars(
-                    symbol,
-                    from_date=cur_start
+                result = polygon_client.get_aggs(
+                    ticker=symbol,
+                    from_=cur_start
                     - timedelta(
                         minutes=1
-                    ),  # We need to subtract 1 minute because of a bug in polygon
-                    to_date=end,
+                    ),  # We need to subtract 1 minute because of a bug in polygon - does this exist in polygon-api-client?
+                    to_=end,
                     timespan=timespan,
-                    run_parallel=False,
-                    warnings=False,
+                # run_parallel=False,  # no reference in the polygon-api-client docs
+                # warnings=False,  # no reference in the polygon-api-client docs
                 )
             except Exception as e:
                 print(f"Error getting data from Polygon: {e}")
@@ -169,6 +173,7 @@ def get_price_data_from_polygon(
 
             df = pd.DataFrame(result)
 
+        # Forex Asset for Backtesting
         elif asset.asset_type == "forex":
             # If quote_asset is None, throw an error
             if quote_asset is None:
@@ -176,49 +181,49 @@ def get_price_data_from_polygon(
                     f"quote_asset is required for asset type {asset.asset_type}"
                 )
             
-            polygon_client = polygon.ForexClient(api_key)
-
+            # RESTClient connection for Polygon ForEx API; traded_asset is standard
+            polygon_client = RESTClient(api_key)
             symbol = f"C:{asset.symbol}{quote_asset.symbol}"
-            result = polygon_client.get_full_range_aggregate_bars(
-                symbol,
-                from_date=cur_start
+            result = polygon_client.get_aggs(
+                ticker=symbol,
+                from_=cur_start
                 - timedelta(
                     minutes=1
-                ),  # We need to subtract 1 minute because of a bug in polygon
-                to_date=end,
+                ),  # We need to subtract 1 minute because of a bug in polygon - does this exist in polygon-api-client?
+                to=end,
                 timespan=timespan,
-                run_parallel=False,
-                warnings=False,
+                # run_parallel=False,  # no reference in the polygon-api-client docs
+                # warnings=False,  # no reference in the polygon-api-client docs
             )
 
             df = pd.DataFrame(result)
 
+        # Option Asset for Backtesting
         elif asset.asset_type == "option":
             # TODO: First check if last_row.name is past the expiration date. If so, break out of the loop or something (this will save us a lot of time)
 
-            polygon_client = polygon.OptionsClient(api_key)
+            # RESTClient connection for Polygon ForEx API; traded_asset is standard
+            polygon_client = RESTClient(api_key)
+            expiry_string = asset.expiration.strftime("%y%m%d")  # Make asset.expiration datetime into a string like "YYMMDD"
 
-            # Make asset.expiration datetime into a string like "YYMMDD"
-            expiry_string = asset.expiration.strftime("%y%m%d")
-
-            # Build option symbol
-            symbol = polygon.options.options.build_option_symbol(
-                asset.symbol,
-                expiry_string,
-                asset.right,
-                asset.strike,
+            # Build option symbol: expiration_date format is 'YYYY-MM-DD' ; contract_type (str) 'put' or 'call' 
+            symbol = polygon_client.list_options_contracts(
+                underlying_ticker=asset.symbol,
+                expiration_date=expiry_string,
+                contract_type=asset.right,
+                striek_price=asset.strike,
             )
             
             poly_start = cur_start - timedelta(days=4) # Subtract 4 days because options data can be very sparse
             poly_end = end + timedelta(days=4) # Add 4 days because options data can be very sparse
 
-            result = polygon_client.get_full_range_aggregate_bars(
-                symbol,
-                from_date=poly_start, 
-                to_date=poly_end,  
+            result = polygon_client.get_aggs(
+                ticker=symbol,
+                from_=poly_start, 
+                to=poly_end,  
                 timespan=timespan,
-                run_parallel=False,
-                warnings=False,
+                # run_parallel=False,  # no reference in the polygon-api-client docs
+                # warnings=False,  # no reference in the polygon-api-client docs
             )
 
             df = pd.DataFrame(result)

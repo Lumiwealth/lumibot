@@ -12,6 +12,7 @@ lumibot/cache
 
 # Development files
 venv
+.venv
 logs
 credentials.py
 *debug.py

@@ -438,7 +438,7 @@ class _Strategy:
                 # Turn the asset into a tuple if it's a crypto asset
                 asset = (
                     position.asset
-                    if position.asset.asset_type != "crypto"
+                    if (position.asset.asset_type != "crypto") and (position.asset.asset_type != "forex")
                     else (position.asset, self.quote_asset)
                 )
                 quantity = position.quantity

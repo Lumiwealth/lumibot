@@ -130,39 +130,46 @@ class AlpacaData(DataSource):
             limit = 1000
 
         if end is None:
-            end = datetime.now(timezone.utc)
-
-        df_ret = None
-
-        curr_end = end.isoformat() if not isinstance(end, str) else end
+            end = datetime.now(timezone.utc) - timedelta(minutes=15) # alpaca limitation of not getting the most recent 15 minutes
 
         if start is None:
             if str(freq) == "1Min":
-                start = end - timedelta(minutes=limit)
+                if datetime.now().weekday() == 0: # for Mondays as prior days were off
+                    loop_limit = limit + 4896 # subtract 4896 minutes to take it from Monday to Friday, as there is no data between Friday 4:00 pm and Monday 9:30 pm causing an incomplete or empty dataframe
+                else:
+                    loop_limit = limit
+        
             elif str(freq) == "1Day":
-                start = end - timedelta(days=limit)
+                loop_limit = limit * 1.5 # number almost perfect for normal weeks where only weekends are off
 
-        curr_start = start.isoformat(timespec="seconds")
+        end = end.isoformat(timespec="seconds")
+        df = [] # to use len(df) below without an error
 
-        cnt = 0
-        last_curr_end = None
-        loop_limit = 1000 if limit > 1000 else limit
-        while True:
-            cnt += 1
-            # freqnum = re.search(r'\d+', freq).group()
-            # freqtimelen = freq[len(freqnum):]
+        while loop_limit / limit <= 64 and len(df) < limit: # arbitrary limit of upto 4 calls after which it will give up
+            if str(freq) == "1Min":
+                start = datetime.fromisoformat(end) - timedelta(minutes=loop_limit)
+                start = start.isoformat(timespec="seconds")
+
+            elif str(freq) == "1Day":
+                start = datetime.fromisoformat(end) - timedelta(days=loop_limit)
+                start = start.isoformat(timespec="seconds")
+
             if asset.asset_type == "crypto":
                 symbol = f"{asset.symbol}{quote.symbol}"
                 barset = api.get_crypto_bars(
                     symbol,
                     freq,
-                    end=curr_end,
-                    start=curr_start,  # limit=loop_limit,
+                    start=start, 
+                    end=end
                 )
+
             else:
                 symbol = asset.symbol
                 barset = api.get_bars(
-                    symbol, freq, limit=loop_limit, end=curr_end, start=curr_start
+                    symbol,
+                    freq,
+                    start=start,
+                    end=end
                 )
             df = barset.df
 
@@ -172,38 +179,17 @@ class AlpacaData(DataSource):
                 )
                 return None
 
-            if df_ret is None:
-                df_ret = df
-            elif str(df.index[0]) < str(df_ret.index[0]):
-                df_ret = df.append(df_ret)
+            df = df[~df.index.duplicated(keep="first")]
+            df = df.iloc[-limit:]
+            df = df[df.close > 0]
+            loop_limit *= 2
+        
+        if len(df) < limit:
+            logging.warning(
+                f"Dataframe for {symbol} has {len(df)} rows while {limit} were requested. Further data does not exist for Alpaca"
+            )
 
-            if len(df_ret) >= limit:
-                break
-            else:
-                curr_end = (
-                    datetime.fromisoformat(str(df_ret.index[0])).strftime(
-                        "%Y-%m-%dT%H:%M:%S"
-                    )
-                    + "-04:00"
-                )
-
-            # Sometimes the beginning date we put in is not a trading date,
-            # this makes sure that we end when we're close enough
-            # (it's just returning the same thing over and over)
-            if curr_end == last_curr_end:
-                break
-            else:
-                last_curr_end = curr_end
-
-            # Sleep so that we don't trigger rate limiting
-            if cnt >= 50:
-                time.sleep(10)
-                cnt = 0
-
-        df_ret = df_ret[~df_ret.index.duplicated(keep="first")]
-        df_ret = df_ret.iloc[-limit:]
-
-        return df_ret[df_ret.close > 0]
+        return df
 
     def _pull_source_bars(
         self, assets, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None,  include_after_hours=True

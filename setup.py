@@ -19,7 +19,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="lumibot",
-    version="2.7.11",
+    version="2.7.14",
     author="Robert Grzesik",
     author_email="rob@lumiwealth.com",
     description="Backtesting and Trading Library, Made by Lumiwealth",
@@ -30,7 +30,7 @@ setuptools.setup(
     install_requires=[
         "polygon==1.1.0",
         "polygon-api-client",
-        "alpaca_trade_api==2.3.0",
+        "alpaca_trade_api>=2.3.0,<3.0.0",
         "alpha_vantage",
         "ibapi==9.81.1.post1",
         "yfinance>=0.2.18",
@@ -49,7 +49,7 @@ setuptools.setup(
         "email_validator",
         "bcrypt",
         "pytest",
-        "scipy",
+        "scipy==1.10.1", # Newer versions of scipy are currently causing issues
         "quantstats==0.0.59",
         "python-dotenv",  # Secret Storage
         "ccxt==3.0.61",

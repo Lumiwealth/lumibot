@@ -38,7 +38,7 @@ Finally, run the backtest:
         PolygonDataBacktesting,
         backtesting_start,
         backtesting_end,
-        benchmark_asset=f"BTC-USD",
+        benchmark_asset=Asset(symbol="BTC", asset_type="crypto")
         quote_asset=quote_asset,
         buy_trading_fees=[trading_fee],
         sell_trading_fees=[trading_fee],
@@ -78,6 +78,7 @@ Here's another example but for for stocks:
             PolygonDataBacktesting,
             backtesting_start,
             backtesting_end,
+            benchmark_asset=Asset(symbol="SPY", asset_type="stock")
             polygon_api_key="YOUR_POLYGON_API_KEY",
             polygon_has_paid_subscription=False,
         )

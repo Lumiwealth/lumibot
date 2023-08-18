@@ -485,7 +485,7 @@ class Strategy(_Strategy):
         >>>                "sell",
         >>>                take_profit_price=limit,
         >>>                stop_loss_price=stop_loss,
-        >>>                position_filled=True,
+        >>>                position_filled=True, # Needed for OCO orders (or else it will think it's a bracket order)
         >>>            )
 
         >>> # For a bracket order
@@ -1387,6 +1387,17 @@ class Strategy(_Strategy):
         >>> order = self.create_order(asset_base, 0.1, "buy", limit_price="41325", stop_price="41300", quote=asset_quote)
         >>> or...
         >>> order = self.create_order((asset_base, asset_quote), 0.1, "buy", limit_price="41325", stop_price="41300",)
+        >>> self.submit_order(order)
+        
+        >>> # For an OCO order
+        >>> order = self.create_order(
+        >>>                "SPY",
+        >>>                100,
+        >>>                "sell",
+        >>>                take_profit_price=limit,
+        >>>                stop_loss_price=stop_loss,
+        >>>                position_filled=True, # Needed for OCO orders (or else it will think it's a bracket order)
+        >>>            )
         >>> self.submit_order(order)
 
         """
@@ -2495,7 +2506,7 @@ class Strategy(_Strategy):
         )
         
     def add_marker(self, name, symbol="circle", value=None, color=None, size=None, detail_text=None, dt=None):
-        """Adds a marker to the trades chart.
+        """Adds a marker to the indicators plot that loads after a backtest. This can be used to mark important events on the graph, such as price crossing a certain value, marking a support level, marking a resistance level, etc.
         
         Parameters
         ----------
@@ -2574,12 +2585,12 @@ class Strategy(_Strategy):
         return new_marker
          
     def get_markers_df(self):
-        """Returns the markers on the trades chart.
+        """Returns the markers on the indicator chart as a pandas DataFrame.
         
         Returns
         -------
         pandas.DataFrame
-            The markers on the trades chart.
+            The markers on the indicator chart.
         """
         
         df = pd.DataFrame(self._chart_markers_list)
@@ -2587,7 +2598,7 @@ class Strategy(_Strategy):
         return df
         
     def add_line(self, name, value, color=None, style="solid", width=None, detail_text=None, dt=None):
-        """Adds a line data point to the trades chart.
+        """Adds a line data point to the indicator chart. This can be used to add lines such as bollinger bands, prices for specific assets, or any other line you want to add to the chart.
         
         Parameters
         ----------
@@ -2653,12 +2664,12 @@ class Strategy(_Strategy):
         )
         
     def get_lines_df(self):
-        """Returns the lines on the trades chart.
+        """Returns a dataframe of the lines on the indicator chart.
         
         Returns
         -------
         pandas.DataFrame
-            The lines on the trades chart.
+            The lines on the indicator chart.
         """
         
         df = pd.DataFrame(self._chart_lines_list)

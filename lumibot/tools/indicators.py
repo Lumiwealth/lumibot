@@ -486,6 +486,9 @@ def plot_returns(
                     + "Price: "
                     + str(row["price"])
                     + "<br>"
+                    + "Order Type: "
+                    + row["type"]
+                    + "<br>"
                     + "Amount Transacted: "
                     + str(
                         # Round to 2 decimal places and add commas for thousands
@@ -512,6 +515,9 @@ def plot_returns(
                     + "<br>"
                     + "Price: "
                     + str(row["price"])
+                    + "<br>"
+                    + "Order Type: "
+                    + row["type"]
                     + "<br>"
                     + "Amount Transacted: "
                     + str(

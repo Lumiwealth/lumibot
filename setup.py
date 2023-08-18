@@ -29,6 +29,7 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     install_requires=[
         "polygon==1.1.0",
+        "polygon-api-client",
         "alpaca_trade_api==2.3.0",
         "alpha_vantage",
         "ibapi==9.81.1.post1",
@@ -50,6 +51,7 @@ setuptools.setup(
         "pytest",
         "scipy",
         "quantstats==0.0.59",
+        "python-dotenv",  # Secret Storage
         "ccxt==3.0.61",
         "termcolor",
         "jsonpickle",

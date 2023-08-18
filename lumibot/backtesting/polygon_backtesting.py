@@ -91,7 +91,7 @@ class PolygonDataBacktesting(DataSourceBacktesting, PandasData):
                 f"Unknown unit: {unit}. Valid units are minute, hour, day, M, H, D"
             )
 
-    def update_pandas_data(self, asset, quote, length, timestep, polygon_helper):
+    def update_pandas_data(self, asset, quote, length, timestep):
         """
         Get asset data and update the self.pandas_data dictionary.
 
@@ -99,12 +99,12 @@ class PolygonDataBacktesting(DataSourceBacktesting, PandasData):
         ----------
         asset : Asset
             The asset to get data for.
+        quote : Asset
+            The quote asset to use. For example, if asset is "SPY" and quote is "USD", the data will be for "SPY/USD".
         length : int
             The number of data points to get.
         timestep : str
             The timestep to use. For example, "1minute" or "1hour" or "1day".
-        polygon_helper : PolygonHelper
-            The PolygonHelper object to use to get data from Polygon.
 
         Returns
         -------
@@ -173,7 +173,7 @@ class PolygonDataBacktesting(DataSourceBacktesting, PandasData):
         include_after_hours=True,
     ):
         pandas_data_update = self.update_pandas_data(
-            asset, quote, length, timestep, polygon_helper
+            asset, quote, length, timestep
         )
 
         if pandas_data_update is not None:
@@ -189,7 +189,7 @@ class PolygonDataBacktesting(DataSourceBacktesting, PandasData):
         self, asset, timestep="minute", quote=None, exchange=None, include_after_hours=True, start_date=None, end_date=None
     ):
         pandas_data_update = self.update_pandas_data(
-            asset, quote, 1, timestep, polygon_helper
+            asset, quote, 1, timestep
         )
         if pandas_data_update is not None:
             # Add the keys to the self.pandas_data dictionary
@@ -210,7 +210,7 @@ class PolygonDataBacktesting(DataSourceBacktesting, PandasData):
     ):
         try:
             pandas_data_update = self.update_pandas_data(
-                asset, quote, 1, timestep, polygon_helper
+                asset, quote, 1, timestep
             )
             if pandas_data_update is not None:
                 # Add the keys to the self.pandas_data dictionary
@@ -220,10 +220,10 @@ class PolygonDataBacktesting(DataSourceBacktesting, PandasData):
 
         return super().get_last_price(asset, timestep, quote, exchange, **kwargs)
 
-
     def get_chains(self, asset):
         """
-        Integrates the Polygon client library into the LumiBot backtest for Options Data in the same structure as Interactive Brokers options chain data
+        Integrates the Polygon client library into the LumiBot backtest for Options Data in the same
+        structure as Interactive Brokers options chain data
         
         Parameters
         ----------
@@ -233,7 +233,8 @@ class PolygonDataBacktesting(DataSourceBacktesting, PandasData):
         Returns
         -------
         dictionary:
-            A dictionary nested with a dictionarty of Polygon Option Contracts information broken out by Exchange, with embedded lists for Expirations and Strikes
+            A dictionary nested with a dictionarty of Polygon Option Contracts information broken out by Exchange,
+            with embedded lists for Expirations and Strikes.
             {'SMART': {'TradingClass': 'SPY', 'Multiplier': 100, 'Expirations': [], 'Strikes': []}} 
 
             - `TradingClass` (str) eg: `FB`
@@ -241,65 +242,28 @@ class PolygonDataBacktesting(DataSourceBacktesting, PandasData):
             - `Expirations` (list of str) eg: [`20230616`, ...]
             - `Strikes` (list of floats) eg: [`100.0`, ...]
         """
-    
-        # RESTClient API for Polygon.io polygon-api-client
-        polygon_client = RESTClient(self.polygon_api_key)
 
-        # All Option Contracts | get_chains matching IBKR | {'SMART': {'TradingClass': 'SPY', 'Multiplier': 100, 'Expirations': [], 'Strikes': []}} 
+        # All Option Contracts | get_chains matching IBKR |
+        # {'SMART': {'TradingClass': 'SPY', 'Multiplier': 100, 'Expirations': [], 'Strikes': []}}
         option_contracts = {"SMART": {"TradingClass": None, "Multiplier": None, "Expirations": [], "Strikes": []}}
 
         # All Contracts | to match lumitbot, more inputs required from get_chains()
-        for polygon_contract in polygon_client.list_options_contracts(underlying_ticker=asset.symbol, limit=1000):
+        for polygon_contract in self.polygon_client.list_options_contracts(underlying_ticker=asset.symbol, limit=1000):
 
             # Contract Data | Attributes
-            Exchange = polygon_contract.primary_exchange
-            TradingClass = polygon_contract.underlying_ticker
-            Multiplier = polygon_contract.shares_per_contract
-            Expirations = polygon_contract.expiration_date
-            Strikes = polygon_contract.strike_price
+            exchange = polygon_contract.primary_exchange
+            contracts = {
+                "TradingClass": polygon_contract.underlying_ticker,
+                "Multiplier": polygon_contract.shares_per_contract,
+                "Expirations": polygon_contract.expiration_date,
+                "Strikes": polygon_contract.strike_price,
+            }
 
             # Return to Loop and Skip if Multipler is not 100 because non-standard contracts are not supported
-            if Multiplier != 100:
+            if contracts["Multiplier"] != 100:
                 continue
 
-            option_contracts["SMART"]["TradingClass"] = TradingClass
-            option_contracts["SMART"]["Multiplier"] = Multiplier
-            option_contracts["SMART"]["Expirations"].append(Expirations)
-            option_contracts["SMART"]["Strikes"].append(Strikes)
+            option_contracts["SMART"] = contracts
+            option_contracts[exchange] = contracts
         
         return option_contracts
-    
-    
-    def get_expiration(self, asset):
-        """
-        Integrates the polygon-api-client RESTClient into the LumiBot backtest for a list of the Option's Data 'expiration_date' in the same structure as IBKR
-        
-        Parameters
-        ----------
-        asset : Asset
-            The asset to get data for.
-        
-        Returns
-        -------
-        list:
-            A list of Polygon Option Contracts for Expirations
-            trades = []
-
-            - `TradingClass` (str) eg: `FB`
-            - `Multiplier` (str) eg: `100`
-            - `Expirations` (list of str) eg: [`20230616`, ...]
-            - `Strikes` (list of floats) eg: [`100.0`, ...]
-        """
-        
-        expirations = []
-        for expiration in self.polygon_client.list_options_contracts(underlying_ticker=asset.symbol, order="asc", limit=1000):
-            expirations.append(expiration)
-
-        #retrieve all the unique expiration dates for a given ticker as a list of strings
-        get_expirations = []
-        for expiration in expirations:
-            get_expirations.append(expiration.expiration_date)
-            #remove duplicates
-            get_expirations = list(set(get_expirations))
-            #sort them in ascending order
-            get_expirations.sort()

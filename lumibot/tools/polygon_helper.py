@@ -115,10 +115,14 @@ def get_price_data_from_polygon(
                 else:
                     cur_start = last_row.name
 
-                # If we don't have a paid subscription, we need to wait 1 minute between requests because of the rate limit
+                # If we don't have a paid subscription, we need to wait 1 minute between requests because of
+                # the rate limit
                 if not has_paid_subscription and not first_iteration:
                     print(
-                        f"""\nSleeping {WAIT_TIME} seconds getting pricing data for {asset} from Polygon because we don't have a paid subscription and we don't want to hit the rate limit. If you want to avoid this, you can get a paid subscription at https://polygon.io/pricing and set `polygon_has_paid_subscription=True` when starting the backtest.\n"""
+                        f"\nSleeping {WAIT_TIME} seconds getting pricing data for {asset} from Polygon because "
+                        f"we don't have a paid subscription and we don't want to hit the rate limit. If you want to "
+                        f"avoid this, you can get a paid subscription at https://polygon.io/pricing and "
+                        f"set `polygon_has_paid_subscription=True` when starting the backtest.\n"
                     )
                     time.sleep(WAIT_TIME)
 
@@ -128,50 +132,21 @@ def get_price_data_from_polygon(
             break
         last_cur_start = cur_start
 
+        # RESTClient connection for Polygon Stock-Equity API; traded_asset is standard
+        polygon_client = RESTClient(api_key)
+
+        # We need to subtract 1 minute because of a bug in polygon - does this exist in polygon-api-client?
+        poly_start = cur_start - timedelta(minutes=1)
+        poly_end = end
+
         # Crypto Asset for Backtesting
         if asset.asset_type == "crypto":
-            
-            # RESTClient connection for Polygon Crypto API; traded_asset uniqueness: quote asset can be USD or non-USD, symbol is unique structure
-            polygon_client = RESTClient(api_key)
             quote_asset_symbol = quote_asset.symbol if quote_asset else "USD"
             symbol = f"X:{asset.symbol}{quote_asset_symbol}"
-            result = polygon_client.get_aggs(
-                ticker=symbol,
-                from_=cur_start  # polygon-api-client docs say 'from' but that is a reserved word in python
-                - timedelta(
-                    minutes=1
-                ),  # We need to subtract 1 minute because of a bug in polygon - does this exist in polygon-api-client?
-                to=end,
-                timespan=timespan,
-                # run_parallel=False,  # no reference in the polygon-api-client docs
-                # warnings=False,  # no reference in the polygon-api-client docs
-            )
-
-            df = pd.DataFrame(result)
 
         # Stock-Equity Asset for Backtesting
         elif asset.asset_type == "stock":
-            
-            # RESTClient connection for Polygon Stock-Equity API; traded_asset is standard
-            polygon_client = RESTClient(api_key)
             symbol = asset.symbol
-            try:
-                result = polygon_client.get_aggs(
-                    ticker=symbol,
-                    from_=cur_start
-                    - timedelta(
-                        minutes=1
-                    ),  # We need to subtract 1 minute because of a bug in polygon - does this exist in polygon-api-client?
-                    to_=end,
-                    timespan=timespan,
-                # run_parallel=False,  # no reference in the polygon-api-client docs
-                # warnings=False,  # no reference in the polygon-api-client docs
-                )
-            except Exception as e:
-                print(f"Error getting data from Polygon: {e}")
-                return None
-
-            df = pd.DataFrame(result)
 
         # Forex Asset for Backtesting
         elif asset.asset_type == "forex":
@@ -180,56 +155,45 @@ def get_price_data_from_polygon(
                 raise ValueError(
                     f"quote_asset is required for asset type {asset.asset_type}"
                 )
-            
-            # RESTClient connection for Polygon ForEx API; traded_asset is standard
-            polygon_client = RESTClient(api_key)
-            symbol = f"C:{asset.symbol}{quote_asset.symbol}"
-            result = polygon_client.get_aggs(
-                ticker=symbol,
-                from_=cur_start
-                - timedelta(
-                    minutes=1
-                ),  # We need to subtract 1 minute because of a bug in polygon - does this exist in polygon-api-client?
-                to=end,
-                timespan=timespan,
-                # run_parallel=False,  # no reference in the polygon-api-client docs
-                # warnings=False,  # no reference in the polygon-api-client docs
-            )
 
-            df = pd.DataFrame(result)
+            symbol = f"C:{asset.symbol}{quote_asset.symbol}"
 
         # Option Asset for Backtesting
         elif asset.asset_type == "option":
             # TODO: First check if last_row.name is past the expiration date. If so, break out of the loop or something (this will save us a lot of time)
 
-            # RESTClient connection for Polygon ForEx API; traded_asset is standard
-            polygon_client = RESTClient(api_key)
-            expiry_string = asset.expiration.strftime("%y%m%d")  # Make asset.expiration datetime into a string like "YYMMDD"
-
-            # Build option symbol: expiration_date format is 'YYYY-MM-DD' ; contract_type (str) 'put' or 'call' 
-            symbol = polygon_client.list_options_contracts(
+            # Query for the historical Option Contract ticker backtest is looking for
+            contracts = list(polygon_client.list_options_contracts(
                 underlying_ticker=asset.symbol,
-                expiration_date=expiry_string,
-                contract_type=asset.right,
-                striek_price=asset.strike,
-            )
-            
-            poly_start = cur_start - timedelta(days=4) # Subtract 4 days because options data can be very sparse
-            poly_end = end + timedelta(days=4) # Add 4 days because options data can be very sparse
+                expiration_date=asset.expiration,
+                contract_type=asset.right.lower(),
+                strike_price=asset.strike,
+                expired=True,  # Needed so BackTest can look at old contracts to find the ticker we need
+            ))
+            symbol = contracts[0].ticker
 
-            result = polygon_client.get_aggs(
-                ticker=symbol,
-                from_=poly_start, 
-                to=poly_end,  
-                timespan=timespan,
-                # run_parallel=False,  # no reference in the polygon-api-client docs
-                # warnings=False,  # no reference in the polygon-api-client docs
-            )
-
-            df = pd.DataFrame(result)
+            poly_start = cur_start - timedelta(days=4)  # Subtract 4 days because options data can be very sparse
+            poly_end = end + timedelta(days=4)  # Add 4 days because options data can be very sparse
 
         else:
             raise ValueError(f"Unsupported asset type for polygon: {asset.asset_type}")
+
+        try:
+            result = polygon_client.get_aggs(
+                ticker=symbol,
+                from_=poly_start,  # polygon-api-client docs say 'from' but that is a reserved word in python
+                to=poly_end,
+                # In Polygon, multiplier is the number of "timespans" in each candle, so if you want 5min candles
+                # returned you would set multiplier=5 and timespan="minute". This is very different from the
+                # asset.multiplier setting for option contracts.
+                multiplier=1,
+                timespan=timespan,
+            )
+        except Exception as e:
+            print(f"Error getting data from Polygon: {e}")
+            return None
+
+        df = pd.DataFrame(result)
 
         # Check if we got data from Polygon
         if df is not None and len(df) > 0:
@@ -245,7 +209,8 @@ def get_price_data_from_polygon(
             )
 
             # Create a datetime column and set it as the index
-            df = df.assign(datetime=pd.to_datetime(df["t"], unit="ms"))
+            timestamp_col = "t" if "t" in df.columns else "timestamp"
+            df = df.assign(datetime=pd.to_datetime(df[timestamp_col], unit="ms"))
             df = df.set_index("datetime")
 
             # Set the timezone to UTC

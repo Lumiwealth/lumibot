@@ -11,7 +11,6 @@ from alpaca_trade_api.stream import Stream
 from dateutil import tz
 from lumibot.data_sources import AlpacaData
 from lumibot.entities import Asset, Order, Position
-from numpy import str0
 from termcolor import colored
 
 from .broker import Broker

@@ -2,6 +2,7 @@ import datetime
 import multiprocessing
 import os
 import shutil
+from pathlib import Path
 from time import time
 
 import pandas as pd
@@ -27,13 +28,15 @@ trading_hours_start = datetime.time(9, 30)
 trading_hours_end = datetime.time(15, 30)
 pandas_data = dict()
 tickers = ["SPY", "DJP", "TLT", "GLD", "IEF"]
+data_dir = Path(__file__).parent.parent / "data"
 for ticker in tickers:
+    csv_path = data_dir / f"{ticker}.csv"
     asset = Asset(
         symbol=ticker,
         asset_type="stock",
     )
     df = pd.read_csv(
-        f"data/{ticker}.csv",
+        csv_path,
         parse_dates=True,
         index_col=0,
         header=0,
@@ -128,7 +131,7 @@ def run_test(strategy_name):
     for data in pandas_data.values():
         data.strategy = strategy_name
     stats_file = f"logs/strategy_{strategy_class.__name__}_{int(time())}.csv"
-    return strategy_class.backtest(
+    result = strategy_class.backtest(
         backtesting_datasource,
         backtesting_start,
         backtesting_end,
@@ -144,6 +147,8 @@ def run_test(strategy_name):
         budget=40000,
         **kwargs,
     )
+    result['strategy'] = strategy_name
+    return result
 
 
 def test_integration():
@@ -154,7 +159,7 @@ def test_integration():
 
     pool = multiprocessing.Pool(processes=multiprocessing.cpu_count() - 2)
     for result in pool.imap_unordered(run_test, strategies):
-        agg_results.update(result)
+        agg_results[result['strategy']] = result
 
     pool.close()
 
@@ -216,7 +221,8 @@ def cleanup(request):
     """Cleanup a testing directory once we are finished."""
 
     def remove_test_dir():
-        shutil.rmtree("logs")
+        if os.path.exists("logs"):
+            shutil.rmtree("logs")
 
     request.addfinalizer(remove_test_dir)
 

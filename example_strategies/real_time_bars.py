@@ -1,8 +1,9 @@
 import datetime
-from lumibot.entities import Asset
-from lumibot.strategies.strategy import Strategy
+
 from credentials import InteractiveBrokersConfig
 from lumibot.brokers import InteractiveBrokers
+from lumibot.entities import Asset
+from lumibot.strategies.strategy import Strategy
 from lumibot.traders import Trader
 
 
@@ -47,11 +48,8 @@ class RealTimeBars(Strategy):
 
 
 if __name__ == "__main__":
-
-    logfile = "logs/rtb.log"
-
     # Initialize all our classes
-    trader = Trader(logfile=logfile)  # debug="debug")
+    trader = Trader() 
     broker = InteractiveBrokers(InteractiveBrokersConfig)
 
     asset = Asset(symbol="SPY")

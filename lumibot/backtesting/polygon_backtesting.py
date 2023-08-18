@@ -246,22 +246,27 @@ class PolygonDataBacktesting(DataSourceBacktesting, PandasData):
         # All Option Contracts | get_chains matching IBKR |
         # {'SMART': {'TradingClass': 'SPY', 'Multiplier': 100, 'Expirations': [], 'Strikes': []}}
         option_contracts = {"SMART": {"TradingClass": None, "Multiplier": None, "Expirations": [], "Strikes": []}}
+        contracts = option_contracts['SMART']  # initialize contracts
+        today = self.get_datetime().date()
 
         # All Contracts | to match lumitbot, more inputs required from get_chains()
-        for polygon_contract in self.polygon_client.list_options_contracts(underlying_ticker=asset.symbol, limit=1000):
+        polgon_contracts = self.polygon_client.list_options_contracts(
+            underlying_ticker=asset.symbol,
+            expiration_date_gte=today,
+            expired=True,  # Needed so BackTest can look at old contracts to find the expirations/strikes
+            limit=1000
+        )
+        for polygon_contract in polgon_contracts:
+            # Return to Loop and Skip if Multipler is not 100 because non-standard contracts are not supported
+            if polygon_contract.shares_per_contract != 100:
+                continue
 
             # Contract Data | Attributes
             exchange = polygon_contract.primary_exchange
-            contracts = {
-                "TradingClass": polygon_contract.underlying_ticker,
-                "Multiplier": polygon_contract.shares_per_contract,
-                "Expirations": polygon_contract.expiration_date,
-                "Strikes": polygon_contract.strike_price,
-            }
-
-            # Return to Loop and Skip if Multipler is not 100 because non-standard contracts are not supported
-            if contracts["Multiplier"] != 100:
-                continue
+            contracts["TradingClass"] = polygon_contract.underlying_ticker
+            contracts["Multiplier"] = polygon_contract.shares_per_contract
+            contracts["Expirations"].append(polygon_contract.expiration_date)
+            contracts["Strikes"].append(polygon_contract.strike_price)
 
             option_contracts["SMART"] = contracts
             option_contracts[exchange] = contracts

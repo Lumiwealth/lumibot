@@ -169,11 +169,12 @@ def get_price_data_from_polygon(
                 contract_type=asset.right.lower(),
                 strike_price=asset.strike,
                 expired=True,  # Needed so BackTest can look at old contracts to find the ticker we need
+                limit=10,
             ))
             symbol = contracts[0].ticker
 
-            poly_start = cur_start - timedelta(days=4)  # Subtract 4 days because options data can be very sparse
-            poly_end = end + timedelta(days=4)  # Add 4 days because options data can be very sparse
+            # poly_start = cur_start - timedelta(days=4)  # Subtract 4 days because options data can be very sparse
+            # poly_end = end + timedelta(days=4)  # Add 4 days because options data can be very sparse
 
         else:
             raise ValueError(f"Unsupported asset type for polygon: {asset.asset_type}")

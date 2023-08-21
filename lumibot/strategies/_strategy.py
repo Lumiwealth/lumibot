@@ -750,7 +750,7 @@ class _Strategy:
             )
 
     @classmethod
-    def backtest(
+    def run_backtest(
         cls,
         *args,
         minutes_before_closing=5,
@@ -1112,4 +1112,152 @@ class _Strategy:
             show_tearsheet=show_tearsheet,
         )
 
-        return result[name]
+        return result[name], strategy
+
+    @classmethod
+    def backtest(
+            cls,
+            *args,
+            minutes_before_closing=5,
+            minutes_before_opening=60,
+            sleeptime=1,
+            stats_file=None,
+            risk_free_rate=None,
+            logfile=None,
+            config=None,
+            auto_adjust=False,
+            name=None,
+            budget=None,
+            benchmark_asset="SPY",
+            plot_file_html=None,
+            trades_file=None,
+            settings_file=None,
+            pandas_data=None,
+            quote_asset=Asset(symbol="USD", asset_type="forex"),
+            starting_positions=None,
+            show_plot=True,
+            tearsheet_file=None,
+            save_tearsheet=True,
+            show_tearsheet=True,
+            parameters={},
+            buy_trading_fees=[],
+            sell_trading_fees=[],
+            polygon_api_key=None,
+            polygon_has_paid_subscription=False,
+            indicators_file=None,
+            **kwargs,
+    ):
+        """Backtest a strategy.
+
+        Parameters
+        ----------
+        datasource_class : class
+            The datasource class to use. For example, if you want to use the yahoo finance datasource, then you would pass YahooDataBacktesting as the datasource_class.
+        backtesting_start : datetime
+            The start date of the backtesting period.
+        backtesting_end : datetime
+            The end date of the backtesting period.
+        minutes_before_closing : int
+            The number of minutes before closing that the minutes_before_closing strategy method will be called.
+        minutes_before_opening : int
+            The number of minutes before opening that the minutes_before_opening strategy method will be called.
+        sleeptime : int
+            The number of seconds to sleep between each iteration of the backtest.
+        stats_file : str
+            The file to write the stats to.
+        risk_free_rate : float
+            The risk free rate to use.
+        logfile : str
+            The file to write the log to.
+        config : dict
+            The config to use to set up the brokers in live trading.
+        auto_adjust : bool
+            Whether or not to automatically adjust the strategy.
+        name : str
+            The name of the strategy.
+        budget : float
+            The initial budget to use for the backtest.
+        benchmark_asset : str or Asset
+            The benchmark asset to use for the backtest to compare to. If it is a string then it will be converted to a stock Asset object.
+        plot_file_html : str
+            The file to write the plot html to.
+        trades_file : str
+            The file to write the trades to.
+        pandas_data : list
+            A list of Data objects that are used when the datasource_class object is set to PandasDataBacktesting.
+            This contains all the data that will be used in backtesting.
+        quote_asset : Asset (crypto)
+            An Asset object for the crypto currency that will get used
+            as a valuation asset for measuring overall porfolio values.
+            Usually USDT, USD, USDC.
+        starting_positions : dict
+            A dictionary of starting positions for each asset. For example,
+            if you want to start with $100 of SPY, and $200 of AAPL, then you
+            would pass in starting_positions={'SPY': 100, 'AAPL': 200}.
+        show_plot : bool
+            Whether or not to show the plot.
+        show_tearsheet : bool
+            Whether or not to show the tearsheet.
+        save_tearsheet : bool
+            Whether or not to save the tearsheet.
+        parameters : dict
+            A dictionary of parameters to pass to the strategy. These parameters
+            must be set up within the initialize() method.
+        buy_trading_fees : list of TradingFee objects
+            A list of TradingFee objects to apply to the buy orders during backtests.
+        sell_trading_fees : list of TradingFee objects
+            A list of TradingFee objects to apply to the sell orders during backtests.
+        polygon_api_key : str
+            The polygon api key to use for polygon data. Only required if you are using PolygonDataBacktesting as the datasource_class.
+        polygon_has_paid_subscription : bool
+            Whether or not you have a paid subscription to Polygon. Only required if you are using PolygonDataBacktesting as the datasource_class.
+        indicators_file : str
+            The file to write the indicators to.
+
+        Returns
+        -------
+        Backtest
+            The backtest object.
+
+        Examples
+        --------
+
+        >>> from datetime import datetime
+        >>> from lumibot.backtesting import YahooDataBacktesting
+        >>> from lumibot.strategies import Strategy
+        >>>
+        >>> # A simple strategy that buys AAPL on the first day
+        >>> class MyStrategy(Strategy):
+        >>>    def on_trading_iteration(self):
+        >>>        if self.first_iteration:
+        >>>            order = self.create_order("AAPL", quantity=1, side="buy")
+        >>>            self.submit_order(order)
+        >>>
+        >>> # Create a backtest
+        >>> backtesting_start = datetime(2018, 1, 1)
+        >>> backtesting_end = datetime(2018, 1, 31)
+        >>>
+        >>> # The benchmark asset to use for the backtest to compare to
+        >>> benchmark_asset = Asset(symbol="QQQ", asset_type="stock")
+        >>>
+        >>> backtest = MyStrategy.backtest(
+        >>>     datasource_class=YahooDataBacktesting,
+        >>>     backtesting_start=backtesting_start,
+        >>>     backtesting_end=backtesting_end,
+        >>>     benchmark_asset=benchmark_asset,
+        >>> )
+        """
+        results, strategy = cls.run_backtest(
+            *args,
+            minutes_before_closing=minutes_before_closing, minutes_before_opening=minutes_before_opening,
+            sleeptime=sleeptime, stats_file=stats_file, risk_free_rate=risk_free_rate, logfile=logfile,
+            config=config, auto_adjust=auto_adjust, name=name, budget=budget, benchmark_asset=benchmark_asset,
+            plot_file_html=plot_file_html, trades_file=trades_file, settings_file=settings_file,
+            pandas_data=pandas_data, quote_asset=quote_asset, starting_positions=starting_positions,
+            show_plot=show_plot, tearsheet_file=tearsheet_file, save_tearsheet=save_tearsheet,
+            show_tearsheet=show_tearsheet, parameters=parameters, buy_trading_fees=buy_trading_fees,
+            sell_trading_fees=sell_trading_fees, polygon_api_key=polygon_api_key,
+            polygon_has_paid_subscription=polygon_has_paid_subscription, indicators_file=indicators_file,
+            **kwargs,
+        )
+        return results

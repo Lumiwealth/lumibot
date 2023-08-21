@@ -10,13 +10,8 @@ from lumibot.backtesting import PolygonDataBacktesting
 from lumibot.strategies import Strategy
 
 
-# Lumibot doesn't allow any other non-global hooks for storing data during backtesting
-ORDERS = []
-PRICES = {}
-FILLED_ORDERS = []
-FILLED_PRICES = {}
-
-# API Key for Polygon.io
+# Global parameters
+# API Key for testing Polygon.io
 POLYGON_API_KEY = os.environ.get("POLYGON_API_KEY")
 
 
@@ -29,7 +24,10 @@ class PolygonBacktestStrat(Strategy):
         self.first_price = None
         self.first_option_price = None
         self.orders = []
+        self.prices = {}
         self.chains = {}
+        self.market_opens_called = False
+        self.market_closes_called = False
 
     def select_option_expiration(self, chain, days_to_expiration=1) -> datetime.date:
         """
@@ -69,14 +67,12 @@ class PolygonBacktestStrat(Strategy):
 
     def before_market_opens(self):
         underlying_asset = Asset(self.parameters["symbol"])
-        self.chains = self.get_chains(underlying_asset)
-
-    def before_starting_trading(self):
-        underlying_asset = Asset(self.parameters["symbol"])
+        self.market_opens_called = True
         self.chains = self.get_chains(underlying_asset)
 
     def after_market_closes(self):
         orders = self.get_orders()
+        self.market_closes_called = True
         self.log_message(f"PolygonBacktestStrat: {len(orders)} orders executed today")
 
     # Trading Strategy: Backtest will only buy traded assets on first iteration
@@ -111,14 +107,14 @@ class PolygonBacktestStrat(Strategy):
             self.log_message(f"Buying {qty} shares of {underlying_asset} at {current_asset_price} @ {now}")
             order_underlying_asset = self.create_order(underlying_asset, quantity=qty, side="buy")
             submitted_order = self.submit_order(order_underlying_asset)
-            ORDERS.append(submitted_order)
-            PRICES[submitted_order.identifier] = current_asset_price
+            self.orders.append(submitted_order)
+            self.prices[submitted_order.identifier] = current_asset_price
 
             # Buy 1 option contract for the test
             order_option_asset = self.create_order(option_asset, quantity=1, side="buy")
             submitted_order = self.submit_order(order_option_asset)
-            ORDERS.append(submitted_order)
-            PRICES[submitted_order.identifier] = current_option_price
+            self.orders.append(submitted_order)
+            self.prices[submitted_order.identifier] = current_option_price
 
 
 class TestPolygonBacktestFull:
@@ -129,6 +125,49 @@ class TestPolygonBacktestFull:
         in the historical 2023-08-04 period (in the past!).
         """
         
+        # Parameters: True = Live Trading | False = Backtest
+        # trade_live = False
+        symbol = "AMZN"
+        underlying_asset = Asset(symbol=symbol, asset_type="stock")
+        backtesting_start = datetime.datetime(2023, 8, 1)
+        backtesting_end = datetime.datetime(2023, 8, 4)
+
+        # Execute Backtest | Polygon.io API Connection
+        results, poly_strat_obj = PolygonBacktestStrat.run_backtest(
+            PolygonDataBacktesting,
+            backtesting_start,
+            backtesting_end,
+            benchmark_asset="SPY",
+            show_plot=False,
+            show_tearsheet=False,
+            save_tearsheet=False,
+            polygon_api_key=POLYGON_API_KEY,  # TODO Replace with Lumibot owned API Key
+            # Painfully slow with free subscription setting b/c lumibot is over querying and imposing a very
+            # strict rate limit
+            polygon_has_paid_subscription=True,
+        )
+        assert results
+        assert isinstance(poly_strat_obj, PolygonBacktestStrat)
+
+        # Checks bug where LifeCycle methods not being called during PANDAS backtesting
+        assert poly_strat_obj.market_opens_called
+        assert poly_strat_obj.market_closes_called
+
+        assert len(poly_strat_obj.orders) == 2
+        assert len(poly_strat_obj.orders) == 2
+        stock_order = poly_strat_obj.orders[0]
+        option_order = poly_strat_obj.orders[1]
+        asset_order_id = stock_order.identifier
+        option_order_id = option_order.identifier
+        assert asset_order_id in poly_strat_obj.prices
+        assert option_order_id in poly_strat_obj.prices
+        assert 130.0 < poly_strat_obj.prices[asset_order_id] < 140.0, "Valid asset price between 130 and 140"
+        assert poly_strat_obj.prices[option_order_id] == 4.10, "Opening Price is $4.10 on 08/01/2023"
+
+        assert option_order.is_filled()
+
+    def test_polygon_legacy_backtest(self):
+        """Test that the legacy backtest() function call works without returning the startegy object"""
         # Parameters: True = Live Trading | False = Backtest
         # trade_live = False
         symbol = "AMZN"
@@ -150,24 +189,9 @@ class TestPolygonBacktestFull:
             # strict rate limit
             polygon_has_paid_subscription=True,
         )
-
         assert results
-        assert len(ORDERS) == 2
-        stock_order = ORDERS[0]
-        option_order = ORDERS[1]
-        asset_order_id = stock_order.identifier
-        option_order_id = option_order.identifier
-        assert asset_order_id in PRICES
-        assert option_order_id in PRICES
-        assert 130.0 < PRICES[asset_order_id] < 140.0, "Valid asset price should be between 130 and 140 for time period"
-        assert PRICES[option_order_id] == 4.10, "Opening Price is $4.10 on 08/01/2023"
-
-        # TODO: Talk to RobG about why this is failing during BackTest. Status is correct, position_filled is not
-        assert option_order.status == 'fill'
-        assert option_order.position_filled, "Option order should be filled"
 
 
-@pytest.mark.skip("DataSource is not working well outside of a full backtest")
 class TestPolygonBacktestBasics:
     def test_polygon_basics(self):
         asset = Asset("SPY")

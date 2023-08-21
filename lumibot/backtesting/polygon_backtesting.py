@@ -215,6 +215,7 @@ class PolygonDataBacktesting(DataSourceBacktesting, PandasData):
             if pandas_data_update is not None:
                 # Add the keys to the self.pandas_data dictionary
                 self.pandas_data.update(pandas_data_update)
+                self._data_store.update(pandas_data_update)
         except Exception as e:
             print(f"Error get_last_price from Polygon: {e}")
 

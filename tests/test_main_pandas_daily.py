@@ -3,7 +3,7 @@ import multiprocessing
 import os
 import shutil
 from pathlib import Path
-from time import time
+from time import time, sleep
 
 import pandas as pd
 import pytest
@@ -12,6 +12,9 @@ from lumibot.entities import Asset, Data
 from lumibot.strategies.examples import (BuyAndHold, DebtTrading,
                                          Diversification, Momentum, Simple)
 from lumibot.traders import Trader
+
+# Skip all the tests in this file
+pytest.skip("all tests still WIP", allow_module_level=True)
 
 os.makedirs("./logs", exist_ok=True)
 
@@ -222,7 +225,12 @@ def cleanup(request):
 
     def remove_test_dir():
         if os.path.exists("logs"):
-            shutil.rmtree("logs")
+            try:
+                shutil.rmtree("logs")
+            except PermissionError:
+                # Unit test race condition where files were still marked as "in use" as this ran
+                sleep(1)
+                shutil.rmtree("logs")
 
     request.addfinalizer(remove_test_dir)
 

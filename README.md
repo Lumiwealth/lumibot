@@ -2,11 +2,11 @@
 
 Backtesting and trading for stocks, options, crypto, futures and more!
 
-## Documentation
+## Documentation - Start Here 👇
 
 To get started with Lumibot, you can check out our documentation below.
 
-**Check out the documentation for the project here: <http://lumibot.lumiwealth.com/>**
+**Check out the documentation for the project here: 👉 <http://lumibot.lumiwealth.com/> 👈**
 
 ## Contributors
 
@@ -68,7 +68,7 @@ function cover {
 }
 ```
 
-### Setting Up in VS Code
+### Setting Up PyTest in VS Code
 
 To set up in VS Code for debugging, you can add the following to your launch.json file under "configurations". This will allow you to go into "Run and Debug" and run the tests from there, with breakpoints and everything.
 

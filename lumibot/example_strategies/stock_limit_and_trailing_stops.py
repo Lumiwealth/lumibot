@@ -5,13 +5,16 @@ from lumibot.strategies.strategy import Strategy
 """
 Strategy Description
 
-Simply buys one asset and holds onto it.
+An example of how to use limit orders and trailing stops to buy a stock and then sell it when it drops by a certain
+percentage. This is a very simple strategy that is meant to demonstrate how to use limit orders and trailing stops.
 """
 
 
-class BuyAndHold(Strategy):
+class LimitAndTrailingStop(Strategy):
     parameters = {
         "buy_symbol": "SPY",
+        "limit_price": "410",
+        "trail_percent": "0.02",
     }
 
     # =====Overloading lifecycle methods=============
@@ -29,6 +32,8 @@ class BuyAndHold(Strategy):
         """Buys the self.buy_symbol once, then never again"""
 
         buy_symbol = self.parameters["buy_symbol"]
+        limit_price = self.parameters["limit_price"]
+        trail_percent = self.parameters["trail_percent"]
 
         # What to do each iteration
         current_value = self.get_last_price(buy_symbol)
@@ -36,9 +41,16 @@ class BuyAndHold(Strategy):
 
         all_positions = self.get_positions()
         if len(all_positions) <= 1:  # Because we always have a cash position (USD)
+            # Calculate how many shares we can buy with our portfolio value (the total value of all our positions)
             quantity = int(self.portfolio_value // current_value)
-            purchase_order = self.create_order(buy_symbol, quantity, "buy")
+
+            # Create the limit order
+            purchase_order = self.create_order(buy_symbol, quantity, "buy", limit_price=limit_price)
             self.submit_order(purchase_order)
+
+            # Place the trailing stop
+            trailing_stop_order = self.create_order(buy_symbol, quantity, "sell", trail_percent=trail_percent)
+            self.submit_order(trailing_stop_order)
 
 
 if __name__ == "__main__":
@@ -46,6 +58,7 @@ if __name__ == "__main__":
 
     if is_live:
         from credentials import ALPACA_CONFIG
+
         from lumibot.brokers import Alpaca
         from lumibot.traders import Trader
 
@@ -53,7 +66,7 @@ if __name__ == "__main__":
 
         broker = Alpaca(ALPACA_CONFIG)
 
-        strategy = BuyAndHold(broker=broker)
+        strategy = LimitAndTrailingStop(broker=broker)
 
         trader.add_strategy(strategy)
         strategy_executors = trader.run_all()
@@ -62,10 +75,10 @@ if __name__ == "__main__":
         from lumibot.backtesting import YahooDataBacktesting
 
         # Backtest this strategy
-        backtesting_start = datetime(2023, 1, 1)
-        backtesting_end = datetime(2023, 6, 1)
+        backtesting_start = datetime(2023, 3, 3)
+        backtesting_end = datetime(2023, 3, 10)
 
-        results = BuyAndHold.backtest(
+        results = LimitAndTrailingStop.backtest(
             YahooDataBacktesting,
             backtesting_start,
             backtesting_end,

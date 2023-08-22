@@ -489,6 +489,22 @@ class Order:
         # calculate the weighted average filled price since options often encounter partial fills
         return round(sum([x.price * x.quantity for x in self.transactions]) / self.quantity, 2)
 
+    def is_filled(self):
+        """
+        Returns whether this order has been filled.
+
+        Returns
+        -------
+        bool
+            True if the order has been filled, False otherwise.
+        """
+        if self.position_filled:
+            return True
+        elif self.status.lower() in ['filled', 'fill']:
+            return True
+        else:
+            return False
+
     def update_status(self, status):
         self.status = status
 

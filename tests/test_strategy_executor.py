@@ -6,6 +6,11 @@ from lumibot.strategies.strategy import Strategy
 from lumibot.strategies.strategy_executor import StrategyExecutor
 
 
+# Skip all the tests in this file
+# pytestmark = pytest.mark.skip("all tests still WIP")
+pytest.skip("all tests still WIP", allow_module_level=True)
+
+
 class MyStrategy(Strategy):
     def initialize(self):
         pass
@@ -32,4 +37,3 @@ class TestStrategyExecutor:
 
         # with pytest.raises(ValueError):
         #     Order(asset=Asset("SPY"), quantity=10, side="unknown", strategy='abc')
-

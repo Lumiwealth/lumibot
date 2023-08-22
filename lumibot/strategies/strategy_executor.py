@@ -670,15 +670,17 @@ class StrategyExecutor(Thread):
             return
 
         if not is_247:
+            # Set date to the start date, but account for minutes_before_opening
+            self.strategy.await_market_to_open()  # set new time and bar length. Check if hit bar max or date max.
             if not has_data_source or (
                     has_data_source and self.broker._data_source.SOURCE != "PANDAS"
             ):
-                self.strategy.await_market_to_open()  # set new time and bar length. Check if hit bar max
-                # or date max.
-                if not self.broker.is_market_open():
-                    self._before_market_opens()
                 self.strategy._update_cash_with_dividends()
 
+            if not self.broker.is_market_open():
+                self._before_market_opens()
+
+            # Now go to the actual open without considering minutes_before_opening
             self.strategy.await_market_to_open(timedelta=0)
             self._before_starting_trading()
 

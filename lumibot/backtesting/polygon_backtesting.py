@@ -5,6 +5,7 @@ from datetime import timedelta
 from lumibot.data_sources import PandasData
 from lumibot.entities import Asset, Data
 from lumibot.tools import polygon_helper
+from polygon import RESTClient
 
 from .data_source_backtesting import DataSourceBacktesting
 
@@ -33,6 +34,8 @@ class PolygonDataBacktesting(DataSourceBacktesting, PandasData):
         self.has_paid_subscription = has_paid_subscription
         PandasData.__init__(self, pandas_data, **kwargs)
         DataSourceBacktesting.__init__(self, datetime_start, datetime_end)
+        # RESTClient API for Polygon.io polygon-api-client
+        self.polygon_client = RESTClient(self.polygon_api_key)
 
     def convert_timestep_str_to_timedelta(self, timestep):
         """
@@ -88,7 +91,7 @@ class PolygonDataBacktesting(DataSourceBacktesting, PandasData):
                 f"Unknown unit: {unit}. Valid units are minute, hour, day, M, H, D"
             )
 
-    def update_pandas_data(self, asset, quote, length, timestep, polygon_helper):
+    def update_pandas_data(self, asset, quote, length, timestep):
         """
         Get asset data and update the self.pandas_data dictionary.
 
@@ -96,12 +99,12 @@ class PolygonDataBacktesting(DataSourceBacktesting, PandasData):
         ----------
         asset : Asset
             The asset to get data for.
+        quote : Asset
+            The quote asset to use. For example, if asset is "SPY" and quote is "USD", the data will be for "SPY/USD".
         length : int
             The number of data points to get.
         timestep : str
             The timestep to use. For example, "1minute" or "1hour" or "1day".
-        polygon_helper : PolygonHelper
-            The PolygonHelper object to use to get data from Polygon.
 
         Returns
         -------
@@ -170,7 +173,7 @@ class PolygonDataBacktesting(DataSourceBacktesting, PandasData):
         include_after_hours=True,
     ):
         pandas_data_update = self.update_pandas_data(
-            asset, quote, length, timestep, polygon_helper
+            asset, quote, length, timestep
         )
 
         if pandas_data_update is not None:
@@ -186,7 +189,7 @@ class PolygonDataBacktesting(DataSourceBacktesting, PandasData):
         self, asset, timestep="minute", quote=None, exchange=None, include_after_hours=True, start_date=None, end_date=None
     ):
         pandas_data_update = self.update_pandas_data(
-            asset, quote, 1, timestep, polygon_helper
+            asset, quote, 1, timestep
         )
         if pandas_data_update is not None:
             # Add the keys to the self.pandas_data dictionary
@@ -207,12 +210,66 @@ class PolygonDataBacktesting(DataSourceBacktesting, PandasData):
     ):
         try:
             pandas_data_update = self.update_pandas_data(
-                asset, quote, 1, timestep, polygon_helper
+                asset, quote, 1, timestep
             )
             if pandas_data_update is not None:
                 # Add the keys to the self.pandas_data dictionary
                 self.pandas_data.update(pandas_data_update)
+                self._data_store.update(pandas_data_update)
         except Exception as e:
             print(f"Error get_last_price from Polygon: {e}")
 
         return super().get_last_price(asset, timestep, quote, exchange, **kwargs)
+
+    def get_chains(self, asset):
+        """
+        Integrates the Polygon client library into the LumiBot backtest for Options Data in the same
+        structure as Interactive Brokers options chain data
+        
+        Parameters
+        ----------
+        asset : Asset
+            The asset to get data for.
+        
+        Returns
+        -------
+        dictionary:
+            A dictionary nested with a dictionarty of Polygon Option Contracts information broken out by Exchange,
+            with embedded lists for Expirations and Strikes.
+            {'SMART': {'TradingClass': 'SPY', 'Multiplier': 100, 'Expirations': [], 'Strikes': []}} 
+
+            - `TradingClass` (str) eg: `FB`
+            - `Multiplier` (str) eg: `100`
+            - `Expirations` (list of str) eg: [`20230616`, ...]
+            - `Strikes` (list of floats) eg: [`100.0`, ...]
+        """
+
+        # All Option Contracts | get_chains matching IBKR |
+        # {'SMART': {'TradingClass': 'SPY', 'Multiplier': 100, 'Expirations': [], 'Strikes': []}}
+        option_contracts = {"SMART": {"TradingClass": None, "Multiplier": None, "Expirations": [], "Strikes": []}}
+        contracts = option_contracts['SMART']  # initialize contracts
+        today = self.get_datetime().date()
+
+        # All Contracts | to match lumitbot, more inputs required from get_chains()
+        polgon_contracts = self.polygon_client.list_options_contracts(
+            underlying_ticker=asset.symbol,
+            expiration_date_gte=today,
+            expired=True,  # Needed so BackTest can look at old contracts to find the expirations/strikes
+            limit=1000
+        )
+        for polygon_contract in polgon_contracts:
+            # Return to Loop and Skip if Multipler is not 100 because non-standard contracts are not supported
+            if polygon_contract.shares_per_contract != 100:
+                continue
+
+            # Contract Data | Attributes
+            exchange = polygon_contract.primary_exchange
+            contracts["TradingClass"] = polygon_contract.underlying_ticker
+            contracts["Multiplier"] = polygon_contract.shares_per_contract
+            contracts["Expirations"].append(polygon_contract.expiration_date)
+            contracts["Strikes"].append(polygon_contract.strike_price)
+
+            option_contracts["SMART"] = contracts
+            option_contracts[exchange] = contracts
+        
+        return option_contracts

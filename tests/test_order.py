@@ -48,3 +48,13 @@ class TestOrderBasics:
         ]
         sell_order.position_filled = True
         assert sell_order.get_fill_price() == 32.0
+
+    def test_filled(self):
+        asset = Asset("SPY")
+        order = Order(strategy='abc', asset=asset, side="buy", quantity=100)
+        assert not order.is_filled()
+        order.position_filled = True
+        assert order.is_filled()
+        order.position_filled = False
+        order.status = 'filled'
+        assert order.is_filled()

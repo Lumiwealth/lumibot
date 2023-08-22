@@ -3,6 +3,7 @@ on: [push]
 jobs:
   LintAndTest:
     runs-on: ubuntu-latest
+    environment: unit-tests
     env: 
       AIOHTTP_NO_EXTENSIONS: 1
       POLYGON_API_KEY: ${{secrets.POLYGON_API_KEY}}
@@ -15,6 +16,7 @@ jobs:
           cache: pip
       - name: Install dependencies
         run: |
+          echo "Set AIOHTTP_NO_EXTENSIONS=$AIOHTTP_NO_EXTENSIONS
           python -m pip install --upgrade pip
           pip install requests
           pip install -r requirements_dev.txt

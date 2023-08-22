@@ -290,7 +290,6 @@ class PandasData(DataSource):
         # Return None if data.get_bars returns a ValueError
         except ValueError as e:
             raise ValueError(f"Error getting bars for {asset}: {e}")
-            res = None
         return res
     
     def _pull_source_symbol_bars_between_dates(

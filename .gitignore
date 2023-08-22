@@ -21,6 +21,7 @@ todos.txt
 test_bot.py
 .vscode
 .coverage*
+*secret*
 
 # Pypi deployment
 build

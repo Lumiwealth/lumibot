@@ -347,7 +347,7 @@ class BacktestingBroker(Broker):
                 if position.asset.expiration == self.datetime.date() and time_to_close > (15 * 60):
                     continue
                     
-                logging.warn(
+                logging.warning(
                     f"Automatically selling expired contract for asset {position.asset}"
                 )
                 orders_closing_contracts.append(position.get_selling_order())

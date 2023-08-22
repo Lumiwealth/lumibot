@@ -13,3 +13,6 @@ isort
 # Security checkers
 bandit
 safety
+
+# Secret Storage
+python-dotenv

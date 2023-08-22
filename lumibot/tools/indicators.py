@@ -10,11 +10,12 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import quantstats as qs
+from plotly.subplots import make_subplots
+
 # import lumibot.data_sources.alpha_vantage as av
 from lumibot import LUMIBOT_DEFAULT_PYTZ
 from lumibot.entities.asset import Asset
 from lumibot.tools import to_datetime_aware
-from plotly.subplots import make_subplots
 
 from .yahoo_helper import YahooHelper as yh
 
@@ -160,7 +161,7 @@ def performance(_df, risk_free, prefix=""):
 
 def get_symbol_returns(symbol, start=datetime(1900, 1, 1), end=datetime.now()):
     """Get the returns for a symbol between two dates
-    
+
     Parameters
     ----------
     symbol : str
@@ -169,7 +170,7 @@ def get_symbol_returns(symbol, start=datetime(1900, 1, 1), end=datetime.now()):
         The start date, by default datetime(1900, 1, 1)
     end : datetime, optional
         The end date, by default datetime.now()
-        
+
     Returns
     -------
     pd.DataFrame
@@ -203,6 +204,7 @@ def calculate_returns(symbol, start=datetime(1900, 1, 1), end=datetime.now()):
 
     performance(benchmark_df, risk_free_rate, symbol)
 
+
 def plot_indicators(
     plot_file_html="indicators.html",
     chart_markers_df=None,
@@ -211,15 +213,15 @@ def plot_indicators(
     show_plot=True,
 ):
     print("Creating indicators plot...")
-    
+
     fig = make_subplots(specs=[[{"secondary_y": True}]])
-    
+
     has_chart_data = False
-    
+
     ###############################
-    ## Chart Markers
+    # Chart Markers
     ###############################
-    
+
     def generate_marker_plotly_text(row):
         if row["detail_text"] is None:
             return (
@@ -233,26 +235,26 @@ def plot_indicators(
                 + "<br>"
                 + row["detail_text"]
             )
-    
+
     # Plot the chart markers
     if chart_markers_df is not None and not chart_markers_df.empty:
         chart_markers_df = chart_markers_df.copy()
         chart_markers_df["detail_text"] = chart_markers_df.apply(
             generate_marker_plotly_text, axis=1
         )
-        
+
         # Loop over the marker names and create a new trace for each one
         for marker_name in chart_markers_df["name"].unique():
             # Get the marker data for this marker name
             marker_df = chart_markers_df.loc[chart_markers_df["name"] == marker_name]
-            
+
             # Get the marker symbol
             marker_symbol = marker_df["symbol"].iloc[0]
-            
+
             # Get the marker size
             marker_size = marker_df["size"].iloc[0]
             marker_size = marker_size if marker_size else 25
-            
+
             # Create a new trace for this marker name
             fig.add_trace(
                 go.Scatter(
@@ -267,13 +269,13 @@ def plot_indicators(
                     text=marker_df["detail_text"],
                 )
             )
-            
+
         has_chart_data = True
-            
+
     ###############################
-    ## Chart Lines
+    # Chart Lines
     ###############################
-    
+
     def generate_line_plotly_text(row):
         if row["detail_text"] is None:
             return (
@@ -287,22 +289,22 @@ def plot_indicators(
                 + "<br>"
                 + row["detail_text"]
             )
-            
+
     # Plot the chart lines
     if chart_lines_df is not None and not chart_lines_df.empty:
         chart_lines_df = chart_lines_df.copy()
         chart_lines_df["detail_text"] = chart_lines_df.apply(
             generate_line_plotly_text, axis=1
         )
-        
+
         # Loop over the line names and create a new trace for each one
         for line_name in chart_lines_df["name"].unique():
             # Get the line data for this line name
             line_df = chart_lines_df.loc[chart_lines_df["name"] == line_name]
-            
+
             # Get the color for this line name
             color = line_df["color"].iloc[0]
-            
+
             # Create a new trace for this line name
             fig.add_trace(
                 go.Scatter(
@@ -315,11 +317,11 @@ def plot_indicators(
                     text=line_df["detail_text"],
                 )
             )
-            
+
         has_chart_data = True
-            
+
     ###############################
-    ## Chart Titles and Layouts
+    # Chart Titles and Layouts
     ###############################
 
     if has_chart_data:
@@ -353,8 +355,7 @@ def plot_indicators(
 
         # Create graph
         fig.write_html(plot_file_html, auto_open=show_plot)
-            
-    
+
 
 def plot_returns(
     strategy_df,
@@ -369,7 +370,7 @@ def plot_returns(
     # chart_lines_df=None,
 ):
     print("Creating trades plot...")
-    
+
     dfs_concat = []
 
     _df1 = strategy_df.copy()
@@ -390,7 +391,7 @@ def plot_returns(
 
     dfs_concat.append(_df2[benchmark_name])
     df_final = pd.concat(dfs_concat, join="outer", axis=1)
-    
+
     # Make all the benchmark_df columns lowercase
     benchmark_df.columns = benchmark_df.columns.str.lower()
 
@@ -536,13 +537,16 @@ def plot_returns(
                     + "<br>"
                 )
         else:
-            return row["status"] + "<br>" + row["symbol"] + "<br>"
+            return None
 
     buy_ticks_df = buys.apply(generate_buysell_plotly_text, axis=1)
 
     # Plot the buy ticks
     if not buy_ticks_df.empty:
         buys["plotly_text_buys"] = buy_ticks_df
+
+        # Remove any rows that have a None value for plotly_text_buys
+        buys = buys.loc[buys["plotly_text_buys"].notnull()]
 
         buys.index.name = "datetime"
         buys = (
@@ -565,7 +569,7 @@ def plot_returns(
                 text=buys["plotly_text_buys"],
             )
         )
-        
+
     ###############################
     # Plot the sell ticks
     ###############################
@@ -580,6 +584,10 @@ def plot_returns(
     # Plot the sell ticks
     if not sells_ticks_df.empty:
         sells["plotly_text_sells"] = sells_ticks_df
+
+        # Remove any rows that have a None value for plotly_text_sells
+        sells = sells.loc[sells["plotly_text_sells"].notnull()]
+
         sells.index.name = "datetime"
         sells = (
             sells.groupby(["datetime", strategy_name], group_keys=True)[
@@ -603,10 +611,9 @@ def plot_returns(
                 text=sells["plotly_text_sells"],
             )
         )
-        
-    
+
     ###############################
-    ## Chart Titles and Layouts
+    # Chart Titles and Layouts
     ###############################
 
     # Set title and layout
@@ -652,22 +659,22 @@ def create_tearsheet(
     risk_free_rate,
 ):
     print("Creating tearsheet...")
-    
+
     # Check if df1 or df2 are empty and return if they are
     if strategy_df is None or benchmark_df is None or strategy_df.empty or benchmark_df.empty:
         logging.error("No data to create tearsheet, skipping")
         return
-    
+
     _strategy_df = strategy_df.copy()
     _benchmark_df = benchmark_df.copy()
 
     df = pd.concat([_strategy_df, _benchmark_df], join="outer", axis=1)
     df.index = pd.to_datetime(df.index)
     df["portfolio_value"] = df["portfolio_value"].ffill()
-    
+
     # If the portfolio_value is NaN, backfill it because sometimes the benchmark starts before the strategy
     df["portfolio_value"] = df["portfolio_value"].fillna(method="bfill")
-        
+
     df["symbol_cumprod"] = df["symbol_cumprod"].ffill()
     df.loc[df.index[0], "symbol_cumprod"] = 1
 
@@ -701,12 +708,12 @@ def create_tearsheet(
     if df_final["benchmark"].sum() == 0:
         logging.error("Not enough data to create a tearsheet, at least 2 days of data are required. Skipping")
         return
-    
+
     # Check if all the values are equal to 0
     if df_final["strategy"].sum() == 0:
         logging.error("Not enough data to create a tearsheet, at least 2 days of data are required. Skipping")
         return
-    
+
     # # If the dataframe is 1 day or shorter, then we can't calculate the stats
     # if len(df_final) <= 2:
     #     logging.error("Not enough data to create a tearsheet, at least 2 days of data are required. Skipping")
@@ -718,7 +725,7 @@ def create_tearsheet(
         df_final["benchmark"],
         title=title,
         output=tearsheet_file,
-        download_filename=tearsheet_file, # TODO: Should we name this slightly different than output?
+        download_filename=tearsheet_file,  # TODO: Should we name this slightly different than output?
         rf=risk_free_rate,
     )
     if show_tearsheet:

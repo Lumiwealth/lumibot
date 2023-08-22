@@ -10,9 +10,12 @@ line-length = 120
 target-version = "py38"
 
 select = [
+  "A",  # prevent using keywords that clobber python builtins
+  "B",  # bugbear: security warnings
   "E",   # pycodestyle
   "F", # pyflakes
+  "W", # pycodestyle
   "UP", # pyupgrade
-  "I001", # isort
+  "I",  # isort
   #  "D",   # pydocstyle
 ]

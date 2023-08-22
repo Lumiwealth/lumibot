@@ -20,7 +20,8 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests
           pip install -r requirements_dev.txt
-          python setup.py install
+          # Setup.py was not working for some reason, reverted to using requirements.txt again
+          # python setup.py install
       - name: Run Linter
         run: |
           # Remove -e flag to fail the run if issues are found

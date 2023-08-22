@@ -3,6 +3,7 @@ import os
 import pickle
 
 import yfinance as yf
+
 from lumibot import LUMIBOT_CACHE_FOLDER, LUMIBOT_DEFAULT_PYTZ
 
 from .helpers import get_lumibot_datetime
@@ -110,10 +111,9 @@ class YahooHelper:
                 inplace=True,
             )
         else:
-            del df["Adj Ratio"]
-            del df["Adj Open"]
-            del df["Adj High"]
-            del df["Adj Low"]
+            for col in ["Adj Ratio", "Adj Open", "Adj High", "Adj Low"]:
+                if col in df.columns:
+                    del df[col]
 
         return df
 

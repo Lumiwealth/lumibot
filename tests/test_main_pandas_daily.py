@@ -10,7 +10,7 @@ import pytest
 
 from lumibot.backtesting import PandasDataBacktesting
 from lumibot.entities import Asset, Data
-from lumibot.example_strategies.momentum import Momentum
+from lumibot.example_strategies.stock_momentum import Momentum
 from lumibot.traders import Trader
 
 # Skip all the tests in this file

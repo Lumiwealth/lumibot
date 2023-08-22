@@ -1,5 +1,3 @@
--r requirements.txt
-
 # Unit Test modules
 pytest
 pytest-mock

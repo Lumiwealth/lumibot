@@ -6,7 +6,7 @@ jobs:
     environment: unit-tests
     env: 
       AIOHTTP_NO_EXTENSIONS: 1
-      POLYGON_API_KEY: ${{secrets.POLYGON_API_KEY}}
+      POLYGON_API_KEY: ${{secrets.POLYGON_API_KEY}}  # Required for Polygon API BackTests
     steps:
       - uses: actions/checkout@v3
       - name: Set up Python 3.11
@@ -16,7 +16,7 @@ jobs:
           cache: pip
       - name: Install dependencies
         run: |
-          echo "Set AIOHTTP_NO_EXTENSIONS=$AIOHTTP_NO_EXTENSIONS"
+          echo "Set AIOHTTP_NO_EXTENSIONS=$AIOHTTP_NO_EXTENSIONS so that aiohttp doesn't try to install C extensions"
           python -m pip install --upgrade pip
           pip install requests
           pip install -r requirements_dev.txt
@@ -26,8 +26,7 @@ jobs:
           # Remove -e flag to fail the run if issues are found
           ruff check . -e
       - name: Run Unit Tests
-        run: |
-          echo "Using ValidAPI: $POLYGON_API_KEY"
+        run: |          
           coverage run
           coverage report
           coverage html

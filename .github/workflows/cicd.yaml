@@ -3,6 +3,9 @@ on: [push]
 jobs:
   LintAndTest:
     runs-on: ubuntu-latest
+    env: 
+      AIOHTTP_NO_EXTENSIONS: 1
+      POLYGON_API_KEY: ${{secrets.POLYGON_API_KEY}}
     steps:
       - uses: actions/checkout@v3
       - name: Set up Python 3.11
@@ -13,14 +16,16 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
+          pip install requests
           pip install -r requirements_dev.txt
-          pip install -e .
+          python setup.py install
       - name: Run Linter
         run: |
           # Remove -e flag to fail the run if issues are found
           ruff check . -e
       - name: Run Unit Tests
         run: |
+          echo "Using ValidAPI: $POLYGON_API_KEY"
           coverage run
           coverage report
           coverage html

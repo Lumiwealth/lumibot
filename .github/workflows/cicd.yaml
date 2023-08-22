@@ -15,7 +15,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests
           pip install -r requirements_dev.txt
-          pip install -e .
+          python setup.py install
       - name: Run Linter
         run: |
           # Remove -e flag to fail the run if issues are found

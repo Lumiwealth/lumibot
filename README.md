@@ -2,7 +2,7 @@
 
 Backtesting and trading for stocks, options, crypto, futures and more!
 
-## Documentation - Start Here 👇
+## Documentation - 👇 Start Here 👇
 
 To get started with Lumibot, you can check out our documentation below.
 

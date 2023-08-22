@@ -3,6 +3,9 @@ on: [push]
 jobs:
   LintAndTest:
     runs-on: ubuntu-latest
+    env: 
+      AIOHTTP_NO_EXTENSIONS: 1
+      POLYGON_API_KEY: ${{secrets.POLYGON_API_KEY}}
     steps:
       - uses: actions/checkout@v3
       - name: Set up Python 3.11
@@ -22,6 +25,7 @@ jobs:
           ruff check . -e
       - name: Run Unit Tests
         run: |
+          echo "Using ValidAPI: $POLYGON_API_KEY"
           coverage run
           coverage report
           coverage html

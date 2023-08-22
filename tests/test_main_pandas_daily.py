@@ -3,14 +3,14 @@ import multiprocessing
 import os
 import shutil
 from pathlib import Path
-from time import time, sleep
+from time import sleep, time
 
 import pandas as pd
 import pytest
+
 from lumibot.backtesting import PandasDataBacktesting
 from lumibot.entities import Asset, Data
-from lumibot.strategies.examples import (BuyAndHold, DebtTrading,
-                                         Diversification, Momentum, Simple)
+from lumibot.example_strategies.momentum import Momentum
 from lumibot.traders import Trader
 
 # Skip all the tests in this file

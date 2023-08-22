@@ -717,11 +717,9 @@ def create_tearsheet(
         df_final["strategy"],
         df_final["benchmark"],
         title=title,
-        output=True,
-        download_filename=tearsheet_file,
+        output=tearsheet_file,
+        download_filename=tearsheet_file, # TODO: Should we name this slightly different than output?
         rf=risk_free_rate,
-        # match_dates=True,
-        # TODO: Add the risk free rate
     )
     if show_tearsheet:
         url = "file://" + os.path.abspath(str(tearsheet_file))

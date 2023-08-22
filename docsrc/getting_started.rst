@@ -167,7 +167,7 @@ Here it is all together:
     trader.add_strategy(strategy)
     trader.run_all()
 
-Or you can download the file here: https://github.com/Lumiwealth/lumibot/blob/master/example_strategies/simple_start_single_file.py
+Or you can download the file here: https://github.com/Lumiwealth/lumibot/blob/dev/lumibot/example_strategies/simple_start_single_file.py
 
 
 Adding Trading Fees

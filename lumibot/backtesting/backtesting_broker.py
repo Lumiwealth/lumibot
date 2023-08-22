@@ -486,7 +486,7 @@ class BacktestingBroker(Broker):
                     price = self.stop_order(
                         order.stop_price, order.side, close, high, low
                     )
-                    if price != 0:
+                    if price != None:
                         price = self.limit_order(
                             order.limit_price, order.side, price, high, low
                         )

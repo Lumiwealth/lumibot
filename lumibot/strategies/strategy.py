@@ -3166,7 +3166,7 @@ class Strategy(_Strategy):
 
         >>> # Initialize the strategy
         >>> def initialize(self):
-        >>>   # Set the strategy to call on_trading_interation every 5 seconds
+        >>>   # Set the strategy to call on_trading_interation every 2 seconds
         >>>   self.sleeptime = "2S"
         >>>   self.count = 0
 

@@ -1,5 +1,3 @@
-requests
-
 # Unit Test modules
 pytest
 pytest-mock

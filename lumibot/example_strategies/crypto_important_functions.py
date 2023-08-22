@@ -119,12 +119,13 @@ class ImportantFunctions(Strategy):
         cash = self.cash
 
         self.log_message(f"The current value of your account is {portfolio_value}")
-        self.log_message(f"The current amount of cash in your account is {cash}") # Note: Cash is based on the quote asset
+        # Note: Cash is based on the quote asset
+        self.log_message(f"The current amount of cash in your account is {cash}")
 
 
 if __name__ == "__main__":
     trader = Trader()
-    
+
     KRAKEN_CONFIG = {
         "exchange_id": "kraken",
         "apiKey": "YOUR_API_KEY",
@@ -132,7 +133,13 @@ if __name__ == "__main__":
         "margin": True,
         "sandbox": False,
     }
-    
+
+    # Check that the user has filled in the API keys
+    if KRAKEN_CONFIG["apiKey"] == "YOUR_API_KEY":
+        raise Exception("Please fill in your API key")
+    if KRAKEN_CONFIG["secret"] == "YOUR_SECRET_KEY":
+        raise Exception("Please fill in your secret key")
+
     broker = Ccxt(KRAKEN_CONFIG)
 
     strategy = ImportantFunctions(

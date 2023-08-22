@@ -1,14 +1,11 @@
 import datetime
 import os
 
-import pytest
-import pytz
 import pandas_market_calendars as mcal
-
-from lumibot.entities import Asset
+import pytz
 from lumibot.backtesting import PolygonDataBacktesting
+from lumibot.entities import Asset
 from lumibot.strategies import Strategy
-
 
 # Global parameters
 # API Key for testing Polygon.io
@@ -29,7 +26,7 @@ class PolygonBacktestStrat(Strategy):
         self.market_opens_called = False
         self.market_closes_called = False
 
-    def select_option_expiration(self, chain, days_to_expiration=1) -> datetime.date:
+    def select_option_expiration(self, chain, days_to_expiration=1):
         """
         Select the option expiration date based on the number of days (from today) until expiration
         :param chain: List of valid option contracts and their expiration dates and strike prices.
@@ -127,8 +124,6 @@ class TestPolygonBacktestFull:
         
         # Parameters: True = Live Trading | False = Backtest
         # trade_live = False
-        symbol = "AMZN"
-        underlying_asset = Asset(symbol=symbol, asset_type="stock")
         backtesting_start = datetime.datetime(2023, 8, 1)
         backtesting_end = datetime.datetime(2023, 8, 4)
 
@@ -154,7 +149,7 @@ class TestPolygonBacktestFull:
         assert poly_strat_obj.market_closes_called
 
         assert len(poly_strat_obj.orders) == 2
-        assert len(poly_strat_obj.orders) == 2
+        assert len(poly_strat_obj.prices) == 2
         stock_order = poly_strat_obj.orders[0]
         option_order = poly_strat_obj.orders[1]
         asset_order_id = stock_order.identifier
@@ -170,8 +165,6 @@ class TestPolygonBacktestFull:
         """Test that the legacy backtest() function call works without returning the startegy object"""
         # Parameters: True = Live Trading | False = Backtest
         # trade_live = False
-        symbol = "AMZN"
-        underlying_asset = Asset(symbol=symbol, asset_type="stock")
         backtesting_start = datetime.datetime(2023, 8, 1)
         backtesting_end = datetime.datetime(2023, 8, 4)
 

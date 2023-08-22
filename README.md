@@ -10,7 +10,7 @@ To get started with Lumibot, you can check out our documentation below.
 
 If you want to contribute to Lumibot, you can check how to get started below. We are always looking for contributors to help us out!
 
-** Steps to contribute:
+**Steps to contribute:**
 
 1. Clone the repository to your local machine
 2. Create a new branch for your feature

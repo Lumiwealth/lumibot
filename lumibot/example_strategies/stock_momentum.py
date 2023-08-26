@@ -1,4 +1,4 @@
-import logging
+from datetime import datetime
 
 from lumibot.strategies.strategy import Strategy
 
@@ -62,13 +62,13 @@ class Momentum(Strategy):
                     best_asset = self.asset
                     best_asset_data = current_asset_data
 
-            logging.info("%s best symbol." % best_asset)
+            self.log_message("%s best symbol." % best_asset)
 
             # If the asset with the highest momentum has changed, buy the new asset
             if best_asset != self.asset:
                 # Sell the current asset that we own
                 if self.asset:
-                    logging.info("Swapping %s for %s." % (self.asset, best_asset))
+                    self.log_message("Swapping %s for %s." % (self.asset, best_asset))
                     order = self.create_order(self.asset, self.quantity, "sell")
                     self.submit_order(order)
 
@@ -79,7 +79,7 @@ class Momentum(Strategy):
                 order = self.create_order(self.asset, self.quantity, "buy")
                 self.submit_order(order)
             else:
-                logging.info("Keeping %d shares of %s" % (self.quantity, self.asset))
+                self.log_message("Keeping %d shares of %s" % (self.quantity, self.asset))
 
         self.counter += 1
 
@@ -135,7 +135,7 @@ class Momentum(Strategy):
             # (from start_date to end_date)
             symbol = asset.symbol
             symbol_momentum = bars_set.get_momentum(start=start_date, end=end_date)
-            logging.info(
+            self.log_message(
                 "%s has a return value of %.2f%% over the last %d day(s)."
                 % (symbol, 100 * symbol_momentum, self.period)
             )
@@ -149,3 +149,35 @@ class Momentum(Strategy):
             )
 
         return momentums
+
+
+if __name__ == "__main__":
+    is_live = False
+
+    if is_live:
+        from credentials import ALPACA_CONFIG
+        from lumibot.brokers import Alpaca
+        from lumibot.traders import Trader
+
+        trader = Trader()
+
+        broker = Alpaca(ALPACA_CONFIG)
+
+        strategy = Momentum(broker=broker)
+
+        trader.add_strategy(strategy)
+        strategy_executors = trader.run_all()
+
+    else:
+        from lumibot.backtesting import YahooDataBacktesting
+
+        # Backtest this strategy
+        backtesting_start = datetime(2023, 1, 1)
+        backtesting_end = datetime(2023, 8, 1)
+
+        results = Momentum.backtest(
+            YahooDataBacktesting,
+            backtesting_start,
+            backtesting_end,
+            benchmark_asset="SPY",
+        )

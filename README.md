@@ -48,6 +48,12 @@ If you don't want to keep typing out the command, you can add it as an alias in 
 alias cover='coverage run; coverage report; coverage html'
 ```
 
+This will now allow you to run the command by just typing "cover" in the terminal.
+
+```bash
+cover
+```
+
 If you want to also add it to your .bashrc file. You can do this by running the following command:
 
 ```bash

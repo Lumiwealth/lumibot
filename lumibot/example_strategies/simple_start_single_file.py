@@ -1,10 +1,10 @@
 from datetime import datetime
 
+from credentials import AlpacaConfig
 from lumibot.backtesting import YahooDataBacktesting
 from lumibot.brokers import Alpaca
 from lumibot.strategies.strategy import Strategy
 from lumibot.traders import Trader
-from credentials import AlpacaConfig
 
 
 class MyStrategy(Strategy):
@@ -21,7 +21,10 @@ class MyStrategy(Strategy):
         self.order = self.create_order(self.symbol, self.quantity, self.side)
         self.submit_order(self.order)
 
-def run(live=False):
+
+if __name__ == "__main__":
+    live = True
+
     trader = Trader()
     broker = Alpaca(AlpacaConfig)
     strategy = MyStrategy(broker, symbol="SPY")
@@ -40,6 +43,3 @@ def run(live=False):
         # Run the strategy live
         trader.add_strategy(strategy)
         trader.run_all()
-
-if __name__ == "__main__":
-    run(live=True)

@@ -10,12 +10,11 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import quantstats as qs
-from plotly.subplots import make_subplots
-
 # import lumibot.data_sources.alpha_vantage as av
 from lumibot import LUMIBOT_DEFAULT_PYTZ
 from lumibot.entities.asset import Asset
 from lumibot.tools import to_datetime_aware
+from plotly.subplots import make_subplots
 
 from .yahoo_helper import YahooHelper as yh
 
@@ -713,11 +712,6 @@ def create_tearsheet(
     if df_final["strategy"].sum() == 0:
         logging.error("Not enough data to create a tearsheet, at least 2 days of data are required. Skipping")
         return
-
-    # # If the dataframe is 1 day or shorter, then we can't calculate the stats
-    # if len(df_final) <= 2:
-    #     logging.error("Not enough data to create a tearsheet, at least 2 days of data are required. Skipping")
-    #     return
 
     # TODO: Add the risk free rate, it's currently 0% which is wrong
     qs.reports.html(

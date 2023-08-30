@@ -1,5 +1,6 @@
 import datetime
 import os
+from collections import defaultdict
 
 import pandas_market_calendars as mcal
 import pytz
@@ -25,6 +26,8 @@ class PolygonBacktestStrat(Strategy):
         self.chains = {}
         self.market_opens_called = False
         self.market_closes_called = False
+        # Track times to test LifeCycle order methods. Format: {order_id: {'fill': timestamp, 'submit': timestamp}}
+        self.order_time_tracker = defaultdict(lambda: defaultdict(datetime.datetime))
 
     def select_option_expiration(self, chain, days_to_expiration=1):
         """
@@ -72,6 +75,18 @@ class PolygonBacktestStrat(Strategy):
         self.market_closes_called = True
         self.log_message(f"PolygonBacktestStrat: {len(orders)} orders executed today")
 
+    def on_filled_order(self, position, order, price, quantity, multiplier):
+        self.log_message(f"PolygonBacktestStrat: Filled Order: {order}")
+        self.order_time_tracker[order.identifier]['fill'] = self.get_datetime()
+
+    def on_new_order(self, order):
+        self.log_message(f"PolygonBacktestStrat: New Order: {order}")
+        self.order_time_tracker[order.identifier]['submit'] = self.get_datetime()
+
+    def on_canceled_order(self, order):
+        self.log_message(f"PolygonBacktestStrat: Canceled Order: {order}")
+        self.order_time_tracker[order.identifier]['cancel'] = self.get_datetime()
+
     # Trading Strategy: Backtest will only buy traded assets on first iteration
     def on_trading_iteration(self):
         if self.first_iteration:
@@ -113,6 +128,16 @@ class PolygonBacktestStrat(Strategy):
             self.orders.append(submitted_order)
             self.prices[submitted_order.identifier] = current_option_price
 
+            # Set a stop loss on the underlying asset and cancel it later to test the on_canceled_order() method
+            stop_loss_order = self.create_order(underlying_asset, quantity=qty, side="sell",
+                                                stop_price=current_asset_price - 20)
+            submitted_order = self.submit_order(stop_loss_order)
+            self.orders.append(submitted_order)
+
+        # Not the 1st iteration, cancel orders.
+        else:
+            self.cancel_open_orders()
+
 
 class TestPolygonBacktestFull:
     def test_polygon_restclient(self):
@@ -148,12 +173,14 @@ class TestPolygonBacktestFull:
         assert poly_strat_obj.market_opens_called
         assert poly_strat_obj.market_closes_called
 
-        assert len(poly_strat_obj.orders) == 2
+        assert len(poly_strat_obj.orders) == 3  # Stock, option, stoploss all submitted
         assert len(poly_strat_obj.prices) == 2
         stock_order = poly_strat_obj.orders[0]
         option_order = poly_strat_obj.orders[1]
+        stoploss_order = poly_strat_obj.orders[2]
         asset_order_id = stock_order.identifier
         option_order_id = option_order.identifier
+        stoploss_order_id = stoploss_order.identifier
         assert asset_order_id in poly_strat_obj.prices
         assert option_order_id in poly_strat_obj.prices
         assert 130.0 < poly_strat_obj.prices[asset_order_id] < 140.0, "Valid asset price between 130 and 140"
@@ -162,6 +189,26 @@ class TestPolygonBacktestFull:
         assert option_order.get_fill_price() == 3.95, "Fills on the Next Candle at $3.95"
 
         assert option_order.is_filled()
+
+        # Check that the on_*_order methods were called
+        # Lumibot is autosubmitting 'sell_position' order on cancel to make it 4 total orders
+        assert len(poly_strat_obj.order_time_tracker) >= 3
+        # Stock order should have been submitted and filled
+        assert asset_order_id in poly_strat_obj.order_time_tracker
+        assert poly_strat_obj.order_time_tracker[asset_order_id]['submit']
+        assert (poly_strat_obj.order_time_tracker[asset_order_id]['fill'] >=
+                poly_strat_obj.order_time_tracker[asset_order_id]['submit'])
+        # Option order should have been submitted and filled
+        assert option_order_id in poly_strat_obj.order_time_tracker
+        assert poly_strat_obj.order_time_tracker[option_order_id]['submit']
+        assert (poly_strat_obj.order_time_tracker[option_order_id]['fill'] >=
+                poly_strat_obj.order_time_tracker[option_order_id]['submit'])
+        # Stoploss order should have been submitted and canceled
+        assert stoploss_order_id in poly_strat_obj.order_time_tracker
+        assert poly_strat_obj.order_time_tracker[stoploss_order_id]['submit']
+        assert (poly_strat_obj.order_time_tracker[stoploss_order_id]['cancel'] >
+                poly_strat_obj.order_time_tracker[stoploss_order_id]['submit'])
+        assert 'fill' not in poly_strat_obj.order_time_tracker[stoploss_order_id]
 
     def test_polygon_legacy_backtest(self):
         """Test that the legacy backtest() function call works without returning the startegy object"""

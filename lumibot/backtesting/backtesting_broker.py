@@ -302,8 +302,11 @@ class BacktestingBroker(Broker):
 
     def submit_order(self, order):
         """Submit an order for an asset"""
-
         order.update_raw(order)
+        self.stream.dispatch(
+            self.NEW_ORDER,
+            order=order,
+        )
         return order
 
     def submit_orders(self, orders):
@@ -658,6 +661,17 @@ class BacktestingBroker(Broker):
         """Register the function on_trade_event
         to be executed on each trade_update event"""
         broker = self
+
+        @broker.stream.add_action(broker.NEW_ORDER)
+        def on_trade_event(order):
+            try:
+                broker._process_trade_event(
+                    order,
+                    broker.NEW_ORDER,
+                )
+                return True
+            except:
+                logging.error(traceback.format_exc())
 
         @broker.stream.add_action(broker.FILLED_ORDER)
         def on_trade_event(order, price, filled_quantity):

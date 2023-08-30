@@ -2,10 +2,8 @@ import logging
 import os
 import signal
 import sys
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Overloading time.sleep to warn users against using it
-import lumibot.tools.lumibot_time
 
 
 class Trader:

@@ -29,6 +29,7 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     install_requires=[
         "polygon-api-client",
+        "aiohttp==3.8.1",  # 4.0.0a1 is installed by default but aiohttp==3.8.1 is required by {'alpaca-trade-api'}
         "alpaca_trade_api>=2.3.0,<3.0.0",
         "alpha_vantage",
         "ibapi==9.81.1.post1",
@@ -48,7 +49,8 @@ setuptools.setup(
         "email_validator",
         "bcrypt",
         "pytest",
-        "scipy==1.10.1", # Newer versions of scipy are currently causing issues
+        "scipy==1.10.1",  # Newer versions of scipy are currently causing issues
+        "ipython",  # required for quantstats, but not in their dependency list for some reason
         "quantstats==0.0.62",
         "python-dotenv",  # Secret Storage
         "ccxt==3.0.61",

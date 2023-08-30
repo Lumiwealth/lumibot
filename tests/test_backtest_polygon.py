@@ -186,7 +186,7 @@ class TestPolygonBacktestFull:
         assert 130.0 < poly_strat_obj.prices[asset_order_id] < 140.0, "Valid asset price between 130 and 140"
         assert 130.0 < stock_order.get_fill_price() < 140.0, "Valid asset price between 130 and 140"
         assert poly_strat_obj.prices[option_order_id] == 4.10, "Opening Price is $4.10 on 08/01/2023"
-        assert option_order.get_fill_price() == 3.95, "Fills on the Next Candle at $3.95"
+        assert option_order.get_fill_price() == 4.10, "Fills at 1st candle open price of $4.10 on 08/01/2023"
 
         assert option_order.is_filled()
 

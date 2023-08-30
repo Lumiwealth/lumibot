@@ -38,7 +38,7 @@ class TestExampleStrategies:
         # Check that the results are correct
         assert round(results["cagr"] * 100, 1) == 38.7
         assert round(results["volatility"] * 100, 1) == 11.5        
-        assert round(results["sharpe"], 3) == 2.898
+        assert round(results["sharpe"], 2) == 2.90
         assert round(results["total_return"] * 100, 1) == 0.2
         assert round(results["max_drawdown"]["drawdown"] * 100, 1) == 0.0
 

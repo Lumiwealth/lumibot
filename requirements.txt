@@ -6,7 +6,7 @@ ibapi==9.81.1.post1
 yfinance>=0.2.18
 matplotlib>=3.3.3
 quandl
-pandas>=2.0.0
+pandas>=2.0.0,<2.1.0  # 2.1.0 broke pandas_market_calendars, waiting for fix
 pandas_datareader
 pandas_market_calendars>=4.1.2
 plotly

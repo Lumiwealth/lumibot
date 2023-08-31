@@ -465,7 +465,7 @@ def plot_returns(
     buys = buys.loc[df_final["side"] == "buy"]
 
     def generate_buysell_plotly_text(row):
-        if row["status"] != "canceled":
+        if row["status"] != "canceled" and row["status"] != "new":
             if row["asset.asset_type"] == "option":
                 return (
                     row["status"]
@@ -493,9 +493,9 @@ def plot_returns(
                     + str(
                         # Round to 2 decimal places and add commas for thousands
                         (
-                            Decimal(row["price"])
-                            * Decimal(row["filled_quantity"])
-                            * Decimal(row["asset.multiplier"])
+                            Decimal(row["price"]) if row["price"] else 0
+                            * Decimal(row["filled_quantity"]) if row["filled_quantity"] else 0
+                            * Decimal(row["asset.multiplier"]) if row["asset.multiplier"] else 1
                         )
                         .quantize(Decimal("0.01"))
                         .__format__(",f")
@@ -523,9 +523,9 @@ def plot_returns(
                     + str(
                         # Round to 2 decimal places and add commas for thousands
                         (
-                            Decimal(row["price"])
-                            * Decimal(row["filled_quantity"])
-                            * Decimal(row["asset.multiplier"])
+                            Decimal(row["price"]) if row["price"] else 0
+                            * Decimal(row["filled_quantity"]) if row["filled_quantity"] else 0
+                            * Decimal(row["asset.multiplier"]) if row["asset.multiplier"] else 1
                         )
                         .quantize(Decimal("0.01"))
                         .__format__(",f")

@@ -2045,13 +2045,20 @@ class Strategy(_Strategy):
         >>> next_option_expiration = self.get_next_option_expiration(dt)
         """
 
-        dt = pd.Timestamp(dt)
+        tz = self.timezone
+        if dt.tzinfo is None:
+            dt = pd.Timestamp(dt).tz_localize(tz)
+        else:
+            dt = pd.Timestamp(dt).tz_convert(tz)
 
         # Loop over this month and the next month
         for month_increment in [0, 1]:
             # Calculate the first day of the target month
             first_day_of_month = pd.Timestamp(dt.year, dt.month + month_increment, 1) if dt.month + \
                 month_increment <= 12 else pd.Timestamp(dt.year + 1, (dt.month + month_increment) % 12, 1)
+
+            # Localize the first day of the month to the timezone
+            first_day_of_month = first_day_of_month.tz_localize(tz)
 
             # Find the first Friday of the month
             first_friday = first_day_of_month + pd.tseries.offsets.Week(weekday=4)
@@ -2074,7 +2081,7 @@ class Strategy(_Strategy):
         schedule = nyse.schedule(start_date=dt, end_date=end_date)
 
         # Change the schedule index timezone to be the same as the expiration date timezone
-        schedule.index = schedule.index.tz_localize(expiration.tzinfo)
+        schedule.index = schedule.index.tz_localize(tz)
 
         # Check if the expiration date is in the schedule, if not then get the previous open day. Make sure they're only comparing dates, not times
         if expiration.date() not in schedule.index.date:

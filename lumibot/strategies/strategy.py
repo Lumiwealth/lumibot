@@ -1388,7 +1388,7 @@ class Strategy(_Strategy):
         >>> or...
         >>> order = self.create_order((asset_base, asset_quote), 0.1, "buy", limit_price="41325", stop_price="41300",)
         >>> self.submit_order(order)
-        
+
         >>> # For an OCO order
         >>> order = self.create_order(
         >>>                "SPY",
@@ -1761,14 +1761,14 @@ class Strategy(_Strategy):
         >>> )
         >>> price = self.get_last_price(asset=self.base, exchange="CME")
         """
-        
+
         # Check if the asset is valid
         if asset is None or (type(asset) == Asset and asset.is_valid() is False):
             logging.error(
                 f"Asset in get_last_price() must be a valid asset. Got {asset} of type {type(asset)}. You may be missing some of the required parameters for the asset type (eg. strike price for options, expiry for options/futures, etc)."
             )
             return None
-        
+
         # Check if the Asset object is a string or Asset object
         if not (isinstance(asset, Asset) or isinstance(asset, str)):
             logger.error(
@@ -1777,7 +1777,7 @@ class Strategy(_Strategy):
             return None
 
         asset = self._set_asset_mapping(asset)
-        
+
         if quote is None:
             quote_asset = self.quote_asset
         else:
@@ -2045,13 +2045,24 @@ class Strategy(_Strategy):
         >>> next_option_expiration = self.get_next_option_expiration(dt)
         """
 
-        # Get the Friday before the 3rd Saturday of next month
-        expiration = (
-            dt
-            + pd.tseries.offsets.BusinessMonthEnd(1)
-            + pd.tseries.offsets.Week(3)
-            - pd.tseries.offsets.Week(weekday=4)
-        )
+        dt = pd.Timestamp(dt)
+
+        # Loop over this month and the next month
+        for month_increment in [0, 1]:
+            # Calculate the first day of the target month
+            first_day_of_month = pd.Timestamp(dt.year, dt.month + month_increment, 1) if dt.month + \
+                month_increment <= 12 else pd.Timestamp(dt.year + 1, (dt.month + month_increment) % 12, 1)
+
+            # Find the first Friday of the month
+            first_friday = first_day_of_month + pd.tseries.offsets.Week(weekday=4)
+
+            # Calculate the third Friday
+            third_friday = first_friday + pd.tseries.offsets.Week(2)
+
+            # Check if the third Friday is after the input date
+            if third_friday > dt:
+                expiration = third_friday
+                break
 
         # Check if the market is open on the expiration date, if not then get the previous open day
         nyse = mcal.get_calendar("NYSE")
@@ -2504,10 +2515,10 @@ class Strategy(_Strategy):
             multiplier=multiplier,
             currency=currency,
         )
-        
+
     def add_marker(self, name, symbol="circle", value=None, color=None, size=None, detail_text=None, dt=None):
         """Adds a marker to the indicators plot that loads after a backtest. This can be used to mark important events on the graph, such as price crossing a certain value, marking a support level, marking a resistance level, etc.
-        
+
         Parameters
         ----------
         name : str
@@ -2524,82 +2535,88 @@ class Strategy(_Strategy):
             The text to display when the marker is hovered over.
         dt : datetime.datetime or pandas.Timestamp
             The datetime of the marker. Default is the current datetime.
-            
+
         Example
         -------
         >>> # Will add a marker to the chart
         >>> self.add_chart_marker("Overbought", symbol="circle", color="red", size=10)
         """
-        
+
         # Check that the parameters are valid
         if type(name) != str:
-            raise ValueError(f"Invalid name parameter in add_marker() method. Name must be a string but instead got {name}, which is a type {type(name)}.")
-        
+            raise ValueError(
+                f"Invalid name parameter in add_marker() method. Name must be a string but instead got {name}, which is a type {type(name)}.")
+
         if type(symbol) != str:
-            raise ValueError(f"Invalid symbol parameter in add_marker() method. Symbol must be a string but instead got {symbol}, which is a type {type(symbol)}.")
-        
+            raise ValueError(
+                f"Invalid symbol parameter in add_marker() method. Symbol must be a string but instead got {symbol}, which is a type {type(symbol)}.")
+
         if value is not None and type(value) not in [float, int, np.float64]:
-            raise ValueError(f"Invalid value parameter in add_marker() method. Value must be a float or int but instead got {value}, which is a type {type(value)}.")
-             
+            raise ValueError(
+                f"Invalid value parameter in add_marker() method. Value must be a float or int but instead got {value}, which is a type {type(value)}.")
+
         if color is not None and type(color) != str:
-            raise ValueError(f"Invalid color parameter in add_marker() method. Color must be a string but instead got {color}, which is a type {type(color)}.")
-        
+            raise ValueError(
+                f"Invalid color parameter in add_marker() method. Color must be a string but instead got {color}, which is a type {type(color)}.")
+
         if size is not None and type(size) != int:
-            raise ValueError(f"Invalid size parameter in add_marker() method. Size must be an int but instead got {size}, which is a type {type(size)}.")
-        
+            raise ValueError(
+                f"Invalid size parameter in add_marker() method. Size must be an int but instead got {size}, which is a type {type(size)}.")
+
         if detail_text is not None and type(detail_text) != str:
-            raise ValueError(f"Invalid detail_text parameter in add_marker() method. Detail_text must be a string but instead got {detail_text}, which is a type {type(detail_text)}.")
-        
+            raise ValueError(
+                f"Invalid detail_text parameter in add_marker() method. Detail_text must be a string but instead got {detail_text}, which is a type {type(detail_text)}.")
+
         if dt is not None and type(dt) not in [datetime.datetime, pd.Timestamp]:
-            raise ValueError(f"Invalid dt parameter in add_marker() method. Dt must be a datetime.datetime but instead got {dt}, which is a type {type(dt)}.")
-               
+            raise ValueError(
+                f"Invalid dt parameter in add_marker() method. Dt must be a datetime.datetime but instead got {dt}, which is a type {type(dt)}.")
+
         # If no datetime is specified, use the current datetime
         if dt is None:
             dt = self.get_datetime()
-        
+
         # If no value is specified, use the current portfolio value
         if value is None:
             value = self.get_portfolio_value()
-            
+
         # Check for duplicate markers
         if len(self._chart_markers_list) > 0:
             timestamp = dt.timestamp()
             for marker in self._chart_markers_list:
                 if marker["timestamp"] == timestamp and marker["name"] == name and marker["symbol"] == symbol:
                     return None
-                
+
         new_marker = {
-                "datetime": dt,
-                "timestamp": dt.timestamp(), # This is to speed up the process of finding duplicate markers
-                "name": name, 
-                "symbol": symbol, 
-                "color": color, 
-                "size": size, 
-                "value": value,
-                "detail_text": detail_text,
-            }
-            
-            
+            "datetime": dt,
+            "timestamp": dt.timestamp(),  # This is to speed up the process of finding duplicate markers
+            "name": name,
+            "symbol": symbol,
+            "color": color,
+            "size": size,
+            "value": value,
+            "detail_text": detail_text,
+        }
+
         self._chart_markers_list.append(new_marker)
-        
+
         return new_marker
-         
+
     def get_markers_df(self):
         """Returns the markers on the indicator chart as a pandas DataFrame.
-        
+
         Returns
         -------
         pandas.DataFrame
             The markers on the indicator chart.
         """
-        
+
         df = pd.DataFrame(self._chart_markers_list)
-        
+
         return df
-        
+
     def add_line(self, name, value, color=None, style="solid", width=None, detail_text=None, dt=None):
         """Adds a line data point to the indicator chart. This can be used to add lines such as bollinger bands, prices for specific assets, or any other line you want to add to the chart.
-        
+
         Parameters
         ----------
         name : str
@@ -2616,40 +2633,46 @@ class Strategy(_Strategy):
             The text to display when the line is hovered over.
         dt : datetime.datetime or pandas.Timestamp
             The datetime of the line. Default is the current datetime.
-            
+
         Example
         -------
         >>> # Will add a line to the chart
         >>> self.add_chart_line("Overbought", value=80, color="red", style="dotted", width=2)
-        """  
-        
+        """
+
         # Check that the parameters are valid
         if type(name) != str:
-            raise ValueError(f"Invalid name parameter in add_line() method. Name must be a string but instead got {name}, which is a type {type(name)}.")
-        
+            raise ValueError(
+                f"Invalid name parameter in add_line() method. Name must be a string but instead got {name}, which is a type {type(name)}.")
+
         if type(value) not in [float, int, np.float64]:
-            raise ValueError(f"Invalid value parameter in add_line() method. Value must be a float or int but instead got {value}, which is a type {type(value)}.")      
-                    
+            raise ValueError(
+                f"Invalid value parameter in add_line() method. Value must be a float or int but instead got {value}, which is a type {type(value)}.")
+
         if color is not None and type(color) != str:
-            raise ValueError(f"Invalid color parameter in add_line() method. Color must be a string but instead got {color}, which is a type {type(color)}.")
-        
+            raise ValueError(
+                f"Invalid color parameter in add_line() method. Color must be a string but instead got {color}, which is a type {type(color)}.")
+
         if type(style) != str:
-            raise ValueError(f"Invalid style parameter in add_line() method. Style must be a string but instead got {style}, which is a type {type(style)}.")
-        
+            raise ValueError(
+                f"Invalid style parameter in add_line() method. Style must be a string but instead got {style}, which is a type {type(style)}.")
+
         if width is not None and type(width) != int:
-            raise ValueError(f"Invalid width parameter in add_line() method. Width must be an int but instead got {width}, which is a type {type(width)}.")
-        
+            raise ValueError(
+                f"Invalid width parameter in add_line() method. Width must be an int but instead got {width}, which is a type {type(width)}.")
+
         if detail_text is not None and type(detail_text) != str:
-            raise ValueError(f"Invalid detail_text parameter in add_line() method. Detail_text must be a string but instead got {detail_text}, which is a type {type(detail_text)}.")
-        
+            raise ValueError(
+                f"Invalid detail_text parameter in add_line() method. Detail_text must be a string but instead got {detail_text}, which is a type {type(detail_text)}.")
+
         if dt is not None and type(dt) not in [datetime.datetime, pd.Timestamp]:
-            raise ValueError(f"Invalid dt parameter in add_line() method. Dt must be a datetime.datetime but instead got {dt}, which is a type {type(dt)}.")
-                    
-                    
+            raise ValueError(
+                f"Invalid dt parameter in add_line() method. Dt must be a datetime.datetime but instead got {dt}, which is a type {type(dt)}.")
+
         # If no datetime is specified, use the current datetime
         if dt is None:
             dt = self.get_datetime()
-            
+
         # Whenever you want to add a new line, use the following code
         self._chart_lines_list.append(
             {
@@ -2662,20 +2685,20 @@ class Strategy(_Strategy):
                 "detail_text": detail_text,
             }
         )
-        
+
     def get_lines_df(self):
         """Returns a dataframe of the lines on the indicator chart.
-        
+
         Returns
         -------
         pandas.DataFrame
             The lines on the indicator chart.
         """
-        
+
         df = pd.DataFrame(self._chart_lines_list)
-        
+
         return df
-        
+
     def get_historical_prices(
         self,
         asset: Union[Asset, str],
@@ -2872,7 +2895,7 @@ class Strategy(_Strategy):
         >>> bars =  self.get_historical_prices_for_assets(["AAPL", "GOOG"], 30, "minute")
         >>> for asset in bars:
         >>>     self.log_message(asset.df)
-        
+
         >>> # Get the price data for EURUSD for the last 2 days
         >>> from lumibot.entities import Asset
         >>> asset_base = Asset(symbol="EUR", asset_type="forex")

@@ -13,8 +13,10 @@ percentage. This is a very simple strategy that is meant to demonstrate how to u
 class LimitAndTrailingStop(Strategy):
     parameters = {
         "buy_symbol": "SPY",
-        "limit_price": "410",
-        "trail_percent": "0.02",
+        "limit_buy_price": 403,
+        "limit_sell_price": 407,
+        "trail_percent": 0.02,
+        "trail_price": 7,
     }
 
     # =====Overloading lifecycle methods=============
@@ -32,25 +34,31 @@ class LimitAndTrailingStop(Strategy):
         """Buys the self.buy_symbol once, then never again"""
 
         buy_symbol = self.parameters["buy_symbol"]
-        limit_price = self.parameters["limit_price"]
+        limit_buy_price = self.parameters["limit_buy_price"]
+        limit_sell_price = self.parameters["limit_sell_price"]
         trail_percent = self.parameters["trail_percent"]
+        trail_price = self.parameters["trail_price"]
 
         # What to do each iteration
         current_value = self.get_last_price(buy_symbol)
         self.log_message(f"The value of {buy_symbol} is {current_value}")
 
-        all_positions = self.get_positions()
-        if len(all_positions) <= 1:  # Because we always have a cash position (USD)
-            # Calculate how many shares we can buy with our portfolio value (the total value of all our positions)
-            quantity = int(self.portfolio_value // current_value)
-
-            # Create the limit order
-            purchase_order = self.create_order(buy_symbol, quantity, "buy", limit_price=limit_price)
+        if self.first_iteration:
+            # Create the limit buy order
+            purchase_order = self.create_order(buy_symbol, 100, "buy", limit_price=limit_buy_price)
             self.submit_order(purchase_order)
 
-            # Place the trailing stop
-            trailing_stop_order = self.create_order(buy_symbol, quantity, "sell", trail_percent=trail_percent)
-            self.submit_order(trailing_stop_order)
+            # Create the limit sell order
+            sell_order = self.create_order(buy_symbol, 100, "sell", limit_price=limit_sell_price)
+            self.submit_order(sell_order)
+
+            # Place the trailing percent stop
+            trailing_pct_stop_order = self.create_order(buy_symbol, 100, "sell", trail_percent=trail_percent)
+            self.submit_order(trailing_pct_stop_order)
+
+            # Place the trailing price stop
+            trailing_price_stop_order = self.create_order(buy_symbol, 50, "sell", trail_price=trail_price)
+            self.submit_order(trailing_price_stop_order)
 
 
 if __name__ == "__main__":
@@ -58,7 +66,6 @@ if __name__ == "__main__":
 
     if is_live:
         from credentials import ALPACA_CONFIG
-
         from lumibot.brokers import Alpaca
         from lumibot.traders import Trader
 

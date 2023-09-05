@@ -236,7 +236,7 @@ class Broker:
         -------
         market open or close: Timestamp
             Timestamp of the market open or close time depending on the parameters passed
-        
+
         """
 
         market = self.market if self.market is not None else market
@@ -723,7 +723,7 @@ class Broker:
                     filled_quantity = Decimal(filled_quantity)
                 if filled_quantity < 0:
                     raise error
-            except:
+            except ValueError:
                 raise error
 
         if price is not None:
@@ -734,7 +734,7 @@ class Broker:
                 price = float(price)
                 if price < 0:
                     raise error
-            except:
+            except ValueError:
                 raise error
 
         if type_event == self.NEW_ORDER:
@@ -763,8 +763,9 @@ class Broker:
             and self._data_source is not None
             and hasattr(self._data_source, "get_datetime")
         ):
+            current_dt = self._data_source.get_datetime()
             new_row = {
-                "time": self._data_source.get_datetime(),
+                "time": current_dt,
                 "strategy": stored_order.strategy,
                 "exchange": stored_order.exchange,
                 "symbol": stored_order.symbol,

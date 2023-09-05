@@ -489,7 +489,7 @@ class BacktestingBroker(Broker):
                     price = self.stop_order(
                         order.stop_price, order.side, open, high, low
                     )
-                    if price:
+                    if price is not None:
                         price = self.limit_order(
                             order.limit_price, order.side, price, high, low
                         )
@@ -520,7 +520,7 @@ class BacktestingBroker(Broker):
             #############################
 
             # If the price is set, then the order has been filled
-            if price:
+            if price is not None:
                 if order.dependent_order:
                     order.dependent_order.dependent_order_filled = True
                     strategy.broker.cancel_order(order.dependent_order)
@@ -565,7 +565,7 @@ class BacktestingBroker(Broker):
             return limit_price
 
         # Limit has not been met
-        return 0.0
+        return None
 
     def stop_order(self, stop_price, side, open_, high, low):
         """Stop order logic."""
@@ -582,7 +582,7 @@ class BacktestingBroker(Broker):
             return stop_price
 
         # Stop has not been met
-        return 0.0
+        return None
 
     # =========Market functions=======================
     def get_last_price(self, asset, quote=None, exchange=None, **kwargs):

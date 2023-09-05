@@ -25,7 +25,7 @@ class TestBacktestingBroker:
 
         # Limit not triggered
         limit_price = 120
-        assert broker.limit_order(limit_price, 'sell', open_=100, high=110, low=90) == 0
+        assert not broker.limit_order(limit_price, 'sell', open_=100, high=110, low=90)
 
     def test_stop_fills(self):
         data_source = PandasData({})
@@ -49,4 +49,4 @@ class TestBacktestingBroker:
 
         # Stop not triggered
         stop_price = 80
-        assert broker.stop_order(stop_price, 'sell', open_=100, high=110, low=90) == 0
+        assert not broker.stop_order(stop_price, 'sell', open_=100, high=110, low=90)

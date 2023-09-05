@@ -349,7 +349,7 @@ class BacktestingBroker(Broker):
                 time_to_close = self.get_time_to_close()
                 if position.asset.expiration == self.datetime.date() and time_to_close > (15 * 60):
                     continue
-                    
+
                 logging.warning(
                     f"Automatically selling expired contract for asset {position.asset}"
                 )
@@ -424,7 +424,7 @@ class BacktestingBroker(Broker):
 
             price = None
             filled_quantity = order.quantity
-            
+
             #############################
             # Get OHLCV data for the asset
             #############################
@@ -468,55 +468,48 @@ class BacktestingBroker(Broker):
                 low = ohlc.df["low"][-1]
                 close = ohlc.df["close"][-1]
                 volume = ohlc.df["volume"][-1]
-                
+
             #############################
             # Determine transaction price.
             #############################
-            
+
             if order.type == "market":
-                price = close
-                
+                price = open
+
             elif order.type == "limit":
                 price = self.limit_order(
-                    order.limit_price, order.side, close, high, low
+                    order.limit_price, order.side, open, high, low
                 )
-                
+
             elif order.type == "stop":
-                price = self.stop_order(order.stop_price, order.side, close, high, low)
-                
+                price = self.stop_order(order.stop_price, order.side, open, high, low)
+
             elif order.type == "stop_limit":
                 if not order.price_triggered:
                     price = self.stop_order(
-                        order.stop_price, order.side, close, high, low
+                        order.stop_price, order.side, open, high, low
                     )
-                    if price != None:
+                    if price is not None:
                         price = self.limit_order(
                             order.limit_price, order.side, price, high, low
                         )
                         order.price_triggered = True
                 elif order.price_triggered:
                     price = self.limit_order(
-                        order.limit_price, order.side, close, high, low
+                        order.limit_price, order.side, open, high, low
                     )
-                    
+
             elif order.type == "trailing_stop":
-                if order._trail_stop_price is not None:
-                    # Check if we have hit the trail stop price for a sell order
-                    if order.side == "sell":
-                        if low <= order._trail_stop_price:
-                            price = low
-                            
-                    # Check if we have hit the trail stop price for a buy order
-                    elif order.side == "buy":
-                        if high >= order._trail_stop_price:
-                            price = high
-                
-                # Get the assets last price
-                asset_price = self.get_last_price(order.asset)
-                
+                if order._trail_stop_price:
+                    # Check if we have hit the trail stop price for both sell/buy orders
+                    price = self.stop_order(
+                        order._trail_stop_price, order.side, open, high, low
+                    )
+
                 # Update the stop price if the price has moved up
+                asset_price = self.get_last_price(order.asset)
                 order.update_trail_stop_price(asset_price)
-                
+
             else:
                 raise ValueError(
                     f"Order type {order.type} is not implemented for backtesting."
@@ -525,8 +518,8 @@ class BacktestingBroker(Broker):
             #############################
             # Fill the order.
             #############################
-            
-            # If the price is not None, then the order has been filled
+
+            # If the price is set, then the order has been filled
             if price is not None:
                 if order.dependent_order:
                     order.dependent_order.dependent_order_filled = True
@@ -557,39 +550,39 @@ class BacktestingBroker(Broker):
             else:
                 continue
 
-    def limit_order(self, limit_price, side, close, high, low):
+    def limit_order(self, limit_price, side, open_, high, low):
         """Limit order logic."""
-        if side == "buy":
-            if limit_price >= close:
-                return close
-            elif limit_price < close and limit_price >= low:
-                return limit_price
-            elif limit_price < low:
-                return None
-        elif side == "sell":
-            if limit_price <= close:
-                return close
-            elif limit_price > close and limit_price <= high:
-                return limit_price
-            elif limit_price > high:
-                return None
+        # Gap Up case: Limit wasn't triggered by previous candle but current candle opens higher, fill it now
+        if side == "sell" and limit_price <= open_:
+            return open_
 
-    def stop_order(self, stop_price, side, close, high, low):
+        # Gap Down case: Limit wasn't triggered by previous candle but current candle opens lower, fill it now
+        if side == "buy" and limit_price >= open_:
+            return open_
+
+        # Current candle triggered limit normally
+        if low <= limit_price <= high:
+            return limit_price
+
+        # Limit has not been met
+        return None
+
+    def stop_order(self, stop_price, side, open_, high, low):
         """Stop order logic."""
-        if side == "buy":
-            if stop_price <= close:
-                return close
-            elif stop_price > close and stop_price <= high:
-                return stop_price
-            elif stop_price > high:
-                return None
-        elif side == "sell":
-            if stop_price >= close:
-                return close
-            elif stop_price < close and stop_price >= low:
-                return stop_price
-            elif stop_price < low:
-                return None
+        # Gap Down case: Stop wasn't triggered by previous candle but current candle opens lower, fill it now
+        if side == "sell" and stop_price >= open_:
+            return open_
+
+        # Gap Up case: Stop wasn't triggered by previous candle but current candle opens higher, fill it now
+        if side == "buy" and stop_price <= open_:
+            return open_
+
+        # Current candle triggered stop normally
+        if low <= stop_price <= high:
+            return stop_price
+
+        # Stop has not been met
+        return None
 
     # =========Market functions=======================
     def get_last_price(self, asset, quote=None, exchange=None, **kwargs):

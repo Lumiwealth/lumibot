@@ -7,6 +7,7 @@ from email.utils import quote
 from functools import wraps
 
 import pandas as pd
+
 from lumibot.brokers import Broker
 from lumibot.entities import Order, Position, TradingFee
 from lumibot.tools import get_trading_days
@@ -506,9 +507,11 @@ class BacktestingBroker(Broker):
                         order._trail_stop_price, order.side, open, high, low
                     )
 
-                # Update the stop price if the price has moved up
-                asset_price = self.get_last_price(order.asset)
-                order.update_trail_stop_price(asset_price)
+                # Update the stop price if the price has moved
+                if order.side == "sell":
+                    order.update_trail_stop_price(high)
+                elif order.side == "buy":
+                    order.update_trail_stop_price(low)
 
             else:
                 raise ValueError(

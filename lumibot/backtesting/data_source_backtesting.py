@@ -10,13 +10,18 @@ class DataSourceBacktesting(DataSource):
     IS_BACKTESTING_DATA_SOURCE = True
 
     def __init__(
-        self, datetime_start, datetime_end, backtesting_started=datetime.now()
+        self, datetime_start, datetime_end, backtesting_started=None
     ):
+        if backtesting_started is None:
+            _backtesting_started = datetime.now()
+        else:
+            _backtesting_started = backtesting_started
+
         self.datetime_start = datetime_start
         self.datetime_end = datetime_end
         self._datetime = datetime_start
         self._iter_count = None
-        self.backtesting_started = backtesting_started
+        self.backtesting_started = _backtesting_started
 
         # Subtract one minute from the datetime_end so that the strategy stops right before the datetime_end
         self.datetime_end -= timedelta(minutes=1)

@@ -4,9 +4,10 @@ from datetime import date, datetime, timedelta, timezone
 
 import pandas as pd
 import polygon
+from polygon import RESTClient
+
 from lumibot import LUMIBOT_CACHE_FOLDER, LUMIBOT_DEFAULT_TIMEZONE
 from lumibot.entities import Asset
-from polygon import RESTClient
 
 WAIT_TIME = 60
 
@@ -32,7 +33,7 @@ def get_price_data_from_polygon(
     quote_asset: Asset = None,
 ):
     print(f"\nGetting pricing data for {asset} / {quote_asset} from Polygon...")
-    
+
     df_all = None
     df_csv = None
 
@@ -45,7 +46,7 @@ def get_price_data_from_polygon(
             raise ValueError(
                 f"Expiration date is required for option {asset} but it is None"
             )
-            
+
         # Make asset.expiration datetime into a string like "YYMMDD"
         expiry_string = asset.expiration.strftime("%y%m%d")
 
@@ -84,6 +85,7 @@ def get_price_data_from_polygon(
     # Get the data from Polygon
     first_iteration = True
     last_cur_start = None
+    earliest_date_requested = None
     while True:
         # Check if df_all exists and is not empty
         if df_all is not None and len(df_all) > 0:
@@ -110,7 +112,7 @@ def get_price_data_from_polygon(
             else:
                 # We need to get more data. Update cur_start and then get more data
                 # TODO: Also check if we are missing data in the middle of the range
-                if start < first_row.name:
+                if earliest_date_requested is None or start < earliest_date_requested:
                     cur_start = start
                 else:
                     cur_start = last_row.name
@@ -138,6 +140,10 @@ def get_price_data_from_polygon(
         # We need to subtract 1 minute because of a bug in polygon - does this exist in polygon-api-client?
         poly_start = cur_start - timedelta(minutes=1)
         poly_end = end
+
+        # Update earliest_date_requested
+        if earliest_date_requested is None or earliest_date_requested > poly_start:
+            earliest_date_requested = poly_start
 
         # Crypto Asset for Backtesting
         if asset.asset_type == "crypto":
@@ -171,6 +177,11 @@ def get_price_data_from_polygon(
                 expired=True,  # Needed so BackTest can look at old contracts to find the ticker we need
                 limit=10,
             ))
+
+            # If no contracts are found, break out of the loop
+            if len(contracts) == 0:
+                break
+
             symbol = contracts[0].ticker
 
             # poly_start = cur_start - timedelta(days=4)  # Subtract 4 days because options data can be very sparse

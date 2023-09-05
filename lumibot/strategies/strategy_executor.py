@@ -153,6 +153,10 @@ class StrategyExecutor(Thread):
                     # Compare to existing lumi position.
                     if position_lumi.quantity != position.quantity:
                         position_lumi.quantity = position.quantity
+
+                    # Update the positions cost_basis with the data from the broker
+                    # TODO: Check so that this works with other brokers than Alpaca.
+                    position_lumi.cost_basis = position.cost_basis
                 else:
                     # Add to positions in lumibot, position does not exist
                     # in lumibot.

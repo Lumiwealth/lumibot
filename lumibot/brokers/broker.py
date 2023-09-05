@@ -37,6 +37,7 @@ class Broker:
         self._canceled_orders = SafeList(self._lock)
         self._partially_filled_orders = SafeList(self._lock)
         self._filled_positions = SafeList(self._lock)
+        self._untracked_positions = SafeList(self._lock) # TLNG - used to keep track of positions that we DON'T care about
         self._subscribers = SafeList(self._lock)
         self._is_stream_subscribed = False
         self._trade_event_log_df = pd.DataFrame()
@@ -117,7 +118,10 @@ class Broker:
         """ Set initial positions """
         positions = self._pull_positions(strategy)
         for pos in positions:
-            self._filled_positions.append(pos)
+            if strategy.name == pos.strategy: # TLNG - Only add the position if it belongs to our strategy
+                self._filled_positions.append(pos)
+            else:
+                self._untracked_positions.append(pos)
 
     def _process_new_order(self, order):
         logging.info(colored("New %r was submitted." % order, color="green"))

@@ -10,11 +10,10 @@ from threading import RLock, Thread
 import pandas as pd
 import pandas_market_calendars as mcal
 from dateutil import tz
-from termcolor import colored
-
 from lumibot.data_sources import DataSource
 from lumibot.entities import Order, Position
 from lumibot.trading_builtins import SafeList
+from termcolor import colored
 
 
 class Broker:
@@ -725,7 +724,7 @@ class Broker:
                 if filled_quantity < 0:
                     raise error
             except ValueError:
-                raise error from None
+                raise error
 
         if price is not None:
             error = ValueError(
@@ -736,7 +735,7 @@ class Broker:
                 if price < 0:
                     raise error
             except ValueError:
-                raise error from None
+                raise error
 
         if type_event == self.NEW_ORDER:
             stored_order = self._process_new_order(stored_order)

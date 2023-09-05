@@ -13,10 +13,10 @@ percentage. This is a very simple strategy that is meant to demonstrate how to u
 class LimitAndTrailingStop(Strategy):
     parameters = {
         "buy_symbol": "SPY",
-        "limit_buy_price": "403",
-        "limit_sell_price": "407",
-        "trail_percent": "0.02",
-        "trail_price": "7",
+        "limit_buy_price": 403,
+        "limit_sell_price": 407,
+        "trail_percent": 0.02,
+        "trail_price": 7,
     }
 
     # =====Overloading lifecycle methods=============
@@ -66,7 +66,6 @@ if __name__ == "__main__":
 
     if is_live:
         from credentials import ALPACA_CONFIG
-
         from lumibot.brokers import Alpaca
         from lumibot.traders import Trader
 

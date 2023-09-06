@@ -4,6 +4,7 @@ import os
 import requests
 import setuptools
 
+# Disable aiohttp extensions, used to fix error on Windows with Python 3.11
 os.environ['AIOHTTP_NO_EXTENSIONS'] = '1'
 
 

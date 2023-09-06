@@ -7,16 +7,6 @@ import setuptools
 os.environ['AIOHTTP_NO_EXTENSIONS'] = '1'
 
 
-def increment_version():
-    resp = requests.get("https://pypi.python.org/pypi/lumibot/json")
-    j = json.loads(resp.content)
-    last_version = j["info"]["version"]
-    version_numbers = last_version.split(".")
-    version_numbers[-1] = str(int(version_numbers[-1]) + 1)
-    new_version = ".".join(version_numbers)
-    return new_version
-
-
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 

@@ -1,7 +1,10 @@
 import json
+import os
 
 import requests
 import setuptools
+
+os.environ['AIOHTTP_NO_EXTENSIONS'] = '1'
 
 
 def increment_version():

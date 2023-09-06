@@ -4,10 +4,9 @@ from datetime import date, datetime, timedelta, timezone
 
 import pandas as pd
 import polygon
-from polygon import RESTClient
-
 from lumibot import LUMIBOT_CACHE_FOLDER, LUMIBOT_DEFAULT_TIMEZONE
 from lumibot.entities import Asset
+from polygon import RESTClient
 
 WAIT_TIME = 60
 

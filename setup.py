@@ -1,19 +1,10 @@
-import json
-import os
-
-import requests
 import setuptools
-
-# Disable aiohttp extensions, used to fix error on Windows with Python 3.11
-os.environ['AIOHTTP_NO_EXTENSIONS'] = '1'
-
 
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setuptools.setup(
     name="lumibot",
-    version="2.7.18",
     author="Robert Grzesik",
     author_email="rob@lumiwealth.com",
     description="Backtesting and Trading Library, Made by Lumiwealth",

@@ -6,12 +6,24 @@ from asyncio import CancelledError
 from datetime import timezone
 from decimal import Decimal
 
-import alpaca_trade_api as tradeapi
-from alpaca_trade_api.stream import Stream
+from alpaca.trading.enums import OrderSide, QueryOrderStatus
+from alpaca.trading.requests import (
+    GetOrdersRequest,
+    LimitOrderRequest,
+    OrderRequest,
+    StopLimitOrderRequest,
+    StopOrderRequest,
+    TrailingStopOrderRequest,
+)
+
+# import alpaca_trade_api as tradeapi
+# from alpaca_trade_api.stream import Stream
+from alpaca.trading.stream import TradingStream
 from dateutil import tz
+from termcolor import colored
+
 from lumibot.data_sources import AlpacaData
 from lumibot.entities import Asset, Order, Position
-from termcolor import colored
 
 from .broker import Broker
 
@@ -217,29 +229,29 @@ class Alpaca(AlpacaData, Broker):
         """
 
         response = self.api.get_account()
-        total_cash_value = float(response._raw["cash"])
-        gross_positions_value = float(response._raw["long_market_value"]) - float(
-            response._raw["short_market_value"]
+        total_cash_value = float(response.cash)
+        gross_positions_value = float(response.long_market_value) - float(
+            response.short_market_value
         )
-        net_liquidation_value = float(response._raw["portfolio_value"])
+        net_liquidation_value = float(response.portfolio_value)
 
         return (total_cash_value, gross_positions_value, net_liquidation_value)
 
     def _parse_broker_position(self, broker_position, strategy, orders=None):
         """parse a broker position representation
         into a position object"""
-        position = broker_position._raw
-        if position["asset_class"] == "crypto":
+        position = broker_position
+        if position.asset_class == "crypto":
             asset = Asset(
-                symbol=position["symbol"].replace("USD", ""),
+                symbol=position.symbol.replace("USD", ""),
                 asset_type="crypto",
             )
         else:
             asset = Asset(
-                symbol=position["symbol"],
+                symbol=position.symbol,
             )
 
-        quantity = position["qty"]
+        quantity = position.qty
         position = Position(strategy, asset, quantity, orders=orders)
         return position
 
@@ -251,7 +263,7 @@ class Alpaca(AlpacaData, Broker):
 
     def _pull_broker_positions(self, strategy=None):
         """Get the broker representation of all positions"""
-        response = self.api.list_positions()
+        response = self.api.get_all_positions()
         return response
 
     # =======Orders and assets functions=========
@@ -266,10 +278,18 @@ class Alpaca(AlpacaData, Broker):
     def _parse_broker_order(self, response, strategy_name, strategy_object=None):
         """parse a broker order representation
         to an order object"""
+
+        # If the symbol includes a slash, then it is a crypto order and only the first part of
+        # the symbol is the real symbol
+        if "/" in response.symbol:
+            symbol = response.symbol.split("/")[0]
+        else:
+            symbol = response.symbol
+
         order = Order(
             strategy_name,
             Asset(
-                symbol=response.symbol,
+                symbol=symbol,
                 asset_type=response.asset_class,
             ),
             Decimal(response.qty),
@@ -292,7 +312,15 @@ class Alpaca(AlpacaData, Broker):
 
     def _pull_broker_open_orders(self):
         """Get the broker open orders"""
-        orders = self.api.list_orders(status="open")
+        # params to filter orders by
+        request_params = GetOrdersRequest(
+            status=QueryOrderStatus.OPEN,
+        )
+
+        # orders that satisfy params
+        orders = self.api.get_orders(filter=request_params)
+
+        # orders = self.api.list_orders(status="open")
         return orders
 
     def _flatten_order(self, order):
@@ -317,7 +345,27 @@ class Alpaca(AlpacaData, Broker):
             if order.time_in_force != "gtc" or "ioc":
                 order.time_in_force = "gtc"
 
+        qty = str(order.quantity)
+
+        # order_data = OrderRequest(
+        #     symbol=order.asset.symbol,
+        #     qty=qty,
+        #     side=order.side,
+        #     type=order.type,
+        #     time_in_force=order.time_in_force,
+        # )
+
+        # if order.limit_price:
+
+        if order.asset.asset_type == "crypto":
+            trade_symbol = f"{order.asset.symbol}/{order.quote.symbol}"
+        else:
+            trade_symbol = order.asset.symbol
+
         kwargs = {
+            "symbol": trade_symbol,
+            "qty": qty,
+            "side": order.side,
             "type": order.type,
             "order_class": order.order_class,
             "time_in_force": order.time_in_force,
@@ -352,14 +400,18 @@ class Alpaca(AlpacaData, Broker):
                     else order.stop_loss_limit_price
                 )
 
-        if order.asset.asset_type == "crypto":
-            trade_symbol = order.pair.replace("/", "")
-        else:
-            trade_symbol = order.asset.symbol
-
         try:
-            qty = str(order.quantity)
-            response = self.api.submit_order(trade_symbol, qty, order.side, **kwargs)
+            # Create our own OrderData class to pass to the API because this is easier to work with
+            # than the ones Alpaca provides, and because the new classes are missing bracket orders
+            class OrderData:
+                def __init__(self, **kwargs):
+                    self.__dict__.update(kwargs)
+
+                def to_request_fields(self):
+                    return self.__dict__
+
+            order_data = OrderData(**kwargs)
+            response = self.api.submit_order(order_data=order_data)
 
             order.set_identifier(response.id)
             order.update_status(response.status)
@@ -371,16 +423,14 @@ class Alpaca(AlpacaData, Broker):
             if "stop price must not be greater than base price / 1.001" in message:
                 logging.info(
                     colored(
-                        "%r did not go through because the share base price became lesser than the stop loss price."
-                        % order,
+                        f"{order} did not go through because the share base price became lesser than the stop loss price.",
                         color="red",
                     )
                 )
             else:
                 logging.info(
                     colored(
-                        "%r did not go through. The following error occured: %s"
-                        % (order, e),
+                        f"{order} did not go through. The following error occured: {e}",
                         color="red",
                     )
                 )
@@ -400,7 +450,7 @@ class Alpaca(AlpacaData, Broker):
         Order
             The order that was cancelled
         """
-        self.api.cancel_order(order.identifier)
+        self.api.cancel_order_by_id(order.identifier)
 
     # =======Account functions=========
 
@@ -425,18 +475,32 @@ class Alpaca(AlpacaData, Broker):
     # =======Stream functions=========
 
     def _get_stream_object(self):
-        """get the broker stream connection"""
+        """
+        Get the broker stream connection
+
+        """
         # Disabling the stream for now
         # TODO: Enable the stream for Alpaca with the new library version
         # pass
-        feed = "iex"  # <- replace to SIP if you have PRO subscription
-        stream = Stream(
-            self.api_key,
-            self.api_secret,
-            base_url=self.endpoint,
-            data_feed=feed,
-            raw_data=True,
-        )
+        # feed = "iex"  # <- replace to SIP if you have PRO subscription
+
+        # if stream_type == "crypto":
+        # crypto_stream = CryptoDataStream(self.api_key, self.api_secret)
+        # elif stream_type == "stock":
+        # stock_stream = StockDataStream(self.api_key, self.api_secret)
+        # else:
+        #     raise ValueError(
+        #         f"The stream type {stream_type} is not supported by Alpaca."
+        #     )
+        # stream = Stream(
+        #     self.api_key,
+        #     self.api_secret,
+        #     base_url=self.endpoint,
+        #     data_feed=feed,
+        #     raw_data=True,
+        # )
+
+        stream = TradingStream(self.api_key, self.api_secret, paper=self.is_paper)
 
         # stream = tradeapi.StreamConn(self.api_key, self.api_secret, self.endpoint)
         return stream
@@ -450,20 +514,18 @@ class Alpaca(AlpacaData, Broker):
         async def _trade_update(trade_update):
             self._orders_queue.join()
             try:
-                data = trade_update["data"]
-                logged_order = data["order"]
-                type_event = data["event"]
-                identifier = logged_order.get("id")
+                logged_order = trade_update.order
+                type_event = trade_update.event
+                identifier = logged_order.id
                 stored_order = self.get_tracked_order(identifier)
                 if stored_order is None:
                     logging.info(
-                        "Untracked order %s was logged by broker %s"
-                        % (identifier, self.name)
+                        f"Untracked order {identifier} was logged by broker {self.name}"
                     )
                     return False
 
-                price = data.get("price")
-                filled_quantity = data.get("qty")
+                price = trade_update.price
+                filled_quantity = trade_update.qty
                 self._process_trade_event(
                     stored_order,
                     type_event,
@@ -472,7 +534,7 @@ class Alpaca(AlpacaData, Broker):
                 )
 
                 return True
-            except:
+            except Exception:
                 logging.error(traceback.format_exc())
 
         self.stream.loop = asyncio.new_event_loop()

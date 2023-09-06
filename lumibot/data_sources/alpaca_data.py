@@ -1,17 +1,13 @@
 import logging
 from datetime import datetime, timedelta, timezone
 
-# import alpaca_trade_api as tradeapi
 import pandas as pd
-from alpaca.data.historical import CryptoHistoricalDataClient, StockHistoricalDataClient
-from alpaca.data.requests import CryptoBarsRequest, CryptoLatestTradeRequest, StockBarsRequest, StockLatestTradeRequest
-
-# from alpaca_trade_api.common import URL
-# from alpaca_trade_api.entity import Bar
-# from alpaca_trade_api.rest import TimeFrame, TimeFrameUnit
+from alpaca.data.historical import (CryptoHistoricalDataClient,
+                                    StockHistoricalDataClient)
+from alpaca.data.requests import (CryptoBarsRequest, CryptoLatestTradeRequest,
+                                  StockBarsRequest, StockLatestTradeRequest)
 from alpaca.data.timeframe import TimeFrame
 from alpaca.trading.client import TradingClient
-
 from lumibot.entities import Asset, Bars
 
 from .data_source import DataSource
@@ -91,9 +87,6 @@ class AlpacaData(DataSource):
             self.version = "v2"
 
         self.api = TradingClient(self.api_key, self.api_secret, paper=self.is_paper)
-        # tradeapi.REST(
-        #     self.api_key, self.api_secret, self.endpoint, self.version
-        # )
 
     def get_last_price(self, asset, quote=None, exchange=None, **kwargs):
         if quote is not None:

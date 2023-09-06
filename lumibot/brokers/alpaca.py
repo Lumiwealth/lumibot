@@ -6,24 +6,13 @@ from asyncio import CancelledError
 from datetime import timezone
 from decimal import Decimal
 
-from alpaca.trading.enums import OrderSide, QueryOrderStatus
-from alpaca.trading.requests import (
-    GetOrdersRequest,
-    LimitOrderRequest,
-    OrderRequest,
-    StopLimitOrderRequest,
-    StopOrderRequest,
-    TrailingStopOrderRequest,
-)
-
-# import alpaca_trade_api as tradeapi
-# from alpaca_trade_api.stream import Stream
+from alpaca.trading.enums import QueryOrderStatus
+from alpaca.trading.requests import GetOrdersRequest
 from alpaca.trading.stream import TradingStream
 from dateutil import tz
-from termcolor import colored
-
 from lumibot.data_sources import AlpacaData
 from lumibot.entities import Asset, Order, Position
+from termcolor import colored
 
 from .broker import Broker
 
@@ -320,7 +309,6 @@ class Alpaca(AlpacaData, Broker):
         # orders that satisfy params
         orders = self.api.get_orders(filter=request_params)
 
-        # orders = self.api.list_orders(status="open")
         return orders
 
     def _flatten_order(self, order):
@@ -346,16 +334,6 @@ class Alpaca(AlpacaData, Broker):
                 order.time_in_force = "gtc"
 
         qty = str(order.quantity)
-
-        # order_data = OrderRequest(
-        #     symbol=order.asset.symbol,
-        #     qty=qty,
-        #     side=order.side,
-        #     type=order.type,
-        #     time_in_force=order.time_in_force,
-        # )
-
-        # if order.limit_price:
 
         if order.asset.asset_type == "crypto":
             trade_symbol = f"{order.asset.symbol}/{order.quote.symbol}"
@@ -479,30 +457,8 @@ class Alpaca(AlpacaData, Broker):
         Get the broker stream connection
 
         """
-        # Disabling the stream for now
-        # TODO: Enable the stream for Alpaca with the new library version
-        # pass
-        # feed = "iex"  # <- replace to SIP if you have PRO subscription
-
-        # if stream_type == "crypto":
-        # crypto_stream = CryptoDataStream(self.api_key, self.api_secret)
-        # elif stream_type == "stock":
-        # stock_stream = StockDataStream(self.api_key, self.api_secret)
-        # else:
-        #     raise ValueError(
-        #         f"The stream type {stream_type} is not supported by Alpaca."
-        #     )
-        # stream = Stream(
-        #     self.api_key,
-        #     self.api_secret,
-        #     base_url=self.endpoint,
-        #     data_feed=feed,
-        #     raw_data=True,
-        # )
-
         stream = TradingStream(self.api_key, self.api_secret, paper=self.is_paper)
 
-        # stream = tradeapi.StreamConn(self.api_key, self.api_secret, self.endpoint)
         return stream
 
     def _run_stream(self):

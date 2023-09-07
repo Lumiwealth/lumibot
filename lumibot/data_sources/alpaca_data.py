@@ -2,11 +2,12 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 import pandas as pd
-from alpaca.data.historical import CryptoHistoricalDataClient, StockHistoricalDataClient
-from alpaca.data.requests import CryptoBarsRequest, CryptoLatestTradeRequest, StockBarsRequest, StockLatestTradeRequest
+from alpaca.data.historical import (CryptoHistoricalDataClient,
+                                    StockHistoricalDataClient)
+from alpaca.data.requests import (CryptoBarsRequest, CryptoLatestTradeRequest,
+                                  StockBarsRequest, StockLatestTradeRequest)
 from alpaca.data.timeframe import TimeFrame
 from alpaca.trading.client import TradingClient
-
 from lumibot.entities import Asset, Bars
 
 from .data_source import DataSource
@@ -187,6 +188,9 @@ class AlpacaData(DataSource):
                 barset = client.get_stock_bars(params)
 
             df = barset.df
+
+            # Alpaca now returns a dataframe with a MultiIndex. We only want an index of timestamps
+            df = df.reset_index(level=0, drop=True)
 
             if df.empty:
                 logging.error(

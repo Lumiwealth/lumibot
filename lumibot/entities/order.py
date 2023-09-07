@@ -442,7 +442,7 @@ class Order:
             return False
 
         # If the other object is an Order object, then compare the identifier.
-        return self.identifier == other.identifier
+        return self.identifier == other.identifier and self.asset == other.asset and self.quantity == other.quantity and self.side == other.side
 
     def __repr__(self):
         self.rep_asset = self.symbol

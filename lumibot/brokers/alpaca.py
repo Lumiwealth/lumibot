@@ -17,6 +17,16 @@ from termcolor import colored
 from .broker import Broker
 
 
+# Create our own OrderData class to pass to the API because this is easier to work with
+# than the ones Alpaca provides, and because the new classes are missing bracket orders
+class OrderData:
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
+
+    def to_request_fields(self):
+        return self.__dict__
+
+
 class Alpaca(AlpacaData, Broker):
     """A broker class that connects to Alpaca
 
@@ -379,15 +389,6 @@ class Alpaca(AlpacaData, Broker):
                 )
 
         try:
-            # Create our own OrderData class to pass to the API because this is easier to work with
-            # than the ones Alpaca provides, and because the new classes are missing bracket orders
-            class OrderData:
-                def __init__(self, **kwargs):
-                    self.__dict__.update(kwargs)
-
-                def to_request_fields(self):
-                    return self.__dict__
-
             order_data = OrderData(**kwargs)
             response = self.api.submit_order(order_data=order_data)
 
@@ -490,7 +491,7 @@ class Alpaca(AlpacaData, Broker):
                 )
 
                 return True
-            except Exception:
+            except ValueError:
                 logging.error(traceback.format_exc())
 
         self.stream.loop = asyncio.new_event_loop()

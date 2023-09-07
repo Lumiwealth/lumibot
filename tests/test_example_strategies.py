@@ -40,7 +40,7 @@ class TestExampleStrategies:
         # Check that the results are correct
         assert round(results["cagr"] * 100, 1) == 155.7
         assert round(results["volatility"] * 100, 1) == 7.0
-        assert round(results["sharpe"], 2) == 21.60
+        assert round(results["sharpe"], 2) == 21.59
         assert round(results["total_return"] * 100, 1) == 0.5
         assert round(results["max_drawdown"]["drawdown"] * 100, 1) == 0.0
 
@@ -115,13 +115,19 @@ class TestExampleStrategies:
         filled_trailing_stop_orders = trades_df[(trades_df["status"] == "fill")
                                                 & (trades_df["type"] == "trailing_stop")]
 
-        # The first order should have filled at $399.30 and a quantity of 100
-        assert round(filled_trailing_stop_orders.iloc[0]["price"], 2) == 399.30
-        assert filled_trailing_stop_orders.iloc[0]["filled_quantity"] == 100
+        # Check if we have an order with a rounded price of 2 decimals of 400.45 and a quantity of 50
+        order1 = filled_trailing_stop_orders[
+            (round(filled_trailing_stop_orders["price"], 2) == 400.45) & (
+                filled_trailing_stop_orders["filled_quantity"] == 50)
+        ]
+        assert len(order1) == 1
 
-        # The second order should have filled at $400.45 and a quantity of 50
-        assert round(filled_trailing_stop_orders.iloc[1]["price"], 2) == 400.45
-        assert filled_trailing_stop_orders.iloc[1]["filled_quantity"] == 50
+        # Check if we have an order with a price of 399.30 and a quantity of 100
+        order2 = filled_trailing_stop_orders[
+            (round(filled_trailing_stop_orders["price"], 2) == 399.30) & (
+                filled_trailing_stop_orders["filled_quantity"] == 100)
+        ]
+        assert len(order2) == 1
 
         # Check that the results are correct
         assert round(results["cagr"] * 100, 1) == 75

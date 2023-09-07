@@ -2,12 +2,11 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 import pandas as pd
-from alpaca.data.historical import (CryptoHistoricalDataClient,
-                                    StockHistoricalDataClient)
-from alpaca.data.requests import (CryptoBarsRequest, CryptoLatestTradeRequest,
-                                  StockBarsRequest, StockLatestTradeRequest)
+from alpaca.data.historical import CryptoHistoricalDataClient, StockHistoricalDataClient
+from alpaca.data.requests import CryptoBarsRequest, CryptoLatestTradeRequest, StockBarsRequest, StockLatestTradeRequest
 from alpaca.data.timeframe import TimeFrame
 from alpaca.trading.client import TradingClient
+
 from lumibot.entities import Asset, Bars
 
 from .data_source import DataSource
@@ -135,15 +134,15 @@ class AlpacaData(DataSource):
                 quote = asset[1]
             asset = asset[0]
 
-        if limit is None:
+        if not limit:
             limit = 1000
 
-        if end is None:
+        if not end:
             # Alpaca limitation of not getting the most recent 15 minutes
             # TODO: This is only needed if you dont have a paid alpaca subscription
             end = datetime.now(timezone.utc) - timedelta(minutes=15)
 
-        if start is None:
+        if not start:
             if str(freq) == "1Min":
                 if datetime.now().weekday() == 0:  # for Mondays as prior days were off
                     loop_limit = limit + 4896  # subtract 4896 minutes to take it from Monday to Friday, as there is no data between Friday 4:00 pm and Monday 9:30 pm causing an incomplete or empty dataframe

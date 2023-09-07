@@ -432,6 +432,18 @@ class Order:
             quantity, "Order quantity must be a positive Decimal"
         )
 
+    def __hash__(self):
+        return hash(self.identifier)
+
+    # Compares two order objects to see if they are the same.
+    def __eq__(self, other):
+        # If the other object is not an Order object, then they are not equal.
+        if not isinstance(other, Order):
+            return False
+
+        # If the other object is an Order object, then compare the identifier.
+        return self.identifier == other.identifier and self.asset == other.asset and self.quantity == other.quantity and self.side == other.side
+
     def __repr__(self):
         self.rep_asset = self.symbol
         if self.asset.asset_type == "crypto":
@@ -445,8 +457,8 @@ class Order:
             )
         repr_str = f"{self.type} order of | {self.quantity} {self.rep_asset} {self.side} |"
         if self.order_class:
-            repr_str = "%s of class %s" % (repr_str, self.order_class)
-        repr_str = "%s with status %s" % (repr_str, self.status)
+            repr_str = f"{repr_str} of class {self.order_class}"
+        repr_str = f"{repr_str} with status {self.status}"
         return repr_str
 
     def set_identifier(self, identifier):
@@ -472,7 +484,7 @@ class Order:
         else:
             return -cash_value
 
-    def get_fill_price(self) -> float:
+    def get_fill_price(self):
         """
         Get the weighted average filled price for this order. Option contracts often encounter partial fills,
         so the weighted average is the only valid price that can be used for PnL calculations.

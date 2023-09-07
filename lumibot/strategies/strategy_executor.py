@@ -430,26 +430,20 @@ class StrategyExecutor(Thread):
 
     @event_method
     def _on_new_order(self, order):
-        self.strategy.log_message("Executing the on_new_order event method")
         self.strategy.on_new_order(order)
 
     @event_method
     def _on_canceled_order(self, order):
-        self.strategy.log_message("Executing the on_canceled_order event method")
         self.strategy.on_canceled_order(order)
 
     @event_method
     def _on_partially_filled_order(self, position, order, price, quantity, multiplier):
-        self.strategy.log_message(
-            "Executing the on_partially_filled_order event method"
-        )
         self.strategy.on_partially_filled_order(
             position, order, price, quantity, multiplier
         )
 
     @event_method
     def _on_filled_order(self, position, order, price, quantity, multiplier):
-        self.strategy.log_message("Executing the on_filled_order event method")
         self.strategy.on_filled_order(position, order, price, quantity, multiplier)
 
         # Let our listener know that an order has been filled (set in the callback)

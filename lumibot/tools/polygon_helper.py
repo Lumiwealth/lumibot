@@ -280,7 +280,7 @@ def update_polygon_data(df_all, result):
         Format: [{'o': 1.0, 'h': 2.0, 'l': 3.0, 'c': 4.0, 'v': 5.0, 't': 116120000000}]
     """
     df = pd.DataFrame(result)
-    if df is not None and len(df) > 0:
+    if not df.empty:
         # Rename columns
         df = df.rename(
             columns={
@@ -300,12 +300,10 @@ def update_polygon_data(df_all, result):
         # Set the timezone to UTC
         df.index = df.index.tz_localize("UTC")
 
-        if df_all is None or not len(df_all):
+        if df_all is None or df_all.empty:
             df_all = df
         else:
-            df_all = pd.concat([df_all, df]).sort_index().drop_duplicates()
-
-        # Remove any duplicate rows
-        df_all = df_all[~df_all.index.duplicated(keep="first")]
+            df_all = pd.concat([df_all, df]).sort_index()
+            df_all = df_all[~df_all.index.duplicated(keep="first")]  # Remove any duplicate rows
 
     return df_all

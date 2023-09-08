@@ -46,7 +46,7 @@ class TestPolygonHelpers:
         assert ph.data_is_complete(df_all, asset, start_date, end_date)
 
         # Small dataframe that does not meet start/end criteria
-        end_date = datetime.datetime(2023, 7, 1, 13, 0)
+        end_date = datetime.datetime(2023, 7, 2, 13, 0)
         assert not ph.data_is_complete(df_all, asset, start_date, end_date)
 
         # Asking for data beyond option expiration
@@ -225,8 +225,8 @@ class TestPolygonPriceData:
             {"o": 1, "h": 4, "l": 1, "c": 2, "v": 100, "t": 1690876800000},  # 8/1/2023 8am UTC (start - 1day)
             {"o": 5, "h": 8, "l": 3, "c": 7, "v": 100, "t": 1690876860000},
             {"o": 9, "h": 12, "l": 7, "c": 10, "v": 100, "t": 1690876920000},
-            {"o": 13, "h": 16, "l": 11, "c": 14, "v": 100, "t": 1690876980000},
-            {"o": 17, "h": 20, "l": 15, "c": 18, "v": 100, "t": 1690877040000},
+            {"o": 13, "h": 16, "l": 11, "c": 14, "v": 100, "t": 1690986600000},  # 8/2/2023 at least 1 entry per date
+            {"o": 17, "h": 20, "l": 15, "c": 18, "v": 100, "t": 1690986660000},
             {"o": 21, "h": 24, "l": 19, "c": 22, "v": 100, "t": 1691105400000},  # 8/3/2023 11pm UTC (end + 1day)
         ]
 
@@ -262,9 +262,9 @@ class TestPolygonPriceData:
         assert len(df) == 6 + 2
         assert mock_polyclient().get_aggs.call_count == 1
 
-        # Error case: Polygon returns nothing
+        # Error case: Polygon returns nothing - like for a future date it doesn't know about
         mock_polyclient().get_aggs.reset_mock()
         mock_polyclient().get_aggs.return_value = []
-        end_date = tz_e.localize(datetime.datetime(2023, 8, 31, 13, 0))  # Far in the future
+        end_date = tz_e.localize(datetime.datetime(2023, 8, 31, 13, 0))
         with pytest.raises(LookupError):
             ph.get_price_data_from_polygon(api_key, asset, start_date, end_date, timespan)

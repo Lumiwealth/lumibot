@@ -28,6 +28,31 @@ def get_price_data_from_polygon(
     Queries Polygon.io for pricing data for the given asset and returns a DataFrame with the data. Data will be
     cached in the LUMIBOT_CACHE_FOLDER/polygon folder so that it can be reused later and we don't have to query
     Polygon.io every time we run a backtest.
+
+    Parameters
+    ----------
+    api_key : str
+        The API key for Polygon.io
+    asset : Asset
+        The asset we are getting data for
+    start : datetime
+        The start date/time for the data we want
+    end : datetime
+        The end date/time for the data we want
+    timespan : str
+        The timespan for the data we want. Default is "minute" but can also be "second", "hour", "day", "week",
+        "month", "quarter"
+    has_paid_subscription : bool
+        Set to True if you have a paid subscription to Polygon.io. This will prevent the script from waiting 1 minute
+        between requests to avoid hitting the rate limit.
+    quote_asset : Asset
+        The quote asset for the asset we are getting data for. This is only needed for Forex assets.
+
+    Returns
+    -------
+    pd.DataFrame
+        A DataFrame with the pricing data for the asset
+
     """
     print(f"\nGetting pricing data for {asset} / {quote_asset} from Polygon...")
     global POLYGON_QUERY_COUNT  # Track if we need to wait between requests
@@ -46,8 +71,8 @@ def get_price_data_from_polygon(
 
     # We need to get more data - A query is definitely about to happen
     # If we don't have a paid subscription, we need to wait 1 minute between requests because of
-    # the rate limit
-    if not has_paid_subscription and POLYGON_QUERY_COUNT:
+    # the rate limit. Wait every other query so that we don't spend too much time waiting.
+    if not has_paid_subscription and POLYGON_QUERY_COUNT % 2:
         print(
             f"\nSleeping {WAIT_TIME} seconds getting pricing data for {asset} from Polygon because "
             f"we don't have a paid subscription and we don't want to hit the rate limit. If you want to "
@@ -89,6 +114,22 @@ def get_price_data_from_polygon(
 
 
 def get_polygon_symbol(asset, polygon_client, quote_asset=None):
+    """
+    Get the symbol for the asset in a format that Polygon will understand
+    Parameters
+    ----------
+    asset : Asset
+        Asset we are getting data for
+    polygon_client : RESTClient
+        The RESTClient connection for Polygon Stock-Equity API
+    quote_asset : Asset
+        The quote asset for the asset we are getting data for
+
+    Returns
+    -------
+    str
+        The symbol for the asset in a format that Polygon will understand
+    """
     # Crypto Asset for Backtesting
     if asset.asset_type == "crypto":
         quote_asset_symbol = quote_asset.symbol if quote_asset else "USD"
@@ -159,7 +200,7 @@ def data_is_complete(df_all, asset, start, end):
     """
     Check if we have data for the full range
     Later Query to Polygon will pad an extra full day to start/end dates so that there should never
-    be any gap with intraday data missing
+    be any gap with intraday data missing.
 
     Parameters
     ----------
@@ -181,8 +222,13 @@ def data_is_complete(df_all, asset, start, end):
         data_start = df_all.index[0]
         data_end = df_all.index[-1]
 
+        # It is possible to have full day gap in the data if previous queries were far apart
+        # Example: Query for 8/1/2023, then 8/31/2023, then 8/7/2023
+        # Whole days are easy to check for because we can just check the dates in the index
+        dates = pd.Series(df_all.index.date).unique()
+
         # Check if we have all the data we need
-        if data_end >= end and data_start <= start:
+        if start.date() in dates and end.date() in dates:
             return True
         # If it's an option then we need to check if the last row is past the expiration date
         elif (asset.asset_type == "option" and
@@ -194,6 +240,7 @@ def data_is_complete(df_all, asset, start, end):
 
 
 def load_cache(cache_file):
+    """Load the data from the cache file and return a DataFrame with a DateTimeIndex"""
     df_csv = pd.read_csv(cache_file, index_col="datetime")
     df_csv.index = pd.to_datetime(df_csv.index)
     df_csv = df_csv.sort_index()
@@ -207,7 +254,7 @@ def load_cache(cache_file):
 
 
 def update_cache(cache_file, df_all, df_csv):
-
+    """Update the cache file with the new data"""
     # Check if df_all is different from df_csv (if df_csv exists)
     if df_all is not None and len(df_all) > 0:
         # Check if the dataframes are the same
@@ -222,6 +269,16 @@ def update_cache(cache_file, df_all, df_csv):
 
 
 def update_polygon_data(df_all, result):
+    """
+    Update the DataFrame with the new data from Polygon
+    Parameters
+    ----------
+    df_all : pd.DataFrame
+        A DataFrame with the data we already have
+    result : list
+        A List of dictionaries with the new data from Polygon
+        Format: [{'o': 1.0, 'h': 2.0, 'l': 3.0, 'c': 4.0, 'v': 5.0, 't': 116120000000}]
+    """
     df = pd.DataFrame(result)
     if df is not None and len(df) > 0:
         # Rename columns

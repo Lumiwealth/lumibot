@@ -21,9 +21,9 @@ setuptools.setup(
         "yfinance>=0.2.18",
         "matplotlib>=3.3.3",
         "quandl",
-        "pandas>=2.0.0,<2.1.0",  # 2.1.0 broke pandas_market_calendars, waiting for fix
+        "pandas>=2.0.0",
         "pandas_datareader",
-        "pandas_market_calendars<=4.1.4",
+        "pandas_market_calendars>4.3.1",
         "plotly",
         "flask>=2.2.2",
         "flask-socketio",

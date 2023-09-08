@@ -1,19 +1,11 @@
-import json
-import os
-
-import requests
 import setuptools
-
-# Disable aiohttp extensions, used to fix error on Windows with Python 3.11
-os.environ['AIOHTTP_NO_EXTENSIONS'] = '1'
-
 
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setuptools.setup(
     name="lumibot",
-    version="2.7.17",
+    version="2.8",
     author="Robert Grzesik",
     author_email="rob@lumiwealth.com",
     description="Backtesting and Trading Library, Made by Lumiwealth",
@@ -23,8 +15,7 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     install_requires=[
         "polygon-api-client",
-        "aiohttp==3.8.1",  # 4.0.0a1 is installed by default but aiohttp==3.8.1 is required by {'alpaca-trade-api'}
-        "alpaca_trade_api>=2.3.0,<3.0.0",
+        "alpaca-py<=0.10.0",
         "alpha_vantage",
         "ibapi==9.81.1.post1",
         "yfinance>=0.2.18",
@@ -50,7 +41,7 @@ setuptools.setup(
         "ccxt==3.0.61",
         "termcolor",
         "jsonpickle",
-        'apscheduler==3.10.1',
+        'apscheduler==3.10.4',
     ],
     classifiers=[
         "Programming Language :: Python :: 3",

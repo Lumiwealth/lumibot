@@ -10,10 +10,11 @@ from threading import RLock, Thread
 import pandas as pd
 import pandas_market_calendars as mcal
 from dateutil import tz
+from termcolor import colored
+
 from lumibot.data_sources import DataSource
 from lumibot.entities import Order, Position
 from lumibot.trading_builtins import SafeList
-from termcolor import colored
 
 
 class Broker:
@@ -120,7 +121,11 @@ class Broker:
             self._filled_positions.append(pos)
 
     def _process_new_order(self, order):
-        logging.info(colored("New %r was submitted." % order, color="green"))
+        # Check if this order already exists in self._new_orders based on the identifier
+        if order in self._new_orders:
+            return
+
+        logging.info(colored(f"New {order} was submitted.", color="green"))
         self._unprocessed_orders.remove(order.identifier, key="identifier")
         order.update_status(self.NEW_ORDER)
         order.set_new()
@@ -707,16 +712,14 @@ class Broker:
             price is None or filled_quantity is None
         ):
             raise ValueError(
-                """For filled_order and partially_filled_order event,
+                f"""For filled_order and partially_filled_order event,
                 price and filled_quantity must be specified.
-                Received respectively %r and %r"""
-                % (price, filled_quantity)
+                Received respectively {price} and {filled_quantity}"""
             )
 
         if filled_quantity is not None:
             error = ValueError(
-                "filled_quantity must be a positive integer, received %r instead"
-                % filled_quantity
+                f"filled_quantity must be a positive integer, received {filled_quantity} instead"
             )
             try:
                 if not isinstance(filled_quantity, Decimal):
@@ -756,7 +759,7 @@ class Broker:
                 position, stored_order, price, filled_quantity, multiplier
             )
         else:
-            logging.info("Unhandled type event %s for %r" % (type_event, stored_order))
+            logging.info(f"Unhandled type event {type_event} for {stored_order}")
 
         if (
             hasattr(self, "_data_source")

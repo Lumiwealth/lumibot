@@ -23,7 +23,7 @@ setuptools.setup(
         "quandl",
         "pandas>=2.0.0",
         "pandas_datareader",
-        "pandas_market_calendars>4.3.1",
+        "pandas_market_calendars>=4.3.1",
         "plotly",
         "flask>=2.2.2",
         "flask-socketio",

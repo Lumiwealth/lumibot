@@ -503,6 +503,17 @@ class Order:
         # Some Backtest runs are using a Decimal for the Transaction quantity, so we need to convert to float
         return round(sum([float(x.price) * float(x.quantity) for x in self.transactions]) / self.quantity, 2)
 
+    def is_canceled(self):
+        """
+        Returns whether this order has been cancelled.
+
+        Returns
+        -------
+        bool
+            True if the order has been cancelled, False otherwise.
+        """
+        return self.status.lower() in ['cancelled', 'canceled', 'cancel']
+
     def is_filled(self):
         """
         Returns whether this order has been filled.

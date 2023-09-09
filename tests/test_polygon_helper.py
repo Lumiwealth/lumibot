@@ -1,6 +1,7 @@
 import datetime
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import pytest
 import pytz
@@ -32,29 +33,96 @@ class TestPolygonHelpers:
         with pytest.raises(ValueError):
             ph.build_cache_filename(option_asset, timespan)
 
-    def test_data_is_complete(self):
+    def test_missing_dates(self):
         # Setup some basics
         asset = Asset("SPY")
-        start_date = datetime.datetime(2023, 7, 1, 9, 30)
-        end_date = datetime.datetime(2023, 7, 1, 10, 0)
+        start_date = datetime.datetime(2023, 8, 1, 9, 30)  # Tuesday
+        end_date = datetime.datetime(2023, 8, 1, 10, 0)
 
         # Empty DataFrame
-        assert not ph.data_is_complete(pd.DataFrame(), asset, start_date, end_date)
+        missing_dates = ph.get_missing_dates(pd.DataFrame(), asset, start_date, end_date)
+        assert len(missing_dates) == 1
+        assert datetime.date(2023, 8, 1) in missing_dates
 
         # Small dataframe that meets start/end criteria
-        df_all = pd.DataFrame(index=pd.date_range(start_date, end_date, freq="1min"))
-        assert ph.data_is_complete(df_all, asset, start_date, end_date)
+        index = pd.date_range(start_date, end_date, freq="1min")
+        df_all = pd.DataFrame({
+            "open": np.random.uniform(0, 100, len(index)).round(2),
+            "close": np.random.uniform(0, 100, len(index)).round(2),
+            "volume": np.random.uniform(0, 10000, len(index)).round(2),
+        }, index=index)
+        missing_dates = ph.get_missing_dates(df_all, asset, start_date, end_date)
+        assert not missing_dates
 
         # Small dataframe that does not meet start/end criteria
-        end_date = datetime.datetime(2023, 7, 2, 13, 0)
-        assert not ph.data_is_complete(df_all, asset, start_date, end_date)
+        end_date = datetime.datetime(2023, 8, 2, 13, 0)  # Weds
+        missing_dates = ph.get_missing_dates(df_all, asset, start_date, end_date)
+        assert missing_dates
+        assert datetime.date(2023, 8, 2) in missing_dates
 
-        # Asking for data beyond option expiration
-        end_date = datetime.datetime(2023, 7, 3, 13, 0)
-        expire_date = datetime.date(2023, 7, 2)
-        df_all = pd.DataFrame(index=pd.date_range(start_date, expire_date, freq="1min"))
+        # Asking for data beyond option expiration - We have all the data
+        end_date = datetime.datetime(2023, 8, 3, 13, 0)
+        expire_date = datetime.date(2023, 8, 2)
+        index = pd.date_range(start_date, end_date, freq="1min")
+        df_all = pd.DataFrame({
+            "open": np.random.uniform(0, 100, len(index)).round(2),
+            "close": np.random.uniform(0, 100, len(index)).round(2),
+            "volume": np.random.uniform(0, 10000, len(index)).round(2),
+        }, index=index)
         option_asset = Asset("SPY", asset_type="option", expiration=expire_date, strike=100, right="CALL")
-        assert ph.data_is_complete(df_all, option_asset, start_date, end_date)
+        missing_dates = ph.get_missing_dates(df_all, option_asset, start_date, end_date)
+        assert not missing_dates
+
+    def test_get_trading_dates(self):
+
+        # Unsupported Asset Type
+        asset = Asset("SPY", asset_type="future")
+        start_date = datetime.datetime(2023, 7, 1, 9, 30)  # Saturday
+        end_date = datetime.datetime(2023, 7, 10, 10, 0)  # Monday
+        with pytest.raises(ValueError):
+            ph.get_trading_dates(asset, start_date, end_date)
+
+        # Stock Asset
+        asset = Asset("SPY")
+        start_date = datetime.datetime(2023, 7, 1, 9, 30)  # Saturday
+        end_date = datetime.datetime(2023, 7, 10, 10, 0)  # Monday
+        trading_dates = ph.get_trading_dates(asset, start_date, end_date)
+        assert datetime.date(2023, 7, 1) not in trading_dates, "Market is closed on Saturday"
+        assert datetime.date(2023, 7, 3) in trading_dates
+        assert datetime.date(2023, 7, 4) not in trading_dates, "Market is closed on July 4th"
+        assert datetime.date(2023, 7, 9) not in trading_dates, "Market is closed on Sunday"
+        assert datetime.date(2023, 7, 10) in trading_dates
+        assert datetime.date(2023, 7, 11) not in trading_dates, "Outside of end_date"
+
+        # Option Asset
+        expire_date = datetime.date(2023, 8, 1)
+        option_asset = Asset("SPY", asset_type="option", expiration=expire_date, strike=100, right="CALL")
+        start_date = datetime.datetime(2023, 7, 1, 9, 30)  # Saturday
+        end_date = datetime.datetime(2023, 7, 10, 10, 0)  # Monday
+        trading_dates = ph.get_trading_dates(option_asset, start_date, end_date)
+        assert datetime.date(2023, 7, 1) not in trading_dates, "Market is closed on Saturday"
+        assert datetime.date(2023, 7, 3) in trading_dates
+        assert datetime.date(2023, 7, 4) not in trading_dates, "Market is closed on July 4th"
+        assert datetime.date(2023, 7, 9) not in trading_dates, "Market is closed on Sunday"
+
+        # Forex Asset - Trades weekdays opens Sunday at 5pm and closes Friday at 5pm
+        forex_asset = Asset("ES", asset_type="forex")
+        start_date = datetime.datetime(2023, 7, 1, 9, 30)  # Saturday
+        end_date = datetime.datetime(2023, 7, 10, 10, 0)  # Monday
+        trading_dates = ph.get_trading_dates(forex_asset, start_date, end_date)
+        assert datetime.date(2023, 7, 1) not in trading_dates, "Market is closed on Saturday"
+        assert datetime.date(2023, 7, 4) in trading_dates
+        assert datetime.date(2023, 7, 10) in trading_dates
+        assert datetime.date(2023, 7, 11) not in trading_dates, "Outside of end_date"
+
+        # Crypto Asset - Trades 24/7
+        crypto_asset = Asset("BTC", asset_type="crypto")
+        start_date = datetime.datetime(2023, 7, 1, 9, 30)  # Saturday
+        end_date = datetime.datetime(2023, 7, 10, 10, 0)  # Monday
+        trading_dates = ph.get_trading_dates(crypto_asset, start_date, end_date)
+        assert datetime.date(2023, 7, 1) in trading_dates
+        assert datetime.date(2023, 7, 4) in trading_dates
+        assert datetime.date(2023, 7, 10) in trading_dates
 
     def test_get_polygon_symbol(self, mocker):
         polygon_client = mocker.MagicMock()
@@ -268,3 +336,30 @@ class TestPolygonPriceData:
         end_date = tz_e.localize(datetime.datetime(2023, 8, 31, 13, 0))
         with pytest.raises(LookupError):
             ph.get_price_data_from_polygon(api_key, asset, start_date, end_date, timespan)
+
+        # Query a large range of dates and ensure we break up the Polygon API calls into
+        # multiple queries.
+        expected_cachefile.unlink()
+        mock_polyclient().get_aggs.reset_mock()
+        mock_polyclient().get_aggs.side_effect = [
+            # First call for Auguest Data
+            [
+                {"o": 5, "h": 8, "l": 3, "c": 7, "v": 100, "t": 1690876800000},  # 8/1/2023 8am UTC
+                {"o": 9, "h": 12, "l": 7, "c": 10, "v": 100, "t": 1693497600000},  # 8/31/2023 8am UTC
+            ],
+            # Second call for September Data
+            [
+                {"o": 13, "h": 16, "l": 11, "c": 14, "v": 100, "t": 1693584000000},  # 9/1/2023 8am UTC
+                {"o": 17, "h": 20, "l": 15, "c": 18, "v": 100, "t": 1696176000000},  # 10/1/2023 8am UTC
+            ],
+            # Third call for October Data
+            [
+                {"o": 21, "h": 24, "l": 19, "c": 22, "v": 100, "t": 1696262400000},  # 10/2/2023 8am UTC
+                {"o": 25, "h": 28, "l": 23, "c": 26, "v": 100, "t": 1698768000000},  # 10/31/2023 8am UTC
+            ],
+        ]
+        start_date = tz_e.localize(datetime.datetime(2023, 8, 1, 6, 30))
+        end_date = tz_e.localize(datetime.datetime(2023, 10, 31, 13, 0))  # ~90 days
+        df = ph.get_price_data_from_polygon(api_key, asset, start_date, end_date, timespan)
+        assert mock_polyclient().get_aggs.call_count == 3
+        assert len(df) == 2 + 2 + 2

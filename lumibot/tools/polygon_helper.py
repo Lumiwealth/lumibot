@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import pandas as pd
+import pandas_market_calendars as mcal
 
 # noinspection PyPackageRequirements
 from polygon import RESTClient
@@ -13,6 +14,7 @@ from lumibot.entities import Asset
 
 WAIT_TIME = 60
 POLYGON_QUERY_COUNT = 0
+MAX_POLYGON_DAYS = 30
 
 
 def get_price_data_from_polygon(
@@ -66,7 +68,8 @@ def get_price_data_from_polygon(
         df_all = df_csv.copy()  # Make a copy so we can check the original later for differences
 
     # Check if we need to get more data
-    if data_is_complete(df_all, asset, start, end):
+    missing_dates = get_missing_dates(df_all, asset, start, end)
+    if not missing_dates:
         return df_all
 
     # We need to get more data - A query is definitely about to happen
@@ -86,31 +89,81 @@ def get_price_data_from_polygon(
     polygon_client = RESTClient(api_key)
     symbol = get_polygon_symbol(asset, polygon_client, quote_asset)  # Will do a Polygon query for option contracts
 
-    # To reduce calls to Polygon, we pad an extra day to the start/end dates so that we can
+    # To reduce calls to Polygon, we call on full date ranges instead of including hours/minutes
     # get the full range of data we need in one call and ensure that there won't be any intraday gaps in the data.
     # Option data won't have any extended hours data so the padding is extra important for those.
-    poly_start = start.date() - timedelta(days=1)  # Data will start at 8am UTC (4am EST)
-    poly_end = end.date() + timedelta(days=1)      # Data will end at 23:59 UTC (7:59pm EST)
+    poly_start = missing_dates[0]  # Data will start at 8am UTC (4am EST)
+    poly_end = missing_dates[-1]   # Data will end at 23:59 UTC (7:59pm EST)
 
-    POLYGON_QUERY_COUNT += 1
-    result = polygon_client.get_aggs(
-        ticker=symbol,
-        from_=poly_start,  # polygon-api-client docs say 'from' but that is a reserved word in python
-        to=poly_end,
-        # In Polygon, multiplier is the number of "timespans" in each candle, so if you want 5min candles
-        # returned you would set multiplier=5 and timespan="minute". This is very different from the
-        # asset.multiplier setting for option contracts.
-        multiplier=1,
-        timespan=timespan,
-    )
+    # Polygon only returns 50k results per query (~30days of 24hr 1min-candles) so we need to break up the query into
+    # multiple queries if we are requesting more than 30 days of data
+    delta = timedelta(days=MAX_POLYGON_DAYS)
+    while poly_start <= missing_dates[-1]:
+        if poly_end > poly_start + delta:
+            poly_end = poly_start + delta
 
-    # Check if we got data from Polygon
-    if not result:
-        raise LookupError(f"No data returned from Polygon for {asset}")
+        POLYGON_QUERY_COUNT += 1
+        result = polygon_client.get_aggs(
+            ticker=symbol,
+            from_=poly_start,  # polygon-api-client docs say 'from' but that is a reserved word in python
+            to=poly_end,
+            # In Polygon, multiplier is the number of "timespans" in each candle, so if you want 5min candles
+            # returned you would set multiplier=5 and timespan="minute". This is very different from the
+            # asset.multiplier setting for option contracts.
+            multiplier=1,
+            timespan=timespan,
+            limit=50000,  # Max limit for Polygon
+        )
 
-    df_all = update_polygon_data(df_all, result)
+        # Check if we got data from Polygon
+        if not result:
+            raise LookupError(f"No data returned from Polygon for {asset}")
+
+        df_all = update_polygon_data(df_all, result)
+        poly_start = poly_end + timedelta(days=1)
+        poly_end = poly_start + delta
+
     update_cache(cache_file, df_all, df_csv)
     return df_all
+
+
+def get_trading_dates(asset: Asset, start: datetime, end: datetime):
+    """
+    Get a list of trading days for the asset between the start and end dates
+    Parameters
+    ----------
+    asset : Asset
+        Asset we are getting data for
+    start : datetime
+        Start date for the data requested
+    end : datetime
+        End date for the data requested
+
+    Returns
+    -------
+
+    """
+    # Crypto Asset Calendar
+    if asset.asset_type == "crypto":
+        # Crypto trades every day, 24/7 so we don't need to check the calendar
+        return [start.date() + timedelta(days=x) for x in range((end.date() - start.date()).days + 1)]
+
+    # Stock/Option Asset for Backtesting - Assuming NYSE trading days
+    elif asset.asset_type == "stock" or asset.asset_type == "option":
+        cal = mcal.get_calendar("NYSE")
+
+    # Forex Asset for Backtesting - Forex trades weekdays, 24hrs starting Sunday 5pm EST
+    # Calendar: "CME_FX"
+    elif asset.asset_type == "forex":
+        cal = mcal.get_calendar("CME_FX")
+
+    else:
+        raise ValueError(f"Unsupported asset type for polygon: {asset.asset_type}")
+
+    # Get the trading days between the start and end dates
+    df = cal.schedule(start_date=start.date(), end_date=end.date())
+    trading_days = df.index.date.tolist()
+    return trading_days
 
 
 def get_polygon_symbol(asset, polygon_client, quote_asset=None):
@@ -196,7 +249,7 @@ def build_cache_filename(asset: Asset, timespan: str) -> Path:
     return cache_file
 
 
-def data_is_complete(df_all, asset, start, end):
+def get_missing_dates(df_all, asset, start, end) -> list[datetime.date]:
     """
     Check if we have data for the full range
     Later Query to Polygon will pad an extra full day to start/end dates so that there should never
@@ -215,28 +268,24 @@ def data_is_complete(df_all, asset, start, end):
 
     Returns
     -------
-    bool
-        True if we have all the data we need, False if we need to get more data
+    list[datetime.date]
+        A list of dates that we need to get data for
     """
-    if df_all is not None and len(df_all) > 0:
-        data_start = df_all.index[0]
-        data_end = df_all.index[-1]
+    trading_dates = get_trading_dates(asset, start, end)
+    if df_all is None or not len(df_all):
+        return trading_dates
 
-        # It is possible to have full day gap in the data if previous queries were far apart
-        # Example: Query for 8/1/2023, then 8/31/2023, then 8/7/2023
-        # Whole days are easy to check for because we can just check the dates in the index
-        dates = pd.Series(df_all.index.date).unique()
+    # It is possible to have full day gap in the data if previous queries were far apart
+    # Example: Query for 8/1/2023, then 8/31/2023, then 8/7/2023
+    # Whole days are easy to check for because we can just check the dates in the index
+    dates = pd.Series(df_all.index.date).unique()
+    missing_dates = sorted(set(trading_dates) - set(dates))
 
-        # Check if we have all the data we need
-        if start.date() in dates and end.date() in dates:
-            return True
-        # If it's an option then we need to check if the last row is past the expiration date
-        elif (asset.asset_type == "option" and
-              data_end.date() >= asset.expiration and
-              data_start <= start):
-            return True
+    # For Options, don't need any dates passed the expiration date
+    if asset.asset_type == "option":
+        missing_dates = [x for x in missing_dates if x <= asset.expiration]
 
-    return False
+    return missing_dates
 
 
 def load_cache(cache_file):

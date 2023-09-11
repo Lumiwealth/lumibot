@@ -58,3 +58,14 @@ class TestOrderBasics:
         order.position_filled = False
         order.status = 'filled'
         assert order.is_filled()
+
+    def test_cancelled(self):
+        asset = Asset("SPY")
+        order = Order(strategy='abc', asset=asset, side="buy", quantity=100)
+        assert not order.is_canceled()
+        order.status = 'cancelled'
+        assert order.is_canceled()
+        order.status = 'canceled'
+        assert order.is_canceled()
+        order.status = 'cancel'
+        assert order.is_canceled()

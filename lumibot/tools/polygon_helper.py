@@ -13,7 +13,7 @@ from lumibot import LUMIBOT_CACHE_FOLDER
 from lumibot.entities import Asset
 
 WAIT_TIME = 60
-POLYGON_QUERY_COUNT = 0
+POLYGON_QUERY_COUNT = 0  # This is a variable that updates every time we query Polygon
 MAX_POLYGON_DAYS = 30
 
 

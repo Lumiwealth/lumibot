@@ -75,7 +75,7 @@ def get_price_data_from_polygon(
     # We need to get more data - A query is definitely about to happen
     # If we don't have a paid subscription, we need to wait 1 minute between requests because of
     # the rate limit. Wait every other query so that we don't spend too much time waiting.
-    if not has_paid_subscription and POLYGON_QUERY_COUNT % 2:
+    if not has_paid_subscription and POLYGON_QUERY_COUNT % 3 == 0:
         print(
             f"\nSleeping {WAIT_TIME} seconds getting pricing data for {asset} from Polygon because "
             f"we don't have a paid subscription and we don't want to hit the rate limit. If you want to "

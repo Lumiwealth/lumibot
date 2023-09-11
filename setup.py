@@ -42,6 +42,7 @@ setuptools.setup(
         "termcolor",
         "jsonpickle",
         'apscheduler==3.10.4',
+        "appdirs",
     ],
     classifiers=[
         "Programming Language :: Python :: 3",

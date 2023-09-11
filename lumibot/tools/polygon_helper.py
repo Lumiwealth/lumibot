@@ -25,7 +25,7 @@ def get_price_data_from_polygon(
     timespan: str = "minute",
     has_paid_subscription: bool = False,
     quote_asset: Asset = None,
-) -> pd.DataFrame:
+):
     """
     Queries Polygon.io for pricing data for the given asset and returns a DataFrame with the data. Data will be
     cached in the LUMIBOT_CACHE_FOLDER/polygon folder so that it can be reused later and we don't have to query
@@ -226,7 +226,7 @@ def get_polygon_symbol(asset, polygon_client, quote_asset=None):
     return symbol
 
 
-def build_cache_filename(asset: Asset, timespan: str) -> Path:
+def build_cache_filename(asset: Asset, timespan: str):
     """Helper function to create the cache filename for a given asset and timespan"""
 
     lumibot_polygon_cache_folder = Path(LUMIBOT_CACHE_FOLDER) / "polygon"
@@ -249,7 +249,7 @@ def build_cache_filename(asset: Asset, timespan: str) -> Path:
     return cache_file
 
 
-def get_missing_dates(df_all, asset, start, end) -> list[datetime.date]:
+def get_missing_dates(df_all, asset, start, end):
     """
     Check if we have data for the full range
     Later Query to Polygon will pad an extra full day to start/end dates so that there should never

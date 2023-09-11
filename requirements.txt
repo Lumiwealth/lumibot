@@ -26,3 +26,4 @@ termcolor
 jsonpickle
 apscheduler
 alpaca-py
+appdirs

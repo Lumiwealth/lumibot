@@ -1,6 +1,6 @@
 import logging
 import traceback
-from datetime import timedelta
+from datetime import timedelta, date
 
 from lumibot.data_sources import PandasData
 from lumibot.entities import Asset, Data
@@ -249,15 +249,23 @@ class PolygonDataBacktesting(DataSourceBacktesting, PandasData):
         option_contracts = {"SMART": {"TradingClass": None, "Multiplier": None, "Expirations": [], "Strikes": []}}
         contracts = option_contracts['SMART']  # initialize contracts
         today = self.get_datetime().date()
+        real_today = date.today()
 
         # All Contracts | to match lumitbot, more inputs required from get_chains()
-        polgon_contracts = self.polygon_client.list_options_contracts(
-            underlying_ticker=asset.symbol,
-            expiration_date_gte=today,
-            expired=True,  # Needed so BackTest can look at old contracts to find the expirations/strikes
-            limit=1000
-        )
-        for polygon_contract in polgon_contracts:
+        # If the strategy is using a recent backtest date, some contracts might not be expired yet, query those too
+        expired_list = [True, False] if real_today - today <= timedelta(days=31) else [True]
+        polygon_contracts = []
+        for expired in expired_list:
+            polygon_contracts.extend(list(
+                self.polygon_client.list_options_contracts(
+                    underlying_ticker=asset.symbol,
+                    expiration_date_gte=today,
+                    expired=expired,  # Needed so BackTest can look at old contracts to find the expirations/strikes
+                    limit=1000
+                ))
+            )
+
+        for polygon_contract in polygon_contracts:
             # Return to Loop and Skip if Multipler is not 100 because non-standard contracts are not supported
             if polygon_contract.shares_per_contract != 100:
                 continue

@@ -1,16 +1,15 @@
 # This file contains helper functions for getting data from Polygon.io
 import time
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import pandas as pd
 import pandas_market_calendars as mcal
+from lumibot import LUMIBOT_CACHE_FOLDER
+from lumibot.entities import Asset
 
 # noinspection PyPackageRequirements
 from polygon import RESTClient
-
-from lumibot import LUMIBOT_CACHE_FOLDER
-from lumibot.entities import Asset
 
 WAIT_TIME = 60
 POLYGON_QUERY_COUNT = 0  # This is a variable that updates every time we query Polygon
@@ -72,18 +71,6 @@ def get_price_data_from_polygon(
     if not missing_dates:
         return df_all
 
-    # We need to get more data - A query is definitely about to happen
-    # If we don't have a paid subscription, we need to wait 1 minute between requests because of
-    # the rate limit. Wait every other query so that we don't spend too much time waiting.
-    if not has_paid_subscription and POLYGON_QUERY_COUNT % 3 == 0:
-        print(
-            f"\nSleeping {WAIT_TIME} seconds getting pricing data for {asset} from Polygon because "
-            f"we don't have a paid subscription and we don't want to hit the rate limit. If you want to "
-            f"avoid this, you can get a paid subscription at https://polygon.io/pricing and "
-            f"set `polygon_has_paid_subscription=True` when starting the backtest.\n"
-        )
-        time.sleep(WAIT_TIME)
-
     # RESTClient connection for Polygon Stock-Equity API; traded_asset is standard
     # Add "trace=True" to see the API calls printed to the console for debugging
     polygon_client = RESTClient(api_key)
@@ -99,6 +86,17 @@ def get_price_data_from_polygon(
     # multiple queries if we are requesting more than 30 days of data
     delta = timedelta(days=MAX_POLYGON_DAYS)
     while poly_start <= missing_dates[-1]:
+        # If we don't have a paid subscription, we need to wait 1 minute between requests because of
+        # the rate limit. Wait every other query so that we don't spend too much time waiting.
+        if not has_paid_subscription and POLYGON_QUERY_COUNT % 3 == 0:
+            print(
+                f"\nSleeping {WAIT_TIME} seconds getting pricing data for {asset} from Polygon because "
+                f"we don't have a paid subscription and we don't want to hit the rate limit. If you want to "
+                f"avoid this, you can get a paid subscription at https://polygon.io/pricing and "
+                f"set `polygon_has_paid_subscription=True` when starting the backtest.\n"
+            )
+            time.sleep(WAIT_TIME)
+
         if poly_end > poly_start + delta:
             poly_end = poly_start + delta
 
@@ -204,13 +202,17 @@ def get_polygon_symbol(asset, polygon_client, quote_asset=None):
 
     # Option Asset for Backtesting - Do a query to Polygon to get the ticker
     elif asset.asset_type == "option":
+        # Needed so BackTest both old and existing contracts
+        real_today = date.today()
+        expired = True if asset.expiration < real_today else False
+
         # Query for the historical Option Contract ticker backtest is looking for
         contracts = list(polygon_client.list_options_contracts(
             underlying_ticker=asset.symbol,
             expiration_date=asset.expiration,
             contract_type=asset.right.lower(),
             strike_price=asset.strike,
-            expired=True,  # Needed so BackTest can look at old contracts to find the ticker we need
+            expired=expired,
             limit=10,
         ))
 

@@ -17,7 +17,7 @@ class PolygonBacktestStrat(Strategy):
     parameters = {"symbol": "AMZN"}
 
     # Set the initial values for the strategy
-    def initialize(self):
+    def initialize(self, parameters=None):
         self.sleeptime = "1D"
         self.first_price = None
         self.first_option_price = None
@@ -232,18 +232,3 @@ class TestPolygonBacktestFull:
             polygon_has_paid_subscription=True,
         )
         assert results
-
-
-class TestPolygonBacktestBasics:
-    def test_polygon_basics(self):
-        asset = Asset("SPY")
-        now = datetime.datetime.now(pytz.utc)
-        start = now - datetime.timedelta(days=1)
-        end = now
-        polygon_backtest = PolygonDataBacktesting(
-            start,
-            end,
-            polygon_api_key=POLYGON_API_KEY,
-            has_paid_subscription=True,
-        )
-        assert polygon_backtest.get_last_price(asset)

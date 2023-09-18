@@ -136,7 +136,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
                 if position["position"] != 0:
                     positions.append(position)
         else:
-            logging.info("No positions found at interactive brokers.")
+            logging.debug("No positions found at interactive brokers.")
 
         return positions
 

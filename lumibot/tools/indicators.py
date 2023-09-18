@@ -28,7 +28,7 @@ def total_return(_df):
     df = df.sort_index(ascending=True)
     df["cum_return"] = (1 + df["return"]).cumprod()
 
-    total_ret = df["cum_return"][-1] - 1
+    total_ret = df["cum_return"].iloc[-1] - 1
 
     return total_ret
 
@@ -48,7 +48,7 @@ def cagr(_df):
     df = _df.copy()
     df = df.sort_index(ascending=True)
     df["cum_return"] = (1 + df["return"]).cumprod()
-    total_ret = df["cum_return"][-1]
+    total_ret = df["cum_return"].iloc[-1]
     start = datetime.utcfromtimestamp(df.index.values[0].astype("O") / 1e9)
     end = datetime.utcfromtimestamp(df.index.values[-1].astype("O") / 1e9)
     period_years = (end - start).days / 365.25

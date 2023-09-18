@@ -464,11 +464,11 @@ class BacktestingBroker(Broker):
                     self.cancel_order(order)
                     continue
                 dt = ohlc.df.index[-1]
-                open = ohlc.df["open"][-1]
-                high = ohlc.df["high"][-1]
-                low = ohlc.df["low"][-1]
-                close = ohlc.df["close"][-1]
-                volume = ohlc.df["volume"][-1]
+                open = ohlc.df["open"].iloc[-1]
+                high = ohlc.df["high"].iloc[-1]
+                low = ohlc.df["low"].iloc[-1]
+                close = ohlc.df["close"].iloc[-1]
+                volume = ohlc.df["volume"].iloc[-1]
 
             #############################
             # Determine transaction price.

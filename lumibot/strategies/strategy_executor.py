@@ -812,9 +812,13 @@ class StrategyExecutor(Thread):
                 logging.error(traceback.format_exc())
                 try:
                     self._on_bot_crash(e)
-                except Exception as e:
-                    logging.error(e)
+                except Exception as e1:
+                    logging.error(e1)
                     logging.error(traceback.format_exc())
+
+                # In BackTesting, we want to stop the bot if it crashes so there isn't an infinite loop
+                if self.strategy.is_backtesting:
+                    raise RuntimeError("Exception encountered, stopping BackTest.") from e
 
                 # Only stop the strategy if it's time, otherwise keep running the bot
                 if not self._strategy_sleep():

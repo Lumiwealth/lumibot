@@ -455,7 +455,16 @@ class Order:
                 f"{self.symbol} {self.asset.expiration} "
                 f"{self.asset.right} {self.asset.strike}"
             )
+
+        price = 0
+        for attribute in ["limit_price", "stop_price", "take_profit_price"]:
+            if getattr(self, attribute) is not None:
+                price = getattr(self, attribute)
+                break
+
         repr_str = f"{self.type} order of | {self.quantity} {self.rep_asset} {self.side} |"
+        if price:
+            repr_str = f"{repr_str} at price ${price}"
         if self.order_class:
             repr_str = f"{repr_str} of class {self.order_class}"
         repr_str = f"{repr_str} with status {self.status}"

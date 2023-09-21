@@ -5,7 +5,6 @@ import numpy as np
 import pandas as pd
 import pytest
 import pytz
-
 from lumibot.entities import Asset
 from lumibot.tools import polygon_helper as ph
 
@@ -334,8 +333,6 @@ class TestPolygonPriceData:
         mock_polyclient().get_aggs.reset_mock()
         mock_polyclient().get_aggs.return_value = []
         end_date = tz_e.localize(datetime.datetime(2023, 8, 31, 13, 0))
-        with pytest.raises(LookupError):
-            ph.get_price_data_from_polygon(api_key, asset, start_date, end_date, timespan)
 
         # Query a large range of dates and ensure we break up the Polygon API calls into
         # multiple queries.

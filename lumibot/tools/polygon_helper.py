@@ -5,11 +5,12 @@ from pathlib import Path
 
 import pandas as pd
 import pandas_market_calendars as mcal
-from lumibot import LUMIBOT_CACHE_FOLDER
-from lumibot.entities import Asset
 
 # noinspection PyPackageRequirements
 from polygon import RESTClient
+
+from lumibot import LUMIBOT_CACHE_FOLDER
+from lumibot.entities import Asset
 
 WAIT_TIME = 60
 POLYGON_QUERY_COUNT = 0  # This is a variable that updates every time we query Polygon
@@ -113,11 +114,9 @@ def get_price_data_from_polygon(
             limit=50000,  # Max limit for Polygon
         )
 
-        # Check if we got data from Polygon
-        if not result:
-            raise LookupError(f"No data returned from Polygon for {asset}")
+        if result:
+            df_all = update_polygon_data(df_all, result)
 
-        df_all = update_polygon_data(df_all, result)
         poly_start = poly_end + timedelta(days=1)
         poly_end = poly_start + delta
 

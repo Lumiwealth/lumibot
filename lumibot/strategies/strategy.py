@@ -7,8 +7,9 @@ from typing import Union
 import numpy as np
 import pandas as pd
 import pandas_market_calendars as mcal
-from lumibot.entities import Asset, Order
 from termcolor import colored
+
+from lumibot.entities import Asset, Order
 
 from ._strategy import _Strategy
 
@@ -2025,6 +2026,22 @@ class Strategy(_Strategy):
 
         return sorted(list(set(cd.contract.strike for cd in contract_details)))
 
+    def find_first_friday(self, timestamp):
+        # Convert the timestamp to a datetime object if it's not already one
+        if isinstance(timestamp, pd.Timestamp):
+            timestamp = timestamp.to_pydatetime()
+
+        # Get the day index of the first day of the month (0 is Monday, 1 is Tuesday, etc.)
+        day_index = timestamp.weekday()
+
+        # Calculate the number of days to add to reach the first Friday
+        days_to_add = (4 - day_index) % 7
+
+        # Create a new datetime object for the first Friday of the month
+        first_friday = timestamp + datetime.timedelta(days=days_to_add)
+
+        return first_friday
+
     def get_option_expiration_after_date(self, dt: datetime.date):
         """Returns the next option expiration date after the given date.
 
@@ -2060,8 +2077,8 @@ class Strategy(_Strategy):
             # Localize the first day of the month to the timezone
             first_day_of_month = first_day_of_month.tz_localize(tz)
 
-            # Find the first Friday of the month
-            first_friday = first_day_of_month + pd.tseries.offsets.Week(weekday=4)
+            # Get the first Friday of the month
+            first_friday = self.find_first_friday(first_day_of_month)
 
             # Calculate the third Friday
             third_friday = first_friday + pd.tseries.offsets.Week(2)

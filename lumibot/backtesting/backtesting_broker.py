@@ -117,10 +117,11 @@ class BacktestingBroker(Broker):
             return 0
 
         trading_day = search.iloc[0]
-        if now >= trading_day.market_open:
+        open_time = self._data_source.datetime_start if self.IS_BACKTESTING_BROKER else trading_day.market_open
+        if now >= open_time:
             return 0
 
-        delta = trading_day.market_open - now
+        delta = open_time - now
         return delta.total_seconds()
 
     # TODO: speed up this function, it is a major bottleneck

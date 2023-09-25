@@ -164,26 +164,6 @@ class PandasData(DataSource):
                 if (asset.symbol == symbol and asset.asset_type == asset_type)
             ]
 
-    def is_tradable(self, asset, dt, length=1, timestep="minute", timeshift=0):
-        # Determines is an asset has data over dt, length, timestep, and timeshift.
-        if self._data_store[asset].is_tradable(
-            dt, length=length, timestep=timestep, timeshift=timeshift
-        ):
-            return True
-        else:
-            return False
-
-    def get_tradable_assets(self, dt, length=1, timestep="minute", timeshift=0):
-        # Returns list of assets that can be traded. Empty list if None.
-        tradable = list()
-        for item, data in self._data_store.items():
-            asset = item[0]
-            if data.is_tradable(
-                dt, length=length, timestep=timestep, timeshift=timeshift
-            ):
-                tradable.append(asset)
-        return tradable
-
     def update_date_index(self):
         dt_index = None
         for asset, data in self._data_store.items():

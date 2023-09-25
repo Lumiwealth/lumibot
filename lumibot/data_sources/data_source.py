@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 
@@ -9,7 +10,7 @@ from lumibot.tools.black_scholes import BS
 from .exceptions import UnavailabeTimestep
 
 
-class DataSource:
+class DataSource(ABC):
     SOURCE = ""
     IS_BACKTESTING_DATA_SOURCE = False
     MIN_TIMESTEP = "minute"
@@ -17,15 +18,69 @@ class DataSource:
     DEFAULT_TIMEZONE = LUMIBOT_DEFAULT_TIMEZONE
     DEFAULT_PYTZ = LUMIBOT_DEFAULT_PYTZ
 
+    def __init__(self, **kwargs):
+        self.name = "data_source"
+        self._timestep = None
+
+    # ========Required Implementations ======================
+    @abstractmethod
+    def _pull_source_symbol_bars(
+            self,
+            asset,
+            length,
+            timestep=MIN_TIMESTEP,
+            timeshift=None,
+            quote=None,
+            exchange=None,
+            include_after_hours=True
+    ):
+        """pull source bars for a given asset"""
+        pass
+
+    @abstractmethod
+    def _pull_source_bars(
+            self, assets, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None, include_after_hours=True
+    ):
+        pass
+
+    @abstractmethod
+    def _parse_source_symbol_bars(self, response, asset, quote=None, length=None):
+        pass
+
     # ========Python datetime helpers======================
 
     def get_datetime(self):
+        """
+        Returns the current datetime in the default timezone
+
+        Returns
+        -------
+        datetime
+        """
         return self.to_default_timezone(datetime.now())
 
     def get_timestamp(self):
+        """
+        Returns the current timestamp in the default timezone
+        Returns
+        -------
+        float
+        """
         return self.get_datetime().timestamp()
 
     def get_round_minute(self, timeshift=0):
+        """
+        Returns the current datetime rounded to the minute and applies a timeshift in minutes
+        Parameters
+        ----------
+        timeshift: int
+            The number of minutes to shift the datetime by
+
+        Returns
+        -------
+        datetime
+            Rounded datetime with the timeshift applied
+        """
         current = self.get_datetime().replace(second=0, microsecond=0)
         return current - timedelta(minutes=timeshift)
 
@@ -33,6 +88,18 @@ class DataSource:
         return self.get_round_minute(timeshift=1)
 
     def get_round_day(self, timeshift=0):
+        """
+        Returns the current datetime rounded to the day and applies a timeshift in days
+        Parameters
+        ----------
+        timeshift: int
+            The number of days to shift the datetime by
+
+        Returns
+        -------
+        datetime
+            Rounded datetime with the timeshift applied
+        """
         current = self.get_datetime().replace(hour=0, minute=0, second=0, microsecond=0)
         return current - timedelta(days=timeshift)
 
@@ -51,7 +118,7 @@ class DataSource:
             end_date -= timeshift
 
         start_date = end_date - period_length
-        return (start_date, end_date)
+        return start_date, end_date
 
     @classmethod
     def localize_datetime(cls, dt):
@@ -85,27 +152,6 @@ class DataSource:
                     return item["timestep"]
 
         raise UnavailabeTimestep(self.SOURCE, timestep)
-
-    def _pull_source_symbol_bars(
-        self,
-        asset,
-        length,
-        timestep=MIN_TIMESTEP,
-        timeshift=None,
-        quote=None,
-        exchange=None,
-        include_after_hours=True
-    ):
-        """pull source bars for a given asset"""
-        pass
-
-    def _pull_source_bars(
-        self, assets, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None,  include_after_hours=True
-    ):
-        pass
-
-    def _parse_source_symbol_bars(self, response, asset, quote=None, length=None):
-        pass
 
     def _parse_source_bars(self, response, quote=None):
         result = {}
@@ -181,10 +227,6 @@ class DataSource:
 
         return result
 
-    def get_last_price(self, asset, timestep=None, quote=None, exchange=None, **kwargs):
-        """Takes an asset and returns the last known price"""
-        pass
-
     def get_last_prices(
         self, assets, timestep=None, quote=None, exchange=None, **kwargs
     ):
@@ -202,14 +244,6 @@ class DataSource:
             return result
         else:
             return AssetsMapping(result)
-
-    def is_tradable(self, asset, dt, length=1, timestep="minute", timeshift=0):
-        # Check if an asset is tradable at this moment.
-        raise NotImplementedError(self.__class__.__name__ + ".is_tradable")
-
-    def get_tradable_assets(self, dt, length=1, timestep="minute", timeshift=0):
-        # Return a list of tradable assets.
-        raise NotImplementedError(self.__class__.__name__ + ".get_tradable_assets")
 
     def get_yesterday_dividend(self, asset, quote=None):
         """Return dividend per share for a given

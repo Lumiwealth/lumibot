@@ -79,6 +79,12 @@ class InteractiveBrokersData(DataSource):
         },
     ]
 
+    def __init__(self, config, max_workers=20, chunk_size=100, **kwargs):
+        super().__init__(**kwargs)
+        self.name = "interactivebrokers"
+        self.max_workers = min(max_workers, 200)
+        self.chunk_size = min(chunk_size, 100)
+
     @staticmethod
     def _format_datetime(dt):
         return pd.Timestamp(dt).isoformat()
@@ -86,11 +92,6 @@ class InteractiveBrokersData(DataSource):
     @staticmethod
     def _format_ib_datetime(dt):
         return pd.Timestamp(dt).strftime("%Y%m%d %H:%M:%S")
-
-    def __init__(self, config, max_workers=20, chunk_size=100, **kwargs):
-        self.name = "interactivebrokers"
-        self.max_workers = min(max_workers, 200)
-        self.chunk_size = min(chunk_size, 100)
 
     def _parse_duration(self, length, timestep):
         # If the timestemp includes a number, then separate it from the unit.

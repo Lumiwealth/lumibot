@@ -1,6 +1,5 @@
 import logging
 import traceback
-from ast import Or
 from datetime import datetime, timedelta
 from decimal import Decimal
 from email.utils import quote
@@ -26,9 +25,8 @@ class BacktestingBroker(Broker):
 
         if not data_source.IS_BACKTESTING_DATA_SOURCE:
             raise ValueError("object %r is not a backtesting data_source" % data_source)
-        self._data_source = data_source
 
-        Broker.__init__(self, name=self.name, connect_stream=connect_stream)
+        Broker.__init__(self, name=self.name, connect_stream=connect_stream, data_source=data_source)
 
     def __getattribute__(self, name):
         attr = object.__getattribute__(self, name)
@@ -60,6 +58,24 @@ class BacktestingBroker(Broker):
     @property
     def datetime(self):
         return self._data_source._datetime
+
+    def _submit_order(self, order):
+        """TODO: Why is this not used for Backtesting, but it is used for real brokers?"""
+        pass
+
+    def _get_balances_at_broker(self, quote_asset):
+        """
+        Get the balances of the broker
+        """
+        # return self._data_source.get_balances()
+        pass
+
+    def _get_tick(self, order: Order):
+        """TODO: Review this function with Rob"""
+        pass
+
+    def get_historical_account_value(self):
+        pass
 
     # =========Internal functions==================
 
@@ -209,10 +225,10 @@ class BacktestingBroker(Broker):
         order = response
         return order
 
-    def _pull_broker_order(self, id):
+    def _pull_broker_order(self, identifier):
         """Get a broker order representation by its id"""
         for order in self._tracked_orders:
-            if order.id == id:
+            if order.id == identifier:
                 return order
         return None
 

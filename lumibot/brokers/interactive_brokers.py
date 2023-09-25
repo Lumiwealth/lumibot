@@ -111,17 +111,8 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         position = Position(strategy, asset, quantity, orders=orders)
         return position
 
-    # def _parse_broker_positions(self, broker_positions, strategy):
-    #     """Parse a list of broker positions into a
-    #     list of position objects"""
-    #     result = []
-    #     for broker_position in broker_positions:
-    #         result.append(self._parse_broker_position(broker_position, strategy))
-    #
-    #     return result
-
     def _pull_broker_position(self, asset):
-        """Given a asset, get the broker representation
+        """Given an asset, get the broker representation
         of the corresponding asset"""
         result = self._pull_broker_positions()
         result = result[result["Symbol"] == asset].squeeze()
@@ -244,24 +235,11 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         self.ib.cancel_order(order)
 
     # =========Market functions=======================
-
-    def get_tradable_assets(self, easy_to_borrow=None, filter_func=None):
-        """Get the list of all tradable assets from the market"""
-        unavail_warning = (
-            f"ERROR: When working with Interactive Brokers it is not possible to "
-            f"acquire all of the tradable assets in the markets. "
-            f"Please do not use `get_tradable_assets`."
-        )
-        logging.info(unavail_warning)
-        print(unavail_warning)
-
-        return
-
     def _close_connection(self):
         self.ib.disconnect()
 
     def _get_balances_at_broker(self, quote_asset):
-        """Get's the current actual cash, positions value, and total
+        """Gets the current actual cash, positions value, and total
         liquidation value from interactive Brokers.
 
         This method will get the current actual values from Interactive
@@ -276,10 +254,10 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
             summary = self.ib.get_account_summary()
         except:
             logger.error(
-                f"Could not get broker balances. Please check your broker "
-                f"configuration and make sure that TWS is running with the "
-                f"correct configuration. For more information, please "
-                f"see the documentation here: https://lumibot.lumiwealth.com/brokers.interactive_brokers.html"
+                "Could not get broker balances. Please check your broker "
+                "configuration and make sure that TWS is running with the "
+                "correct configuration. For more information, please "
+                "see the documentation here: https://lumibot.lumiwealth.com/brokers.interactive_brokers.html"
             )
 
             return None

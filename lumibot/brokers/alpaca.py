@@ -304,9 +304,9 @@ class Alpaca(AlpacaData, Broker):
         order.update_raw(response)
         return order
 
-    def _pull_broker_order(self, id):
+    def _pull_broker_order(self, identifier):
         """Get a broker order representation by its id"""
-        response = self.api.get_order(id)
+        response = self.api.get_order(identifier)
         return response
 
     def _pull_broker_open_orders(self):

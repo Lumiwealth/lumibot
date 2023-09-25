@@ -1,9 +1,9 @@
 import logging
 import time
+from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from functools import wraps
 from queue import Queue
 from threading import RLock, Thread
 
@@ -13,11 +13,11 @@ from dateutil import tz
 from termcolor import colored
 
 from lumibot.data_sources import DataSource
-from lumibot.entities import Order, Position
+from lumibot.entities import Asset, Order, Position
 from lumibot.trading_builtins import SafeList
 
 
-class Broker:
+class Broker(ABC):
 
     # Metainfo
     IS_BACKTESTING_BROKER = False
@@ -28,7 +28,7 @@ class Broker:
     FILLED_ORDER = "fill"
     PARTIALLY_FILLED_ORDER = "partial_fill"
 
-    def __init__(self, name="", connect_stream=True):
+    def __init__(self, name="", connect_stream=True, data_source: DataSource = None):
         """Broker constructor"""
         # Shared Variables between threads
         self.name = name
@@ -43,6 +43,7 @@ class Broker:
         self._trade_event_log_df = pd.DataFrame()
         self._hold_trade_events = False
         self._held_trades = []
+        self._data_source = data_source
 
         # setting the orders queue and threads
         if not self.IS_BACKTESTING_BROKER:
@@ -56,10 +57,179 @@ class Broker:
             if self.stream is not None:
                 self._launch_stream()
 
+        # if self._data_source is None:
+        #     raise ValueError("Broker must have a data source")
+
+    # =================================================================================
+    # ================================ Required Implementations========================
+    # =========Order Handling=======================
+    @abstractmethod
+    def cancel_order(self, order: Order):
+        """Cancel an order at the broker"""
+        pass
+
+    @abstractmethod
+    def _submit_order(self, order: Order):
+        """Submit an order to the broker"""
+        pass
+
+    # =========Account functions=======================
+    @abstractmethod
+    def _get_balances_at_broker(self, quote_asset: Asset) -> float:
+        """
+        Get the actual cash balance at the broker.
+        Parameters
+        ----------
+        quote_asset : Asset
+            The quote asset to get the balance of.
+
+        Returns
+        -------
+        float
+            The balance of the quote asset at the broker.
+        """
+        pass
+
+    @abstractmethod
+    def get_historical_account_value(self):
+        """
+        Get the historical account value of the account.
+        TODO: Fill out the docstring with more information.
+        """
+        pass
+
+    # =========Stream functions=======================
+    @abstractmethod
+    def _get_stream_object(self):
+        """get the broker stream connection"""
+        pass
+
+    @abstractmethod
+    def _register_stream_events(self):
+        """Register the function on_trade_event
+        to be executed on each trade_update event"""
+        pass
+
+    @abstractmethod
+    def _run_stream(self):
+        """Run the stream"""
+        pass
+
+    # =========Broker Positions=======================
+    @abstractmethod
+    def _parse_broker_position(self, broker_position, strategy, orders=None):
+        """
+        parse a broker position representation into a position object
+        TODO: Fill in with the expected input/output of this function.
+        """
+        pass
+
+    @abstractmethod
+    def _pull_broker_position(self, asset: Asset):
+        """
+        Given an asset, get the broker representation of the corresponding asset
+        TODO: Fill in with the expected output of this function.
+        """
+        pass
+
+    @abstractmethod
+    def _pull_broker_positions(self, strategy=None):
+        """
+        Get the broker representation of all positions
+        TODO: Fill in with the expected output of this function.
+        """
+        pass
+
+    @abstractmethod
+    def _parse_broker_order(self, response, strategy_name, strategy_object=None):
+        """parse a broker order representation
+        to an order object"""
+        pass
+
+    @abstractmethod
+    def _pull_broker_order(self, identifier):
+        """Get a broker order representation by its id"""
+        pass
+
+    @abstractmethod
+    def _pull_broker_open_orders(self):
+        """
+        Get the broker open orders
+        TODO: Fill in with the expected output of this function.
+        """
+        pass
+
+    # =========Market functions=======================
+    @abstractmethod
+    def get_last_price(self, asset: Asset, quote=None, exchange=None, **kwargs) -> float:
+        """
+        Takes an asset and returns the last known price
+
+        Parameters
+        ----------
+        asset : Asset
+            The asset to get the price of.
+        quote : Asset
+            The quote asset to get the price of.
+        exchange : str
+            The exchange to get the price of.
+        kwargs : dict
+            Additional keyword arguments to pass to the broker.
+            TODO: Why is this needed? Can we remove this?
+
+        Returns
+        -------
+        float
+            The last known price of the asset.
+        """
+        pass
+
+    @abstractmethod
+    def get_last_prices(self, assets, quote=None, exchange=None, **kwargs) -> list[float]:
+        """
+        Takes a list of assets and returns the last known prices
+
+        Parameters
+        ----------
+        assets : list
+            The assets to get the prices of.
+        quote : Asset
+            The quote asset to get the prices of.
+        exchange : str
+            The exchange to get the prices of.
+        kwargs : dict
+            Additional keyword arguments to pass to the broker.
+            TODO: Why is this needed? Can we remove this?
+
+        Returns
+        -------
+        list[float]
+            The last known prices of the assets.
+        """
+        pass
+
+    @abstractmethod
+    def _get_tick(self, order: Order):
+        """
+        
+        Parameters
+        ----------
+        order : Order
+            The order to get the tick for.
+
+        Returns
+        -------
+           TODO: Fill in with the expected output of this function.
+        """""
+        # raise NotImplementedError(f"Tick data is not available for {self.name}")
+        pass
+
+    # =================================================================================
+    # ================================ Common functions ================================
     @property
     def _tracked_orders(self):
         return (
-            self._unprocessed_orders + self._new_orders + self._partially_filled_orders
+                self._unprocessed_orders + self._new_orders + self._partially_filled_orders
         )
 
     def _start_orders_thread(self):
@@ -93,9 +263,6 @@ class Broker:
                         self._unprocessed_orders.append(flat_order)
 
             self._orders_queue.task_done()
-
-    def _submit_order(self, order):
-        pass
 
     def _submit_orders(self, orders):
         with ThreadPoolExecutor(
@@ -354,11 +521,6 @@ class Broker:
             self.sleep(sleeptime)
 
     # =========Positions functions==================
-
-    def _get_balances_at_broker(self, quote_asset):
-        """Get the actual cash balance at the broker."""
-        pass
-
     def get_tracked_position(self, strategy, asset):
         """get a tracked position given an asset and
         a strategy"""
@@ -376,15 +538,6 @@ class Broker:
         ]
         return result
 
-    def get_historical_account_value(self):
-        """Get the historical account value of the account."""
-        pass
-
-    def _parse_broker_position(self, broker_position, strategy, orders=None):
-        """parse a broker position representation
-        into a position object"""
-        pass
-
     def _parse_broker_positions(self, broker_positions, strategy):
         """parse a list of broker positions into a
         list of position objects"""
@@ -393,15 +546,6 @@ class Broker:
             result.append(self._parse_broker_position(broker_position, strategy))
 
         return result
-
-    def _pull_broker_position(self, asset):
-        """Given a asset, get the broker representation
-        of the corresponding asset"""
-        pass
-
-    def _pull_broker_positions(self, strategy=None):
-        """Get the broker representation of all positions"""
-        pass
 
     def _pull_positions(self, strategy):
         """Get the account positions. return a list of
@@ -461,11 +605,6 @@ class Broker:
 
         return quantity
 
-    def _parse_broker_order(self, response, strategy_name, strategy_object=None):
-        """parse a broker order representation
-        to an order object"""
-        pass
-
     def _parse_broker_orders(self, broker_orders, strategy_name, strategy_object=None):
         """parse a list of broker orders into a
         list of order objects"""
@@ -484,10 +623,6 @@ class Broker:
 
         return result
 
-    def _pull_broker_order(self, id):
-        """Get a broker order representation by its id"""
-        pass
-
     def _pull_order(self, identifier, strategy_name):
         """pull and parse a broker order by id"""
         response = self._pull_broker_order(identifier)
@@ -495,10 +630,6 @@ class Broker:
             order = self._parse_broker_order(response, strategy_name)
             return order
         return None
-
-    def _pull_broker_open_orders(self):
-        """Get the broker open orders"""
-        pass
 
     def _pull_open_orders(self, strategy_name, strategy_object):
         """Get a list of order objects representing the open
@@ -534,10 +665,6 @@ class Broker:
         """Wait for the orders to execute/be canceled"""
         for order in orders:
             order.wait_to_be_closed()
-
-    def cancel_order(self, order):
-        """Cancel an order"""
-        pass
 
     def cancel_orders(self, orders):
         """cancel orders"""
@@ -602,19 +729,6 @@ class Broker:
                 orders.append(order)
         self.submit_orders(orders)
 
-    # =========Market functions=======================
-
-    def get_last_price(self, asset, quote=None, exchange=None, **kwargs):
-        """Takes an asset asset and returns the last known price"""
-        pass
-
-    def get_last_prices(self, assets, quote=None, exchange=None, **kwargs):
-        """Takes a list of assets and returns the last known prices"""
-        pass
-
-    def _get_tick(self, order):
-        raise NotImplementedError(f"Tick data is not available for {self.name}")
-
     # =========Subscribers/Strategies functions==============
 
     def _add_subscriber(self, subscriber):
@@ -670,10 +784,6 @@ class Broker:
         subscriber.add_event(subscriber.FILLED_ORDER, payload)
 
     # ==========Processing streams data=======================
-
-    def _get_stream_object(self):
-        """get the broker stream connection"""
-        pass
 
     def _stream_established(self):
         self._is_stream_subscribed = True
@@ -793,14 +903,6 @@ class Broker:
             )
 
         return
-
-    def _register_stream_events(self):
-        """Register the function on_trade_event
-        to be executed on each trade_update event"""
-        pass
-
-    def _run_stream(self):
-        pass
 
     def _launch_stream(self):
         """Set the asynchronous actions to be executed after

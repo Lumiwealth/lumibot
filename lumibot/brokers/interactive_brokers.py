@@ -396,7 +396,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
             mktCapPrice,
         ]
         if order_status in self.order_status_duplicates:
-            logging.info(
+            logging.debug(
                 f"Duplicate order status event ignored. Order id {orderId} "
                 f"and status {status} "
             )
@@ -407,9 +407,9 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         stored_order = self.get_tracked_order(orderId)
         if stored_order is None:
             logging.info(
-                "Untracked order %s was logged by broker %s" % (orderId, self.name)
+                f"Untracked order {orderId} was logged by broker {self.name}"
             )
-            return False
+            return
 
         # Check the order status submit changes.
         if status == "Submitted":
@@ -421,6 +421,8 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
                 f"A status event with an order of unknown order type of {status}. Should only be: "
                 "`Submitted`, `ApiCancelled`, `Cancelled`, `Inactive`"
             )
+            return
+
         self._process_trade_event(
             stored_order,
             type_event,

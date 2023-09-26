@@ -3,6 +3,7 @@ on: [push]
 jobs:
   LintAndTest:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     environment: unit-tests
     env: 
       AIOHTTP_NO_EXTENSIONS: 1

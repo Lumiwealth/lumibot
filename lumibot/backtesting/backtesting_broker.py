@@ -117,10 +117,19 @@ class BacktestingBroker(Broker):
             return 0
 
         trading_day = search.iloc[0]
-        if now >= trading_day.market_open:
+        open_time = trading_day.market_open
+
+        # For Backtesting, sometimes the user can just pass in dates (i.e. 2023-08-01) and not datetimes
+        # In this case the "now" variable is starting at midnight, so we need to adjust the open_time to be actual
+        # market open time.  In the case where the user passes in a time inside a valid trading day, use that time
+        # as the start of trading instead of market open.
+        if self.IS_BACKTESTING_BROKER and now > open_time:
+            open_time = self._data_source.datetime_start
+
+        if now >= open_time:
             return 0
 
-        delta = trading_day.market_open - now
+        delta = open_time - now
         return delta.total_seconds()
 
     # TODO: speed up this function, it is a major bottleneck
@@ -156,7 +165,7 @@ class BacktestingBroker(Broker):
         self.process_pending_orders(strategy=strategy)
 
         time_to_open = self.get_time_to_open()
-        if timedelta is not None:
+        if timedelta:
             time_to_open -= 60 * timedelta
         self._update_datetime(time_to_open)
 

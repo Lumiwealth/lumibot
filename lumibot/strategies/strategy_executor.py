@@ -202,7 +202,8 @@ class StrategyExecutor(Thread):
                                 if olumi != obroker:
                                     setattr(order_lumi, order_attr, obroker)
                                     logging.warning(
-                                        f"We are adjusting the {order_attr} of the order {order_lumi}, from {olumi} to be {obroker} because what we have in memory does not match the broker."
+                                        f"We are adjusting the {order_attr} of the order {order_lumi}, from {olumi} "
+                                        f"to be {obroker} because what we have in memory does not match the broker."
                                     )
                         else:
                             # Add to order in lumibot.
@@ -213,6 +214,8 @@ class StrategyExecutor(Thread):
                     if order_lumi.identifier not in [
                         order.identifier for order in orders_broker
                     ]:
+                        logging.info(f"Cannot find order {order_lumi} (id={order_lumi.identifier}) in broker, "
+                                     f"canceling.")
                         self.broker._process_trade_event(order_lumi, "canceled")
 
             self.broker._hold_trade_events = False

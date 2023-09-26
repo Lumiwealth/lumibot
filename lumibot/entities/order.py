@@ -461,6 +461,8 @@ class Order:
             if getattr(self, attribute) is not None:
                 price = getattr(self, attribute)
                 break
+        if self.is_filled():
+            price = self.get_fill_price()
 
         repr_str = f"{self.type} order of | {self.quantity} {self.rep_asset} {self.side} |"
         if price:

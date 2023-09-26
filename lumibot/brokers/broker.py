@@ -420,7 +420,7 @@ class Broker(ABC):
 
         row = 0 if not next else 1
         th = trading_hours.iloc[row, :]
-        market_open, market_close = th[0], th[1]
+        market_open, market_close = th.iloc[0], th.iloc[1]
 
         if close:
             return market_close

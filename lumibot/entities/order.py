@@ -456,7 +456,7 @@ class Order:
                 f"{self.asset.right} {self.asset.strike}"
             )
 
-        price = 0
+        price = None
         for attribute in ["limit_price", "stop_price", "take_profit_price"]:
             if getattr(self, attribute) is not None:
                 price = getattr(self, attribute)

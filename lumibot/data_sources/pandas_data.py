@@ -386,101 +386,16 @@ class PandasData(DataSource):
 
         return {"SMART": SMART}
 
-    def get_chain(self, chains, exchange="SMART"):
-        """Returns option chain for a particular exchange.
-
-        Takes in a full set of chains for all the exchanges and returns
-        on chain for a given exchange. The the full chains are returned
-        from `get_chains` method.
-
-        Parameters
-        ----------
-        chains : dictionary of dictionaries
-            The chains dictionary created by `get_chains` method.
-
-        exchange : str optional
-            The exchange such as `SMART`, `CBOE`. Default is `SMART`
-
-        Returns
-        -------
-        dictionary
-            A dictionary of option chain information for one stock and
-            for one exchange. It will contain:
-                - `Underlying conId` (int)
-                - `TradingClass` (str) eg: `FB`
-                - `Multiplier` (str) eg: `100`
-                - `Expirations` (set of str) eg: {`20230616`, ...}
-                - `Strikes` (set of floats)
-        """
-
-        for x, p in chains.items():
-            if x == exchange:
-                return p
-
-        return None
-
-    def get_expiration(self, chains, exchange="SMART"):
-        """Returns expiration dates for an option chain for a particular
-        exchange.
-
-        Using the `chains` dictionary obtained from `get_chains` finds
-        all of the expiry dates for the option chains on a given
-        exchange. The return list is sorted.
-
-        Parameters
-        ---------
-        chains : dictionary of dictionaries
-            The chains dictionary created by `get_chains` method.
-
-        exchange : str optional
-            The exchange such as `SMART`, `CBOE`. Default is `SMART`.
-
-        Returns
-        -------
-        list of str
-            Sorted list of dates in the form of `20221013`.
-        """
-        if exchange != "SMART":
-            raise ValueError(
-                "When getting option expirations in backtesting, only the `SMART`"
-                "exchange may be used. It is the default value. Please delete "
-                "the `exchange` parameter or change the value to `SMART`."
-            )
-        return sorted(list(self.get_chain(chains, exchange=exchange)["Expirations"]))
-
-    def get_multiplier(self, chains, exchange="SMART"):
-        """Returns option chain for a particular exchange.
-
-        Using the `chains` dictionary obtained from `get_chains` finds
-        all of the multiplier for the option chains on a given
-        exchange.
-
-        Parameters
-        ----------
-        chains : dictionary of dictionaries
-            The chains dictionary created by `get_chains` method.
-
-        exchange : str optional
-            The exchange such as `SMART`, `CBOE`. Default is `SMART`
-
-        Returns
-        -------
-        list of str
-            Sorted list of dates in the form of `20221013`.
-        """
-
-        return self.get_chain(chains, exchange)["Multiplier"]
-
     def get_strikes(self, asset):
         """Returns a list of strikes for a give underlying asset.
 
         Using the `chains` dictionary obtained from `get_chains` finds
-        all of the multiplier for the option chains on a given
+        all the Strikes for the option chains on a given
         exchange.
 
         Parameters
         ----------
-        asset : Asset object
+        asset : Asset
             Asset object as normally used for an option but without
             the strike information.
 

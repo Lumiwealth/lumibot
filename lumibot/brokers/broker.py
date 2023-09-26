@@ -232,6 +232,136 @@ class Broker(ABC):
                 self._unprocessed_orders + self._new_orders + self._partially_filled_orders
         )
 
+    def get_chains(self, asset):
+        """Returns option chains.
+
+        Obtains option chain information for the asset (stock) from each
+        of the exchanges the options trade on and returns a dictionary
+        for each exchange.
+
+        Parameters
+        ----------
+        asset : Asset
+            The stock whose option chain is being fetched. Represented
+            as an asset object.
+
+        Returns
+        -------
+        dictionary of dictionary for 'SMART' exchange only in
+        backtesting. Each exchange has:
+            - `Underlying conId` (int)
+            - `TradingClass` (str) eg: `FB`
+            - `Multiplier` (str) eg: `100`
+            - `Expirations` (set of str) eg: {`20230616`, ...}
+            - `Strikes` (set of floats)
+        """
+        return self._data_source.get_chains(asset)
+
+    def get_chain(self, chains, exchange="SMART"):
+        """Returns option chain for a particular exchange.
+
+        Takes in a full set of chains for all the exchanges and returns
+        on chain for a given exchange. The full chains are returned
+        from `get_chains` method.
+
+        Parameters
+        ----------
+        chains : dictionary of dictionaries
+            The chains dictionary created by `get_chains` method.
+
+        exchange : str optional
+            The exchange such as `SMART`, `CBOE`. Default is `SMART`
+
+        Returns
+        -------
+        dictionary
+            A dictionary of option chain information for one stock and
+            for one exchange. It will contain:
+                - `Underlying conId` (int)
+                - `TradingClass` (str) eg: `FB`
+                - `Multiplier` (str) eg: `100`
+                - `Expirations` (set of str) eg: {`20230616`, ...}
+                - `Strikes` (set of floats)
+        """
+        for x, p in chains.items():
+            if x == exchange:
+                return p
+
+    def get_greeks(self, asset, asset_price, underlying_price, risk_free_rate):
+        """
+        Get the greeks of an option asset.
+
+        Parameters
+        ----------
+        asset : Asset
+            The option asset to get the greeks of.
+        asset_price : float, optional
+            The price of the option asset, by default None
+        underlying_price : float, optional
+            The price of the underlying asset, by default None
+        risk_free_rate : float, optional
+            The risk-free rate used in interest calculations, by default None
+
+        Returns
+        -------
+        dict
+            A dictionary containing the greeks of the option asset.
+        """
+        return self._data_source.get_greeks(asset, asset_price, underlying_price, risk_free_rate)
+
+    def get_multiplier(self, chains, exchange="SMART"):
+        """Returns option chain for a particular exchange.
+
+        Using the `chains` dictionary obtained from `get_chains` finds
+        all the multipliers for the option chains on a given
+        exchange.
+
+        Parameters
+        ----------
+        chains : dictionary of dictionaries
+            The chains dictionary created by `get_chains` method.
+
+        exchange : str optional
+            The exchange such as `SMART`, `CBOE`. Default is `SMART`
+
+        Returns
+        -------
+        int
+            The multiplier for the option chain.
+        """
+        return self.get_chain(chains, exchange)["Multiplier"]
+
+    def get_expiration(self, chains, exchange="SMART"):
+        """Returns expiration dates for an option chain for a particular
+        exchange.
+
+        Using the `chains` dictionary obtained from `get_chains` finds
+        all the expiry dates for the option chains on a given
+        exchange. The return list is sorted.
+
+        Parameters
+        ---------
+        chains : dictionary of dictionaries
+            The chains dictionary created by `get_chains` method.
+
+        exchange : str optional
+            The exchange such as `SMART`, `CBOE`. Default is `SMART`.
+
+        Returns
+        -------
+        list of str
+            Sorted list of dates in the form of `20221013`.
+        """
+
+        return sorted(list(self.get_chain(chains, exchange=exchange)["Expirations"]))
+
+    def get_strikes(self, asset):
+        """Returns the strikes for an option asset with right and expiry."""
+        # This method is required for all data sources (but expirations is not) because different data sources
+        # pair the strikes and expirations together differently. For example, Polygon does a nice job of pairing,
+        # but Interactive Brokers does not.
+        return self._data_source.get_strikes(asset)
+
     def _start_orders_thread(self):
         self._orders_thread = Thread(
             target=self._wait_for_orders, daemon=True, name=f"{self.name}_orders_thread"
@@ -926,27 +1056,3 @@ class Broker(ABC):
         if len(self._trade_event_log_df) > 0:
             output_df = self._trade_event_log_df.set_index("time")
             output_df.to_csv(filename)
-
-    def _get_greeks(
-        self,
-        asset,
-        implied_volatility=False,
-        delta=False,
-        option_price=False,
-        pv_dividend=False,
-        gamma=False,
-        vega=False,
-        theta=False,
-        underlying_price=False,
-    ):
-        return self.get_greeks(
-            asset,
-            implied_volatility=implied_volatility,
-            delta=delta,
-            option_price=option_price,
-            pv_dividend=pv_dividend,
-            gamma=gamma,
-            vega=vega,
-            theta=theta,
-            underlying_price=underlying_price,
-        )

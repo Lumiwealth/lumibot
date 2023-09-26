@@ -625,51 +625,15 @@ class BacktestingBroker(Broker):
         """Returns OHLCV dictionary for last bar of the asset."""
         return self._data_source.get_historical_prices(asset, 1)
 
-    def get_chains(self, asset):
-        return self._data_source.get_chains(asset)
-
-    def get_chain(self, chains, exchange="SMART"):
-        """Returns option chain for a particular exchange."""
-        for x, p in chains.items():
-            if x == exchange:
-                return p
-
     def get_expiration(self, chains, exchange="SMART"):
         """Returns expirations and strikes high/low of target price."""
-        return sorted(list(self.get_chain(chains, exchange=exchange)["Expirations"]))
-
-    def get_multiplier(self, chains, exchange="SMART"):
-        """Returns the multiplier"""
-        return self.get_chain(chains, exchange)["Multiplier"]
-
-    def get_strikes(self, asset):
-        """Returns the strikes for an option asset with right and
-        expiry."""
-        return self._data_source.get_strikes(asset)
-
-    def _get_greeks(
-        self,
-        asset,
-        implied_volatility=False,
-        delta=False,
-        option_price=False,
-        pv_dividend=False,
-        gamma=False,
-        vega=False,
-        theta=False,
-        underlying_price=False,
-    ):
-        return self._data_source.get_greeks(
-            asset,
-            implied_volatility=implied_volatility,
-            delta=delta,
-            option_price=option_price,
-            pv_dividend=pv_dividend,
-            gamma=gamma,
-            vega=vega,
-            theta=theta,
-            underlying_price=underlying_price,
-        )
+        if exchange != "SMART":
+            raise ValueError(
+                "When getting option expirations in backtesting, only the `SMART`"
+                "exchange may be used. It is the default value. Please delete "
+                "the `exchange` parameter or change the value to `SMART`."
+            )
+        return super().get_expiration(chains, exchange)
 
     # ==========Processing streams data=======================
 

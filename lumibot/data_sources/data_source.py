@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from lumibot import LUMIBOT_DEFAULT_PYTZ, LUMIBOT_DEFAULT_TIMEZONE
 from lumibot.entities import Asset, AssetsMapping
 from lumibot.tools import get_chunks, get_risk_free_rate
-from lumibot.tools.black_scholes import BS
+from lumibot.tools import black_scholes
 
 from .exceptions import UnavailabeTimestep
 
@@ -45,6 +45,57 @@ class DataSource(ABC):
 
     @abstractmethod
     def _parse_source_symbol_bars(self, response, asset, quote=None, length=None):
+        pass
+
+    @abstractmethod
+    def get_chains(self, asset):
+        """Returns option chains.
+
+        Obtains option chain information for the asset (stock) from each
+        of the exchanges the options trade on and returns a dictionary
+        for each exchange.
+
+        Parameters
+        ----------
+        asset : Asset
+            The stock whose option chain is being fetched. Represented
+            as an asset object.
+
+        Returns
+        -------
+        dictionary of dictionary for 'SMART' exchange only in
+        backtesting. Each exchange has:
+            - `Underlying conId` (int)
+            - `TradingClass` (str) eg: `FB`
+            - `Multiplier` (str) eg: `100`
+            - `Expirations` (set of str) eg: {`20230616`, ...}
+            - `Strikes` (set of floats)
+        """
+        pass
+
+    @abstractmethod
+    def get_strikes(self, asset):
+        """Returns a list of strikes for a give underlying asset.
+
+        Using the `chains` dictionary obtained from `get_chains` finds
+        all the multiplier for the option chains on a given
+        exchange.
+
+        This method is required for all data sources (but expirations is not) because different data sources
+        pair the strikes and expirations together differently. For example, Polygon does a nice job of pairing,
+        but Interactive Brokers does not.
+
+        Parameters
+        ----------
+        asset : Asset
+            Asset object as normally used for an option but without
+            the strike information. The Asset object must be an option asset type.
+
+        Returns
+        -------
+        list of floats
+            Sorted list of strikes as floats.
+    """
         pass
 
     # ========Python datetime helpers======================
@@ -269,47 +320,43 @@ class DataSource(ABC):
     def get_greeks(
         self,
         asset,
-        implied_volatility=False,
-        delta=False,
-        option_price=False,
-        pv_dividend=False,
-        gamma=False,
-        vega=False,
-        theta=False,
-        underlying_price=False,
+
+        # API Querying for prices and rates are expensive, so we'll pass them in as arguments most of the time
+        asset_price: float,
+        underlying_price: float,
+        risk_free_rate: float,
     ):
         """Returns Greeks in backtesting. """
-        underlying_asset = Asset(symbol=asset.symbol, asset_type="stock")
-        und_price = self.get_last_price(underlying_asset)
-
-        opt_price = self.get_last_price(asset)
-
-        interest = get_risk_free_rate() * 100
+        opt_price = asset_price
+        und_price = underlying_price
+        interest = risk_free_rate * 100
         current_date = self.get_datetime().date()
         
         # If asset expiration is a datetime object, convert it to date
         expiration = asset.expiration
-        if type(expiration) == datetime:
+        if isinstance(expiration, datetime):
             expiration = expiration.date()
         
         days_to_expiration = (expiration - current_date).days
-        if asset.right == "CALL":
-            iv = BS(
+        if asset.right.upper() == "CALL":
+            is_call = True
+            iv = black_scholes.BS(
                 [und_price, float(asset.strike), interest, days_to_expiration],
                 callPrice=opt_price,
             )
-        elif asset.right == "PUT":
-            iv = BS(
+        elif asset.right.upper() == "PUT":
+            is_call = False
+            iv = black_scholes.BS(
                 [und_price, float(asset.strike), interest, days_to_expiration],
                 putPrice=opt_price,
             )
+        else:
+            raise ValueError(f"Invalid option type {asset.right}, cannot get option greeks")
 
-        c = BS(
+        c = black_scholes.BS(
             [und_price, float(asset.strike), interest, days_to_expiration],
             volatility=iv.impliedVolatility,
         )
-
-        is_call = True if asset.right == "CALL" else False
 
         result = dict(
             implied_volatility=iv.impliedVolatility,

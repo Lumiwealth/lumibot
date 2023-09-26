@@ -1899,7 +1899,7 @@ class Strategy(_Strategy):
         """Returns option chain for a particular exchange.
 
         Takes in a full set of chains for all the exchanges and returns
-        on chain for a given exchange. The the full chains are returned
+        on chain for a given exchange. The full chains are returned
         from `get_chains` method.
 
         Parameters
@@ -1927,8 +1927,6 @@ class Strategy(_Strategy):
         >>> # Will return the option chains for SPY
         >>> asset = "SPY"
         >>> chain = self.get_chain(asset)
-
-
         """
         return self.broker.get_chain(chains, exchange=exchange)
 
@@ -1965,7 +1963,7 @@ class Strategy(_Strategy):
         """Returns option chain for a particular exchange.
 
         Using the `chains` dictionary obtained from `get_chains` finds
-        all of the multiplier for the option chains on a given
+        all the multipliers for the option chains on a given
         exchange.
 
         Parameters
@@ -1994,12 +1992,12 @@ class Strategy(_Strategy):
         """Returns a list of strikes for a give underlying asset.
 
         Using the `chains` dictionary obtained from `get_chains` finds
-        all of the multiplier for the option chains on a given
+        all the multiplier for the option chains on a given
         exchange.
 
         Parameters
         ----------
-        asset : Asset object
+        asset : Asset
             Asset object as normally used for an option but without
             the strike information. The Asset object must be an option asset type.
 
@@ -2016,15 +2014,15 @@ class Strategy(_Strategy):
         """
 
         asset = self._set_asset_mapping(asset)
-
-        if self.data_source.SOURCE == "PANDAS":
-            return self.broker.get_strikes(asset)
-
-        contract_details = self._get_contract_details(asset)
-        if not contract_details:
-            return None
-
-        return sorted(list(set(cd.contract.strike for cd in contract_details)))
+        return self.broker.get_strikes(asset)
+        # if self.data_source.SOURCE == "PANDAS":
+        #     return self.broker.get_strikes(asset)
+        #
+        # contract_details = self._get_contract_details(asset)
+        # if not contract_details:
+        #     return None
+        #
+        # return sorted(list(set(cd.contract.strike for cd in contract_details)))
 
     def find_first_friday(self, timestamp):
         # Convert the timestamp to a datetime object if it's not already one
@@ -2111,44 +2109,27 @@ class Strategy(_Strategy):
     def get_greeks(
         self,
         asset,
-        implied_volatility=False,
-        delta=False,
-        option_price=False,
-        pv_dividend=False,
-        gamma=False,
-        vega=False,
-        theta=False,
-        underlying_price=False,
+        asset_price=None,
+        underlying_price=None,
+        risk_free_rate=None,
     ):
         """Returns the greeks for the option asset at the current
         bar.
 
-        Will return all the greeks available unless any of the
-        individual greeks are selected, then will only return those
-        greeks.
+        Will return all the greeks available. API Querying for prices
+        and rates are expensive, so they should be passed in as arguments
+        most of the time.
 
         Parameters
         ----------
         asset : Asset
             Option asset only for with greeks are desired.
-        **kwargs
-        implied_volatility : boolean
-            True to get the implied volatility. (default: True)
-        delta : boolean
-            True to get the option delta value. (default: True)
-        option_price : boolean
-            True to get the option price. (default: True)
-        pv_dividend : boolean
-            True to get the present value of dividends expected on the
-            option's  underlying. (default: True)
-        gamma : boolean
-            True to get the option gamma value. (default: True)
-        vega : boolean
-            True to get the option vega value. (default: True)
-        theta : boolean
-            True to get the option theta value. (default: True)
-        underlying_price : boolean
-            True to get the price of the underlying. (default: True)
+        asset_price : float, optional
+            The price of the option asset, by default None
+        underlying_price : float, optional
+            The price of the underlying asset, by default None
+        risk_free_rate : float, optional
+            The risk-free rate used in interest calculations, by default None
 
         Returns
         -------
@@ -2176,41 +2157,43 @@ class Strategy(_Strategy):
         Example
         -------
         >>> # Will return the greeks for SPY
-        >>> asset = "SPY"
-        >>> greeks = self.get_greeks(asset)
+        >>> opt_asset = Asset("SPY", expiration=date(2021, 1, 1), strike=100, option_type="call"
+        >>> greeks = self.get_greeks(opt_asset)
         >>> implied_volatility = greeks["implied_volatility"]
         >>> delta = greeks["delta"]
         >>> gamma = greeks["gamma"]
         >>> vega = greeks["vega"]
         >>> theta = greeks["theta"]
-
-
         """
         if asset.asset_type != "option":
             self.log_message(
-                f"The greeks method was called using an asset other "
-                f"than an option. Unable to retrieve greeks for non-"
-                f"option assest."
+                "The greeks method was called using an asset other "
+                "than an option. Unable to retrieve greeks for non-"
+                "option assest."
             )
             return None
 
-        return self.broker._get_greeks(
+        # Do the expensize API calls here if needed
+        opt_price = asset_price if asset_price is not None else self.get_last_price(asset)
+        risk_free_rate = risk_free_rate if risk_free_rate is not None else self.risk_free_rate
+        if underlying_price is None:
+            underlying_asset = Asset(symbol=asset.symbol, asset_type="stock")
+            und_price = self.get_last_price(underlying_asset)
+        else:
+            und_price = underlying_price
+
+        return self.broker.get_greeks(
             asset,
-            implied_volatility=implied_volatility,
-            delta=delta,
-            option_price=option_price,
-            pv_dividend=pv_dividend,
-            gamma=gamma,
-            vega=vega,
-            theta=theta,
-            underlying_price=underlying_price,
+            asset_price=opt_price,
+            underlying_price=und_price,
+            risk_free_rate=risk_free_rate,
         )
 
     # =======Data source methods=================
 
     @property
     def timezone(self):
-        """Returns the timezone of the data source. By default America/New_York.
+        """Returns the timezone of the data source. By default, America/New_York.
 
         Returns
         -------

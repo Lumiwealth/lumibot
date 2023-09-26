@@ -315,10 +315,6 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
             for expiration in expirations
         ]
 
-    def get_multiplier(self, chains, exchange="SMART"):
-        """Returns the multiplier"""
-        return self.get_chain(chains, exchange)["Multiplier"]
-
     # =======Stream functions=========
     def on_status_event(
         self,

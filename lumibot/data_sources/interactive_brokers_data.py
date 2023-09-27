@@ -231,7 +231,7 @@ class InteractiveBrokersData(DataSource):
 
                 if "min" in parsed_timestep or "hour" in parsed_timestep:
                     df["date"] = (
-                        pd.to_datetime(df["date"], unit="s", origin="unix")
+                        pd.to_datetime(df["date"].astype(int), unit="s", origin="unix")
                         .dt.tz_localize("UTC")
                         .dt.tz_convert(self.DEFAULT_TIMEZONE)
                     )

@@ -17,10 +17,9 @@ class DataSource(ABC):
     DEFAULT_TIMEZONE = LUMIBOT_DEFAULT_TIMEZONE
     DEFAULT_PYTZ = LUMIBOT_DEFAULT_PYTZ
 
-    def __init__(self, config=None):
+    def __init__(self):
         self.name = "data_source"
         self._timestep = None
-        self._config = config
 
     # ========Required Implementations ======================
     @abstractmethod

@@ -17,7 +17,7 @@ class PandasData(DataSourceBacktesting):
         {"timestep": "minute", "representations": ["1M", "minute"]},
     ]
 
-    def __init__(self, *args, pandas_data, auto_adjust=True, **kwargs):
+    def __init__(self, *args, pandas_data=None, auto_adjust=True, **kwargs):
         super().__init__(*args, **kwargs)
         self.name = "pandas"
         self.pandas_data = self._set_pandas_data_keys(pandas_data)

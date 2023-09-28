@@ -12,11 +12,6 @@ from lumibot.tools import polygon_helper
 class PolygonDataBacktesting(PandasData):
     """
     Backtesting implementation of Polygon
-
-    Parameters
-    ----------
-    data_source : PandasData
-        The data source to use for backtesting.
     """
 
     def __init__(
@@ -31,6 +26,7 @@ class PolygonDataBacktesting(PandasData):
         super().__init__(datetime_start, datetime_end, pandas_data, **kwargs)
         self.polygon_api_key = polygon_api_key
         self.has_paid_subscription = has_paid_subscription
+
         # RESTClient API for Polygon.io polygon-api-client
         self.polygon_client = RESTClient(self.polygon_api_key)
 

@@ -8,7 +8,8 @@ from lumibot.tools import print_progress_bar
 class DataSourceBacktesting(DataSource, ABC):
     """
     This class is the base class for all backtesting data sources.  It is also an abstract class and should not be
-    instantiated directly.  Instead, instantiate one of the child classes like PandasData.
+    instantiated directly because it does not define all necessary methods. Instead, instantiate one of the
+    child classes like PandasData.
     """
     IS_BACKTESTING_DATA_SOURCE = True
 

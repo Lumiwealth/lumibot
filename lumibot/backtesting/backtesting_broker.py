@@ -1,15 +1,12 @@
 import logging
 import traceback
-from datetime import datetime, timedelta
+from datetime import timedelta
 from decimal import Decimal
-from email.utils import quote
 from functools import wraps
 
-import pandas as pd
-
 from lumibot.brokers import Broker
+from lumibot.data_sources import DataSourceBacktesting
 from lumibot.entities import Order, Position, TradingFee
-from lumibot.tools import get_trading_days
 from lumibot.trading_builtins import CustomStream
 
 
@@ -17,16 +14,14 @@ class BacktestingBroker(Broker):
     # Metainfo
     IS_BACKTESTING_BROKER = True
 
-    def __init__(self, data_source, connect_stream=True, max_workers=20):
+    def __init__(self, data_source, connect_stream=True, max_workers=20, **kwargs):
+        super().__init__(name="backtesting", data_source=data_source, connect_stream=connect_stream, **kwargs)
         # Calling init methods
-        self.name = "backtesting"
         self.max_workers = max_workers
         self.market = "NASDAQ"
 
-        if not data_source.IS_BACKTESTING_DATA_SOURCE:
-            raise ValueError("object %r is not a backtesting data_source" % data_source)
-
-        Broker.__init__(self, name=self.name, connect_stream=connect_stream, data_source=data_source)
+        if not isinstance(self.data_source, DataSourceBacktesting):
+            raise ValueError("Must provide a backtesting data_source to run with a BacktestingBroker")
 
     def __getattribute__(self, name):
         attr = object.__getattribute__(self, name)
@@ -45,7 +40,7 @@ class BacktestingBroker(Broker):
                 ):
                     orders = broker._flatten_order(result)
                     for order in orders:
-                        logging.info("%r was sent to broker %s" % (order, self.name))
+                        logging.info(f"{order} was sent to broker {self.name}")
                         broker._new_orders.append(order)
                 else:
                     broker._new_orders.append(order)
@@ -57,7 +52,7 @@ class BacktestingBroker(Broker):
 
     @property
     def datetime(self):
-        return self._data_source._datetime
+        return self.data_source.get_datetime()
 
     def _submit_order(self, order):
         """TODO: Why is this not used for Backtesting, but it is used for real brokers?"""
@@ -79,18 +74,18 @@ class BacktestingBroker(Broker):
 
     # =========Internal functions==================
 
-    def _update_datetime(self, input):
+    def _update_datetime(self, update):
         """Works with either timedelta or datetime input
         and updates the datetime of the broker"""
 
-        if isinstance(input, timedelta):
-            new_datetime = self.datetime + input
-        elif isinstance(input, int) or isinstance(input, float):
-            new_datetime = self.datetime + timedelta(seconds=input)
+        if isinstance(update, timedelta):
+            new_datetime = self.datetime + update
+        elif isinstance(update, int) or isinstance(update, float):
+            new_datetime = self.datetime + timedelta(seconds=update)
         else:
-            new_datetime = input
+            new_datetime = update
 
-        self._data_source._update_datetime(new_datetime)
+        self.data_source._update_datetime(new_datetime)
         logging.info(f"Current backtesting datetime {self.datetime}")
 
     # =========Clock functions=====================
@@ -101,7 +96,7 @@ class BacktestingBroker(Broker):
         check if the limit datetime was reached"""
 
         # If we are at the end of the data source, we should stop
-        if self.datetime >= self._data_source.datetime_end:
+        if self.datetime >= self.data_source.datetime_end:
             return False
 
         # All other cases we should continue
@@ -140,7 +135,7 @@ class BacktestingBroker(Broker):
         # market open time.  In the case where the user passes in a time inside a valid trading day, use that time
         # as the start of trading instead of market open.
         if self.IS_BACKTESTING_BROKER and now > open_time:
-            open_time = self._data_source.datetime_start
+            open_time = self.data_source.datetime_start
 
         if now >= open_time:
             return 0
@@ -171,8 +166,8 @@ class BacktestingBroker(Broker):
 
     def _await_market_to_open(self, timedelta=None, strategy=None):
         if (
-            self._data_source.SOURCE == "PANDAS"
-            and self._data_source._timestep == "day"
+            self.data_source.SOURCE == "PANDAS"
+            and self.data_source._timestep == "day"
         ):
             return
 
@@ -187,8 +182,8 @@ class BacktestingBroker(Broker):
 
     def _await_market_to_close(self, timedelta=None, strategy=None):
         if (
-            self._data_source.SOURCE == "PANDAS"
-            and self._data_source._timestep == "day"
+            self.data_source.SOURCE == "PANDAS"
+            and self.data_source._timestep == "day"
         ):
             return
 
@@ -361,7 +356,7 @@ class BacktestingBroker(Broker):
         --------
             List of orders
         """
-        if self._data_source.SOURCE != "PANDAS":
+        if self.data_source.SOURCE != "PANDAS":
             return []
 
         orders_closing_contracts = []
@@ -456,7 +451,7 @@ class BacktestingBroker(Broker):
             #############################
 
             # Get the OHLCV data for the asset if we're using the YAHOO data source
-            if self._data_source.SOURCE == "YAHOO":
+            if self.data_source.SOURCE == "YAHOO":
                 timeshift = timedelta(
                     days=-1
                 )  # Is negative so that we get today (normally would get yesterday's data to prevent lookahead bias)
@@ -475,14 +470,14 @@ class BacktestingBroker(Broker):
                 volume = ohlc.df.volume[-1]
 
             # Get the OHLCV data for the asset if we're using the PANDAS data source
-            elif self._data_source.SOURCE == "PANDAS":
+            elif self.data_source.SOURCE == "PANDAS":
                 # This is a hack to get around the fact that we need to get the previous day's data to prevent lookahead bias.
                 ohlc = strategy.get_historical_prices(
                     asset,
                     1,
                     quote=order.quote,
                     timeshift=-1,
-                    timestep=self._data_source._timestep,
+                    timestep=self.data_source._timestep,
                 )
 
                 if ohlc is None:
@@ -613,17 +608,9 @@ class BacktestingBroker(Broker):
         return None
 
     # =========Market functions=======================
-    def get_last_price(self, asset, quote=None, exchange=None, **kwargs):
-        """Takes an asset asset and returns the last known price"""
-        return self._data_source.get_last_price(asset, quote=quote)
-
-    def get_last_prices(self, symbols, quote=None, exchange=None, **kwargs):
-        """Takes a list of symbols and returns the last known prices"""
-        return self._data_source.get_last_prices(symbols, quote=quote)
-
     def get_last_bar(self, asset):
         """Returns OHLCV dictionary for last bar of the asset."""
-        return self._data_source.get_historical_prices(asset, 1)
+        return self.data_source.get_historical_prices(asset, 1)
 
     def get_expiration(self, chains, exchange="SMART"):
         """Returns expirations and strikes high/low of target price."""

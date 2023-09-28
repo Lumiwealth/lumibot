@@ -28,7 +28,7 @@ class Broker(ABC):
     FILLED_ORDER = "fill"
     PARTIALLY_FILLED_ORDER = "partial_fill"
 
-    def __init__(self, name="", connect_stream=True, data_source: DataSource = None):
+    def __init__(self, name="", connect_stream=True, data_source: DataSource = None, config=None):
         """Broker constructor"""
         # Shared Variables between threads
         self.name = name
@@ -43,7 +43,11 @@ class Broker(ABC):
         self._trade_event_log_df = pd.DataFrame()
         self._hold_trade_events = False
         self._held_trades = []
-        self._data_source = data_source
+        self._config = config
+        self.data_source = data_source
+
+        if self.data_source is None:
+            raise ValueError("Broker must have a data source")
 
         # setting the orders queue and threads
         if not self.IS_BACKTESTING_BROKER:
@@ -56,9 +60,6 @@ class Broker(ABC):
             self.stream = self._get_stream_object()
             if self.stream is not None:
                 self._launch_stream()
-
-        # if self._data_source is None:
-        #     raise ValueError("Broker must have a data source")
 
     # =================================================================================
     # ================================ Required Implementations========================
@@ -159,9 +160,23 @@ class Broker(ABC):
         """
         pass
 
-    # =========Market functions=======================
     @abstractmethod
-    def get_last_price(self, asset: Asset, quote=None, exchange=None, **kwargs) -> float:
+    def _get_tick(self, order: Order):
+        """
+
+        Parameters
+        ----------
+        order : Order
+            The order to get the tick for.
+
+        Returns
+        -------
+           TODO: Fill in with the expected output of this function.
+        """""
+        pass
+
+    # =========Market functions=======================
+    def get_last_price(self, asset: Asset, quote=None, exchange=None) -> float:
         """
         Takes an asset and returns the last known price
 
@@ -173,19 +188,15 @@ class Broker(ABC):
             The quote asset to get the price of.
         exchange : str
             The exchange to get the price of.
-        kwargs : dict
-            Additional keyword arguments to pass to the broker.
-            TODO: Why is this needed? Can we remove this?
 
         Returns
         -------
         float
             The last known price of the asset.
         """
-        pass
+        return self.data_source.get_last_price(asset, quote=quote, exchange=exchange)
 
-    @abstractmethod
-    def get_last_prices(self, assets, quote=None, exchange=None, **kwargs) -> list[float]:
+    def get_last_prices(self, assets, quote=None, exchange=None):
         """
         Takes a list of assets and returns the last known prices
 
@@ -197,32 +208,13 @@ class Broker(ABC):
             The quote asset to get the prices of.
         exchange : str
             The exchange to get the prices of.
-        kwargs : dict
-            Additional keyword arguments to pass to the broker.
-            TODO: Why is this needed? Can we remove this?
 
         Returns
         -------
-        list[float]
+        dict
             The last known prices of the assets.
         """
-        pass
-
-    @abstractmethod
-    def _get_tick(self, order: Order):
-        """
-        
-        Parameters
-        ----------
-        order : Order
-            The order to get the tick for.
-
-        Returns
-        -------
-           TODO: Fill in with the expected output of this function.
-        """""
-        # raise NotImplementedError(f"Tick data is not available for {self.name}")
-        pass
+        return self.data_source.get_last_prices(assets=assets, quote=quote, exchange=exchange)
 
     # =================================================================================
     # ================================ Common functions ================================
@@ -255,7 +247,7 @@ class Broker(ABC):
             - `Expirations` (set of str) eg: {`20230616`, ...}
             - `Strikes` (set of floats)
         """
-        return self._data_source.get_chains(asset)
+        return self.data_source.get_chains(asset)
 
     def get_chain(self, chains, exchange="SMART"):
         """Returns option chain for a particular exchange.
@@ -307,7 +299,7 @@ class Broker(ABC):
         dict
             A dictionary containing the greeks of the option asset.
         """
-        return self._data_source.get_greeks(asset, asset_price, underlying_price, risk_free_rate)
+        return self.data_source.get_greeks(asset, asset_price, underlying_price, risk_free_rate)
 
     def get_multiplier(self, chains, exchange="SMART"):
         """Returns option chain for a particular exchange.
@@ -360,7 +352,7 @@ class Broker(ABC):
         # This method is required for all data sources (but expirations is not) because different data sources
         # pair the strikes and expirations together differently. For example, Polygon does a nice job of pairing,
         # but Interactive Brokers does not.
-        return self._data_source.get_strikes(asset)
+        return self.data_source.get_strikes(asset)
 
     def _start_orders_thread(self):
         self._orders_thread = Thread(
@@ -1003,10 +995,10 @@ class Broker(ABC):
 
         if (
             hasattr(self, "_data_source")
-            and self._data_source is not None
-            and hasattr(self._data_source, "get_datetime")
+            and self.data_source is not None
+            and hasattr(self.data_source, "get_datetime")
         ):
-            current_dt = self._data_source.get_datetime()
+            current_dt = self.data_source.get_datetime()
             new_row = {
                 "time": current_dt,
                 "strategy": stored_order.strategy,

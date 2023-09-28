@@ -640,21 +640,21 @@ class StrategyExecutor(Thread):
         # Process pandas daily and get out.
         if (
                 has_data_source
-                and self.broker._data_source.SOURCE == "PANDAS"
-                and self.broker._data_source._timestep == "day"
+                and self.broker.data_source.SOURCE == "PANDAS"
+                and self.broker.data_source._timestep == "day"
         ):
-            if self.broker._data_source._iter_count is None:
+            if self.broker.data_source._iter_count is None:
                 # Get the first date from _date_index equal or greater than
                 # backtest start date.
-                dates = self.broker._data_source._date_index
-                self.broker._data_source._iter_count = dates.get_loc(
+                dates = self.broker.data_source._date_index
+                self.broker.data_source._iter_count = dates.get_loc(
                     dates[dates > self.broker.datetime][0]
                 )
             else:
-                self.broker._data_source._iter_count += 1
+                self.broker.data_source._iter_count += 1
 
-            dt = self.broker._data_source._date_index[
-                self.broker._data_source._iter_count
+            dt = self.broker.data_source._date_index[
+                self.broker.data_source._iter_count
             ]
 
             self.broker._update_datetime(dt)
@@ -672,7 +672,7 @@ class StrategyExecutor(Thread):
             self.strategy.await_market_to_open()  # set new time and bar length. Check if hit bar max or date max.
 
             if not has_data_source or (
-                    has_data_source and self.broker._data_source.SOURCE != "PANDAS"
+                    has_data_source and self.broker.data_source.SOURCE != "PANDAS"
             ):
                 self.strategy._update_cash_with_dividends()
 
@@ -754,7 +754,7 @@ class StrategyExecutor(Thread):
                 # Stop after we pass the backtesting end date
                 if (
                         self.broker.IS_BACKTESTING_BROKER
-                        and self.broker.datetime > self.broker._data_source.datetime_end
+                        and self.broker.datetime > self.broker.data_source.datetime_end
                 ):
                     break
 

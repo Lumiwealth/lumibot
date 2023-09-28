@@ -4,8 +4,7 @@ from datetime import datetime, timedelta
 
 from lumibot import LUMIBOT_DEFAULT_PYTZ, LUMIBOT_DEFAULT_TIMEZONE
 from lumibot.entities import Asset, AssetsMapping
-from lumibot.tools import get_chunks, get_risk_free_rate
-from lumibot.tools import black_scholes
+from lumibot.tools import black_scholes, get_chunks
 
 from .exceptions import UnavailabeTimestep
 
@@ -18,9 +17,10 @@ class DataSource(ABC):
     DEFAULT_TIMEZONE = LUMIBOT_DEFAULT_TIMEZONE
     DEFAULT_PYTZ = LUMIBOT_DEFAULT_PYTZ
 
-    def __init__(self, **kwargs):
+    def __init__(self, config=None):
         self.name = "data_source"
         self._timestep = None
+        self._config = config
 
     # ========Required Implementations ======================
     @abstractmethod
@@ -45,6 +45,27 @@ class DataSource(ABC):
 
     @abstractmethod
     def _parse_source_symbol_bars(self, response, asset, quote=None, length=None):
+        pass
+
+    @abstractmethod
+    def get_last_price(self, asset, quote=None, exchange=None):
+        """
+        Takes an asset and returns the last known price
+
+        Parameters
+        ----------
+        asset : Asset
+            The asset to get the price of.
+        quote : Asset
+            The quote asset to get the price of.
+        exchange : str
+            The exchange to get the price of.
+
+        Returns
+        -------
+        float
+            The last known price of the asset.
+        """
         pass
 
     @abstractmethod
@@ -183,10 +204,63 @@ class DataSource(ABC):
         return dt.astimezone(cls.DEFAULT_PYTZ)
 
     def get_timestep(self):
-        if self.IS_BACKTESTING_DATA_SOURCE and self.SOURCE == "PANDAS":
-            return self._timestep
+        return self._timestep if self._timestep else self.MIN_TIMESTEP
+
+    @staticmethod
+    def convert_timestep_str_to_timedelta(timestep):
+        """
+        Convert a timestep string to a timedelta object. For example, "1minute" will be converted to a
+        timedelta of 1 minute.
+
+        Parameters
+        ----------
+        timestep : str
+            The timestep string to convert. For example, "1minute" or "1hour" or "1day".
+
+        Returns
+        -------
+        timedelta
+            A timedelta object representing the timestep.
+        """
+        timestep = timestep.lower()
+
+        # Define mapping from timestep units to equivalent minutes
+        time_unit_map = {
+            "minute": 1,
+            "hour": 60,
+            "day": 24 * 60,
+            "m": 1,  # "M" is for minutes
+            "h": 60,  # "H" is for hours
+            "d": 24 * 60,  # "D" is for days
+        }
+
+        # Define default values
+        quantity = 1
+        unit = ""
+
+        # Check if timestep string has a number at the beginning
+        if timestep[0].isdigit():
+            for i, char in enumerate(timestep):
+                if not char.isdigit():
+                    # Get the quantity (number of units)
+                    quantity = int(timestep[:i])
+                    # Get the unit (minute, hour, or day)
+                    unit = timestep[i:]
+                    break
         else:
-            return self.MIN_TIMESTEP
+            unit = timestep
+
+        # Check if the unit is valid
+        if unit in time_unit_map:
+            # Convert quantity to minutes
+            quantity_in_minutes = quantity * time_unit_map[unit]
+            # Convert minutes to timedelta
+            delta = timedelta(minutes=quantity_in_minutes)
+            return delta
+        else:
+            raise ValueError(
+                f"Unknown unit: {unit}. Valid units are minute, hour, day, M, H, D"
+            )
 
     # ========Internal Market Data Methods===================
 
@@ -278,17 +352,13 @@ class DataSource(ABC):
 
         return result
 
-    def get_last_prices(
-        self, assets, timestep=None, quote=None, exchange=None, **kwargs
-    ):
+    def get_last_prices(self, assets, quote=None, exchange=None):
         """Takes a list of assets and returns the last known prices"""
-        if timestep is None:
-            timestep = self.MIN_TIMESTEP
 
         result = {}
         for asset in assets:
             result[asset] = self.get_last_price(
-                asset, timestep=timestep, quote=quote, exchange=exchange, **kwargs
+                asset, quote=quote, exchange=exchange
             )
 
         if self.SOURCE == "CCXT":

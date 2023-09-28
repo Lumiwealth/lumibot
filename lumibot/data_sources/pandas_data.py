@@ -1,21 +1,24 @@
 import logging
 
 import pandas as pd
-from lumibot.entities import Asset, AssetsMapping, Bars
 
-from .data_source import DataSource
+from lumibot.data_sources import DataSourceBacktesting
+from lumibot.entities import Asset, Bars
 
 
-class PandasData(DataSource):
-    IS_BACKTESTING_DATA_SOURCE = True
+class PandasData(DataSourceBacktesting):
+    """
+    PandasData is a Backtesting-only DataSource that uses a Pandas DataFrame (read from CSV) as the source of
+    data for a backtest run. It is not possible to use this class to run a live trading strategy.
+    """
     SOURCE = "PANDAS"
-    MIN_TIMESTEP = "minute"
     TIMESTEP_MAPPING = [
         {"timestep": "day", "representations": ["1D", "day"]},
         {"timestep": "minute", "representations": ["1M", "minute"]},
     ]
 
-    def __init__(self, pandas_data, config=None, auto_adjust=True, **kwargs):
+    def __init__(self, *args, pandas_data, auto_adjust=True, **kwargs):
+        super().__init__(*args, **kwargs)
         self.name = "pandas"
         self.pandas_data = self._set_pandas_data_keys(pandas_data)
         self.auto_adjust = auto_adjust
@@ -40,8 +43,8 @@ class PandasData(DataSource):
                     logging.warning(
                         f"No quote specified for {data.asset}. Using USD as the quote."
                     )
-                    return (data.asset, Asset(symbol="USD", asset_type="forex"))
-                return (data.asset, data.quote)
+                    return data.asset, Asset(symbol="USD", asset_type="forex")
+                return data.asset, data.quote
             else:
                 raise ValueError("Asset must be an Asset or a tuple of Asset and quote")
 
@@ -103,7 +106,8 @@ class PandasData(DataSource):
         pcal = pd.DataFrame(self._date_index)
 
         if pcal.empty:
-            # Create a dummy dataframe that spans the entire date range with market_open and market_close set to 00:00:00 and 23:59:59 respectively.
+            # Create a dummy dataframe that spans the entire date range with market_open and market_close
+            # set to 00:00:00 and 23:59:59 respectively.
             result = pd.DataFrame(
                 index=pd.date_range(
                     start=self.datetime_start, end=self.datetime_end, freq="D"
@@ -143,7 +147,7 @@ class PandasData(DataSource):
         ----------
         symbol : str
             The symbol of the asset.
-        type : str
+        asset_type : str
             Asset type. One of:
             - stock
             - future
@@ -196,7 +200,7 @@ class PandasData(DataSource):
 
         return dt_index
 
-    def get_last_price(self, asset, timestep=None, quote=None, exchange=None, **kwargs):
+    def get_last_price(self, asset, quote=None, exchange=None):
         # Takes an asset and returns the last known price
         tuple_to_find = self.find_asset_in_data_store(asset, quote)
 
@@ -212,14 +216,11 @@ class PandasData(DataSource):
             return None
 
     def get_last_prices(
-        self, assets, timestep=None, quote=None, exchange=None, **kwargs
+        self, assets, quote=None, exchange=None, **kwargs
     ):
-        # Takes a list of assets and returns dictionary of last known prices for each.
-        if timestep is None:
-            timestep = self.MIN_TIMESTEP
         result = {}
         for asset in assets:
-            result[asset] = self.get_last_price(asset, timestep=timestep, quote=quote)
+            result[asset] = self.get_last_price(asset, quote=quote, exchange=exchange)
         return result
 
     def find_asset_in_data_store(self, asset, quote=None):
@@ -239,12 +240,13 @@ class PandasData(DataSource):
         self,
         asset,
         length,
-        timestep=MIN_TIMESTEP,
+        timestep="",
         timeshift=0,
         quote=None,
         exchange=None,
         include_after_hours=True,
     ):
+        timestep = timestep if timestep else self.MIN_TIMESTEP
         if exchange is not None:
             logging.warning(
                 f"the exchange parameter is not implemented for PandasData, but {exchange} was passed as the exchange"
@@ -269,13 +271,13 @@ class PandasData(DataSource):
             )
         # Return None if data.get_bars returns a ValueError
         except ValueError as e:
-            raise ValueError(f"Error getting bars for {asset}: {e}")
+            raise ValueError(f"Error getting bars for {asset}") from e
         return res
     
     def _pull_source_symbol_bars_between_dates(
         self,
         asset,
-        timestep=MIN_TIMESTEP,
+        timestep="",
         quote=None,
         exchange=None,
         include_after_hours=True,
@@ -283,7 +285,7 @@ class PandasData(DataSource):
         end_date=None,
     ):
         """Pull all bars for an asset"""
-        
+        timestep = timestep if timestep else self.MIN_TIMESTEP
         asset_to_find = self.find_asset_in_data_store(asset, quote)
 
         if asset_to_find in self._data_store:
@@ -299,20 +301,20 @@ class PandasData(DataSource):
             )
         # Return None if data.get_bars returns a ValueError
         except ValueError as e:
-            raise ValueError(f"Error getting bars for {asset}: {e}")
-            res = None
+            raise ValueError(f"Error getting bars for {asset}") from e
         return res
 
     def _pull_source_bars(
         self,
         assets,
         length,
-        timestep=MIN_TIMESTEP,
+        timestep="",
         timeshift=None,
         quote=None,
         include_after_hours=True,
     ):
         """pull broker bars for a list assets"""
+        timestep = timestep if timestep else self.MIN_TIMESTEP
         self._parse_source_timestep(timestep, reverse=True)
 
         result = {}
@@ -365,7 +367,7 @@ class PandasData(DataSource):
             - `Expirations` (set of str) eg: {`20230616`, ...}
             - `Strikes` (set of floats)
         """
-        SMART = dict(
+        smart = dict(
             TradingClass=asset.symbol,
             Multiplier=100,
         )
@@ -381,10 +383,10 @@ class PandasData(DataSource):
             expirations.append(store_asset.expiration)
             strikes.append(store_asset.strike)
 
-        SMART["Expirations"] = sorted(list(set(expirations)))
-        SMART["Strikes"] = sorted(list(set(strikes)))
+        smart["Expirations"] = sorted(list(set(expirations)))
+        smart["Strikes"] = sorted(list(set(strikes)))
 
-        return {"SMART": SMART}
+        return {"SMART": smart}
 
     def get_strikes(self, asset):
         """Returns a list of strikes for a give underlying asset.

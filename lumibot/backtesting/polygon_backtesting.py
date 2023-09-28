@@ -8,10 +8,8 @@ from lumibot.data_sources import PandasData
 from lumibot.entities import Asset, Data
 from lumibot.tools import polygon_helper
 
-from .data_source_backtesting import DataSourceBacktesting
 
-
-class PolygonDataBacktesting(DataSourceBacktesting, PandasData):
+class PolygonDataBacktesting(PandasData):
     """
     Backtesting implementation of Polygon
 
@@ -30,67 +28,11 @@ class PolygonDataBacktesting(DataSourceBacktesting, PandasData):
         has_paid_subscription=False,
         **kwargs,
     ):
-        self.LIVE_DATA_SOURCE = PandasData
+        super().__init__(datetime_start, datetime_end, pandas_data, **kwargs)
         self.polygon_api_key = polygon_api_key
         self.has_paid_subscription = has_paid_subscription
-        PandasData.__init__(self, pandas_data, **kwargs)
-        DataSourceBacktesting.__init__(self, datetime_start, datetime_end)
         # RESTClient API for Polygon.io polygon-api-client
         self.polygon_client = RESTClient(self.polygon_api_key)
-
-    def convert_timestep_str_to_timedelta(self, timestep):
-        """
-        Convert a timestep string to a timedelta object. For example, "1minute" will be converted to a timedelta of 1 minute.
-
-        Parameters
-        ----------
-        timestep : str
-            The timestep string to convert. For example, "1minute" or "1hour" or "1day".
-
-        Returns
-        -------
-        timedelta
-            A timedelta object representing the timestep.
-        """
-        timestep = timestep.lower()
-
-        # Define mapping from timestep units to equivalent minutes
-        time_unit_map = {
-            "minute": 1,
-            "hour": 60,
-            "day": 24 * 60,
-            "m": 1,  # "M" is for minutes
-            "h": 60,  # "H" is for hours
-            "d": 24 * 60,  # "D" is for days
-        }
-
-        # Define default values
-        quantity = 1
-        unit = ""
-
-        # Check if timestep string has a number at the beginning
-        if timestep[0].isdigit():
-            for i, char in enumerate(timestep):
-                if not char.isdigit():
-                    # Get the quantity (number of units)
-                    quantity = int(timestep[:i])
-                    # Get the unit (minute, hour, or day)
-                    unit = timestep[i:]
-                    break
-        else:
-            unit = timestep
-
-        # Check if the unit is valid
-        if unit in time_unit_map:
-            # Convert quantity to minutes
-            quantity_in_minutes = quantity * time_unit_map[unit]
-            # Convert minutes to timedelta
-            delta = timedelta(minutes=quantity_in_minutes)
-            return delta
-        else:
-            raise ValueError(
-                f"Unknown unit: {unit}. Valid units are minute, hour, day, M, H, D"
-            )
 
     def update_pandas_data(self, asset, quote, length, timestep):
         """
@@ -150,8 +92,7 @@ class PolygonDataBacktesting(DataSourceBacktesting, PandasData):
                 )
             except Exception as e:
                 logging.error(traceback.format_exc())
-                
-                raise Exception(f"Error getting data from Polygon: {e}")
+                raise Exception("Error getting data from Polygon") from e
 
             if df is None:
                 return None
@@ -187,7 +128,8 @@ class PolygonDataBacktesting(DataSourceBacktesting, PandasData):
         
     # Get pricing data for an asset for the entire backtesting period
     def get_historical_prices_between_dates(
-        self, asset, timestep="minute", quote=None, exchange=None, include_after_hours=True, start_date=None, end_date=None
+        self, asset, timestep="minute", quote=None, exchange=None, include_after_hours=True,
+        start_date=None, end_date=None
     ):
         pandas_data_update = self.update_pandas_data(
             asset, quote, 1, timestep

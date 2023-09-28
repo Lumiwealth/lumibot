@@ -31,7 +31,6 @@ class _Strategy:
             self,
             *args,
             broker=None,
-            data_source=None,
             minutes_before_closing=5,
             minutes_before_opening=60,
             sleeptime="1M",
@@ -40,7 +39,6 @@ class _Strategy:
             benchmark_asset="SPY",
             backtesting_start=None,
             backtesting_end=None,
-            pandas_data=None,
             quote_asset=Asset(symbol="USD", asset_type="forex"),
             starting_positions=None,
             filled_order_callback=None,
@@ -170,9 +168,8 @@ class _Strategy:
 
         # Setting the data provider
         if self._is_backtesting:
-            self.data_source = self.broker._data_source
-            if self.data_source.SOURCE == "PANDAS":
-                self.data_source.load_data()
+            if self.broker.data_source.SOURCE == "PANDAS":
+                self.broker.data_source.load_data()
 
             # Create initial starting positions.
             self.starting_positions = starting_positions
@@ -188,13 +185,8 @@ class _Strategy:
                     )
                     self.broker._filled_positions.append(position)
 
-        elif data_source is None:
-            self.data_source = self.broker
-        else:
-            self.data_source = data_source
-
         if risk_free_rate is None:
-            # Get risk free rate from US Treasuries by default
+            # Get risk-free rate from US Treasuries by default
             self._risk_free_rate = get_risk_free_rate()
         else:
             self._risk_free_rate = risk_free_rate
@@ -228,7 +220,7 @@ class _Strategy:
             # ## START
             self._portfolio_value = self.cash
 
-            store_assets = list(self.broker._data_source._data_store.keys())
+            store_assets = list(self.broker.data_source._data_store.keys())
             if len(store_assets) > 0:
                 positions_value = 0
                 for position in self.get_positions():
@@ -447,7 +439,7 @@ class _Strategy:
                         asset = (asset, self.quote_asset)
                     assets.append(asset)
 
-            prices = self.data_source.get_last_prices(assets)
+            prices = self.broker.data_source.get_last_prices(assets)
 
             for position in positions:
                 # Turn the asset into a tuple if it's a crypto asset
@@ -619,7 +611,7 @@ class _Strategy:
                 backtesting_end_adjusted = self._backtesting_end
 
                 # If we are using the polgon data source, then get the benchmark returns from polygon
-                if type(self.data_source) == PolygonDataBacktesting:
+                if type(self.broker.data_source) == PolygonDataBacktesting:
                     benchmark_asset = self._benchmark_asset
                     # If the benchmark asset is a string, then convert it to an Asset object
                     if isinstance(benchmark_asset, str):
@@ -630,7 +622,7 @@ class _Strategy:
                     if "D" in str(self._sleeptime):
                         timestep = "day"
 
-                    bars = self.data_source.get_historical_prices_between_dates(
+                    bars = self.broker.data_source.get_historical_prices_between_dates(
                         benchmark_asset,
                         timestep,
                         start_date=self._backtesting_start,
@@ -816,13 +808,13 @@ class _Strategy:
         stats_file : str
             The file to write the stats to.
         risk_free_rate : float
-            The risk free rate to use.
+            The risk-free rate to use.
         logfile : str
             The file to write the log to.
         config : dict
             The config to use to set up the brokers in live trading.
         auto_adjust : bool
-            Whether or not to automatically adjust the strategy.
+            Whether to automatically adjust the strategy.
         name : str
             The name of the strategy.
         budget : float
@@ -838,7 +830,7 @@ class _Strategy:
             A list of Data objects that are used when the datasource_class object is set to PandasDataBacktesting.
             This contains all the data that will be used in backtesting.
         quote_asset : Asset (crypto)
-            An Asset object for the crypto currency that will get used
+            An Asset object for the cryptocurrency that will get used
             as a valuation asset for measuring overall porfolio values.
             Usually USDT, USD, USDC.
         starting_positions : dict
@@ -846,11 +838,11 @@ class _Strategy:
             if you want to start with $100 of SPY, and $200 of AAPL, then you
             would pass in starting_positions={'SPY': 100, 'AAPL': 200}.
         show_plot : bool
-            Whether or not to show the plot.
+            Whether to show the plot.
         show_tearsheet : bool
-            Whether or not to show the tearsheet.
+            Whether to show the tearsheet.
         save_tearsheet : bool
-            Whether or not to save the tearsheet.
+            Whether to save the tearsheet.
         parameters : dict
             A dictionary of parameters to pass to the strategy. These parameters
             must be set up within the initialize() method.
@@ -862,7 +854,7 @@ class _Strategy:
             The polygon api key to use for polygon data. Only required if you are using PolygonDataBacktesting as
             the datasource_class.
         polygon_has_paid_subscription : bool
-            Whether or not you have a paid subscription to Polygon. Only required if you are using
+            Whether you have a paid subscription to Polygon. Only required if you are using
             PolygonDataBacktesting as the datasource_class.
         indicators_file : str
             The file to write the indicators to.
@@ -953,9 +945,9 @@ class _Strategy:
         if name is None:
             name = cls.__name__
 
-        ##############################################  
+        # #############################################
         # Check the data types of the parameters
-        ##############################################
+        # #############################################
 
         # Check datasource_class
         if not isinstance(datasource_class, type):

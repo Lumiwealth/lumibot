@@ -993,36 +993,31 @@ class Broker(ABC):
         else:
             logging.info(f"Unhandled type event {type_event} for {stored_order}")
 
-        if (
-            hasattr(self, "_data_source")
-            and self.data_source is not None
-            and hasattr(self.data_source, "get_datetime")
-        ):
-            current_dt = self.data_source.get_datetime()
-            new_row = {
-                "time": current_dt,
-                "strategy": stored_order.strategy,
-                "exchange": stored_order.exchange,
-                "symbol": stored_order.symbol,
-                "side": stored_order.side,
-                "type": stored_order.type,
-                "status": stored_order.status,
-                "price": price,
-                "filled_quantity": filled_quantity,
-                "multiplier": multiplier,
-                "trade_cost": stored_order.trade_cost,
-                "time_in_force": stored_order.time_in_force,
-                "asset.right": stored_order.asset.right,
-                "asset.strike": stored_order.asset.strike,
-                "asset.multiplier": stored_order.asset.multiplier,
-                "asset.expiration": stored_order.asset.expiration,
-                "asset.asset_type": stored_order.asset.asset_type,
-            }
-            # append row to the dataframe
-            new_row_df = pd.DataFrame(new_row, index=[0])
-            self._trade_event_log_df = pd.concat(
-                [self._trade_event_log_df, new_row_df], axis=0
-            )
+        current_dt = self.data_source.get_datetime()
+        new_row = {
+            "time": current_dt,
+            "strategy": stored_order.strategy,
+            "exchange": stored_order.exchange,
+            "symbol": stored_order.symbol,
+            "side": stored_order.side,
+            "type": stored_order.type,
+            "status": stored_order.status,
+            "price": price,
+            "filled_quantity": filled_quantity,
+            "multiplier": multiplier,
+            "trade_cost": stored_order.trade_cost,
+            "time_in_force": stored_order.time_in_force,
+            "asset.right": stored_order.asset.right,
+            "asset.strike": stored_order.asset.strike,
+            "asset.multiplier": stored_order.asset.multiplier,
+            "asset.expiration": stored_order.asset.expiration,
+            "asset.asset_type": stored_order.asset.asset_type,
+        }
+        # append row to the dataframe
+        new_row_df = pd.DataFrame(new_row, index=[0])
+        self._trade_event_log_df = pd.concat(
+            [self._trade_event_log_df, new_row_df], axis=0
+        )
 
         return
 

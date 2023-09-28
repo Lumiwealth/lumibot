@@ -19,16 +19,16 @@ class PolygonDataBacktesting(PandasData):
         datetime_start,
         datetime_end,
         pandas_data=None,
-        polygon_api_key=None,
-        has_paid_subscription=False,
+        api_key=None,
+        has_paid_subscription=True,  # TODO: Set to False after new backtest is released
         **kwargs,
     ):
-        super().__init__(datetime_start, datetime_end, pandas_data, **kwargs)
-        self.polygon_api_key = polygon_api_key
+        super().__init__(datetime_start=datetime_start, datetime_end=datetime_end, pandas_data=pandas_data,
+                         api_key=api_key, **kwargs)
         self.has_paid_subscription = has_paid_subscription
 
         # RESTClient API for Polygon.io polygon-api-client
-        self.polygon_client = RESTClient(self.polygon_api_key)
+        self.polygon_client = RESTClient(self._api_key)
 
     def update_pandas_data(self, asset, quote, length, timestep):
         """
@@ -78,7 +78,7 @@ class PolygonDataBacktesting(PandasData):
 
                 # Get data from Polygon
                 df = polygon_helper.get_price_data_from_polygon(
-                    self.polygon_api_key,
+                    self._api_key,
                     asset_separated,
                     start_datetime,
                     self.datetime_end,
@@ -158,7 +158,7 @@ class PolygonDataBacktesting(PandasData):
         except Exception as e:
             print(f"Error get_last_price from Polygon: {e}")
 
-        return super().get_last_price(asset, timestep, quote, exchange, **kwargs)
+        return super().get_last_price(asset=asset, quote=quote, exchange=exchange)
 
     def get_chains(self, asset):
         """

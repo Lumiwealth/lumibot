@@ -1729,6 +1729,7 @@ class Strategy(_Strategy):
         should_use_last_close : bool
             If False, it will make Interactive Brokers only return the
             price of an asset if it has been trading today. Defaults to True.
+            TODO: Should this option be depricated? It is now commented out below
 
         Returns
         -------
@@ -1789,7 +1790,7 @@ class Strategy(_Strategy):
                 asset,
                 quote=quote_asset,
                 exchange=exchange,
-                should_use_last_close=should_use_last_close,
+                # should_use_last_close=should_use_last_close,
             )
         except Exception as e:
             self.log_message(f"Could not get last price for {asset}", color="red")
@@ -1798,6 +1799,7 @@ class Strategy(_Strategy):
 
     def get_tick(self, asset):
         """Takes an asset asset and returns the last known price"""
+        # TODO: Should this function be depricated?
         asset = self._set_asset_mapping(asset)
         return self.broker._get_tick(asset)
 

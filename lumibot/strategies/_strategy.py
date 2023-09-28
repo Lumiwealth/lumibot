@@ -783,7 +783,7 @@ class _Strategy:
             parameters={},
             buy_trading_fees=[],
             sell_trading_fees=[],
-            polygon_api_key=None,
+            api_key=None,
             polygon_has_paid_subscription=False,
             indicators_file=None,
             **kwargs,
@@ -850,7 +850,7 @@ class _Strategy:
             A list of TradingFee objects to apply to the buy orders during backtests.
         sell_trading_fees : list of TradingFee objects
             A list of TradingFee objects to apply to the sell orders during backtests.
-        polygon_api_key : str
+        api_key : str
             The polygon api key to use for polygon data. Only required if you are using PolygonDataBacktesting as
             the datasource_class.
         polygon_has_paid_subscription : bool
@@ -973,9 +973,9 @@ class _Strategy:
             )
 
         # Make sure polygon_api_key is set if using PolygonDataBacktesting
-        if datasource_class == PolygonDataBacktesting and polygon_api_key is None:
+        if datasource_class == PolygonDataBacktesting and api_key is None:
             raise ValueError(
-                "Please set `polygon_api_key` to your API key from polygon.io in the backtest() function if "
+                "Please set `api_key` to your API key from polygon.io in the backtest() function if "
                 "you are using PolygonDataBacktesting. If you don't have one, you can get a free API key "
                 "from https://polygon.io/."
             )
@@ -1034,9 +1034,9 @@ class _Strategy:
             backtesting_end,
             config=config,
             auto_adjust=auto_adjust,
-            pandas_data=pandas_data,
-            polygon_api_key=polygon_api_key,
-            has_paid_subscription=polygon_has_paid_subscription,
+            # pandas_data=pandas_data,
+            api_key=api_key,
+            # has_paid_subscription=polygon_has_paid_subscription,
             **kwargs,
         )
         backtesting_broker = BacktestingBroker(data_source)
@@ -1153,7 +1153,7 @@ class _Strategy:
             parameters={},
             buy_trading_fees=[],
             sell_trading_fees=[],
-            polygon_api_key=None,
+            api_key=None,
             polygon_has_paid_subscription=False,
             indicators_file=None,
             **kwargs,
@@ -1220,7 +1220,7 @@ class _Strategy:
             A list of TradingFee objects to apply to the buy orders during backtests.
         sell_trading_fees : list of TradingFee objects
             A list of TradingFee objects to apply to the sell orders during backtests.
-        polygon_api_key : str
+        api_key : str
             The polygon api key to use for polygon data. Only required if you are using PolygonDataBacktesting as
             the datasource_class.
         polygon_has_paid_subscription : bool
@@ -1271,7 +1271,7 @@ class _Strategy:
             pandas_data=pandas_data, quote_asset=quote_asset, starting_positions=starting_positions,
             show_plot=show_plot, tearsheet_file=tearsheet_file, save_tearsheet=save_tearsheet,
             show_tearsheet=show_tearsheet, parameters=parameters, buy_trading_fees=buy_trading_fees,
-            sell_trading_fees=sell_trading_fees, polygon_api_key=polygon_api_key,
+            sell_trading_fees=sell_trading_fees, api_key=api_key,
             polygon_has_paid_subscription=polygon_has_paid_subscription, indicators_file=indicators_file,
             **kwargs,
         )

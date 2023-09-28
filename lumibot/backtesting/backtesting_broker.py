@@ -14,11 +14,15 @@ class BacktestingBroker(Broker):
     # Metainfo
     IS_BACKTESTING_BROKER = True
 
-    def __init__(self, data_source, connect_stream=True, max_workers=20, **kwargs):
+    def __init__(self, data_source, connect_stream=True, max_workers=20, config=None, **kwargs):
         super().__init__(name="backtesting", data_source=data_source, connect_stream=connect_stream, **kwargs)
         # Calling init methods
         self.max_workers = max_workers
         self.market = "NASDAQ"
+
+        # Legacy strategy.backtest code will always pass in a config even for Brokers that don't need it, so
+        # catch it here and ignore it in this class. Child classes that need it should error check it themselves.
+        # self._config = config
 
         if not isinstance(self.data_source, DataSourceBacktesting):
             raise ValueError("Must provide a backtesting data_source to run with a BacktestingBroker")

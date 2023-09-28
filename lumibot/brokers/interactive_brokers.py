@@ -958,7 +958,8 @@ class IBClient(EClient):
         except queue.Empty:
             data_type = f"{'tick' if not greek else 'greek'}"
             logging.error(
-                f"Unable to get data for {self.tick_asset}. The Interactive Brokers queue was empty or max time reached for {data_type} data. reqId: {reqId}"
+                f"Unable to get data for {self.tick_asset}. The Interactive Brokers queue was empty or max time "
+                f"reached for {data_type} data. reqId: {reqId}"
             )
             requested_tick = None
             requested_greek = None

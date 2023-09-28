@@ -14,9 +14,9 @@ class DataSourceBacktesting(DataSource, ABC):
     IS_BACKTESTING_DATA_SOURCE = True
 
     def __init__(
-        self, datetime_start, datetime_end, backtesting_started=None
+        self, datetime_start, datetime_end, backtesting_started=None, config=None, api_key=None
     ):
-        super().__init__()
+        super().__init__(api_key=api_key)
 
         if backtesting_started is None:
             _backtesting_started = datetime.now()
@@ -31,6 +31,10 @@ class DataSourceBacktesting(DataSource, ABC):
 
         # Subtract one minute from the datetime_end so that the strategy stops right before the datetime_end
         self.datetime_end -= timedelta(minutes=1)
+
+        # Legacy strategy.backtest code will always pass in a config even for DataSources that don't need it, so
+        # catch it here and ignore it in this class. Child classes that need it should error check it themselves.
+        self._config = config
 
     def get_datetime(self):
         return self._datetime

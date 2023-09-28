@@ -3,7 +3,7 @@ import os
 from collections import defaultdict
 
 import pandas_market_calendars as mcal
-import pytz
+
 from lumibot.backtesting import PolygonDataBacktesting
 from lumibot.entities import Asset
 from lumibot.strategies import Strategy
@@ -161,10 +161,10 @@ class TestPolygonBacktestFull:
             show_plot=False,
             show_tearsheet=False,
             save_tearsheet=False,
-            polygon_api_key=POLYGON_API_KEY,  # TODO Replace with Lumibot owned API Key
+            api_key=POLYGON_API_KEY,  # TODO Replace with Lumibot owned API Key
             # Painfully slow with free subscription setting b/c lumibot is over querying and imposing a very
             # strict rate limit
-            polygon_has_paid_subscription=True,
+            # polygon_has_paid_subscription=True,
         )
         assert results
         assert isinstance(poly_strat_obj, PolygonBacktestStrat)
@@ -226,9 +226,9 @@ class TestPolygonBacktestFull:
             show_plot=False,
             show_tearsheet=False,
             save_tearsheet=False,
-            polygon_api_key=POLYGON_API_KEY,  # TODO Replace with Lumibot owned API Key
+            api_key=POLYGON_API_KEY,  # TODO Replace with Lumibot owned API Key
             # Painfully slow with free subscription setting b/c lumibot is over querying and imposing a very
             # strict rate limit
-            polygon_has_paid_subscription=True,
+            # polygon_has_paid_subscription=True,
         )
         assert results

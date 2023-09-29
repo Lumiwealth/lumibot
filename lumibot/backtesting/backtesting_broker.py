@@ -78,16 +78,17 @@ class BacktestingBroker(Broker):
 
     # =========Internal functions==================
 
-    def _update_datetime(self, update):
-        """Works with either timedelta or datetime input
-        and updates the datetime of the broker"""
+    def _update_datetime(self, update_dt):
+        """
+        Works with either timedelta or datetime input and updates the datetime of the broker
+        """
 
-        if isinstance(update, timedelta):
-            new_datetime = self.datetime + update
-        elif isinstance(update, int) or isinstance(update, float):
-            new_datetime = self.datetime + timedelta(seconds=update)
+        if isinstance(update_dt, timedelta):
+            new_datetime = self.datetime + update_dt
+        elif isinstance(update_dt, int) or isinstance(update_dt, float):
+            new_datetime = self.datetime + timedelta(seconds=update_dt)
         else:
-            new_datetime = update
+            new_datetime = update_dt
 
         self.data_source._update_datetime(new_datetime)
         logging.info(f"Current backtesting datetime {self.datetime}")

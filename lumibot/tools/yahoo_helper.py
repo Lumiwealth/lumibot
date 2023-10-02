@@ -17,7 +17,7 @@ class _YahooData:
         self.symbol = symbol
         self.type = type.lower()
         self.data = data
-        self.file_name = "%s_%s.pickle" % (symbol, type)
+        self.file_name = f"{symbol}_{type}.pickle"
 
     def is_up_to_date(self, last_needed_datetime=None):
         if last_needed_datetime is None:
@@ -28,7 +28,7 @@ class _YahooData:
             last_day = self.data.index[-1].to_pydatetime().date()
 
             # ip_up_to_date will always return False on holidays even though
-            # the data is up to date because the market is still closed
+            # the data is up-to-date because the market is still closed
             return last_day >= last_needed_date
 
         if self.type == INFO_DATA:

@@ -1,10 +1,14 @@
+import datetime
+
 from lumibot.backtesting import BacktestingBroker
 from lumibot.data_sources import PandasData
 
 
 class TestBacktestingBroker:
     def test_limit_fills(self):
-        data_source = PandasData({})
+        start = datetime.datetime(2023, 8, 1)
+        end = datetime.datetime(2023, 8, 2)
+        data_source = PandasData(datetime_start=start, datetime_end=end, pandas_data={})
         broker = BacktestingBroker(data_source=data_source)
 
         # Limit triggered by candle body
@@ -28,7 +32,9 @@ class TestBacktestingBroker:
         assert not broker.limit_order(limit_price, 'sell', open_=100, high=110, low=90)
 
     def test_stop_fills(self):
-        data_source = PandasData({})
+        start = datetime.datetime(2023, 8, 1)
+        end = datetime.datetime(2023, 8, 2)
+        data_source = PandasData(datetime_start=start, datetime_end=end, pandas_data={})
         broker = BacktestingBroker(data_source=data_source)
 
         # Stop triggered by candle body

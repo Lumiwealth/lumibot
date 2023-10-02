@@ -1,8 +1,9 @@
 name: LumiBot CI/CD
-on: [push]
+on: [pull_request]
 jobs:
   LintAndTest:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     environment: unit-tests
     env: 
       AIOHTTP_NO_EXTENSIONS: 1
@@ -27,7 +28,7 @@ jobs:
           # Remove -e flag to fail the run if issues are found
           ruff check . -e
       - name: Run Unit Tests
-        run: |          
+        run: |
           coverage run
           coverage report
           coverage html

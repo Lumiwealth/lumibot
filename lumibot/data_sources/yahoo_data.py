@@ -1,28 +1,39 @@
 import logging
-from datetime import datetime, timedelta
+from datetime import timedelta
 from decimal import Decimal
 
 import numpy
-from lumibot.data_sources.exceptions import NoDataFound
+
+from lumibot.data_sources import DataSourceBacktesting
 from lumibot.entities import Asset, Bars
-from lumibot.tools import YahooHelper as yh
-
-from .data_source import DataSource
+from lumibot.tools import YahooHelper
 
 
-class YahooData(DataSource):
+class YahooData(DataSourceBacktesting):
     SOURCE = "YAHOO"
     MIN_TIMESTEP = "day"
     TIMESTEP_MAPPING = [
         {"timestep": "day", "representations": ["1D", "day"]},
     ]
 
-    def __init__(self, config=None, auto_adjust=True, **kwargs):
+    def __init__(self, *args, auto_adjust=True, **kwargs):
+        super().__init__(*args, **kwargs)
         self.name = "yahoo"
         self.auto_adjust = auto_adjust
         self._data_store = {}
 
     def _append_data(self, asset, data):
+        """
+
+        Parameters
+        ----------
+        asset : Asset
+        data
+
+        Returns
+        -------
+
+        """
         if "Adj Close" in data:
             del data["Adj Close"]
         data = data.rename(
@@ -66,7 +77,7 @@ class YahooData(DataSource):
         if asset in self._data_store:
             data = self._data_store[asset]
         else:
-            data = yh.get_symbol_data(
+            data = YahooHelper.get_symbol_data(
                 asset.symbol,
                 auto_adjust=self.auto_adjust,
                 last_needed_datetime=self.datetime_end,
@@ -110,7 +121,7 @@ class YahooData(DataSource):
         ]
 
         if missing_assets:
-            dfs = yh.get_symbols_data(missing_assets, auto_adjust=self.auto_adjust)
+            dfs = YahooHelper.get_symbols_data(missing_assets, auto_adjust=self.auto_adjust)
             for symbol, df in dfs.items():
                 self._append_data(symbol, df)
 
@@ -143,7 +154,26 @@ class YahooData(DataSource):
         elif bars is None:
             return None
 
-        open = bars.df.iloc[0].open
-        if type(open) == numpy.int64:
-            open = Decimal(open.item())
-        return open
+        open_ = bars.df.iloc[0].open
+        if isinstance(open_, numpy.int64):
+            open_ = Decimal(open_.item())
+        return open_
+
+    def get_chains(self, asset):
+        """
+        Get the chains for a given asset.  This is not implemented for YahooData becuase Yahoo does not support
+        historical options data.
+
+        yfinance module does support getting some of the info for current options chains, but it is not implemented.
+        See yf methods:
+        >>>    import yfinance as yf
+        >>>    spy = yf.Ticker("SPY")
+        >>>    expirations = spy.options
+        >>>    chain_data = spy.option_chain()
+        """
+        raise NotImplementedError("Lumibot YahooData does not support historical options data. If you need this "
+                                  "feature, please use a different data source.")
+
+    def get_strikes(self, asset):
+        raise NotImplementedError("Lumibot YahooData does not support historical options data. If you need this "
+                                  "feature, please use a different data source.")

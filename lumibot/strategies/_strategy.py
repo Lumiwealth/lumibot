@@ -1,6 +1,7 @@
 import datetime
 import logging
 import os
+import warnings
 from asyncio.log import logger
 from decimal import Decimal
 
@@ -31,7 +32,6 @@ class _Strategy:
             self,
             *args,
             broker=None,
-            data_source=None,
             minutes_before_closing=5,
             minutes_before_opening=60,
             sleeptime="1M",
@@ -40,7 +40,6 @@ class _Strategy:
             benchmark_asset="SPY",
             backtesting_start=None,
             backtesting_end=None,
-            pandas_data=None,
             quote_asset=Asset(symbol="USD", asset_type="forex"),
             starting_positions=None,
             filled_order_callback=None,
@@ -170,9 +169,8 @@ class _Strategy:
 
         # Setting the data provider
         if self._is_backtesting:
-            self.data_source = self.broker._data_source
-            if self.data_source.SOURCE == "PANDAS":
-                self.data_source.load_data()
+            if self.broker.data_source.SOURCE == "PANDAS":
+                self.broker.data_source.load_data()
 
             # Create initial starting positions.
             self.starting_positions = starting_positions
@@ -188,13 +186,8 @@ class _Strategy:
                     )
                     self.broker._filled_positions.append(position)
 
-        elif data_source is None:
-            self.data_source = self.broker
-        else:
-            self.data_source = data_source
-
         if risk_free_rate is None:
-            # Get risk free rate from US Treasuries by default
+            # Get risk-free rate from US Treasuries by default
             self._risk_free_rate = get_risk_free_rate()
         else:
             self._risk_free_rate = risk_free_rate
@@ -228,7 +221,7 @@ class _Strategy:
             # ## START
             self._portfolio_value = self.cash
 
-            store_assets = list(self.broker._data_source._data_store.keys())
+            store_assets = list(self.broker.data_source._data_store.keys())
             if len(store_assets) > 0:
                 positions_value = 0
                 for position in self.get_positions():
@@ -447,7 +440,7 @@ class _Strategy:
                         asset = (asset, self.quote_asset)
                     assets.append(asset)
 
-            prices = self.data_source.get_last_prices(assets)
+            prices = self.broker.data_source.get_last_prices(assets)
 
             for position in positions:
                 # Turn the asset into a tuple if it's a crypto asset
@@ -619,7 +612,7 @@ class _Strategy:
                 backtesting_end_adjusted = self._backtesting_end
 
                 # If we are using the polgon data source, then get the benchmark returns from polygon
-                if type(self.data_source) == PolygonDataBacktesting:
+                if type(self.broker.data_source) == PolygonDataBacktesting:
                     benchmark_asset = self._benchmark_asset
                     # If the benchmark asset is a string, then convert it to an Asset object
                     if isinstance(benchmark_asset, str):
@@ -630,7 +623,7 @@ class _Strategy:
                     if "D" in str(self._sleeptime):
                         timestep = "day"
 
-                    bars = self.data_source.get_historical_prices_between_dates(
+                    bars = self.broker.data_source.get_historical_prices_between_dates(
                         benchmark_asset,
                         timestep,
                         start_date=self._backtesting_start,
@@ -791,6 +784,7 @@ class _Strategy:
             parameters={},
             buy_trading_fees=[],
             sell_trading_fees=[],
+            api_key=None,
             polygon_api_key=None,
             polygon_has_paid_subscription=False,
             indicators_file=None,
@@ -816,13 +810,13 @@ class _Strategy:
         stats_file : str
             The file to write the stats to.
         risk_free_rate : float
-            The risk free rate to use.
+            The risk-free rate to use.
         logfile : str
             The file to write the log to.
         config : dict
             The config to use to set up the brokers in live trading.
         auto_adjust : bool
-            Whether or not to automatically adjust the strategy.
+            Whether to automatically adjust the strategy.
         name : str
             The name of the strategy.
         budget : float
@@ -838,7 +832,7 @@ class _Strategy:
             A list of Data objects that are used when the datasource_class object is set to PandasDataBacktesting.
             This contains all the data that will be used in backtesting.
         quote_asset : Asset (crypto)
-            An Asset object for the crypto currency that will get used
+            An Asset object for the cryptocurrency that will get used
             as a valuation asset for measuring overall porfolio values.
             Usually USDT, USD, USDC.
         starting_positions : dict
@@ -846,11 +840,11 @@ class _Strategy:
             if you want to start with $100 of SPY, and $200 of AAPL, then you
             would pass in starting_positions={'SPY': 100, 'AAPL': 200}.
         show_plot : bool
-            Whether or not to show the plot.
+            Whether to show the plot.
         show_tearsheet : bool
-            Whether or not to show the tearsheet.
+            Whether to show the tearsheet.
         save_tearsheet : bool
-            Whether or not to save the tearsheet.
+            Whether to save the tearsheet.
         parameters : dict
             A dictionary of parameters to pass to the strategy. These parameters
             must be set up within the initialize() method.
@@ -858,11 +852,13 @@ class _Strategy:
             A list of TradingFee objects to apply to the buy orders during backtests.
         sell_trading_fees : list of TradingFee objects
             A list of TradingFee objects to apply to the sell orders during backtests.
+        api_key : str
+            The api key to use for datasources like Polygon that need it for connecting to the data source.
         polygon_api_key : str
             The polygon api key to use for polygon data. Only required if you are using PolygonDataBacktesting as
-            the datasource_class.
+            the datasource_class. This is deprecated and will be removed in a future version. Please use api_key.
         polygon_has_paid_subscription : bool
-            Whether or not you have a paid subscription to Polygon. Only required if you are using
+            Whether you have a paid subscription to Polygon. Only required if you are using
             PolygonDataBacktesting as the datasource_class.
         indicators_file : str
             The file to write the indicators to.
@@ -953,9 +949,9 @@ class _Strategy:
         if name is None:
             name = cls.__name__
 
-        ##############################################  
+        # #############################################
         # Check the data types of the parameters
-        ##############################################
+        # #############################################
 
         # Check datasource_class
         if not isinstance(datasource_class, type):
@@ -980,10 +976,15 @@ class _Strategy:
                 f"{backtesting_end} and {backtesting_start}"
             )
 
+        if not api_key and polygon_api_key:
+            warnings.warn("The backtest() parameter 'polygon_api_key' will be removed in future versions. "
+                          "Please use 'api_key' instead.", DeprecationWarning, stacklevel=2)
+            api_key = polygon_api_key
+
         # Make sure polygon_api_key is set if using PolygonDataBacktesting
-        if datasource_class == PolygonDataBacktesting and polygon_api_key is None:
+        if datasource_class == PolygonDataBacktesting and api_key is None:
             raise ValueError(
-                "Please set `polygon_api_key` to your API key from polygon.io in the backtest() function if "
+                "Please set `api_key` to your API key from polygon.io in the backtest() function if "
                 "you are using PolygonDataBacktesting. If you don't have one, you can get a free API key "
                 "from https://polygon.io/."
             )
@@ -1042,9 +1043,9 @@ class _Strategy:
             backtesting_end,
             config=config,
             auto_adjust=auto_adjust,
-            pandas_data=pandas_data,
-            polygon_api_key=polygon_api_key,
-            has_paid_subscription=polygon_has_paid_subscription,
+            # pandas_data=pandas_data,
+            api_key=api_key,
+            # has_paid_subscription=polygon_has_paid_subscription,
             **kwargs,
         )
         backtesting_broker = BacktestingBroker(data_source)
@@ -1161,6 +1162,7 @@ class _Strategy:
             parameters={},
             buy_trading_fees=[],
             sell_trading_fees=[],
+            api_key=None,
             polygon_api_key=None,
             polygon_has_paid_subscription=False,
             indicators_file=None,
@@ -1228,9 +1230,11 @@ class _Strategy:
             A list of TradingFee objects to apply to the buy orders during backtests.
         sell_trading_fees : list of TradingFee objects
             A list of TradingFee objects to apply to the sell orders during backtests.
+        api_key : str
+            The api key to use for datasources like Polygon that need it for connecting to the data source.
         polygon_api_key : str
             The polygon api key to use for polygon data. Only required if you are using PolygonDataBacktesting as
-            the datasource_class.
+            the datasource_class. This is deprecated and will be removed in a future version. Please use api_key.
         polygon_has_paid_subscription : bool
             Whether or not you have a paid subscription to Polygon. Only required if you are using
             PolygonDataBacktesting as the datasource_class.
@@ -1279,7 +1283,7 @@ class _Strategy:
             pandas_data=pandas_data, quote_asset=quote_asset, starting_positions=starting_positions,
             show_plot=show_plot, tearsheet_file=tearsheet_file, save_tearsheet=save_tearsheet,
             show_tearsheet=show_tearsheet, parameters=parameters, buy_trading_fees=buy_trading_fees,
-            sell_trading_fees=sell_trading_fees, polygon_api_key=polygon_api_key,
+            sell_trading_fees=sell_trading_fees, api_key=api_key, polygon_api_key=polygon_api_key,
             polygon_has_paid_subscription=polygon_has_paid_subscription, indicators_file=indicators_file,
             **kwargs,
         )

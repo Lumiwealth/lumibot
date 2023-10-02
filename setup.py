@@ -18,7 +18,7 @@ setuptools.setup(
         "alpaca-py<=0.10.0",
         "alpha_vantage",
         "ibapi==9.81.1.post1",
-        "yfinance>=0.2.18",
+        "yfinance",
         "matplotlib>=3.3.3",
         "quandl",
         "pandas>=2.0.0,<=2.1.0",

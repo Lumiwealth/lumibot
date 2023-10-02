@@ -99,6 +99,7 @@ class TestExampleStrategies:
         assert isinstance(strat_obj, LimitAndTrailingStop)
 
         trades_df = strat_obj.broker._trade_event_log_df
+        assert not trades_df.empty
 
         # Get all the filled limit orders
         filled_limit_orders = trades_df[(trades_df["status"] == "fill") & (trades_df["type"] == "limit")]

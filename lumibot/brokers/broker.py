@@ -1,9 +1,9 @@
 import logging
 import time
+from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from functools import wraps
 from queue import Queue
 from threading import RLock, Thread
 
@@ -13,11 +13,11 @@ from dateutil import tz
 from termcolor import colored
 
 from lumibot.data_sources import DataSource
-from lumibot.entities import Order, Position
+from lumibot.entities import Asset, Order, Position
 from lumibot.trading_builtins import SafeList
 
 
-class Broker:
+class Broker(ABC):
 
     # Metainfo
     IS_BACKTESTING_BROKER = False
@@ -28,7 +28,7 @@ class Broker:
     FILLED_ORDER = "fill"
     PARTIALLY_FILLED_ORDER = "partial_fill"
 
-    def __init__(self, name="", connect_stream=True):
+    def __init__(self, name="", connect_stream=True, data_source: DataSource = None, config=None):
         """Broker constructor"""
         # Shared Variables between threads
         self.name = name
@@ -43,6 +43,11 @@ class Broker:
         self._trade_event_log_df = pd.DataFrame()
         self._hold_trade_events = False
         self._held_trades = []
+        self._config = config
+        self.data_source = data_source
+
+        if self.data_source is None:
+            raise ValueError("Broker must have a data source")
 
         # setting the orders queue and threads
         if not self.IS_BACKTESTING_BROKER:
@@ -56,11 +61,298 @@ class Broker:
             if self.stream is not None:
                 self._launch_stream()
 
+    # =================================================================================
+    # ================================ Required Implementations========================
+    # =========Order Handling=======================
+    @abstractmethod
+    def cancel_order(self, order: Order):
+        """Cancel an order at the broker"""
+        pass
+
+    @abstractmethod
+    def _submit_order(self, order: Order):
+        """Submit an order to the broker"""
+        pass
+
+    # =========Account functions=======================
+    @abstractmethod
+    def _get_balances_at_broker(self, quote_asset: Asset) -> float:
+        """
+        Get the actual cash balance at the broker.
+        Parameters
+        ----------
+        quote_asset : Asset
+            The quote asset to get the balance of.
+
+        Returns
+        -------
+        float
+            The balance of the quote asset at the broker.
+        """
+        pass
+
+    @abstractmethod
+    def get_historical_account_value(self):
+        """
+        Get the historical account value of the account.
+        TODO: Fill out the docstring with more information.
+        """
+        pass
+
+    # =========Stream functions=======================
+    @abstractmethod
+    def _get_stream_object(self):
+        """get the broker stream connection"""
+        pass
+
+    @abstractmethod
+    def _register_stream_events(self):
+        """Register the function on_trade_event
+        to be executed on each trade_update event"""
+        pass
+
+    @abstractmethod
+    def _run_stream(self):
+        """Run the stream"""
+        pass
+
+    # =========Broker Positions=======================
+    @abstractmethod
+    def _parse_broker_position(self, broker_position, strategy, orders=None):
+        """
+        parse a broker position representation into a position object
+        TODO: Fill in with the expected input/output of this function.
+        """
+        pass
+
+    @abstractmethod
+    def _pull_broker_position(self, asset: Asset):
+        """
+        Given an asset, get the broker representation of the corresponding asset
+        TODO: Fill in with the expected output of this function.
+        """
+        pass
+
+    @abstractmethod
+    def _pull_broker_positions(self, strategy=None):
+        """
+        Get the broker representation of all positions
+        TODO: Fill in with the expected output of this function.
+        """
+        pass
+
+    @abstractmethod
+    def _parse_broker_order(self, response, strategy_name, strategy_object=None):
+        """parse a broker order representation
+        to an order object"""
+        pass
+
+    @abstractmethod
+    def _pull_broker_order(self, identifier):
+        """Get a broker order representation by its id"""
+        pass
+
+    @abstractmethod
+    def _pull_broker_open_orders(self):
+        """
+        Get the broker open orders
+        TODO: Fill in with the expected output of this function.
+        """
+        pass
+
+    @abstractmethod
+    def _get_tick(self, order: Order):
+        """
+
+        Parameters
+        ----------
+        order : Order
+            The order to get the tick for.
+
+        Returns
+        -------
+           TODO: Fill in with the expected output of this function.
+        """""
+        pass
+
+    # =========Market functions=======================
+    def get_last_price(self, asset: Asset, quote=None, exchange=None) -> float:
+        """
+        Takes an asset and returns the last known price
+
+        Parameters
+        ----------
+        asset : Asset
+            The asset to get the price of.
+        quote : Asset
+            The quote asset to get the price of.
+        exchange : str
+            The exchange to get the price of.
+
+        Returns
+        -------
+        float
+            The last known price of the asset.
+        """
+        return self.data_source.get_last_price(asset, quote=quote, exchange=exchange)
+
+    def get_last_prices(self, assets, quote=None, exchange=None):
+        """
+        Takes a list of assets and returns the last known prices
+
+        Parameters
+        ----------
+        assets : list
+            The assets to get the prices of.
+        quote : Asset
+            The quote asset to get the prices of.
+        exchange : str
+            The exchange to get the prices of.
+
+        Returns
+        -------
+        dict
+            The last known prices of the assets.
+        """
+        return self.data_source.get_last_prices(assets=assets, quote=quote, exchange=exchange)
+
+    # =================================================================================
+    # ================================ Common functions ================================
     @property
     def _tracked_orders(self):
         return (
-            self._unprocessed_orders + self._new_orders + self._partially_filled_orders
+                self._unprocessed_orders + self._new_orders + self._partially_filled_orders
         )
+
+    def get_chains(self, asset):
+        """Returns option chains.
+
+        Obtains option chain information for the asset (stock) from each
+        of the exchanges the options trade on and returns a dictionary
+        for each exchange.
+
+        Parameters
+        ----------
+        asset : Asset
+            The stock whose option chain is being fetched. Represented
+            as an asset object.
+
+        Returns
+        -------
+        dictionary of dictionary for 'SMART' exchange only in
+        backtesting. Each exchange has:
+            - `Underlying conId` (int)
+            - `TradingClass` (str) eg: `FB`
+            - `Multiplier` (str) eg: `100`
+            - `Expirations` (set of str) eg: {`20230616`, ...}
+            - `Strikes` (set of floats)
+        """
+        return self.data_source.get_chains(asset)
+
+    def get_chain(self, chains, exchange="SMART"):
+        """Returns option chain for a particular exchange.
+
+        Takes in a full set of chains for all the exchanges and returns
+        on chain for a given exchange. The full chains are returned
+        from `get_chains` method.
+
+        Parameters
+        ----------
+        chains : dictionary of dictionaries
+            The chains dictionary created by `get_chains` method.
+
+        exchange : str optional
+            The exchange such as `SMART`, `CBOE`. Default is `SMART`
+
+        Returns
+        -------
+        dictionary
+            A dictionary of option chain information for one stock and
+            for one exchange. It will contain:
+                - `Underlying conId` (int)
+                - `TradingClass` (str) eg: `FB`
+                - `Multiplier` (str) eg: `100`
+                - `Expirations` (set of str) eg: {`20230616`, ...}
+                - `Strikes` (set of floats)
+        """
+        for x, p in chains.items():
+            if x == exchange:
+                return p
+
+    def get_greeks(self, asset, asset_price, underlying_price, risk_free_rate):
+        """
+        Get the greeks of an option asset.
+
+        Parameters
+        ----------
+        asset : Asset
+            The option asset to get the greeks of.
+        asset_price : float, optional
+            The price of the option asset, by default None
+        underlying_price : float, optional
+            The price of the underlying asset, by default None
+        risk_free_rate : float, optional
+            The risk-free rate used in interest calculations, by default None
+
+        Returns
+        -------
+        dict
+            A dictionary containing the greeks of the option asset.
+        """
+        return self.data_source.get_greeks(asset, asset_price, underlying_price, risk_free_rate)
+
+    def get_multiplier(self, chains, exchange="SMART"):
+        """Returns option chain for a particular exchange.
+
+        Using the `chains` dictionary obtained from `get_chains` finds
+        all the multipliers for the option chains on a given
+        exchange.
+
+        Parameters
+        ----------
+        chains : dictionary of dictionaries
+            The chains dictionary created by `get_chains` method.
+
+        exchange : str optional
+            The exchange such as `SMART`, `CBOE`. Default is `SMART`
+
+        Returns
+        -------
+        int
+            The multiplier for the option chain.
+        """
+        return self.get_chain(chains, exchange)["Multiplier"]
+
+    def get_expiration(self, chains, exchange="SMART"):
+        """Returns expiration dates for an option chain for a particular
+        exchange.
+
+        Using the `chains` dictionary obtained from `get_chains` finds
+        all the expiry dates for the option chains on a given
+        exchange. The return list is sorted.
+
+        Parameters
+        ---------
+        chains : dictionary of dictionaries
+            The chains dictionary created by `get_chains` method.
+
+        exchange : str optional
+            The exchange such as `SMART`, `CBOE`. Default is `SMART`.
+
+        Returns
+        -------
+        list of str
+            Sorted list of dates in the form of `20221013`.
+        """
+
+        return sorted(list(self.get_chain(chains, exchange=exchange)["Expirations"]))
+
+    def get_strikes(self, asset):
+        """Returns the strikes for an option asset with right and expiry."""
+        # This method is required for all data sources (but expirations is not) because different data sources
+        # pair the strikes and expirations together differently. For example, Polygon does a nice job of pairing,
+        # but Interactive Brokers does not.
+        return self.data_source.get_strikes(asset)
 
     def _start_orders_thread(self):
         self._orders_thread = Thread(
@@ -93,9 +385,6 @@ class Broker:
                         self._unprocessed_orders.append(flat_order)
 
             self._orders_queue.task_done()
-
-    def _submit_order(self, order):
-        pass
 
     def _submit_orders(self, orders):
         with ThreadPoolExecutor(
@@ -253,7 +542,7 @@ class Broker:
 
         row = 0 if not next else 1
         th = trading_hours.iloc[row, :]
-        market_open, market_close = th[0], th[1]
+        market_open, market_close = th.iloc[0], th.iloc[1]
 
         if close:
             return market_close
@@ -354,11 +643,6 @@ class Broker:
             self.sleep(sleeptime)
 
     # =========Positions functions==================
-
-    def _get_balances_at_broker(self, quote_asset):
-        """Get the actual cash balance at the broker."""
-        pass
-
     def get_tracked_position(self, strategy, asset):
         """get a tracked position given an asset and
         a strategy"""
@@ -376,15 +660,6 @@ class Broker:
         ]
         return result
 
-    def get_historical_account_value(self):
-        """Get the historical account value of the account."""
-        pass
-
-    def _parse_broker_position(self, broker_position, strategy, orders=None):
-        """parse a broker position representation
-        into a position object"""
-        pass
-
     def _parse_broker_positions(self, broker_positions, strategy):
         """parse a list of broker positions into a
         list of position objects"""
@@ -393,15 +668,6 @@ class Broker:
             result.append(self._parse_broker_position(broker_position, strategy))
 
         return result
-
-    def _pull_broker_position(self, asset):
-        """Given a asset, get the broker representation
-        of the corresponding asset"""
-        pass
-
-    def _pull_broker_positions(self, strategy=None):
-        """Get the broker representation of all positions"""
-        pass
 
     def _pull_positions(self, strategy):
         """Get the account positions. return a list of
@@ -461,11 +727,6 @@ class Broker:
 
         return quantity
 
-    def _parse_broker_order(self, response, strategy_name, strategy_object=None):
-        """parse a broker order representation
-        to an order object"""
-        pass
-
     def _parse_broker_orders(self, broker_orders, strategy_name, strategy_object=None):
         """parse a list of broker orders into a
         list of order objects"""
@@ -484,10 +745,6 @@ class Broker:
 
         return result
 
-    def _pull_broker_order(self, id):
-        """Get a broker order representation by its id"""
-        pass
-
     def _pull_order(self, identifier, strategy_name):
         """pull and parse a broker order by id"""
         response = self._pull_broker_order(identifier)
@@ -495,10 +752,6 @@ class Broker:
             order = self._parse_broker_order(response, strategy_name)
             return order
         return None
-
-    def _pull_broker_open_orders(self):
-        """Get the broker open orders"""
-        pass
 
     def _pull_open_orders(self, strategy_name, strategy_object):
         """Get a list of order objects representing the open
@@ -534,10 +787,6 @@ class Broker:
         """Wait for the orders to execute/be canceled"""
         for order in orders:
             order.wait_to_be_closed()
-
-    def cancel_order(self, order):
-        """Cancel an order"""
-        pass
 
     def cancel_orders(self, orders):
         """cancel orders"""
@@ -602,19 +851,6 @@ class Broker:
                 orders.append(order)
         self.submit_orders(orders)
 
-    # =========Market functions=======================
-
-    def get_last_price(self, asset, quote=None, exchange=None, **kwargs):
-        """Takes an asset asset and returns the last known price"""
-        pass
-
-    def get_last_prices(self, assets, quote=None, exchange=None, **kwargs):
-        """Takes a list of assets and returns the last known prices"""
-        pass
-
-    def _get_tick(self, order):
-        raise NotImplementedError(f"Tick data is not available for {self.name}")
-
     # =========Subscribers/Strategies functions==============
 
     def _add_subscriber(self, subscriber):
@@ -670,10 +906,6 @@ class Broker:
         subscriber.add_event(subscriber.FILLED_ORDER, payload)
 
     # ==========Processing streams data=======================
-
-    def _get_stream_object(self):
-        """get the broker stream connection"""
-        pass
 
     def _stream_established(self):
         self._is_stream_subscribed = True
@@ -761,46 +993,33 @@ class Broker:
         else:
             logging.info(f"Unhandled type event {type_event} for {stored_order}")
 
-        if (
-            hasattr(self, "_data_source")
-            and self._data_source is not None
-            and hasattr(self._data_source, "get_datetime")
-        ):
-            current_dt = self._data_source.get_datetime()
-            new_row = {
-                "time": current_dt,
-                "strategy": stored_order.strategy,
-                "exchange": stored_order.exchange,
-                "symbol": stored_order.symbol,
-                "side": stored_order.side,
-                "type": stored_order.type,
-                "status": stored_order.status,
-                "price": price,
-                "filled_quantity": filled_quantity,
-                "multiplier": multiplier,
-                "trade_cost": stored_order.trade_cost,
-                "time_in_force": stored_order.time_in_force,
-                "asset.right": stored_order.asset.right,
-                "asset.strike": stored_order.asset.strike,
-                "asset.multiplier": stored_order.asset.multiplier,
-                "asset.expiration": stored_order.asset.expiration,
-                "asset.asset_type": stored_order.asset.asset_type,
-            }
-            # append row to the dataframe
-            new_row_df = pd.DataFrame(new_row, index=[0])
-            self._trade_event_log_df = pd.concat(
-                [self._trade_event_log_df, new_row_df], axis=0
-            )
+        current_dt = self.data_source.get_datetime()
+        new_row = {
+            "time": current_dt,
+            "strategy": stored_order.strategy,
+            "exchange": stored_order.exchange,
+            "symbol": stored_order.symbol,
+            "side": stored_order.side,
+            "type": stored_order.type,
+            "status": stored_order.status,
+            "price": price,
+            "filled_quantity": filled_quantity,
+            "multiplier": multiplier,
+            "trade_cost": stored_order.trade_cost,
+            "time_in_force": stored_order.time_in_force,
+            "asset.right": stored_order.asset.right,
+            "asset.strike": stored_order.asset.strike,
+            "asset.multiplier": stored_order.asset.multiplier,
+            "asset.expiration": stored_order.asset.expiration,
+            "asset.asset_type": stored_order.asset.asset_type,
+        }
+        # append row to the dataframe
+        new_row_df = pd.DataFrame(new_row, index=[0])
+        self._trade_event_log_df = pd.concat(
+            [self._trade_event_log_df, new_row_df], axis=0
+        )
 
         return
-
-    def _register_stream_events(self):
-        """Register the function on_trade_event
-        to be executed on each trade_update event"""
-        pass
-
-    def _run_stream(self):
-        pass
 
     def _launch_stream(self):
         """Set the asynchronous actions to be executed after
@@ -824,27 +1043,3 @@ class Broker:
         if len(self._trade_event_log_df) > 0:
             output_df = self._trade_event_log_df.set_index("time")
             output_df.to_csv(filename)
-
-    def _get_greeks(
-        self,
-        asset,
-        implied_volatility=False,
-        delta=False,
-        option_price=False,
-        pv_dividend=False,
-        gamma=False,
-        vega=False,
-        theta=False,
-        underlying_price=False,
-    ):
-        return self.get_greeks(
-            asset,
-            implied_volatility=implied_volatility,
-            delta=delta,
-            option_price=option_price,
-            pv_dividend=pv_dividend,
-            gamma=gamma,
-            vega=vega,
-            theta=theta,
-            underlying_price=underlying_price,
-        )

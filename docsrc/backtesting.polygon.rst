@@ -34,17 +34,24 @@ Finally, run the backtest:
 
 .. code-block:: python
 
-    CryptoEMACross.backtest(
-        PolygonDataBacktesting,
-        backtesting_start,
-        backtesting_end,
-        benchmark_asset=Asset(symbol="BTC", asset_type="crypto")
+    trader = Trader(backtest=True)
+    data_source = PolygonDataBacktesting(
+        datetime_start=backtesting_start,
+        datetime_end=backtesting_end,
+        api_key="YOUR_POLYGON_API_KEY",
+    )
+    broker = BacktestingBroker(data_source)
+    crypto_strat = CryptoEMACross(
+        broker=broker,
+        backtesting_start=backtesting_start,
+        backtesting_end=backtesting_end,
         quote_asset=quote_asset,
+        benchmark_asset=Asset(symbol="BTC", asset_type="crypto")
         buy_trading_fees=[trading_fee],
         sell_trading_fees=[trading_fee],
-        polygon_api_key="YOUR_POLYGON_API_KEY",
-        polygon_has_paid_subscription=False,
     )
+    trader.add_strategy(crypto_strat)
+    trader.run_all()
 
 Here's another example but for for stocks:
 
@@ -74,15 +81,20 @@ Here's another example but for for stocks:
         backtesting_start = datetime(2023, 1, 1)
         backtesting_end = datetime(2023, 5, 1)
 
-        MyStrategy.backtest(
-            PolygonDataBacktesting,
-            backtesting_start,
-            backtesting_end,
-            benchmark_asset=Asset(symbol="SPY", asset_type="stock")
-            polygon_api_key="YOUR_POLYGON_API_KEY",
-            polygon_has_paid_subscription=False,
+        trader = Trader(backtest=True)
+        data_source = PolygonDataBacktesting(
+            datetime_start=backtesting_start,
+            datetime_end=backtesting_end,
+            api_key="YOUR_POLYGON_API_KEY",
         )
-
+        broker = BacktestingBroker(data_source)
+        my_strat = MyStrategy(
+            broker=broker,
+            backtesting_start=backtesting_start,
+            backtesting_end=backtesting_end,
+            benchmark_asset=Asset(symbol="BTC", asset_type="crypto")
+        )
+        trader.add_strategy(crypto_strat)
+        trader.run_all()
 
 In summary, the polygon.io backtester is a powerful tool for fetching pricing data for backtesting various strategies. With its capability to cache data for faster subsequent backtesting and its easy integration with polygon.io API, it is a versatile choice for any backtesting needs.
-

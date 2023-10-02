@@ -15,6 +15,8 @@ class TestStrategyMethods:
         backtesting_broker = BacktestingBroker(data_source)
         strategy = BuyAndHold(
             backtesting_broker,
+            backtesting_start=date_start,
+            backtesting_end=date_end,
         )
 
         # Get the expiration date

@@ -20,19 +20,16 @@ from lumibot.entities import Position
 from .broker import Broker
 
 
-class InteractiveBrokers(InteractiveBrokersData, Broker):
+class InteractiveBrokers(Broker):
     """Inherit InteractiveBrokerData first and all the price market
     methods than inherits broker"""
 
-    def __init__(self, config, max_workers=20, chunk_size=100, connect_stream=True):
-        # Calling init methods
-        InteractiveBrokersData.__init__(
-            self,
-            config,
-            max_workers=max_workers,
-            chunk_size=chunk_size,
-        )
-        Broker.__init__(self, name="interactive_brokers", connect_stream=False)
+    def __init__(self, config, max_workers=20, chunk_size=100, **kwargs):
+        super().__init__(self, config=config, name="interactive_brokers", **kwargs)
+
+        if self.data_source is None:
+            # warning.warn()
+            self.data_source = InteractiveBrokersData(config, max_workers=max_workers, chunk_size=chunk_size)
 
         # For checking duplicate order status events from IB.
         self.order_status_duplicates = []
@@ -52,7 +49,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
 
         self.start_ib(ip, socket_port, client_id)
 
-        self.market = "NYSE" # The default market is NYSE.
+        self.market = "NYSE"  # The default market is NYSE.
 
     def start_ib(self, ip, socket_port, client_id):
         # Connect to interactive brokers.

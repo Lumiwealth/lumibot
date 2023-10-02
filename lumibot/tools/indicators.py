@@ -10,11 +10,12 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import quantstats as qs
+from plotly.subplots import make_subplots
+
 # import lumibot.data_sources.alpha_vantage as av
 from lumibot import LUMIBOT_DEFAULT_PYTZ
 from lumibot.entities.asset import Asset
 from lumibot.tools import to_datetime_aware
-from plotly.subplots import make_subplots
 
 from .yahoo_helper import YahooHelper as yh
 
@@ -649,13 +650,13 @@ def plot_returns(
 
 
 def create_tearsheet(
-    strategy_df,
-    strat_name,
-    tearsheet_file,
-    benchmark_df,
-    benchmark_asset,
-    show_tearsheet,
-    risk_free_rate,
+    strategy_df: pd.DataFrame,
+    strat_name: str,
+    tearsheet_file: str,
+    benchmark_df: pd.DataFrame,
+    benchmark_asset: Asset,
+    show_tearsheet: bool,
+    risk_free_rate: float,
 ):
     print("Creating tearsheet...")
 
@@ -712,6 +713,9 @@ def create_tearsheet(
     if df_final["strategy"].sum() == 0:
         logging.error("Not enough data to create a tearsheet, at least 2 days of data are required. Skipping")
         return
+
+    # Set the name of the benchmark column so that quantstats can use it in the report
+    df_final["benchmark"].name = str(benchmark_asset)
 
     # TODO: Add the risk free rate, it's currently 0% which is wrong
     qs.reports.html(

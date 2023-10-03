@@ -4,9 +4,10 @@ from collections import defaultdict
 
 import pandas_market_calendars as mcal
 
-from lumibot.backtesting import PolygonDataBacktesting
+from lumibot.backtesting import BacktestingBroker, PolygonDataBacktesting
 from lumibot.entities import Asset
 from lumibot.strategies import Strategy
+from lumibot.traders import Trader
 
 # Global parameters
 # API Key for testing Polygon.io
@@ -140,33 +141,7 @@ class PolygonBacktestStrat(Strategy):
 
 
 class TestPolygonBacktestFull:
-    def test_polygon_restclient(self):
-        """
-        Test Polygon REST Client with Lumibot Backtesting and real API calls to Polygon. Using the Amazon stock
-        which only has options expiring on Fridays. This test will buy 10 shares of Amazon and 1 option contract
-        in the historical 2023-08-04 period (in the past!).
-        """
-        
-        # Parameters: True = Live Trading | False = Backtest
-        # trade_live = False
-        backtesting_start = datetime.datetime(2023, 8, 1)
-        backtesting_end = datetime.datetime(2023, 8, 4)
-
-        # Execute Backtest | Polygon.io API Connection
-        results, poly_strat_obj = PolygonBacktestStrat.run_backtest(
-            PolygonDataBacktesting,
-            backtesting_start,
-            backtesting_end,
-            benchmark_asset="SPY",
-            show_plot=False,
-            show_tearsheet=False,
-            save_tearsheet=False,
-            api_key=POLYGON_API_KEY,
-            # Painfully slow with free subscription setting b/c lumibot is over querying and imposing a very
-            # strict rate limit
-            # polygon_has_paid_subscription=True,
-        )
-        assert results
+    def verify_backtest_results(self, poly_strat_obj):
         assert isinstance(poly_strat_obj, PolygonBacktestStrat)
 
         # Checks bug where LifeCycle methods not being called during PANDAS backtesting
@@ -210,7 +185,65 @@ class TestPolygonBacktestFull:
                 poly_strat_obj.order_time_tracker[stoploss_order_id]['submit'])
         assert 'fill' not in poly_strat_obj.order_time_tracker[stoploss_order_id]
 
+    def test_polygon_restclient(self):
+        """
+        Test Polygon REST Client with Lumibot Backtesting and real API calls to Polygon. Using the Amazon stock
+        which only has options expiring on Fridays. This test will buy 10 shares of Amazon and 1 option contract
+        in the historical 2023-08-04 period (in the past!).
+        """
+        # Parameters: True = Live Trading | False = Backtest
+        # trade_live = False
+        backtesting_start = datetime.datetime(2023, 8, 1)
+        backtesting_end = datetime.datetime(2023, 8, 4)
+
+        data_source = PolygonDataBacktesting(
+            datetime_start=backtesting_start,
+            datetime_end=backtesting_end,
+            api_key=POLYGON_API_KEY,
+            has_paid_subscription=True,
+        )
+        broker = BacktestingBroker(data_source=data_source)
+        poly_strat_obj = PolygonBacktestStrat(
+            broker=broker,
+            backtesting_start=backtesting_start,
+            backtesting_end=backtesting_end,
+        )
+        trader = Trader(logfile="", backtest=True)
+        trader.add_strategy(poly_strat_obj)
+        results = trader.run_all(show_plot=False, show_tearsheet=False, save_tearsheet=False)
+
+        assert results
+        self.verify_backtest_results(poly_strat_obj)
+
     def test_polygon_legacy_backtest(self):
+        """
+        Do the same backtest as test_polygon_restclient() but using the legacy backtest() function call instead of
+        trader.run_all(backtest=True) (which is the new standard way to run backtests).
+        """
+
+        # Parameters: True = Live Trading | False = Backtest
+        # trade_live = False
+        backtesting_start = datetime.datetime(2023, 8, 1)
+        backtesting_end = datetime.datetime(2023, 8, 4)
+
+        # Execute Backtest | Polygon.io API Connection
+        results, poly_strat_obj = PolygonBacktestStrat.run_backtest(
+            PolygonDataBacktesting,
+            backtesting_start,
+            backtesting_end,
+            benchmark_asset="SPY",
+            show_plot=False,
+            show_tearsheet=False,
+            save_tearsheet=False,
+            api_key=POLYGON_API_KEY,
+            # Painfully slow with free subscription setting b/c lumibot is over querying and imposing a very
+            # strict rate limit
+            # polygon_has_paid_subscription=True,
+        )
+        assert results
+        self.verify_backtest_results(poly_strat_obj)
+
+    def test_polygon_legacy_backtest2(self):
         """Test that the legacy backtest() function call works without returning the startegy object"""
         # Parameters: True = Live Trading | False = Backtest
         # trade_live = False

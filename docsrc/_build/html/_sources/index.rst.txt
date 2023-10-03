@@ -79,7 +79,7 @@ And that's it! Easy-peasy.
 
 If you would like to learn how to modify your strategies we suggest that you first learn about Lifecycle Methods, then Strategy Methods and Strategy Properties. You can find the documentation for these in the menu, with the main pages describing what they are, then the sub-pages describing each method and property individually.
 
-We also have some more sample code that you can check out here: https://github.com/Lumiwealth/lumibot/tree/master/getting_started
+We also have some more sample code that you can check out here: https://github.com/Lumiwealth/lumibot/tree/dev/lumibot/example_strategies
 
 We wish you good luck with your trading strategies, don't forget us when you're swimming in cash!
 

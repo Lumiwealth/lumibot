@@ -224,6 +224,9 @@ class Broker(ABC):
                 self._unprocessed_orders + self._new_orders + self._partially_filled_orders
         )
 
+    def is_backtesting_broker(self):
+        return self.IS_BACKTESTING_BROKER
+
     def get_chains(self, asset):
         """Returns option chains.
 

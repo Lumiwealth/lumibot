@@ -785,6 +785,7 @@ class _Strategy:
             buy_trading_fees=[],
             sell_trading_fees=[],
             api_key=None,
+            polygon_api_key=None,
             polygon_has_paid_subscription=False,
             indicators_file=None,
             **kwargs,
@@ -854,6 +855,9 @@ class _Strategy:
         api_key : str
             The polygon api key to use for polygon data. Only required if you are using PolygonDataBacktesting as
             the datasource_class.
+        polygon_api_key: str
+            The polygon api key to use for polygon data. Only required if you are using PolygonDataBacktesting as
+            the datasource_class. Deprecated, please use 'api_key' instead.
         polygon_has_paid_subscription : bool
             Whether you have a paid subscription to Polygon. Only required if you are using
             PolygonDataBacktesting as the datasource_class.
@@ -947,6 +951,9 @@ class _Strategy:
 
         if name is None:
             name = cls.__name__
+
+        if not api_key and polygon_api_key:
+            api_key = polygon_api_key
 
         datestring = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         basename = f"{name + '_' if name is not None else ''}{datestring}"
@@ -1172,6 +1179,7 @@ class _Strategy:
             buy_trading_fees=[],
             sell_trading_fees=[],
             api_key=None,
+            polygon_api_key=None,
             polygon_has_paid_subscription=False,
             indicators_file=None,
             **kwargs,
@@ -1226,11 +1234,11 @@ class _Strategy:
             if you want to start with $100 of SPY, and $200 of AAPL, then you
             would pass in starting_positions={'SPY': 100, 'AAPL': 200}.
         show_plot : bool
-            Whether or not to show the plot.
+            Whether to show the plot.
         show_tearsheet : bool
-            Whether or not to show the tearsheet.
+            Whether to show the tearsheet.
         save_tearsheet : bool
-            Whether or not to save the tearsheet.
+            Whether to save the tearsheet.
         parameters : dict
             A dictionary of parameters to pass to the strategy. These parameters
             must be set up within the initialize() method.
@@ -1241,8 +1249,11 @@ class _Strategy:
         api_key : str
             The polygon api key to use for polygon data. Only required if you are using PolygonDataBacktesting as
             the datasource_class.
+        polygon_api_key : str
+            The polygon api key to use for polygon data. Only required if you are using PolygonDataBacktesting as
+            the datasource_class. Depricated, please use 'api_key' instead.
         polygon_has_paid_subscription : bool
-            Whether or not you have a paid subscription to Polygon. Only required if you are using
+            Whether you have a paid subscription to Polygon. Only required if you are using
             PolygonDataBacktesting as the datasource_class.
         indicators_file : str
             The file to write the indicators to.
@@ -1289,7 +1300,7 @@ class _Strategy:
             pandas_data=pandas_data, quote_asset=quote_asset, starting_positions=starting_positions,
             show_plot=show_plot, tearsheet_file=tearsheet_file, save_tearsheet=save_tearsheet,
             show_tearsheet=show_tearsheet, parameters=parameters, buy_trading_fees=buy_trading_fees,
-            sell_trading_fees=sell_trading_fees, api_key=api_key,
+            sell_trading_fees=sell_trading_fees, api_key=api_key, polygon_api_key=polygon_api_key,
             polygon_has_paid_subscription=polygon_has_paid_subscription, indicators_file=indicators_file,
             **kwargs,
         )

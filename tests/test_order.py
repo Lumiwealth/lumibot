@@ -69,3 +69,14 @@ class TestOrderBasics:
         assert order.is_canceled()
         order.status = 'cancel'
         assert order.is_canceled()
+
+    def test_active(self):
+        asset = Asset("SPY")
+        order = Order(strategy='abc', asset=asset, side="buy", quantity=100)
+        assert order.is_active()
+        order.status = 'filled'
+        assert not order.is_active()
+        order.status = 'cancelled'
+        assert not order.is_active()
+        order.status = 'submitted'
+        assert order.is_active()

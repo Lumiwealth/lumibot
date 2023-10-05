@@ -744,8 +744,10 @@ class Broker:
             stored_order = self._process_new_order(stored_order)
             self._on_new_order(stored_order)
         elif type_event == self.CANCELED_ORDER:
-            stored_order = self._process_canceled_order(stored_order)
-            self._on_canceled_order(stored_order)
+            # Do not cancel or re-cancel already completed orders
+            if stored_order.is_active():
+                stored_order = self._process_canceled_order(stored_order)
+                self._on_canceled_order(stored_order)
         elif type_event == self.PARTIALLY_FILLED_ORDER:
             stored_order, position = self._process_partially_filled_order(
                 stored_order, price, filled_quantity

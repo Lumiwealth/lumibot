@@ -3,10 +3,8 @@ import os
 
 from lumibot.backtesting import YahooDataBacktesting
 from lumibot.example_strategies.stock_buy_and_hold import BuyAndHold
-from lumibot.example_strategies.stock_diversified_leverage import \
-    DiversifiedLeverage
-from lumibot.example_strategies.stock_limit_and_trailing_stops import \
-    LimitAndTrailingStop
+from lumibot.example_strategies.stock_diversified_leverage import DiversifiedLeverage
+from lumibot.example_strategies.stock_limit_and_trailing_stops import LimitAndTrailingStop
 
 # Global parameters
 # API Key for testing Polygon.io

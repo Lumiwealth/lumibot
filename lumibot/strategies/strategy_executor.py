@@ -370,7 +370,15 @@ class StrategyExecutor(Thread):
                 # on_trading_iteration method.
                 return
 
-        start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        now = datetime.now()
+
+        # Check if we are in market hours.
+        if not self.broker.is_market_open():
+            self.strategy.log_message(
+                "The market is not currently open, skipping this trading iteration", color="blue")
+            return
+
+        start_time = now.strftime("%Y-%m-%d %H:%M:%S")
 
         self._strategy_context = None
         self.strategy.log_message(f"Executing the on_trading_iteration lifecycle method at {start_time}", color="blue")

@@ -10,12 +10,11 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import quantstats as qs
-from plotly.subplots import make_subplots
-
 # import lumibot.data_sources.alpha_vantage as av
 from lumibot import LUMIBOT_DEFAULT_PYTZ
 from lumibot.entities.asset import Asset
 from lumibot.tools import to_datetime_aware
+from plotly.subplots import make_subplots
 
 from .yahoo_helper import YahooHelper as yh
 
@@ -377,7 +376,7 @@ def plot_returns(
     _df1 = _df1.sort_index(ascending=True)
     _df1.index.name = "datetime"
     _df1[strategy_name] = (1 + _df1["return"]).cumprod()
-    _df1[strategy_name][0] = 1
+    _df1[strategy_name].iloc[0] = 1
     _df1[strategy_name] = _df1[strategy_name] * initial_budget
     dfs_concat.append(_df1)
 
@@ -456,13 +455,13 @@ def plot_returns(
     )
 
     # Use a % of the range of df_final[strategy_name] to shift the buy and sell ticks
-    max = df_final[strategy_name].max()
-    min = df_final[strategy_name].min()
-    vshift = (max - min) * 0.10
+    _max = df_final[strategy_name].max()
+    _min = df_final[strategy_name].min()
+    vshift = (_max - _min) * 0.10
 
     # Buy ticks
     buys = df_final.copy()
-    buys[strategy_name] = buys[strategy_name].fillna(method="bfill")
+    buys[strategy_name] = buys[strategy_name].bfill()
     buys = buys.loc[df_final["side"] == "buy"]
 
     def generate_buysell_plotly_text(row):
@@ -576,7 +575,7 @@ def plot_returns(
 
     # Sell ticks
     sells = df_final.copy()
-    sells[strategy_name] = sells[strategy_name].fillna(method="bfill")
+    sells[strategy_name] = sells[strategy_name].bfill()
     sells = sells.loc[df_final["side"] == "sell"]
 
     sells_ticks_df = sells.apply(generate_buysell_plotly_text, axis=1)
@@ -673,7 +672,7 @@ def create_tearsheet(
     df["portfolio_value"] = df["portfolio_value"].ffill()
 
     # If the portfolio_value is NaN, backfill it because sometimes the benchmark starts before the strategy
-    df["portfolio_value"] = df["portfolio_value"].fillna(method="bfill")
+    df["portfolio_value"] = df["portfolio_value"].bfill()
 
     df["symbol_cumprod"] = df["symbol_cumprod"].ffill()
     df.loc[df.index[0], "symbol_cumprod"] = 1

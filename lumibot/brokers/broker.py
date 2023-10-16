@@ -10,11 +10,10 @@ from threading import RLock, Thread
 import pandas as pd
 import pandas_market_calendars as mcal
 from dateutil import tz
-from termcolor import colored
-
 from lumibot.data_sources import DataSource
 from lumibot.entities import Asset, Order, Position
 from lumibot.trading_builtins import SafeList
+from termcolor import colored
 
 
 class Broker(ABC):
@@ -99,23 +98,6 @@ class Broker(ABC):
         """
         pass
 
-    # =========Stream functions=======================
-    @abstractmethod
-    def _get_stream_object(self):
-        """get the broker stream connection"""
-        pass
-
-    @abstractmethod
-    def _register_stream_events(self):
-        """Register the function on_trade_event
-        to be executed on each trade_update event"""
-        pass
-
-    @abstractmethod
-    def _run_stream(self):
-        """Run the stream"""
-        pass
-
     # =========Broker Positions=======================
     @abstractmethod
     def _parse_broker_position(self, broker_position, strategy, orders=None):
@@ -158,21 +140,6 @@ class Broker(ABC):
         Get the broker open orders
         TODO: Fill in with the expected output of this function.
         """
-        pass
-
-    @abstractmethod
-    def _get_tick(self, order: Order):
-        """
-
-        Parameters
-        ----------
-        order : Order
-            The order to get the tick for.
-
-        Returns
-        -------
-           TODO: Fill in with the expected output of this function.
-        """""
         pass
 
     # =========Market functions=======================
@@ -221,7 +188,7 @@ class Broker(ABC):
     @property
     def _tracked_orders(self):
         return (
-                self._unprocessed_orders + self._new_orders + self._partially_filled_orders
+            self._unprocessed_orders + self._new_orders + self._partially_filled_orders
         )
 
     def is_backtesting_broker(self):

@@ -68,57 +68,6 @@ class DataSource(ABC):
         """
         pass
 
-    @abstractmethod
-    def get_chains(self, asset):
-        """Returns option chains.
-
-        Obtains option chain information for the asset (stock) from each
-        of the exchanges the options trade on and returns a dictionary
-        for each exchange.
-
-        Parameters
-        ----------
-        asset : Asset
-            The stock whose option chain is being fetched. Represented
-            as an asset object.
-
-        Returns
-        -------
-        dictionary of dictionary for 'SMART' exchange only in
-        backtesting. Each exchange has:
-            - `Underlying conId` (int)
-            - `TradingClass` (str) eg: `FB`
-            - `Multiplier` (str) eg: `100`
-            - `Expirations` (set of str) eg: {`20230616`, ...}
-            - `Strikes` (set of floats)
-        """
-        pass
-
-    @abstractmethod
-    def get_strikes(self, asset):
-        """Returns a list of strikes for a give underlying asset.
-
-        Using the `chains` dictionary obtained from `get_chains` finds
-        all the multiplier for the option chains on a given
-        exchange.
-
-        This method is required for all data sources (but expirations is not) because different data sources
-        pair the strikes and expirations together differently. For example, Polygon does a nice job of pairing,
-        but Interactive Brokers does not.
-
-        Parameters
-        ----------
-        asset : Asset
-            Asset object as normally used for an option but without
-            the strike information. The Asset object must be an option asset type.
-
-        Returns
-        -------
-        list of floats
-            Sorted list of strikes as floats.
-    """
-        pass
-
     # ========Python datetime helpers======================
 
     def get_datetime(self):

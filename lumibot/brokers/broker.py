@@ -10,11 +10,10 @@ from threading import RLock, Thread
 import pandas as pd
 import pandas_market_calendars as mcal
 from dateutil import tz
-from termcolor import colored
-
 from lumibot.data_sources import DataSource
 from lumibot.entities import Order, Position
 from lumibot.trading_builtins import SafeList
+from termcolor import colored
 
 
 class Broker:
@@ -788,11 +787,18 @@ class Broker:
                 "asset.expiration": stored_order.asset.expiration,
                 "asset.asset_type": stored_order.asset.asset_type,
             }
-            # append row to the dataframe
+
+            # Create a DataFrame with the new row
             new_row_df = pd.DataFrame(new_row, index=[0])
+
+            # Filter out empty or all-NA columns from new_row_df
+            new_row_df = new_row_df.dropna(axis=1, how='all')
+
+            # Concatenate the filtered new_row_df with the existing _trade_event_log_df
             self._trade_event_log_df = pd.concat(
                 [self._trade_event_log_df, new_row_df], axis=0
             )
+
 
         return
 

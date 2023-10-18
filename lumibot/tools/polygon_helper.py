@@ -61,7 +61,7 @@ def get_price_data_from_polygon(
     df_csv = None
     cache_file = build_cache_filename(asset, timespan)
     if cache_file.exists():
-        print(f"\nLoading pricing data for {asset} / {quote_asset} from cache file {cache_file}...")
+        print(f"\nLoading pricing data for {asset} / {quote_asset} from cache file...")
         df_csv = load_cache(cache_file)
         df_all = df_csv.copy()  # Make a copy so we can check the original later for differences
 
@@ -292,7 +292,7 @@ def get_missing_dates(df_all, asset, start, end):
 def load_cache(cache_file):
     """Load the data from the cache file and return a DataFrame with a DateTimeIndex"""
     df_csv = pd.read_csv(cache_file, index_col="datetime")
-    df_csv.index = pd.to_datetime(df_csv.index)
+    df_csv.index = pd.to_datetime(df_csv.index) # TODO: Is there some way to speed this up? It takes several times longer than just reading the csv file
     df_csv = df_csv.sort_index()
 
     # Check if the index is already timezone aware

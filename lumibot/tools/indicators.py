@@ -376,7 +376,7 @@ def plot_returns(
     _df1 = _df1.sort_index(ascending=True)
     _df1.index.name = "datetime"
     _df1[strategy_name] = (1 + _df1["return"]).cumprod()
-    _df1[strategy_name][0] = 1
+    _df1[strategy_name].iloc[0] = 1
     _df1[strategy_name] = _df1[strategy_name] * initial_budget
     dfs_concat.append(_df1)
 
@@ -455,13 +455,13 @@ def plot_returns(
     )
 
     # Use a % of the range of df_final[strategy_name] to shift the buy and sell ticks
-    max = df_final[strategy_name].max()
-    min = df_final[strategy_name].min()
-    vshift = (max - min) * 0.10
+    _max = df_final[strategy_name].max()
+    _min = df_final[strategy_name].min()
+    vshift = (_max - _min) * 0.10
 
     # Buy ticks
     buys = df_final.copy()
-    buys[strategy_name] = buys[strategy_name].fillna(method="bfill")
+    buys[strategy_name] = buys[strategy_name].bfill()
     buys = buys.loc[df_final["side"] == "buy"]
 
     def generate_buysell_plotly_text(row):
@@ -575,7 +575,7 @@ def plot_returns(
 
     # Sell ticks
     sells = df_final.copy()
-    sells[strategy_name] = sells[strategy_name].fillna(method="bfill")
+    sells[strategy_name] = sells[strategy_name].bfill()
     sells = sells.loc[df_final["side"] == "sell"]
 
     sells_ticks_df = sells.apply(generate_buysell_plotly_text, axis=1)
@@ -649,13 +649,13 @@ def plot_returns(
 
 
 def create_tearsheet(
-    strategy_df,
-    strat_name,
-    tearsheet_file,
-    benchmark_df,
-    benchmark_asset,
-    show_tearsheet,
-    risk_free_rate,
+    strategy_df: pd.DataFrame,
+    strat_name: str,
+    tearsheet_file: str,
+    benchmark_df: pd.DataFrame,
+    benchmark_asset: Asset,
+    show_tearsheet: bool,
+    risk_free_rate: float,
 ):
     print("Creating tearsheet...")
 
@@ -672,7 +672,7 @@ def create_tearsheet(
     df["portfolio_value"] = df["portfolio_value"].ffill()
 
     # If the portfolio_value is NaN, backfill it because sometimes the benchmark starts before the strategy
-    df["portfolio_value"] = df["portfolio_value"].fillna(method="bfill")
+    df["portfolio_value"] = df["portfolio_value"].bfill()
 
     df["symbol_cumprod"] = df["symbol_cumprod"].ffill()
     df.loc[df.index[0], "symbol_cumprod"] = 1
@@ -712,6 +712,9 @@ def create_tearsheet(
     if df_final["strategy"].sum() == 0:
         logging.error("Not enough data to create a tearsheet, at least 2 days of data are required. Skipping")
         return
+
+    # Set the name of the benchmark column so that quantstats can use it in the report
+    df_final["benchmark"].name = str(benchmark_asset)
 
     # TODO: Add the risk free rate, it's currently 0% which is wrong
     qs.reports.html(

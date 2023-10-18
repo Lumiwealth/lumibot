@@ -6,19 +6,12 @@ from decimal import Decimal
 
 import jsonpickle
 import pandas as pd
-
 from lumibot.backtesting import BacktestingBroker, PolygonDataBacktesting
 from lumibot.entities import Asset, Position
-from lumibot.tools import (
-    create_tearsheet,
-    day_deduplicate,
-    get_risk_free_rate,
-    get_symbol_returns,
-    plot_indicators,
-    plot_returns,
-    stats_summary,
-    to_datetime_aware,
-)
+from lumibot.tools import (create_tearsheet, day_deduplicate,
+                           get_risk_free_rate, get_symbol_returns,
+                           plot_indicators, plot_returns, stats_summary,
+                           to_datetime_aware)
 from lumibot.traders import Trader
 
 from .strategy_executor import StrategyExecutor
@@ -574,54 +567,58 @@ class _Strategy:
             if self._stats_file:
                 self._stats.to_csv(self._stats_file)
 
-        self._strategy_returns_df = day_deduplicate(self._stats)
+            self._strategy_returns_df = day_deduplicate(self._stats)
 
-        # Getting performance for the benchmark asset
-        if (
-                self._backtesting_start is not None
-                and self._backtesting_end is not None
-        ):
-            # Need to adjust the backtesting end date because the data from Yahoo
-            # is at the start of the day, so the graph cuts short. This may be needed
-            # for other timeframes as well
-            backtesting_end_adjusted = self._backtesting_end
+            self._analysis = stats_summary(
+                self._strategy_returns_df, self._risk_free_rate
+            )
 
-            # If we are using the polgon data source, then get the benchmark returns from polygon
-            if type(self.data_source) == PolygonDataBacktesting:
-                benchmark_asset = self._benchmark_asset
-                # If the benchmark asset is a string, then convert it to an Asset object
-                if isinstance(benchmark_asset, str):
-                    benchmark_asset = Asset(benchmark_asset)
+            # Getting performance for the benchmark asset
+            if (
+                    self._backtesting_start is not None
+                    and self._backtesting_end is not None
+            ):
+                # Need to adjust the backtesting end date because the data from Yahoo
+                # is at the start of the day, so the graph cuts short. This may be needed
+                # for other timeframes as well
+                backtesting_end_adjusted = self._backtesting_end
 
-                timestep = "minute"
-                # If the strategy sleeptime is in days then use daily data, eg. "1D"
-                if "D" in str(self._sleeptime):
-                    timestep = "day"
+                # If we are using the polgon data source, then get the benchmark returns from polygon
+                if type(self.data_source) == PolygonDataBacktesting:
+                    benchmark_asset = self._benchmark_asset
+                    # If the benchmark asset is a string, then convert it to an Asset object
+                    if isinstance(benchmark_asset, str):
+                        benchmark_asset = Asset(benchmark_asset)
 
-                bars = self.data_source.get_historical_prices_between_dates(
-                    benchmark_asset,
-                    timestep,
-                    start_date=self._backtesting_start,
-                    end_date=backtesting_end_adjusted,
-                    quote=self._quote_asset,
-                )
-                df = bars.df
+                    timestep = "minute"
+                    # If the strategy sleeptime is in days then use daily data, eg. "1D"
+                    if "D" in str(self._sleeptime):
+                        timestep = "day"
 
-                # Add returns column
-                df["return"] = df["close"].pct_change()
+                    bars = self.data_source.get_historical_prices_between_dates(
+                        benchmark_asset,
+                        timestep,
+                        start_date=self._backtesting_start,
+                        end_date=backtesting_end_adjusted,
+                        quote=self._quote_asset,
+                    )
+                    df = bars.df
 
-                # Add the symbol_cumprod column
-                df["symbol_cumprod"] = (1 + df["return"]).cumprod()
+                    # Add returns column
+                    df["return"] = df["close"].pct_change()
 
-                self._benchmark_returns_df = df
+                    # Add the symbol_cumprod column
+                    df["symbol_cumprod"] = (1 + df["return"]).cumprod()
 
-            # If we are using the any other data source, then get the benchmark returns from yahoo
-            else:
-                self._benchmark_returns_df = get_symbol_returns(
-                    self._benchmark_asset,
-                    self._backtesting_start,
-                    backtesting_end_adjusted,
-                )
+                    self._benchmark_returns_df = df
+
+                # If we are using the any other data source, then get the benchmark returns from yahoo
+                else:
+                    self._benchmark_returns_df = get_symbol_returns(
+                        self._benchmark_asset,
+                        self._backtesting_start,
+                        backtesting_end_adjusted,
+                    )
 
         for handler in logger.handlers:
             if handler.__class__.__name__ == "StreamHandler":

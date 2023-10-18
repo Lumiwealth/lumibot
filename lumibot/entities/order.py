@@ -512,7 +512,7 @@ class Order:
 
         # calculate the weighted average filled price since options often encounter partial fills
         # Some Backtest runs are using a Decimal for the Transaction quantity, so we need to convert to float
-        return round(sum([float(x.price) * float(x.quantity) for x in self.transactions]) / self.quantity, 2)
+        return round(sum([float(x.price) * float(x.quantity) for x in self.transactions]) / float(self.quantity), 2)
 
     def is_active(self):
         """

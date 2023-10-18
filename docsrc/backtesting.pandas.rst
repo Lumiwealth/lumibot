@@ -136,13 +136,21 @@ There is also a returns plot. By default this will show in a browser. You may su
 
 .. code-block:: python
 
-    strategy_class.backtest(
-            PandasDataBacktesting,
-            backtesting_start,
-            backtesting_end,
-            pandas_data=pandas_data,
-            budget=100000,
-        )
+    trader = Trader(backtest=True)
+    data_source = PandasDataBacktesting(
+        pandas_data=pandas_data,
+        datetime_start=backtesting_start,
+        datetime_end=backtesting_end,
+    )
+    broker = BacktestingBroker(data_source)
+    strat = strategy_class(
+        broker=broker,
+        backtesting_start=backtesting_start,
+        backtesting_end=backtesting_end,
+        budget=100000,
+    )
+    trader.add_strategy(strat)
+    trader.run_all()
 
 Putting all of this together, and adding in budget and strategy information, the code would look like the following:
 
@@ -184,12 +192,21 @@ Putting all of this together, and adding in budget and strategy information, the
     backtesting_end = datetime.datetime(2021, 7, 20)
 
     # Run the backtesting
-    MyStrategy.backtest(
-        PandasDataBacktesting,
-        backtesting_start,
-        backtesting_end,
+    trader = Trader(backtest=True)
+    data_source = PandasDataBacktesting(
         pandas_data=pandas_data,
+        datetime_start=backtesting_start,
+        datetime_end=backtesting_end,
     )
+    broker = BacktestingBroker(data_source)
+    strat = strategy_class(
+        broker=broker,
+        backtesting_start=backtesting_start,
+        backtesting_end=backtesting_end,
+        budget=100000,
+    )
+    trader.add_strategy(strat)
+    trader.run_all()
 
 Getting Data
 ----------------

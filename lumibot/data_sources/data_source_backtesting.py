@@ -2,7 +2,7 @@ from abc import ABC
 from datetime import datetime, timedelta
 
 from lumibot.data_sources import DataSource
-from lumibot.tools import print_progress_bar
+from lumibot.tools import print_progress_bar, to_datetime_aware
 
 
 class DataSourceBacktesting(DataSource, ABC):
@@ -23,9 +23,9 @@ class DataSourceBacktesting(DataSource, ABC):
         else:
             _backtesting_started = backtesting_started
 
-        self.datetime_start = datetime_start
-        self.datetime_end = datetime_end
-        self._datetime = datetime_start
+        self.datetime_start = to_datetime_aware(datetime_start)
+        self.datetime_end = to_datetime_aware(datetime_end)
+        self._datetime = self.datetime_start
         self._iter_count = None
         self.backtesting_started = _backtesting_started
 

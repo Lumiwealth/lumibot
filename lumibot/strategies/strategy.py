@@ -1,9 +1,11 @@
 import datetime
 import logging
+import os
 from asyncio.log import logger
 from decimal import Decimal
 from typing import Union
 
+import jsonpickle
 import numpy as np
 import pandas as pd
 import pandas_market_calendars as mcal
@@ -205,6 +207,14 @@ class Strategy(_Strategy):
         >>>     self.log_message("Running in backtesting mode")
         """
         return self._is_backtesting
+
+    @property
+    def backtesting_start(self):
+        return self._backtesting_start
+
+    @property
+    def backtesting_end(self):
+        return self._backtesting_end
 
     @property
     def unspent_money(self):
@@ -1798,8 +1808,8 @@ class Strategy(_Strategy):
             return None
 
     def get_tick(self, asset):
-        """Takes an asset asset and returns the last known price"""
-        # TODO: Should this function be depricated?
+        """Takes an Asset and returns the last known price"""
+        # TODO: Should this function be depricated? This appears to be an IBKR-only thing.
         asset = self._set_asset_mapping(asset)
         return self.broker._get_tick(asset)
 
@@ -2721,6 +2731,29 @@ class Strategy(_Strategy):
         df = pd.DataFrame(self._chart_lines_list)
 
         return df
+
+    def write_backtest_settings(self, settings_file):
+        datasource = self.broker.data_source
+        auto_adjust = datasource.auto_adjust if hasattr(datasource, 'auto_adjust') else False
+        settings = {
+            "name": self.name,
+            "backtesting_start": self.backtesting_start,
+            "backtesting_end": self.backtesting_end,
+            "budget": self.initial_budget,
+            "risk_free_rate": self.risk_free_rate,
+            "minutes_before_closing": self.minutes_before_closing,
+            "minutes_before_opening": self.minutes_before_opening,
+            "sleeptime": self.sleeptime,
+            "auto_adjust": auto_adjust,
+            "quote_asset": self.quote_asset,
+            "benchmark_asset": self._benchmark_asset,
+            "starting_positions": self.starting_positions,
+            "parameters": self.parameters,
+        }
+        os.makedirs(os.path.dirname(settings_file), exist_ok=True)
+        with open(settings_file, "w") as outfile:
+            json = jsonpickle.encode(settings)
+            outfile.write(json)
 
     def get_historical_prices(
         self,

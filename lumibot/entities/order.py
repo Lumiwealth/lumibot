@@ -533,7 +533,7 @@ class Order:
         bool
             True if the order has been cancelled, False otherwise.
         """
-        return self.status.lower() in ['cancelled', 'canceled', 'cancel']
+        return self.status and self.status.lower() in ['cancelled', 'canceled', 'cancel']
 
     def is_filled(self):
         """
@@ -546,13 +546,14 @@ class Order:
         """
         if self.position_filled:
             return True
-        elif self.status.lower() in ['filled', 'fill']:
+        elif self.status and self.status.lower() in ['filled', 'fill']:
             return True
         else:
             return False
 
     def update_status(self, status):
-        self.status = status
+        if status:
+            self.status = status
 
     def set_error(self, error):
         self.status = "error"

@@ -313,29 +313,13 @@ class _Strategy:
         )
         self.broker._filled_positions.append(position)
 
-    def _set_asset_mapping(self, asset):
+    def _sanitize_user_asset(self, asset):
         if isinstance(asset, Asset):
             return asset
         elif isinstance(asset, tuple):
             return asset
-        elif isinstance(asset, str) and "/" not in asset:
-            if asset not in self._asset_mapping:
-                self._asset_mapping[asset] = Asset(symbol=asset)
-            return self._asset_mapping[asset]
-        elif (isinstance(asset, str) and "/" in asset) or (
-                isinstance(asset, tuple) and len(asset) == 2
-        ):
-            asset_tuple = []
-            if isinstance(asset, str):
-                assets = asset.split("/")
-            else:
-                assets = asset
-            for asset in assets:
-                if isinstance(asset, str) and asset not in self._asset_mapping:
-                    self._asset_mapping[asset] = Asset(symbol=asset)
-                    asset_tuple.append(self._asset_mapping[asset])
-                asset_tuple.append(asset)
-            return tuple(asset_tuple)
+        elif isinstance(asset, str):
+            return Asset(symbol=asset)
         else:
             if self.broker.SOURCE != "CCXT":
                 raise ValueError(

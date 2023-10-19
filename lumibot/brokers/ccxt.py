@@ -40,16 +40,13 @@ class Ccxt(CcxtData, Broker):
         return self.api.microseconds() / 1000000
 
     def is_market_open(self):
-        """Not applicable with Crypto 24/7 markets.
+        """The market is always open for Crypto.
 
         Returns
         -------
-        None
+        True
         """
-        logging.warning(
-            "The method 'is_market_open' is not applicable with Crypto 24/7 markets."
-        )
-        return None
+        return True
 
     def get_time_to_open(self):
         """Not applicable with Crypto 24/7 markets.
@@ -70,7 +67,7 @@ class Ccxt(CcxtData, Broker):
         -------
         None
         """
-        logging.warning(
+        logging.debug(
             "The method 'get_time_to_close' is not applicable with Crypto 24/7 markets."
         )
         return None

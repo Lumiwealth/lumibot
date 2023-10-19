@@ -709,9 +709,12 @@ class StrategyExecutor(Thread):
             # Get the time to close.
             time_to_close = self.broker.get_time_to_close()
 
-            # Check if it's time to stop the strategy based on the time to close and the strategy's minutes before
-            # closing.
-            should_we_stop = (time_to_close <= self.strategy.minutes_before_closing * 60)
+            if time_to_close is None:
+                should_we_stop = False
+            else:
+                # Check if it's time to stop the strategy based on the time to close and the strategy's minutes before
+                # closing.
+                should_we_stop = (time_to_close <= self.strategy.minutes_before_closing * 60)
 
             # Start the check_queue thread which will run continuously in the background, checking if any items have
             # been added to the queue and executing them.

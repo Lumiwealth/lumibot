@@ -10,11 +10,12 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import quantstats as qs
+from plotly.subplots import make_subplots
+
 # import lumibot.data_sources.alpha_vantage as av
 from lumibot import LUMIBOT_DEFAULT_PYTZ
 from lumibot.entities.asset import Asset
 from lumibot.tools import to_datetime_aware
-from plotly.subplots import make_subplots
 
 from .yahoo_helper import YahooHelper as yh
 
@@ -211,7 +212,7 @@ def plot_indicators(
     strategy_name=None,
     show_plot=True,
 ):
-    print("Creating indicators plot...")
+    print("\nCreating indicators plot...")
 
     fig = make_subplots(specs=[[{"secondary_y": True}]])
 
@@ -368,7 +369,7 @@ def plot_returns(
     # chart_markers_df=None,
     # chart_lines_df=None,
 ):
-    print("Creating trades plot...")
+    print("\nCreating trades plot...")
 
     dfs_concat = []
 
@@ -657,7 +658,7 @@ def create_tearsheet(
     show_tearsheet: bool,
     risk_free_rate: float,
 ):
-    print("Creating tearsheet...")
+    print("\nCreating tearsheet...")
 
     # Check if df1 or df2 are empty and return if they are
     if strategy_df is None or benchmark_df is None or strategy_df.empty or benchmark_df.empty:

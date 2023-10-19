@@ -552,7 +552,8 @@ class Order:
             return False
 
     def update_status(self, status):
-        self.status = status
+        if status:
+            self.status = status
 
     def set_error(self, error):
         self.status = "error"

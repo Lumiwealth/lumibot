@@ -61,44 +61,60 @@ class PolygonDataBacktesting(PandasData):
 
         # Check if we have data for this asset
         if search_asset in self.pandas_data:
-            # Return None if we already have data for this asset
-            return None
-        
-        else:
-            # Download data from Polygon
-            try:
-                # Convert timestep string to timedelta and get start datetime
-                td = self.convert_timestep_str_to_timedelta(timestep) * length
-                # Multiply td by length to get the end datetime
-                start_datetime = self.datetime_start - td
+            # Check the timestep of the data
+            data_timestep = self.pandas_data[search_asset].timestep
 
-                # Subtract an extra 5 days to the start datetime to make sure we have enough
-                # data when it's a sparsely traded asset, especially over weekends
-                start_datetime = start_datetime - timedelta(days=5)
-
-                # Get data from Polygon
-                df = polygon_helper.get_price_data_from_polygon(
-                    self._api_key,
-                    asset_separated,
-                    start_datetime,
-                    self.datetime_end,
-                    timespan=timestep,
-                    quote_asset=quote_asset,
-                    has_paid_subscription=self.has_paid_subscription,
-                )
-            except Exception as e:
-                logging.error(traceback.format_exc())
-                raise Exception("Error getting data from Polygon") from e
-
-            if df is None:
+            # If the timestep is the same, we don't need to update the data
+            if data_timestep == timestep:
                 return None
 
-            pandas_data = []
-            data = Data(asset_separated, df, timestep=timestep, quote=quote_asset)
-            pandas_data.append(data)
-            pandas_data_updated = self._set_pandas_data_keys(pandas_data)
+            # Always try to get the lowest timestep possible because we can always resample
+            # If day is requested then make sure we at least have data that's less than a day
+            if timestep == "day":
+                if data_timestep == "minute":
+                    return None
+                elif data_timestep == "hour":
+                    return None
 
-            return pandas_data_updated
+            # If hour is requested then make sure we at least have data that's less than an hour
+            if timestep == "hour":
+                if data_timestep == "minute":
+                    return None
+
+        # Download data from Polygon
+        try:
+            # Convert timestep string to timedelta and get start datetime
+            td = self.convert_timestep_str_to_timedelta(timestep) * length
+            # Multiply td by length to get the end datetime
+            start_datetime = self.datetime_start - td
+
+            # Subtract an extra 5 days to the start datetime to make sure we have enough
+            # data when it's a sparsely traded asset, especially over weekends
+            start_datetime = start_datetime - timedelta(days=5)
+
+            # Get data from Polygon
+            df = polygon_helper.get_price_data_from_polygon(
+                self._api_key,
+                asset_separated,
+                start_datetime,
+                self.datetime_end,
+                timespan=timestep,
+                quote_asset=quote_asset,
+                has_paid_subscription=self.has_paid_subscription,
+            )
+        except Exception as e:
+            logging.error(traceback.format_exc())
+            raise Exception("Error getting data from Polygon") from e
+
+        if df is None:
+            return None
+
+        pandas_data = []
+        data = Data(asset_separated, df, timestep=timestep, quote=quote_asset)
+        pandas_data.append(data)
+        pandas_data_updated = self._set_pandas_data_keys(pandas_data)
+
+        return pandas_data_updated
 
     def _pull_source_symbol_bars(
         self,
@@ -121,7 +137,7 @@ class PolygonDataBacktesting(PandasData):
         return super()._pull_source_symbol_bars(
             asset, length, timestep, timeshift, quote, exchange, include_after_hours
         )
-        
+
     # Get pricing data for an asset for the entire backtesting period
     def get_historical_prices_between_dates(
         self, asset, timestep="minute", quote=None, exchange=None, include_after_hours=True,
@@ -164,12 +180,12 @@ class PolygonDataBacktesting(PandasData):
         """
         Integrates the Polygon client library into the LumiBot backtest for Options Data in the same
         structure as Interactive Brokers options chain data
-        
+
         Parameters
         ----------
         asset : Asset
             The asset to get data for.
-        
+
         Returns
         -------
         dictionary:
@@ -218,5 +234,5 @@ class PolygonDataBacktesting(PandasData):
 
             option_contracts["SMART"] = contracts
             option_contracts[exchange] = contracts
-        
+
         return option_contracts

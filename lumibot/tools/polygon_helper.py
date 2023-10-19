@@ -5,12 +5,10 @@ from pathlib import Path
 
 import pandas as pd
 import pandas_market_calendars as mcal
-
-# noinspection PyPackageRequirements
-from polygon import RESTClient
-
 from lumibot import LUMIBOT_CACHE_FOLDER
 from lumibot.entities import Asset
+# noinspection PyPackageRequirements
+from polygon import RESTClient
 
 WAIT_TIME = 60
 POLYGON_QUERY_COUNT = 0  # This is a variable that updates every time we query Polygon
@@ -56,7 +54,6 @@ def get_price_data_from_polygon(
         A DataFrame with the pricing data for the asset
 
     """
-    print(f"\nGetting pricing data for {asset} / {quote_asset} from Polygon...")
     global POLYGON_QUERY_COUNT  # Track if we need to wait between requests
 
     # Check if we already have data for this asset in the csv file
@@ -64,6 +61,7 @@ def get_price_data_from_polygon(
     df_csv = None
     cache_file = build_cache_filename(asset, timespan)
     if cache_file.exists():
+        print(f"\nLoading pricing data for {asset} / {quote_asset} from cache file...")
         df_csv = load_cache(cache_file)
         df_all = df_csv.copy()  # Make a copy so we can check the original later for differences
 
@@ -71,6 +69,8 @@ def get_price_data_from_polygon(
     missing_dates = get_missing_dates(df_all, asset, start, end)
     if not missing_dates:
         return df_all
+
+    print(f"\nGetting pricing data for {asset} / {quote_asset} from Polygon...")
 
     # RESTClient connection for Polygon Stock-Equity API; traded_asset is standard
     # Add "trace=True" to see the API calls printed to the console for debugging
@@ -292,7 +292,7 @@ def get_missing_dates(df_all, asset, start, end):
 def load_cache(cache_file):
     """Load the data from the cache file and return a DataFrame with a DateTimeIndex"""
     df_csv = pd.read_csv(cache_file, index_col="datetime")
-    df_csv.index = pd.to_datetime(df_csv.index)
+    df_csv.index = pd.to_datetime(df_csv.index) # TODO: Is there some way to speed this up? It takes several times longer than just reading the csv file
     df_csv = df_csv.sort_index()
 
     # Check if the index is already timezone aware

@@ -370,7 +370,15 @@ class StrategyExecutor(Thread):
                 # on_trading_iteration method.
                 return
 
-        start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        now = datetime.now()
+
+        # Check if we are in market hours.
+        if not self.broker.is_market_open():
+            self.strategy.log_message(
+                "The market is not currently open, skipping this trading iteration", color="blue")
+            return
+
+        start_time = now.strftime("%Y-%m-%d %H:%M:%S")
 
         self._strategy_context = None
         self.strategy.log_message(f"Executing the on_trading_iteration lifecycle method at {start_time}", color="blue")
@@ -701,9 +709,12 @@ class StrategyExecutor(Thread):
             # Get the time to close.
             time_to_close = self.broker.get_time_to_close()
 
-            # Check if it's time to stop the strategy based on the time to close and the strategy's minutes before
-            # closing.
-            should_we_stop = (time_to_close <= self.strategy.minutes_before_closing * 60)
+            if time_to_close is None:
+                should_we_stop = False
+            else:
+                # Check if it's time to stop the strategy based on the time to close and the strategy's minutes before
+                # closing.
+                should_we_stop = (time_to_close <= self.strategy.minutes_before_closing * 60)
 
             # Start the check_queue thread which will run continuously in the background, checking if any items have
             # been added to the queue and executing them.

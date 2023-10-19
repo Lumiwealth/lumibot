@@ -386,7 +386,7 @@ class Broker(ABC):
 
         logging.info(colored(f"New {order} was submitted.", color="green"))
         self._unprocessed_orders.remove(order.identifier, key="identifier")
-        order.update_status(self.NEW_ORDER)
+        order.status = self.NEW_ORDER
         order.set_new()
         self._new_orders.append(order)
         return order
@@ -395,7 +395,7 @@ class Broker(ABC):
         logging.info("%r was canceled." % order)
         self._new_orders.remove(order.identifier, key="identifier")
         self._partially_filled_orders.remove(order.identifier, key="identifier")
-        order.update_status(self.CANCELED_ORDER)
+        order.status = self.CANCELED_ORDER
         order.set_canceled()
         self._canceled_orders.append(order)
         return order
@@ -409,7 +409,7 @@ class Broker(ABC):
         self._new_orders.remove(order.identifier, key="identifier")
 
         order.add_transaction(price, quantity)
-        order.update_status(self.PARTIALLY_FILLED_ORDER)
+        order.status = self.PARTIALLY_FILLED_ORDER
         order.set_partially_filled()
 
         position = self.get_tracked_position(order.strategy, order.asset)
@@ -441,7 +441,7 @@ class Broker(ABC):
         self._partially_filled_orders.remove(order.identifier, key="identifier")
 
         order.add_transaction(price, quantity)
-        order.update_status(self.FILLED_ORDER)
+        order.status = self.FILLED_ORDER
         order.set_filled()
 
         position = self.get_tracked_position(order.strategy, order.asset)
@@ -946,8 +946,10 @@ class Broker(ABC):
             stored_order = self._process_new_order(stored_order)
             self._on_new_order(stored_order)
         elif type_event == self.CANCELED_ORDER:
-            stored_order = self._process_canceled_order(stored_order)
-            self._on_canceled_order(stored_order)
+            # Do not cancel or re-cancel already completed orders
+            if stored_order.is_active():
+                stored_order = self._process_canceled_order(stored_order)
+                self._on_canceled_order(stored_order)
         elif type_event == self.PARTIALLY_FILLED_ORDER:
             stored_order, position = self._process_partially_filled_order(
                 stored_order, price, filled_quantity
@@ -983,8 +985,13 @@ class Broker(ABC):
             "asset.expiration": stored_order.asset.expiration,
             "asset.asset_type": stored_order.asset.asset_type,
         }
-        # append row to the dataframe
+        # Create a DataFrame with the new row
         new_row_df = pd.DataFrame(new_row, index=[0])
+
+        # Filter out empty or all-NA columns from new_row_df
+        new_row_df = new_row_df.dropna(axis=1, how='all')
+
+        # Concatenate the filtered new_row_df with the existing _trade_event_log_df
         self._trade_event_log_df = pd.concat(
             [self._trade_event_log_df, new_row_df], axis=0
         )

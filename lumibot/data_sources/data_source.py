@@ -214,7 +214,7 @@ class DataSource(ABC):
     # ========Internal Market Data Methods===================
 
     def _parse_source_timestep(self, timestep, reverse=False):
-        """transform the data source timestep variable
+        """transform the data source timestep variable 
         into lumibot representation. set reverse to True
         for opposite direction"""
         for item in self.TIMESTEP_MAPPING:

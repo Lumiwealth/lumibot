@@ -40,16 +40,13 @@ class Ccxt(CcxtData, Broker):
         return self.api.microseconds() / 1000000
 
     def is_market_open(self):
-        """Not applicable with Crypto 24/7 markets.
+        """The market is always open for Crypto.
 
         Returns
         -------
-        None
+        True
         """
-        logging.warning(
-            "The method 'is_market_open' is not applicable with Crypto 24/7 markets."
-        )
-        return None
+        return True
 
     def get_time_to_open(self):
         """Not applicable with Crypto 24/7 markets.
@@ -70,7 +67,7 @@ class Ccxt(CcxtData, Broker):
         -------
         None
         """
-        logging.warning(
+        logging.debug(
             "The method 'get_time_to_close' is not applicable with Crypto 24/7 markets."
         )
         return None
@@ -282,7 +279,7 @@ class Ccxt(CcxtData, Broker):
             type=response["type"] if "type" in response else None,
         )
         order.set_identifier(response["id"])
-        order.update_status(response["status"])
+        order.status = response["status"]
         order.update_raw(response)
         return order
 
@@ -522,7 +519,7 @@ class Ccxt(CcxtData, Broker):
 
             response = self.api.create_order(*args, params=params)
             order.set_identifier(response["id"])
-            order.update_status(response["status"])
+            order.status = response["status"]
             order.update_raw(response)
 
         except Exception as e:

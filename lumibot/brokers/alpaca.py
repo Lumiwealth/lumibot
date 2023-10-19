@@ -6,13 +6,15 @@ from asyncio import CancelledError
 from datetime import timezone
 from decimal import Decimal
 
+import pandas_market_calendars as mcal
 from alpaca.trading.enums import QueryOrderStatus
 from alpaca.trading.requests import GetOrdersRequest
 from alpaca.trading.stream import TradingStream
 from dateutil import tz
+from termcolor import colored
+
 from lumibot.data_sources import AlpacaData
 from lumibot.entities import Asset, Order, Position
-from termcolor import colored
 
 from .broker import Broker
 
@@ -150,12 +152,19 @@ class Alpaca(AlpacaData, Broker):
         True
         """
         if self.market is not None:
-            open_time = self.utc_to_local(self.market_hours(close=False))
-            close_time = self.utc_to_local(self.market_hours(close=True))
-
-            current_time = datetime.datetime.now().astimezone(tz=tz.tzlocal())
             if self.market == "24/7":
                 return True
+
+            open_time = self.utc_to_local(self.market_hours(close=False))
+            close_time = self.utc_to_local(self.market_hours(close=True))
+            current_time = datetime.datetime.now().astimezone(tz=tz.tzlocal())
+
+            # Check if it is a holiday or weekend using pandas_market_calendars
+            nyse = mcal.get_calendar('NYSE')
+            schedule = nyse.schedule(start_date=open_time, end_date=close_time)
+            if schedule.empty:
+                return False
+
             return (current_time >= open_time) and (close_time >= current_time)
         else:
             return self.api.get_clock().is_open
@@ -300,7 +309,7 @@ class Alpaca(AlpacaData, Broker):
             quote=Asset(symbol="USD", asset_type="forex"),
         )
         order.set_identifier(response.id)
-        order.update_status(response.status)
+        order.status = response.status
         order.update_raw(response)
         return order
 
@@ -393,7 +402,7 @@ class Alpaca(AlpacaData, Broker):
             response = self.api.submit_order(order_data=order_data)
 
             order.set_identifier(response.id)
-            order.update_status(response.status)
+            order.status = response.status
             order.update_raw(response)
 
         except Exception as e:

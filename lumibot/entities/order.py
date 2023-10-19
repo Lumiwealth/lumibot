@@ -197,7 +197,7 @@ class Order:
 
         self.symbol = self.asset.symbol
         self.identifier = identifier if identifier else uuid.uuid4().hex
-        self.status = "unprocessed"
+        self._status = "unprocessed"
         self._date_created = date_created
         self.side = None
         self.time_in_force = time_in_force
@@ -415,6 +415,15 @@ class Order:
                     )
 
     @property
+    def status(self):
+        return self._status
+
+    @status.setter
+    def status(self, value):
+        if value and isinstance(value, str):
+            self._status = value
+
+    @property
     def quantity(self):
         if self.asset.asset_type == "crypto":
             return self._quantity
@@ -512,7 +521,17 @@ class Order:
 
         # calculate the weighted average filled price since options often encounter partial fills
         # Some Backtest runs are using a Decimal for the Transaction quantity, so we need to convert to float
-        return round(sum([float(x.price) * float(x.quantity) for x in self.transactions]) / self.quantity, 2)
+        return round(sum([float(x.price) * float(x.quantity) for x in self.transactions]) / float(self.quantity), 2)
+
+    def is_active(self):
+        """
+        Returns whether this order is active.
+        Returns
+        -------
+        bool
+            True if the order is active, False otherwise.
+        """
+        return not self.is_filled() and not self.is_canceled()
 
     def is_canceled(self):
         """
@@ -540,9 +559,6 @@ class Order:
             return True
         else:
             return False
-
-    def update_status(self, status):
-        self.status = status
 
     def set_error(self, error):
         self.status = "error"

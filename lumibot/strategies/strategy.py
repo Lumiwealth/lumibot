@@ -604,7 +604,7 @@ class Strategy(_Strategy):
         if quote is None:
             quote = self.quote_asset
 
-        asset = self._set_asset_mapping(asset)
+        asset = self._sanitize_user_asset(asset)
         order = Order(
             self.name,
             asset,
@@ -962,7 +962,7 @@ class Strategy(_Strategy):
             )
             return None
 
-        asset = self._set_asset_mapping(asset)
+        asset = self._sanitize_user_asset(asset)
         return self.broker.get_tracked_position(self.name, asset)
 
     def get_tracked_positions(self):
@@ -1068,7 +1068,7 @@ class Strategy(_Strategy):
             Interactive Brokers.
         """
 
-        asset = self._set_asset_mapping(asset)
+        asset = self._sanitize_user_asset(asset)
         return self.broker.get_contract_details(asset)
 
     def get_tracked_order(self, identifier):
@@ -1188,7 +1188,7 @@ class Strategy(_Strategy):
         >>> asset = Asset("ES", asset_type="future", expiration_date="2020-01-01")
         >>> total = self.get_asset_potential_total(asset)
         """
-        asset = self._set_asset_mapping(asset)
+        asset = self._sanitize_user_asset(asset)
         return self.broker.get_asset_potential_total(self.name, asset)
 
     def submit_order(self, order):
@@ -1788,7 +1788,7 @@ class Strategy(_Strategy):
             )
             return None
 
-        asset = self._set_asset_mapping(asset)
+        asset = self._sanitize_user_asset(asset)
 
         if quote is None:
             quote_asset = self.quote_asset
@@ -1810,7 +1810,7 @@ class Strategy(_Strategy):
     def get_tick(self, asset):
         """Takes an Asset and returns the last known price"""
         # TODO: Should this function be depricated? This appears to be an IBKR-only thing.
-        asset = self._set_asset_mapping(asset)
+        asset = self._sanitize_user_asset(asset)
         return self.broker._get_tick(asset)
 
     def get_last_prices(self, assets, quote=None, exchange=None):
@@ -1841,7 +1841,7 @@ class Strategy(_Strategy):
         """
         symbol_asset = isinstance(assets[0], str)
         if symbol_asset:
-            assets = [self._set_asset_mapping(asset) for asset in assets]
+            assets = [self._sanitize_user_asset(asset) for asset in assets]
 
         asset_prices = self.broker.get_last_prices(
             assets, quote=quote, exchange=exchange
@@ -1904,7 +1904,7 @@ class Strategy(_Strategy):
         >>> asset = "SPY"
         >>> chains = self.get_chains(asset)
         """
-        asset = self._set_asset_mapping(asset)
+        asset = self._sanitize_user_asset(asset)
         return self.broker.get_chains(asset)
 
     def get_chain(self, chains, exchange="SMART"):
@@ -2025,7 +2025,7 @@ class Strategy(_Strategy):
         >>> strikes = self.get_strikes(asset)
         """
 
-        asset = self._set_asset_mapping(asset)
+        asset = self._sanitize_user_asset(asset)
         return self.broker.get_strikes(asset)
         # if self.data_source.SOURCE == "PANDAS":
         #     return self.broker.get_strikes(asset)
@@ -2413,7 +2413,7 @@ class Strategy(_Strategy):
         return self.broker.data_source.to_default_timezone(dt)
 
     def load_pandas(self, asset, df):
-        asset = self._set_asset_mapping(asset)
+        asset = self._sanitize_user_asset(asset)
         self.broker.data_source.load_pandas(asset, df)
 
     def create_asset(
@@ -2854,7 +2854,7 @@ class Strategy(_Strategy):
             f"Getting historical prices for {asset}, {length} bars, {timestep}"
         )
 
-        asset = self._set_asset_mapping(asset)
+        asset = self._sanitize_user_asset(asset)
 
         asset = self.crypto_assets_to_tuple(asset, quote)
         if not timestep:
@@ -2968,7 +2968,7 @@ class Strategy(_Strategy):
             f"Getting historical prices for {assets}, {length} bars, {timestep}"
         )
 
-        assets = [self._set_asset_mapping(asset) for asset in assets]
+        assets = [self._sanitize_user_asset(asset) for asset in assets]
         return self.broker.data_source.get_bars(
             assets,
             length,
@@ -3128,7 +3128,7 @@ class Strategy(_Strategy):
 
 
         """
-        asset = self._set_asset_mapping(asset)
+        asset = self._sanitize_user_asset(asset)
         return self.broker.data_source.get_yesterday_dividend(asset)
 
     def get_yesterday_dividends(self, assets):
@@ -3152,7 +3152,7 @@ class Strategy(_Strategy):
         >>> self.get_yesterday_dividends(assets)
 
         """
-        assets = [self._set_asset_mapping(asset) for asset in assets]
+        assets = [self._sanitize_user_asset(asset) for asset in assets]
         return self.broker.data_source.get_yesterday_dividends(assets, quote=self.quote_asset)
 
     def update_parameters(self, parameters):

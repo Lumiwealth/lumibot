@@ -6,19 +6,12 @@ from decimal import Decimal
 
 import jsonpickle
 import pandas as pd
-
 from lumibot.backtesting import BacktestingBroker, PolygonDataBacktesting
 from lumibot.entities import Asset, Position
-from lumibot.tools import (
-    create_tearsheet,
-    day_deduplicate,
-    get_risk_free_rate,
-    get_symbol_returns,
-    plot_indicators,
-    plot_returns,
-    stats_summary,
-    to_datetime_aware,
-)
+from lumibot.tools import (create_tearsheet, day_deduplicate,
+                           get_risk_free_rate, get_symbol_returns,
+                           plot_indicators, plot_returns, stats_summary,
+                           to_datetime_aware)
 from lumibot.traders import Trader
 
 from .strategy_executor import StrategyExecutor
@@ -574,45 +567,17 @@ class _Strategy:
             if self._stats_file:
                 self._stats.to_csv(self._stats_file)
 
-            # Getting the performance of the strategy
-            self.log_message(f"--- {self._log_strat_name()}Strategy Performance  ---")
-
             self._strategy_returns_df = day_deduplicate(self._stats)
+
             self._analysis = stats_summary(
                 self._strategy_returns_df, self._risk_free_rate
             )
-
-            total_return = self._analysis["total_return"]
-            self.log_message(f"Total Return: {total_return * 100:,.2f}%")
-
-            cagr_value = self._analysis["cagr"]
-            self.log_message(f"CAGR {cagr_value * 100:,.2f}%")
-
-            volatility_value = self._analysis["volatility"]
-            self.log_message(f"Volatility {volatility_value * 100:,.2f}%")
-
-            sharpe_value = self._analysis["sharpe"]
-            self.log_message(f"Sharpe {sharpe_value:,.2f}")
-
-            max_drawdown_result = self._analysis["max_drawdown"]
-            max_drawdown_value = max_drawdown_result["drawdown"] * 100
-            max_drawdown_date = max_drawdown_result["date"]
-            self.log_message(
-                f"Max Drawdown {max_drawdown_value:,.2f}% on {max_drawdown_date:%Y-%m-%d}"
-            )
-
-            romad_value = self._analysis["romad"]
-            self.log_message(f"RoMaD {romad_value * 100:,.2f}%")
 
             # Getting performance for the benchmark asset
             if (
                     self._backtesting_start is not None
                     and self._backtesting_end is not None
             ):
-                self.log_message(
-                    f"--- {self._benchmark_asset} Benchmark Performance ---"
-                )
-
                 # Need to adjust the backtesting end date because the data from Yahoo
                 # is at the start of the day, so the graph cuts short. This may be needed
                 # for other timeframes as well
@@ -654,35 +619,6 @@ class _Strategy:
                         self._backtesting_start,
                         backtesting_end_adjusted,
                     )
-
-                self._benchmark_analysis = stats_summary(
-                    self._benchmark_returns_df, self._risk_free_rate
-                )
-
-                total_return = self._benchmark_analysis["total_return"]
-                self.log_message(f"Total Return: {total_return * 100:,.2f}%")
-
-                cagr_value = self._benchmark_analysis["cagr"]
-                self.log_message(f"{self._benchmark_asset} CAGR {cagr_value * 100:,.2f}%")
-
-                volatility_value = self._benchmark_analysis["volatility"]
-                self.log_message(
-                    f"{self._benchmark_asset} Volatility {volatility_value * 100:,.2f}%"
-                )
-
-                sharpe_value = self._benchmark_analysis["sharpe"]
-                self.log_message(f"{self._benchmark_asset} Sharpe {sharpe_value:,.2f}")
-
-                max_drawdown_result = self._benchmark_analysis["max_drawdown"]
-                self.log_message(
-                    f"{self._benchmark_asset} Max Drawdown {max_drawdown_result['drawdown'] * 100:,.2f}% on "
-                    f"{max_drawdown_result['date']:%Y-%m-%d}"
-                )
-
-                romad_value = self._benchmark_analysis["romad"]
-                self.log_message(
-                    f"{self._benchmark_asset} RoMaD {romad_value * 100:,.2f}%"
-                )
 
         for handler in logger.handlers:
             if handler.__class__.__name__ == "StreamHandler":

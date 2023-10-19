@@ -309,7 +309,7 @@ class Alpaca(AlpacaData, Broker):
             quote=Asset(symbol="USD", asset_type="forex"),
         )
         order.set_identifier(response.id)
-        order.update_status(response.status)
+        order.status = response.status
         order.update_raw(response)
         return order
 
@@ -402,7 +402,7 @@ class Alpaca(AlpacaData, Broker):
             response = self.api.submit_order(order_data=order_data)
 
             order.set_identifier(response.id)
-            order.update_status(response.status)
+            order.status = response.status
             order.update_raw(response)
 
         except Exception as e:

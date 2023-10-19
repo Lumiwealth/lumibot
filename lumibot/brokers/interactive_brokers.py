@@ -176,7 +176,7 @@ class InteractiveBrokers(Broker):
         )
         order._transmitted = True
         order.set_identifier(response.orderId)
-        order.update_status(response.orderState.status)
+        order.status = response.orderState.status
         order.update_raw(response)
         return order
 
@@ -224,7 +224,7 @@ class InteractiveBrokers(Broker):
 
         self._unprocessed_orders.append(order)
         self.ib.execute_order(order)
-        order.update_status("submitted")
+        order.status = "submitted"
         return order
 
     def cancel_order(self, order):

@@ -279,7 +279,7 @@ class Ccxt(CcxtData, Broker):
             type=response["type"] if "type" in response else None,
         )
         order.set_identifier(response["id"])
-        order.update_status(response["status"])
+        order.status = response["status"]
         order.update_raw(response)
         return order
 
@@ -519,7 +519,7 @@ class Ccxt(CcxtData, Broker):
 
             response = self.api.create_order(*args, params=params)
             order.set_identifier(response["id"])
-            order.update_status(response["status"])
+            order.status = response["status"]
             order.update_raw(response)
 
         except Exception as e:

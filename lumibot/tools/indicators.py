@@ -471,7 +471,11 @@ def plot_returns(
                 return (
                     row["status"]
                     + "<br>"
-                    + str(row["filled_quantity"])
+                    + str(
+                        row["filled_quantity"]
+                        .quantize(Decimal("0.01"))
+                        .__format__(",f")
+                    )
                     + " "
                     + row["symbol"]
                     + " "
@@ -485,7 +489,11 @@ def plot_returns(
                     + str(row["asset.expiration"])
                     + "<br>"
                     + "Price: "
-                    + str(row["price"])
+                    + str(
+                       Decimal(row["price"])
+                        .quantize(Decimal("0.0001"))
+                        .__format__(",f")
+                    )
                     + "<br>"
                     + "Order Type: "
                     + row["type"]
@@ -494,28 +502,39 @@ def plot_returns(
                     + str(
                         # Round to 2 decimal places and add commas for thousands
                         (
-                            Decimal(row["price"]) if row["price"] else 0
-                            * Decimal(row["filled_quantity"]) if row["filled_quantity"] else 0
-                            * Decimal(row["asset.multiplier"]) if row["asset.multiplier"] else 1
+                            (Decimal(row["price"]) if row["price"] else 0)
+                            * (Decimal(row["filled_quantity"]) if row["filled_quantity"] else 0)
                         )
                         .quantize(Decimal("0.01"))
                         .__format__(",f")
                     )
                     + "<br>"
                     + "Trade Cost: "
-                    + str(row["trade_cost"])
+                    + str(
+                        Decimal(row["trade_cost"])
+                        .quantize(Decimal("0.01"))
+                        .__format__(",f")
+                    )
                     + "<br>"
                 )
             else:
                 return (
                     row["status"]
                     + "<br>"
-                    + str(row["filled_quantity"])
+                    + str(
+                        row["filled_quantity"]
+                        .quantize(Decimal("0.01"))
+                        .__format__(",f")
+                    )
                     + " "
                     + row["symbol"]
                     + "<br>"
                     + "Price: "
-                    + str(row["price"])
+                    + str(
+                       Decimal(row["price"])
+                        .quantize(Decimal("0.0001"))
+                        .__format__(",f")
+                    )
                     + "<br>"
                     + "Order Type: "
                     + row["type"]
@@ -524,16 +543,19 @@ def plot_returns(
                     + str(
                         # Round to 2 decimal places and add commas for thousands
                         (
-                            Decimal(row["price"]) if row["price"] else 0
-                            * Decimal(row["filled_quantity"]) if row["filled_quantity"] else 0
-                            * Decimal(row["asset.multiplier"]) if row["asset.multiplier"] else 1
+                            (Decimal(row["price"]) if row["price"] else 0)
+                            * (Decimal(row["filled_quantity"]) if row["filled_quantity"] else 0)
                         )
                         .quantize(Decimal("0.01"))
                         .__format__(",f")
                     )
                     + "<br>"
                     + "Trade Cost: "
-                    + str(row["trade_cost"])
+                    + str(
+                        Decimal(row["trade_cost"])
+                        .quantize(Decimal("0.01"))
+                        .__format__(",f")
+                    )
                     + "<br>"
                 )
         else:

@@ -105,7 +105,7 @@ class Trader:
             dir = os.path.dirname(os.path.abspath(self.logfile))
             if not os.path.exists(dir):
                 os.mkdir(dir)
-            fileHandler = logging.FileHandler(self.logfile, mode="w")
+            fileHandler = logging.FileHandler(self.logfile, mode="w", encoding="utf-8")
             logger.addHandler(fileHandler)
 
         for handler in logger.handlers:

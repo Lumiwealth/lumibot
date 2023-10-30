@@ -2,6 +2,7 @@ import logging
 from datetime import datetime, timedelta
 
 import pandas as pd
+
 from lumibot.data_sources import DataSource
 from lumibot.tools import print_progress_bar, to_datetime_aware
 
@@ -44,13 +45,15 @@ class DataSourceBacktesting(DataSource):
         start_date = end_date - period_length
         return (start_date, end_date)
 
-    def _update_datetime(self, new_datetime):
+    def _update_datetime(self, new_datetime, cash=None, portfolio_value=None):
         self._datetime = new_datetime
         print_progress_bar(
             new_datetime,
             self.datetime_start,
             self.datetime_end,
             self.backtesting_started,
+            cash=cash,
+            portfolio_value=portfolio_value,
         )
 
     def _pull_source_symbol_bars(

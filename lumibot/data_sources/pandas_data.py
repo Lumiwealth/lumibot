@@ -289,9 +289,11 @@ class PandasData(DataSource):
             )
         # Return None if data.get_bars returns a ValueError
         except ValueError as e:
-            raise ValueError(f"Error getting bars for {asset}: {e}")
+            print(f"Error getting bars for {asset}: {e}")
+            return None
+
         return res
-    
+
     def _pull_source_symbol_bars_between_dates(
         self,
         asset,
@@ -303,7 +305,7 @@ class PandasData(DataSource):
         end_date=None,
     ):
         """Pull all bars for an asset"""
-        
+
         asset_to_find = self.find_asset_in_data_store(asset, quote)
 
         if asset_to_find in self._data_store:
@@ -312,14 +314,14 @@ class PandasData(DataSource):
             raise ValueError(
                 f"The asset: `{asset}` does not exist or does not have data."
             )
-            
+
         try:
             res = data.get_bars_between_dates(
                 start_date=start_date, end_date=end_date, timestep=timestep
             )
         # Return None if data.get_bars returns a ValueError
         except ValueError as e:
-            raise ValueError(f"Error getting bars for {asset}: {e}")
+            print (f"Error getting bars for {asset}: {e}")
             res = None
         return res
 

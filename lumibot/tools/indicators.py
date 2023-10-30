@@ -10,12 +10,11 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import quantstats as qs
-from plotly.subplots import make_subplots
-
 # import lumibot.data_sources.alpha_vantage as av
 from lumibot import LUMIBOT_DEFAULT_PYTZ
 from lumibot.entities.asset import Asset
 from lumibot.tools import to_datetime_aware
+from plotly.subplots import make_subplots
 
 from .yahoo_helper import YahooHelper as yh
 
@@ -504,6 +503,7 @@ def plot_returns(
                         (
                             (Decimal(row["price"]) if row["price"] else 0)
                             * (Decimal(row["filled_quantity"]) if row["filled_quantity"] else 0)
+                            * (Decimal(row["asset.multiplier"]) if row["asset.multiplier"] else 0)
                         )
                         .quantize(Decimal("0.01"))
                         .__format__(",f")
@@ -545,6 +545,7 @@ def plot_returns(
                         (
                             (Decimal(row["price"]) if row["price"] else 0)
                             * (Decimal(row["filled_quantity"]) if row["filled_quantity"] else 0)
+                            * (Decimal(row["asset.multiplier"]) if row["asset.multiplier"] else 0)
                         )
                         .quantize(Decimal("0.01"))
                         .__format__(",f")

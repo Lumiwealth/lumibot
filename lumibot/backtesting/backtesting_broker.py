@@ -7,7 +7,6 @@ from email.utils import quote
 from functools import wraps
 
 import pandas as pd
-
 from lumibot.brokers import Broker
 from lumibot.entities import Order, Position, TradingFee
 from lumibot.tools import get_trading_days
@@ -63,7 +62,7 @@ class BacktestingBroker(Broker):
 
     # =========Internal functions==================
 
-    def _update_datetime(self, input):
+    def _update_datetime(self, input, cash=None, portfolio_value=None):
         """Works with either timedelta or datetime input
         and updates the datetime of the broker"""
 
@@ -74,7 +73,7 @@ class BacktestingBroker(Broker):
         else:
             new_datetime = input
 
-        self._data_source._update_datetime(new_datetime)
+        self._data_source._update_datetime(new_datetime, cash=cash, portfolio_value=portfolio_value)
         logging.info(f"Current backtesting datetime {self.datetime}")
 
     # =========Clock functions=====================

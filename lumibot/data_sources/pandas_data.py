@@ -1,6 +1,7 @@
 import logging
 
 import pandas as pd
+
 from lumibot.entities import Asset, AssetsMapping, Bars
 
 from .data_source import DataSource
@@ -226,7 +227,7 @@ class PandasData(DataSource):
                 dt = self.get_datetime()
                 return data.get_last_price(dt)
             except Exception as e:
-                print(f"Error getting last price for {tuple_to_find}: {e}")
+                logging.info(f"Error getting last price for {tuple_to_find}: {e}")
                 return None
         else:
             return None
@@ -289,7 +290,7 @@ class PandasData(DataSource):
             )
         # Return None if data.get_bars returns a ValueError
         except ValueError as e:
-            print(f"Error getting bars for {asset}: {e}")
+            logging.info(f"Error getting bars for {asset}: {e}")
             return None
 
         return res
@@ -321,7 +322,7 @@ class PandasData(DataSource):
             )
         # Return None if data.get_bars returns a ValueError
         except ValueError as e:
-            print (f"Error getting bars for {asset}: {e}")
+            logging.info(f"Error getting bars for {asset}: {e}")
             res = None
         return res
 

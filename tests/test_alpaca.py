@@ -28,4 +28,4 @@ def test_initialize_broker_legacy():
     assert strategy.broker == broker
 
     # Assert that strategy.data_source is AlpacaData object
-    assert isinstance(strategy.data_source, AlpacaData)
+    assert isinstance(strategy.broker.data_source, AlpacaData)

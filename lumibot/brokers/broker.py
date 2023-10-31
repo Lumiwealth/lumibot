@@ -60,6 +60,15 @@ class Broker(ABC):
             if self.stream is not None:
                 self._launch_stream()
 
+    def _update_attributes_from_config(self, config):
+        value_dict = config
+        if not isinstance(config, dict):
+            value_dict = config.__dict__
+
+        for key in value_dict:
+            if hasattr(self, key.lower()):
+                setattr(self, key.lower(), config[key])
+
     # =================================================================================
     # ================================ Required Implementations========================
     # =========Order Handling=======================
@@ -96,6 +105,23 @@ class Broker(ABC):
         Get the historical account value of the account.
         TODO: Fill out the docstring with more information.
         """
+        pass
+
+    @abstractmethod
+    def _get_stream_object(self):
+        """
+        Get the broker stream connection
+        """
+        pass
+
+    @abstractmethod
+    def _register_stream_events(self):
+        """Register the function on_trade_event
+        to be executed on each trade_update event"""
+        pass
+
+    @abstractmethod
+    def _run_stream(self):
         pass
 
     # =========Broker Positions=======================

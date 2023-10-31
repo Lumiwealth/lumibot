@@ -7,6 +7,7 @@ from datetime import timezone
 from decimal import Decimal
 
 import pandas_market_calendars as mcal
+from alpaca.trading.client import TradingClient
 from alpaca.trading.enums import QueryOrderStatus
 from alpaca.trading.requests import GetOrdersRequest
 from alpaca.trading.stream import TradingStream
@@ -29,7 +30,7 @@ class OrderData:
         return self.__dict__
 
 
-class Alpaca(AlpacaData, Broker):
+class Alpaca(Broker):
     """A broker class that connects to Alpaca
 
     Attributes
@@ -107,13 +108,18 @@ class Alpaca(AlpacaData, Broker):
         forex=[],
     )
 
-    def __init__(self, config, max_workers=20, chunk_size=100, connect_stream=True):
+    def __init__(self, config, max_workers=20, chunk_size=100, connect_stream=True, data_source=None):
         # Calling init methods
-        AlpacaData.__init__(
-            self, config, max_workers=max_workers, chunk_size=chunk_size
-        )
-        Broker.__init__(self, name="alpaca", connect_stream=connect_stream)
         self.market = "NASDAQ"
+        self.api_key = ''
+        self.api_secret = ''
+        self.paper = False
+        if not data_source:
+            data_source = AlpacaData(config, max_workers=max_workers, chunk_size=chunk_size)
+        super().__init__(name="alpaca", connect_stream=connect_stream, data_source=data_source, config=config)
+
+        self._update_attributes_from_config(config)
+        self.api = TradingClient(self.api_key, self.api_secret, paper=self.paper)
 
     # =========Clock functions=====================
 
@@ -465,11 +471,15 @@ class Alpaca(AlpacaData, Broker):
     def _get_stream_object(self):
         """
         Get the broker stream connection
-
         """
-        stream = TradingStream(self.api_key, self.api_secret, paper=self.is_paper)
+        stream = TradingStream(self.api_key, self.api_secret, paper=self.paper)
 
         return stream
+
+    def _register_stream_events(self):
+        """Register the function on_trade_event
+        to be executed on each trade_update event"""
+        pass
 
     def _run_stream(self):
         """Overloading default alpaca_trade_api.STreamCOnnect().run()

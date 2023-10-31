@@ -24,15 +24,17 @@ class InteractiveBrokers(Broker):
     """Inherit InteractiveBrokerData first and all the price market
     methods than inherits broker"""
 
-    def __init__(self, config, max_workers=20, chunk_size=100, **kwargs):
-        super().__init__(self, config=config, name="interactive_brokers", **kwargs)
+    def __init__(self, config, max_workers=20, chunk_size=100, data_source=None, **kwargs):
+        if data_source is None:
+            data_source = InteractiveBrokersData(config, max_workers=max_workers, chunk_size=chunk_size)
 
-        if self.data_source is None:
-            # warning.warn()
-            self.data_source = InteractiveBrokersData(config, max_workers=max_workers, chunk_size=chunk_size)
+        super().__init__(self, config=config, data_source=data_source, **kwargs)
+        if not self.name:
+            self.name = "interactive_brokers"
 
         # For checking duplicate order status events from IB.
         self.order_status_duplicates = []
+        self.market = "NYSE"  # The default market is NYSE.
 
         # Connection to interactive brokers
         self.ib = None
@@ -48,8 +50,6 @@ class InteractiveBrokers(Broker):
             client_id = config.CLIENT_ID
 
         self.start_ib(ip, socket_port, client_id)
-
-        self.market = "NYSE"  # The default market is NYSE.
 
     def start_ib(self, ip, socket_port, client_id):
         # Connect to interactive brokers.
@@ -435,6 +435,18 @@ class InteractiveBrokers(Broker):
         )
 
         return True
+
+    def get_historical_account_value(self):
+        pass
+
+    def _get_stream_object(self):
+        pass
+
+    def _register_stream_events(self):
+        pass
+
+    def _run_stream(self):
+        pass
 
 
 # ===================INTERACTIVE BROKERS CLASSES===================
@@ -1060,11 +1072,11 @@ class IBClient(EClient):
         try:
             requested_positions = positions_storage.get(timeout=self.max_wait_time)
         except queue.Empty:
-            print("The queue was empty or max time reached for positions")
+            logging.error("The queue was empty or max time reached for positions")
             requested_positions = None
 
         while self.wrapper.is_error():
-            print(f"Error: {self.get_error(timeout=5)}")
+            logging.error(f"Error: {self.get_error(timeout=5)}")
 
         return requested_positions
 
@@ -1078,8 +1090,8 @@ class IBClient(EClient):
         accounts_storage = self.wrapper.init_accounts()
 
         tags = (
-            f"AccountType, TotalCashValue, AccruedCash, "
-            f"NetLiquidation, BuyingPower, GrossPositionValue"
+            "AccountType, TotalCashValue, AccruedCash, "
+            "NetLiquidation, BuyingPower, GrossPositionValue"
         )
 
         as_reqid = self.get_reqid()

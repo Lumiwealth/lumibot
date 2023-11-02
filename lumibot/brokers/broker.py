@@ -66,8 +66,9 @@ class Broker(ABC):
             value_dict = config.__dict__
 
         for key in value_dict:
-            if hasattr(self, key.lower()):
-                setattr(self, key.lower(), config[key])
+            attr = 'is_paper' if 'paper' in key.lower() else key.lower()
+            if hasattr(self, attr):
+                setattr(self, attr, config[key])
 
     # =================================================================================
     # ================================ Required Implementations========================

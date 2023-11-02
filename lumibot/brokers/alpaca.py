@@ -113,13 +113,13 @@ class Alpaca(Broker):
         self.market = "NASDAQ"
         self.api_key = ''
         self.api_secret = ''
-        self.paper = False
+        self.is_paper = False
         if not data_source:
             data_source = AlpacaData(config, max_workers=max_workers, chunk_size=chunk_size)
         super().__init__(name="alpaca", connect_stream=connect_stream, data_source=data_source, config=config)
 
         self._update_attributes_from_config(config)
-        self.api = TradingClient(self.api_key, self.api_secret, paper=self.paper)
+        self.api = TradingClient(self.api_key, self.api_secret, paper=self.is_paper)
 
     # =========Clock functions=====================
 
@@ -472,7 +472,7 @@ class Alpaca(Broker):
         """
         Get the broker stream connection
         """
-        stream = TradingStream(self.api_key, self.api_secret, paper=self.paper)
+        stream = TradingStream(self.api_key, self.api_secret, paper=self.is_paper)
 
         return stream
 

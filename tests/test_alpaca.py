@@ -20,6 +20,7 @@ def test_initialize_broker_legacy():
 
     broker = Alpaca(ALPACA_CONFIG)
 
+    # Bypass actual query to alpaca
     strategy = BuyAndHold(
         broker=broker,
     )

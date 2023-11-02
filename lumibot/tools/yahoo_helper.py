@@ -16,7 +16,7 @@ class _YahooData:
         self.symbol = symbol
         self.type = type.lower()
         self.data = data
-        self.file_name = "%s_%s.pickle" % (symbol, type)
+        self.file_name = f"{symbol}_{type.lower()}.pickle"
 
     def is_up_to_date(self, last_needed_datetime=None):
         if last_needed_datetime is None:
@@ -134,11 +134,28 @@ class YahooHelper:
     # ===================Data download method=============================
 
     @staticmethod
-    def get_symbol_dict(symbol):
+    def download_symbol_info(symbol):
+        ticker = yf.Ticker(symbol)
+
+        try:
+            info = ticker.info
+        except Exception as e:
+            logging.debug(
+                f"Error while downloading symbol info for {symbol}, setting info to None for now."
+            )
+            logging.debug(e)
+            return {
+                "ticker": symbol,
+                "last_update": get_lumibot_datetime(),
+                "error": True,
+                "info": None,
+            }
+
         return {
-            "ticker": symbol,
+            "ticker": ticker.ticker,
             "last_update": get_lumibot_datetime(),
             "error": False,
+            "info": info,
         }
 
     @staticmethod
@@ -223,7 +240,7 @@ class YahooHelper:
 
         # Caching is disabled or no previous data found
         # or data found not up to date
-        data = YahooHelper.get_symbol_dict(symbol)
+        data = YahooHelper.download_symbol_info(symbol)
         YahooHelper.dump_pickle_file(symbol, INFO_DATA, data)
         return data
 

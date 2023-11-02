@@ -231,6 +231,8 @@ class TestPolygonBacktestFull:
             PolygonDataBacktesting,
             backtesting_start,
             backtesting_end,
+            minutes_before_opening=5,
+            minutes_before_closing=5,
             benchmark_asset="SPY",
             show_plot=False,
             show_tearsheet=False,

@@ -122,7 +122,7 @@ class Alpaca(Broker):
             data_source = AlpacaData(config, max_workers=max_workers, chunk_size=chunk_size)
         super().__init__(name="alpaca", connect_stream=connect_stream, data_source=data_source, config=config)
 
-        self.api = TradingClient(self.api_key, self.api_secret, paper=self.paper)
+        self.api = TradingClient(self.api_key, self.api_secret, paper=self.is_paper)
 
     # =========Clock functions=====================
 

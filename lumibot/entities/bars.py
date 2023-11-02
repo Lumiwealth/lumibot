@@ -187,7 +187,7 @@ class Bars:
         if "dividend" in self.df.columns:
             return self.df["dividend"][-1]
         else:
-            logging.warning("Unable to find 'dividend' column in bars")
+            logging.debug("Unable to find 'dividend' column in bars")
             return 0
 
     def filter(self, start=None, end=None):

@@ -89,6 +89,8 @@ def print_progress_bar(
     suffix="",
     decimals=2,
     fill=chr(9608),
+    cash=None,
+    portfolio_value=None,
 ):
     total_length = end_value - start_value
     current_length = value - start_value
@@ -107,6 +109,12 @@ def print_progress_bar(
     else:
         eta_str = ""
 
+    # Make the portfolio value string
+    if portfolio_value is not None:
+        portfolio_value_str = f"Port Value: {portfolio_value:,.2f}"
+    else:
+        portfolio_value_str = ""
+
     if not isinstance(length, int):
         try:
             terminal_length, _ = os.get_terminal_size()
@@ -117,7 +125,8 @@ def print_progress_bar(
                 - len(suffix)
                 - decimals
                 - len(eta_str)
-                - 12,
+                - len(portfolio_value_str)
+                - 13,
             )
         except:
             length = 0
@@ -125,7 +134,7 @@ def print_progress_bar(
     filled_length = int(length * percent / 100)
     bar = fill * filled_length + "-" * (length - filled_length)
 
-    line = f"\r{prefix} |{colored(bar, 'green')}| {percent_str}% {suffix} {eta_str}"
+    line = f"\r{prefix} |{colored(bar, 'green')}| {percent_str}% {suffix} {eta_str} {portfolio_value_str}"
     file.write(line)
     file.flush()
 
@@ -136,7 +145,9 @@ def get_lumibot_datetime():
 
 def to_datetime_aware(dt):
     """Convert naive time to datetime aware on default timezone. """
-    if dt.tzinfo is None or dt.tzinfo.utcoffset(dt) is None:
+    if not dt:
+        return dt
+    elif isinstance(dt, datetime) and (dt.tzinfo is None or dt.tzinfo.utcoffset(dt) is None):
         return LUMIBOT_DEFAULT_PYTZ.localize(dt)
     else:
         return dt

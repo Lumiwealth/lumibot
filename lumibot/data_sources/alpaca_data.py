@@ -7,7 +7,6 @@ from alpaca.data.historical import (CryptoHistoricalDataClient,
 from alpaca.data.requests import (CryptoBarsRequest, CryptoLatestTradeRequest,
                                   StockBarsRequest, StockLatestTradeRequest)
 from alpaca.data.timeframe import TimeFrame
-from alpaca.trading.client import TradingClient
 from lumibot.entities import Asset, Bars
 
 from .data_source import DataSource
@@ -33,7 +32,8 @@ class AlpacaData(DataSource):
     def _format_datetime(dt):
         return pd.Timestamp(dt).isoformat()
 
-    def __init__(self, config, max_workers=20, chunk_size=100, **kwargs):
+    def __init__(self, config, max_workers=20, chunk_size=100):
+        super().__init__()
         # Alpaca authorize 200 requests per minute and per API key
         # Setting the max_workers for multithreading with a maximum
         # of 200
@@ -86,8 +86,6 @@ class AlpacaData(DataSource):
         else:
             self.version = "v2"
 
-        self.api = TradingClient(self.api_key, self.api_secret, paper=self.is_paper)
-
     def get_last_price(self, asset, quote=None, exchange=None, **kwargs):
         if quote is not None:
             # If the quote is not None, we use it even if the asset is a tuple
@@ -120,9 +118,7 @@ class AlpacaData(DataSource):
 
         return trade.price
 
-    def get_barset_from_api(
-        self, api, asset, freq, limit=None, end=None, start=None, quote=None
-    ):
+    def get_barset_from_api(self, asset, freq, limit=None, end=None, start=None, quote=None):
         """
         gets historical bar data for the given stock symbol
         and time params.
@@ -228,9 +224,7 @@ class AlpacaData(DataSource):
 
         result = {}
         for asset in assets:
-            data = self.get_barset_from_api(
-                self.api, asset, parsed_timestep, quote=quote, **kwargs
-            )
+            data = self.get_barset_from_api(asset, parsed_timestep, quote=quote, **kwargs)
             result[asset] = data
 
         return result

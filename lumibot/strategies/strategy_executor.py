@@ -74,7 +74,7 @@ class StrategyExecutor(Thread):
 
         if self.strategy.is_backtesting:
             self.process_queue()
-            self.broker._update_datetime(sleeptime)
+            self.broker._update_datetime(sleeptime, cash=self.strategy.cash, portfolio_value=self.strategy.portfolio_value)
 
     @staticdecorator
     @staticmethod
@@ -665,7 +665,7 @@ class StrategyExecutor(Thread):
                 self.broker.data_source._iter_count
             ]
 
-            self.broker._update_datetime(dt)
+            self.broker._update_datetime(dt, cash=self.strategy.cash, portfolio_value=self.strategy.portfolio_value)
 
             self.strategy._update_cash_with_dividends()
 

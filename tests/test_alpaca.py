@@ -17,9 +17,7 @@ def test_initialize_broker_legacy():
     """
     This test to make sure the legacy way of initializing the broker still works.
     """
-
     broker = Alpaca(ALPACA_CONFIG)
-
     strategy = BuyAndHold(
         broker=broker,
     )
@@ -28,4 +26,4 @@ def test_initialize_broker_legacy():
     assert strategy.broker == broker
 
     # Assert that strategy.data_source is AlpacaData object
-    assert isinstance(strategy.data_source, AlpacaData)
+    assert isinstance(strategy.broker.data_source, AlpacaData)

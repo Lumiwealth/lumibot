@@ -1,6 +1,5 @@
 import datetime
 
-import pandas_ta  # If this gives an error, run `pip install pandas_ta` in your terminal
 from lumibot.brokers import Ccxt
 from lumibot.entities import Asset
 from lumibot.strategies.strategy import Strategy

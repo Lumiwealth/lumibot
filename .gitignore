@@ -22,7 +22,7 @@ todos.txt
 test_bot.py
 .vscode
 .coverage*
-*secret*
+*secret*/**.env
 
 # Pypi deployment
 build

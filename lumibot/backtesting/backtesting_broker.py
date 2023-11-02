@@ -4,6 +4,7 @@ from datetime import timedelta
 from decimal import Decimal
 from functools import wraps
 
+import pandas as pd
 from lumibot.brokers import Broker
 from lumibot.data_sources import DataSourceBacktesting
 from lumibot.entities import Order, Position, TradingFee
@@ -78,10 +79,9 @@ class BacktestingBroker(Broker):
 
     # =========Internal functions==================
 
-    def _update_datetime(self, update_dt):
-        """
-        Works with either timedelta or datetime input and updates the datetime of the broker
-        """
+    def _update_datetime(self, update_dt, cash=None, portfolio_value=None):
+        """Works with either timedelta or datetime input
+        and updates the datetime of the broker"""
 
         if isinstance(update_dt, timedelta):
             new_datetime = self.datetime + update_dt
@@ -90,7 +90,7 @@ class BacktestingBroker(Broker):
         else:
             new_datetime = update_dt
 
-        self.data_source._update_datetime(new_datetime)
+        self.data_source._update_datetime(new_datetime, cash=cash, portfolio_value=portfolio_value)
         logging.info(f"Current backtesting datetime {self.datetime}")
 
     # =========Clock functions=====================

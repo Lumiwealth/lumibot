@@ -84,6 +84,7 @@ class InteractiveBrokersData(DataSource):
         self.name = "interactivebrokers"
         self.max_workers = min(max_workers, 200)
         self.chunk_size = min(chunk_size, 100)
+        self.ib = None
 
     @staticmethod
     def _format_datetime(dt):
@@ -252,7 +253,8 @@ class InteractiveBrokersData(DataSource):
             return bars
         df = response.copy()
         # df["date"] = pd.to_datetime(df["date"], unit='s')
-        df = df.set_index("date")
+        df = df.rename(columns={"date": "datetime"})  # Renaming to match other data sources like BackTest and Alpaca.
+        df = df.set_index("datetime")
         df["price_change"] = df["close"].pct_change()
         df["dividend"] = 0
         df["stock_splits"] = 0

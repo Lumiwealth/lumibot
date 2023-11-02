@@ -27,7 +27,7 @@ class Broker(ABC):
     FILLED_ORDER = "fill"
     PARTIALLY_FILLED_ORDER = "partial_fill"
 
-    def __init__(self, name="", connect_stream=True, data_source: DataSource = None, config=None):
+    def __init__(self, name="", connect_stream=True, data_source: DataSource = None, config=None, max_workers=20):
         """Broker constructor"""
         # Shared Variables between threads
         self.name = name
@@ -44,6 +44,7 @@ class Broker(ABC):
         self._held_trades = []
         self._config = config
         self.data_source = data_source
+        self.max_workers = min(max_workers, 200)
 
         if self.data_source is None:
             raise ValueError("Broker must have a data source")
@@ -59,6 +60,16 @@ class Broker(ABC):
             self.stream = self._get_stream_object()
             if self.stream is not None:
                 self._launch_stream()
+
+    def _update_attributes_from_config(self, config):
+        value_dict = config
+        if not isinstance(config, dict):
+            value_dict = config.__dict__
+
+        for key in value_dict:
+            attr = 'is_paper' if 'paper' in key.lower() else key.lower()
+            if hasattr(self, attr):
+                setattr(self, attr, config[key])
 
     # =================================================================================
     # ================================ Required Implementations========================
@@ -96,6 +107,23 @@ class Broker(ABC):
         Get the historical account value of the account.
         TODO: Fill out the docstring with more information.
         """
+        pass
+
+    @abstractmethod
+    def _get_stream_object(self):
+        """
+        Get the broker stream connection
+        """
+        pass
+
+    @abstractmethod
+    def _register_stream_events(self):
+        """Register the function on_trade_event
+        to be executed on each trade_update event"""
+        pass
+
+    @abstractmethod
+    def _run_stream(self):
         pass
 
     # =========Broker Positions=======================

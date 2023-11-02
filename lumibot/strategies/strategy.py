@@ -7,9 +7,8 @@ from typing import Union
 import numpy as np
 import pandas as pd
 import pandas_market_calendars as mcal
-from termcolor import colored
-
 from lumibot.entities import Asset, Order
+from termcolor import colored
 
 from ._strategy import _Strategy
 
@@ -359,6 +358,7 @@ class Strategy(_Strategy):
         exchange=None,
         quote=None,
         pair=None,
+        type=None,
         custom_params={},
     ):
         """Creates a new order for this specific strategy. Once created, an order must still be submitted.
@@ -391,6 +391,11 @@ class Strategy(_Strategy):
             eg: Decimal("3.213"). Internally all will convert to Decimal.
         side : str
             Whether the order is ``buy`` or ``sell``.
+        type : str
+            The type of order. Order types include: ``'market'``, ``'limit'``, ``'stop'``, ``'stop_limit'``, 
+            ``trailing_stop``, ``'oco'``, ``'bracket'``, ``'oto'``. 
+            We will try to determine the order type if you do not specify it. It is mandatory to set the type
+            for advanced order types such as ``'oco'``, ``'bracket'``, ``'oto'``.
         limit_price : float
             A Limit order is an order to buy or sell at a specified
             price or better. The Limit order ensures that if the
@@ -427,8 +432,6 @@ class Strategy(_Strategy):
             automatically keep updating the stop price threshold based
             on the stock price movement. Eg. 0.05 would be a 5% trailing stop.
             `trail_percent` sets the trailing price in percent.
-        position_filled : bool
-            The order has been filled.
         exchange : str
             The exchange where the order will be placed.
             ``Default = 'SMART'``
@@ -486,7 +489,7 @@ class Strategy(_Strategy):
         >>>                "sell",
         >>>                take_profit_price=limit,
         >>>                stop_loss_price=stop_loss,
-        >>>                position_filled=True, # Needed for OCO orders (or else it will think it's a bracket order)
+        >>>                type="oco",
         >>>            )
 
         >>> # For a bracket order
@@ -497,6 +500,7 @@ class Strategy(_Strategy):
         >>>                take_profit_price=limit,
         >>>                stop_loss_price=stop_loss,
         >>>                stop_loss_limit_price=stop_loss_limit,
+        >>>                type="bracket",
         >>>            )
 
         >>> # For a bracket order with a trailing stop
@@ -508,6 +512,7 @@ class Strategy(_Strategy):
         >>>                take_profit_price=limit,
         >>>                stop_loss_price=stop_loss,
         >>>                stop_loss_limit_price=stop_loss_limit,
+        >>>                type="bracket",
         >>>            )
 
         >>> # For an OTO order
@@ -517,6 +522,7 @@ class Strategy(_Strategy):
         >>>                "sell",
         >>>                take_profit_price=limit,
         >>>                stop_loss_price=stop_loss,
+        >>>                type="oto",
         >>>            )
 
         >>> # For a futures order
@@ -614,6 +620,7 @@ class Strategy(_Strategy):
             date_created=self.get_datetime(),
             quote=quote,
             pair=pair,
+            type=type,
             custom_params=custom_params,
         )
         return order
@@ -1397,7 +1404,7 @@ class Strategy(_Strategy):
         >>>                "sell",
         >>>                take_profit_price=limit,
         >>>                stop_loss_price=stop_loss,
-        >>>                position_filled=True, # Needed for OCO orders (or else it will think it's a bracket order)
+        >>>                type="oco",
         >>>            )
         >>> self.submit_order(order)
 

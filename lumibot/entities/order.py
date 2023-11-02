@@ -319,100 +319,152 @@ class Order:
 
     def _set_type(self, limit_price, stop_price, take_profit_price, stop_loss_price, stop_loss_limit_price, trail_price, trail_percent, position_filled):
         if self.type is None:
-            self.type = "market"
-            if position_filled:
-                # This is a "One-Cancel-Other" advanced order
-                # with the entry order already filled
-                self.order_class = "oco"
-                self.type = "limit"
-                if stop_loss_price is None or take_profit_price is None:
-                    raise ValueError(
-                        "stop_loss_price and take_profit_loss must be defined for oco class orders"
-                    )
-                else:
-                    self.take_profit_price = check_price(
-                        take_profit_price, "take_profit_price must be positive float."
-                    )
-                    self.stop_loss_price = check_price(
-                        stop_loss_price, "stop_loss_price must be positive float."
-                    )
-                    self.stop_loss_limit_price = check_price(
-                        stop_loss_limit_price,
-                        "stop_loss_limit_price must be positive float.",
-                        nullable=True,
-                    )
-            else:
-                # This is either a simple order, bracket order or One-Triggers-Other order
-                if take_profit_price is not None and stop_loss_price is not None:
-                    # Both take_profit_price and stop_loss_price are defined
-                    # so this is a bracket order
-                    self.order_class = "bracket"
-                    self.take_profit_price = check_price(
-                        take_profit_price, "take_profit_price must be positive float."
-                    )
-                    self.stop_loss_price = check_price(
-                        stop_loss_price, "stop_loss_price must be positive float."
-                    )
-                    self.stop_loss_limit_price = check_price(
-                        stop_loss_limit_price,
-                        "stop_loss_limit_price must be positive float.",
-                        nullable=True,
-                    )
-                elif take_profit_price is not None or stop_loss_price is not None:
-                    # Only one of take_profit_price and stop_loss_price are defined
-                    # so this is a One-Triggers-Other order
-                    self.order_class = "oto"
-                    if take_profit_price is not None:
-                        self.take_profit_price = check_price(
-                            take_profit_price,
-                            "take_profit_price must be positive float.",
-                        )
-                    else:
-                        self.stop_loss_price = check_price(
-                            stop_loss_price, "stop_loss_price must be positive float."
-                        )
-                        self.stop_loss_limit_price = check_price(
-                            stop_loss_limit_price,
-                            "stop_loss_limit_price must be positive float.",
-                            nullable=True,
-                        )
-                else:
-                    # This is a simple order with no legs
-                    self.order_class = ""
+            # Check if this is a trailing stop order
+            if trail_price is not None or trail_percent is not None:
+                self.type = "trailing_stop"
 
-                # Set pricing of entry order.
-                if trail_price is not None or trail_percent is not None:
-                    self.type = "trailing_stop"
-                    if trail_price is not None:
-                        self.trail_price = check_price(
-                            trail_price, "trail_price must be positive float."
-                        )
-                    else:
-                        self.trail_percent = check_positive(
-                            trail_percent,
-                            float,
-                            "trail_percent must be positive float.",
-                        )
-                elif limit_price is None and stop_price is None:
-                    self.type = "market"
-                elif limit_price is None and stop_price is not None:
-                    self.type = "stop"
-                    self.stop_price = check_price(
-                        stop_price, "stop_price must be positive float."
+            # Check if this is a market order
+            elif limit_price is None and stop_price is None:
+                self.type = "market"
+
+            # Check if this is a stop order
+            elif limit_price is None and stop_price is not None:
+                self.type = "stop"
+
+            # Check if this is a limit order
+            elif limit_price is not None and stop_price is None:
+                self.type = "limit"
+
+            # Check if this is a stop limit order
+            elif limit_price is not None and stop_price is not None:
+                self.type = "stop_limit"
+
+            else:
+                raise ValueError("Order type could not be determined. If you are trying to create an advanced order such \
+                                 as a Bracket Order, OCO or OTO, please specify the type parameter when creating the order.")
+
+        if self.type == "oco":
+            # This is a "One-Cancel-Other" advanced order
+            self.order_class = "oco"
+            self.type = "limit" # Needs to be set as limit order for Alpaca
+            self.position_filled = True
+            if stop_loss_price is None or take_profit_price is None:
+                raise ValueError(
+                    "stop_loss_price and take_profit_loss must be defined for oco class orders"
+                )
+            else:
+                self.take_profit_price = check_price(
+                    take_profit_price, "take_profit_price must be positive float."
+                )
+                self.stop_loss_price = check_price(
+                    stop_loss_price, "stop_loss_price must be positive float."
+                )
+                self.stop_loss_limit_price = check_price(
+                    stop_loss_limit_price,
+                    "stop_loss_limit_price must be positive float.",
+                    nullable=True,
+                )
+
+        elif self.type == "bracket":
+            # This is a "One-Cancel-Other" advanced order
+            self.order_class = "bracket"
+
+            # If limit_price is set then the initial order is a limit order
+            if limit_price is not None:
+                self.type = "limit"
+                self.limit_price = check_price(
+                    limit_price, "limit_price must be positive float."
+                )
+            # If stop_price is set then the initial order is a stop order
+            elif stop_price is not None:
+                self.type = "stop"
+                self.stop_price = check_price(
+                    stop_price, "stop_price must be positive float."
+                )
+            # If neither limit_price nor stop_price is set then the initial order is a market order
+            else:
+                self.type = "market"
+
+            self.take_profit_price = check_price(
+                take_profit_price, "take_profit_price must be positive float."
+            )
+            self.stop_loss_price = check_price(
+                stop_loss_price, "stop_loss_price must be positive float."
+            )
+            self.stop_loss_limit_price = check_price(
+                stop_loss_limit_price,
+                "stop_loss_limit_price must be positive float.",
+                nullable=True,
+            )
+
+        elif self.type == "oto":
+            # This is a "One-Triggers-One" advanced order
+            self.order_class = "oto"
+
+            # If limit_price is set then the initial order is a limit order
+            if limit_price is not None:
+                self.type = "limit"
+                self.limit_price = check_price(
+                    limit_price, "limit_price must be positive float."
+                )
+            # If stop_price is set then the initial order is a stop order
+            elif stop_price is not None:
+                self.type = "stop"
+                self.stop_price = check_price(
+                    stop_price, "stop_price must be positive float."
+                )
+            # If neither limit_price nor stop_price is set then the initial order is a market order
+            else:
+                self.type = "market"
+
+            if take_profit_price is not None:
+                self.take_profit_price = check_price(
+                    take_profit_price,
+                    "take_profit_price must be positive float.",
+                )
+            else:
+                self.stop_loss_price = check_price(
+                    stop_loss_price, "stop_loss_price must be positive float."
+                )
+                self.stop_loss_limit_price = check_price(
+                    stop_loss_limit_price,
+                    "stop_loss_limit_price must be positive float.",
+                    nullable=True,
                     )
-                elif limit_price is not None and stop_price is None:
-                    self.type = "limit"
-                    self.limit_price = check_price(
-                        limit_price, "limit_price must be positive float."
-                    )
-                elif limit_price is not None and stop_price is not None:
-                    self.type = "stop_limit"
-                    self.limit_price = check_price(
-                        limit_price, "limit_price must be positive float."
-                    )
-                    self.stop_price = check_price(
-                        stop_price, "stop_price must be positive float."
-                    )
+
+        # If it's a trailing stop order, then make sure the trailing price is set
+        elif self.type == "trailing_stop":
+            if trail_price is not None:
+                self.trail_price = check_price(
+                    trail_price, "trail_price must be positive float."
+                )
+            else:
+                self.trail_percent = check_positive(
+                    trail_percent,
+                    float,
+                    "trail_percent must be positive float.",
+                )
+
+        # If it's a stop order, then make sure the stop price is set
+        elif self.type == "stop":
+            self.stop_price = check_price(
+                stop_price, "stop_price must be positive float."
+            )
+
+        # If it's a limit order, then make sure the limit price is set        
+        elif self.type == "limit":
+            self.limit_price = check_price(
+                limit_price, "limit_price must be positive float."
+            )
+
+        # If it's a stop limit order, then make sure the stop and limit prices are set
+        elif self.type == "stop_limit":
+            self.limit_price = check_price(
+                limit_price, "limit_price must be positive float."
+            )
+            self.stop_price = check_price(
+                stop_price, "stop_price must be positive float."
+            )
 
     @property
     def quantity(self):

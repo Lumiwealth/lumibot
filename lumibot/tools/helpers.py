@@ -4,8 +4,9 @@ from datetime import datetime
 
 import pandas as pd
 import pandas_market_calendars as mcal
-from lumibot import LUMIBOT_DEFAULT_PYTZ
 from termcolor import colored
+
+from lumibot import LUMIBOT_DEFAULT_PYTZ
 
 
 def get_chunks(l, chunk_size):
@@ -111,7 +112,7 @@ def print_progress_bar(
 
     # Make the portfolio value string
     if portfolio_value is not None:
-        portfolio_value_str = f"Port Value: {portfolio_value:,.2f}"
+        portfolio_value_str = f"Portfolio Value: {portfolio_value:,.2f}"
     else:
         portfolio_value_str = ""
 

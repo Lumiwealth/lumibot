@@ -10,11 +10,12 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import quantstats as qs
+from plotly.subplots import make_subplots
+
 # import lumibot.data_sources.alpha_vantage as av
 from lumibot import LUMIBOT_DEFAULT_PYTZ
 from lumibot.entities.asset import Asset
 from lumibot.tools import to_datetime_aware
-from plotly.subplots import make_subplots
 
 from .yahoo_helper import YahooHelper as yh
 
@@ -185,10 +186,10 @@ def get_symbol_returns(symbol, start=datetime(1900, 1, 1), end=datetime.now()):
     returns_df = returns_df.loc[
         (returns_df.index.date >= start.date()) & (returns_df.index.date <= end.date())
     ]
-    returns_df["pct_change"] = returns_df["Close"].pct_change()
-    returns_df["div_yield"] = returns_df["Dividends"] / returns_df["Close"]
-    returns_df["return"] = returns_df["pct_change"] + returns_df["div_yield"]
-    returns_df["symbol_cumprod"] = (1 + returns_df["return"]).cumprod()
+    returns_df.loc[:, "pct_change"] = returns_df["Close"].pct_change()
+    returns_df.loc[:, "div_yield"] = returns_df["Dividends"] / returns_df["Close"]
+    returns_df.loc[:, "return"] = returns_df["pct_change"] + returns_df["div_yield"]
+    returns_df.loc[:, "symbol_cumprod"] = (1 + returns_df["return"]).cumprod()
     returns_df.loc[returns_df.index[0], "symbol_cumprod"] = 1
 
     return returns_df

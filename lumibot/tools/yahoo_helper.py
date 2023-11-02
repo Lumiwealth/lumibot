@@ -135,28 +135,11 @@ class YahooHelper:
     # ===================Data download method=============================
 
     @staticmethod
-    def download_symbol_info(symbol):
-        ticker = yf.Ticker(symbol)
-
-        try:
-            info = ticker.info
-        except Exception as e:
-            logging.error(
-                f"Error while downloading symbol info for {symbol}, setting info to None for now."
-            )
-            logging.error(e)
-            return {
-                "ticker": symbol,
-                "last_update": get_lumibot_datetime(),
-                "error": True,
-                "info": None,
-            }
-
+    def get_symbol_dict(symbol):
         return {
-            "ticker": ticker.ticker,
+            "ticker": symbol,
             "last_update": get_lumibot_datetime(),
             "error": False,
-            "info": info,
         }
 
     @staticmethod
@@ -167,8 +150,13 @@ class YahooHelper:
     @staticmethod
     def get_symbol_last_price(symbol):
         ticker = yf.Ticker(symbol)
-        info = ticker.info
-        return info["previousClose"]
+
+        # Get the last price from the history
+        df = ticker.history(period="1d", auto_adjust=False)
+        if df.empty:
+            return None
+
+        return df["Close"][-1]
 
     @staticmethod
     def download_symbol_day_data(symbol):
@@ -236,7 +224,7 @@ class YahooHelper:
 
         # Caching is disabled or no previous data found
         # or data found not up to date
-        data = YahooHelper.download_symbol_info(symbol)
+        data = YahooHelper.get_symbol_dict(symbol)
         YahooHelper.dump_pickle_file(symbol, INFO_DATA, data)
         return data
 

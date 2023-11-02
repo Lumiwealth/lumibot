@@ -114,12 +114,15 @@ class Alpaca(Broker):
         self.api_key = ''
         self.api_secret = ''
         self.is_paper = False
+
+        # Set the config values
+        self._update_attributes_from_config(config)
+
         if not data_source:
             data_source = AlpacaData(config, max_workers=max_workers, chunk_size=chunk_size)
         super().__init__(name="alpaca", connect_stream=connect_stream, data_source=data_source, config=config)
 
-        self._update_attributes_from_config(config)
-        self.api = TradingClient(self.api_key, self.api_secret, paper=self.is_paper)
+        self.api = TradingClient(self.api_key, self.api_secret, paper=self.paper)
 
     # =========Clock functions=====================
 

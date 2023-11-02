@@ -5,6 +5,7 @@ from decimal import Decimal
 from functools import wraps
 
 import pandas as pd
+
 from lumibot.brokers import Broker
 from lumibot.data_sources import DataSourceBacktesting
 from lumibot.entities import Order, Position, TradingFee
@@ -47,6 +48,10 @@ class BacktestingBroker(Broker):
                     for order in orders:
                         logging.info(f"{order} was sent to broker {self.name}")
                         broker._new_orders.append(order)
+
+                    # Remove the original order from the list of new orders because 
+                    # it's been replaced by the individual orders
+                    broker._new_orders.remove(result)
                 else:
                     broker._new_orders.append(order)
                 return result
@@ -558,9 +563,7 @@ class BacktestingBroker(Broker):
                 if order.order_class in ["bracket", "oto"]:
                     orders = self._flatten_order(order)
                     for flat_order in orders:
-                        logging.info(
-                            "%r was sent to broker %s" % (flat_order, self.name)
-                        )
+                        logging.info(f"{order} was sent to broker {self.name}")
                         self._new_orders.append(flat_order)
 
                 trade_cost = self.calculate_trade_cost(order, strategy, price)

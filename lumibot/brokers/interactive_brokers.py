@@ -11,11 +11,12 @@ from ibapi.client import *
 from ibapi.contract import *
 from ibapi.order import *
 from ibapi.wrapper import *
+
 from lumibot.data_sources import InteractiveBrokersData
+
 # Naming conflict on Order between IB and Lumibot.
-from lumibot.entities import Asset
+from lumibot.entities import Asset, Position
 from lumibot.entities import Order as OrderLum
-from lumibot.entities import Position
 
 from .broker import Broker
 
@@ -198,7 +199,7 @@ class InteractiveBrokers(Broker):
         return orders
 
     def _flatten_order(self, orders):  # implement for stop loss.
-        """Used for alpaca, just return orders."""
+        """Not used for Interactive Brokers. Just returns the orders."""
         return orders
 
     def _submit_order(self, order):

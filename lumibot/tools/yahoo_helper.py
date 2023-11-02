@@ -3,7 +3,6 @@ import os
 import pickle
 
 import yfinance as yf
-
 from lumibot import LUMIBOT_CACHE_FOLDER, LUMIBOT_DEFAULT_PYTZ
 
 from .helpers import get_lumibot_datetime
@@ -64,7 +63,7 @@ class YahooHelper:
     @staticmethod
     def check_pickle_file(symbol, type):
         if YahooHelper.CACHING_ENABLED:
-            file_name = "%s_%s.pickle" % (symbol, type.lower())
+            file_name = f"{symbol}_{type.lower()}.pickle"
             pickle_file_path = os.path.join(
                 YahooHelper.LUMIBOT_YAHOO_CACHE_FOLDER, file_name
             )

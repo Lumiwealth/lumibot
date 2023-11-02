@@ -10,8 +10,9 @@ from threading import Event, Lock, Thread
 from apscheduler.jobstores.memory import MemoryJobStore
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
-from lumibot.tools import append_locals, get_trading_days, staticdecorator
 from termcolor import colored
+
+from lumibot.tools import append_locals, get_trading_days, staticdecorator
 
 
 class StrategyExecutor(Thread):
@@ -466,22 +467,23 @@ class StrategyExecutor(Thread):
             )
 
     # This method calculates the trigger for the strategy based on the 'sleeptime' attribute of the strategy.
-    def calculate_strategy_trigger(self, force_start_immediately=True):
+    def calculate_strategy_trigger(self, force_start_immediately=False):
         """Calculate the trigger for the strategy based on the 'sleeptime' attribute of the strategy.
 
         Parameters
         ----------
 
         force_start_immediately : bool, optional
-            When sleeptime is in days (eg. self.sleeptime = "1D") Whether to start the strategy immediately or wait until the market opens. The default is True.
+            When sleeptime is in days (eg. self.sleeptime = "1D") Whether to start the strategy immediately or wait
+            until the market opens. The default is True.
         """
 
         # Define a standard error message about acceptable formats for 'sleeptime'.
         sleeptime_err_msg = (
-            f"You can set the sleep time as an integer which will be interpreted as "
-            f"minutes. eg: sleeptime = 50 would be 50 minutes. Conversely, you can enter "
-            f"the time as a string with the duration numbers first, followed by the time "
-            f"units: 'M' for minutes, 'S' for seconds eg: '300S' is 300 seconds."
+            "You can set the sleep time as an integer which will be interpreted as "
+            "minutes. eg: sleeptime = 50 would be 50 minutes. Conversely, you can enter "
+            "the time as a string with the duration numbers first, followed by the time "
+            "units: 'M' for minutes, 'S' for seconds eg: '300S' is 300 seconds."
         )
         # Check the type of 'sleeptime'. If it's an integer, it is interpreted as minutes.
         # If it's a string, the last character is taken as the unit of time, and the rest is converted to an integer.
@@ -529,7 +531,8 @@ class StrategyExecutor(Thread):
             kwargs['day'] = "*"
 
             # Start immediately (at the closest minute) if force_start_immediately is True
-            if force_start_immediately:
+            # or if the market is currently open
+            if force_start_immediately or self.broker.is_market_open():
                 # Get the current time in local timezone
                 local_time = datetime.now().astimezone()
 
@@ -560,13 +563,20 @@ class StrategyExecutor(Thread):
                 # Get the minute
                 minute = open_time_this_day.minute
 
+                # Add 5 seconds to make sure we don't start trading before the market opens
+                second = open_time_this_day.second + 5
+
                 # Hour with 0 in front if less than 10
                 kwargs['hour'] = f"0{hour}" if hour < 10 else str(hour)
                 # Minute with 0 in front if less than 10
                 kwargs['minute'] = f"0{minute}" if minute < 10 else str(minute)
+                # Second with 0 in front if less than 10
+                kwargs['second'] = f"0{second}" if second < 10 else str(second)
 
                 logging.warning(
-                    f"The strategy will run at {kwargs['hour']}:{kwargs['minute']} every day. If instead you want to start right now and run every {time_raw} days then set force_start_immediately=True in the strategy's initialization.")
+                    f"The strategy will run at {kwargs['hour']}:{kwargs['minute']}:{kwargs['second']} every day. "
+                    f"If instead you want to start right now and run every {time_raw} days then set "
+                    f"force_start_immediately=True in the strategy's initialization.")
 
         # Return a CronTrigger object with the calculated settings.
         return CronTrigger(**kwargs)
@@ -589,10 +599,10 @@ class StrategyExecutor(Thread):
             )
 
         sleeptime_err_msg = (
-            f"You can set the sleep time as an integer which will be interpreted as "
-            f"minutes. eg: sleeptime = 50 would be 50 minutes. Conversely, you can enter "
-            f"the time as a string with the duration numbers first, followed by the time "
-            f"units: 'M' for minutes, 'S' for seconds eg: '300S' is 300 seconds."
+            "You can set the sleep time as an integer which will be interpreted as "
+            "minutes. eg: sleeptime = 50 would be 50 minutes. Conversely, you can enter "
+            "the time as a string with the duration numbers first, followed by the time "
+            "units: 'M' for minutes, 'S' for seconds eg: '300S' is 300 seconds."
         )
         if isinstance(self.strategy.sleeptime, int):
             units = "M"

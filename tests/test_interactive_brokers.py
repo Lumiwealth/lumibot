@@ -16,9 +16,7 @@ def test_initialize_interactive_broker_legacy():
     """
     This test to make sure the legacy way of initializing the broker still works.
     """
-
     broker = InteractiveBrokers(IBKR_CONFIG)
-
     strategy = BuyAndHold(
         broker=broker,
     )

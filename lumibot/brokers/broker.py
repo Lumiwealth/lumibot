@@ -27,7 +27,7 @@ class Broker(ABC):
     FILLED_ORDER = "fill"
     PARTIALLY_FILLED_ORDER = "partial_fill"
 
-    def __init__(self, name="", connect_stream=True, data_source: DataSource = None, config=None):
+    def __init__(self, name="", connect_stream=True, data_source: DataSource = None, config=None, max_workers=20):
         """Broker constructor"""
         # Shared Variables between threads
         self.name = name
@@ -44,6 +44,7 @@ class Broker(ABC):
         self._held_trades = []
         self._config = config
         self.data_source = data_source
+        self.max_workers = min(max_workers, 200)
 
         if self.data_source is None:
             raise ValueError("Broker must have a data source")

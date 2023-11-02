@@ -1,39 +1,35 @@
 import datetime
 import logging
-# from asyncio import CancelledError
 from decimal import ROUND_DOWN, Decimal
+
+from termcolor import colored
 
 from lumibot.data_sources import CcxtData
 from lumibot.entities import Asset, Order, Position
-from termcolor import colored
 
 from .broker import Broker
 
 
-class Ccxt(CcxtData, Broker):
-    """Inherit CcxtData first and all the price market
-    methods than inherits broker
-
+class Ccxt(Broker):
     """
-
-    def __init__(self, config, max_workers=20, chunk_size=100, connect_stream=False):
-        # Calling init methods
-        CcxtData.__init__(self, config, max_workers=max_workers, chunk_size=chunk_size)
-        Broker.__init__(self, name="ccxt", connect_stream=connect_stream)
+    Crypto broker using CCXT.
+    """
+    def __init__(self, config, data_source: CcxtData = None, max_workers=20, chunk_size=100, **kwargs):
+        if data_source is None:
+            data_source = CcxtData(config, max_workers=max_workers, chunk_size=chunk_size)
+        super().__init__(self, config=config, data_source=data_source, max_workers=max_workers, **kwargs)
 
         self.market = "24/7"
         self.fetch_open_orders_last_request_time = None
         self.binance_all_orders_rate_limit = 5
+        if not isinstance(self.data_source, CcxtData):
+            raise ValueError(f"Ccxt Broker's Data Source must be of type {CcxtData}")
+        self.api = self.data_source.api
 
     # =========Clock functions=====================
 
     def get_timestamp(self):
-        """Returns the current UNIX timestamp representation from CCXT.
-
-        Parameters
-        ----------
-        None
-        """
+        """Returns the current UNIX timestamp representation from CCXT"""
         logging.warning(
             "The method 'get_time_to_close' is not applicable with Crypto 24/7 markets."
         )
@@ -74,7 +70,7 @@ class Ccxt(CcxtData, Broker):
 
     def is_margin_enabled(self):
         """Check if the broker is using margin trading"""
-        return "margin" in self.api_keys and self.api_keys["margin"] == True
+        return "margin" in self._config and self._config["margin"]
 
     def _fetch_balance(self):
         params = {}
@@ -765,3 +761,12 @@ class Ccxt(CcxtData, Broker):
             "Waiting for an order execution is not yet implemented in Crypto, "
             "requires streaming. Check the order status at each interval."
         )
+
+    def _get_stream_object(self):
+        pass
+
+    def _register_stream_events(self):
+        pass
+
+    def _run_stream(self):
+        pass

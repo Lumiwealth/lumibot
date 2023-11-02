@@ -28,7 +28,7 @@ class InteractiveBrokers(Broker):
         if data_source is None:
             data_source = InteractiveBrokersData(config, max_workers=max_workers, chunk_size=chunk_size)
 
-        super().__init__(self, config=config, data_source=data_source, **kwargs)
+        super().__init__(self, config=config, data_source=data_source, max_workers=max_workers, **kwargs)
         if not self.name:
             self.name = "interactive_brokers"
 
@@ -55,6 +55,10 @@ class InteractiveBrokers(Broker):
         # Connect to interactive brokers.
         if not self.ib:
             self.ib = IBApp(ip, socket_port, client_id, ib_broker=self)
+
+        if isinstance(self.data_source, InteractiveBrokersData):
+            if not self.data_source.ib:
+                self.data_source.ib = self.ib
 
     # =========Clock functions=====================
 

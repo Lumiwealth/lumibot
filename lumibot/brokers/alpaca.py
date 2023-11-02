@@ -120,7 +120,8 @@ class Alpaca(Broker):
 
         if not data_source:
             data_source = AlpacaData(config, max_workers=max_workers, chunk_size=chunk_size)
-        super().__init__(name="alpaca", connect_stream=connect_stream, data_source=data_source, config=config)
+        super().__init__(name="alpaca", connect_stream=connect_stream, data_source=data_source, config=config,
+                         max_workers=max_workers)
 
         self.api = TradingClient(self.api_key, self.api_secret, paper=self.is_paper)
 

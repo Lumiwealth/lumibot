@@ -17,10 +17,7 @@ def test_initialize_broker_legacy():
     """
     This test to make sure the legacy way of initializing the broker still works.
     """
-
     broker = Alpaca(ALPACA_CONFIG)
-
-    # Bypass actual query to alpaca
     strategy = BuyAndHold(
         broker=broker,
     )

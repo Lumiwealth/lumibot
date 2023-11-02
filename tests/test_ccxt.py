@@ -28,12 +28,15 @@ KRAKEN_CONFIG = {
 }
 
 
-def test_initialize_ccxt_broker_legacy():
+def test_initialize_ccxt_broker_legacy(mocker):
     """
     This test to make sure the legacy way of initializing the broker still works.
     """
 
     broker = Ccxt(KRAKEN_CONFIG)
+    mocker.patch.object(broker, '_get_balances_at_broker', return_value=None)
+    mocker.patch.object(broker, '_set_initial_positions')
+
     strategy = ImportantFunctions(
         broker=broker,
     )

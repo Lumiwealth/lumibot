@@ -5,10 +5,12 @@ from pathlib import Path
 
 import pandas as pd
 import pandas_market_calendars as mcal
-from lumibot import LUMIBOT_CACHE_FOLDER
-from lumibot.entities import Asset
+
 # noinspection PyPackageRequirements
 from polygon import RESTClient
+
+from lumibot import LUMIBOT_CACHE_FOLDER
+from lumibot.entities import Asset
 
 WAIT_TIME = 60
 POLYGON_QUERY_COUNT = 0  # This is a variable that updates every time we query Polygon
@@ -81,7 +83,7 @@ def get_price_data_from_polygon(
     # get the full range of data we need in one call and ensure that there won't be any intraday gaps in the data.
     # Option data won't have any extended hours data so the padding is extra important for those.
     poly_start = missing_dates[0]  # Data will start at 8am UTC (4am EST)
-    poly_end = missing_dates[-1]   # Data will end at 23:59 UTC (7:59pm EST)
+    poly_end = missing_dates[-1]  # Data will end at 23:59 UTC (7:59pm EST)
 
     # Polygon only returns 50k results per query (~30days of 24hr 1min-candles) so we need to break up the query into
     # multiple queries if we are requesting more than 30 days of data
@@ -91,10 +93,12 @@ def get_price_data_from_polygon(
         # the rate limit. Wait every other query so that we don't spend too much time waiting.
         if not has_paid_subscription and POLYGON_QUERY_COUNT % 3 == 0:
             print(
-                f"\nSleeping {WAIT_TIME} seconds getting pricing data for {asset} from Polygon because "
-                f"we don't have a paid subscription and we don't want to hit the rate limit. If you want to "
-                f"avoid this, you can get a paid subscription at https://polygon.io/pricing and "
-                f"set `polygon_has_paid_subscription=True` when starting the backtest.\n"
+                f"\nSleeping {WAIT_TIME} seconds while price data for {asset} from Polygon because "
+                f"we don't want to hit the rate limit. IT IS NORMAL FOR THIS TEXT TO SHOW UP SEVERAL TIMES "
+                "and IT MAY TAKE UP TO 10 MINUTES PER ASSET while we download all the data from Polygon. The next "
+                "time you run this it should be faster because the data will be cached to your machine. \n"
+                "If you want this to go faster, you can get a paid Polygon subscription at https://polygon.io/pricing "
+                f"and set `polygon_has_paid_subscription=True` when starting the backtest.\n"
             )
             time.sleep(WAIT_TIME)
 
@@ -193,9 +197,7 @@ def get_polygon_symbol(asset, polygon_client, quote_asset=None):
     elif asset.asset_type == "forex":
         # If quote_asset is None, throw an error
         if quote_asset is None:
-            raise ValueError(
-                f"quote_asset is required for asset type {asset.asset_type}"
-            )
+            raise ValueError(f"quote_asset is required for asset type {asset.asset_type}")
 
         symbol = f"C:{asset.symbol}{quote_asset.symbol}"
 
@@ -206,14 +208,16 @@ def get_polygon_symbol(asset, polygon_client, quote_asset=None):
         expired = True if asset.expiration < real_today else False
 
         # Query for the historical Option Contract ticker backtest is looking for
-        contracts = list(polygon_client.list_options_contracts(
-            underlying_ticker=asset.symbol,
-            expiration_date=asset.expiration,
-            contract_type=asset.right.lower(),
-            strike_price=asset.strike,
-            expired=expired,
-            limit=10,
-        ))
+        contracts = list(
+            polygon_client.list_options_contracts(
+                underlying_ticker=asset.symbol,
+                expiration_date=asset.expiration,
+                contract_type=asset.right.lower(),
+                strike_price=asset.strike,
+                expired=expired,
+                limit=10,
+            )
+        )
 
         if len(contracts) == 0:
             raise LookupError(f"Unable to find option contract for {asset}")
@@ -235,9 +239,7 @@ def build_cache_filename(asset: Asset, timespan: str):
     # If It's an option then also add the expiration date, strike price and right to the filename
     if asset.asset_type == "option":
         if asset.expiration is None:
-            raise ValueError(
-                f"Expiration date is required for option {asset} but it is None"
-            )
+            raise ValueError(f"Expiration date is required for option {asset} but it is None")
 
         # Make asset.expiration datetime into a string like "YYMMDD"
         expiry_string = asset.expiration.strftime("%y%m%d")
@@ -292,7 +294,9 @@ def get_missing_dates(df_all, asset, start, end):
 def load_cache(cache_file):
     """Load the data from the cache file and return a DataFrame with a DateTimeIndex"""
     df_csv = pd.read_csv(cache_file, index_col="datetime")
-    df_csv.index = pd.to_datetime(df_csv.index) # TODO: Is there some way to speed this up? It takes several times longer than just reading the csv file
+    df_csv.index = pd.to_datetime(
+        df_csv.index
+    )  # TODO: Is there some way to speed this up? It takes several times longer than just reading the csv file
     df_csv = df_csv.sort_index()
 
     # Check if the index is already timezone aware

@@ -111,7 +111,7 @@ def print_progress_bar(
 
     # Make the portfolio value string
     if portfolio_value is not None:
-        portfolio_value_str = f"Port Value: {portfolio_value:,.2f}"
+        portfolio_value_str = f"Portfolio Val: {portfolio_value:,.2f}"
     else:
         portfolio_value_str = ""
 

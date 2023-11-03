@@ -3,7 +3,6 @@ import os
 import pickle
 
 import yfinance as yf
-
 from lumibot import LUMIBOT_CACHE_FOLDER, LUMIBOT_DEFAULT_PYTZ
 
 from .helpers import get_lumibot_datetime
@@ -17,7 +16,7 @@ class _YahooData:
         self.symbol = symbol
         self.type = type.lower()
         self.data = data
-        self.file_name = f"{symbol}_{type}.pickle"
+        self.file_name = f"{symbol}_{type.lower()}.pickle"
 
     def is_up_to_date(self, last_needed_datetime=None):
         if last_needed_datetime is None:
@@ -64,7 +63,7 @@ class YahooHelper:
     @staticmethod
     def check_pickle_file(symbol, type):
         if YahooHelper.CACHING_ENABLED:
-            file_name = "%s_%s.pickle" % (symbol, type.lower())
+            file_name = f"{symbol}_{type.lower()}.pickle"
             pickle_file_path = os.path.join(
                 YahooHelper.LUMIBOT_YAHOO_CACHE_FOLDER, file_name
             )
@@ -141,10 +140,10 @@ class YahooHelper:
         try:
             info = ticker.info
         except Exception as e:
-            logging.error(
+            logging.debug(
                 f"Error while downloading symbol info for {symbol}, setting info to None for now."
             )
-            logging.error(e)
+            logging.debug(e)
             return {
                 "ticker": symbol,
                 "last_update": get_lumibot_datetime(),
@@ -167,8 +166,13 @@ class YahooHelper:
     @staticmethod
     def get_symbol_last_price(symbol):
         ticker = yf.Ticker(symbol)
-        info = ticker.info
-        return info["previousClose"]
+
+        # Get the last price from the history
+        df = ticker.history(period="1d", auto_adjust=False)
+        if df.empty:
+            return None
+
+        return df["Close"].iloc[-1]
 
     @staticmethod
     def download_symbol_day_data(symbol):

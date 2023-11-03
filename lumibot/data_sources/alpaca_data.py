@@ -181,7 +181,14 @@ class AlpacaData(DataSource):
                     start=start,
                     end=end
                 )
-                barset = client.get_stock_bars(params)
+
+                try:
+                    barset = client.get_stock_bars(params)
+                except Exception as e:
+                    logging.error(
+                        f"Could not get pricing data from Alpaca for {symbol} with the following error: {e}"
+                    )
+                    return None
 
             df = barset.df
 

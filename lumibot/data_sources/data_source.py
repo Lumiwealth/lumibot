@@ -377,7 +377,7 @@ class DataSource(ABC):
             volatility=iv.impliedVolatility,
         )
 
-        result = dict(
+        greeks = dict(
             implied_volatility=iv.impliedVolatility,
             delta=c.callDelta if is_call else c.putDelta,
             option_price=c.callPrice if is_call else c.putPrice,
@@ -387,13 +387,5 @@ class DataSource(ABC):
             theta=c.callTheta if is_call else c.putTheta,
             underlying_price=und_price,
         )
-
-        greeks = dict()
-        for greek, value in result.items():
-            if eval(greek):
-                greeks[greek] = value
-
-        if len(greeks) == 0:
-            greeks = result
 
         return greeks

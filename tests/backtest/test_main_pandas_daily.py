@@ -224,13 +224,13 @@ def cleanup(request):
     """Cleanup a testing directory once we are finished."""
 
     def remove_test_dir():
-        if os.path.exists("logs"):
+        if os.path.exists("../logs"):
             try:
-                shutil.rmtree("logs")
+                shutil.rmtree("../logs")
             except PermissionError:
                 # Unit test race condition where files were still marked as "in use" as this ran
                 sleep(1)
-                shutil.rmtree("logs")
+                shutil.rmtree("../logs")
 
     request.addfinalizer(remove_test_dir)
 

@@ -15,9 +15,9 @@ class Data:
     Parameters
     ----------
     asset : Asset Object
-        Asset object to which this data is attached.
+        Asset to which this data is attached.
     df : dataframe
-        Pandas dataframe containing OHLCV etc trade data. Loaded by user
+        Pandas dataframe containing OHLCV etc. trade data. Loaded by user
         from csv.
         Index is date and must be pandas datetime64.
         Columns are strictly ["open", "high", "low", "close", "volume"]
@@ -380,28 +380,6 @@ class Data:
             return res
 
         return checker
-
-    @check_data
-    def is_tradable(self, dt, length=1, timestep="minute", timeshift=0):
-        """Returns True if the data is tradeable.
-
-        Parameters
-        ----------
-        dt : datetime.datetime
-            The datetime to check for tradeability.
-        length : int
-            The number of periods to check for tradeability.
-        timestep : str
-            The frequency of the data to check for tradeability.
-        timeshift : int
-            The number of periods to shift the data.
-
-        Returns
-        -------
-        bool
-        """
-        # Return true if data is available for trading. None if not.
-        return True
 
     @check_data
     def get_last_price(self, dt, length=1, timeshift=0):

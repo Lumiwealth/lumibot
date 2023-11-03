@@ -1,19 +1,11 @@
 from lumibot.data_sources import PandasData
 
-from .data_source_backtesting import DataSourceBacktesting
 
-
-class PandasDataBacktesting(DataSourceBacktesting, PandasData):
+class PandasDataBacktesting(PandasData):
     """
-    Backtesting implementation of the PandasData class.
-
-    Parameters
-    ----------
-    data_source : PandasData
-        The data source to use for backtesting.
+    Backtesting implementation of the PandasData class.  This class is just kept around for legacy purposes.
+    Please just use PandasData directly instead.
     """ 
 
-    def __init__(self, datetime_start, datetime_end, pandas_data=None, **kwargs):
-        self.LIVE_DATA_SOURCE = PandasData
-        PandasData.__init__(self, pandas_data, **kwargs)
-        DataSourceBacktesting.__init__(self, datetime_start, datetime_end)
+    def __init__(self, *args, pandas_data=None, **kwargs):
+        super().__init__(*args, pandas_data, **kwargs)

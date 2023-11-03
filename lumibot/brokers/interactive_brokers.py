@@ -21,22 +21,21 @@ from lumibot.entities import Order as OrderLum
 from .broker import Broker
 
 
-class InteractiveBrokers(InteractiveBrokersData, Broker):
+class InteractiveBrokers(Broker):
     """Inherit InteractiveBrokerData first and all the price market
     methods than inherits broker"""
 
-    def __init__(self, config, max_workers=20, chunk_size=100, connect_stream=True):
-        # Calling init methods
-        InteractiveBrokersData.__init__(
-            self,
-            config,
-            max_workers=max_workers,
-            chunk_size=chunk_size,
-        )
-        Broker.__init__(self, name="interactive_brokers", connect_stream=False)
+    def __init__(self, config, max_workers=20, chunk_size=100, data_source=None, **kwargs):
+        if data_source is None:
+            data_source = InteractiveBrokersData(config, max_workers=max_workers, chunk_size=chunk_size)
+
+        super().__init__(self, config=config, data_source=data_source, max_workers=max_workers, **kwargs)
+        if not self.name:
+            self.name = "interactive_brokers"
 
         # For checking duplicate order status events from IB.
         self.order_status_duplicates = []
+        self.market = "NYSE"  # The default market is NYSE.
 
         # Connection to interactive brokers
         self.ib = None
@@ -53,12 +52,14 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
 
         self.start_ib(ip, socket_port, client_id)
 
-        self.market = "NYSE" # The default market is NYSE.
-
     def start_ib(self, ip, socket_port, client_id):
         # Connect to interactive brokers.
         if not self.ib:
             self.ib = IBApp(ip, socket_port, client_id, ib_broker=self)
+
+        if isinstance(self.data_source, InteractiveBrokersData):
+            if not self.data_source.ib:
+                self.data_source.ib = self.ib
 
     # =========Clock functions=====================
 
@@ -112,17 +113,8 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         position = Position(strategy, asset, quantity, orders=orders)
         return position
 
-    # def _parse_broker_positions(self, broker_positions, strategy):
-    #     """Parse a list of broker positions into a
-    #     list of position objects"""
-    #     result = []
-    #     for broker_position in broker_positions:
-    #         result.append(self._parse_broker_position(broker_position, strategy))
-    #
-    #     return result
-
     def _pull_broker_position(self, asset):
-        """Given a asset, get the broker representation
+        """Given an asset, get the broker representation
         of the corresponding asset"""
         result = self._pull_broker_positions()
         result = result[result["Symbol"] == asset].squeeze()
@@ -189,7 +181,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         )
         order._transmitted = True
         order.set_identifier(response.orderId)
-        order.update_status(response.orderState.status)
+        order.status = response.orderState.status
         order.update_raw(response)
         return order
 
@@ -237,7 +229,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
 
         self._unprocessed_orders.append(order)
         self.ib.execute_order(order)
-        order.update_status("submitted")
+        order.status = "submitted"
         return order
 
     def cancel_order(self, order):
@@ -245,24 +237,11 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         self.ib.cancel_order(order)
 
     # =========Market functions=======================
-
-    def get_tradable_assets(self, easy_to_borrow=None, filter_func=None):
-        """Get the list of all tradable assets from the market"""
-        unavail_warning = (
-            f"ERROR: When working with Interactive Brokers it is not possible to "
-            f"acquire all of the tradable assets in the markets. "
-            f"Please do not use `get_tradable_assets`."
-        )
-        logging.info(unavail_warning)
-        print(unavail_warning)
-
-        return
-
     def _close_connection(self):
         self.ib.disconnect()
 
     def _get_balances_at_broker(self, quote_asset):
-        """Get's the current actual cash, positions value, and total
+        """Gets the current actual cash, positions value, and total
         liquidation value from interactive Brokers.
 
         This method will get the current actual values from Interactive
@@ -277,10 +256,10 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
             summary = self.ib.get_account_summary()
         except:
             logger.error(
-                f"Could not get broker balances. Please check your broker "
-                f"configuration and make sure that TWS is running with the "
-                f"correct configuration. For more information, please "
-                f"see the documentation here: https://lumibot.lumiwealth.com/brokers.interactive_brokers.html"
+                "Could not get broker balances. Please check your broker "
+                "configuration and make sure that TWS is running with the "
+                "correct configuration. For more information, please "
+                "see the documentation here: https://lumibot.lumiwealth.com/brokers.interactive_brokers.html"
             )
 
             return None
@@ -337,10 +316,6 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
             datetime.datetime.strptime(expiration, "%Y%m%d").date()
             for expiration in expirations
         ]
-
-    def get_multiplier(self, chains, exchange="SMART"):
-        """Returns the multiplier"""
-        return self.get_chain(chains, exchange)["Multiplier"]
 
     # =======Stream functions=========
     def on_status_event(
@@ -465,6 +440,18 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         )
 
         return True
+
+    def get_historical_account_value(self):
+        pass
+
+    def _get_stream_object(self):
+        pass
+
+    def _register_stream_events(self):
+        pass
+
+    def _run_stream(self):
+        pass
 
 
 # ===================INTERACTIVE BROKERS CLASSES===================
@@ -985,7 +972,8 @@ class IBClient(EClient):
         except queue.Empty:
             data_type = f"{'tick' if not greek else 'greek'}"
             logging.error(
-                f"Unable to get data for {self.tick_asset}. The Interactive Brokers queue was empty or max time reached for {data_type} data. reqId: {reqId}"
+                f"Unable to get data for {self.tick_asset}. The Interactive Brokers queue was empty or max time "
+                f"reached for {data_type} data. reqId: {reqId}"
             )
             requested_tick = None
             requested_greek = None
@@ -1089,11 +1077,11 @@ class IBClient(EClient):
         try:
             requested_positions = positions_storage.get(timeout=self.max_wait_time)
         except queue.Empty:
-            print("The queue was empty or max time reached for positions")
+            logging.error("The queue was empty or max time reached for positions")
             requested_positions = None
 
         while self.wrapper.is_error():
-            print(f"Error: {self.get_error(timeout=5)}")
+            logging.error(f"Error: {self.get_error(timeout=5)}")
 
         return requested_positions
 
@@ -1107,8 +1095,8 @@ class IBClient(EClient):
         accounts_storage = self.wrapper.init_accounts()
 
         tags = (
-            f"AccountType, TotalCashValue, AccruedCash, "
-            f"NetLiquidation, BuyingPower, GrossPositionValue"
+            "AccountType, TotalCashValue, AccruedCash, "
+            "NetLiquidation, BuyingPower, GrossPositionValue"
         )
 
         as_reqid = self.get_reqid()

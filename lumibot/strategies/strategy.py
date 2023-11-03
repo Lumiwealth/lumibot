@@ -1,9 +1,11 @@
 import datetime
 import logging
+import os
 from asyncio.log import logger
 from decimal import Decimal
 from typing import Union
 
+import jsonpickle
 import numpy as np
 import pandas as pd
 import pandas_market_calendars as mcal
@@ -55,7 +57,7 @@ class Strategy(_Strategy):
         return self._quote_asset
 
     @quote_asset.setter
-    def minutes_before_opening(self, value):
+    def quote_asset(self, value):
         self._quote_asset = value
 
     @property
@@ -73,12 +75,11 @@ class Strategy(_Strategy):
 
     @property
     def minutes_before_opening(self):
-        """Get or set the number of minutes that the strategy will start executing before the market opens. The lifecycle method before_market_opens is executed minutes_before_opening minutes before the market opens. By default equals to 60 minutes.
-
-        Parameters
-        ----------
-        minutes_before_opening : int
-            Number of minutes before the market opens.
+        # noinspection PyShadowingNames
+        """
+        Get or set the number of minutes that the strategy will start executing before the market opens.
+        The lifecycle method before_market_opens is executed minutes_before_opening minutes before the market opens.
+        By default, equals to 60 minutes.
 
         Returns
         -------
@@ -139,19 +140,19 @@ class Strategy(_Strategy):
     def sleeptime(self):
         """Get or set the current sleep time for the strategy.
 
-        Sleep time is the time the program will pause between executions of on_trading_iteration and trace_stats. This is used to control the speed of the program.
+        Sleep time is the time the program will pause between executions of on_trading_iteration and trace_stats.
+        This is used to control the speed of the program.
 
-        By default equals 1 minute. You can set the sleep time as an integer which will be interpreted as minutes. eg: sleeptime = 50 would be 50 minutes. Conversely, you can enter the time as a string with the duration numbers first, followed by the time units: ‘M’ for minutes, ‘S’ for seconds eg: ‘"300S"’ is 300 seconds, ‘"10M"’ is 10 minutes.
-
-        Parameters
-        ----------
-        sleeptime : int or str
-            Sleep time in minutes or a string with the duration numbers first, followed by the time units: `S` for seconds, `M` for minutes, `H` for hours' or `D` for days.
+        By default, equals 1 minute. You can set the sleep time as an integer which will be interpreted as
+        minutes. eg: sleeptime = 50 would be 50 minutes. Conversely, you can enter the time as a string with
+        the duration numbers first, followed by the time units: ‘M’ for minutes, ‘S’ for seconds
+        eg: ‘"300S"’ is 300 seconds, ‘"10M"’ is 10 minutes.
 
         Returns
         -------
         sleeptime : int or str
-            Sleep time in minutes or a string with the duration numbers first, followed by the time units: `S` for seconds, `M` for minutes, `H` for hours' or `D` for days.
+            Sleep time in minutes or a string with the duration numbers first, followed by the time
+            units: `S` for seconds, `M` for minutes, `H` for hours' or `D` for days.
 
         Example
         -------
@@ -205,6 +206,14 @@ class Strategy(_Strategy):
         >>>     self.log_message("Running in backtesting mode")
         """
         return self._is_backtesting
+
+    @property
+    def backtesting_start(self):
+        return self._backtesting_start
+
+    @property
+    def backtesting_end(self):
+        return self._backtesting_end
 
     @property
     def unspent_money(self):
@@ -361,6 +370,7 @@ class Strategy(_Strategy):
         type=None,
         custom_params={},
     ):
+        # noinspection PyShadowingNames,PyUnresolvedReferences
         """Creates a new order for this specific strategy. Once created, an order must still be submitted.
 
         Some notes on Crypto markets:
@@ -430,7 +440,7 @@ class Strategy(_Strategy):
         trail_percent : float
             Trailing stop orders allow you to continuously and
             automatically keep updating the stop price threshold based
-            on the stock price movement. Eg. 0.05 would be a 5% trailing stop.
+            on the stock price movement. E.g. 0.05 would be a 5% trailing stop.
             `trail_percent` sets the trailing price in percent.
         exchange : str
             The exchange where the order will be placed.
@@ -441,7 +451,7 @@ class Strategy(_Strategy):
             parameter will be 'ETH' (as an Asset object).
         custom_params : dict
             A dictionary of custom parameters that can be used to pass additional information to the broker. This is useful for passing custom parameters to the broker that are not supported by Lumibot.
-            Eg. `custom_params={"leverage": 3}` for Kraken margin trading.
+            E.g. `custom_params={"leverage": 3}` for Kraken margin trading.
 
         Returns
         -------
@@ -600,7 +610,7 @@ class Strategy(_Strategy):
         if quote is None:
             quote = self.quote_asset
 
-        asset = self._set_asset_mapping(asset)
+        asset = self._sanitize_user_asset(asset)
         order = Order(
             self.name,
             asset,
@@ -959,7 +969,7 @@ class Strategy(_Strategy):
             )
             return None
 
-        asset = self._set_asset_mapping(asset)
+        asset = self._sanitize_user_asset(asset)
         return self.broker.get_tracked_position(self.name, asset)
 
     def get_tracked_positions(self):
@@ -1065,7 +1075,7 @@ class Strategy(_Strategy):
             Interactive Brokers.
         """
 
-        asset = self._set_asset_mapping(asset)
+        asset = self._sanitize_user_asset(asset)
         return self.broker.get_contract_details(asset)
 
     def get_tracked_order(self, identifier):
@@ -1185,7 +1195,7 @@ class Strategy(_Strategy):
         >>> asset = Asset("ES", asset_type="future", expiration_date="2020-01-01")
         >>> total = self.get_asset_potential_total(asset)
         """
-        asset = self._set_asset_mapping(asset)
+        asset = self._sanitize_user_asset(asset)
         return self.broker.get_asset_potential_total(self.name, asset)
 
     def submit_order(self, order):
@@ -1736,6 +1746,7 @@ class Strategy(_Strategy):
         should_use_last_close : bool
             If False, it will make Interactive Brokers only return the
             price of an asset if it has been trading today. Defaults to True.
+            TODO: Should this option be depricated? It is now commented out below
 
         Returns
         -------
@@ -1784,7 +1795,7 @@ class Strategy(_Strategy):
             )
             return None
 
-        asset = self._set_asset_mapping(asset)
+        asset = self._sanitize_user_asset(asset)
 
         if quote is None:
             quote_asset = self.quote_asset
@@ -1796,7 +1807,7 @@ class Strategy(_Strategy):
                 asset,
                 quote=quote_asset,
                 exchange=exchange,
-                should_use_last_close=should_use_last_close,
+                # should_use_last_close=should_use_last_close,
             )
         except Exception as e:
             self.log_message(f"Could not get last price for {asset}", color="red")
@@ -1804,8 +1815,9 @@ class Strategy(_Strategy):
             return None
 
     def get_tick(self, asset):
-        """Takes an asset asset and returns the last known price"""
-        asset = self._set_asset_mapping(asset)
+        """Takes an Asset and returns the last known price"""
+        # TODO: Should this function be depricated? This appears to be an IBKR-only thing.
+        asset = self._sanitize_user_asset(asset)
         return self.broker._get_tick(asset)
 
     def get_last_prices(self, assets, quote=None, exchange=None):
@@ -1820,6 +1832,8 @@ class Strategy(_Strategy):
         quote : Asset object
             Quote asset object for which the last closed price will be
             retrieved. This is required for cryptocurrency pairs.
+        exchange : str
+            The exchange to get the prices of.
 
         Returns
         -------
@@ -1834,7 +1848,7 @@ class Strategy(_Strategy):
         """
         symbol_asset = isinstance(assets[0], str)
         if symbol_asset:
-            assets = [self._set_asset_mapping(asset) for asset in assets]
+            assets = [self._sanitize_user_asset(asset) for asset in assets]
 
         asset_prices = self.broker.get_last_prices(
             assets, quote=quote, exchange=exchange
@@ -1864,8 +1878,6 @@ class Strategy(_Strategy):
         >>> date = "20200101"
         >>> expiry_date = self.options_expiry_to_datetime_date(date)
         >>> self.log_message(f"Expiry date for {date} is {expiry_date}")
-
-
         """
         return datetime.datetime.strptime(date, "%Y%m%d").date()
 
@@ -1899,14 +1911,14 @@ class Strategy(_Strategy):
         >>> asset = "SPY"
         >>> chains = self.get_chains(asset)
         """
-        asset = self._set_asset_mapping(asset)
+        asset = self._sanitize_user_asset(asset)
         return self.broker.get_chains(asset)
 
     def get_chain(self, chains, exchange="SMART"):
         """Returns option chain for a particular exchange.
 
         Takes in a full set of chains for all the exchanges and returns
-        on chain for a given exchange. The the full chains are returned
+        on chain for a given exchange. The full chains are returned
         from `get_chains` method.
 
         Parameters
@@ -1934,8 +1946,6 @@ class Strategy(_Strategy):
         >>> # Will return the option chains for SPY
         >>> asset = "SPY"
         >>> chain = self.get_chain(asset)
-
-
         """
         return self.broker.get_chain(chains, exchange=exchange)
 
@@ -1972,7 +1982,7 @@ class Strategy(_Strategy):
         """Returns option chain for a particular exchange.
 
         Using the `chains` dictionary obtained from `get_chains` finds
-        all of the multiplier for the option chains on a given
+        all the multipliers for the option chains on a given
         exchange.
 
         Parameters
@@ -2001,12 +2011,12 @@ class Strategy(_Strategy):
         """Returns a list of strikes for a give underlying asset.
 
         Using the `chains` dictionary obtained from `get_chains` finds
-        all of the multiplier for the option chains on a given
+        all the multiplier for the option chains on a given
         exchange.
 
         Parameters
         ----------
-        asset : Asset object
+        asset : Asset
             Asset object as normally used for an option but without
             the strike information. The Asset object must be an option asset type.
 
@@ -2022,16 +2032,16 @@ class Strategy(_Strategy):
         >>> strikes = self.get_strikes(asset)
         """
 
-        asset = self._set_asset_mapping(asset)
-
-        if self.data_source.SOURCE == "PANDAS":
-            return self.broker.get_strikes(asset)
-
-        contract_details = self._get_contract_details(asset)
-        if not contract_details:
-            return None
-
-        return sorted(list(set(cd.contract.strike for cd in contract_details)))
+        asset = self._sanitize_user_asset(asset)
+        return self.broker.get_strikes(asset)
+        # if self.data_source.SOURCE == "PANDAS":
+        #     return self.broker.get_strikes(asset)
+        #
+        # contract_details = self._get_contract_details(asset)
+        # if not contract_details:
+        #     return None
+        #
+        # return sorted(list(set(cd.contract.strike for cd in contract_details)))
 
     def find_first_friday(self, timestamp):
         # Convert the timestamp to a datetime object if it's not already one
@@ -2118,44 +2128,27 @@ class Strategy(_Strategy):
     def get_greeks(
         self,
         asset,
-        implied_volatility=False,
-        delta=False,
-        option_price=False,
-        pv_dividend=False,
-        gamma=False,
-        vega=False,
-        theta=False,
-        underlying_price=False,
+        asset_price=None,
+        underlying_price=None,
+        risk_free_rate=None,
     ):
         """Returns the greeks for the option asset at the current
         bar.
 
-        Will return all the greeks available unless any of the
-        individual greeks are selected, then will only return those
-        greeks.
+        Will return all the greeks available. API Querying for prices
+        and rates are expensive, so they should be passed in as arguments
+        most of the time.
 
         Parameters
         ----------
         asset : Asset
             Option asset only for with greeks are desired.
-        **kwargs
-        implied_volatility : boolean
-            True to get the implied volatility. (default: True)
-        delta : boolean
-            True to get the option delta value. (default: True)
-        option_price : boolean
-            True to get the option price. (default: True)
-        pv_dividend : boolean
-            True to get the present value of dividends expected on the
-            option's  underlying. (default: True)
-        gamma : boolean
-            True to get the option gamma value. (default: True)
-        vega : boolean
-            True to get the option vega value. (default: True)
-        theta : boolean
-            True to get the option theta value. (default: True)
-        underlying_price : boolean
-            True to get the price of the underlying. (default: True)
+        asset_price : float, optional
+            The price of the option asset, by default None
+        underlying_price : float, optional
+            The price of the underlying asset, by default None
+        risk_free_rate : float, optional
+            The risk-free rate used in interest calculations, by default None
 
         Returns
         -------
@@ -2183,41 +2176,43 @@ class Strategy(_Strategy):
         Example
         -------
         >>> # Will return the greeks for SPY
-        >>> asset = "SPY"
-        >>> greeks = self.get_greeks(asset)
+        >>> opt_asset = Asset("SPY", expiration=date(2021, 1, 1), strike=100, option_type="call"
+        >>> greeks = self.get_greeks(opt_asset)
         >>> implied_volatility = greeks["implied_volatility"]
         >>> delta = greeks["delta"]
         >>> gamma = greeks["gamma"]
         >>> vega = greeks["vega"]
         >>> theta = greeks["theta"]
-
-
         """
         if asset.asset_type != "option":
             self.log_message(
-                f"The greeks method was called using an asset other "
-                f"than an option. Unable to retrieve greeks for non-"
-                f"option assest."
+                "The greeks method was called using an asset other "
+                "than an option. Unable to retrieve greeks for non-"
+                "option assest."
             )
             return None
 
-        return self.broker._get_greeks(
+        # Do the expensize API calls here if needed
+        opt_price = asset_price if asset_price is not None else self.get_last_price(asset)
+        risk_free_rate = risk_free_rate if risk_free_rate is not None else self.risk_free_rate
+        if underlying_price is None:
+            underlying_asset = Asset(symbol=asset.symbol, asset_type="stock")
+            und_price = self.get_last_price(underlying_asset)
+        else:
+            und_price = underlying_price
+
+        return self.broker.get_greeks(
             asset,
-            implied_volatility=implied_volatility,
-            delta=delta,
-            option_price=option_price,
-            pv_dividend=pv_dividend,
-            gamma=gamma,
-            vega=vega,
-            theta=theta,
-            underlying_price=underlying_price,
+            asset_price=opt_price,
+            underlying_price=und_price,
+            risk_free_rate=risk_free_rate,
         )
 
     # =======Data source methods=================
 
     @property
     def timezone(self):
-        """Returns the timezone of the data source. By default America/New_York.
+        """Returns the timezone of the data source. By default, America/New_York.
 
         Returns
         -------
@@ -2230,11 +2225,11 @@ class Strategy(_Strategy):
         >>> timezone = self.timezone
         >>> self.log_message(f"Timezone: {timezone}")
         """
-        return self.data_source.DEFAULT_TIMEZONE
+        return self.broker.data_source.DEFAULT_TIMEZONE
 
     @property
     def pytz(self):
-        """Returns the pytz object of the data source. By default America/New_York.
+        """Returns the pytz object of the data source. By default, America/New_York.
 
         Returns
         -------
@@ -2247,7 +2242,7 @@ class Strategy(_Strategy):
         >>> pytz = self.pytz
         >>> self.log_message(f"pytz: {pytz}")
         """
-        return self.data_source.DEFAULT_PYTZ
+        return self.broker.data_source.DEFAULT_PYTZ
 
     def get_datetime(self):
         """Returns the current datetime according to the data source. In a backtest this will be the current bar's datetime. In live trading this will be the current datetime on the exchange.
@@ -2263,7 +2258,7 @@ class Strategy(_Strategy):
         >>> datetime = self.get_datetime()
         >>> self.log_message(f"The current datetime is {datetime}")
         """
-        return self.data_source.get_datetime()
+        return self.broker.data_source.get_datetime()
 
     def get_timestamp(self):
         """Returns the current timestamp according to the data source. In a backtest this will be the current bar's timestamp. In live trading this will be the current timestamp on the exchange.
@@ -2279,7 +2274,7 @@ class Strategy(_Strategy):
         >>> timestamp = self.get_timestamp()
         >>> self.log_message(f"The current timestamp is {timestamp}")
         """
-        return self.data_source.get_timestamp()
+        return self.broker.data_source.get_timestamp()
 
     def get_round_minute(self, timeshift=0):
         """Returns the current minute rounded to the nearest minute. In a backtest this will be the current bar's timestamp. In live trading this will be the current timestamp on the exchange.
@@ -2300,7 +2295,7 @@ class Strategy(_Strategy):
         >>> round_minute = self.get_round_minute()
         >>> self.log_message(f"The current minute rounded to the nearest minute is {round_minute}")
         """
-        return self.data_source.get_round_minute(timeshift=timeshift)
+        return self.broker.data_source.get_round_minute(timeshift=timeshift)
 
     def get_last_minute(self):
         """Returns the last minute of the current day. In a backtest this will be the current bar's timestamp. In live trading this will be the current timestamp on the exchange.
@@ -2316,7 +2311,7 @@ class Strategy(_Strategy):
         >>> last_minute = self.get_last_minute()
         >>> self.log_message(f"The last minute of the current day is {last_minute}")
         """
-        return self.data_source.get_last_minute()
+        return self.broker.data_source.get_last_minute()
 
     def get_round_day(self, timeshift=0):
         """Returns the current day rounded to the nearest day. In a backtest this will be the current bar's timestamp. In live trading this will be the current timestamp on the exchange.
@@ -2337,7 +2332,7 @@ class Strategy(_Strategy):
         >>> round_day = self.get_round_day()
         >>> self.log_message(f"The current day rounded to the nearest day is {round_day}")
         """
-        return self.data_source.get_round_day(timeshift=timeshift)
+        return self.broker.data_source.get_round_day(timeshift=timeshift)
 
     def get_last_day(self):
         """Returns the last day of the current month. In a backtest this will be the current bar's timestamp. In live trading this will be the current timestamp on the exchange.
@@ -2353,7 +2348,7 @@ class Strategy(_Strategy):
         >>> last_day = self.get_last_day()
         >>> self.log_message(f"The last day of the current month is {last_day}")
         """
-        return self.data_source.get_last_day()
+        return self.broker.data_source.get_last_day()
 
     def get_datetime_range(self, length, timestep="minute", timeshift=None):
         """Returns a list of datetimes for the given length and timestep.
@@ -2378,7 +2373,7 @@ class Strategy(_Strategy):
         >>> datetimes = self.get_datetime_range(length=1, timestep="day")
         >>> self.log_message(f"Datetimes: {datetimes}")
         """
-        return self.data_source.get_datetime_range(
+        return self.broker.data_source.get_datetime_range(
             length, timestep=timestep, timeshift=timeshift
         )
 
@@ -2401,7 +2396,7 @@ class Strategy(_Strategy):
         >>> localize_datetime = self.localize_datetime(dt=datetime.datetime(2020, 1, 1))
         >>> self.log_message(f"Localized datetime: {localize_datetime}")
         """
-        return self.data_source.localize_datetime(dt)
+        return self.broker.data_source.localize_datetime(dt)
 
     def to_default_timezone(self, dt: datetime.datetime):
         """Returns a datetime localized to the data source's default timezone.
@@ -2422,18 +2417,18 @@ class Strategy(_Strategy):
         >>> to_default_timezone = self.to_default_timezone(dt=datetime.datetime(2020, 1, 1))
         >>> self.log_message(f"Localized datetime: {to_default_timezone}")
         """
-        return self.data_source.to_default_timezone(dt)
+        return self.broker.data_source.to_default_timezone(dt)
 
     def load_pandas(self, asset, df):
-        asset = self._set_asset_mapping(asset)
-        self.data_source.load_pandas(asset, df)
+        asset = self._sanitize_user_asset(asset)
+        self.broker.data_source.load_pandas(asset, df)
 
     def create_asset(
         self,
         symbol: str,
         asset_type: str = "stock",
         expiration: datetime.datetime = None,
-        strike: str = "",
+        strike: float = None,
         right: str = None,
         multiplier: int = 1,
         currency: str = "USD",
@@ -2498,9 +2493,9 @@ class Strategy(_Strategy):
         >>> asset = self.create(symbol="ETH", asset_type="crypto"),
         """
         # If backtesting,  return existing asset if in store.
-        if self.broker.IS_BACKTESTING_BROKER and asset_type != "crypto":
+        if self.is_backtesting and asset_type != "crypto":
             # Check for existing asset.
-            for asset in self.broker._data_source._data_store:
+            for asset in self.broker.data_source._data_store:
                 is_symbol = asset.symbol == symbol
                 is_asset_type = asset.asset_type == asset_type
                 is_expiration = asset.expiration == expiration
@@ -2574,33 +2569,40 @@ class Strategy(_Strategy):
         """
 
         # Check that the parameters are valid
-        if type(name) != str:
+        if not isinstance(name, str):
             raise ValueError(
-                f"Invalid name parameter in add_marker() method. Name must be a string but instead got {name}, which is a type {type(name)}.")
+                f"Invalid name parameter in add_marker() method. Name must be a string but instead got {name}, "
+                f"which is a type {type(name)}.")
 
-        if type(symbol) != str:
+        if not isinstance(symbol, str):
             raise ValueError(
-                f"Invalid symbol parameter in add_marker() method. Symbol must be a string but instead got {symbol}, which is a type {type(symbol)}.")
+                f"Invalid symbol parameter in add_marker() method. Symbol must be a string but instead got {symbol}, "
+                f"which is a type {type(symbol)}.")
 
-        if value is not None and type(value) not in [float, int, np.float64]:
+        if value is not None and not isinstance(value, (float, int, np.float64)):
             raise ValueError(
-                f"Invalid value parameter in add_marker() method. Value must be a float or int but instead got {value}, which is a type {type(value)}.")
+                f"Invalid value parameter in add_marker() method. Value must be a float or int but instead "
+                f"got {value}, which is a type {type(value)}.")
 
-        if color is not None and type(color) != str:
+        if color is not None and not isinstance(color, str):
             raise ValueError(
-                f"Invalid color parameter in add_marker() method. Color must be a string but instead got {color}, which is a type {type(color)}.")
+                f"Invalid color parameter in add_marker() method. Color must be a string but instead got {color}, "
+                f"which is a type {type(color)}.")
 
-        if size is not None and type(size) != int:
+        if size is not None and not isinstance(size, int):
             raise ValueError(
-                f"Invalid size parameter in add_marker() method. Size must be an int but instead got {size}, which is a type {type(size)}.")
+                f"Invalid size parameter in add_marker() method. Size must be an int but instead got {size}, "
+                f"which is a type {type(size)}.")
 
-        if detail_text is not None and type(detail_text) != str:
+        if detail_text is not None and not isinstance(detail_text, str):
             raise ValueError(
-                f"Invalid detail_text parameter in add_marker() method. Detail_text must be a string but instead got {detail_text}, which is a type {type(detail_text)}.")
+                f"Invalid detail_text parameter in add_marker() method. Detail_text must be a string but instead "
+                f"got {detail_text}, which is a type {type(detail_text)}.")
 
-        if dt is not None and type(dt) not in [datetime.datetime, pd.Timestamp]:
+        if dt is not None and not isinstance(dt, (datetime.datetime, pd.Timestamp)):
             raise ValueError(
-                f"Invalid dt parameter in add_marker() method. Dt must be a datetime.datetime but instead got {dt}, which is a type {type(dt)}.")
+                f"Invalid dt parameter in add_marker() method. Dt must be a datetime.datetime but instead got {dt}, "
+                f"which is a type {type(dt)}.")
 
         # If no datetime is specified, use the current datetime
         if dt is None:
@@ -2672,33 +2674,40 @@ class Strategy(_Strategy):
         """
 
         # Check that the parameters are valid
-        if type(name) != str:
+        if not isinstance(name, str):
             raise ValueError(
-                f"Invalid name parameter in add_line() method. Name must be a string but instead got {name}, which is a type {type(name)}.")
+                f"Invalid name parameter in add_line() method. Name must be a string but instead got {name}, "
+                f"which is a type {type(name)}.")
 
-        if type(value) not in [float, int, np.float64]:
+        if not isinstance(value, (float, int, np.float64)):
             raise ValueError(
-                f"Invalid value parameter in add_line() method. Value must be a float or int but instead got {value}, which is a type {type(value)}.")
+                f"Invalid value parameter in add_line() method. Value must be a float or int but instead got {value}, "
+                f"which is a type {type(value)}.")
 
-        if color is not None and type(color) != str:
+        if color is not None and not isinstance(color, str):
             raise ValueError(
-                f"Invalid color parameter in add_line() method. Color must be a string but instead got {color}, which is a type {type(color)}.")
+                f"Invalid color parameter in add_line() method. Color must be a string but instead got {color}, "
+                f"which is a type {type(color)}.")
 
-        if type(style) != str:
+        if not isinstance(style, str):
             raise ValueError(
-                f"Invalid style parameter in add_line() method. Style must be a string but instead got {style}, which is a type {type(style)}.")
+                f"Invalid style parameter in add_line() method. Style must be a string but instead got {style}, "
+                f"which is a type {type(style)}.")
 
-        if width is not None and type(width) != int:
+        if width is not None and not isinstance(width, int):
             raise ValueError(
-                f"Invalid width parameter in add_line() method. Width must be an int but instead got {width}, which is a type {type(width)}.")
+                f"Invalid width parameter in add_line() method. Width must be an int but instead got {width}, "
+                f"which is a type {type(width)}.")
 
-        if detail_text is not None and type(detail_text) != str:
+        if detail_text is not None and not isinstance(detail_text, str):
             raise ValueError(
-                f"Invalid detail_text parameter in add_line() method. Detail_text must be a string but instead got {detail_text}, which is a type {type(detail_text)}.")
+                f"Invalid detail_text parameter in add_line() method. Detail_text must be a string but instead got "
+                f"{detail_text}, which is a type {type(detail_text)}.")
 
-        if dt is not None and type(dt) not in [datetime.datetime, pd.Timestamp]:
+        if dt is not None and not isinstance(dt, (datetime.datetime, pd.Timestamp)):
             raise ValueError(
-                f"Invalid dt parameter in add_line() method. Dt must be a datetime.datetime but instead got {dt}, which is a type {type(dt)}.")
+                f"Invalid dt parameter in add_line() method. Dt must be a datetime.datetime but instead got {dt}, "
+                f"which is a type {type(dt)}.")
 
         # If no datetime is specified, use the current datetime
         if dt is None:
@@ -2730,6 +2739,29 @@ class Strategy(_Strategy):
 
         return df
 
+    def write_backtest_settings(self, settings_file):
+        datasource = self.broker.data_source
+        auto_adjust = datasource.auto_adjust if hasattr(datasource, 'auto_adjust') else False
+        settings = {
+            "name": self.name,
+            "backtesting_start": self.backtesting_start,
+            "backtesting_end": self.backtesting_end,
+            "budget": self.initial_budget,
+            "risk_free_rate": self.risk_free_rate,
+            "minutes_before_closing": self.minutes_before_closing,
+            "minutes_before_opening": self.minutes_before_opening,
+            "sleeptime": self.sleeptime,
+            "auto_adjust": auto_adjust,
+            "quote_asset": self.quote_asset,
+            "benchmark_asset": self._benchmark_asset,
+            "starting_positions": self.starting_positions,
+            "parameters": self.parameters,
+        }
+        os.makedirs(os.path.dirname(settings_file), exist_ok=True)
+        with open(settings_file, "w") as outfile:
+            json = jsonpickle.encode(settings)
+            outfile.write(json)
+
     def get_historical_prices(
         self,
         asset: Union[Asset, str],
@@ -2750,8 +2782,8 @@ class Strategy(_Strategy):
         Parameters
         ----------
         asset : str or Asset
-            The symbol string representation (e.g AAPL, GOOG, ...) or asset
-            object. Crypto currencies must also specify the quote currency.
+            The symbol string representation (e.g. AAPL, GOOG, ...) or asset
+            object. Cryptocurrencies must also specify the quote currency.
         length : int
             The number of rows (number of timesteps)
         timestep : str
@@ -2763,7 +2795,7 @@ class Strategy(_Strategy):
             the present. If  backtesting in Pandas, use integer representing
             number of bars.
         quote : Asset
-            The quote currency for crypto currencies (eg. USD, USDT, EUR, ...).
+            The quote currency for crypto currencies (e.g. USD, USDT, EUR, ...).
             Default is the quote asset for the strategy.
         exchange : str
             The exchange to pull the historical data from. Default is None (decided based on the broker)
@@ -2829,12 +2861,12 @@ class Strategy(_Strategy):
             f"Getting historical prices for {asset}, {length} bars, {timestep}"
         )
 
-        asset = self._set_asset_mapping(asset)
+        asset = self._sanitize_user_asset(asset)
 
         asset = self.crypto_assets_to_tuple(asset, quote)
         if not timestep:
-            timestep = self.data_source.MIN_TIMESTEP
-        return self.data_source.get_historical_prices(
+            timestep = self.broker.data_source.MIN_TIMESTEP
+        return self.broker.data_source.get_historical_prices(
             asset,
             length,
             timestep=timestep,
@@ -2853,9 +2885,13 @@ class Strategy(_Strategy):
         quote=None,
         exchange=None,
     ):
-        """This method is deprecated and will be removed in a future version. Please use self.get_historical_prices() instead."""
+        """
+        This method is deprecated and will be removed in a future version.
+        Please use self.get_historical_prices() instead.
+        """
         logger.warning(
-            "The get_bars method is deprecated and will be removed in a future version. Please use self.get_historical_prices() instead."
+            "The get_bars method is deprecated and will be removed in a future version. "
+            "Please use self.get_historical_prices() instead."
         )
 
         return self.get_historical_prices(
@@ -2890,9 +2926,9 @@ class Strategy(_Strategy):
         Parameters
         ----------
         assets : list(str/asset)
-            The symbol string representation (e.g AAPL, GOOG, ...) or asset
+            The symbol string representation (e.g. AAPL, GOOG, ...) or asset
             objects.
-            Crypto currencies must specify the quote asset. Use tuples with the two asset
+            Cryptocurrencies must specify the quote asset. Use tuples with the two asset
             objects, base first, quote second. '(Asset(ETH), Asset(BTC))'
         length : int
             The number of rows (number of timesteps)
@@ -2933,17 +2969,14 @@ class Strategy(_Strategy):
         >>> asset_quote = Asset(symbol="USD", asset_type="forex")
         >>> bars =  self.get_historical_prices_for_assets(asset_base, 2, "day", quote=asset_quote)
         >>> df = bars.df
-
-
         """
 
         logging.info(
             f"Getting historical prices for {assets}, {length} bars, {timestep}"
         )
 
-        assets = [self._set_asset_mapping(asset) for asset in assets]
-
-        return self.data_source.get_bars(
+        assets = [self._sanitize_user_asset(asset) for asset in assets]
+        return self.broker.data_source.get_bars(
             assets,
             length,
             timestep=timestep,
@@ -2963,9 +2996,12 @@ class Strategy(_Strategy):
         max_workers=200,
         exchange=None,
     ):
-        """This method is deprecated and will be removed in a future version. Please use self.get_historical_prices_for_assets() instead."""
+        """
+        This method is deprecated and will be removed in a future version.
+        Please use self.get_historical_prices_for_assets() instead."""
         logger.warning(
-            "The get_bars method is deprecated and will be removed in a future version. Please use self.get_historical_prices_for_assets() instead."
+            "The get_bars method is deprecated and will be removed in a future version. "
+            "Please use self.get_historical_prices_for_assets() instead."
         )
 
         return self.get_historical_prices_for_assets(
@@ -2983,7 +3019,7 @@ class Strategy(_Strategy):
         only.
 
         This allows for real time data to stream to the strategy. Bars
-        are fixed at every fix seconds.  The will arrive in the strategy
+        are fixed at every fix seconds.  They will arrive in the strategy
         in the form of a dataframe. The data returned will be:
 
         - datetime
@@ -3062,7 +3098,7 @@ class Strategy(_Strategy):
 
         Parameters
         ----------
-        asset : Asset object
+        asset : Asset
             Asset object that has streaming data to cancel.
 
         Returns
@@ -3099,8 +3135,8 @@ class Strategy(_Strategy):
 
 
         """
-        asset = self._set_asset_mapping(asset)
-        return self.data_source.get_yesterday_dividend(asset)
+        asset = self._sanitize_user_asset(asset)
+        return self.broker.data_source.get_yesterday_dividend(asset)
 
     def get_yesterday_dividends(self, assets):
         """Get the dividends for the previous day.
@@ -3123,8 +3159,8 @@ class Strategy(_Strategy):
         >>> self.get_yesterday_dividends(assets)
 
         """
-        assets = [self._set_asset_mapping(asset) for asset in assets]
-        return self.data_source.get_yesterday_dividends(assets, quote=self.quote_asset)
+        assets = [self._sanitize_user_asset(asset) for asset in assets]
+        return self.broker.data_source.get_yesterday_dividends(assets, quote=self.quote_asset)
 
     def update_parameters(self, parameters):
         """Update the parameters of the strategy.
@@ -3250,10 +3286,6 @@ class Strategy(_Strategy):
         """Use this lifecycle method to execude code
         self.minutes_before_opening minutes before opening.
 
-        Parameters
-        ----------
-        None
-
         Returns
         -------
         None
@@ -3275,10 +3307,6 @@ class Strategy(_Strategy):
         and before entering the trading loop. Use this method
         for daily resetting variables
 
-        Parameters
-        ----------
-        None
-
         Returns
         -------
         None
@@ -3296,22 +3324,12 @@ class Strategy(_Strategy):
     def on_trading_iteration(self):
         """Use this lifecycle method for your main trading loop. This method is called every self.sleeptime minutes (or seconds/hours/days if self.sleeptime is "30S", "1H", "1D", etc.).
 
-        Parameters
-        ----------
-        None
-
-        Returns
-        -------
-        None
-
         Example
         -------
         >>> def on_trading_iteration(self):
         >>>     self.log_message("Hello")
         >>>     order = self.create_order("SPY", 10, "buy")
         >>>     self.submit_order(order)
-
-
         """
         pass
 
@@ -3346,8 +3364,6 @@ class Strategy(_Strategy):
         >>>         "portfolio_value": self.portfolio_value,
         >>>         "cash": self.cash,
         >>>     }
-
-
         """
         return {}
 
@@ -3367,8 +3383,6 @@ class Strategy(_Strategy):
         >>> # Execute code before market closes
         >>> def before_market_closes(self):
         >>>     self.sell_all()
-
-
         """
         pass
 
@@ -3459,8 +3473,6 @@ class Strategy(_Strategy):
         >>> def on_abrupt_closing(self):
         >>>     self.log_message("Abrupt closing")
         >>>     self.sell_all()
-
-
         """
         pass
 
@@ -3482,8 +3494,6 @@ class Strategy(_Strategy):
         >>> def on_new_order(self, order):
         >>>     if order.asset == "AAPL":
         >>>         self.log_message("Order for AAPL")
-
-
         """
         pass
 
@@ -3504,8 +3514,6 @@ class Strategy(_Strategy):
         >>> def on_canceled_order(self, order):
         >>>     if order.asset == "AAPL":
         >>>         self.log_message("Order for AAPL canceled")
-
-
         """
         pass
 
@@ -3540,8 +3548,6 @@ class Strategy(_Strategy):
         >>>     if order.asset == "AAPL":
         >>>         self.log_message(f"{quantity} shares of AAPL partially filled")
         >>>         self.log_message(f"Price: {price}")
-
-
         """
         pass
 
@@ -3582,8 +3588,6 @@ class Strategy(_Strategy):
         >>>         self.log_message("Order for AAPL filled")
         >>>         self.log_message(f"Price: {price}")
         >>>         self.positions["AAPL"] = position
-
-
         """
         pass
 

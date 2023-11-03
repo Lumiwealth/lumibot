@@ -197,7 +197,7 @@ class Order:
 
         self.symbol = self.asset.symbol
         self.identifier = identifier if identifier else uuid.uuid4().hex
-        self.status = "unprocessed"
+        self._status = "unprocessed"
         self._date_created = date_created
         self.side = None
         self.time_in_force = time_in_force
@@ -467,6 +467,15 @@ class Order:
             )
 
     @property
+    def status(self):
+        return self._status
+
+    @status.setter
+    def status(self, value):
+        if value and isinstance(value, str):
+            self._status = value
+
+    @property
     def quantity(self):
         if self.asset.asset_type == "crypto":
             return self._quantity
@@ -585,7 +594,7 @@ class Order:
         bool
             True if the order has been cancelled, False otherwise.
         """
-        return self.status and self.status.lower() in ['cancelled', 'canceled', 'cancel']
+        return self.status.lower() in ['cancelled', 'canceled', 'cancel']
 
     def is_filled(self):
         """
@@ -598,14 +607,10 @@ class Order:
         """
         if self.position_filled:
             return True
-        elif self.status and self.status.lower() in ['filled', 'fill']:
+        elif self.status.lower() in ['filled', 'fill']:
             return True
         else:
             return False
-
-    def update_status(self, status):
-        if status:
-            self.status = status
 
     def set_error(self, error):
         self.status = "error"

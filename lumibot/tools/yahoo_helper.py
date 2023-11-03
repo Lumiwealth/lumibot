@@ -27,7 +27,7 @@ class _YahooData:
             last_day = self.data.index[-1].to_pydatetime().date()
 
             # ip_up_to_date will always return False on holidays even though
-            # the data is up to date because the market is still closed
+            # the data is up-to-date because the market is still closed
             return last_day >= last_needed_date
 
         if self.type == INFO_DATA:
@@ -172,7 +172,7 @@ class YahooHelper:
         if df.empty:
             return None
 
-        return df["Close"][-1]
+        return df["Close"].iloc[-1]
 
     @staticmethod
     def download_symbol_day_data(symbol):

@@ -1,4 +1,4 @@
-import logging
+from abc import ABC
 from datetime import datetime, timedelta
 
 import pandas as pd
@@ -7,25 +7,36 @@ from lumibot.data_sources import DataSource
 from lumibot.tools import print_progress_bar, to_datetime_aware
 
 
-class DataSourceBacktesting(DataSource):
+class DataSourceBacktesting(DataSource, ABC):
+    """
+    This class is the base class for all backtesting data sources.  It is also an abstract class and should not be
+    instantiated directly because it does not define all necessary methods. Instead, instantiate one of the
+    child classes like PandasData.
+    """
     IS_BACKTESTING_DATA_SOURCE = True
 
     def __init__(
-        self, datetime_start, datetime_end, backtesting_started=None
+        self, datetime_start, datetime_end, backtesting_started=None, config=None, api_key=None
     ):
+        super().__init__(api_key=api_key)
+
         if backtesting_started is None:
             _backtesting_started = datetime.now()
         else:
             _backtesting_started = backtesting_started
 
-        self.datetime_start = datetime_start
-        self.datetime_end = datetime_end
-        self._datetime = datetime_start
+        self.datetime_start = to_datetime_aware(datetime_start)
+        self.datetime_end = to_datetime_aware(datetime_end)
+        self._datetime = self.datetime_start
         self._iter_count = None
         self.backtesting_started = _backtesting_started
 
         # Subtract one minute from the datetime_end so that the strategy stops right before the datetime_end
         self.datetime_end -= timedelta(minutes=1)
+
+        # Legacy strategy.backtest code will always pass in a config even for DataSources that don't need it, so
+        # catch it here and ignore it in this class. Child classes that need it should error check it themselves.
+        self._config = config
 
     def get_datetime(self):
         return self._datetime
@@ -43,7 +54,7 @@ class DataSourceBacktesting(DataSource):
             end_date = self.get_last_day() - backtesting_timeshift
 
         start_date = end_date - period_length
-        return (start_date, end_date)
+        return start_date, end_date
 
     def _update_datetime(self, new_datetime, cash=None, portfolio_value=None):
         self._datetime = new_datetime
@@ -55,45 +66,3 @@ class DataSourceBacktesting(DataSource):
             cash=cash,
             portfolio_value=portfolio_value,
         )
-
-    def _pull_source_symbol_bars(
-        self,
-        asset,
-        length,
-        timestep=None,
-        timeshift=None,
-        quote=None,
-        exchange=None,
-        include_after_hours=True,
-    ):
-        if exchange is not None:
-            logging.warning(
-                f"the exchange parameter is not implemented for DataSourceBacktesting, but {exchange} was passed as the exchange"
-            )
-
-        if timestep is None:
-            timestep = self.get_timestep()
-        if self.LIVE_DATA_SOURCE.SOURCE == "YAHOO":
-            backtesting_timeshift = timeshift
-        elif self.LIVE_DATA_SOURCE.SOURCE == "PANDAS":
-            backtesting_timeshift = timeshift
-        elif self.LIVE_DATA_SOURCE.SOURCE == "ALPHA_VANTAGE":
-            backtesting_timeshift = timeshift
-        else:
-            raise ValueError(
-                f"An incorrect data source type was received. Received"
-                f" {self.LIVE_DATA_SOURCE.SOURCE}"
-            )
-        result = self.LIVE_DATA_SOURCE._pull_source_symbol_bars(
-            self,
-            asset,
-            length,
-            timestep=timestep,
-            timeshift=backtesting_timeshift,
-            quote=quote,
-        )
-
-        if result is None:
-            return result
-        else:
-            return result

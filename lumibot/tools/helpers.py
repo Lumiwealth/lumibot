@@ -145,7 +145,9 @@ def get_lumibot_datetime():
 
 def to_datetime_aware(dt):
     """Convert naive time to datetime aware on default timezone. """
-    if dt.tzinfo is None or dt.tzinfo.utcoffset(dt) is None:
+    if not dt:
+        return dt
+    elif isinstance(dt, datetime) and (dt.tzinfo is None or dt.tzinfo.utcoffset(dt) is None):
         return LUMIBOT_DEFAULT_PYTZ.localize(dt)
     else:
         return dt

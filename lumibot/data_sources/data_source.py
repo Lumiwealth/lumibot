@@ -1,15 +1,15 @@
+from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 
 from lumibot import LUMIBOT_DEFAULT_PYTZ, LUMIBOT_DEFAULT_TIMEZONE
 from lumibot.entities import Asset, AssetsMapping
-from lumibot.tools import get_chunks, get_risk_free_rate
-from lumibot.tools.black_scholes import BS
+from lumibot.tools import black_scholes, get_chunks
 
 from .exceptions import UnavailabeTimestep
 
 
-class DataSource:
+class DataSource(ABC):
     SOURCE = ""
     IS_BACKTESTING_DATA_SOURCE = False
     MIN_TIMESTEP = "minute"
@@ -17,15 +17,91 @@ class DataSource:
     DEFAULT_TIMEZONE = LUMIBOT_DEFAULT_TIMEZONE
     DEFAULT_PYTZ = LUMIBOT_DEFAULT_PYTZ
 
+    def __init__(self, api_key=None):
+        self.name = "data_source"
+        self._timestep = None
+        self._api_key = api_key
+
+    # ========Required Implementations ======================
+    @abstractmethod
+    def _pull_source_symbol_bars(
+            self,
+            asset,
+            length,
+            timestep=MIN_TIMESTEP,
+            timeshift=None,
+            quote=None,
+            exchange=None,
+            include_after_hours=True
+    ):
+        """pull source bars for a given asset"""
+        pass
+
+    @abstractmethod
+    def _pull_source_bars(
+            self, assets, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None, include_after_hours=True
+    ):
+        pass
+
+    @abstractmethod
+    def _parse_source_symbol_bars(self, response, asset, quote=None, length=None):
+        pass
+
+    @abstractmethod
+    def get_last_price(self, asset, quote=None, exchange=None):
+        """
+        Takes an asset and returns the last known price
+
+        Parameters
+        ----------
+        asset : Asset
+            The asset to get the price of.
+        quote : Asset
+            The quote asset to get the price of.
+        exchange : str
+            The exchange to get the price of.
+
+        Returns
+        -------
+        float
+            The last known price of the asset.
+        """
+        pass
+
     # ========Python datetime helpers======================
 
     def get_datetime(self):
+        """
+        Returns the current datetime in the default timezone
+
+        Returns
+        -------
+        datetime
+        """
         return self.to_default_timezone(datetime.now())
 
     def get_timestamp(self):
+        """
+        Returns the current timestamp in the default timezone
+        Returns
+        -------
+        float
+        """
         return self.get_datetime().timestamp()
 
     def get_round_minute(self, timeshift=0):
+        """
+        Returns the current datetime rounded to the minute and applies a timeshift in minutes
+        Parameters
+        ----------
+        timeshift: int
+            The number of minutes to shift the datetime by
+
+        Returns
+        -------
+        datetime
+            Rounded datetime with the timeshift applied
+        """
         current = self.get_datetime().replace(second=0, microsecond=0)
         return current - timedelta(minutes=timeshift)
 
@@ -33,6 +109,18 @@ class DataSource:
         return self.get_round_minute(timeshift=1)
 
     def get_round_day(self, timeshift=0):
+        """
+        Returns the current datetime rounded to the day and applies a timeshift in days
+        Parameters
+        ----------
+        timeshift: int
+            The number of days to shift the datetime by
+
+        Returns
+        -------
+        datetime
+            Rounded datetime with the timeshift applied
+        """
         current = self.get_datetime().replace(hour=0, minute=0, second=0, microsecond=0)
         return current - timedelta(days=timeshift)
 
@@ -51,7 +139,7 @@ class DataSource:
             end_date -= timeshift
 
         start_date = end_date - period_length
-        return (start_date, end_date)
+        return start_date, end_date
 
     @classmethod
     def localize_datetime(cls, dt):
@@ -65,15 +153,68 @@ class DataSource:
         return dt.astimezone(cls.DEFAULT_PYTZ)
 
     def get_timestep(self):
-        if self.IS_BACKTESTING_DATA_SOURCE and self.SOURCE == "PANDAS":
-            return self._timestep
+        return self._timestep if self._timestep else self.MIN_TIMESTEP
+
+    @staticmethod
+    def convert_timestep_str_to_timedelta(timestep):
+        """
+        Convert a timestep string to a timedelta object. For example, "1minute" will be converted to a
+        timedelta of 1 minute.
+
+        Parameters
+        ----------
+        timestep : str
+            The timestep string to convert. For example, "1minute" or "1hour" or "1day".
+
+        Returns
+        -------
+        timedelta
+            A timedelta object representing the timestep.
+        """
+        timestep = timestep.lower()
+
+        # Define mapping from timestep units to equivalent minutes
+        time_unit_map = {
+            "minute": 1,
+            "hour": 60,
+            "day": 24 * 60,
+            "m": 1,  # "M" is for minutes
+            "h": 60,  # "H" is for hours
+            "d": 24 * 60,  # "D" is for days
+        }
+
+        # Define default values
+        quantity = 1
+        unit = ""
+
+        # Check if timestep string has a number at the beginning
+        if timestep[0].isdigit():
+            for i, char in enumerate(timestep):
+                if not char.isdigit():
+                    # Get the quantity (number of units)
+                    quantity = int(timestep[:i])
+                    # Get the unit (minute, hour, or day)
+                    unit = timestep[i:]
+                    break
         else:
-            return self.MIN_TIMESTEP
+            unit = timestep
+
+        # Check if the unit is valid
+        if unit in time_unit_map:
+            # Convert quantity to minutes
+            quantity_in_minutes = quantity * time_unit_map[unit]
+            # Convert minutes to timedelta
+            delta = timedelta(minutes=quantity_in_minutes)
+            return delta
+        else:
+            raise ValueError(
+                f"Unknown unit: {unit}. Valid units are minute, hour, day, M, H, D"
+            )
 
     # ========Internal Market Data Methods===================
 
     def _parse_source_timestep(self, timestep, reverse=False):
-        """transform the data source timestep variable
+        """transform the data source timestep variable 
         into lumibot representation. set reverse to True
         for opposite direction"""
         for item in self.TIMESTEP_MAPPING:
@@ -85,27 +226,6 @@ class DataSource:
                     return item["timestep"]
 
         raise UnavailabeTimestep(self.SOURCE, timestep)
-
-    def _pull_source_symbol_bars(
-        self,
-        asset,
-        length,
-        timestep=MIN_TIMESTEP,
-        timeshift=None,
-        quote=None,
-        exchange=None,
-        include_after_hours=True
-    ):
-        """pull source bars for a given asset"""
-        pass
-
-    def _pull_source_bars(
-        self, assets, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None,  include_after_hours=True
-    ):
-        pass
-
-    def _parse_source_symbol_bars(self, response, asset, quote=None, length=None):
-        pass
 
     def _parse_source_bars(self, response, quote=None):
         result = {}
@@ -181,35 +301,19 @@ class DataSource:
 
         return result
 
-    def get_last_price(self, asset, timestep=None, quote=None, exchange=None, **kwargs):
-        """Takes an asset and returns the last known price"""
-        pass
-
-    def get_last_prices(
-        self, assets, timestep=None, quote=None, exchange=None, **kwargs
-    ):
+    def get_last_prices(self, assets, quote=None, exchange=None):
         """Takes a list of assets and returns the last known prices"""
-        if timestep is None:
-            timestep = self.MIN_TIMESTEP
 
         result = {}
         for asset in assets:
             result[asset] = self.get_last_price(
-                asset, timestep=timestep, quote=quote, exchange=exchange, **kwargs
+                asset, quote=quote, exchange=exchange
             )
 
         if self.SOURCE == "CCXT":
             return result
         else:
             return AssetsMapping(result)
-
-    def is_tradable(self, asset, dt, length=1, timestep="minute", timeshift=0):
-        # Check if an asset is tradable at this moment.
-        raise NotImplementedError(self.__class__.__name__ + ".is_tradable")
-
-    def get_tradable_assets(self, dt, length=1, timestep="minute", timeshift=0):
-        # Return a list of tradable assets.
-        raise NotImplementedError(self.__class__.__name__ + ".get_tradable_assets")
 
     def get_yesterday_dividend(self, asset, quote=None):
         """Return dividend per share for a given
@@ -235,49 +339,45 @@ class DataSource:
     def get_greeks(
         self,
         asset,
-        implied_volatility=False,
-        delta=False,
-        option_price=False,
-        pv_dividend=False,
-        gamma=False,
-        vega=False,
-        theta=False,
-        underlying_price=False,
+
+        # API Querying for prices and rates are expensive, so we'll pass them in as arguments most of the time
+        asset_price: float,
+        underlying_price: float,
+        risk_free_rate: float,
     ):
         """Returns Greeks in backtesting. """
-        underlying_asset = Asset(symbol=asset.symbol, asset_type="stock")
-        und_price = self.get_last_price(underlying_asset)
-
-        opt_price = self.get_last_price(asset)
-
-        interest = get_risk_free_rate() * 100
+        opt_price = asset_price
+        und_price = underlying_price
+        interest = risk_free_rate * 100
         current_date = self.get_datetime().date()
         
         # If asset expiration is a datetime object, convert it to date
         expiration = asset.expiration
-        if type(expiration) == datetime:
+        if isinstance(expiration, datetime):
             expiration = expiration.date()
         
         days_to_expiration = (expiration - current_date).days
-        if asset.right == "CALL":
-            iv = BS(
+        if asset.right.upper() == "CALL":
+            is_call = True
+            iv = black_scholes.BS(
                 [und_price, float(asset.strike), interest, days_to_expiration],
                 callPrice=opt_price,
             )
-        elif asset.right == "PUT":
-            iv = BS(
+        elif asset.right.upper() == "PUT":
+            is_call = False
+            iv = black_scholes.BS(
                 [und_price, float(asset.strike), interest, days_to_expiration],
                 putPrice=opt_price,
             )
+        else:
+            raise ValueError(f"Invalid option type {asset.right}, cannot get option greeks")
 
-        c = BS(
+        c = black_scholes.BS(
             [und_price, float(asset.strike), interest, days_to_expiration],
             volatility=iv.impliedVolatility,
         )
 
-        is_call = True if asset.right == "CALL" else False
-
-        result = dict(
+        greeks = dict(
             implied_volatility=iv.impliedVolatility,
             delta=c.callDelta if is_call else c.putDelta,
             option_price=c.callPrice if is_call else c.putPrice,
@@ -287,13 +387,5 @@ class DataSource:
             theta=c.callTheta if is_call else c.putTheta,
             underlying_price=und_price,
         )
-
-        greeks = dict()
-        for greek, value in result.items():
-            if eval(greek):
-                greeks[greek] = value
-
-        if len(greeks) == 0:
-            greeks = result
 
         return greeks

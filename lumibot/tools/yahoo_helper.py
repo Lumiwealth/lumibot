@@ -172,7 +172,7 @@ class YahooHelper:
         if df.empty:
             return None
 
-        return df["Close"][-1]
+        return df["Close"].iloc[-1]
 
     @staticmethod
     def download_symbol_day_data(symbol):

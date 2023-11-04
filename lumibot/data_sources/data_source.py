@@ -170,6 +170,8 @@ class DataSource(ABC):
         -------
         timedelta
             A timedelta object representing the timestep.
+        unit : str
+            The unit of the timestep. For example, "minute" or "hour" or "day".
         """
         timestep = timestep.lower()
 
@@ -194,7 +196,9 @@ class DataSource(ABC):
                     # Get the quantity (number of units)
                     quantity = int(timestep[:i])
                     # Get the unit (minute, hour, or day)
-                    unit = timestep[i:]
+                    # IBRK uses "minutes" instead of "minute" when 'quantity' > 1, for some reason, so handle
+                    # that behavior here so backtest is comptiable with IBRK
+                    unit = timestep[i:].strip().rstrip('s')  # Remove extra whitespace and IBKR's extra pluralization
                     break
         else:
             unit = timestep
@@ -205,7 +209,7 @@ class DataSource(ABC):
             quantity_in_minutes = quantity * time_unit_map[unit]
             # Convert minutes to timedelta
             delta = timedelta(minutes=quantity_in_minutes)
-            return delta
+            return delta, unit
         else:
             raise ValueError(
                 f"Unknown unit: {unit}. Valid units are minute, hour, day, M, H, D"

@@ -259,7 +259,7 @@ class Bars:
         volume = df_copy["volume"].sum()
         return volume
 
-    def aggregate_bars(self, frequency):
+    def aggregate_bars(self, frequency, **grouper_kwargs):
         """
         Will convert a set of bars to a different timeframe (eg. 1 min to 15 min)
         frequency (string): The new timeframe that the bars should be in, eg. "15Min", "1H", or "1D"
@@ -280,7 +280,7 @@ class Bars:
         >>> bars = self.get_historical_prices("AAPL", 60, "minute")
         >>> bars_agg = bars.aggregate_bars("15Min")
         """
-        new_df = self.df.groupby(pd.Grouper(freq=frequency)).agg(
+        new_df = self.df.groupby(pd.Grouper(freq=frequency, **grouper_kwargs)).agg(
             {
                 "open": "first",
                 "close": "last",

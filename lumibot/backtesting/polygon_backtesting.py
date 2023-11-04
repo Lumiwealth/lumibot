@@ -84,8 +84,9 @@ class PolygonDataBacktesting(PandasData):
         # Download data from Polygon
         try:
             # Convert timestep string to timedelta and get start datetime
-            td = self.convert_timestep_str_to_timedelta(timestep) * length
+            td, ts_unit = self.convert_timestep_str_to_timedelta(timestep)
             # Multiply td by length to get the end datetime
+            td *= length
             start_datetime = self.datetime_start - td
 
             # Subtract an extra 5 days to the start datetime to make sure we have enough
@@ -98,7 +99,7 @@ class PolygonDataBacktesting(PandasData):
                 asset_separated,
                 start_datetime,
                 self.datetime_end,
-                timespan=timestep,
+                timespan=ts_unit,
                 quote_asset=quote_asset,
                 has_paid_subscription=self.has_paid_subscription,
             )
@@ -110,7 +111,7 @@ class PolygonDataBacktesting(PandasData):
             return None
 
         pandas_data = []
-        data = Data(asset_separated, df, timestep=timestep, quote=quote_asset)
+        data = Data(asset_separated, df, timestep=ts_unit, quote=quote_asset)
         pandas_data.append(data)
         pandas_data_updated = self._set_pandas_data_keys(pandas_data)
 

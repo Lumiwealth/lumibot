@@ -21,6 +21,48 @@ class AlpacaData(DataSource):
             "representations": [TimeFrame.Minute, "minute"],
         },
         {
+            "timestep": "5 minutes",
+            "representations": [
+                [f"5{TimeFrame.Minute}", "minute"],
+            ],
+        },
+        {
+            "timestep": "10 minutes",
+            "representations": [
+                [f"10{TimeFrame.Minute}", "minute"],
+            ],
+        },
+        {
+            "timestep": "15 minutes",
+            "representations": [
+                [f"15{TimeFrame.Minute}", "minute"],
+            ],
+        },
+        {
+            "timestep": "30 minutes",
+            "representations": [
+                [f"30{TimeFrame.Minute}", "minute"],
+            ],
+        },
+        {
+            "timestep": "1 hour",
+            "representations": [
+                [f"{TimeFrame.Hour}", "hour"],
+            ],
+        },
+        {
+            "timestep": "2 hours",
+            "representations": [
+                [f"2{TimeFrame.Hour}", "hour"],
+            ],
+        },
+        {
+            "timestep": "4 hours",
+            "representations": [
+                [f"4{TimeFrame.Hour}", "hour"],
+            ],
+        },
+        {
             "timestep": "day",
             "representations": [TimeFrame.Day, "day"],
         },

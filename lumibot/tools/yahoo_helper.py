@@ -43,7 +43,6 @@ class _YahooData:
 
 
 class YahooHelper:
-
     # =========Internal initialization parameters and methods============
 
     CACHING_ENABLED = False
@@ -64,17 +63,13 @@ class YahooHelper:
     def check_pickle_file(symbol, type):
         if YahooHelper.CACHING_ENABLED:
             file_name = f"{symbol}_{type.lower()}.pickle"
-            pickle_file_path = os.path.join(
-                YahooHelper.LUMIBOT_YAHOO_CACHE_FOLDER, file_name
-            )
+            pickle_file_path = os.path.join(YahooHelper.LUMIBOT_YAHOO_CACHE_FOLDER, file_name)
             if os.path.exists(pickle_file_path):
                 try:
                     with open(pickle_file_path, "rb") as f:
                         return pickle.load(f)
                 except Exception as e:
-                    logging.error(
-                        "Error while loading pickle file %s: %s" % (pickle_file_path, e)
-                    )
+                    logging.error("Error while loading pickle file %s: %s" % (pickle_file_path, e))
                     return None
 
         return None
@@ -84,9 +79,7 @@ class YahooHelper:
         if YahooHelper.CACHING_ENABLED:
             yahoo_data = _YahooData(symbol, type, data)
             file_name = "%s_%s.pickle" % (symbol, type.lower())
-            pickle_file_path = os.path.join(
-                YahooHelper.LUMIBOT_YAHOO_CACHE_FOLDER, file_name
-            )
+            pickle_file_path = os.path.join(YahooHelper.LUMIBOT_YAHOO_CACHE_FOLDER, file_name)
             with open(pickle_file_path, "wb") as f:
                 pickle.dump(yahoo_data, f)
 
@@ -140,9 +133,7 @@ class YahooHelper:
         try:
             info = ticker.info
         except Exception as e:
-            logging.debug(
-                f"Error while downloading symbol info for {symbol}, setting info to None for now."
-            )
+            logging.debug(f"Error while downloading symbol info for {symbol}, setting info to None for now.")
             logging.debug(e)
             return {
                 "ticker": symbol,
@@ -168,7 +159,7 @@ class YahooHelper:
         ticker = yf.Ticker(symbol)
 
         # Get the last price from the history
-        df = ticker.history(period="1d", auto_adjust=False)
+        df = ticker.history(period="7d", auto_adjust=False)
         if df.empty:
             return None
 
@@ -185,24 +176,16 @@ class YahooHelper:
         if info.get("info") and info.get("info").get("market") == "us_market":
             # Check if the timezone is already set, if not set it to the default timezone
             if df.index.tzinfo is None:
-                df.index = df.index.tz_localize(
-                    info.get("info").get("exchangeTimezoneName")
-                )
+                df.index = df.index.tz_localize(info.get("info").get("exchangeTimezoneName"))
             else:
-                df.index = df.index.tz_convert(
-                    info.get("info").get("exchangeTimezoneName")
-                )
+                df.index = df.index.tz_convert(info.get("info").get("exchangeTimezoneName"))
             df.index = df.index.map(lambda t: t.replace(hour=16, minute=0))
         elif info.get("info") and info.get("info").get("market") == "ccc_market":
             # Check if the timezone is already set, if not set it to the default timezone
             if df.index.tzinfo is None:
-                df.index = df.index.tz_localize(
-                    info.get("info").get("exchangeTimezoneName")
-                )
+                df.index = df.index.tz_localize(info.get("info").get("exchangeTimezoneName"))
             else:
-                df.index = df.index.tz_convert(
-                    info.get("info").get("exchangeTimezoneName")
-                )
+                df.index = df.index.tz_convert(info.get("info").get("exchangeTimezoneName"))
             df.index = df.index.map(lambda t: t.replace(hour=23, minute=59))
 
         df = YahooHelper.process_df(df, asset_info=info)
@@ -291,12 +274,8 @@ class YahooHelper:
         return YahooHelper.fetch_symbol_info(symbol, caching=caching)
 
     @staticmethod
-    def get_symbol_day_data(
-        symbol, auto_adjust=True, caching=True, last_needed_datetime=None
-    ):
-        result = YahooHelper.fetch_symbol_day_data(
-            symbol, caching=caching, last_needed_datetime=last_needed_datetime
-        )
+    def get_symbol_day_data(symbol, auto_adjust=True, caching=True, last_needed_datetime=None):
+        result = YahooHelper.fetch_symbol_day_data(symbol, caching=caching, last_needed_datetime=last_needed_datetime)
         return result
 
     @staticmethod
@@ -327,9 +306,7 @@ class YahooHelper:
     @staticmethod
     def get_symbols_data(symbols, timestep="day", auto_adjust=True, caching=True):
         if timestep == "day":
-            return YahooHelper.get_symbols_day_data(
-                symbols, auto_adjust=auto_adjust, caching=caching
-            )
+            return YahooHelper.get_symbols_day_data(symbols, auto_adjust=auto_adjust, caching=caching)
         else:
             raise ValueError("Unknown timestep %s" % timestep)
 
@@ -408,9 +385,7 @@ class YahooHelper:
         dividends_actions = YahooHelper.get_symbol_actions(symbol, caching=caching)
         start = df.index[0]
         end = df.index[-1]
-        filtered_actions = dividends_actions[
-            (dividends_actions.index >= start) & (dividends_actions.index <= end)
-        ]
+        filtered_actions = dividends_actions[(dividends_actions.index >= start) & (dividends_actions.index <= end)]
 
         for index, row in filtered_actions.iterrows():
             dividends = row["Dividends"]

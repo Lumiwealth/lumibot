@@ -5,7 +5,6 @@ from decimal import Decimal
 from functools import wraps
 
 import pandas as pd
-
 from lumibot.brokers import Broker
 from lumibot.data_sources import DataSourceBacktesting
 from lumibot.entities import Order, Position, TradingFee
@@ -33,23 +32,18 @@ class BacktestingBroker(Broker):
         attr = object.__getattribute__(self, name)
 
         if name == "submit_order":
-
             broker = self
 
             @wraps(attr)
             def new_func(order, *args, **kwargs):
                 result = attr(order, *args, **kwargs)
-                if (
-                    result.was_transmitted()
-                    and result.order_class
-                    and result.order_class == "oco"
-                ):
+                if result.was_transmitted() and result.order_class and result.order_class == "oco":
                     orders = broker._flatten_order(result)
                     for order in orders:
                         logging.info(f"{order} was sent to broker {self.name}")
                         broker._new_orders.append(order)
 
-                    # Remove the original order from the list of new orders because 
+                    # Remove the original order from the list of new orders because
                     # it's been replaced by the individual orders
                     broker._new_orders.remove(result)
                 else:
@@ -115,10 +109,7 @@ class BacktestingBroker(Broker):
     def is_market_open(self):
         """Return True if market is open else false"""
         now = self.datetime
-        return (
-            (now >= self._trading_days.market_open)
-            & (now < self._trading_days.market_close)
-        ).any()
+        return ((now >= self._trading_days.market_open) & (now < self._trading_days.market_close)).any()
 
     def _get_next_trading_day(self):
         now = self.datetime
@@ -175,10 +166,7 @@ class BacktestingBroker(Broker):
         return delta.total_seconds()
 
     def _await_market_to_open(self, timedelta=None, strategy=None):
-        if (
-            self.data_source.SOURCE == "PANDAS"
-            and self.data_source._timestep == "day"
-        ):
+        if self.data_source.SOURCE == "PANDAS" and self.data_source._timestep == "day":
             return
 
         # Process outstanding orders first before waiting for market to open
@@ -191,10 +179,7 @@ class BacktestingBroker(Broker):
         self._update_datetime(time_to_open)
 
     def _await_market_to_close(self, timedelta=None, strategy=None):
-        if (
-            self.data_source.SOURCE == "PANDAS"
-            and self.data_source._timestep == "day"
-        ):
+        if self.data_source.SOURCE == "PANDAS" and self.data_source._timestep == "day":
             return
 
         # Process outstanding orders first before waiting for market to close
@@ -267,9 +252,7 @@ class BacktestingBroker(Broker):
                     stop_price=order.stop_price,
                     quote=order.quote,
                 )
-                stop_loss_order = self._parse_broker_order(
-                    stop_loss_order, order.strategy
-                )
+                stop_loss_order = self._parse_broker_order(stop_loss_order, order.strategy)
                 orders.append(stop_loss_order)
 
         elif order.order_class == "oco":
@@ -298,9 +281,7 @@ class BacktestingBroker(Broker):
 
         elif order.order_class in ["bracket", "oto"]:
             side = "sell" if order.side == "buy" else "buy"
-            if order.order_class == "bracket" or (
-                order.order_class == "oto" and order.stop_loss_price
-            ):
+            if order.order_class == "bracket" or (order.order_class == "oto" and order.stop_loss_price):
                 stop_loss_order = Order(
                     order.strategy,
                     order.asset,
@@ -312,9 +293,7 @@ class BacktestingBroker(Broker):
                 )
                 orders.append(stop_loss_order)
 
-            if order.order_class == "bracket" or (
-                order.order_class == "oto" and order.take_profit_price
-            ):
+            if order.order_class == "bracket" or (order.order_class == "oto" and order.take_profit_price):
                 limit_order = Order(
                     order.strategy,
                     order.asset,
@@ -372,18 +351,13 @@ class BacktestingBroker(Broker):
         orders_closing_contracts = []
         positions = self.get_tracked_positions(strategy)
         for position in positions:
-            if (
-                position.asset.expiration is not None
-                and position.asset.expiration <= self.datetime.date()
-            ):
+            if position.asset.expiration is not None and position.asset.expiration <= self.datetime.date():
                 # If it's the same day as the expiration, we need to check the time to see if it's after market close
                 time_to_close = self.get_time_to_close()
                 if position.asset.expiration == self.datetime.date() and time_to_close > (15 * 60):
                     continue
 
-                logging.warning(
-                    f"Automatically selling expired contract for asset {position.asset}"
-                )
+                logging.warning(f"Automatically selling expired contract for asset {position.asset}")
                 orders_closing_contracts.append(position.get_selling_order())
 
         return orders_closing_contracts
@@ -403,17 +377,13 @@ class BacktestingBroker(Broker):
                 "stop",
             ]:
                 trade_cost += trading_fee.flat_fee
-                trade_cost += (
-                    Decimal(price) * Decimal(order.quantity) * trading_fee.percent_fee
-                )
+                trade_cost += Decimal(price) * Decimal(order.quantity) * trading_fee.percent_fee
             elif trading_fee.maker == True and order.type in [
                 "limit",
                 "stop_limit",
             ]:
                 trade_cost += trading_fee.flat_fee
-                trade_cost += (
-                    Decimal(price) * Decimal(order.quantity) * trading_fee.percent_fee
-                )
+                trade_cost += Decimal(price) * Decimal(order.quantity) * trading_fee.percent_fee
 
         return trade_cost
 
@@ -434,9 +404,7 @@ class BacktestingBroker(Broker):
         pending_orders = self.expired_contracts(strategy.name)
 
         pending_orders += [
-            order
-            for order in self.get_tracked_orders(strategy.name)
-            if order.status in ["unprocessed", "new"]
+            order for order in self.get_tracked_orders(strategy.name) if order.status in ["unprocessed", "new"]
         ]
 
         if len(pending_orders) == 0:
@@ -447,11 +415,7 @@ class BacktestingBroker(Broker):
                 continue
 
             # Check validity if current date > valid date, cancel order. todo valid date
-            asset = (
-                order.asset
-                if order.asset.asset_type != "crypto"
-                else (order.asset, order.quote)
-            )
+            asset = order.asset if order.asset.asset_type != "crypto" else (order.asset, order.quote)
 
             price = None
             filled_quantity = order.quantity
@@ -484,21 +448,25 @@ class BacktestingBroker(Broker):
                 # This is a hack to get around the fact that we need to get the previous day's data to prevent lookahead bias.
                 ohlc = strategy.get_historical_prices(
                     asset,
-                    1,
+                    2,
                     quote=order.quote,
-                    timeshift=-1,
+                    timeshift=-2,
                     timestep=self.data_source._timestep,
                 )
+                df = ohlc.df
+
+                # Make sure that we are only getting the prices for the current time exactly or in the future
+                df = df[df.index >= self.datetime]
 
                 if ohlc is None:
                     self.cancel_order(order)
                     continue
-                dt = ohlc.df.index[-1]
-                open = ohlc.df["open"].iloc[-1]
-                high = ohlc.df["high"].iloc[-1]
-                low = ohlc.df["low"].iloc[-1]
-                close = ohlc.df["close"].iloc[-1]
-                volume = ohlc.df["volume"].iloc[-1]
+                dt = df.index[0]
+                open = df["open"].iloc[0]
+                high = df["high"].iloc[0]
+                low = df["low"].iloc[0]
+                close = df["close"].iloc[0]
+                volume = df["volume"].iloc[0]
 
             #############################
             # Determine transaction price.
@@ -508,34 +476,24 @@ class BacktestingBroker(Broker):
                 price = open
 
             elif order.type == "limit":
-                price = self.limit_order(
-                    order.limit_price, order.side, open, high, low
-                )
+                price = self.limit_order(order.limit_price, order.side, open, high, low)
 
             elif order.type == "stop":
                 price = self.stop_order(order.stop_price, order.side, open, high, low)
 
             elif order.type == "stop_limit":
                 if not order.price_triggered:
-                    price = self.stop_order(
-                        order.stop_price, order.side, open, high, low
-                    )
+                    price = self.stop_order(order.stop_price, order.side, open, high, low)
                     if price is not None:
-                        price = self.limit_order(
-                            order.limit_price, order.side, price, high, low
-                        )
+                        price = self.limit_order(order.limit_price, order.side, price, high, low)
                         order.price_triggered = True
                 elif order.price_triggered:
-                    price = self.limit_order(
-                        order.limit_price, order.side, open, high, low
-                    )
+                    price = self.limit_order(order.limit_price, order.side, open, high, low)
 
             elif order.type == "trailing_stop":
                 if order._trail_stop_price:
                     # Check if we have hit the trail stop price for both sell/buy orders
-                    price = self.stop_order(
-                        order._trail_stop_price, order.side, open, high, low
-                    )
+                    price = self.stop_order(order._trail_stop_price, order.side, open, high, low)
 
                 # Update the stop price if the price has moved
                 if order.side == "sell":
@@ -544,9 +502,7 @@ class BacktestingBroker(Broker):
                     order.update_trail_stop_price(low)
 
             else:
-                raise ValueError(
-                    f"Order type {order.type} is not implemented for backtesting."
-                )
+                raise ValueError(f"Order type {order.type} is not implemented for backtesting.")
 
             #############################
             # Fill the order.

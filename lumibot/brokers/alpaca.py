@@ -12,10 +12,9 @@ from alpaca.trading.enums import QueryOrderStatus
 from alpaca.trading.requests import GetOrdersRequest
 from alpaca.trading.stream import TradingStream
 from dateutil import tz
-from termcolor import colored
-
 from lumibot.data_sources import AlpacaData
 from lumibot.entities import Asset, Order, Position
+from termcolor import colored
 
 from .broker import Broker
 
@@ -111,8 +110,8 @@ class Alpaca(Broker):
     def __init__(self, config, max_workers=20, chunk_size=100, connect_stream=True, data_source=None):
         # Calling init methods
         self.market = "NASDAQ"
-        self.api_key = ''
-        self.api_secret = ''
+        self.api_key = ""
+        self.api_secret = ""
         self.is_paper = False
 
         # Set the config values
@@ -120,8 +119,13 @@ class Alpaca(Broker):
 
         if not data_source:
             data_source = AlpacaData(config, max_workers=max_workers, chunk_size=chunk_size)
-        super().__init__(name="alpaca", connect_stream=connect_stream, data_source=data_source, config=config,
-                         max_workers=max_workers)
+        super().__init__(
+            name="alpaca",
+            connect_stream=connect_stream,
+            data_source=data_source,
+            config=config,
+            max_workers=max_workers,
+        )
 
         self.api = TradingClient(self.api_key, self.api_secret, paper=self.is_paper)
 
@@ -170,7 +174,7 @@ class Alpaca(Broker):
             current_time = datetime.datetime.now().astimezone(tz=tz.tzlocal())
 
             # Check if it is a holiday or weekend using pandas_market_calendars
-            nyse = mcal.get_calendar('NYSE')
+            nyse = mcal.get_calendar("NYSE")
             schedule = nyse.schedule(start_date=open_time, end_date=close_time)
             if schedule.empty:
                 return False
@@ -248,9 +252,7 @@ class Alpaca(Broker):
 
         response = self.api.get_account()
         total_cash_value = float(response.cash)
-        gross_positions_value = float(response.long_market_value) - float(
-            response.short_market_value
-        )
+        gross_positions_value = float(response.long_market_value) - float(response.short_market_value)
         net_liquidation_value = float(response.portfolio_value)
 
         return (total_cash_value, gross_positions_value, net_liquidation_value)
@@ -289,9 +291,7 @@ class Alpaca(Broker):
         for k, v in self.ASSET_TYPE_MAP.items():
             if type in v:
                 return k
-        raise ValueError(
-            f"The type {type} is not in the ASSET_TYPE_MAP in the Alpaca Module."
-        )
+        raise ValueError(f"The type {type} is not in the ASSET_TYPE_MAP in the Alpaca Module.")
 
     def _parse_broker_order(self, response, strategy_name, strategy_object=None):
         """parse a broker order representation
@@ -456,13 +456,9 @@ class Alpaca(Broker):
         """Get the historical account value of the account."""
         response_day = self.api.get_portfolio_history(period="12M", timeframe="1D")
 
-        response_hour = self.api.get_portfolio_history(
-            period="30D", timeframe="1H", extended_hours=True
-        )
+        response_hour = self.api.get_portfolio_history(period="30D", timeframe="1H", extended_hours=True)
 
-        response_minute = self.api.get_portfolio_history(
-            period="1D", timeframe="1Min", extended_hours=True
-        )
+        response_minute = self.api.get_portfolio_history(period="1D", timeframe="1Min", extended_hours=True)
 
         return {
             "minute": response_minute.df,
@@ -499,9 +495,7 @@ class Alpaca(Broker):
                 identifier = logged_order.id
                 stored_order = self.get_tracked_order(identifier)
                 if stored_order is None:
-                    logging.info(
-                        f"Untracked order {identifier} was logged by broker {self.name}"
-                    )
+                    logging.info(f"Untracked order {identifier} was logged by broker {self.name}")
                     return False
 
                 price = trade_update.price

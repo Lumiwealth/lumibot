@@ -2789,7 +2789,8 @@ class Strategy(_Strategy):
         timestep : str
             Either ``"minute"`` for minutes data or ``"day"``
             for days data default value depends on the data_source (minute
-            for alpaca, day for yahoo, ...)
+            for alpaca, day for yahoo, ...).  If you need, you can specify the width of the bars by adding a number
+            before the timestep (e.g. "5 minutes", "15 minutes", "1 day", "2 weeks", "1month", ...)
         timeshift : timedelta
             ``None`` by default. If specified indicates the time shift from
             the present. If  backtesting in Pandas, use integer representing
@@ -2935,7 +2936,8 @@ class Strategy(_Strategy):
         timestep : str
             Either ``"minute"`` for minutes data or ``"day"``
             for days data default value depends on the data_source (minute
-            for alpaca, day for yahoo, ...)
+            for alpaca, day for yahoo, ...). If you need, you can specify the width of the bars by adding a number
+            before the timestep (e.g. "5 minutes", "15 minutes", "1 day", "2 weeks", "1month", ...)
         timeshift : timedelta
             ``None`` by default. If specified indicates the time shift from
             the present. If  backtesting in Pandas, use integer representing

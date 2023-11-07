@@ -1,5 +1,6 @@
 import datetime
 import logging
+import re
 
 import pandas as pd
 
@@ -474,7 +475,7 @@ class Data:
 
         return dict
 
-    def get_bars(self, dt, length=1, timestep=MIN_TIMESTEP, timeshift=0, exchange=None):
+    def get_bars(self, dt, length=1, timestep=MIN_TIMESTEP, timeshift=0):
         """Returns a dataframe of the data.
 
         Parameters
@@ -493,6 +494,13 @@ class Data:
         pandas.DataFrame
 
         """
+        # Interactive Brokers can use a timespan of something like: '10 minutes'
+        quantity = 1
+        m = re.search(r"(\d+)\s*(\w+)", timestep)
+        if m:
+            quantity = int(m.group(1))
+            timestep = m.group(2).rstrip("s")  # remove trailing 's' if any
+
         if timestep == "minute" and self.timestep == "day":
             raise ValueError(
                 "You are requesting minute data from a daily data source. This is not supported."
@@ -503,43 +511,38 @@ class Data:
                 f"Only minute and day are supported for timestep. You provided: {timestep}"
             )
 
+        agg_column_map = {
+            "open": "first",
+            "high": "max",
+            "low": "min",
+            "close": "last",
+            "volume": "sum",
+        }
         if timestep == "day" and self.timestep == "minute":
             # If the data is minute data and we are requesting daily data then multiply the length by 1440
             length = length * 1440
-
-            dict = self._get_bars_dict(
+            unit = 'D'
+            data = self._get_bars_dict(
                 dt, length=length, timestep="minute", timeshift=timeshift
             )
 
-            if dict is None:
-                return None
-
-            df = pd.DataFrame(dict).set_index("datetime")
-
-            df_result = df.resample("D").agg(
-                {
-                    "open": "first",
-                    "high": "max",
-                    "low": "min",
-                    "close": "last",
-                    "volume": "sum",
-                }
-            )
-
-            # Drop any rows that have NaN values (this can happen if the data is not complete, eg. weekends)
-            df_result = df_result.dropna()
-
-            return df_result
         else:
-            dict = self._get_bars_dict(
+            unit = 'T'  # Guarenteed to be minute timestep at this point
+            length = length * quantity
+            data = self._get_bars_dict(
                 dt, length=length, timestep=timestep, timeshift=timeshift
             )
 
-            if dict is None:
-                return None
+        if data is None:
+            return None
 
-            df = pd.DataFrame(dict).set_index("datetime")
-            return df
+        df = pd.DataFrame(data).set_index("datetime")
+        df_result = df.resample(f"{quantity}{unit}").agg(agg_column_map)
+
+        # Drop any rows that have NaN values (this can happen if the data is not complete, eg. weekends)
+        df_result = df_result.dropna()
+
+        return df_result
 
     def get_bars_between_dates(self, timestep=MIN_TIMESTEP, exchange=None, start_date=None, end_date=None):
         """Returns a dataframe of all the data available between the start and end dates.

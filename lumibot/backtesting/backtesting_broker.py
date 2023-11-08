@@ -453,10 +453,15 @@ class BacktestingBroker(Broker):
                     timeshift=-2,
                     timestep=self.data_source._timestep,
                 )
-                df = ohlc.df
+                df_original = ohlc.df
 
                 # Make sure that we are only getting the prices for the current time exactly or in the future
-                df = df[df.index >= self.datetime]
+                df = df_original[df_original.index >= self.datetime]
+
+                # If the dataframe is empty, then we should get the last row of the original dataframe
+                # because it is the best data we have
+                if df.empty:
+                    df = df_original.iloc[-1:]
 
                 if ohlc is None:
                     self.cancel_order(order)

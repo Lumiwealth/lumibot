@@ -63,7 +63,7 @@ def get_price_data_from_polygon(
     df_csv = None
     cache_file = build_cache_filename(asset, timespan)
     if cache_file.exists():
-        print(f"\nLoading pricing data for {asset} / {quote_asset} from cache file...")
+        print(f"\nLoading pricing data for {asset} / {quote_asset} with '{timespan}' timespan from cache file...")
         df_csv = load_cache(cache_file)
         df_all = df_csv.copy()  # Make a copy so we can check the original later for differences
 
@@ -72,7 +72,7 @@ def get_price_data_from_polygon(
     if not missing_dates:
         return df_all
 
-    print(f"\nGetting pricing data for {asset} / {quote_asset} from Polygon...")
+    print(f"\nGetting pricing data for {asset} / {quote_asset} with '{timespan}' timespan from Polygon...")
 
     # RESTClient connection for Polygon Stock-Equity API; traded_asset is standard
     # Add "trace=True" to see the API calls printed to the console for debugging

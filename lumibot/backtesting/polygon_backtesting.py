@@ -3,11 +3,12 @@ import re
 import traceback
 from datetime import date, timedelta
 
-from polygon import RESTClient
-
 from lumibot.data_sources import PandasData
 from lumibot.entities import Asset, Data
 from lumibot.tools import polygon_helper
+from polygon import RESTClient
+
+START_BUFFER = timedelta(days=5)
 
 
 class PolygonDataBacktesting(PandasData):
@@ -31,6 +32,36 @@ class PolygonDataBacktesting(PandasData):
 
         # RESTClient API for Polygon.io polygon-api-client
         self.polygon_client = RESTClient(self._api_key)
+
+    def get_start_datetime_and_ts_unit(self, length, timestep):
+        """
+        Get the start datetime for the data.
+
+        Parameters
+        ----------
+        length : int
+            The number of data points to get.
+        timestep : str
+            The timestep to use. For example, "1minute" or "1hour" or "1day".
+
+        Returns
+        -------
+        datetime
+            The start datetime.
+        str
+            The timestep unit.
+        """
+        # Convert timestep string to timedelta and get start datetime
+        td, ts_unit = self.convert_timestep_str_to_timedelta(timestep)
+        # Multiply td by length to get the end datetime
+        td *= length
+        start_datetime = self.datetime_start - td
+
+        # Subtract an extra 5 days to the start datetime to make sure we have enough
+        # data when it's a sparsely traded asset, especially over weekends
+        start_datetime = start_datetime - START_BUFFER
+
+        return start_datetime, ts_unit
 
     def update_pandas_data(self, asset, quote, length, timestep):
         """
@@ -61,47 +92,61 @@ class PolygonDataBacktesting(PandasData):
         else:
             search_asset = (search_asset, quote_asset)
 
+        # Get the start datetime and timestep unit
+        start_datetime, ts_unit = self.get_start_datetime_and_ts_unit(length, timestep)
+
         # Check if we have data for this asset
         if search_asset in self.pandas_data:
-            # Check the timestep of the data
-            data_timestep = self.pandas_data[search_asset].timestep
+            asset_data = self.pandas_data[search_asset]
+            asset_data_df = asset_data.df
+            data_start_datetime = asset_data_df.index[0]
 
-            # Strip the timestep string to get the number and unit using regex
-            regex_result = re.match(r"(\d+)\s*(\w+)", timestep)
-            if regex_result is None:
-                timestep_unit = timestep
-            else:
-                timestep_unit = regex_result.group(2).rstrip("s")
+            # Get the timestep of the data
+            data_timestep = asset_data.timestep
+
+            # # Strip the timestep string to get the number and unit using regex
+            # regex_result = re.match(r"(\d+)\s*(\w+)", timestep)
+            # if regex_result is None:
+            #     timestep_unit = timestep
+            # else:
+            #     timestep_unit = regex_result.group(2).rstrip("s")
 
             # If the timestep is the same, we don't need to update the data
-            if data_timestep == timestep_unit:
-                return None
+            if data_timestep == ts_unit:
+                # Check if we have enough data (5 days is the buffer we subtracted from the start datetime)
+                if (data_start_datetime - start_datetime) < START_BUFFER:
+                    return None
 
             # Always try to get the lowest timestep possible because we can always resample
             # If day is requested then make sure we at least have data that's less than a day
-            if timestep_unit == "day":
+            if ts_unit == "day":
                 if data_timestep == "minute":
-                    return None
+                    # Check if we have enough data (5 days is the buffer we subtracted from the start datetime)
+                    if (data_start_datetime - start_datetime) < START_BUFFER:
+                        return None
+                    else:
+                        # We don't have enough data, so we need to get more (but in minutes)
+                        ts_unit = "minute"
                 elif data_timestep == "hour":
-                    return None
+                    # Check if we have enough data (5 days is the buffer we subtracted from the start datetime)
+                    if (data_start_datetime - start_datetime) < START_BUFFER:
+                        return None
+                    else:
+                        # We don't have enough data, so we need to get more (but in hours)
+                        ts_unit = "hour"
 
             # If hour is requested then make sure we at least have data that's less than an hour
-            if timestep_unit == "hour":
+            if ts_unit == "hour":
                 if data_timestep == "minute":
-                    return None
+                    # Check if we have enough data (5 days is the buffer we subtracted from the start datetime)
+                    if (data_start_datetime - start_datetime) < START_BUFFER:
+                        return None
+                    else:
+                        # We don't have enough data, so we need to get more (but in minutes)
+                        ts_unit = "minute"
 
         # Download data from Polygon
         try:
-            # Convert timestep string to timedelta and get start datetime
-            td, ts_unit = self.convert_timestep_str_to_timedelta(timestep)
-            # Multiply td by length to get the end datetime
-            td *= length
-            start_datetime = self.datetime_start - td
-
-            # Subtract an extra 5 days to the start datetime to make sure we have enough
-            # data when it's a sparsely traded asset, especially over weekends
-            start_datetime = start_datetime - timedelta(days=5)
-
             # Get data from Polygon
             df = polygon_helper.get_price_data_from_polygon(
                 self._api_key,

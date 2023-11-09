@@ -5,11 +5,12 @@ from pathlib import Path
 
 import pandas as pd
 import pandas_market_calendars as mcal
-from lumibot import LUMIBOT_CACHE_FOLDER
-from lumibot.entities import Asset
 
 # noinspection PyPackageRequirements
 from polygon import RESTClient
+
+from lumibot import LUMIBOT_CACHE_FOLDER
+from lumibot.entities import Asset
 
 WAIT_TIME = 60
 POLYGON_QUERY_COUNT = 0  # This is a variable that updates every time we query Polygon
@@ -71,7 +72,7 @@ def get_price_data_from_polygon(
     if not missing_dates:
         return df_all
 
-    print(f"\nGetting pricing data for {asset} / {quote_asset} from Polygon...")
+    print(f"\nGetting pricing data for {asset} / {quote_asset} with '{timespan}' timespan from Polygon...")
 
     # RESTClient connection for Polygon Stock-Equity API; traded_asset is standard
     # Add "trace=True" to see the API calls printed to the console for debugging

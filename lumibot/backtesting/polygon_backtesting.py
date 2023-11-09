@@ -1,4 +1,5 @@
 import logging
+import re
 import traceback
 from datetime import date, timedelta
 
@@ -23,8 +24,9 @@ class PolygonDataBacktesting(PandasData):
         has_paid_subscription=True,  # TODO: Set to False after new backtest is released
         **kwargs,
     ):
-        super().__init__(datetime_start=datetime_start, datetime_end=datetime_end, pandas_data=pandas_data,
-                         api_key=api_key, **kwargs)
+        super().__init__(
+            datetime_start=datetime_start, datetime_end=datetime_end, pandas_data=pandas_data, api_key=api_key, **kwargs
+        )
         self.has_paid_subscription = has_paid_subscription
 
         # RESTClient API for Polygon.io polygon-api-client
@@ -64,20 +66,27 @@ class PolygonDataBacktesting(PandasData):
             # Check the timestep of the data
             data_timestep = self.pandas_data[search_asset].timestep
 
+            # Strip the timestep string to get the number and unit using regex
+            regex_result = re.match(r"(\d+)(\w+)", timestep)
+            if regex_result is None:
+                timestep_unit = timestep
+            else:
+                timestep_unit = regex_result.group(2)
+
             # If the timestep is the same, we don't need to update the data
-            if data_timestep == timestep:
+            if data_timestep == timestep_unit:
                 return None
 
             # Always try to get the lowest timestep possible because we can always resample
             # If day is requested then make sure we at least have data that's less than a day
-            if timestep == "day":
+            if timestep_unit == "day":
                 if data_timestep == "minute":
                     return None
                 elif data_timestep == "hour":
                     return None
 
             # If hour is requested then make sure we at least have data that's less than an hour
-            if timestep == "hour":
+            if timestep_unit == "hour":
                 if data_timestep == "minute":
                     return None
 
@@ -127,9 +136,7 @@ class PolygonDataBacktesting(PandasData):
         exchange=None,
         include_after_hours=True,
     ):
-        pandas_data_update = self.update_pandas_data(
-            asset, quote, length, timestep
-        )
+        pandas_data_update = self.update_pandas_data(asset, quote, length, timestep)
 
         if pandas_data_update is not None:
             # Add the keys to the self.pandas_data dictionary
@@ -141,12 +148,16 @@ class PolygonDataBacktesting(PandasData):
 
     # Get pricing data for an asset for the entire backtesting period
     def get_historical_prices_between_dates(
-        self, asset, timestep="minute", quote=None, exchange=None, include_after_hours=True,
-        start_date=None, end_date=None
+        self,
+        asset,
+        timestep="minute",
+        quote=None,
+        exchange=None,
+        include_after_hours=True,
+        start_date=None,
+        end_date=None,
     ):
-        pandas_data_update = self.update_pandas_data(
-            asset, quote, 1, timestep
-        )
+        pandas_data_update = self.update_pandas_data(asset, quote, 1, timestep)
         if pandas_data_update is not None:
             # Add the keys to the self.pandas_data dictionary
             self.pandas_data.update(pandas_data_update)
@@ -161,13 +172,9 @@ class PolygonDataBacktesting(PandasData):
         bars = self._parse_source_symbol_bars(response, asset, quote=quote)
         return bars
 
-    def get_last_price(
-        self, asset, timestep="minute", quote=None, exchange=None, **kwargs
-    ):
+    def get_last_price(self, asset, timestep="minute", quote=None, exchange=None, **kwargs):
         try:
-            pandas_data_update = self.update_pandas_data(
-                asset, quote, 1, timestep
-            )
+            pandas_data_update = self.update_pandas_data(asset, quote, 1, timestep)
             if pandas_data_update is not None:
                 # Add the keys to the self.pandas_data dictionary
                 self.pandas_data.update(pandas_data_update)
@@ -192,7 +199,7 @@ class PolygonDataBacktesting(PandasData):
         dictionary:
             A dictionary nested with a dictionarty of Polygon Option Contracts information broken out by Exchange,
             with embedded lists for Expirations and Strikes.
-            {'SMART': {'TradingClass': 'SPY', 'Multiplier': 100, 'Expirations': [], 'Strikes': []}} 
+            {'SMART': {'TradingClass': 'SPY', 'Multiplier': 100, 'Expirations': [], 'Strikes': []}}
 
             - `TradingClass` (str) eg: `FB`
             - `Multiplier` (str) eg: `100`
@@ -203,7 +210,7 @@ class PolygonDataBacktesting(PandasData):
         # All Option Contracts | get_chains matching IBKR |
         # {'SMART': {'TradingClass': 'SPY', 'Multiplier': 100, 'Expirations': [], 'Strikes': []}}
         option_contracts = {"SMART": {"TradingClass": None, "Multiplier": None, "Expirations": [], "Strikes": []}}
-        contracts = option_contracts['SMART']  # initialize contracts
+        contracts = option_contracts["SMART"]  # initialize contracts
         today = self.get_datetime().date()
         real_today = date.today()
 
@@ -212,13 +219,15 @@ class PolygonDataBacktesting(PandasData):
         expired_list = [True, False] if real_today - today <= timedelta(days=31) else [True]
         polygon_contracts = []
         for expired in expired_list:
-            polygon_contracts.extend(list(
-                self.polygon_client.list_options_contracts(
-                    underlying_ticker=asset.symbol,
-                    expiration_date_gte=today,
-                    expired=expired,  # Needed so BackTest can look at old contracts to find the expirations/strikes
-                    limit=1000
-                ))
+            polygon_contracts.extend(
+                list(
+                    self.polygon_client.list_options_contracts(
+                        underlying_ticker=asset.symbol,
+                        expiration_date_gte=today,
+                        expired=expired,  # Needed so BackTest can look at old contracts to find the expirations/strikes
+                        limit=1000,
+                    )
+                )
             )
 
         for polygon_contract in polygon_contracts:

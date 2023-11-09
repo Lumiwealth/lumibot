@@ -67,11 +67,11 @@ class PolygonDataBacktesting(PandasData):
             data_timestep = self.pandas_data[search_asset].timestep
 
             # Strip the timestep string to get the number and unit using regex
-            regex_result = re.match(r"(\d+)(\w+)", timestep)
+            regex_result = re.match(r"(\d+)\s*(\w+)", timestep)
             if regex_result is None:
                 timestep_unit = timestep
             else:
-                timestep_unit = regex_result.group(2)
+                timestep_unit = regex_result.group(2).rstrip("s")
 
             # If the timestep is the same, we don't need to update the data
             if data_timestep == timestep_unit:

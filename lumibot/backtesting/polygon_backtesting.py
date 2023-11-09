@@ -3,10 +3,11 @@ import re
 import traceback
 from datetime import date, timedelta
 
+from polygon import RESTClient
+
 from lumibot.data_sources import PandasData
 from lumibot.entities import Asset, Data
 from lumibot.tools import polygon_helper
-from polygon import RESTClient
 
 START_BUFFER = timedelta(days=5)
 
@@ -103,13 +104,6 @@ class PolygonDataBacktesting(PandasData):
 
             # Get the timestep of the data
             data_timestep = asset_data.timestep
-
-            # # Strip the timestep string to get the number and unit using regex
-            # regex_result = re.match(r"(\d+)\s*(\w+)", timestep)
-            # if regex_result is None:
-            #     timestep_unit = timestep
-            # else:
-            #     timestep_unit = regex_result.group(2).rstrip("s")
 
             # If the timestep is the same, we don't need to update the data
             if data_timestep == ts_unit:

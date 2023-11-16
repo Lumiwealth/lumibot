@@ -10,9 +10,8 @@ from threading import Event, Lock, Thread
 from apscheduler.jobstores.memory import MemoryJobStore
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
-from termcolor import colored
-
 from lumibot.tools import append_locals, get_trading_days, staticdecorator
+from termcolor import colored
 
 
 class StrategyExecutor(Thread):
@@ -608,6 +607,23 @@ class StrategyExecutor(Thread):
             return False
         else:
             self.strategy.log_message(colored(f"Sleeping for {strategy_sleeptime} seconds", color="blue"))
+
+            # Run process orders at the market close time first (if not 24/7)
+            if not is_247:
+                # Get the time to close.
+                time_to_close = self.broker.get_time_to_close()
+
+                # If strategy sleep time is greater than the time to close, process expired option contracts.
+                if strategy_sleeptime > time_to_close:
+                    # Sleep until the market closes.
+                    self.safe_sleep(time_to_close)
+
+                    # Remove the time to close from the strategy sleep time.
+                    strategy_sleeptime -= time_to_close
+
+                    # Process expired option contracts.
+                    self.broker.process_expired_option_contracts(self.strategy)
+
             # TODO: next line speed implication: medium (371 microseconds)
             self.safe_sleep(strategy_sleeptime)
 

@@ -3,7 +3,6 @@ import os
 from collections import defaultdict
 
 import pandas_market_calendars as mcal
-
 from lumibot.backtesting import BacktestingBroker, PolygonDataBacktesting
 from lumibot.entities import Asset
 from lumibot.strategies import Strategy
@@ -50,8 +49,7 @@ class PolygonBacktestStrat(Strategy):
         #  2012-07-03 2012-07-03 13:30:00+00:00 2012-07-03 17:00:00+00:00
         #  2012-07-05 2012-07-05 13:30:00+00:00 2012-07-05 20:00:00+00:00
         trading_days_df = market_cal.schedule(
-            start_date=today,
-            end_date=today + datetime.timedelta(days=days_to_expiration + extra_days_padding)
+            start_date=today, end_date=today + datetime.timedelta(days=days_to_expiration + extra_days_padding)
         )
 
         # Look for the next trading day that is in the list of expiration dates. Skip the first trading day because
@@ -60,11 +58,12 @@ class PolygonBacktestStrat(Strategy):
         trading_datestrs = [x.to_pydatetime().date() for x in trading_days_df.index.to_list()]
         for trading_day in trading_datestrs[days_to_expiration:]:
             day_str = trading_day.strftime("%Y-%m-%d")
-            if day_str in chain['Expirations']:
+            if day_str in chain["Expirations"]:
                 return trading_day
 
-        raise ValueError(f"Could not find an option expiration date for {days_to_expiration} day(s) "
-                         f"from today({today})")
+        raise ValueError(
+            f"Could not find an option expiration date for {days_to_expiration} day(s) " f"from today({today})"
+        )
 
     def before_market_opens(self):
         underlying_asset = Asset(self.parameters["symbol"])
@@ -78,15 +77,15 @@ class PolygonBacktestStrat(Strategy):
 
     def on_filled_order(self, position, order, price, quantity, multiplier):
         self.log_message(f"PolygonBacktestStrat: Filled Order: {order}")
-        self.order_time_tracker[order.identifier]['fill'] = self.get_datetime()
+        self.order_time_tracker[order.identifier]["fill"] = self.get_datetime()
 
     def on_new_order(self, order):
         self.log_message(f"PolygonBacktestStrat: New Order: {order}")
-        self.order_time_tracker[order.identifier]['submit'] = self.get_datetime()
+        self.order_time_tracker[order.identifier]["submit"] = self.get_datetime()
 
     def on_canceled_order(self, order):
         self.log_message(f"PolygonBacktestStrat: Canceled Order: {order}")
-        self.order_time_tracker[order.identifier]['cancel'] = self.get_datetime()
+        self.order_time_tracker[order.identifier]["cancel"] = self.get_datetime()
 
     # Trading Strategy: Backtest will only buy traded assets on first iteration
     def on_trading_iteration(self):
@@ -130,8 +129,9 @@ class PolygonBacktestStrat(Strategy):
             self.prices[submitted_order.identifier] = current_option_price
 
             # Set a stop loss on the underlying asset and cancel it later to test the on_canceled_order() method
-            stop_loss_order = self.create_order(underlying_asset, quantity=qty, side="sell",
-                                                stop_price=current_asset_price - 20)
+            stop_loss_order = self.create_order(
+                underlying_asset, quantity=qty, side="sell", stop_price=current_asset_price - 20
+            )
             submitted_order = self.submit_order(stop_loss_order)
             self.orders.append(submitted_order)
 
@@ -170,20 +170,26 @@ class TestPolygonBacktestFull:
         assert len(poly_strat_obj.order_time_tracker) >= 3
         # Stock order should have been submitted and filled
         assert asset_order_id in poly_strat_obj.order_time_tracker
-        assert poly_strat_obj.order_time_tracker[asset_order_id]['submit']
-        assert (poly_strat_obj.order_time_tracker[asset_order_id]['fill'] >=
-                poly_strat_obj.order_time_tracker[asset_order_id]['submit'])
+        assert poly_strat_obj.order_time_tracker[asset_order_id]["submit"]
+        assert (
+            poly_strat_obj.order_time_tracker[asset_order_id]["fill"]
+            >= poly_strat_obj.order_time_tracker[asset_order_id]["submit"]
+        )
         # Option order should have been submitted and filled
         assert option_order_id in poly_strat_obj.order_time_tracker
-        assert poly_strat_obj.order_time_tracker[option_order_id]['submit']
-        assert (poly_strat_obj.order_time_tracker[option_order_id]['fill'] >=
-                poly_strat_obj.order_time_tracker[option_order_id]['submit'])
+        assert poly_strat_obj.order_time_tracker[option_order_id]["submit"]
+        assert (
+            poly_strat_obj.order_time_tracker[option_order_id]["fill"]
+            >= poly_strat_obj.order_time_tracker[option_order_id]["submit"]
+        )
         # Stoploss order should have been submitted and canceled
         assert stoploss_order_id in poly_strat_obj.order_time_tracker
-        assert poly_strat_obj.order_time_tracker[stoploss_order_id]['submit']
-        assert (poly_strat_obj.order_time_tracker[stoploss_order_id]['cancel'] >
-                poly_strat_obj.order_time_tracker[stoploss_order_id]['submit'])
-        assert 'fill' not in poly_strat_obj.order_time_tracker[stoploss_order_id]
+        assert poly_strat_obj.order_time_tracker[stoploss_order_id]["submit"]
+        assert (
+            poly_strat_obj.order_time_tracker[stoploss_order_id]["cancel"]
+            > poly_strat_obj.order_time_tracker[stoploss_order_id]["submit"]
+        )
+        assert "fill" not in poly_strat_obj.order_time_tracker[stoploss_order_id]
 
     def test_polygon_restclient(self):
         """
@@ -240,7 +246,7 @@ class TestPolygonBacktestFull:
             api_key=POLYGON_API_KEY,
             # Painfully slow with free subscription setting b/c lumibot is over querying and imposing a very
             # strict rate limit
-            # polygon_has_paid_subscription=True,
+            polygon_has_paid_subscription=True,
         )
         assert results
         self.verify_backtest_results(poly_strat_obj)
@@ -264,6 +270,6 @@ class TestPolygonBacktestFull:
             polygon_api_key=POLYGON_API_KEY,  # Testing the legacy parameter name while DeprecationWarning is active
             # Painfully slow with free subscription setting b/c lumibot is over querying and imposing a very
             # strict rate limit
-            # polygon_has_paid_subscription=True,
+            polygon_has_paid_subscription=True,
         )
         assert results

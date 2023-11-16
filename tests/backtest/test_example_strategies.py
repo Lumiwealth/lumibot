@@ -1,13 +1,12 @@
 import datetime
 import os
 
-from lumibot.backtesting import YahooDataBacktesting
+from lumibot.backtesting import PolygonDataBacktesting, YahooDataBacktesting
+from lumibot.example_strategies.options_hold_to_expiry import OptionsHoldToExpiry
 from lumibot.example_strategies.stock_bracket import StockBracket
 from lumibot.example_strategies.stock_buy_and_hold import BuyAndHold
-from lumibot.example_strategies.stock_diversified_leverage import \
-    DiversifiedLeverage
-from lumibot.example_strategies.stock_limit_and_trailing_stops import \
-    LimitAndTrailingStop
+from lumibot.example_strategies.stock_diversified_leverage import DiversifiedLeverage
+from lumibot.example_strategies.stock_limit_and_trailing_stops import LimitAndTrailingStop
 from lumibot.example_strategies.stock_oco import StockOco
 
 # Global parameters
@@ -179,22 +178,51 @@ class TestExampleStrategies:
         assert filled_limit_orders.iloc[1]["filled_quantity"] == 100
 
         # Get all the filled trailing stop orders
-        filled_trailing_stop_orders = trades_df[(trades_df["status"] == "fill")
-                                                & (trades_df["type"] == "trailing_stop")]
+        filled_trailing_stop_orders = trades_df[
+            (trades_df["status"] == "fill") & (trades_df["type"] == "trailing_stop")
+        ]
 
         # Check if we have an order with a rounded price of 2 decimals of 400.45 and a quantity of 50
         order1 = filled_trailing_stop_orders[
-            (round(filled_trailing_stop_orders["price"], 2) == 400.45) & (
-                filled_trailing_stop_orders["filled_quantity"] == 50)
+            (round(filled_trailing_stop_orders["price"], 2) == 400.45)
+            & (filled_trailing_stop_orders["filled_quantity"] == 50)
         ]
         assert len(order1) == 1
 
         # Check if we have an order with a price of 399.30 and a quantity of 100
         order2 = filled_trailing_stop_orders[
-            (round(filled_trailing_stop_orders["price"], 2) == 399.30) & (
-                filled_trailing_stop_orders["filled_quantity"] == 100)
+            (round(filled_trailing_stop_orders["price"], 2) == 399.30)
+            & (filled_trailing_stop_orders["filled_quantity"] == 100)
         ]
         assert len(order2) == 1
+
+        # Check that the results are correct
+        assert round(results["cagr"] * 100, 1) == 75
+        assert round(results["volatility"] * 100, 1) == 11.3
+        assert round(results["total_return"] * 100, 1) == 0.9
+        assert round(results["max_drawdown"]["drawdown"] * 100, 1) == 0.7
+
+    def test_options_hold_to_expiry(self):
+        """
+        Test the example strategy OptionsHoldToExpiry by running a backtest and checking that the strategy object is
+        returned along with the correct results.
+        """
+        # Parameters
+        backtesting_start = datetime.datetime(2023, 10, 19)
+        backtesting_end = datetime.datetime(2023, 10, 24)
+
+        # Execute Backtest
+        results, strat_obj = OptionsHoldToExpiry.run_backtest(
+            PolygonDataBacktesting,
+            backtesting_start,
+            backtesting_end,
+            benchmark_asset="SPY",
+            show_plot=False,
+            show_tearsheet=False,
+            save_tearsheet=False,
+            polygon_api_key=POLYGON_API_KEY,
+            polygon_has_paid_subscription=True,
+        )
 
         # Check that the results are correct
         assert round(results["cagr"] * 100, 1) == 75

@@ -10,14 +10,14 @@ from threading import RLock, Thread
 import pandas as pd
 import pandas_market_calendars as mcal
 from dateutil import tz
+from termcolor import colored
+
 from lumibot.data_sources import DataSource
 from lumibot.entities import Asset, Order, Position
 from lumibot.trading_builtins import SafeList
-from termcolor import colored
 
 
 class Broker(ABC):
-
     # Metainfo
     IS_BACKTESTING_BROKER = False
 
@@ -26,6 +26,7 @@ class Broker(ABC):
     CANCELED_ORDER = "canceled"
     FILLED_ORDER = "fill"
     PARTIALLY_FILLED_ORDER = "partial_fill"
+    CASH_SETTLED = "cash_settled"
 
     def __init__(self, name="", connect_stream=True, data_source: DataSource = None, config=None, max_workers=20):
         """Broker constructor"""
@@ -67,7 +68,7 @@ class Broker(ABC):
             value_dict = config.__dict__
 
         for key in value_dict:
-            attr = 'is_paper' if 'paper' in key.lower() else key.lower()
+            attr = "is_paper" if "paper" in key.lower() else key.lower()
             if hasattr(self, attr):
                 setattr(self, attr, config[key])
 
@@ -215,9 +216,7 @@ class Broker(ABC):
     # ================================ Common functions ================================
     @property
     def _tracked_orders(self):
-        return (
-            self._unprocessed_orders + self._new_orders + self._partially_filled_orders
-        )
+        return self._unprocessed_orders + self._new_orders + self._partially_filled_orders
 
     def is_backtesting_broker(self):
         return self.IS_BACKTESTING_BROKER
@@ -353,9 +352,7 @@ class Broker(ABC):
         return self.data_source.get_strikes(asset)
 
     def _start_orders_thread(self):
-        self._orders_thread = Thread(
-            target=self._wait_for_orders, daemon=True, name=f"{self.name}_orders_thread"
-        )
+        self._orders_thread = Thread(target=self._wait_for_orders, daemon=True, name=f"{self.name}_orders_thread")
         self._orders_thread.start()
 
     def _wait_for_orders(self):
@@ -402,7 +399,7 @@ class Broker(ABC):
     # =========Internal functions==============
 
     def _set_initial_positions(self, strategy):
-        """ Set initial positions """
+        """Set initial positions"""
         positions = self._pull_positions(strategy)
         for pos in positions:
             self._filled_positions.append(pos)
@@ -430,8 +427,7 @@ class Broker(ABC):
 
     def _process_partially_filled_order(self, order, price, quantity):
         logging.info(
-            "Partial Fill Transaction: %s %d of %s at $%s per share"
-            % (order.side, quantity, order.asset, price)
+            "Partial Fill Transaction: %s %d of %s at $%s per share" % (order.side, quantity, order.asset, price)
         )
         logging.info("%r was partially filled" % order)
         self._new_orders.remove(order.identifier, key="identifier")
@@ -489,8 +485,17 @@ class Broker(ABC):
 
         return position
 
+    def _process_cash_settlement(self, order, price, quantity):
+        logging.info(
+            colored(
+                f"Cash Settled: {order.side} {quantity} of {order.asset.symbol} at {price:,.8f} {'USD'} per share",
+                color="green",
+            )
+        )
+        logging.info(f"{order} was cash settled")
+
     def _process_crypto_quote(self, order, quantity, price):
-        """Used to process the quote side of a crypto trade. """
+        """Used to process the quote side of a crypto trade."""
         quote_quantity = Decimal(quantity) * Decimal(price)
         if order.side == "buy":
             quote_quantity = -quote_quantity
@@ -534,9 +539,7 @@ class Broker(ABC):
         market = self.market if self.market is not None else market
         mkt_cal = mcal.get_calendar(market)
         date = date if date is not None else datetime.now()
-        trading_hours = mkt_cal.schedule(
-            start_date=date, end_date=date + timedelta(weeks=1)
-        ).head(2)
+        trading_hours = mkt_cal.schedule(start_date=date, end_date=date + timedelta(weeks=1)).head(2)
 
         row = 0 if not next else 1
         th = trading_hours.iloc[row, :]
@@ -583,16 +586,10 @@ class Broker(ABC):
 
     def get_time_to_open(self):
         """Return the remaining time for the market to open in seconds"""
-        open_time_this_day = self.utc_to_local(
-            self.market_hours(close=False, next=False)
-        )
-        open_time_next_day = self.utc_to_local(
-            self.market_hours(close=False, next=True)
-        )
+        open_time_this_day = self.utc_to_local(self.market_hours(close=False, next=False))
+        open_time_next_day = self.utc_to_local(self.market_hours(close=False, next=True))
         now = self.utc_to_local(datetime.now())
-        open_time = (
-            open_time_this_day if open_time_this_day > now else open_time_next_day
-        )
+        open_time = open_time_this_day if open_time_this_day > now else open_time_next_day
         current_time = datetime.now().astimezone(tz=tz.tzlocal())
         if self.is_market_open():
             return 0
@@ -651,11 +648,7 @@ class Broker(ABC):
 
     def get_tracked_positions(self, strategy):
         """get all tracked positions for a given strategy"""
-        result = [
-            position
-            for position in self._filled_positions
-            if position.strategy == strategy
-        ]
+        result = [position for position in self._filled_positions if position.strategy == strategy]
         return result
 
     def _parse_broker_positions(self, broker_positions, strategy):
@@ -731,15 +724,9 @@ class Broker(ABC):
         result = []
         if broker_orders is not None:
             for broker_order in broker_orders:
-                result.append(
-                    self._parse_broker_order(
-                        broker_order, strategy_name, strategy_object=strategy_object
-                    )
-                )
+                result.append(self._parse_broker_order(broker_order, strategy_name, strategy_object=strategy_object))
         else:
-            logging.warning(
-                "No orders found in broker._parse_broker_orders: the broker_orders object is None"
-            )
+            logging.warning("No orders found in broker._parse_broker_orders: the broker_orders object is None")
 
         return result
 
@@ -755,9 +742,7 @@ class Broker(ABC):
         """Get a list of order objects representing the open
         orders"""
         response = self._pull_broker_open_orders()
-        result = self._parse_broker_orders(
-            response, strategy_name, strategy_object=strategy_object
-        )
+        result = self._parse_broker_orders(response, strategy_name, strategy_object=strategy_object)
         return result
 
     def submit_order(self, order):
@@ -802,7 +787,6 @@ class Broker(ABC):
         # Returns true if outstanding orders for a strategy are complete.
 
         while max_loop > 0:
-
             outstanding_orders = [
                 order
                 for order in (
@@ -830,9 +814,7 @@ class Broker(ABC):
         if not self.IS_BACKTESTING_BROKER:
             orders_result = self.wait_orders_clear(strategy_name)
             if not orders_result:
-                logging.info(
-                    "From sell_all, orders were still outstanding before the sell all event"
-                )
+                logging.info("From sell_all, orders were still outstanding before the sell all event")
 
         orders = []
         positions = self.get_tracked_positions(strategy_name)
@@ -920,9 +902,7 @@ class Broker(ABC):
                 multiplier=th[4],
             )
 
-    def _process_trade_event(
-        self, stored_order, type_event, price=None, filled_quantity=None, multiplier=1
-    ):
+    def _process_trade_event(self, stored_order, type_event, price=None, filled_quantity=None, multiplier=1):
         """process an occurred trading event and update the
         corresponding order"""
         if self._hold_trade_events and not self.IS_BACKTESTING_BROKER:
@@ -948,9 +928,7 @@ class Broker(ABC):
             )
 
         if filled_quantity is not None:
-            error = ValueError(
-                f"filled_quantity must be a positive integer, received {filled_quantity} instead"
-            )
+            error = ValueError(f"filled_quantity must be a positive integer, received {filled_quantity} instead")
             try:
                 if not isinstance(filled_quantity, Decimal):
                     filled_quantity = Decimal(filled_quantity)
@@ -960,9 +938,7 @@ class Broker(ABC):
                 raise error
 
         if price is not None:
-            error = ValueError(
-                "price must be a positive float, received %r instead" % price
-            )
+            error = ValueError("price must be a positive float, received %r instead" % price)
             try:
                 price = float(price)
                 if price < 0:
@@ -979,17 +955,13 @@ class Broker(ABC):
                 stored_order = self._process_canceled_order(stored_order)
                 self._on_canceled_order(stored_order)
         elif type_event == self.PARTIALLY_FILLED_ORDER:
-            stored_order, position = self._process_partially_filled_order(
-                stored_order, price, filled_quantity
-            )
-            self._on_partially_filled_order(
-                position, stored_order, price, filled_quantity, multiplier
-            )
+            stored_order, position = self._process_partially_filled_order(stored_order, price, filled_quantity)
+            self._on_partially_filled_order(position, stored_order, price, filled_quantity, multiplier)
         elif type_event == self.FILLED_ORDER:
             position = self._process_filled_order(stored_order, price, filled_quantity)
-            self._on_filled_order(
-                position, stored_order, price, filled_quantity, multiplier
-            )
+            self._on_filled_order(position, stored_order, price, filled_quantity, multiplier)
+        elif type_event == self.CASH_SETTLED:
+            position = self._process_cash_settlement(stored_order, price, filled_quantity)
         else:
             logging.info(f"Unhandled type event {type_event} for {stored_order}")
 
@@ -1017,12 +989,10 @@ class Broker(ABC):
         new_row_df = pd.DataFrame(new_row, index=[0])
 
         # Filter out empty or all-NA columns from new_row_df
-        new_row_df = new_row_df.dropna(axis=1, how='all')
+        new_row_df = new_row_df.dropna(axis=1, how="all")
 
         # Concatenate the filtered new_row_df with the existing _trade_event_log_df
-        self._trade_event_log_df = pd.concat(
-            [self._trade_event_log_df, new_row_df], axis=0
-        )
+        self._trade_event_log_df = pd.concat([self._trade_event_log_df, new_row_df], axis=0)
 
         return
 
@@ -1030,9 +1000,7 @@ class Broker(ABC):
         """Set the asynchronous actions to be executed after
         when events are sent via socket streams"""
         self._register_stream_events()
-        t = Thread(
-            target=self._run_stream, daemon=True, name=f"broker_{self.name}_thread"
-        )
+        t = Thread(target=self._run_stream, daemon=True, name=f"broker_{self.name}_thread")
         t.start()
         if not self.IS_BACKTESTING_BROKER:
             logging.info(

@@ -5,9 +5,10 @@ from decimal import Decimal
 from functools import wraps
 
 import pandas as pd
+
 from lumibot.brokers import Broker
 from lumibot.data_sources import DataSourceBacktesting
-from lumibot.entities import Order, Position, TradingFee
+from lumibot.entities import Asset, Order, Position, TradingFee
 from lumibot.trading_builtins import CustomStream
 
 
@@ -332,24 +333,95 @@ class BacktestingBroker(Broker):
             order=order,
         )
 
-    def expired_contracts(self, strategy):
+    def cash_settle_options_contract(self, position, strategy):
+        """Cash settle an options contract"""
+
+        # Check that the position is an options contract
+        if position.asset.asset_type != "option":
+            logging.error(f"Cannot cash settle non-option contract {position.asset}")
+            return
+
+        # Create a stock asset for the underlying asset
+        underlying_asset = Asset(
+            symbol=position.asset.symbol,
+            asset_type="stock",
+        )
+
+        # Get the price of the underlying asset
+        underlying_price = self.get_last_price(underlying_asset)
+
+        # Calculate the profit/loss of the contract
+        if position.asset.right == "CALL":
+            profit_loss = (underlying_price - position.asset.strike) * position.asset.multiplier * position.quantity
+
+            # If we are long the call, then we cannot lose more than the premium we paid
+            if position.quantity > 0:
+                # If we are in a loss, then set to zero
+                if profit_loss < 0:
+                    profit_loss = 0
+            # If we are short the call, then we cannot gain more than the strike price
+            elif position.quantity < 0:
+                # If we are in a gain, then set to zero
+                if profit_loss > 0:
+                    profit_loss = 0
+
+        elif position.asset.right == "PUT":
+            profit_loss = (position.asset.strike - underlying_price) * position.asset.multiplier * position.quantity
+
+            # If we are long the put, then we cannot lose more than the premium we paid
+            if position.quantity > 0:
+                # If we are in a loss, then set to zero
+                if profit_loss < 0:
+                    profit_loss = 0
+            # If we are short the put, then we cannot gain more than the strike price
+            elif position.quantity < 0:
+                # If we are in a gain, then set to zero
+                if profit_loss > 0:
+                    profit_loss = 0
+        else:
+            logging.error(f"Cannot cash settle option contract {position.asset} with right {position.asset.right}")
+            return
+
+        # Add the profit/loss to the cash position
+        new_cash = strategy.get_cash() + profit_loss
+
+        # Update the cash position
+        strategy._set_cash_position(new_cash)
+
+        # Set the side
+        if position.quantity > 0:
+            side = "sell"
+        else:
+            side = "buy"
+
+        # Create offsetting order
+        order = strategy.create_order(position.asset, abs(position.quantity), side)
+
+        # Send filled order event
+        self.stream.dispatch(
+            self.CASH_SETTLED,
+            order=order,
+            price=position.asset.strike,
+            filled_quantity=abs(position.quantity),
+        )
+
+    def process_expired_option_contracts(self, strategy):
         """Checks if options or futures contracts have expried and converts
         to cash.
 
         Parameters
         ----------
-        strategy : str
-            Strategy object name.
+        strategy : Strategy object.
+            Strategy object.
 
         Returns
         --------
             List of orders
         """
         if self.data_source.SOURCE != "PANDAS":
-            return []
+            return
 
-        orders_closing_contracts = []
-        positions = self.get_tracked_positions(strategy)
+        positions = self.get_tracked_positions(strategy.name)
         for position in positions:
             if position.asset.expiration is not None and position.asset.expiration <= self.datetime.date():
                 # If it's the same day as the expiration, we need to check the time to see if it's after market close
@@ -357,10 +429,10 @@ class BacktestingBroker(Broker):
                 if position.asset.expiration == self.datetime.date() and time_to_close > (15 * 60):
                     continue
 
-                logging.warning(f"Automatically selling expired contract for asset {position.asset}")
-                orders_closing_contracts.append(position.get_selling_order())
+                logging.info(f"Automatically selling expired contract for asset {position.asset}")
 
-        return orders_closing_contracts
+                # TODO: Make this cash settle, not just sell the contract
+                self.cash_settle_options_contract(position, strategy)
 
     def calculate_trade_cost(self, order: Order, strategy, price: float):
         """Calculate the trade cost of an order for a given strategy"""
@@ -401,9 +473,9 @@ class BacktestingBroker(Broker):
         """
 
         # Process expired contracts.
-        pending_orders = self.expired_contracts(strategy.name)
+        self.process_expired_option_contracts(strategy)
 
-        pending_orders += [
+        pending_orders = [
             order for order in self.get_tracked_orders(strategy.name) if order.status in ["unprocessed", "new"]
         ]
 

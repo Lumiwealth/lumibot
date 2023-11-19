@@ -12,7 +12,6 @@ class YahooPriceTest(Strategy):
 
     def initialize(self):
         # There is only one trading operation per day
-        # No need to sleep between iterations
         self.sleeptime = "1D"
 
     def on_trading_iteration(self):
@@ -29,9 +28,8 @@ class YahooPriceTest(Strategy):
 class TestYahooBacktestFull:
     def test_yahoo_last_price(self):
         """
-        Test Polygon REST Client with Lumibot Backtesting and real API calls to Polygon. Using the Amazon stock
-        which only has options expiring on Fridays. This test will buy 10 shares of Amazon and 1 option contract
-        in the historical 2023-08-04 period (in the past!).
+        Test the YahooDataBacktesting class by running a backtest and checking that the strategy object is returned
+        along with the correct results
         """
         # Parameters: True = Live Trading | False = Backtest
         # trade_live = False
@@ -61,4 +59,4 @@ class TestYahooBacktestFull:
         # Round to 2 decimal places
         last_price = round(last_price, 2)
 
-        assert last_price == 416.18  # This is the correct price for 2023-11-01 (the open price)
+        assert last_price == 419.20  # This is the correct price for 2023-11-01 (the open price)

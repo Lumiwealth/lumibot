@@ -168,7 +168,12 @@ class YahooHelper:
     @staticmethod
     def download_symbol_day_data(symbol):
         ticker = yf.Ticker(symbol)
-        df = ticker.history(period="max", auto_adjust=False)
+        try:
+            df = ticker.history(period="max", auto_adjust=False)
+        except Exception as e:
+            logging.debug(f"Error while downloading symbol day data for {symbol}, returning empty dataframe for now.")
+            logging.debug(e)
+            return None
 
         # Adjust the time when we are getting daily stock data to the beginning of the day
         # This way the times line up when backtesting daily data
@@ -240,7 +245,7 @@ class YahooHelper:
         data = YahooHelper.download_symbol_day_data(symbol)
 
         # Check if the data is empty
-        if data.empty:
+        if data is None or data.empty:
             return data
 
         YahooHelper.dump_pickle_file(symbol, DAY_DATA, data)

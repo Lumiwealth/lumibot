@@ -3,7 +3,6 @@ from datetime import timedelta
 from decimal import Decimal
 
 import numpy
-
 from lumibot.data_sources import DataSourceBacktesting
 from lumibot.entities import Asset, Bars
 from lumibot.tools import YahooHelper
@@ -54,14 +53,7 @@ class YahooData(DataSourceBacktesting):
         return data
 
     def _pull_source_symbol_bars(
-        self,
-        asset,
-        length,
-        timestep=MIN_TIMESTEP,
-        timeshift=None,
-        quote=None,
-        exchange=None,
-        include_after_hours=True
+        self, asset, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None, exchange=None, include_after_hours=True
     ):
         if exchange is not None:
             logging.warning(
@@ -69,9 +61,7 @@ class YahooData(DataSourceBacktesting):
             )
 
         if quote is not None:
-            logging.warning(
-                f"quote is not implemented for YahooData, but {quote} was passed as the quote"
-            )
+            logging.warning(f"quote is not implemented for YahooData, but {quote} was passed as the quote")
 
         self._parse_source_timestep(timestep, reverse=True)
         if asset in self._data_store:
@@ -111,14 +101,10 @@ class YahooData(DataSourceBacktesting):
         """pull broker bars for a list assets"""
 
         if quote is not None:
-            logging.warning(
-                f"quote is not implemented for YahooData, but {quote} was passed as the quote"
-            )
+            logging.warning(f"quote is not implemented for YahooData, but {quote} was passed as the quote")
 
         self._parse_source_timestep(timestep, reverse=True)
-        missing_assets = [
-            asset.symbol for asset in assets if asset not in self._data_store
-        ]
+        missing_assets = [asset.symbol for asset in assets if asset not in self._data_store]
 
         if missing_assets:
             dfs = YahooHelper.get_symbols_data(missing_assets, auto_adjust=self.auto_adjust)
@@ -127,16 +113,12 @@ class YahooData(DataSourceBacktesting):
 
         result = {}
         for asset in assets:
-            result[asset] = self._pull_source_symbol_bars(
-                asset, length, timestep=timestep, timeshift=timeshift
-            )
+            result[asset] = self._pull_source_symbol_bars(asset, length, timestep=timestep, timeshift=timeshift)
         return result
 
     def _parse_source_symbol_bars(self, response, asset, quote=None, length=None):
         if quote is not None:
-            logging.warning(
-                f"quote is not implemented for YahooData, but {quote} was passed as the quote"
-            )
+            logging.warning(f"quote is not implemented for YahooData, but {quote} was passed as the quote")
 
         bars = Bars(response, self.SOURCE, asset, raw=response)
         return bars
@@ -146,9 +128,9 @@ class YahooData(DataSourceBacktesting):
         if timestep is None:
             timestep = self.get_timestep()
 
-        bars = self.get_historical_prices(
-            asset, 1, timestep=timestep, quote=quote  # , timeshift=timedelta(days=-1)
-        )
+        # Use -1 timeshift to get the price for the current bar (otherwise gets yesterdays prices)
+        bars = self.get_historical_prices(asset, 1, timestep=timestep, quote=quote, timeshift=timedelta(days=-1))
+
         if isinstance(bars, float):
             return bars
         elif bars is None:
@@ -171,9 +153,13 @@ class YahooData(DataSourceBacktesting):
         >>>    expirations = spy.options
         >>>    chain_data = spy.option_chain()
         """
-        raise NotImplementedError("Lumibot YahooData does not support historical options data. If you need this "
-                                  "feature, please use a different data source.")
+        raise NotImplementedError(
+            "Lumibot YahooData does not support historical options data. If you need this "
+            "feature, please use a different data source."
+        )
 
     def get_strikes(self, asset):
-        raise NotImplementedError("Lumibot YahooData does not support historical options data. If you need this "
-                                  "feature, please use a different data source.")
+        raise NotImplementedError(
+            "Lumibot YahooData does not support historical options data. If you need this "
+            "feature, please use a different data source."
+        )

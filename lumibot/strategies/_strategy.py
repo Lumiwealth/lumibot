@@ -29,27 +29,27 @@ class _Strategy:
     IS_BACKTESTABLE = True
 
     def __init__(
-            self,
-            *args,
-            broker=None,
-            minutes_before_closing=5,
-            minutes_before_opening=60,
-            sleeptime="1M",
-            stats_file=None,
-            risk_free_rate=None,
-            benchmark_asset="SPY",
-            backtesting_start=None,
-            backtesting_end=None,
-            quote_asset=Asset(symbol="USD", asset_type="forex"),
-            starting_positions=None,
-            filled_order_callback=None,
-            name=None,
-            budget=None,
-            parameters={},
-            buy_trading_fees=[],
-            sell_trading_fees=[],
-            force_start_immediately=False,
-            **kwargs,
+        self,
+        *args,
+        broker=None,
+        minutes_before_closing=5,
+        minutes_before_opening=60,
+        sleeptime="1M",
+        stats_file=None,
+        risk_free_rate=None,
+        benchmark_asset="SPY",
+        backtesting_start=None,
+        backtesting_end=None,
+        quote_asset=Asset(symbol="USD", asset_type="forex"),
+        starting_positions=None,
+        filled_order_callback=None,
+        name=None,
+        budget=None,
+        parameters={},
+        buy_trading_fees=[],
+        sell_trading_fees=[],
+        force_start_immediately=False,
+        **kwargs,
     ):
         """Initializes a Strategy object.
 
@@ -230,9 +230,7 @@ class _Strategy:
                         # Don't include the quote asset since it's already included with cash
                         price = 0
                     else:
-                        price = self.get_last_price(
-                            position.asset, quote=self.quote_asset
-                        )
+                        price = self.get_last_price(position.asset, quote=self.quote_asset)
                     value = float(position.quantity) * price
                     positions_value += value
 
@@ -258,11 +256,7 @@ class _Strategy:
         self._analysis = {}
 
         # Storing parameters for the initialize method
-        if (
-                not hasattr(self, "parameters")
-                or not isinstance(self.parameters, dict)
-                or self.parameters is None
-        ):
+        if not hasattr(self, "parameters") or not isinstance(self.parameters, dict) or self.parameters is None:
             self.parameters = {}
         self.parameters = {**self.parameters, **kwargs}
         if parameters is not None and isinstance(self.parameters, dict):
@@ -328,11 +322,8 @@ class _Strategy:
         elif isinstance(asset, str):
             return Asset(symbol=asset)
         else:
-            if self.broker.SOURCE != "CCXT":
-                raise ValueError(
-                    f"You must enter a symbol string or an asset object. You "
-                    f"entered {asset}"
-                )
+            if self.broker.data_source.SOURCE != "CCXT":
+                raise ValueError(f"You must enter a symbol string or an asset object. You " f"entered {asset}")
             else:
                 raise ValueError(
                     "You must enter symbol string or an asset object. If you "
@@ -367,15 +358,12 @@ class _Strategy:
 
         UPDATE_INTERVAL = 59
         if (
-                self.last_broker_balances_update is None
-                or force_update
-                or (
-                self.last_broker_balances_update
-                + datetime.timedelta(seconds=UPDATE_INTERVAL)
-                < datetime.datetime.now()
-        )
+            self.last_broker_balances_update is None
+            or force_update
+            or (
+                self.last_broker_balances_update + datetime.timedelta(seconds=UPDATE_INTERVAL) < datetime.datetime.now()
+            )
         ):
-
             broker_balances = self.broker._get_balances_at_broker(self.quote_asset)
 
             if broker_balances is not None:
@@ -440,8 +428,8 @@ class _Strategy:
                 # Eg. if we have a position of USDT and USDT is the quote_asset then we already consider it as cash
                 if self.quote_asset is not None:
                     if isinstance(asset, tuple) and asset == (
-                            self.quote_asset,
-                            self.quote_asset,
+                        self.quote_asset,
+                        self.quote_asset,
                     ):
                         price = 0
                     elif isinstance(asset, Asset) and asset == self.quote_asset:
@@ -472,11 +460,7 @@ class _Strategy:
                 if isinstance(asset, tuple):
                     multiplier = 1
                 else:
-                    multiplier = (
-                        asset.multiplier
-                        if asset.asset_type in ["option", "future"]
-                        else 1
-                    )
+                    multiplier = asset.multiplier if asset.asset_type in ["option", "future"] else 1
                 portfolio_value += float(quantity) * price * multiplier
 
             self._portfolio_value = portfolio_value
@@ -514,11 +498,7 @@ class _Strategy:
             for position in positions:
                 asset = position.asset
                 quantity = position.quantity
-                dividend_per_share = (
-                    0
-                    if dividends_per_share is None
-                    else dividends_per_share.get(asset, 0)
-                )
+                dividend_per_share = 0 if dividends_per_share is None else dividends_per_share.get(asset, 0)
                 cash = self.cash
                 if cash is None:
                     cash = 0
@@ -553,15 +533,10 @@ class _Strategy:
 
             self._strategy_returns_df = day_deduplicate(self._stats)
 
-            self._analysis = stats_summary(
-                self._strategy_returns_df, self._risk_free_rate
-            )
+            self._analysis = stats_summary(self._strategy_returns_df, self._risk_free_rate)
 
             # Getting performance for the benchmark asset
-            if (
-                    self._backtesting_start is not None
-                    and self._backtesting_end is not None
-            ):
+            if self._backtesting_start is not None and self._backtesting_end is not None:
                 # Need to adjust the backtesting end date because the data from Yahoo
                 # is at the start of the day, so the graph cuts short. This may be needed
                 # for other timeframes as well
@@ -610,21 +585,17 @@ class _Strategy:
         logger.setLevel(current_level)
 
     def plot_returns_vs_benchmark(
-            self,
-            plot_file_html="backtest_result.html",
-            trades_df=None,
-            show_plot=True,
+        self,
+        plot_file_html="backtest_result.html",
+        trades_df=None,
+        show_plot=True,
     ):
         if not show_plot:
             return
         elif self._strategy_returns_df is None:
-            logging.warning(
-                "Cannot plot returns because the strategy returns are missing"
-            )
+            logging.warning("Cannot plot returns because the strategy returns are missing")
         elif self._benchmark_returns_df is None:
-            logging.warning(
-                "Cannot plot returns because the benchmark returns are missing"
-            )
+            logging.warning("Cannot plot returns because the benchmark returns are missing")
         else:
             plot_returns(
                 self._strategy_returns_df,
@@ -638,10 +609,10 @@ class _Strategy:
             )
 
     def plot_indicators(
-            self,
-            plot_file_html="indicators.html",
-            chart_markers_df=None,
-            chart_lines_df=None,
+        self,
+        plot_file_html="indicators.html",
+        chart_markers_df=None,
+        chart_lines_df=None,
     ):
         # Check if we have at least one indicator to plot
         if chart_markers_df is None and chart_lines_df is None:
@@ -656,10 +627,10 @@ class _Strategy:
         )
 
     def tearsheet(
-            self,
-            save_tearsheet=True,
-            tearsheet_file=None,
-            show_tearsheet=True,
+        self,
+        save_tearsheet=True,
+        tearsheet_file=None,
+        show_tearsheet=True,
     ):
         if not save_tearsheet and not show_tearsheet:
             return None
@@ -668,9 +639,7 @@ class _Strategy:
             save_tearsheet = True
 
         if self._strategy_returns_df is None:
-            logging.warning(
-                "Cannot create a tearsheet because the strategy returns are missing"
-            )
+            logging.warning("Cannot create a tearsheet because the strategy returns are missing")
         else:
             strat_name = self._name if self._name is not None else "Strategy"
             create_tearsheet(
@@ -685,37 +654,37 @@ class _Strategy:
 
     @classmethod
     def run_backtest(
-            cls,
-            *args,
-            minutes_before_closing=5,
-            minutes_before_opening=60,
-            sleeptime=1,
-            stats_file=None,
-            risk_free_rate=None,
-            logfile=None,
-            config=None,
-            auto_adjust=False,
-            name=None,
-            budget=None,
-            benchmark_asset="SPY",
-            plot_file_html=None,
-            trades_file=None,
-            settings_file=None,
-            pandas_data=None,
-            quote_asset=Asset(symbol="USD", asset_type="forex"),
-            starting_positions=None,
-            show_plot=True,
-            tearsheet_file=None,
-            save_tearsheet=True,
-            show_tearsheet=True,
-            parameters={},
-            buy_trading_fees=[],
-            sell_trading_fees=[],
-            api_key=None,
-            polygon_api_key=None,
-            polygon_has_paid_subscription=False,
-            indicators_file=None,
-            **kwargs,
+        cls,
+        *args,
+        minutes_before_closing=5,
+        minutes_before_opening=60,
+        sleeptime=1,
+        stats_file=None,
+        risk_free_rate=None,
+        logfile=None,
+        config=None,
+        auto_adjust=False,
+        name=None,
+        budget=None,
+        benchmark_asset="SPY",
+        plot_file_html=None,
+        trades_file=None,
+        settings_file=None,
+        pandas_data=None,
+        quote_asset=Asset(symbol="USD", asset_type="forex"),
+        starting_positions=None,
+        show_plot=True,
+        tearsheet_file=None,
+        save_tearsheet=True,
+        show_tearsheet=True,
+        parameters={},
+        buy_trading_fees=[],
+        sell_trading_fees=[],
+        api_key=None,
+        polygon_api_key=None,
+        polygon_has_paid_subscription=False,
+        indicators_file=None,
+        **kwargs,
     ):
         """Backtest a strategy.
 
@@ -825,9 +794,13 @@ class _Strategy:
         >>> )
         """
 
-        warnings.warn("The backtest() method will be depricated in future versions of Lumibot. Instead "
-                      "please use 'trader.run_all(backtest=True)' as this more closely models how your strategy "
-                      "will behave in Live Trading sessions.  <web link>", DeprecationWarning, stacklevel=2)
+        warnings.warn(
+            "The backtest() method will be depricated in future versions of Lumibot. Instead "
+            "please use 'trader.run_all(backtest=True)' as this more closely models how your strategy "
+            "will behave in Live Trading sessions.  <web link>",
+            DeprecationWarning,
+            stacklevel=2,
+        )
 
         positional_args_error_message = (
             "Please do not use `name' or 'budget' as positional arguments. \n"
@@ -865,8 +838,7 @@ class _Strategy:
             backtesting_start = args[3]
             backtesting_end = args[4]
             logging.warning(
-                f"You are using the old style of initializing a backtest object. \n"
-                f"{positional_args_error_message}"
+                f"You are using the old style of initializing a backtest object. \n" f"{positional_args_error_message}"
             )
         else:
             # Error message
@@ -896,9 +868,7 @@ class _Strategy:
 
         # Check datasource_class
         if not isinstance(datasource_class, type):
-            raise ValueError(
-                f"`datasource_class` must be a class. You passed in {datasource_class}"
-            )
+            raise ValueError(f"`datasource_class` must be a class. You passed in {datasource_class}")
 
         cls.verify_backtest_inputs(backtesting_start, backtesting_end)
 
@@ -911,10 +881,7 @@ class _Strategy:
             )
 
         if not cls.IS_BACKTESTABLE:
-            logging.warning(
-                f"Strategy {name + ' ' if name is not None else ''}cannot be "
-                f"backtested at the moment"
-            )
+            logging.warning(f"Strategy {name + ' ' if name is not None else ''}cannot be " f"backtested at the moment")
             return None
 
         try:
@@ -938,7 +905,7 @@ class _Strategy:
             api_key=api_key,
             **kwargs,
         )
-        if hasattr(data_source, 'has_paid_subscription'):
+        if hasattr(data_source, "has_paid_subscription"):
             data_source.has_paid_subscription = polygon_has_paid_subscription
 
         # if hasattr(data_source, 'pandas_data'):
@@ -989,9 +956,18 @@ class _Strategy:
         """
         pass
 
-    def backtest_analysis(self, logfile=None, show_plot=True, show_tearsheet=True, save_tearsheet=True,
-                          plot_file_html=None, tearsheet_file=None, trades_file=None,
-                          settings_file=None, indicators_file=None):
+    def backtest_analysis(
+        self,
+        logfile=None,
+        show_plot=True,
+        show_tearsheet=True,
+        save_tearsheet=True,
+        plot_file_html=None,
+        tearsheet_file=None,
+        trades_file=None,
+        settings_file=None,
+        indicators_file=None,
+    ):
         name = self._name
 
         # Filename defaults
@@ -999,25 +975,15 @@ class _Strategy:
         datestring = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         basename = f"{name + '_' if name is not None else ''}{datestring}"
         if plot_file_html is None:
-            plot_file_html = (
-                f"{logdir}/{basename}_trades.html"
-            )
+            plot_file_html = f"{logdir}/{basename}_trades.html"
         if trades_file is None:
-            trades_file = (
-                f"{logdir}/{basename}_trades.csv"
-            )
+            trades_file = f"{logdir}/{basename}_trades.csv"
         if tearsheet_file is None:
-            tearsheet_file = (
-                f"{logdir}/{basename}_tearsheet.html"
-            )
+            tearsheet_file = f"{logdir}/{basename}_tearsheet.html"
         if settings_file is None:
-            settings_file = (
-                f"{logdir}/{basename}_settings.json"
-            )
+            settings_file = f"{logdir}/{basename}_settings.json"
         if indicators_file is None:
-            indicators_file = (
-                f"{logdir}/{basename}_indicators.html"
-            )
+            indicators_file = f"{logdir}/{basename}_indicators.html"
 
         self.write_backtest_settings(settings_file)
 
@@ -1061,14 +1027,10 @@ class _Strategy:
         """
         # Check backtesting_start and backtesting_end
         if not isinstance(backtesting_start, datetime.datetime):
-            raise ValueError(
-                f"`backtesting_start` must be a datetime object. You passed in {backtesting_start}"
-            )
+            raise ValueError(f"`backtesting_start` must be a datetime object. You passed in {backtesting_start}")
 
         if not isinstance(backtesting_end, datetime.datetime):
-            raise ValueError(
-                f"`backtesting_end` must be a datetime object. You passed in {backtesting_end}"
-            )
+            raise ValueError(f"`backtesting_end` must be a datetime object. You passed in {backtesting_end}")
 
         # Check that backtesting end is after backtesting start
         if backtesting_end <= backtesting_start:
@@ -1079,37 +1041,37 @@ class _Strategy:
 
     @classmethod
     def backtest(
-            cls,
-            *args,
-            minutes_before_closing=5,
-            minutes_before_opening=60,
-            sleeptime=1,
-            stats_file=None,
-            risk_free_rate=None,
-            logfile=None,
-            config=None,
-            auto_adjust=False,
-            name=None,
-            budget=None,
-            benchmark_asset="SPY",
-            plot_file_html=None,
-            trades_file=None,
-            settings_file=None,
-            pandas_data=None,
-            quote_asset=Asset(symbol="USD", asset_type="forex"),
-            starting_positions=None,
-            show_plot=True,
-            tearsheet_file=None,
-            save_tearsheet=True,
-            show_tearsheet=True,
-            parameters={},
-            buy_trading_fees=[],
-            sell_trading_fees=[],
-            api_key=None,
-            polygon_api_key=None,
-            polygon_has_paid_subscription=False,
-            indicators_file=None,
-            **kwargs,
+        cls,
+        *args,
+        minutes_before_closing=5,
+        minutes_before_opening=60,
+        sleeptime=1,
+        stats_file=None,
+        risk_free_rate=None,
+        logfile=None,
+        config=None,
+        auto_adjust=False,
+        name=None,
+        budget=None,
+        benchmark_asset="SPY",
+        plot_file_html=None,
+        trades_file=None,
+        settings_file=None,
+        pandas_data=None,
+        quote_asset=Asset(symbol="USD", asset_type="forex"),
+        starting_positions=None,
+        show_plot=True,
+        tearsheet_file=None,
+        save_tearsheet=True,
+        show_tearsheet=True,
+        parameters={},
+        buy_trading_fees=[],
+        sell_trading_fees=[],
+        api_key=None,
+        polygon_api_key=None,
+        polygon_has_paid_subscription=False,
+        indicators_file=None,
+        **kwargs,
     ):
         """Backtest a strategy.
 
@@ -1220,15 +1182,34 @@ class _Strategy:
         """
         results, strategy = cls.run_backtest(
             *args,
-            minutes_before_closing=minutes_before_closing, minutes_before_opening=minutes_before_opening,
-            sleeptime=sleeptime, stats_file=stats_file, risk_free_rate=risk_free_rate, logfile=logfile,
-            config=config, auto_adjust=auto_adjust, name=name, budget=budget, benchmark_asset=benchmark_asset,
-            plot_file_html=plot_file_html, trades_file=trades_file, settings_file=settings_file,
-            pandas_data=pandas_data, quote_asset=quote_asset, starting_positions=starting_positions,
-            show_plot=show_plot, tearsheet_file=tearsheet_file, save_tearsheet=save_tearsheet,
-            show_tearsheet=show_tearsheet, parameters=parameters, buy_trading_fees=buy_trading_fees,
-            sell_trading_fees=sell_trading_fees, api_key=api_key, polygon_api_key=polygon_api_key,
-            polygon_has_paid_subscription=polygon_has_paid_subscription, indicators_file=indicators_file,
+            minutes_before_closing=minutes_before_closing,
+            minutes_before_opening=minutes_before_opening,
+            sleeptime=sleeptime,
+            stats_file=stats_file,
+            risk_free_rate=risk_free_rate,
+            logfile=logfile,
+            config=config,
+            auto_adjust=auto_adjust,
+            name=name,
+            budget=budget,
+            benchmark_asset=benchmark_asset,
+            plot_file_html=plot_file_html,
+            trades_file=trades_file,
+            settings_file=settings_file,
+            pandas_data=pandas_data,
+            quote_asset=quote_asset,
+            starting_positions=starting_positions,
+            show_plot=show_plot,
+            tearsheet_file=tearsheet_file,
+            save_tearsheet=save_tearsheet,
+            show_tearsheet=show_tearsheet,
+            parameters=parameters,
+            buy_trading_fees=buy_trading_fees,
+            sell_trading_fees=sell_trading_fees,
+            api_key=api_key,
+            polygon_api_key=polygon_api_key,
+            polygon_has_paid_subscription=polygon_has_paid_subscription,
+            indicators_file=indicators_file,
             **kwargs,
         )
         return results

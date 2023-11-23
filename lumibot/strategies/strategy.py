@@ -9,8 +9,9 @@ import jsonpickle
 import numpy as np
 import pandas as pd
 import pandas_market_calendars as mcal
-from lumibot.entities import Asset, Order
 from termcolor import colored
+
+from lumibot.entities import Asset, Order
 
 from ._strategy import _Strategy
 
@@ -402,8 +403,8 @@ class Strategy(_Strategy):
         side : str
             Whether the order is ``buy`` or ``sell``.
         type : str
-            The type of order. Order types include: ``'market'``, ``'limit'``, ``'stop'``, ``'stop_limit'``, 
-            ``trailing_stop``, ``'oco'``, ``'bracket'``, ``'oto'``. 
+            The type of order. Order types include: ``'market'``, ``'limit'``, ``'stop'``, ``'stop_limit'``,
+            ``trailing_stop``, ``'oco'``, ``'bracket'``, ``'oto'``.
             We will try to determine the order type if you do not specify it. It is mandatory to set the type
             for advanced order types such as ``'oco'``, ``'bracket'``, ``'oto'``.
         limit_price : float
@@ -683,9 +684,7 @@ class Strategy(_Strategy):
         >>>    self.submit_order(order)
         """
         if position.asset != self.quote_asset:
-            selling_order = self.create_order(
-                position.asset, position.quantity, "sell", quote=self.quote_asset
-            )
+            selling_order = self.create_order(position.asset, position.quantity, "sell", quote=self.quote_asset)
             return selling_order
         else:
             return None
@@ -852,9 +851,7 @@ class Strategy(_Strategy):
         ]
 
         if market not in markets:
-            raise ValueError(
-                f"Valid market entries are: {markets}. You entered {market}. Please adjust."
-            )
+            raise ValueError(f"Valid market entries are: {markets}. You entered {market}. Please adjust.")
 
         self.broker.market = market
 
@@ -919,20 +916,14 @@ class Strategy(_Strategy):
     @staticmethod
     def crypto_assets_to_tuple(base, quote):
         """Check for crypto quote, convert to tuple"""
-        if (
-            isinstance(base, Asset)
-            and base.asset_type == "crypto"
-            and isinstance(quote, Asset)
-        ):
+        if isinstance(base, Asset) and base.asset_type == "crypto" and isinstance(quote, Asset):
             return (base, quote)
         return base
 
     def get_tracked_position(self, asset):
         """Deprecated, will be removed in the future. Please use `get_position()` instead."""
 
-        self.log_message(
-            "Warning: get_tracked_position() is deprecated, please use get_position() instead."
-        )
+        self.log_message("Warning: get_tracked_position() is deprecated, please use get_position() instead.")
         self.get_position(asset)
 
     def get_position(self, asset):
@@ -964,9 +955,7 @@ class Strategy(_Strategy):
 
         # Check if asset is an Asset object or a string
         if not (isinstance(asset, Asset) or isinstance(asset, str)):
-            logger.error(
-                f"Asset in get_position() must be an Asset object or a string. You entered {asset}."
-            )
+            logger.error(f"Asset in get_position() must be an Asset object or a string. You entered {asset}.")
             return None
 
         asset = self._sanitize_user_asset(asset)
@@ -975,9 +964,7 @@ class Strategy(_Strategy):
     def get_tracked_positions(self):
         """Deprecated, will be removed in the future. Please use `get_positions()` instead."""
 
-        self.log_message(
-            "Warning: get_tracked_positions() is deprecated, please use get_positions() instead."
-        )
+        self.log_message("Warning: get_tracked_positions() is deprecated, please use get_positions() instead.")
         return self.get_positions()
 
     def get_portfolio_value(self):
@@ -1081,9 +1068,7 @@ class Strategy(_Strategy):
     def get_tracked_order(self, identifier):
         """Deprecated, will be removed in the future. Please use `get_order()` instead."""
 
-        self.log_message(
-            "Warning: get_tracked_order() is deprecated, please use get_order() instead."
-        )
+        self.log_message("Warning: get_tracked_order() is deprecated, please use get_order() instead.")
         return self.get_order(identifier)
 
     def get_order(self, identifier):
@@ -1109,9 +1094,7 @@ class Strategy(_Strategy):
     def get_tracked_orders(self, identifier):
         """Deprecated, will be removed in the future. Please use `get_orders()` instead."""
 
-        self.log_message(
-            "Warning: get_tracked_orders() is deprecated, please use get_orders() instead."
-        )
+        self.log_message("Warning: get_tracked_orders() is deprecated, please use get_orders() instead.")
         return self.get_orders()
 
     def get_orders(self):
@@ -1304,21 +1287,27 @@ class Strategy(_Strategy):
         >>> self.submit_order(order)
 
         >>> # For buying FOREX
-        >>> asset = Asset(
-            symbol=symbol,
-            currency=currency,
+        >>> base_asset = Asset(
+            symbol="GBP,
             asset_type="forex",
         )
-        >>> order = self.create_order(asset, 10, "buy")
+        >>> quote_asset = Asset(
+            symbol="USD",
+            asset_type="forex",
+        )
+        >>> order = self.create_order(asset, 10, "buy", quote=quote_asset)
         >>> self.submit_order(order)
 
         >>> # For selling FOREX
-        >>> asset = Asset(
+        >>> base_asset = Asset(
             symbol="EUR",
-            currency="USD",
             asset_type="forex",
         )
-        >>> order = self.create_order(asset, 10, "sell")
+        >>> quote_asset = Asset(
+            symbol="USD",
+            asset_type="forex",
+        )
+        >>> order = self.create_order(asset, 10, "sell", quote=quote_asset)
         >>> self.submit_order(order)
 
         >>> # For buying an option with a limit price
@@ -1487,23 +1476,29 @@ class Strategy(_Strategy):
         >>> self.submit_orders([order1, order2])
 
         >>> # For 2 FOREX buy orders
-        >>> asset = Asset(
+        >>> base_asset = Asset(
             symbol="EUR",
-            currency="USD",
             asset_type="forex",
         )
-        >>> order1 = self.create_order(asset, 100, "buy")
-        >>> order2 = self.create_order(asset, 200, "buy")
+        >>> quote_asset = Asset(
+            symbol="USD",
+            asset_type="forex",
+        )
+        >>> order1 = self.create_order(base_asset, 100, "buy", quote=quote_asset)
+        >>> order2 = self.create_order(base_asset, 200, "buy", quote=quote_asset)
         >>> self.submit_orders([order1, order2])
 
         >>> # For 2 FOREX sell orders
-        >>> asset = Asset(
+        >>> base_asset = Asset(
             symbol="EUR",
-            currency="USD",
             asset_type="forex",
         )
-        >>> order1 = self.create_order(asset, 100, "sell")
-        >>> order2 = self.create_order(asset, 200, "sell")
+        >>> quote_asset = Asset(
+            symbol="USD",
+            asset_type="forex",
+        )
+        >>> order1 = self.create_order(base_asset, 100, "sell", quote=quote_asset)
+        >>> order2 = self.create_order(base_asset, 200, "sell", quote=quote_asset)
         >>> self.submit_orders([order1, order2])
 
         >>> # For 2 CRYPTO buy orders.
@@ -1720,13 +1715,9 @@ class Strategy(_Strategy):
         >>> # Will close all positions for the strategy
         >>> self.sell_all()
         """
-        self.broker.sell_all(
-            self.name, cancel_open_orders=cancel_open_orders, strategy=self
-        )
+        self.broker.sell_all(self.name, cancel_open_orders=cancel_open_orders, strategy=self)
 
-    def get_last_price(
-        self, asset, quote=None, exchange=None, should_use_last_close=True
-    ):
+    def get_last_price(self, asset, quote=None, exchange=None, should_use_last_close=True):
         """Takes an asset and returns the last known price
 
         Makes an active call to the market to retrieve the last price.
@@ -1850,9 +1841,7 @@ class Strategy(_Strategy):
         if symbol_asset:
             assets = [self._sanitize_user_asset(asset) for asset in assets]
 
-        asset_prices = self.broker.get_last_prices(
-            assets, quote=quote, exchange=exchange
-        )
+        asset_prices = self.broker.get_last_prices(assets, quote=quote, exchange=exchange)
 
         if symbol_asset:
             return {a.symbol: p for a, p in asset_prices.items()}
@@ -2088,8 +2077,11 @@ class Strategy(_Strategy):
         # Loop over this month and the next month
         for month_increment in [0, 1]:
             # Calculate the first day of the target month
-            first_day_of_month = pd.Timestamp(dt.year, dt.month + month_increment, 1) if dt.month + \
-                month_increment <= 12 else pd.Timestamp(dt.year + 1, (dt.month + month_increment) % 12, 1)
+            first_day_of_month = (
+                pd.Timestamp(dt.year, dt.month + month_increment, 1)
+                if dt.month + month_increment <= 12
+                else pd.Timestamp(dt.year + 1, (dt.month + month_increment) % 12, 1)
+            )
 
             # Localize the first day of the month to the timezone
             first_day_of_month = first_day_of_month.tz_localize(tz)
@@ -2373,9 +2365,7 @@ class Strategy(_Strategy):
         >>> datetimes = self.get_datetime_range(length=1, timestep="day")
         >>> self.log_message(f"Datetimes: {datetimes}")
         """
-        return self.broker.data_source.get_datetime_range(
-            length, timestep=timestep, timeshift=timeshift
-        )
+        return self.broker.data_source.get_datetime_range(length, timestep=timestep, timeshift=timeshift)
 
     def localize_datetime(self, dt: datetime.datetime):
         """Returns a datetime localized to the data source's timezone.
@@ -2431,7 +2421,6 @@ class Strategy(_Strategy):
         strike: float = None,
         right: str = None,
         multiplier: int = 1,
-        currency: str = "USD",
     ):
         """Creates an asset object. This is used to create an asset object.
 
@@ -2455,9 +2444,6 @@ class Strategy(_Strategy):
         multiplier : int
             The multiplier of the asset (optional, only required for options and futures).
 
-        currency : str
-            The currency of the asset.
-
         Returns
         -------
         Asset
@@ -2474,17 +2460,8 @@ class Strategy(_Strategy):
         >>> # Will create a future object
         >>> asset = self.create_asset("AAPL", asset_type="future", multiplier=100)
 
-        >>> # Will create a stock object with a different currency
-        >>> asset = self.create_asset("AAPL", asset_type="stock", currency="EUR")
-
-        >>> # Will create an option object with a different currency
-        >>> asset = self.create_asset("AAPL", asset_type="option", expiration=datetime.datetime(2020, 1, 1), strike=100, right="CALL", currency="EUR")
-
-        >>> # Will create a future object with a different currency
-        >>> asset = self.create_asset("AAPL", asset_type="future", multiplier=100, currency="EUR")
-
         >>> # Will create a FOREX asset
-        >>> asset = self.create_asset(currency="USD", symbol="EUR", asset_type="forex")
+        >>> asset = self.create_asset(symbol="EUR", asset_type="forex")
 
         >>> # Will create a CRYPTO asset
         >>> asset = self.create(symbol="BTC", asset_type="crypto"),
@@ -2505,28 +2482,12 @@ class Strategy(_Strategy):
                     is_strike = asset.strike == strike
                 is_right = asset.right == right
                 is_multiplier = asset.multiplier == multiplier
-                is_currency = asset.currency == currency
-
-                if asset_type == "stock" and (
-                    is_symbol and is_asset_type and is_currency and is_multiplier
-                ):
+                if asset_type == "stock" and (is_symbol and is_asset_type and is_multiplier):
                     return asset
-                elif asset_type == "future" and (
-                    is_symbol
-                    and is_asset_type
-                    and is_expiration
-                    and is_currency
-                    and is_multiplier
-                ):
+                elif asset_type == "future" and (is_symbol and is_asset_type and is_expiration and is_multiplier):
                     return asset
                 elif asset_type == "option" and (
-                    is_symbol
-                    and is_asset_type
-                    and is_expiration
-                    and is_right
-                    and is_strike
-                    and is_currency
-                    and is_multiplier
+                    is_symbol and is_asset_type and is_expiration and is_right and is_strike and is_multiplier
                 ):
                     return asset
                 else:
@@ -2539,10 +2500,9 @@ class Strategy(_Strategy):
             strike=strike,
             right=right,
             multiplier=multiplier,
-            currency=currency,
         )
 
-    def add_marker(self, name, symbol="circle", value=None, color=None, size=None, detail_text=None, dt=None):
+    def add_marker(self, name, value=None, color=None, symbol="circle", size=None, detail_text=None, dt=None):
         """Adds a marker to the indicators plot that loads after a backtest. This can be used to mark important events on the graph, such as price crossing a certain value, marking a support level, marking a resistance level, etc.
 
         Parameters
@@ -2572,37 +2532,44 @@ class Strategy(_Strategy):
         if not isinstance(name, str):
             raise ValueError(
                 f"Invalid name parameter in add_marker() method. Name must be a string but instead got {name}, "
-                f"which is a type {type(name)}.")
+                f"which is a type {type(name)}."
+            )
 
         if not isinstance(symbol, str):
             raise ValueError(
                 f"Invalid symbol parameter in add_marker() method. Symbol must be a string but instead got {symbol}, "
-                f"which is a type {type(symbol)}.")
+                f"which is a type {type(symbol)}."
+            )
 
         if value is not None and not isinstance(value, (float, int, np.float64)):
             raise ValueError(
                 f"Invalid value parameter in add_marker() method. Value must be a float or int but instead "
-                f"got {value}, which is a type {type(value)}.")
+                f"got {value}, which is a type {type(value)}."
+            )
 
         if color is not None and not isinstance(color, str):
             raise ValueError(
                 f"Invalid color parameter in add_marker() method. Color must be a string but instead got {color}, "
-                f"which is a type {type(color)}.")
+                f"which is a type {type(color)}."
+            )
 
         if size is not None and not isinstance(size, int):
             raise ValueError(
                 f"Invalid size parameter in add_marker() method. Size must be an int but instead got {size}, "
-                f"which is a type {type(size)}.")
+                f"which is a type {type(size)}."
+            )
 
         if detail_text is not None and not isinstance(detail_text, str):
             raise ValueError(
                 f"Invalid detail_text parameter in add_marker() method. Detail_text must be a string but instead "
-                f"got {detail_text}, which is a type {type(detail_text)}.")
+                f"got {detail_text}, which is a type {type(detail_text)}."
+            )
 
         if dt is not None and not isinstance(dt, (datetime.datetime, pd.Timestamp)):
             raise ValueError(
                 f"Invalid dt parameter in add_marker() method. Dt must be a datetime.datetime but instead got {dt}, "
-                f"which is a type {type(dt)}.")
+                f"which is a type {type(dt)}."
+            )
 
         # If no datetime is specified, use the current datetime
         if dt is None:
@@ -2677,37 +2644,44 @@ class Strategy(_Strategy):
         if not isinstance(name, str):
             raise ValueError(
                 f"Invalid name parameter in add_line() method. Name must be a string but instead got {name}, "
-                f"which is a type {type(name)}.")
+                f"which is a type {type(name)}."
+            )
 
         if not isinstance(value, (float, int, np.float64)):
             raise ValueError(
                 f"Invalid value parameter in add_line() method. Value must be a float or int but instead got {value}, "
-                f"which is a type {type(value)}.")
+                f"which is a type {type(value)}."
+            )
 
         if color is not None and not isinstance(color, str):
             raise ValueError(
                 f"Invalid color parameter in add_line() method. Color must be a string but instead got {color}, "
-                f"which is a type {type(color)}.")
+                f"which is a type {type(color)}."
+            )
 
         if not isinstance(style, str):
             raise ValueError(
                 f"Invalid style parameter in add_line() method. Style must be a string but instead got {style}, "
-                f"which is a type {type(style)}.")
+                f"which is a type {type(style)}."
+            )
 
         if width is not None and not isinstance(width, int):
             raise ValueError(
                 f"Invalid width parameter in add_line() method. Width must be an int but instead got {width}, "
-                f"which is a type {type(width)}.")
+                f"which is a type {type(width)}."
+            )
 
         if detail_text is not None and not isinstance(detail_text, str):
             raise ValueError(
                 f"Invalid detail_text parameter in add_line() method. Detail_text must be a string but instead got "
-                f"{detail_text}, which is a type {type(detail_text)}.")
+                f"{detail_text}, which is a type {type(detail_text)}."
+            )
 
         if dt is not None and not isinstance(dt, (datetime.datetime, pd.Timestamp)):
             raise ValueError(
                 f"Invalid dt parameter in add_line() method. Dt must be a datetime.datetime but instead got {dt}, "
-                f"which is a type {type(dt)}.")
+                f"which is a type {type(dt)}."
+            )
 
         # If no datetime is specified, use the current datetime
         if dt is None:
@@ -2741,7 +2715,7 @@ class Strategy(_Strategy):
 
     def write_backtest_settings(self, settings_file):
         datasource = self.broker.data_source
-        auto_adjust = datasource.auto_adjust if hasattr(datasource, 'auto_adjust') else False
+        auto_adjust = datasource.auto_adjust if hasattr(datasource, "auto_adjust") else False
         settings = {
             "name": self.name,
             "backtesting_start": self.backtesting_start,
@@ -2858,9 +2832,7 @@ class Strategy(_Strategy):
         if quote is None:
             quote = self.quote_asset
 
-        logging.info(
-            f"Getting historical prices for {asset}, {length} bars, {timestep}"
-        )
+        logging.info(f"Getting historical prices for {asset}, {length} bars, {timestep}")
 
         asset = self._sanitize_user_asset(asset)
 
@@ -2973,9 +2945,7 @@ class Strategy(_Strategy):
         >>> df = bars.df
         """
 
-        logging.info(
-            f"Getting historical prices for {assets}, {length} bars, {timestep}"
-        )
+        logging.info(f"Getting historical prices for {assets}, {length} bars, {timestep}")
 
         assets = [self._sanitize_user_asset(asset) for asset in assets]
         return self.broker.data_source.get_bars(

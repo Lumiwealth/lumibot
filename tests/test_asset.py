@@ -2,13 +2,13 @@ import datetime
 from collections.abc import Hashable
 
 import pytest
-
 from lumibot.entities.asset import Asset
 
 
 def test_check_default_asset_name():
     asset = Asset(symbol="ABC")
     assert asset.symbol == "ABC"
+
 
 def test_check_default_asset_type():
     asset = Asset(symbol="ABC")
@@ -22,16 +22,18 @@ def test_check_defaults_with_stock():
     assert asset.expiration is None
     assert asset.right is None
     assert asset.multiplier == 1
-    assert asset.currency == "USD"
+
 
 def test_is_hashable():
     asset = Asset(symbol="ABC")
     assert isinstance(asset, Hashable)
 
+
 def test_extra_attributes_at_initialization():
     # Ignore extra attributes during model initialization.
     with pytest.raises(Exception):
         Asset(symbol="ABC", extra_attribute=1)
+
 
 def test_instances_equal():
     a = Asset(
@@ -53,10 +55,12 @@ def test_instances_equal():
 
     assert a == b
 
+
 @pytest.mark.parametrize("param", ["not_call_or_CALL", "not_put_or_PUT", "CALLS", "PUTS"])
 def test_right_validator(param):
     with pytest.raises(Exception):
         Asset(symbol="ABC", right=param)
+
 
 @pytest.mark.parametrize("param", ["bonds", "cash", "swaptions"])
 def test_asset_types_validator(param):

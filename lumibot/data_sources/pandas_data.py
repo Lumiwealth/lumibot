@@ -1,11 +1,8 @@
 import logging
 
 import pandas as pd
-
-from lumibot.entities import Asset, AssetsMapping, Bars
-
 from lumibot.data_sources import DataSourceBacktesting
-from lumibot.entities import Asset, Bars
+from lumibot.entities import Asset, AssetsMapping, Bars
 
 
 class PandasData(DataSourceBacktesting):
@@ -13,6 +10,7 @@ class PandasData(DataSourceBacktesting):
     PandasData is a Backtesting-only DataSource that uses a Pandas DataFrame (read from CSV) as the source of
     data for a backtest run. It is not possible to use this class to run a live trading strategy.
     """
+
     SOURCE = "PANDAS"
     TIMESTEP_MAPPING = [
         {"timestep": "day", "representations": ["1D", "day"]},
@@ -42,9 +40,7 @@ class PandasData(DataSourceBacktesting):
                 # If quote is not specified, use USD as the quote
                 if data.quote is None:
                     # Warn that USD is being used as the quote
-                    logging.warning(
-                        f"No quote specified for {data.asset}. Using USD as the quote."
-                    )
+                    logging.warning(f"No quote specified for {data.asset}. Using USD as the quote.")
                     return data.asset, Asset(symbol="USD", asset_type="forex")
                 return data.asset, data.quote
             else:
@@ -67,14 +63,7 @@ class PandasData(DataSourceBacktesting):
     def load_data(self):
         self._data_store = self.pandas_data
         self._expiries_exist = (
-            len(
-                [
-                    v.asset.expiration
-                    for v in self._data_store.values()
-                    if v.asset.expiration is not None
-                ]
-            )
-            > 0
+            len([v.asset.expiration for v in self._data_store.values() if v.asset.expiration is not None]) > 0
         )
         self._date_index = self.update_date_index()
 
@@ -92,14 +81,10 @@ class PandasData(DataSourceBacktesting):
         df = pd.DataFrame(range(len(dt_index)), index=dt_index)
         df = df.sort_index()
         df["dates"] = df.index.date
-        df = df.merge(
-            pcal[["market_open", "market_close"]], left_on="dates", right_index=True
-        )
+        df = df.merge(pcal[["market_open", "market_close"]], left_on="dates", right_index=True)
         if self._timestep == "minute":
             df = df.asfreq("1T", method="pad")
-            result_index = df.loc[
-                (df.index >= df["market_open"]) & (df.index <= df["market_close"]), :
-            ].index
+            result_index = df.loc[(df.index >= df["market_open"]) & (df.index <= df["market_close"]), :].index
         else:
             result_index = df.index
         return result_index
@@ -111,9 +96,7 @@ class PandasData(DataSourceBacktesting):
             # Create a dummy dataframe that spans the entire date range with market_open and market_close
             # set to 00:00:00 and 23:59:59 respectively.
             result = pd.DataFrame(
-                index=pd.date_range(
-                    start=self.datetime_start, end=self.datetime_end, freq="D"
-                ),
+                index=pd.date_range(start=self.datetime_start, end=self.datetime_end, freq="D"),
                 columns=["market_open", "market_close"],
             )
             result["market_open"] = result.index.floor("D")
@@ -164,11 +147,7 @@ class PandasData(DataSourceBacktesting):
         if type is None:
             return [asset for asset in store_assets if asset.symbol == symbol]
         else:
-            return [
-                asset
-                for asset in store_assets
-                if (asset.symbol == symbol and asset.asset_type == asset_type)
-            ]
+            return [asset for asset in store_assets if (asset.symbol == symbol and asset.asset_type == asset_type)]
 
     def update_date_index(self):
         dt_index = None
@@ -182,9 +161,7 @@ class PandasData(DataSourceBacktesting):
         if dt_index is None:
             # Build a dummy index
             freq = "1T" if self._timestep == "minute" else "1D"
-            dt_index = pd.date_range(
-                start=self.datetime_start, end=self.datetime_end, freq=freq
-            )
+            dt_index = pd.date_range(start=self.datetime_start, end=self.datetime_end, freq=freq)
 
         else:
             if self.datetime_end < dt_index[0]:
@@ -217,9 +194,7 @@ class PandasData(DataSourceBacktesting):
         else:
             return None
 
-    def get_last_prices(
-        self, assets, quote=None, exchange=None, **kwargs
-    ):
+    def get_last_prices(self, assets, quote=None, exchange=None, **kwargs):
         result = {}
         for asset in assets:
             result[asset] = self.get_last_price(asset, quote=quote, exchange=exchange)
@@ -262,15 +237,12 @@ class PandasData(DataSourceBacktesting):
         if asset_to_find in self._data_store:
             data = self._data_store[asset_to_find]
         else:
-            raise ValueError(
-                f"The asset: `{asset}` does not exist or does not have data."
-            )
+            logging.warning(f"The asset: `{asset}` does not exist or does not have data.")
+            return
 
         now = self.get_datetime()
         try:
-            res = data.get_bars(
-                now, length=length, timestep=timestep, timeshift=timeshift
-            )
+            res = data.get_bars(now, length=length, timestep=timestep, timeshift=timeshift)
         # Return None if data.get_bars returns a ValueError
         except ValueError as e:
             logging.info(f"Error getting bars for {asset}: {e}")
@@ -295,14 +267,11 @@ class PandasData(DataSourceBacktesting):
         if asset_to_find in self._data_store:
             data = self._data_store[asset_to_find]
         else:
-            raise ValueError(
-                f"The asset: `{asset}` does not exist or does not have data."
-            )
+            logging.warning(f"The asset: `{asset}` does not exist or does not have data.")
+            return
 
         try:
-            res = data.get_bars_between_dates(
-                start_date=start_date, end_date=end_date, timestep=timestep
-            )
+            res = data.get_bars_between_dates(start_date=start_date, end_date=end_date, timestep=timestep)
         # Return None if data.get_bars returns a ValueError
         except ValueError as e:
             logging.info(f"Error getting bars for {asset}: {e}")

@@ -26,8 +26,6 @@ class Asset:
     multiplier : int
         Price multiplier.
         default : 1
-    currency : str
-        Base currency, (default=None)
 
     Attributes
     ----------
@@ -49,7 +47,6 @@ class Asset:
         Option call or put.
     multiplier : int  (required if asset_type is 'forex')
         Contract leverage over the underlying.
-    currency : string (required if asset_type is 'forex')
     precision : str (required if asset_type is 'crypto')
         Conversion currency.
     _asset_types : list of str
@@ -82,13 +79,13 @@ class Asset:
     >>>     expiration=datetime.date(2021, 11, 26),
     >>>     strike=155,
     >>>     right= 'CALL',
-    >>>     currency="USD"
     >>> )
 
     >>> # Create an Asset object for a FOREX contract.
     >>> from lumibot.entities import Asset
-    >>> asset = Asset(symbol="USD", asset_type='forex', currency="EUR")
-    >>> order = self.create_order(asset, 100, 'BUY')
+    >>> base_asset = Asset(symbol="USD", asset_type='forex')
+    >>> quote_asset = Asset(symbol="EUR", asset_type='forex')
+    >>> order = self.create_order(asset, 100, 'BUY', quote=quote_asset)
     >>> self.submit_order(order)
 
     >>> # Create an Asset object for crypto.
@@ -105,26 +102,33 @@ class Asset:
     strike: float = 0.0
     right: str = None
     multiplier: int = 1
-    currency: str = "USD"
     precision: str = None
-    
+
     _asset_types: list = ["stock", "option", "future", "forex", "crypto", "index"]
     _right: list = ["CALL", "PUT"]
 
-    def __init__(self, symbol: str, asset_type: str = "stock", expiration: date = None, strike: float = 0.0, right: str = None, multiplier: int = 1, currency: str = "USD", precision: str = None):
+    def __init__(
+        self,
+        symbol: str,
+        asset_type: str = "stock",
+        expiration: date = None,
+        strike: float = 0.0,
+        right: str = None,
+        multiplier: int = 1,
+        precision: str = None,
+    ):
         self.symbol = symbol
         self.asset_type = asset_type
         self.strike = strike
         self.multiplier = multiplier
-        self.currency = currency
         self.precision = precision
-        
+
         # If the expiration is a datetime object, convert it to date
         if isinstance(expiration, datetime):
             self.expiration = expiration.date()
         else:
             self.expiration = expiration
-        
+
         # Multiplier for options must always be 100
         if asset_type == "option":
             self.multiplier = 100
@@ -132,13 +136,13 @@ class Asset:
         # Make sure right is upper case
         if right is not None:
             self.right = right.upper()
-            
+
         self.asset_type_must_be_one_of(self.asset_type)
         self.right_must_be_one_of(self.right)
 
     def __hash__(self):
         return hash((self.symbol, self.asset_type, self.expiration, self.strike, self.right))
-    
+
     def __repr__(self):
         if self.asset_type == "future":
             return f"{self.symbol} {self.expiration}"
@@ -172,9 +176,7 @@ class Asset:
         if v == "us_equity":
             v = "stock"
         elif v not in self._asset_types:
-            raise ValueError(
-                f"`asset_type` must be one of {', '.join(self._asset_types)}"
-            )
+            raise ValueError(f"`asset_type` must be one of {', '.join(self._asset_types)}")
         return v
 
     def right_must_be_one_of(self, v):
@@ -183,20 +185,18 @@ class Asset:
 
         v = v.upper()
         if v not in self._right:
-            raise ValueError(
-                f"`right` is {v} must be one of {', '.join(self._right)}, upper case."
-            )
+            raise ValueError(f"`right` is {v} must be one of {', '.join(self._right)}, upper case.")
         return v
-    
+
     def is_valid(self):
         # All assets should have a symbol
         if self.symbol is None:
             return False
-        
+
         # All assets should have an asset type
         if self.asset_type is None:
             return False
-        
+
         # If it's an option it should have an expiration date, strike and right
         if self.asset_type == "option":
             if self.expiration is None:
@@ -205,12 +205,12 @@ class Asset:
                 return False
             if self.right is None:
                 return False
-            
+
         # If it's a future it should have an expiration date
         if self.asset_type == "future":
             if self.expiration is None:
                 return False
-            
+
         return True
 
 

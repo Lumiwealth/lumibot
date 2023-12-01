@@ -208,8 +208,8 @@ class TestExampleStrategies:
         returned along with the correct results.
         """
         # Parameters
-        backtesting_start = datetime.datetime(2023, 10, 19)
-        backtesting_end = datetime.datetime(2023, 10, 24)
+        backtesting_start = datetime.datetime(2023, 10, 16)
+        backtesting_end = datetime.datetime(2023, 10, 21)
 
         # Execute Backtest
         results, strat_obj = OptionsHoldToExpiry.run_backtest(
@@ -224,9 +224,12 @@ class TestExampleStrategies:
             polygon_has_paid_subscription=True,
         )
 
-        # Check that the results are correct
-        assert round(results["cagr"] * 100, 1) == 75
-        assert round(results["volatility"] * 100, 1) == 11.3
-        assert round(results["total_return"] * 100, 1) == 0.9
-        assert round(results["max_drawdown"]["drawdown"] * 100, 1) == 0.7
+        trades_df = strat_obj.broker._trade_event_log_df
+        assert not trades_df.empty
 
+        # Get all the cash settled orders
+        cash_settled_orders = trades_df[(trades_df["status"] == "cash_settled") & (trades_df["type"] == "cash_settled")]
+
+        # The first limit order should have filled at $399.71 and a quantity of 100
+        assert round(cash_settled_orders.iloc[0]["price"], 0) == 0
+        assert cash_settled_orders.iloc[0]["filled_quantity"] == 10

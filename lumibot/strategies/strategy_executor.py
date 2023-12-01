@@ -354,6 +354,11 @@ class StrategyExecutor(Thread):
             else:
                 # If the cron count is not equal to the cron count target, return and do not execute the
                 # on_trading_iteration method.
+                self.strategy.log_message(
+                    f"The cron count is only {self.cron_count} but the target is {self.cron_count_target}"
+                    f", skipping this trading iteration because it's not time yet.",
+                    color="blue",
+                )
                 return
 
         now = datetime.now()
@@ -384,7 +389,7 @@ class StrategyExecutor(Thread):
             # Format the date to be used in the log message.
             dt_str = next_run_time.strftime("%Y-%m-%d %H:%M:%S")
             self.strategy.log_message(
-                f"Trading iteration ended at {end_time}, next run time scheduled at {dt_str}", color="blue"
+                f"Trading iteration ended at {end_time}, next check in time is {dt_str}", color="blue"
             )
 
         else:
@@ -703,6 +708,10 @@ class StrategyExecutor(Thread):
                     jobstore="On_Trading_Iteration",
                 )
 
+                # Set the cron count to the cron count target so that the on_trading_iteration method will be executed
+                # the first time the scheduler runs.
+                self.cron_count = self.cron_count_target
+
             # Get the time to close.
             time_to_close = self.broker.get_time_to_close()
 
@@ -722,7 +731,7 @@ class StrategyExecutor(Thread):
             if next_run_time is not None:
                 # Format the date to be used in the log message.
                 dt_str = next_run_time.strftime("%Y-%m-%d %H:%M:%S")
-                self.strategy.log_message(f"Strategy will start running at: {dt_str}", color="blue")
+                self.strategy.log_message(f"Strategy will check in again at: {dt_str}", color="blue")
 
             # Loop until the strategy should stop.
             while True:

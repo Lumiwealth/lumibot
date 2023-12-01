@@ -1,11 +1,8 @@
 import datetime
 import logging
 import time
-from decimal import Decimal
 
 import ccxt
-
-# from credentials import CcxtConfig
 import pandas as pd
 
 from lumibot.entities import Bars
@@ -28,7 +25,8 @@ class CcxtData(DataSource):
     def _format_datetime(dt):
         return pd.Timestamp(dt).isoformat()
 
-    def __init__(self, api_keys, max_workers=20, chunk_size=100, **kwargs):
+    def __init__(self, config, max_workers=20, chunk_size=100, **kwargs):
+        super().__init__(**kwargs)
         self.name = "ccxt"
         self.max_workers = min(max_workers, 200)
 
@@ -38,17 +36,17 @@ class CcxtData(DataSource):
         self.chunk_size = min(chunk_size, 100)
 
         try:
-            exchange_class = getattr(ccxt, api_keys["exchange_id"])
+            exchange_class = getattr(ccxt, config["exchange_id"])
         except:
             raise Exception(
                 "Could not find exchange named '{}'. Are you sure you are spelling the exchange_id correctly?".format(
-                    api_keys["exchange_id"]
+                    config["exchange_id"]
                 )
             )
 
-        self.api_keys = api_keys
-        self.api = exchange_class(api_keys)
-        is_sandbox = True if "sandbox" not in api_keys else api_keys["sandbox"]
+        self.config = config
+        self.api = exchange_class(config)
+        is_sandbox = True if "sandbox" not in config else config["sandbox"]
         self.api.set_sandbox_mode(is_sandbox)
         self.api.load_markets()
         # Recommended two or less api calls per second.

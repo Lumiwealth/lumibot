@@ -1,25 +1,11 @@
-import json
-
-import requests
 import setuptools
-
-
-def increment_version():
-    resp = requests.get("https://pypi.python.org/pypi/lumibot/json")
-    j = json.loads(resp.content)
-    last_version = j["info"]["version"]
-    version_numbers = last_version.split(".")
-    version_numbers[-1] = str(int(version_numbers[-1]) + 1)
-    new_version = ".".join(version_numbers)
-    return new_version
-
 
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setuptools.setup(
     name="lumibot",
-    version="2.7.11",
+    version="2.9.4",
     author="Robert Grzesik",
     author_email="rob@lumiwealth.com",
     description="Backtesting and Trading Library, Made by Lumiwealth",
@@ -28,16 +14,16 @@ setuptools.setup(
     url="https://github.com/Lumiwealth/lumibot",
     packages=setuptools.find_packages(),
     install_requires=[
-        "polygon==1.1.0",
-        "alpaca_trade_api==2.3.0",
+        "polygon-api-client",
+        "alpaca-py>=0.13.1",
         "alpha_vantage",
         "ibapi==9.81.1.post1",
-        "yfinance>=0.2.18",
+        "yfinance",
         "matplotlib>=3.3.3",
         "quandl",
-        "pandas>=1.4.0,<2.0.0",  # pandas v2 currently causing issues with quant stats (v0.0.59)
+        "pandas>=2.0.0,<=2.0.3",
         "pandas_datareader",
-        "pandas_market_calendars>=4.1.2",
+        "pandas_market_calendars>=4.3.1",
         "plotly",
         "flask>=2.2.2",
         "flask-socketio",
@@ -48,12 +34,15 @@ setuptools.setup(
         "email_validator",
         "bcrypt",
         "pytest",
-        "scipy",
-        "quantstats==0.0.59",
+        "scipy==1.10.1",  # Newer versions of scipy are currently causing issues
+        "ipython",  # required for quantstats, but not in their dependency list for some reason
+        "quantstats==0.0.62",
+        "python-dotenv",  # Secret Storage
         "ccxt==3.0.61",
         "termcolor",
         "jsonpickle",
-        'apscheduler==3.10.1',
+        "apscheduler==3.10.4",
+        "appdirs",
     ],
     classifiers=[
         "Programming Language :: Python :: 3",

@@ -1,0 +1,21 @@
+# pyproject.toml seems to be more popular than setup.cfg these days.  Adding
+# configs for tools that use it and will port as much here as possible.
+
+# Ruff is a tool that combines several linters into one including Flake8 and isort.
+# Runs much faster than running them individually.
+[tool.ruff]
+line-length = 120
+
+# Assume Python 3.8+ for type annotations
+target-version = "py38"
+
+select = [
+  "A",  # prevent using keywords that clobber python builtins
+  "B",  # bugbear: security warnings
+  "E",   # pycodestyle
+  "F", # pyflakes
+  "W", # pycodestyle
+  "UP", # pyupgrade
+  "I",  # isort
+  #  "D",   # pydocstyle
+]

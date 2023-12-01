@@ -48,3 +48,35 @@ class TestOrderBasics:
         ]
         sell_order.position_filled = True
         assert sell_order.get_fill_price() == 32.0
+
+    def test_filled(self):
+        asset = Asset("SPY")
+        order = Order(strategy='abc', asset=asset, side="buy", quantity=100)
+        assert not order.is_filled()
+        order.position_filled = True
+        assert order.is_filled()
+        order.position_filled = False
+        order.status = 'filled'
+        assert order.is_filled()
+
+    def test_cancelled(self):
+        asset = Asset("SPY")
+        order = Order(strategy='abc', asset=asset, side="buy", quantity=100)
+        assert not order.is_canceled()
+        order.status = 'cancelled'
+        assert order.is_canceled()
+        order.status = 'canceled'
+        assert order.is_canceled()
+        order.status = 'cancel'
+        assert order.is_canceled()
+
+    def test_active(self):
+        asset = Asset("SPY")
+        order = Order(strategy='abc', asset=asset, side="buy", quantity=100)
+        assert order.is_active()
+        order.status = 'filled'
+        assert not order.is_active()
+        order.status = 'cancelled'
+        assert not order.is_active()
+        order.status = 'submitted'
+        assert order.is_active()

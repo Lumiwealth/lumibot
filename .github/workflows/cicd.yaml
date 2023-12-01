@@ -1,0 +1,34 @@
+name: LumiBot CI/CD
+on: [pull_request]
+jobs:
+  LintAndTest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: unit-tests
+    env: 
+      AIOHTTP_NO_EXTENSIONS: 1
+      POLYGON_API_KEY: ${{secrets.POLYGON_API_KEY}}  # Required for Polygon API BackTests
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.11
+          cache: pip
+      - name: Install dependencies
+        run: |
+          echo "Set AIOHTTP_NO_EXTENSIONS=$AIOHTTP_NO_EXTENSIONS so that aiohttp doesn't try to install C extensions"
+          python -m pip install --upgrade pip
+          pip install requests
+          pip install -r requirements_dev.txt
+          # Setup.py was not working for some reason, reverted to using requirements.txt again
+          # python setup.py install
+      - name: Run Linter
+        run: |
+          # Remove -e flag to fail the run if issues are found
+          ruff check . -e
+      - name: Run Unit Tests
+        run: |
+          coverage run
+          coverage report
+          coverage html

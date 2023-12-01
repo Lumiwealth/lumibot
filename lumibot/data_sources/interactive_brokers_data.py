@@ -79,6 +79,13 @@ class InteractiveBrokersData(DataSource):
         },
     ]
 
+    def __init__(self, config, max_workers=20, chunk_size=100, **kwargs):
+        super().__init__(**kwargs)
+        self.name = "interactivebrokers"
+        self.max_workers = min(max_workers, 200)
+        self.chunk_size = min(chunk_size, 100)
+        self.ib = None
+
     @staticmethod
     def _format_datetime(dt):
         return pd.Timestamp(dt).isoformat()
@@ -86,11 +93,6 @@ class InteractiveBrokersData(DataSource):
     @staticmethod
     def _format_ib_datetime(dt):
         return pd.Timestamp(dt).strftime("%Y%m%d %H:%M:%S")
-
-    def __init__(self, config, max_workers=20, chunk_size=100, **kwargs):
-        self.name = "interactivebrokers"
-        self.max_workers = min(max_workers, 200)
-        self.chunk_size = min(chunk_size, 100)
 
     def _parse_duration(self, length, timestep):
         # If the timestemp includes a number, then separate it from the unit.
@@ -230,7 +232,7 @@ class InteractiveBrokersData(DataSource):
 
                 if "min" in parsed_timestep or "hour" in parsed_timestep:
                     df["date"] = (
-                        pd.to_datetime(df["date"], unit="s", origin="unix")
+                        pd.to_datetime(df["date"].astype(int), unit="s", origin="unix")
                         .dt.tz_localize("UTC")
                         .dt.tz_convert(self.DEFAULT_TIMEZONE)
                     )
@@ -251,7 +253,8 @@ class InteractiveBrokersData(DataSource):
             return bars
         df = response.copy()
         # df["date"] = pd.to_datetime(df["date"], unit='s')
-        df = df.set_index("date")
+        df = df.rename(columns={"date": "datetime"})  # Renaming to match other data sources like BackTest and Alpaca.
+        df = df.set_index("datetime")
         df["price_change"] = df["close"].pct_change()
         df["dividend"] = 0
         df["stock_splits"] = 0

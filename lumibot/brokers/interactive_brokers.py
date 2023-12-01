@@ -12,6 +12,7 @@ from ibapi.contract import *
 from ibapi.order import *
 from ibapi.wrapper import *
 from lumibot.data_sources import InteractiveBrokersData
+
 # Naming conflict on Order between IB and Lumibot.
 from lumibot.entities import Asset
 from lumibot.entities import Order as OrderLum
@@ -20,22 +21,21 @@ from lumibot.entities import Position
 from .broker import Broker
 
 
-class InteractiveBrokers(InteractiveBrokersData, Broker):
+class InteractiveBrokers(Broker):
     """Inherit InteractiveBrokerData first and all the price market
     methods than inherits broker"""
 
-    def __init__(self, config, max_workers=20, chunk_size=100, connect_stream=True):
-        # Calling init methods
-        InteractiveBrokersData.__init__(
-            self,
-            config,
-            max_workers=max_workers,
-            chunk_size=chunk_size,
-        )
-        Broker.__init__(self, name="interactive_brokers", connect_stream=False)
+    def __init__(self, config, max_workers=20, chunk_size=100, data_source=None, **kwargs):
+        if data_source is None:
+            data_source = InteractiveBrokersData(config, max_workers=max_workers, chunk_size=chunk_size)
+
+        super().__init__(self, config=config, data_source=data_source, max_workers=max_workers, **kwargs)
+        if not self.name:
+            self.name = "interactive_brokers"
 
         # For checking duplicate order status events from IB.
         self.order_status_duplicates = []
+        self.market = "NYSE"  # The default market is NYSE.
 
         # Connection to interactive brokers
         self.ib = None
@@ -52,12 +52,14 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
 
         self.start_ib(ip, socket_port, client_id)
 
-        self.market = "NYSE" # The default market is NYSE.
-
     def start_ib(self, ip, socket_port, client_id):
         # Connect to interactive brokers.
         if not self.ib:
             self.ib = IBApp(ip, socket_port, client_id, ib_broker=self)
+
+        if isinstance(self.data_source, InteractiveBrokersData):
+            if not self.data_source.ib:
+                self.data_source.ib = self.ib
 
     # =========Clock functions=====================
 
@@ -74,7 +76,6 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         if broker_position["asset_type"] == "stock":
             asset = Asset(
                 symbol=broker_position["symbol"],
-                currency=broker_position["currency"],
             )
         elif broker_position["asset_type"] == "future":
             asset = Asset(
@@ -82,7 +83,6 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
                 asset_type="future",
                 expiration=broker_position["expiration"],
                 multiplier=broker_position["multiplier"],
-                currency=broker_position["currency"],
             )
         elif broker_position["asset_type"] == "option":
             asset = Asset(
@@ -92,13 +92,11 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
                 strike=broker_position["strike"],
                 right=broker_position["right"],
                 multiplier=broker_position["multiplier"],
-                currency=broker_position["currency"],
             )
         elif broker_position["asset_type"] == "forex":
             asset = Asset(
                 symbol=broker_position["symbol"],
                 asset_type="forex",
-                currency=broker_position["currency"],
             )
         else:  # Unreachable code.
             raise ValueError(
@@ -111,17 +109,8 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         position = Position(strategy, asset, quantity, orders=orders)
         return position
 
-    # def _parse_broker_positions(self, broker_positions, strategy):
-    #     """Parse a list of broker positions into a
-    #     list of position objects"""
-    #     result = []
-    #     for broker_position in broker_positions:
-    #         result.append(self._parse_broker_position(broker_position, strategy))
-    #
-    #     return result
-
     def _pull_broker_position(self, asset):
-        """Given a asset, get the broker representation
+        """Given an asset, get the broker representation
         of the corresponding asset"""
         result = self._pull_broker_positions()
         result = result[result["Symbol"] == asset].squeeze()
@@ -136,7 +125,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
                 if position["position"] != 0:
                     positions.append(position)
         else:
-            logging.info("No positions found at interactive brokers.")
+            logging.debug("No positions found at interactive brokers.")
 
         return positions
 
@@ -151,11 +140,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         if response.contract.secType in ["OPT", "FUT"]:
             expiration = datetime.datetime.strptime(
                 response.contract.lastTradeDateOrContractMonth,
-                DATE_MAP[
-                    [d for d, v in TYPE_MAP.items() if v == response.contract.secType][
-                        0
-                    ]
-                ],
+                DATE_MAP[[d for d, v in TYPE_MAP.items() if v == response.contract.secType][0]],
             )
             multiplier = response.contract.multiplier
 
@@ -169,14 +154,11 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
             strategy_name,
             Asset(
                 symbol=response.contract.localSymbol,
-                asset_type=[
-                    k for k, v in TYPE_MAP.items() if v == response.contract.secType
-                ][0],
+                asset_type=[k for k, v in TYPE_MAP.items() if v == response.contract.secType][0],
                 expiration=expiration,
                 strike=strike,
                 right=right,
                 multiplier=multiplier,
-                currency=response.contract.currency,
             ),
             Decimal(response.totalQuantity),
             response.action.lower(),
@@ -184,19 +166,17 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
             stop_price=response.auxPrice if response.auxPrice != 0 else None,
             time_in_force=response.tif,
             good_till_date=response.goodTillDate,
-            quote=strategy_object.quote_asset,
+            quote=Asset(symbol=response.contract.currency, asset_type="forex"),
         )
         order._transmitted = True
         order.set_identifier(response.orderId)
-        order.update_status(response.orderState.status)
+        order.status = response.orderState.status
         order.update_raw(response)
         return order
 
     def _pull_broker_order(self, order_id):
         """Get a broker order representation by its id"""
-        pull_order = [
-            order for order in self.ib.get_open_orders() if order.orderId == order_id
-        ]
+        pull_order = [order for order in self.ib.get_open_orders() if order.orderId == order_id]
         response = pull_order[0] if len(pull_order) > 0 else None
         return response
 
@@ -206,7 +186,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         return orders
 
     def _flatten_order(self, orders):  # implement for stop loss.
-        """Used for alpaca, just return orders."""
+        """Not used for Interactive Brokers. Just returns the orders."""
         return orders
 
     def _submit_order(self, order):
@@ -236,7 +216,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
 
         self._unprocessed_orders.append(order)
         self.ib.execute_order(order)
-        order.update_status("submitted")
+        order.status = "submitted"
         return order
 
     def cancel_order(self, order):
@@ -244,24 +224,11 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         self.ib.cancel_order(order)
 
     # =========Market functions=======================
-
-    def get_tradable_assets(self, easy_to_borrow=None, filter_func=None):
-        """Get the list of all tradable assets from the market"""
-        unavail_warning = (
-            f"ERROR: When working with Interactive Brokers it is not possible to "
-            f"acquire all of the tradable assets in the markets. "
-            f"Please do not use `get_tradable_assets`."
-        )
-        logging.info(unavail_warning)
-        print(unavail_warning)
-
-        return
-
     def _close_connection(self):
         self.ib.disconnect()
 
     def _get_balances_at_broker(self, quote_asset):
-        """Get's the current actual cash, positions value, and total
+        """Gets the current actual cash, positions value, and total
         liquidation value from interactive Brokers.
 
         This method will get the current actual values from Interactive
@@ -276,27 +243,21 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
             summary = self.ib.get_account_summary()
         except:
             logger.error(
-                f"Could not get broker balances. Please check your broker "
-                f"configuration and make sure that TWS is running with the "
-                f"correct configuration. For more information, please "
-                f"see the documentation here: https://lumibot.lumiwealth.com/brokers.interactive_brokers.html"
+                "Could not get broker balances. Please check your broker "
+                "configuration and make sure that TWS is running with the "
+                "correct configuration. For more information, please "
+                "see the documentation here: https://lumibot.lumiwealth.com/brokers.interactive_brokers.html"
             )
 
             return None
         finally:
             if summary is None:
                 return None
-        total_cash_value = [
-            float(c["Value"]) for c in summary if c["Tag"] == "TotalCashValue"
-        ][0]
+        total_cash_value = [float(c["Value"]) for c in summary if c["Tag"] == "TotalCashValue"][0]
 
-        gross_position_value = [
-            float(c["Value"]) for c in summary if c["Tag"] == "GrossPositionValue"
-        ][0]
+        gross_position_value = [float(c["Value"]) for c in summary if c["Tag"] == "GrossPositionValue"][0]
 
-        net_liquidation_value = [
-            float(c["Value"]) for c in summary if c["Tag"] == "NetLiquidation"
-        ][0]
+        net_liquidation_value = [float(c["Value"]) for c in summary if c["Tag"] == "NetLiquidation"][0]
 
         return (total_cash_value, gross_position_value, net_liquidation_value)
 
@@ -306,9 +267,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
 
     def option_params(self, asset, exchange="", underlyingConId=""):
         # Returns option chain data, list of strikes and list of expiry dates.
-        return self.ib.option_params(
-            asset=asset, exchange=exchange, underlyingConId=underlyingConId
-        )
+        return self.ib.option_params(asset=asset, exchange=exchange, underlyingConId=underlyingConId)
 
     def get_chains(self, asset):
         """Returns option chain."""
@@ -329,17 +288,8 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         """Returns expirations and strikes high/low of target price.
         Return type datetime.date()
         """
-        expirations = sorted(
-            list(self.get_chain(chains, exchange=exchange)["Expirations"])
-        )
-        return [
-            datetime.datetime.strptime(expiration, "%Y%m%d").date()
-            for expiration in expirations
-        ]
-
-    def get_multiplier(self, chains, exchange="SMART"):
-        """Returns the multiplier"""
-        return self.get_chain(chains, exchange)["Multiplier"]
+        expirations = sorted(list(self.get_chain(chains, exchange=exchange)["Expirations"]))
+        return [datetime.datetime.strptime(expiration, "%Y%m%d").date() for expiration in expirations]
 
     # =======Stream functions=========
     def on_status_event(
@@ -396,20 +346,15 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
             mktCapPrice,
         ]
         if order_status in self.order_status_duplicates:
-            logging.info(
-                f"Duplicate order status event ignored. Order id {orderId} "
-                f"and status {status} "
-            )
+            logging.debug(f"Duplicate order status event ignored. Order id {orderId} " f"and status {status} ")
             return
         else:
             self.order_status_duplicates.append(order_status)
 
         stored_order = self.get_tracked_order(orderId)
         if stored_order is None:
-            logging.info(
-                "Untracked order %s was logged by broker %s" % (orderId, self.name)
-            )
-            return False
+            logging.info(f"Untracked order {orderId} was logged by broker {self.name}")
+            return
 
         # Check the order status submit changes.
         if status == "Submitted":
@@ -421,6 +366,8 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
                 f"A status event with an order of unknown order type of {status}. Should only be: "
                 "`Submitted`, `ApiCancelled`, `Cancelled`, `Inactive`"
             )
+            return
+
         self._process_trade_event(
             stored_order,
             type_event,
@@ -433,9 +380,7 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         stored_order = self.get_tracked_order(orderId)
 
         if stored_order is None:
-            logging.info(
-                "Untracked order %s was logged by broker %s" % (orderId, self.name)
-            )
+            logging.info("Untracked order %s was logged by broker %s" % (orderId, self.name))
             return False
             # Check the order status submit changes.
         if execution.cumQty < stored_order.quantity:
@@ -443,15 +388,11 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         elif execution.cumQty == stored_order.quantity:
             type_event = self.FILLED_ORDER
         else:
-            raise ValueError(
-                f"An order type should not have made it this far. " f"{execution}"
-            )
+            raise ValueError(f"An order type should not have made it this far. " f"{execution}")
 
         price = execution.price
         filled_quantity = execution.shares
-        multiplier = (
-            stored_order.asset.multiplier if stored_order.asset.multiplier else 1
-        )
+        multiplier = stored_order.asset.multiplier if stored_order.asset.multiplier else 1
 
         self._process_trade_event(
             stored_order,
@@ -462,6 +403,18 @@ class InteractiveBrokers(InteractiveBrokersData, Broker):
         )
 
         return True
+
+    def get_historical_account_value(self):
+        pass
+
+    def _get_stream_object(self):
+        pass
+
+    def _register_stream_events(self):
+        pass
+
+    def _run_stream(self):
+        pass
 
 
 # ===================INTERACTIVE BROKERS CLASSES===================
@@ -503,13 +456,10 @@ class IBWrapper(EWrapper):
         if not hasattr(self, "my_errors_queue"):
             self.init_error()
 
-        error_message = (
-            "IBWrapper returned an error with %d error code %d that says %s"
-            % (
-                id,
-                error_code,
-                error_string,
-            )
+        error_message = "IBWrapper returned an error with %d error code %d that says %s" % (
+            id,
+            error_code,
+            error_string,
         )
         # Make sure we don't lose the error, but we only print it if asked for
         logging.debug(error_message)
@@ -689,9 +639,7 @@ class IBWrapper(EWrapper):
                 positionsdict["asset_type"] = k
 
         if positionsdict["asset_type"] in DATE_MAP:
-            positionsdict["expiration"] = datetime.datetime.strptime(
-                positionsdict["expiration"], "%Y%m%d"
-            ).date()
+            positionsdict["expiration"] = datetime.datetime.strptime(positionsdict["expiration"], "%Y%m%d").date()
 
         if positionsdict["right"] == "C":
             positionsdict["right"] = "CALL"
@@ -714,9 +662,7 @@ class IBWrapper(EWrapper):
         self.my_accounts_queue = accounts_queue
         return accounts_queue
 
-    def accountSummary(
-        self, reqId: int, account: str, tag: str, value: str, currency: str
-    ):
+    def accountSummary(self, reqId: int, account: str, tag: str, value: str, currency: str):
         if not hasattr(self, "accounts"):
             self.init_accounts()
 
@@ -730,9 +676,7 @@ class IBWrapper(EWrapper):
 
         self.accounts.append(accountSummarydict)
 
-        accountSummarytxt = ", ".join(
-            [f"{k}: {v}" for k, v in accountSummarydict.items()]
-        )
+        accountSummarytxt = ", ".join([f"{k}: {v}" for k, v in accountSummarydict.items()])
 
         # Keep the logs, but only show if asked for
         logging.debug(accountSummarytxt)
@@ -767,9 +711,7 @@ class IBWrapper(EWrapper):
         self.my_new_orders_queue = new_orders_queue
         return new_orders_queue
 
-    def openOrder(
-        self, orderId: OrderId, contract: Contract, order: Order, orderState: OrderState
-    ):
+    def openOrder(self, orderId: OrderId, contract: Contract, order: Order, orderState: OrderState):
         if not hasattr(self, "orders"):
             self.init_orders()
         openOrdertxt = (
@@ -928,7 +870,6 @@ class IBClient(EClient):
         return self.reqId
 
     def get_timestamp(self):
-
         print("Asking server for Unix time")
 
         # Creates a queue to store the time
@@ -940,9 +881,7 @@ class IBClient(EClient):
         try:
             requested_time = time_storage.get(timeout=self.max_wait_time)
         except queue.Empty:
-            logging.info(
-                "The Interactive Brokers queue was empty or max time reached for timestamp."
-            )
+            logging.info("The Interactive Brokers queue was empty or max time reached for timestamp.")
             requested_time = None
 
         while self.wrapper.is_error():
@@ -950,9 +889,7 @@ class IBClient(EClient):
 
         return requested_time
 
-    def get_tick(
-        self, asset="", greek=False, exchange="SMART", should_use_last_close=True
-    ):
+    def get_tick(self, asset="", greek=False, exchange="SMART", should_use_last_close=True):
         self.should_use_last_close = should_use_last_close
 
         if not greek:
@@ -963,7 +900,7 @@ class IBClient(EClient):
 
         contract = self.create_contract(
             asset,
-            currency=asset.currency,
+            currency="USD",
             exchange=exchange,
         )
         reqId = self.get_reqid()
@@ -982,7 +919,8 @@ class IBClient(EClient):
         except queue.Empty:
             data_type = f"{'tick' if not greek else 'greek'}"
             logging.error(
-                f"Unable to get data for {self.tick_asset}. The Interactive Brokers queue was empty or max time reached for {data_type} data. reqId: {reqId}"
+                f"Unable to get data for {self.tick_asset}. The Interactive Brokers queue was empty or max time "
+                f"reached for {data_type} data. reqId: {reqId}"
             )
             requested_tick = None
             requested_greek = None
@@ -1086,27 +1024,22 @@ class IBClient(EClient):
         try:
             requested_positions = positions_storage.get(timeout=self.max_wait_time)
         except queue.Empty:
-            print("The queue was empty or max time reached for positions")
+            logging.error("The queue was empty or max time reached for positions")
             requested_positions = None
 
         while self.wrapper.is_error():
-            print(f"Error: {self.get_error(timeout=5)}")
+            logging.error(f"Error: {self.get_error(timeout=5)}")
 
         return requested_positions
 
     def get_historical_account_value(self):
-        logging.error(
-            "The function get_historical_account_value is not implemented yet for Interactive Brokers."
-        )
+        logging.error("The function get_historical_account_value is not implemented yet for Interactive Brokers.")
         return {"hourly": None, "daily": None}
 
     def get_account_summary(self):
         accounts_storage = self.wrapper.init_accounts()
 
-        tags = (
-            f"AccountType, TotalCashValue, AccruedCash, "
-            f"NetLiquidation, BuyingPower, GrossPositionValue"
-        )
+        tags = "AccountType, TotalCashValue, AccruedCash, " "NetLiquidation, BuyingPower, GrossPositionValue"
 
         as_reqid = self.get_reqid()
         self.reqAccountSummary(as_reqid, "All", tags)
@@ -1114,9 +1047,7 @@ class IBClient(EClient):
         try:
             requested_accounts = accounts_storage.get(timeout=self.max_wait_time)
         except queue.Empty:
-            logging.info(
-                "The Interactive Brokers queue was empty or max time reached for account summary"
-            )
+            logging.info("The Interactive Brokers queue was empty or max time reached for account summary")
             requested_accounts = None
 
         self.cancelAccountSummary(as_reqid)
@@ -1172,9 +1103,7 @@ class IBClient(EClient):
         self.reqContractDetails(self.get_reqid(), contract)
 
         try:
-            requested_contract_details = contract_details_storage.get(
-                timeout=self.max_wait_time
-            )
+            requested_contract_details = contract_details_storage.get(timeout=self.max_wait_time)
         except queue.Empty:
             print("The queue was empty or max time reached for contract details")
             requested_contract_details = None
@@ -1197,14 +1126,9 @@ class IBClient(EClient):
         )
 
         try:
-            requested_option_params = options_params_storage.get(
-                timeout=self.max_wait_time
-            )
+            requested_option_params = options_params_storage.get(timeout=self.max_wait_time)
         except queue.Empty:
-            print(
-                "The queue was empty or max time reached for option contract "
-                "details."
-            )
+            print("The queue was empty or max time reached for option contract " "details.")
             requested_option_params = None
 
         while self.wrapper.is_error():
@@ -1273,8 +1197,7 @@ class IBApp(IBWrapper, IBClient):
             pass
         else:
             raise ValueError(
-                f"The asset {asset.symbol} has a type of {asset.asset_type}. "
-                f"It must be one of {asset._asset_types}"
+                f"The asset {asset.symbol} has a type of {asset.asset_type}. " f"It must be one of {asset._asset_types}"
             )
 
         return contract
@@ -1289,9 +1212,7 @@ class IBApp(IBWrapper, IBClient):
                 )
                 return []
             parent = Order()
-            parent.orderId = (
-                order.identifier if order.identifier else self.nextOrderId()
-            )
+            parent.orderId = order.identifier if order.identifier else self.nextOrderId()
             parent.action = order.side.upper()
             parent.orderType = "LMT"
             parent.totalQuantity = order.quantity
@@ -1329,9 +1250,7 @@ class IBApp(IBWrapper, IBClient):
                 return []
 
             parent = Order()
-            parent.orderId = (
-                order.identifier if order.identifier else self.nextOrderId()
-            )
+            parent.orderId = order.identifier if order.identifier else self.nextOrderId()
             parent.action = order.side.upper()
             parent.orderType = "LMT"
             parent.totalQuantity = order.quantity
@@ -1362,9 +1281,7 @@ class IBApp(IBWrapper, IBClient):
 
         elif order.order_class == "oco":
             takeProfit = Order()
-            takeProfit.orderId = (
-                order.identifier if order.identifier else self.nextOrderId()
-            )
+            takeProfit.orderId = order.identifier if order.identifier else self.nextOrderId()
             takeProfit.action = order.side.upper()
             takeProfit.orderType = "LMT"
             takeProfit.totalQuantity = order.quantity
@@ -1393,20 +1310,12 @@ class IBApp(IBWrapper, IBClient):
             ib_order.totalQuantity = order.quantity
             ib_order.lmtPrice = order.limit_price if order.limit_price else 0
             ib_order.auxPrice = order.stop_price if order.stop_price else ""
-            ib_order.trailingPercent = (
-                order.trail_percent if order.trail_percent else ""
-            )
+            ib_order.trailingPercent = order.trail_percent if order.trail_percent else ""
             if order.trail_price:
                 ib_order.auxPrice = order.trail_price
-            ib_order.orderId = (
-                order.identifier if order.identifier else self.nextOrderId()
-            )
+            ib_order.orderId = order.identifier if order.identifier else self.nextOrderId()
             ib_order.tif = order.time_in_force.upper()
-            ib_order.goodTillDate = (
-                order.good_till_date.strftime("%Y%m%d %H:%M:%S")
-                if order.good_till_date
-                else ""
-            )
+            ib_order.goodTillDate = order.good_till_date.strftime("%Y%m%d %H:%M:%S") if order.good_till_date else ""
             return [ib_order]
 
     def execute_order(self, orders):
@@ -1422,7 +1331,7 @@ class IBApp(IBWrapper, IBClient):
             contract_object = self.create_contract(
                 order.asset,
                 exchange=order.exchange,
-                currency=order.asset.currency,
+                currency=order.quote.symbol,
             )
             order_objects = self.create_order(order)
             if len(order_objects) == 0:
@@ -1435,9 +1344,7 @@ class IBApp(IBWrapper, IBClient):
                 order_object.eTradeOnly = False
                 order_object.firmQuoteOnly = False
 
-                nextID = (
-                    order_object.orderId if order_object.orderId else self.nextOrderId()
-                )
+                nextID = order_object.orderId if order_object.orderId else self.nextOrderId()
                 ib_orders.append((nextID, contract_object, order_object))
 
         for ib_order in ib_orders:

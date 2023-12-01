@@ -16,7 +16,7 @@ class _YahooData:
         self.symbol = symbol
         self.type = type.lower()
         self.data = data
-        self.file_name = "%s_%s.pickle" % (symbol, type)
+        self.file_name = f"{symbol}_{type.lower()}.pickle"
 
     def is_up_to_date(self, last_needed_datetime=None):
         if last_needed_datetime is None:
@@ -27,7 +27,7 @@ class _YahooData:
             last_day = self.data.index[-1].to_pydatetime().date()
 
             # ip_up_to_date will always return False on holidays even though
-            # the data is up to date because the market is still closed
+            # the data is up-to-date because the market is still closed
             return last_day >= last_needed_date
 
         if self.type == INFO_DATA:
@@ -43,7 +43,6 @@ class _YahooData:
 
 
 class YahooHelper:
-
     # =========Internal initialization parameters and methods============
 
     CACHING_ENABLED = False
@@ -63,18 +62,14 @@ class YahooHelper:
     @staticmethod
     def check_pickle_file(symbol, type):
         if YahooHelper.CACHING_ENABLED:
-            file_name = "%s_%s.pickle" % (symbol, type.lower())
-            pickle_file_path = os.path.join(
-                YahooHelper.LUMIBOT_YAHOO_CACHE_FOLDER, file_name
-            )
+            file_name = f"{symbol}_{type.lower()}.pickle"
+            pickle_file_path = os.path.join(YahooHelper.LUMIBOT_YAHOO_CACHE_FOLDER, file_name)
             if os.path.exists(pickle_file_path):
                 try:
                     with open(pickle_file_path, "rb") as f:
                         return pickle.load(f)
                 except Exception as e:
-                    logging.error(
-                        "Error while loading pickle file %s: %s" % (pickle_file_path, e)
-                    )
+                    logging.error("Error while loading pickle file %s: %s" % (pickle_file_path, e))
                     return None
 
         return None
@@ -84,9 +79,7 @@ class YahooHelper:
         if YahooHelper.CACHING_ENABLED:
             yahoo_data = _YahooData(symbol, type, data)
             file_name = "%s_%s.pickle" % (symbol, type.lower())
-            pickle_file_path = os.path.join(
-                YahooHelper.LUMIBOT_YAHOO_CACHE_FOLDER, file_name
-            )
+            pickle_file_path = os.path.join(YahooHelper.LUMIBOT_YAHOO_CACHE_FOLDER, file_name)
             with open(pickle_file_path, "wb") as f:
                 pickle.dump(yahoo_data, f)
 
@@ -110,10 +103,9 @@ class YahooHelper:
                 inplace=True,
             )
         else:
-            del df["Adj Ratio"]
-            del df["Adj Open"]
-            del df["Adj High"]
-            del df["Adj Low"]
+            for col in ["Adj Ratio", "Adj Open", "Adj High", "Adj Low"]:
+                if col in df.columns:
+                    del df[col]
 
         return df
 
@@ -141,10 +133,8 @@ class YahooHelper:
         try:
             info = ticker.info
         except Exception as e:
-            logging.error(
-                f"Error while downloading symbol info for {symbol}, setting info to None for now."
-            )
-            logging.error(e)
+            logging.debug(f"Error while downloading symbol info for {symbol}, setting info to None for now.")
+            logging.debug(e)
             return {
                 "ticker": symbol,
                 "last_update": get_lumibot_datetime(),
@@ -167,13 +157,23 @@ class YahooHelper:
     @staticmethod
     def get_symbol_last_price(symbol):
         ticker = yf.Ticker(symbol)
-        info = ticker.info
-        return info["previousClose"]
+
+        # Get the last price from the history
+        df = ticker.history(period="7d", auto_adjust=False)
+        if df.empty:
+            return None
+
+        return df["Close"].iloc[-1]
 
     @staticmethod
     def download_symbol_day_data(symbol):
         ticker = yf.Ticker(symbol)
-        df = ticker.history(period="max", auto_adjust=False)
+        try:
+            df = ticker.history(period="max", auto_adjust=False)
+        except Exception as e:
+            logging.debug(f"Error while downloading symbol day data for {symbol}, returning empty dataframe for now.")
+            logging.debug(e)
+            return None
 
         # Adjust the time when we are getting daily stock data to the beginning of the day
         # This way the times line up when backtesting daily data
@@ -181,24 +181,16 @@ class YahooHelper:
         if info.get("info") and info.get("info").get("market") == "us_market":
             # Check if the timezone is already set, if not set it to the default timezone
             if df.index.tzinfo is None:
-                df.index = df.index.tz_localize(
-                    info.get("info").get("exchangeTimezoneName")
-                )
+                df.index = df.index.tz_localize(info.get("info").get("exchangeTimezoneName"))
             else:
-                df.index = df.index.tz_convert(
-                    info.get("info").get("exchangeTimezoneName")
-                )
+                df.index = df.index.tz_convert(info.get("info").get("exchangeTimezoneName"))
             df.index = df.index.map(lambda t: t.replace(hour=16, minute=0))
         elif info.get("info") and info.get("info").get("market") == "ccc_market":
             # Check if the timezone is already set, if not set it to the default timezone
             if df.index.tzinfo is None:
-                df.index = df.index.tz_localize(
-                    info.get("info").get("exchangeTimezoneName")
-                )
+                df.index = df.index.tz_localize(info.get("info").get("exchangeTimezoneName"))
             else:
-                df.index = df.index.tz_convert(
-                    info.get("info").get("exchangeTimezoneName")
-                )
+                df.index = df.index.tz_convert(info.get("info").get("exchangeTimezoneName"))
             df.index = df.index.map(lambda t: t.replace(hour=23, minute=59))
 
         df = YahooHelper.process_df(df, asset_info=info)
@@ -253,7 +245,7 @@ class YahooHelper:
         data = YahooHelper.download_symbol_day_data(symbol)
 
         # Check if the data is empty
-        if data.empty:
+        if data is None or data.empty:
             return data
 
         YahooHelper.dump_pickle_file(symbol, DAY_DATA, data)
@@ -287,12 +279,8 @@ class YahooHelper:
         return YahooHelper.fetch_symbol_info(symbol, caching=caching)
 
     @staticmethod
-    def get_symbol_day_data(
-        symbol, auto_adjust=True, caching=True, last_needed_datetime=None
-    ):
-        result = YahooHelper.fetch_symbol_day_data(
-            symbol, caching=caching, last_needed_datetime=last_needed_datetime
-        )
+    def get_symbol_day_data(symbol, auto_adjust=True, caching=True, last_needed_datetime=None):
+        result = YahooHelper.fetch_symbol_day_data(symbol, caching=caching, last_needed_datetime=last_needed_datetime)
         return result
 
     @staticmethod
@@ -323,9 +311,7 @@ class YahooHelper:
     @staticmethod
     def get_symbols_data(symbols, timestep="day", auto_adjust=True, caching=True):
         if timestep == "day":
-            return YahooHelper.get_symbols_day_data(
-                symbols, auto_adjust=auto_adjust, caching=caching
-            )
+            return YahooHelper.get_symbols_day_data(symbols, auto_adjust=auto_adjust, caching=caching)
         else:
             raise ValueError("Unknown timestep %s" % timestep)
 
@@ -404,9 +390,7 @@ class YahooHelper:
         dividends_actions = YahooHelper.get_symbol_actions(symbol, caching=caching)
         start = df.index[0]
         end = df.index[-1]
-        filtered_actions = dividends_actions[
-            (dividends_actions.index >= start) & (dividends_actions.index <= end)
-        ]
+        filtered_actions = dividends_actions[(dividends_actions.index >= start) & (dividends_actions.index <= end)]
 
         for index, row in filtered_actions.iterrows():
             dividends = row["Dividends"]

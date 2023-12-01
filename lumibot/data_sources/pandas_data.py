@@ -1,21 +1,24 @@
 import logging
 
 import pandas as pd
+from lumibot.data_sources import DataSourceBacktesting
 from lumibot.entities import Asset, AssetsMapping, Bars
 
-from .data_source import DataSource
 
+class PandasData(DataSourceBacktesting):
+    """
+    PandasData is a Backtesting-only DataSource that uses a Pandas DataFrame (read from CSV) as the source of
+    data for a backtest run. It is not possible to use this class to run a live trading strategy.
+    """
 
-class PandasData(DataSource):
-    IS_BACKTESTING_DATA_SOURCE = True
     SOURCE = "PANDAS"
-    MIN_TIMESTEP = "minute"
     TIMESTEP_MAPPING = [
         {"timestep": "day", "representations": ["1D", "day"]},
         {"timestep": "minute", "representations": ["1M", "minute"]},
     ]
 
-    def __init__(self, pandas_data, config=None, auto_adjust=True, **kwargs):
+    def __init__(self, *args, pandas_data=None, auto_adjust=True, **kwargs):
+        super().__init__(*args, **kwargs)
         self.name = "pandas"
         self.pandas_data = self._set_pandas_data_keys(pandas_data)
         self.auto_adjust = auto_adjust
@@ -37,11 +40,9 @@ class PandasData(DataSource):
                 # If quote is not specified, use USD as the quote
                 if data.quote is None:
                     # Warn that USD is being used as the quote
-                    logging.warning(
-                        f"No quote specified for {data.asset}. Using USD as the quote."
-                    )
-                    return (data.asset, Asset(symbol="USD", asset_type="forex"))
-                return (data.asset, data.quote)
+                    logging.warning(f"No quote specified for {data.asset}. Using USD as the quote.")
+                    return data.asset, Asset(symbol="USD", asset_type="forex")
+                return data.asset, data.quote
             else:
                 raise ValueError("Asset must be an Asset or a tuple of Asset and quote")
 
@@ -62,14 +63,7 @@ class PandasData(DataSource):
     def load_data(self):
         self._data_store = self.pandas_data
         self._expiries_exist = (
-            len(
-                [
-                    v.asset.expiration
-                    for v in self._data_store.values()
-                    if v.asset.expiration is not None
-                ]
-            )
-            > 0
+            len([v.asset.expiration for v in self._data_store.values() if v.asset.expiration is not None]) > 0
         )
         self._date_index = self.update_date_index()
 
@@ -87,14 +81,10 @@ class PandasData(DataSource):
         df = pd.DataFrame(range(len(dt_index)), index=dt_index)
         df = df.sort_index()
         df["dates"] = df.index.date
-        df = df.merge(
-            pcal[["market_open", "market_close"]], left_on="dates", right_index=True
-        )
+        df = df.merge(pcal[["market_open", "market_close"]], left_on="dates", right_index=True)
         if self._timestep == "minute":
             df = df.asfreq("1T", method="pad")
-            result_index = df.loc[
-                (df.index >= df["market_open"]) & (df.index <= df["market_close"]), :
-            ].index
+            result_index = df.loc[(df.index >= df["market_open"]) & (df.index <= df["market_close"]), :].index
         else:
             result_index = df.index
         return result_index
@@ -103,11 +93,10 @@ class PandasData(DataSource):
         pcal = pd.DataFrame(self._date_index)
 
         if pcal.empty:
-            # Create a dummy dataframe that spans the entire date range with market_open and market_close set to 00:00:00 and 23:59:59 respectively.
+            # Create a dummy dataframe that spans the entire date range with market_open and market_close
+            # set to 00:00:00 and 23:59:59 respectively.
             result = pd.DataFrame(
-                index=pd.date_range(
-                    start=self.datetime_start, end=self.datetime_end, freq="D"
-                ),
+                index=pd.date_range(start=self.datetime_start, end=self.datetime_end, freq="D"),
                 columns=["market_open", "market_close"],
             )
             result["market_open"] = result.index.floor("D")
@@ -143,7 +132,7 @@ class PandasData(DataSource):
         ----------
         symbol : str
             The symbol of the asset.
-        type : str
+        asset_type : str
             Asset type. One of:
             - stock
             - future
@@ -158,31 +147,7 @@ class PandasData(DataSource):
         if type is None:
             return [asset for asset in store_assets if asset.symbol == symbol]
         else:
-            return [
-                asset
-                for asset in store_assets
-                if (asset.symbol == symbol and asset.asset_type == asset_type)
-            ]
-
-    def is_tradable(self, asset, dt, length=1, timestep="minute", timeshift=0):
-        # Determines is an asset has data over dt, length, timestep, and timeshift.
-        if self._data_store[asset].is_tradable(
-            dt, length=length, timestep=timestep, timeshift=timeshift
-        ):
-            return True
-        else:
-            return False
-
-    def get_tradable_assets(self, dt, length=1, timestep="minute", timeshift=0):
-        # Returns list of assets that can be traded. Empty list if None.
-        tradable = list()
-        for item, data in self._data_store.items():
-            asset = item[0]
-            if data.is_tradable(
-                dt, length=length, timestep=timestep, timeshift=timeshift
-            ):
-                tradable.append(asset)
-        return tradable
+            return [asset for asset in store_assets if (asset.symbol == symbol and asset.asset_type == asset_type)]
 
     def update_date_index(self):
         dt_index = None
@@ -196,9 +161,7 @@ class PandasData(DataSource):
         if dt_index is None:
             # Build a dummy index
             freq = "1T" if self._timestep == "minute" else "1D"
-            dt_index = pd.date_range(
-                start=self.datetime_start, end=self.datetime_end, freq=freq
-            )
+            dt_index = pd.date_range(start=self.datetime_start, end=self.datetime_end, freq=freq)
 
         else:
             if self.datetime_end < dt_index[0]:
@@ -216,7 +179,7 @@ class PandasData(DataSource):
 
         return dt_index
 
-    def get_last_price(self, asset, timestep=None, quote=None, exchange=None, **kwargs):
+    def get_last_price(self, asset, quote=None, exchange=None):
         # Takes an asset and returns the last known price
         tuple_to_find = self.find_asset_in_data_store(asset, quote)
 
@@ -226,20 +189,15 @@ class PandasData(DataSource):
                 dt = self.get_datetime()
                 return data.get_last_price(dt)
             except Exception as e:
-                print(f"Error getting last price for {tuple_to_find}: {e}")
+                logging.info(f"Error getting last price for {tuple_to_find}: {e}")
                 return None
         else:
             return None
 
-    def get_last_prices(
-        self, assets, timestep=None, quote=None, exchange=None, **kwargs
-    ):
-        # Takes a list of assets and returns dictionary of last known prices for each.
-        if timestep is None:
-            timestep = self.MIN_TIMESTEP
+    def get_last_prices(self, assets, quote=None, exchange=None, **kwargs):
         result = {}
         for asset in assets:
-            result[asset] = self.get_last_price(asset, timestep=timestep, quote=quote)
+            result[asset] = self.get_last_price(asset, quote=quote, exchange=exchange)
         return result
 
     def find_asset_in_data_store(self, asset, quote=None):
@@ -259,12 +217,13 @@ class PandasData(DataSource):
         self,
         asset,
         length,
-        timestep=MIN_TIMESTEP,
+        timestep="",
         timeshift=0,
         quote=None,
         exchange=None,
         include_after_hours=True,
     ):
+        timestep = timestep if timestep else self.MIN_TIMESTEP
         if exchange is not None:
             logging.warning(
                 f"the exchange parameter is not implemented for PandasData, but {exchange} was passed as the exchange"
@@ -278,25 +237,23 @@ class PandasData(DataSource):
         if asset_to_find in self._data_store:
             data = self._data_store[asset_to_find]
         else:
-            raise ValueError(
-                f"The asset: `{asset}` does not exist or does not have data."
-            )
+            logging.warning(f"The asset: `{asset}` does not exist or does not have data.")
+            return
 
         now = self.get_datetime()
         try:
-            res = data.get_bars(
-                now, length=length, timestep=timestep, timeshift=timeshift
-            )
+            res = data.get_bars(now, length=length, timestep=timestep, timeshift=timeshift)
         # Return None if data.get_bars returns a ValueError
         except ValueError as e:
-            raise ValueError(f"Error getting bars for {asset}: {e}")
-            res = None
+            logging.info(f"Error getting bars for {asset}: {e}")
+            return None
+
         return res
-    
+
     def _pull_source_symbol_bars_between_dates(
         self,
         asset,
-        timestep=MIN_TIMESTEP,
+        timestep="",
         quote=None,
         exchange=None,
         include_after_hours=True,
@@ -304,23 +261,20 @@ class PandasData(DataSource):
         end_date=None,
     ):
         """Pull all bars for an asset"""
-        
+        timestep = timestep if timestep else self.MIN_TIMESTEP
         asset_to_find = self.find_asset_in_data_store(asset, quote)
 
         if asset_to_find in self._data_store:
             data = self._data_store[asset_to_find]
         else:
-            raise ValueError(
-                f"The asset: `{asset}` does not exist or does not have data."
-            )
-            
+            logging.warning(f"The asset: `{asset}` does not exist or does not have data.")
+            return
+
         try:
-            res = data.get_bars_between_dates(
-                start_date=start_date, end_date=end_date, timestep=timestep
-            )
+            res = data.get_bars_between_dates(start_date=start_date, end_date=end_date, timestep=timestep)
         # Return None if data.get_bars returns a ValueError
         except ValueError as e:
-            raise ValueError(f"Error getting bars for {asset}: {e}")
+            logging.info(f"Error getting bars for {asset}: {e}")
             res = None
         return res
 
@@ -328,12 +282,13 @@ class PandasData(DataSource):
         self,
         assets,
         length,
-        timestep=MIN_TIMESTEP,
+        timestep="",
         timeshift=None,
         quote=None,
         include_after_hours=True,
     ):
         """pull broker bars for a list assets"""
+        timestep = timestep if timestep else self.MIN_TIMESTEP
         self._parse_source_timestep(timestep, reverse=True)
 
         result = {}
@@ -386,7 +341,7 @@ class PandasData(DataSource):
             - `Expirations` (set of str) eg: {`20230616`, ...}
             - `Strikes` (set of floats)
         """
-        SMART = dict(
+        smart = dict(
             TradingClass=asset.symbol,
             Multiplier=100,
         )
@@ -402,106 +357,21 @@ class PandasData(DataSource):
             expirations.append(store_asset.expiration)
             strikes.append(store_asset.strike)
 
-        SMART["Expirations"] = sorted(list(set(expirations)))
-        SMART["Strikes"] = sorted(list(set(strikes)))
+        smart["Expirations"] = sorted(list(set(expirations)))
+        smart["Strikes"] = sorted(list(set(strikes)))
 
-        return {"SMART": SMART}
-
-    def get_chain(self, chains, exchange="SMART"):
-        """Returns option chain for a particular exchange.
-
-        Takes in a full set of chains for all the exchanges and returns
-        on chain for a given exchange. The the full chains are returned
-        from `get_chains` method.
-
-        Parameters
-        ----------
-        chains : dictionary of dictionaries
-            The chains dictionary created by `get_chains` method.
-
-        exchange : str optional
-            The exchange such as `SMART`, `CBOE`. Default is `SMART`
-
-        Returns
-        -------
-        dictionary
-            A dictionary of option chain information for one stock and
-            for one exchange. It will contain:
-                - `Underlying conId` (int)
-                - `TradingClass` (str) eg: `FB`
-                - `Multiplier` (str) eg: `100`
-                - `Expirations` (set of str) eg: {`20230616`, ...}
-                - `Strikes` (set of floats)
-        """
-
-        for x, p in chains.items():
-            if x == exchange:
-                return p
-
-        return None
-
-    def get_expiration(self, chains, exchange="SMART"):
-        """Returns expiration dates for an option chain for a particular
-        exchange.
-
-        Using the `chains` dictionary obtained from `get_chains` finds
-        all of the expiry dates for the option chains on a given
-        exchange. The return list is sorted.
-
-        Parameters
-        ---------
-        chains : dictionary of dictionaries
-            The chains dictionary created by `get_chains` method.
-
-        exchange : str optional
-            The exchange such as `SMART`, `CBOE`. Default is `SMART`.
-
-        Returns
-        -------
-        list of str
-            Sorted list of dates in the form of `20221013`.
-        """
-        if exchange != "SMART":
-            raise ValueError(
-                "When getting option expirations in backtesting, only the `SMART`"
-                "exchange may be used. It is the default value. Please delete "
-                "the `exchange` parameter or change the value to `SMART`."
-            )
-        return sorted(list(self.get_chain(chains, exchange=exchange)["Expirations"]))
-
-    def get_multiplier(self, chains, exchange="SMART"):
-        """Returns option chain for a particular exchange.
-
-        Using the `chains` dictionary obtained from `get_chains` finds
-        all of the multiplier for the option chains on a given
-        exchange.
-
-        Parameters
-        ----------
-        chains : dictionary of dictionaries
-            The chains dictionary created by `get_chains` method.
-
-        exchange : str optional
-            The exchange such as `SMART`, `CBOE`. Default is `SMART`
-
-        Returns
-        -------
-        list of str
-            Sorted list of dates in the form of `20221013`.
-        """
-
-        return self.get_chain(chains, exchange)["Multiplier"]
+        return {"SMART": smart}
 
     def get_strikes(self, asset):
         """Returns a list of strikes for a give underlying asset.
 
         Using the `chains` dictionary obtained from `get_chains` finds
-        all of the multiplier for the option chains on a given
+        all the Strikes for the option chains on a given
         exchange.
 
         Parameters
         ----------
-        asset : Asset object
+        asset : Asset
             Asset object as normally used for an option but without
             the strike information.
 

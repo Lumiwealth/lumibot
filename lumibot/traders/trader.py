@@ -2,29 +2,47 @@ import logging
 import os
 import signal
 import sys
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
+
+import appdirs
 
 # Overloading time.sleep to warn users against using it
-import lumibot.tools.lumibot_time
 
 
 class Trader:
-    def __init__(self, logfile="logs/logs.log", debug=False, strategies=None):
+    def __init__(self, logfile="", backtest=False, debug=False, strategies=None):
+        """
+
+        Parameters
+        ----------
+        logfile: str
+            The path to the logfile. If not specified, the logfile will be saved in the user's log directory.
+        backtest: bool
+            Whether to run the strategies in backtest mode or not. This is used as a safety check to make sure you
+            don't mix backtesting and live strategies.
+        debug: bool
+            Whether to run the strategies in debug mode or not. This will set the log level to DEBUG.
+        strategies: list
+            A list of strategies to run. If not specified, you must add strategies using trader.add_strategy(strategy)
+        """
         # Setting debug and _logfile parameters and setting global log format
         self.debug = debug
+        self.backtest = backtest
         self.log_format = logging.Formatter(
             "%(asctime)s: %(name)s: %(levelname)s: %(message)s"
         )
-        self.logfile = logfile
+        defualt_logdir = appdirs.user_log_dir(appauthor="LumiWealth", appname="lumibot", version="1.0")
+        self.logfile = Path(logfile) if logfile else Path(defualt_logdir) / "backtest" / "lumibot.log"
+        self.logfile.parent.mkdir(parents=True, exist_ok=True)
 
         # Setting the list of strategies if defined
         self._strategies = strategies if strategies else []
         self._pool = []
 
     @property
-    def is_backtest(self):
+    def is_backtest_broker(self):
         result = False
-        if any([s.broker.IS_BACKTESTING_BROKER for s in self._strategies]):
+        if any([s.broker.is_backtesting_broker() for s in self._strategies]):
             result = True
         return result
 
@@ -32,44 +50,71 @@ class Trader:
         """Adds a strategy to the trader"""
         self._strategies.append(strategy)
 
-    def run_all(self):
-        """run all strategies"""
-        if self.is_backtest:
-            if len(self._strategies) > 1:
-                raise Exception(
-                    "Received %d strategies for backtesting."
-                    "You can only backtest one at a time." % len(self._strategies)
-                )
+    def run_all(self, async_=False, show_plot=True, show_tearsheet=True, save_tearsheet=True):
+        """
+        run all strategies
 
+        Parameters
+        ----------
+        async_: bool
+            Whether to run the strategies asynchronously or not. This is not implemented yet.
+
+        show_plot: bool
+            Whether to disply the plot in the user's web browser. This is only used for backtesting.
+
+        show_tearsheet: bool
+            Whether to display the tearsheet in user's web browser. This is only used for backtesting.
+
+        save_tearsheet: bool
+            Whether to save the tearsheet or not. This is only used for backtesting.
+
+        Returns
+        -------
+        dict
+            A dictionary with the keys being the strategy names and the values being the strategy analysis.
+        """
+        if not self._strategies:
+            raise RuntimeError("No strategies to run. You must call trader.add_strategy(strategy) "
+                               "before trader.run_all().")
+
+        if self.is_backtest_broker != self.backtest:
+            raise RuntimeError(f"You cannot mix backtesting and live strategies. You passed in "
+                               f"Trader(backtest={self.backtest}) but the strategies are configured with "
+                               f"broker_backtesting={self.is_backtest_broker}.")
+
+        if len(self._strategies) != 1:
+            if self.is_backtest_broker:
+                raise Exception(
+                    f"Received {len(self._strategies)} strategies for backtesting."
+                    f"You can only backtest one at a time.")
+            else:
+                raise NotImplementedError(f"Running multiple live strategies is not implemented yet. You passed "
+                                          f"in {len(self._strategies)} strategies.")
+
+        strat = self._strategies[0]
+        if self.is_backtest_broker:
+            strat.verify_backtest_inputs(strat.backtesting_start, strat.backtesting_end)
             logging.info("Backtesting starting...")
 
         signal.signal(signal.SIGINT, self._stop_pool)
         self._set_logger()
         self._init_pool()
         self._start_pool()
-        self._join_pool()
+        if not async_:
+            self._join_pool()
         result = self._collect_analysis()
+
+        if self.is_backtest_broker:
+            logging.info("Backtesting finished")
+            strat.backtest_analysis(logfile=self.logfile, show_plot=show_plot, show_tearsheet=show_tearsheet,
+                                    save_tearsheet=save_tearsheet)
 
         return result
 
     # Async version of run_all
-    def run_all_async(self):
+    def run_all_async(self, backtest=False):
         """run all strategies"""
-        if self.is_backtest:
-            if len(self._strategies) > 1:
-                raise Exception(
-                    "Received %d strategies for backtesting."
-                    "You can only backtest one at a time." % len(self._strategies)
-                )
-
-            logging.info("Backtesting starting...")
-
-        signal.signal(signal.SIGINT, self._stop_pool)
-        self._set_logger()
-        self._init_pool()
-        self._start_pool()
-
-        return self._strategies
+        return self.run_all(backtest=backtest, async_=True)
 
     def stop_all(self):
         logging.info("Stopping all strategies for this trader")
@@ -94,7 +139,7 @@ class Trader:
 
         if self.debug:
             logger.setLevel(logging.DEBUG)
-        elif self.is_backtest:
+        elif self.is_backtest_broker:
             logger.setLevel(logging.INFO)
             for handler in logger.handlers:
                 if handler.__class__.__name__ == "StreamHandler":
@@ -107,7 +152,7 @@ class Trader:
             dir = os.path.dirname(os.path.abspath(self.logfile))
             if not os.path.exists(dir):
                 os.mkdir(dir)
-            fileHandler = logging.FileHandler(self.logfile, mode="w")
+            fileHandler = logging.FileHandler(self.logfile, mode="w", encoding="utf-8")
             logger.addHandler(fileHandler)
 
         for handler in logger.handlers:

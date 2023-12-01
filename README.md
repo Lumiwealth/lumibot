@@ -1,18 +1,80 @@
+# Lumibot - Algorithmic Trading Library
+
 Backtesting and trading for stocks, options, crypto, futures and more!
 
-# Documentation
+## Documentation - 👇 Start Here 👇
 
 To get started with Lumibot, you can check out our documentation below.
 
-**Check out the documentation for the project here: <http://lumibot.lumiwealth.com/>**
+**Check out the documentation for the project here: 👉 <http://lumibot.lumiwealth.com/> 👈**
 
-# Running Tests
+## Contributors
+
+If you want to contribute to Lumibot, you can check how to get started below. We are always looking for contributors to help us out!
+
+**Steps to contribute:**
+
+1. Clone the repository to your local machine
+2. Create a new branch for your feature
+3. Run `pip install -r requirements_dev.txt` to install the developer dependencies
+4. Install all the requriements from setup.py: `pip install -e .`
+5. Make your changes
+6. Run `pytest` to make sure all the tests pass
+7. Create a pull request to merge your branch into master
+
+## Running Tests
 
 We use pytest for our testing framework. To run the tests, you can run the following command:
 
 ```bash
 pytest
 ```
+
+### Showing Code Coverage
+
+To show code coverage, you can run the following command:
+
+```bash
+coverage run; coverage report; coverage html
+```
+
+#### Adding an Alias on Linux or MacOS
+
+This will show you the code coverage in the terminal and also create a folder called "htmlcov" which will have a file called "index.html". You can open this file in your browser to see the code coverage in a more readable format.
+
+If you don't want to keep typing out the command, you can add it as an alias in bash. To do this, you can run the following command:
+
+```bash
+alias cover='coverage run; coverage report; coverage html'
+```
+
+This will now allow you to run the command by just typing "cover" in the terminal.
+
+```bash
+cover
+```
+
+If you want to also add it to your .bashrc file. You can do this by running the following command:
+
+```bash
+echo "alias cover='coverage run; coverage report; coverage html'" >> ~/.bashrc
+```
+
+#### Adding an Alias on Windows
+
+If you are on Windows, you can add an alias by running the following command:
+
+Add to your PowerShell Profile: (profile.ps1)
+
+```powershell
+function cover { 
+ coverage run
+ coverage report
+ coverage html
+}
+```
+
+### Setting Up PyTest in VS Code
 
 To set up in VS Code for debugging, you can add the following to your launch.json file under "configurations". This will allow you to go into "Run and Debug" and run the tests from there, with breakpoints and everything.
 
@@ -51,13 +113,13 @@ Here's an example of an actual launch.json file:
 }
 ```
 
-# Community
+## Community
 
 If you want to learn more about Lumibot or Algorithmic Trading then you will love out communities! You can join us on Discord.
 
 **Join us on Discord: <https://discord.gg/TmMsJCKY3T>**
 
-# Courses
+## Courses
 
 If you need extra help building your algorithm, we have courses to help you out.
 
@@ -67,6 +129,6 @@ If you need extra help building your algorithm, we have courses to help you out.
 
 **For our Options Trading course: <https://www.lumiwealth.com/product-category/options-trading-purchase/>**
 
-# License
+## License
 
 This library is covered by the MIT license for open sourced software which can be found here: <https://github.com/Lumiwealth/lumibot/blob/master/LICENSE>

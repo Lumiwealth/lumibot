@@ -7,11 +7,13 @@
 
 # Cache files
 lumibot/cache
+*cache*
 **/*.pkl
 .pytest*
 
 # Development files
 venv
+.venv
 logs
 credentials.py
 *debug.py
@@ -20,6 +22,7 @@ todos.txt
 test_bot.py
 .vscode
 .coverage*
+*secret*/**.env
 
 # Pypi deployment
 build

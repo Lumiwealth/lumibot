@@ -1,20 +1,25 @@
 import datetime
 import logging
 import os
+import warnings
 from asyncio.log import logger
-from copy import deepcopy
 from decimal import Decimal
 
 import jsonpickle
 import pandas as pd
-from attr import has
-from lumibot import LUMIBOT_DEFAULT_PYTZ
+
 from lumibot.backtesting import BacktestingBroker, PolygonDataBacktesting
-from lumibot.entities import Asset, Position, TradingFee
-from lumibot.tools import (create_tearsheet, day_deduplicate,
-                           get_risk_free_rate, get_symbol_returns,
-                           plot_indicators, plot_returns, stats_summary,
-                           to_datetime_aware)
+from lumibot.entities import Asset, Position
+from lumibot.tools import (
+    create_tearsheet,
+    day_deduplicate,
+    get_risk_free_rate,
+    get_symbol_returns,
+    plot_indicators,
+    plot_returns,
+    stats_summary,
+    to_datetime_aware,
+)
 from lumibot.traders import Trader
 
 from .strategy_executor import StrategyExecutor
@@ -26,8 +31,7 @@ class _Strategy:
     def __init__(
         self,
         *args,
-        broker = None,
-        data_source=None,
+        broker=None,
         minutes_before_closing=5,
         minutes_before_opening=60,
         sleeptime="1M",
@@ -36,7 +40,6 @@ class _Strategy:
         benchmark_asset="SPY",
         backtesting_start=None,
         backtesting_end=None,
-        pandas_data=None,
         quote_asset=Asset(symbol="USD", asset_type="forex"),
         starting_positions=None,
         filled_order_callback=None,
@@ -45,11 +48,11 @@ class _Strategy:
         parameters={},
         buy_trading_fees=[],
         sell_trading_fees=[],
-        force_start_immediately=True,
+        force_start_immediately=False,
         **kwargs,
     ):
         """Initializes a Strategy object.
-        
+
         Parameters
         ----------
         broker : Broker
@@ -57,41 +60,50 @@ class _Strategy:
         data_source : DataSource
             The data source to use for the strategy. Required.
         minutes_before_closing : int
-            The number of minutes before closing that the before_market_closes lifecycle method will be called and the strategy will be stopped.
+            The number of minutes before closing that the before_market_closes lifecycle method will be called and the
+            strategy will be stopped.
         minutes_before_opening : int
             The number of minutes before opening that the before_market_opens lifecycle method will be called.
         sleeptime : str
-            The number of seconds to sleep between the start of each iteration of the strategy (on_trading_iteration). For example "1S" for 1 second, "5M" for 5 minutes, "2H" for 2 hours, or "1D" for 1 day. Defaults to "1M" (1 minute).
+            The number of seconds to sleep between the start of each iteration of the strategy (on_trading_iteration).
+            For example "1S" for 1 second, "5M" for 5 minutes, "2H" for 2 hours, or "1D" for 1 day.
+            Defaults to "1M" (1 minute).
         stats_file : str
             The file name to save the stats to.
         risk_free_rate : float
-            The risk free rate to use for calculating the Sharpe ratio.
+            The risk-free rate to use for calculating the Sharpe ratio.
         benchmark_asset : Asset or str
-            The asset to use as the benchmark for the strategy. Defaults to "SPY". Strings are converted to Asset objects with an asset_type="stock".
-        backtesting_start : datetime
+            The asset to use as the benchmark for the strategy. Defaults to "SPY". Strings are converted to
+            Asset objects with an asset_type="stock".
+        backtesting_start : datetime.datetime
             The date and time to start backtesting from. Required for backtesting.
-        backtesting_end : datetime
+        backtesting_end : datetime.datetime
             The date and time to end backtesting. Required for backtesting.
         pandas_data : pd.DataFrame
             The pandas dataframe to use for backtesting. Required if using the PandasDataBacktesting data source.
         quote_asset : Asset
             The asset to use as the quote asset. Defaults to a USD forex Asset object.
         starting_positions : dict
-            A dictionary of starting positions to use for backtesting. The keys are the symbols of the assets and the values are the quantities of the assets to start with.
+            A dictionary of starting positions to use for backtesting. The keys are the symbols of the assets and the
+            values are the quantities of the assets to start with.
         filled_order_callback : function
-            A function to call when an order is filled. The function should take two parameters: the strategy object and the order object.
+            A function to call when an order is filled. The function should take two parameters: the strategy object
+            and the order object.
         name : str
             The name of the strategy. Defaults to the name of the class.
         budget : float
             The starting budget to use for backtesting. Defaults to $100,000.
         parameters : dict
-            A dictionary of parameters to use for the strategy, this will override parameters set in the strategy class. The keys are the names of the parameters and the values are the values of the parameters. Defaults to an empty dictionary.
+            A dictionary of parameters to use for the strategy, this will override parameters set in the strategy
+            class. The keys are the names of the parameters and the values are the values of the parameters.
+            Defaults to an empty dictionary.
         buy_trading_fees : list
             A list of TradingFee objects to use for buying assets. Defaults to an empty list.
         sell_trading_fees : list
             A list of TradingFee objects to use for selling assets. Defaults to an empty list.
         force_start_immidiately : bool
-            If True, the strategy will start immediately. If False, the strategy will wait until the market opens to start. Defaults to True.
+            If True, the strategy will start immediately. If False, the strategy will wait until the market opens
+            to start. Defaults to True.
         """
         # Handling positional arguments.
         # If there is one positional argument, it is assumed to be `broker`.
@@ -116,17 +128,17 @@ class _Strategy:
             self._name = args[0]
             self.broker = args[1]
             logging.warning(
-                f"You are using the old style of initializing a Strategy. Only use \n"
-                f"the broker class as the first positional argument and the rest as keyword arguments. \n"
-                f"For example `MyStrategy(broker, name=strategy_name, budget=budget)`\n"
+                "You are using the old style of initializing a Strategy. Only use \n"
+                "the broker class as the first positional argument and the rest as keyword arguments. \n"
+                "For example `MyStrategy(broker, name=strategy_name, budget=budget)`\n"
             )
         elif len(args) == 3:
             self._name = args[0]
             self.broker = args[2]
             logging.warning(
-                f"You are using the old style of initializing a Strategy. Only use \n"
-                f"the broker class as the first positional argument and the rest as keyword arguments. \n"
-                f"For example `MyStrategy(broker, name=strategy_name, budget=budget)`\n"
+                "You are using the old style of initializing a Strategy. Only use \n"
+                "the broker class as the first positional argument and the rest as keyword arguments. \n"
+                "For example `MyStrategy(broker, name=strategy_name, budget=budget)`\n"
             )
         else:
             self.broker = broker
@@ -140,15 +152,15 @@ class _Strategy:
         # Setting the broker object
         self._is_backtesting = self.broker.IS_BACKTESTING_BROKER
         self._benchmark_asset = benchmark_asset
-        self._backtesting_start = backtesting_start
-        self._backtesting_end = backtesting_end
-        
+        self._backtesting_start = to_datetime_aware(backtesting_start)
+        self._backtesting_end = to_datetime_aware(backtesting_end)
+
         # Force start immediately if we are backtesting
         self.force_start_immediately = force_start_immediately
-        
+
         # Initialize the chart markers list
         self._chart_markers_list = []
-        
+
         # Initialize the chart lines list
         self._chart_lines_list = []
 
@@ -157,9 +169,8 @@ class _Strategy:
 
         # Setting the data provider
         if self._is_backtesting:
-            self.data_source = self.broker._data_source
-            if self.data_source.SOURCE == "PANDAS":
-                self.data_source.load_data()
+            if self.broker.data_source.SOURCE == "PANDAS":
+                self.broker.data_source.load_data()
 
             # Create initial starting positions.
             self.starting_positions = starting_positions
@@ -175,13 +186,8 @@ class _Strategy:
                     )
                     self.broker._filled_positions.append(position)
 
-        elif data_source is None:
-            self.data_source = self.broker
-        else:
-            self.data_source = data_source
-
         if risk_free_rate is None:
-            # Get risk free rate from US Treasuries by default
+            # Get risk-free rate from US Treasuries by default
             self._risk_free_rate = get_risk_free_rate()
         else:
             self._risk_free_rate = risk_free_rate
@@ -204,16 +210,18 @@ class _Strategy:
                     budget = self.cash
             else:
                 logger.warning(
-                    "You have set both a starting budget and a starting position for the quote asset. The starting position for the quote asset will be replaced with the budget, and the budget will be used as the cash value instead."
+                    "You have set both a starting budget and a starting position for the quote asset. "
+                    "The starting position for the quote asset will be replaced with the budget, and the "
+                    "budget will be used as the cash value instead."
                 )
                 self._set_cash_position(budget)
 
-            ##############################################
-            ### TODO: Should all this just use _update_portfolio_value()?
-            ### START
+            # #############################################
+            # ## TODO: Should all this just use _update_portfolio_value()?
+            # ## START
             self._portfolio_value = self.cash
 
-            store_assets = list(self.broker._data_source._data_store.keys())
+            store_assets = list(self.broker.data_source._data_store.keys())
             if len(store_assets) > 0:
                 positions_value = 0
                 for position in self.get_positions():
@@ -222,9 +230,7 @@ class _Strategy:
                         # Don't include the quote asset since it's already included with cash
                         price = 0
                     else:
-                        price = self.get_last_price(
-                            position.asset, quote=self.quote_asset
-                        )
+                        price = self.get_last_price(position.asset, quote=self.quote_asset)
                     value = float(position.quantity) * price
                     positions_value += value
 
@@ -250,14 +256,10 @@ class _Strategy:
         self._analysis = {}
 
         # Storing parameters for the initialize method
-        if (
-            not hasattr(self, "parameters")
-            or type(self.parameters) != dict
-            or self.parameters is None
-        ):
+        if not hasattr(self, "parameters") or not isinstance(self.parameters, dict) or self.parameters is None:
             self.parameters = {}
         self.parameters = {**self.parameters, **kwargs}
-        if parameters is not None and type(self.parameters) == dict:
+        if parameters is not None and isinstance(self.parameters, dict):
             self.parameters = {**self.parameters, **parameters}
 
         self._strategy_returns_df = None
@@ -273,7 +275,7 @@ class _Strategy:
             if key[0] != "_" and key not in ignored_fields:
                 try:
                     result[key] = self.__dict__[key]
-                except:
+                except KeyError:
                     pass
                     # logging.warning(
                     #     "Cannot perform deepcopy on %r" % self.__dict__[key]
@@ -312,45 +314,26 @@ class _Strategy:
         )
         self.broker._filled_positions.append(position)
 
-    def _set_asset_mapping(self, asset):
+    def _sanitize_user_asset(self, asset):
         if isinstance(asset, Asset):
             return asset
         elif isinstance(asset, tuple):
             return asset
-        elif isinstance(asset, str) and "/" not in asset:
-            if asset not in self._asset_mapping:
-                self._asset_mapping[asset] = Asset(symbol=asset)
-            return self._asset_mapping[asset]
-        elif (isinstance(asset, str) and "/" in asset) or (
-            isinstance(asset, tuple) and len(asset) == 2
-        ):
-            asset_tuple = []
-            if isinstance(asset, str):
-                assets = asset.split("/")
-            else:
-                assets = asset
-            for asset in assets:
-                if isinstance(asset, str) and asset not in self._asset_mapping:
-                    self._asset_mapping[asset] = Asset(symbol=asset)
-                    asset_tuple.append(self._asset_mapping[asset])
-                asset_tuple.append(asset)
-            return tuple(asset_tuple)
+        elif isinstance(asset, str):
+            return Asset(symbol=asset)
         else:
-            if self.broker.SOURCE != "CCXT":
-                raise ValueError(
-                    f"You must enter a symbol string or an asset object. You "
-                    f"entered {asset}"
-                )
+            if self.broker.data_source.SOURCE != "CCXT":
+                raise ValueError(f"You must enter a symbol string or an asset object. You " f"entered {asset}")
             else:
                 raise ValueError(
-                    f"You must enter symbol string or an asset object. If you "
-                    f"getting a quote, you may enter a string like `ETH/BTC` or "
-                    f"asset objects in a tuple like (Asset(ETH), Asset(BTC))."
+                    "You must enter symbol string or an asset object. If you "
+                    "getting a quote, you may enter a string like `ETH/BTC` or "
+                    "asset objects in a tuple like (Asset(ETH), Asset(BTC))."
                 )
 
     def _log_strat_name(self):
         """Returns the name of the strategy as a string if not default"""
-        return f"{self._name} " if self._name != None else ""
+        return f"{self._name} " if self._name is not None else ""
 
     def update_broker_balances(self, force_update=True):
         """Updates the broker's balances, including cash and portfolio value
@@ -378,12 +361,9 @@ class _Strategy:
             self.last_broker_balances_update is None
             or force_update
             or (
-                self.last_broker_balances_update
-                + datetime.timedelta(seconds=UPDATE_INTERVAL)
-                < datetime.datetime.now()
+                self.last_broker_balances_update + datetime.timedelta(seconds=UPDATE_INTERVAL) < datetime.datetime.now()
             )
         ):
-
             broker_balances = self.broker._get_balances_at_broker(self.quote_asset)
 
             if broker_balances is not None:
@@ -432,13 +412,13 @@ class _Strategy:
                         asset = (asset, self.quote_asset)
                     assets.append(asset)
 
-            prices = self.data_source.get_last_prices(assets)
+            prices = self.broker.data_source.get_last_prices(assets)
 
             for position in positions:
                 # Turn the asset into a tuple if it's a crypto asset
                 asset = (
                     position.asset
-                    if position.asset.asset_type != "crypto"
+                    if (position.asset.asset_type != "crypto") and (position.asset.asset_type != "forex")
                     else (position.asset, self.quote_asset)
                 )
                 quantity = position.quantity
@@ -480,11 +460,7 @@ class _Strategy:
                 if isinstance(asset, tuple):
                     multiplier = 1
                 else:
-                    multiplier = (
-                        asset.multiplier
-                        if asset.asset_type in ["option", "future"]
-                        else 1
-                    )
+                    multiplier = asset.multiplier if asset.asset_type in ["option", "future"] else 1
                 portfolio_value += float(quantity) * price * multiplier
 
             self._portfolio_value = portfolio_value
@@ -522,11 +498,7 @@ class _Strategy:
             for position in positions:
                 asset = position.asset
                 quantity = position.quantity
-                dividend_per_share = (
-                    0
-                    if dividends_per_share is None
-                    else dividends_per_share.get(asset, 0)
-                )
+                dividend_per_share = 0 if dividends_per_share is None else dividends_per_share.get(asset, 0)
                 cash = self.cash
                 if cash is None:
                     cash = 0
@@ -559,63 +531,30 @@ class _Strategy:
             if self._stats_file:
                 self._stats.to_csv(self._stats_file)
 
-            # Getting the performance of the strategy
-            self.log_message(f"--- {self._log_strat_name()}Strategy Performance  ---")
-
             self._strategy_returns_df = day_deduplicate(self._stats)
-            self._analysis = stats_summary(
-                self._strategy_returns_df, self._risk_free_rate
-            )
 
-            total_return = self._analysis["total_return"]
-            self.log_message(f"Total Return: {total_return*100:,.2f}%")
-
-            cagr_value = self._analysis["cagr"]
-            self.log_message(f"CAGR {cagr_value*100:,.2f}%")
-
-            volatility_value = self._analysis["volatility"]
-            self.log_message(f"Volatility {volatility_value*100:,.2f}%")
-
-            sharpe_value = self._analysis["sharpe"]
-            self.log_message(f"Sharpe {sharpe_value:,.2f}")
-
-            max_drawdown_result = self._analysis["max_drawdown"]
-            max_drawdown_value = max_drawdown_result["drawdown"] * 100
-            max_drawdown_date = max_drawdown_result["date"]
-            self.log_message(
-                f"Max Drawdown {max_drawdown_value:,.2f}% on {max_drawdown_date:%Y-%m-%d}"
-            )
-
-            romad_value = self._analysis["romad"]
-            self.log_message(f"RoMaD {romad_value*100:,.2f}%")
+            self._analysis = stats_summary(self._strategy_returns_df, self._risk_free_rate)
 
             # Getting performance for the benchmark asset
-            if (
-                self._backtesting_start is not None
-                and self._backtesting_end is not None
-            ):
-                self.log_message(
-                    f"--- {self._benchmark_asset} Benchmark Performance ---"
-                )
-
+            if self._backtesting_start is not None and self._backtesting_end is not None:
                 # Need to adjust the backtesting end date because the data from Yahoo
                 # is at the start of the day, so the graph cuts short. This may be needed
                 # for other timeframes as well
                 backtesting_end_adjusted = self._backtesting_end
 
                 # If we are using the polgon data source, then get the benchmark returns from polygon
-                if type(self.data_source) == PolygonDataBacktesting:
+                if type(self.broker.data_source) == PolygonDataBacktesting:
                     benchmark_asset = self._benchmark_asset
                     # If the benchmark asset is a string, then convert it to an Asset object
                     if isinstance(benchmark_asset, str):
                         benchmark_asset = Asset(benchmark_asset)
-                    
+
                     timestep = "minute"
                     # If the strategy sleeptime is in days then use daily data, eg. "1D"
                     if "D" in str(self._sleeptime):
                         timestep = "day"
-                    
-                    bars = self.data_source.get_historical_prices_between_dates(
+
+                    bars = self.broker.data_source.get_historical_prices_between_dates(
                         benchmark_asset,
                         timestep,
                         start_date=self._backtesting_start,
@@ -623,50 +562,22 @@ class _Strategy:
                         quote=self._quote_asset,
                     )
                     df = bars.df
-                    
+
                     # Add returns column
                     df["return"] = df["close"].pct_change()
-                    
+
                     # Add the symbol_cumprod column
                     df["symbol_cumprod"] = (1 + df["return"]).cumprod()
-                    
+
                     self._benchmark_returns_df = df
-                    
-                # If we are using the any other data source, then get the benchmark returns from yahoo
+
+                # If we are using any other data source, then get the benchmark returns from yahoo
                 else:
                     self._benchmark_returns_df = get_symbol_returns(
                         self._benchmark_asset,
                         self._backtesting_start,
                         backtesting_end_adjusted,
                     )
-
-                self._benchmark_analysis = stats_summary(
-                    self._benchmark_returns_df, self._risk_free_rate
-                )
-
-                total_return = self._benchmark_analysis["total_return"]
-                self.log_message(f"Total Return: {total_return*100:,.2f}%")
-
-                cagr_value = self._benchmark_analysis["cagr"]
-                self.log_message(f"{self._benchmark_asset} CAGR {cagr_value*100:,.2f}%")
-
-                volatility_value = self._benchmark_analysis["volatility"]
-                self.log_message(
-                    f"{self._benchmark_asset} Volatility {volatility_value*100:,.2f}%"
-                )
-
-                sharpe_value = self._benchmark_analysis["sharpe"]
-                self.log_message(f"{self._benchmark_asset} Sharpe {sharpe_value:,.2f}")
-
-                max_drawdown_result = self._benchmark_analysis["max_drawdown"]
-                self.log_message(
-                    f"{self._benchmark_asset} Max Drawdown {max_drawdown_result['drawdown']*100:,.2f}% on {max_drawdown_result['date']:%Y-%m-%d}"
-                )
-
-                romad_value = self._benchmark_analysis["romad"]
-                self.log_message(
-                    f"{self._benchmark_asset} RoMaD {romad_value*100:,.2f}%"
-                )
 
         for handler in logger.handlers:
             if handler.__class__.__name__ == "StreamHandler":
@@ -682,13 +593,9 @@ class _Strategy:
         if not show_plot:
             return
         elif self._strategy_returns_df is None:
-            logging.warning(
-                "Cannot plot returns because the strategy returns are missing"
-            )
+            logging.warning("Cannot plot returns because the strategy returns are missing")
         elif self._benchmark_returns_df is None:
-            logging.warning(
-                "Cannot plot returns because the benchmark returns are missing"
-            )
+            logging.warning("Cannot plot returns because the benchmark returns are missing")
         else:
             plot_returns(
                 self._strategy_returns_df,
@@ -700,17 +607,17 @@ class _Strategy:
                 show_plot,
                 initial_budget=self._initial_budget,
             )
-            
+
     def plot_indicators(
         self,
         plot_file_html="indicators.html",
         chart_markers_df=None,
         chart_lines_df=None,
-    ):  
+    ):
         # Check if we have at least one indicator to plot
         if chart_markers_df is None and chart_lines_df is None:
             return None
-        
+
         # Plot the indicators
         plot_indicators(
             plot_file_html,
@@ -718,8 +625,6 @@ class _Strategy:
             chart_lines_df,
             f"{self._log_strat_name()}Strategy Indicators",
         )
-        
-        
 
     def tearsheet(
         self,
@@ -734,11 +639,9 @@ class _Strategy:
             save_tearsheet = True
 
         if self._strategy_returns_df is None:
-            logging.warning(
-                "Cannot create a tearsheet because the strategy returns are missing"
-            )
+            logging.warning("Cannot create a tearsheet because the strategy returns are missing")
         else:
-            strat_name = self._name if self._name != None else "Strategy"
+            strat_name = self._name if self._name is not None else "Strategy"
             create_tearsheet(
                 self._strategy_returns_df,
                 strat_name,
@@ -750,7 +653,7 @@ class _Strategy:
             )
 
     @classmethod
-    def backtest(
+    def run_backtest(
         cls,
         *args,
         minutes_before_closing=5,
@@ -777,6 +680,7 @@ class _Strategy:
         parameters={},
         buy_trading_fees=[],
         sell_trading_fees=[],
+        api_key=None,
         polygon_api_key=None,
         polygon_has_paid_subscription=False,
         indicators_file=None,
@@ -787,7 +691,8 @@ class _Strategy:
         Parameters
         ----------
         datasource_class : class
-            The datasource class to use. For example, if you want to use the yahoo finance datasource, then you would pass YahooDataBacktesting as the datasource_class.
+            The datasource class to use. For example, if you want to use the yahoo finance datasource,
+            then you would pass YahooDataBacktesting as the datasource_class.
         backtesting_start : datetime
             The start date of the backtesting period.
         backtesting_end : datetime
@@ -801,19 +706,20 @@ class _Strategy:
         stats_file : str
             The file to write the stats to.
         risk_free_rate : float
-            The risk free rate to use.
+            The risk-free rate to use.
         logfile : str
             The file to write the log to.
         config : dict
             The config to use to set up the brokers in live trading.
         auto_adjust : bool
-            Whether or not to automatically adjust the strategy.
+            Whether to automatically adjust the strategy.
         name : str
             The name of the strategy.
         budget : float
             The initial budget to use for the backtest.
         benchmark_asset : str or Asset
-            The benchmark asset to use for the backtest to compare to. If it is a string then it will be converted to a stock Asset object.
+            The benchmark asset to use for the backtest to compare to. If it is a string then it will be converted
+            to a stock Asset object.
         plot_file_html : str
             The file to write the plot html to.
         trades_file : str
@@ -822,7 +728,7 @@ class _Strategy:
             A list of Data objects that are used when the datasource_class object is set to PandasDataBacktesting.
             This contains all the data that will be used in backtesting.
         quote_asset : Asset (crypto)
-            An Asset object for the crypto currency that will get used
+            An Asset object for the cryptocurrency that will get used
             as a valuation asset for measuring overall porfolio values.
             Usually USDT, USD, USDC.
         starting_positions : dict
@@ -830,11 +736,11 @@ class _Strategy:
             if you want to start with $100 of SPY, and $200 of AAPL, then you
             would pass in starting_positions={'SPY': 100, 'AAPL': 200}.
         show_plot : bool
-            Whether or not to show the plot.
+            Whether to show the plot.
         show_tearsheet : bool
-            Whether or not to show the tearsheet.
+            Whether to show the tearsheet.
         save_tearsheet : bool
-            Whether or not to save the tearsheet.
+            Whether to save the tearsheet.
         parameters : dict
             A dictionary of parameters to pass to the strategy. These parameters
             must be set up within the initialize() method.
@@ -842,10 +748,15 @@ class _Strategy:
             A list of TradingFee objects to apply to the buy orders during backtests.
         sell_trading_fees : list of TradingFee objects
             A list of TradingFee objects to apply to the sell orders during backtests.
-        polygon_api_key : str
-            The polygon api key to use for polygon data. Only required if you are using PolygonDataBacktesting as the datasource_class.
+        api_key : str
+            The polygon api key to use for polygon data. Only required if you are using PolygonDataBacktesting as
+            the datasource_class.
+        polygon_api_key: str
+            The polygon api key to use for polygon data. Only required if you are using PolygonDataBacktesting as
+            the datasource_class. Deprecated, please use 'api_key' instead.
         polygon_has_paid_subscription : bool
-            Whether or not you have a paid subscription to Polygon. Only required if you are using PolygonDataBacktesting as the datasource_class.
+            Whether you have a paid subscription to Polygon. Only required if you are using
+            PolygonDataBacktesting as the datasource_class.
         indicators_file : str
             The file to write the indicators to.
 
@@ -881,10 +792,16 @@ class _Strategy:
         >>>     backtesting_end=backtesting_end,
         >>>     benchmark_asset=benchmark_asset,
         >>> )
-
-
         """
-        
+
+        warnings.warn(
+            "The backtest() method will be depricated in future versions of Lumibot. Instead "
+            "please use 'trader.run_all(backtest=True)' as this more closely models how your strategy "
+            "will behave in Live Trading sessions.  <web link>",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
         positional_args_error_message = (
             "Please do not use `name' or 'budget' as positional arguments. \n"
             "These have been changed to keyword arguments. For example, \n"
@@ -903,7 +820,7 @@ class _Strategy:
             "        **kwargs,\n"
             "    )"
         )
-        
+
         # Print start message
         print(f"Starting backtest for {cls.__name__}...")
 
@@ -921,8 +838,7 @@ class _Strategy:
             backtesting_start = args[3]
             backtesting_end = args[4]
             logging.warning(
-                f"You are using the old style of initializing a backtest object. \n"
-                f"{positional_args_error_message}"
+                f"You are using the old style of initializing a backtest object. \n" f"{positional_args_error_message}"
             )
         else:
             # Error message
@@ -934,75 +850,38 @@ class _Strategy:
 
         if name is None:
             name = cls.__name__
-            
-        ##############################################  
+
+        if not api_key and polygon_api_key:
+            api_key = polygon_api_key
+
+        datestring = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        basename = f"{name + '_' if name is not None else ''}{datestring}"
+        if logfile is None:
+            logfile = f"logs/{basename}_logs.csv"
+        if stats_file is None:
+            logdir = os.path.dirname(logfile)
+            stats_file = f"{logdir}/{basename}_stats.csv"
+
+        # #############################################
         # Check the data types of the parameters
-        ##############################################
-        
+        # #############################################
+
         # Check datasource_class
         if not isinstance(datasource_class, type):
-            raise ValueError(
-                f"`datasource_class` must be a class. You passed in {datasource_class}"
-            )
-            
-        # Check backtesting_start and backtesting_end
-        if not isinstance(backtesting_start, datetime.datetime):    
-            raise ValueError(
-                f"`backtesting_start` must be a datetime object. You passed in {backtesting_start}"
-            )
-        if not isinstance(backtesting_end, datetime.datetime):
-            raise ValueError(
-                f"`backtesting_end` must be a datetime object. You passed in {backtesting_end}"
-            )
-            
+            raise ValueError(f"`datasource_class` must be a class. You passed in {datasource_class}")
 
-        # Check that backtesting end is after backtesting start
-        if backtesting_end <= backtesting_start:
-            raise ValueError(
-                f"`backtesting_end` must be after `backtesting_start`. You passed in {backtesting_end} and {backtesting_start}"
-            )
-            
-            
+        cls.verify_backtest_inputs(backtesting_start, backtesting_end)
+
         # Make sure polygon_api_key is set if using PolygonDataBacktesting
-        if datasource_class == PolygonDataBacktesting and polygon_api_key is None:
+        if datasource_class == PolygonDataBacktesting and api_key is None:
             raise ValueError(
-                "Please set `polygon_api_key` to your API key from polygon.io in the backtest() function if you are using PolygonDataBacktesting. If you don't have one, you can get a free API key from https://polygon.io/."
-            )
-
-        # Filename defaults
-        datestring = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        if plot_file_html is None:
-            plot_file_html = (
-                f"logs/{name + '_' if name != None else ''}{datestring}_trades.html"
-            )
-        if stats_file is None:
-            stats_file = (
-                f"logs/{name + '_' if name != None else ''}{datestring}_stats.csv"
-            )
-        if trades_file is None:
-            trades_file = (
-                f"logs/{name + '_' if name != None else ''}{datestring}_trades.csv"
-            )
-        if logfile is None:
-            logfile = f"logs/{name + '_' if name != None else ''}{datestring}_logs.csv"
-        if tearsheet_file is None:
-            tearsheet_file = (
-                f"logs/{name + '_' if name != None else ''}{datestring}_tearsheet.html"
-            )
-        if settings_file is None:
-            settings_file = (
-                f"logs/{name + '_' if name != None else ''}{datestring}_settings.json"
-            )
-        if indicators_file is None:
-            indicators_file = (
-                f"logs/{name + '_' if name != None else ''}{datestring}_indicators.html"
+                "Please set `api_key` to your API key from polygon.io in the backtest() function if "
+                "you are using PolygonDataBacktesting. If you don't have one, you can get a free API key "
+                "from https://polygon.io/."
             )
 
         if not cls.IS_BACKTESTABLE:
-            logging.warning(
-                f"Strategy {name + ' ' if name != None else ''}cannot be "
-                f"backtested at the moment"
-            )
+            logging.warning(f"Strategy {name + ' ' if name is not None else ''}cannot be " f"backtested at the moment")
             return None
 
         try:
@@ -1017,17 +896,21 @@ class _Strategy:
             )
             return None
 
-        trader = Trader(logfile=logfile)
+        trader = Trader(logfile=logfile, backtest=True)
         data_source = datasource_class(
             backtesting_start,
             backtesting_end,
             config=config,
             auto_adjust=auto_adjust,
-            pandas_data=pandas_data,
-            polygon_api_key=polygon_api_key,
-            has_paid_subscription=polygon_has_paid_subscription,
+            api_key=api_key,
             **kwargs,
         )
+        if hasattr(data_source, "has_paid_subscription"):
+            data_source.has_paid_subscription = polygon_has_paid_subscription
+
+        # if hasattr(data_source, 'pandas_data'):
+        #     data_source.pandas_data = pandas_data
+
         backtesting_broker = BacktestingBroker(data_source)
         strategy = cls(
             backtesting_broker,
@@ -1056,60 +939,277 @@ class _Strategy:
         logger.info("Starting backtest...")
         start = datetime.datetime.now()
 
-        settings = {
-            "name": name,
-            "backtesting_start": str(backtesting_start),
-            "backtesting_end": str(backtesting_end),
-            "budget": budget,
-            "risk_free_rate": risk_free_rate,
-            "minutes_before_closing": minutes_before_closing,
-            "minutes_before_opening": minutes_before_opening,
-            "sleeptime": sleeptime,
-            "auto_adjust": auto_adjust,
-            "quote_asset": str(quote_asset),
-            "benchmark_asset": str(benchmark_asset),
-            "starting_positions": str(starting_positions),
-            "parameters": strategy.parameters,
-        }
-
-        os.makedirs(os.path.dirname(settings_file), exist_ok=True)
-        with open(settings_file, "w") as outfile:
-            json = jsonpickle.encode(settings)
-            outfile.write(json)
-
-        result = trader.run_all()
+        result = trader.run_all(show_plot=show_plot, show_tearsheet=show_tearsheet, save_tearsheet=save_tearsheet)
 
         end = datetime.datetime.now()
         backtesting_length = backtesting_end - backtesting_start
         backtesting_run_time = end - start
         logger.info(
-            f"Backtest took {backtesting_run_time} for a speed of {backtesting_run_time/backtesting_length:,.3f}"
+            f"Backtest took {backtesting_run_time} for a speed of {backtesting_run_time / backtesting_length:,.3f}"
         )
 
-        backtesting_broker.export_trade_events_to_csv(trades_file)
+        return result[name], strategy
 
-        strategy.plot_returns_vs_benchmark(
+    def write_backtest_settings(self, settings_file):
+        """
+        Redefined in the Strategy class to that it has access to all the needed variables.
+        """
+        pass
+
+    def backtest_analysis(
+        self,
+        logfile=None,
+        show_plot=True,
+        show_tearsheet=True,
+        save_tearsheet=True,
+        plot_file_html=None,
+        tearsheet_file=None,
+        trades_file=None,
+        settings_file=None,
+        indicators_file=None,
+    ):
+        name = self._name
+
+        # Filename defaults
+        logdir = os.path.dirname(logfile)
+        datestring = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        basename = f"{name + '_' if name is not None else ''}{datestring}"
+        if plot_file_html is None:
+            plot_file_html = f"{logdir}/{basename}_trades.html"
+        if trades_file is None:
+            trades_file = f"{logdir}/{basename}_trades.csv"
+        if tearsheet_file is None:
+            tearsheet_file = f"{logdir}/{basename}_tearsheet.html"
+        if settings_file is None:
+            settings_file = f"{logdir}/{basename}_settings.json"
+        if indicators_file is None:
+            indicators_file = f"{logdir}/{basename}_indicators.html"
+
+        self.write_backtest_settings(settings_file)
+
+        backtesting_broker = self.broker
+        backtesting_broker.export_trade_events_to_csv(trades_file)
+        self.plot_returns_vs_benchmark(
             plot_file_html,
             backtesting_broker._trade_event_log_df,
             show_plot=show_plot,
         )
-        
         # Create chart lines dataframe
-        chart_lines_df = pd.DataFrame(strategy._chart_lines_list)
-        
+        chart_lines_df = pd.DataFrame(self._chart_lines_list)
         # Create chart markers dataframe
-        chart_markers_df = pd.DataFrame(strategy._chart_markers_list)
-        
-        strategy.plot_indicators(
+        chart_markers_df = pd.DataFrame(self._chart_markers_list)
+        self.plot_indicators(
             indicators_file,
             chart_markers_df,
             chart_lines_df,
         )
-
-        strategy.tearsheet(
+        self.tearsheet(
             save_tearsheet=save_tearsheet,
             tearsheet_file=tearsheet_file,
             show_tearsheet=show_tearsheet,
         )
 
-        return result[name]
+    @classmethod
+    def verify_backtest_inputs(cls, backtesting_start, backtesting_end):
+        """
+        Helper function to check that the inputs are set correctly for BackTest.
+        Parameters
+        ----------
+        backtesting_start: datetime.datetime
+            The start datetime of the backtesting period.
+        backtesting_end: datetime.datetime
+            The end datetime of the backtesting period.
+
+        Raises
+        -------
+        ValueError
+            If the inputs are not set correctly.
+        """
+        # Check backtesting_start and backtesting_end
+        if not isinstance(backtesting_start, datetime.datetime):
+            raise ValueError(f"`backtesting_start` must be a datetime object. You passed in {backtesting_start}")
+
+        if not isinstance(backtesting_end, datetime.datetime):
+            raise ValueError(f"`backtesting_end` must be a datetime object. You passed in {backtesting_end}")
+
+        # Check that backtesting end is after backtesting start
+        if backtesting_end <= backtesting_start:
+            raise ValueError(
+                f"`backtesting_end` must be after `backtesting_start`. You passed in "
+                f"{backtesting_end} and {backtesting_start}"
+            )
+
+    @classmethod
+    def backtest(
+        cls,
+        *args,
+        minutes_before_closing=5,
+        minutes_before_opening=60,
+        sleeptime=1,
+        stats_file=None,
+        risk_free_rate=None,
+        logfile=None,
+        config=None,
+        auto_adjust=False,
+        name=None,
+        budget=None,
+        benchmark_asset="SPY",
+        plot_file_html=None,
+        trades_file=None,
+        settings_file=None,
+        pandas_data=None,
+        quote_asset=Asset(symbol="USD", asset_type="forex"),
+        starting_positions=None,
+        show_plot=True,
+        tearsheet_file=None,
+        save_tearsheet=True,
+        show_tearsheet=True,
+        parameters={},
+        buy_trading_fees=[],
+        sell_trading_fees=[],
+        api_key=None,
+        polygon_api_key=None,
+        polygon_has_paid_subscription=False,
+        indicators_file=None,
+        **kwargs,
+    ):
+        """Backtest a strategy.
+
+        Parameters
+        ----------
+        datasource_class : class
+            The datasource class to use. For example, if you want to use the yahoo finance datasource, then you
+            would pass YahooDataBacktesting as the datasource_class.
+        backtesting_start : datetime
+            The start date of the backtesting period.
+        backtesting_end : datetime
+            The end date of the backtesting period.
+        minutes_before_closing : int
+            The number of minutes before closing that the minutes_before_closing strategy method will be called.
+        minutes_before_opening : int
+            The number of minutes before opening that the minutes_before_opening strategy method will be called.
+        sleeptime : int
+            The number of seconds to sleep between each iteration of the backtest.
+        stats_file : str
+            The file to write the stats to.
+        risk_free_rate : float
+            The risk free rate to use.
+        logfile : str
+            The file to write the log to.
+        config : dict
+            The config to use to set up the brokers in live trading.
+        auto_adjust : bool
+            Whether or not to automatically adjust the strategy.
+        name : str
+            The name of the strategy.
+        budget : float
+            The initial budget to use for the backtest.
+        benchmark_asset : str or Asset
+            The benchmark asset to use for the backtest to compare to. If it is a string then it will be converted
+            to a stock Asset object.
+        plot_file_html : str
+            The file to write the plot html to.
+        trades_file : str
+            The file to write the trades to.
+        pandas_data : list
+            A list of Data objects that are used when the datasource_class object is set to PandasDataBacktesting.
+            This contains all the data that will be used in backtesting.
+        quote_asset : Asset (crypto)
+            An Asset object for the crypto currency that will get used
+            as a valuation asset for measuring overall porfolio values.
+            Usually USDT, USD, USDC.
+        starting_positions : dict
+            A dictionary of starting positions for each asset. For example,
+            if you want to start with $100 of SPY, and $200 of AAPL, then you
+            would pass in starting_positions={'SPY': 100, 'AAPL': 200}.
+        show_plot : bool
+            Whether to show the plot.
+        show_tearsheet : bool
+            Whether to show the tearsheet.
+        save_tearsheet : bool
+            Whether to save the tearsheet.
+        parameters : dict
+            A dictionary of parameters to pass to the strategy. These parameters
+            must be set up within the initialize() method.
+        buy_trading_fees : list of TradingFee objects
+            A list of TradingFee objects to apply to the buy orders during backtests.
+        sell_trading_fees : list of TradingFee objects
+            A list of TradingFee objects to apply to the sell orders during backtests.
+        api_key : str
+            The polygon api key to use for polygon data. Only required if you are using PolygonDataBacktesting as
+            the datasource_class.
+        polygon_api_key : str
+            The polygon api key to use for polygon data. Only required if you are using PolygonDataBacktesting as
+            the datasource_class. Depricated, please use 'api_key' instead.
+        polygon_has_paid_subscription : bool
+            Whether you have a paid subscription to Polygon. Only required if you are using
+            PolygonDataBacktesting as the datasource_class.
+        indicators_file : str
+            The file to write the indicators to.
+
+        Returns
+        -------
+        Backtest
+            The backtest object.
+
+        Examples
+        --------
+
+        >>> from datetime import datetime
+        >>> from lumibot.backtesting import YahooDataBacktesting
+        >>> from lumibot.strategies import Strategy
+        >>>
+        >>> # A simple strategy that buys AAPL on the first day
+        >>> class MyStrategy(Strategy):
+        >>>    def on_trading_iteration(self):
+        >>>        if self.first_iteration:
+        >>>            order = self.create_order("AAPL", quantity=1, side="buy")
+        >>>            self.submit_order(order)
+        >>>
+        >>> # Create a backtest
+        >>> backtesting_start = datetime(2018, 1, 1)
+        >>> backtesting_end = datetime(2018, 1, 31)
+        >>>
+        >>> # The benchmark asset to use for the backtest to compare to
+        >>> benchmark_asset = Asset(symbol="QQQ", asset_type="stock")
+        >>>
+        >>> backtest = MyStrategy.backtest(
+        >>>     datasource_class=YahooDataBacktesting,
+        >>>     backtesting_start=backtesting_start,
+        >>>     backtesting_end=backtesting_end,
+        >>>     benchmark_asset=benchmark_asset,
+        >>> )
+        """
+        results, strategy = cls.run_backtest(
+            *args,
+            minutes_before_closing=minutes_before_closing,
+            minutes_before_opening=minutes_before_opening,
+            sleeptime=sleeptime,
+            stats_file=stats_file,
+            risk_free_rate=risk_free_rate,
+            logfile=logfile,
+            config=config,
+            auto_adjust=auto_adjust,
+            name=name,
+            budget=budget,
+            benchmark_asset=benchmark_asset,
+            plot_file_html=plot_file_html,
+            trades_file=trades_file,
+            settings_file=settings_file,
+            pandas_data=pandas_data,
+            quote_asset=quote_asset,
+            starting_positions=starting_positions,
+            show_plot=show_plot,
+            tearsheet_file=tearsheet_file,
+            save_tearsheet=save_tearsheet,
+            show_tearsheet=show_tearsheet,
+            parameters=parameters,
+            buy_trading_fees=buy_trading_fees,
+            sell_trading_fees=sell_trading_fees,
+            api_key=api_key,
+            polygon_api_key=polygon_api_key,
+            polygon_has_paid_subscription=polygon_has_paid_subscription,
+            indicators_file=indicators_file,
+            **kwargs,
+        )
+        return results

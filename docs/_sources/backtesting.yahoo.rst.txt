@@ -41,8 +41,16 @@ There is also a returns plot. By default this will show in a browser. You may su
     backtesting_end = datetime(2020, 12, 31)
 
     # Run the backtest
-    MyStrategy.backtest(
-        YahooDataBacktesting,
-        backtesting_start,
-        backtesting_end,
+    trader = Trader(backtest=True)
+    data_source = YahooDataBacktesting(
+        datetime_start=backtesting_start,
+        datetime_end=backtesting_end,
     )
+    broker = BacktestingBroker(data_source)
+    strat = strategy_class(
+        broker=broker,
+        backtesting_start=backtesting_start,
+        backtesting_end=backtesting_end,
+    )
+    trader.add_strategy(strat)
+    trader.run_all()

@@ -10,11 +10,10 @@ from threading import RLock, Thread
 import pandas as pd
 import pandas_market_calendars as mcal
 from dateutil import tz
-from termcolor import colored
-
 from lumibot.data_sources import DataSource
 from lumibot.entities import Asset, Order, Position
 from lumibot.trading_builtins import SafeList
+from termcolor import colored
 
 
 class Broker(ABC):
@@ -493,6 +492,20 @@ class Broker(ABC):
             )
         )
         logging.info(f"{order} was cash settled")
+        self._new_orders.remove(order.identifier, key="identifier")
+        self._partially_filled_orders.remove(order.identifier, key="identifier")
+
+        order.add_transaction(price, quantity)
+        order.status = self.CASH_SETTLED
+        order.set_filled()
+
+        position = self.get_tracked_position(order.strategy, order.asset)
+        if position is not None:
+            # Add the order to the already existing position
+            position.add_order(order, quantity)
+            if position.quantity == 0:
+                logging.info("Position %r liquidated" % position)
+                self._filled_positions.remove(position)
 
     def _process_crypto_quote(self, order, quantity, price):
         """Used to process the quote side of a crypto trade."""
@@ -962,6 +975,7 @@ class Broker(ABC):
             self._on_filled_order(position, stored_order, price, filled_quantity, multiplier)
         elif type_event == self.CASH_SETTLED:
             position = self._process_cash_settlement(stored_order, price, filled_quantity)
+            stored_order.type = self.CASH_SETTLED
         else:
             logging.info(f"Unhandled type event {type_event} for {stored_order}")
 

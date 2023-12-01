@@ -352,7 +352,8 @@ class BacktestingBroker(Broker):
 
         # Calculate the profit/loss of the contract
         if position.asset.right == "CALL":
-            profit_loss = (underlying_price - position.asset.strike) * position.asset.multiplier * position.quantity
+            profit_loss_per_contract = underlying_price - position.asset.strike
+            profit_loss = profit_loss_per_contract * position.quantity * position.asset.multiplier
 
             # If we are long the call, then we cannot lose more than the premium we paid
             if position.quantity > 0:
@@ -366,7 +367,8 @@ class BacktestingBroker(Broker):
                     profit_loss = 0
 
         elif position.asset.right == "PUT":
-            profit_loss = (position.asset.strike - underlying_price) * position.asset.multiplier * position.quantity
+            profit_loss_per_contract = position.asset.strike - underlying_price
+            profit_loss = profit_loss_per_contract * position.quantity * position.asset.multiplier
 
             # If we are long the put, then we cannot lose more than the premium we paid
             if position.quantity > 0:
@@ -401,7 +403,7 @@ class BacktestingBroker(Broker):
         self.stream.dispatch(
             self.CASH_SETTLED,
             order=order,
-            price=position.asset.strike,
+            price=abs(profit_loss / position.quantity / position.asset.multiplier),
             filled_quantity=abs(position.quantity),
         )
 
@@ -706,6 +708,20 @@ class BacktestingBroker(Broker):
                 broker._process_trade_event(
                     order,
                     broker.CANCELED_ORDER,
+                )
+                return True
+            except:
+                logging.error(traceback.format_exc())
+
+        @broker.stream.add_action(broker.CASH_SETTLED)
+        def on_trade_event(order, price, filled_quantity):
+            try:
+                broker._process_trade_event(
+                    order,
+                    broker.CASH_SETTLED,
+                    price=price,
+                    filled_quantity=filled_quantity,
+                    multiplier=order.asset.multiplier,
                 )
                 return True
             except:

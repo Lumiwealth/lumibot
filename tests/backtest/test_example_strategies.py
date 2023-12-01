@@ -1,7 +1,8 @@
 import datetime
 import os
 
-from lumibot.backtesting import YahooDataBacktesting
+from lumibot.backtesting import PolygonDataBacktesting, YahooDataBacktesting
+from lumibot.example_strategies.options_hold_to_expiry import OptionsHoldToExpiry
 from lumibot.example_strategies.stock_bracket import StockBracket
 from lumibot.example_strategies.stock_buy_and_hold import BuyAndHold
 from lumibot.example_strategies.stock_diversified_leverage import DiversifiedLeverage
@@ -200,3 +201,35 @@ class TestExampleStrategies:
         assert round(results["volatility"] * 100, 1) == 6.2
         assert round(results["total_return"] * 100, 1) == 0.7
         assert round(results["max_drawdown"]["drawdown"] * 100, 1) == 0.2
+
+    def test_options_hold_to_expiry(self):
+        """
+        Test the example strategy OptionsHoldToExpiry by running a backtest and checking that the strategy object is
+        returned along with the correct results.
+        """
+        # Parameters
+        backtesting_start = datetime.datetime(2023, 10, 16)
+        backtesting_end = datetime.datetime(2023, 10, 21)
+
+        # Execute Backtest
+        results, strat_obj = OptionsHoldToExpiry.run_backtest(
+            PolygonDataBacktesting,
+            backtesting_start,
+            backtesting_end,
+            benchmark_asset="SPY",
+            show_plot=False,
+            show_tearsheet=False,
+            save_tearsheet=False,
+            polygon_api_key=POLYGON_API_KEY,
+            polygon_has_paid_subscription=True,
+        )
+
+        trades_df = strat_obj.broker._trade_event_log_df
+        assert not trades_df.empty
+
+        # Get all the cash settled orders
+        cash_settled_orders = trades_df[(trades_df["status"] == "cash_settled") & (trades_df["type"] == "cash_settled")]
+
+        # The first limit order should have filled at $399.71 and a quantity of 100
+        assert round(cash_settled_orders.iloc[0]["price"], 0) == 0
+        assert cash_settled_orders.iloc[0]["filled_quantity"] == 10

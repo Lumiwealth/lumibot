@@ -245,7 +245,7 @@ class TestPolygonBacktestFull:
             api_key=POLYGON_API_KEY,
             # Painfully slow with free subscription setting b/c lumibot is over querying and imposing a very
             # strict rate limit
-            # polygon_has_paid_subscription=True,
+            polygon_has_paid_subscription=True,
         )
         assert results
         self.verify_backtest_results(poly_strat_obj)
@@ -269,6 +269,6 @@ class TestPolygonBacktestFull:
             polygon_api_key=POLYGON_API_KEY,  # Testing the legacy parameter name while DeprecationWarning is active
             # Painfully slow with free subscription setting b/c lumibot is over querying and imposing a very
             # strict rate limit
-            # polygon_has_paid_subscription=True,
+            polygon_has_paid_subscription=True,
         )
         assert results

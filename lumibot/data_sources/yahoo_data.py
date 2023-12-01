@@ -5,7 +5,7 @@ from decimal import Decimal
 import numpy
 from lumibot.data_sources import DataSourceBacktesting
 from lumibot.entities import Asset, Bars
-from lumibot.tools import YahooHelper
+from lumibot.tools import YahooHelper 
 
 
 class YahooData(DataSourceBacktesting):
@@ -72,11 +72,8 @@ class YahooData(DataSourceBacktesting):
                 auto_adjust=self.auto_adjust,
                 last_needed_datetime=self.datetime_end,
             )
-            if data.shape[0] == 0:
-                message = (
-                    f"{self.SOURCE} did not return data for symbol {asset}. "
-                    f"Make sure there is no symbol typo or use another data source"
-                )
+            if data is None or data.shape[0] == 0:
+                message = f"{self.SOURCE} did not return data for symbol {asset}. Make sure this symbol is valid."
                 logging.error(message)
                 return None
             data = self._append_data(asset, data)
@@ -127,7 +124,7 @@ class YahooData(DataSourceBacktesting):
         """Takes an asset and returns the last known price"""
         if timestep is None:
             timestep = self.get_timestep()
-
+        
         # Use -1 timeshift to get the price for the current bar (otherwise gets yesterdays prices)
         bars = self.get_historical_prices(asset, 1, timestep=timestep, quote=quote, timeshift=timedelta(days=-1))
 

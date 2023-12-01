@@ -5,7 +5,6 @@ from decimal import Decimal
 from functools import wraps
 
 import pandas as pd
-
 from lumibot.brokers import Broker
 from lumibot.data_sources import DataSourceBacktesting
 from lumibot.entities import Asset, Order, Position, TradingFee
@@ -334,7 +333,15 @@ class BacktestingBroker(Broker):
         )
 
     def cash_settle_options_contract(self, position, strategy):
-        """Cash settle an options contract"""
+        """Cash settle an options contract position. This method will calculate the
+        profit/loss of the position and add it to the cash position of the strategy. This
+        method will not actually sell the contract, it will just add the profit/loss to the
+        cash position and set the position to 0. Note: only for backtesting"""
+
+        # Check to make sure we are in backtesting mode
+        if not self.IS_BACKTESTING_BROKER:
+            logging.error("Cannot cash settle options contract in live trading")
+            return
 
         # Check that the position is an options contract
         if position.asset.asset_type != "option":
@@ -350,39 +357,20 @@ class BacktestingBroker(Broker):
         # Get the price of the underlying asset
         underlying_price = self.get_last_price(underlying_asset)
 
-        # Calculate the profit/loss of the contract
+        # Calculate profit/loss per contract
         if position.asset.right == "CALL":
             profit_loss_per_contract = underlying_price - position.asset.strike
-            profit_loss = profit_loss_per_contract * position.quantity * position.asset.multiplier
-
-            # If we are long the call, then we cannot lose more than the premium we paid
-            if position.quantity > 0:
-                # If we are in a loss, then set to zero
-                if profit_loss < 0:
-                    profit_loss = 0
-            # If we are short the call, then we cannot gain more than the strike price
-            elif position.quantity < 0:
-                # If we are in a gain, then set to zero
-                if profit_loss > 0:
-                    profit_loss = 0
-
-        elif position.asset.right == "PUT":
-            profit_loss_per_contract = position.asset.strike - underlying_price
-            profit_loss = profit_loss_per_contract * position.quantity * position.asset.multiplier
-
-            # If we are long the put, then we cannot lose more than the premium we paid
-            if position.quantity > 0:
-                # If we are in a loss, then set to zero
-                if profit_loss < 0:
-                    profit_loss = 0
-            # If we are short the put, then we cannot gain more than the strike price
-            elif position.quantity < 0:
-                # If we are in a gain, then set to zero
-                if profit_loss > 0:
-                    profit_loss = 0
         else:
-            logging.error(f"Cannot cash settle option contract {position.asset} with right {position.asset.right}")
-            return
+            profit_loss_per_contract = position.asset.strike - underlying_price
+
+        # Calculate profit/loss for the position
+        profit_loss = profit_loss_per_contract * position.quantity * position.asset.multiplier
+
+        # Adjust profit/loss based on the option type and position
+        if position.quantity > 0 and profit_loss < 0:
+            profit_loss = 0  # Long position can't lose more than the premium paid
+        elif position.quantity < 0 and profit_loss > 0:
+            profit_loss = 0  # Short position can't gain more than the strike price
 
         # Add the profit/loss to the cash position
         new_cash = strategy.get_cash() + profit_loss

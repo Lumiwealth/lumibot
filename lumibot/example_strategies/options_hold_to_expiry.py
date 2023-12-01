@@ -6,7 +6,7 @@ from lumibot.strategies.strategy import Strategy
 """
 Strategy Description
 
-An example strategy for how to use bracket orders.
+An example strategy for buying an option and holding it to expiry.
 """
 
 
@@ -61,7 +61,6 @@ if __name__ == "__main__":
 
     if is_live:
         from credentials import INTERACTIVE_BROKERS_CONFIG
-
         from lumibot.brokers import InteractiveBrokers
         from lumibot.traders import Trader
 

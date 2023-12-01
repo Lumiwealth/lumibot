@@ -110,7 +110,6 @@ class PolygonBacktestStrat(Strategy):
                 right="CALL",
                 strike=strike_price,
                 multiplier=100,
-                currency="USD",
             )
             current_option_price = self.get_last_price(option_asset)
 

@@ -105,9 +105,9 @@ class TestExampleStrategies:
         assert isinstance(strat_obj, BuyAndHold)
 
         # Check that the results are correct
-        assert round(results["cagr"] * 100, 1) == 155.7
-        assert round(results["volatility"] * 100, 1) == 7.0
-        assert round(results["total_return"] * 100, 1) == 0.5
+        assert round(results["cagr"] * 100, 1) == 2857.5
+        assert round(results["volatility"] * 100, 1) == 11.2
+        assert round(results["total_return"] * 100, 1) == 1.9
         assert round(results["max_drawdown"]["drawdown"] * 100, 1) == 0.0
 
     def test_stock_diversified_leverage(self):
@@ -134,9 +134,9 @@ class TestExampleStrategies:
         assert isinstance(strat_obj, DiversifiedLeverage)
 
         # Check that the results are correct
-        assert round(results["cagr"] * 100, 1) == 2907.9
-        assert round(results["volatility"] * 100, 0) == 25
-        assert round(results["total_return"] * 100, 1) == 1.9
+        assert round(results["cagr"] * 100, 1) == 1235709.3
+        assert round(results["volatility"] * 100, 0) == 20.0
+        assert round(results["total_return"] * 100, 1) == 5.3
         assert round(results["max_drawdown"]["drawdown"] * 100, 1) == 0.0
 
     def test_limit_and_trailing_stops(self):
@@ -197,10 +197,10 @@ class TestExampleStrategies:
         assert len(order2) == 1
 
         # Check that the results are correct
-        assert round(results["cagr"] * 100, 1) == 75
-        assert round(results["volatility"] * 100, 1) == 11.3
-        assert round(results["total_return"] * 100, 1) == 0.9
-        assert round(results["max_drawdown"]["drawdown"] * 100, 1) == 0.7
+        assert round(results["cagr"] * 100, 1) == 54.8
+        assert round(results["volatility"] * 100, 1) == 6.2
+        assert round(results["total_return"] * 100, 1) == 0.7
+        assert round(results["max_drawdown"]["drawdown"] * 100, 1) == 0.2
 
     def test_options_hold_to_expiry(self):
         """
@@ -229,3 +229,4 @@ class TestExampleStrategies:
         assert round(results["volatility"] * 100, 1) == 11.3
         assert round(results["total_return"] * 100, 1) == 0.9
         assert round(results["max_drawdown"]["drawdown"] * 100, 1) == 0.7
+

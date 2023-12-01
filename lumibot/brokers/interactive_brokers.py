@@ -11,12 +11,12 @@ from ibapi.client import *
 from ibapi.contract import *
 from ibapi.order import *
 from ibapi.wrapper import *
-
 from lumibot.data_sources import InteractiveBrokersData
 
 # Naming conflict on Order between IB and Lumibot.
-from lumibot.entities import Asset, Position
+from lumibot.entities import Asset
 from lumibot.entities import Order as OrderLum
+from lumibot.entities import Position
 
 from .broker import Broker
 
@@ -76,7 +76,6 @@ class InteractiveBrokers(Broker):
         if broker_position["asset_type"] == "stock":
             asset = Asset(
                 symbol=broker_position["symbol"],
-                currency=broker_position["currency"],
             )
         elif broker_position["asset_type"] == "future":
             asset = Asset(
@@ -84,7 +83,6 @@ class InteractiveBrokers(Broker):
                 asset_type="future",
                 expiration=broker_position["expiration"],
                 multiplier=broker_position["multiplier"],
-                currency=broker_position["currency"],
             )
         elif broker_position["asset_type"] == "option":
             asset = Asset(
@@ -94,13 +92,11 @@ class InteractiveBrokers(Broker):
                 strike=broker_position["strike"],
                 right=broker_position["right"],
                 multiplier=broker_position["multiplier"],
-                currency=broker_position["currency"],
             )
         elif broker_position["asset_type"] == "forex":
             asset = Asset(
                 symbol=broker_position["symbol"],
                 asset_type="forex",
-                currency=broker_position["currency"],
             )
         else:  # Unreachable code.
             raise ValueError(
@@ -144,11 +140,7 @@ class InteractiveBrokers(Broker):
         if response.contract.secType in ["OPT", "FUT"]:
             expiration = datetime.datetime.strptime(
                 response.contract.lastTradeDateOrContractMonth,
-                DATE_MAP[
-                    [d for d, v in TYPE_MAP.items() if v == response.contract.secType][
-                        0
-                    ]
-                ],
+                DATE_MAP[[d for d, v in TYPE_MAP.items() if v == response.contract.secType][0]],
             )
             multiplier = response.contract.multiplier
 
@@ -162,14 +154,11 @@ class InteractiveBrokers(Broker):
             strategy_name,
             Asset(
                 symbol=response.contract.localSymbol,
-                asset_type=[
-                    k for k, v in TYPE_MAP.items() if v == response.contract.secType
-                ][0],
+                asset_type=[k for k, v in TYPE_MAP.items() if v == response.contract.secType][0],
                 expiration=expiration,
                 strike=strike,
                 right=right,
                 multiplier=multiplier,
-                currency=response.contract.currency,
             ),
             Decimal(response.totalQuantity),
             response.action.lower(),
@@ -177,7 +166,7 @@ class InteractiveBrokers(Broker):
             stop_price=response.auxPrice if response.auxPrice != 0 else None,
             time_in_force=response.tif,
             good_till_date=response.goodTillDate,
-            quote=strategy_object.quote_asset,
+            quote=Asset(symbol=response.contract.currency, asset_type="forex"),
         )
         order._transmitted = True
         order.set_identifier(response.orderId)
@@ -187,9 +176,7 @@ class InteractiveBrokers(Broker):
 
     def _pull_broker_order(self, order_id):
         """Get a broker order representation by its id"""
-        pull_order = [
-            order for order in self.ib.get_open_orders() if order.orderId == order_id
-        ]
+        pull_order = [order for order in self.ib.get_open_orders() if order.orderId == order_id]
         response = pull_order[0] if len(pull_order) > 0 else None
         return response
 
@@ -266,17 +253,11 @@ class InteractiveBrokers(Broker):
         finally:
             if summary is None:
                 return None
-        total_cash_value = [
-            float(c["Value"]) for c in summary if c["Tag"] == "TotalCashValue"
-        ][0]
+        total_cash_value = [float(c["Value"]) for c in summary if c["Tag"] == "TotalCashValue"][0]
 
-        gross_position_value = [
-            float(c["Value"]) for c in summary if c["Tag"] == "GrossPositionValue"
-        ][0]
+        gross_position_value = [float(c["Value"]) for c in summary if c["Tag"] == "GrossPositionValue"][0]
 
-        net_liquidation_value = [
-            float(c["Value"]) for c in summary if c["Tag"] == "NetLiquidation"
-        ][0]
+        net_liquidation_value = [float(c["Value"]) for c in summary if c["Tag"] == "NetLiquidation"][0]
 
         return (total_cash_value, gross_position_value, net_liquidation_value)
 
@@ -286,9 +267,7 @@ class InteractiveBrokers(Broker):
 
     def option_params(self, asset, exchange="", underlyingConId=""):
         # Returns option chain data, list of strikes and list of expiry dates.
-        return self.ib.option_params(
-            asset=asset, exchange=exchange, underlyingConId=underlyingConId
-        )
+        return self.ib.option_params(asset=asset, exchange=exchange, underlyingConId=underlyingConId)
 
     def get_chains(self, asset):
         """Returns option chain."""
@@ -309,13 +288,8 @@ class InteractiveBrokers(Broker):
         """Returns expirations and strikes high/low of target price.
         Return type datetime.date()
         """
-        expirations = sorted(
-            list(self.get_chain(chains, exchange=exchange)["Expirations"])
-        )
-        return [
-            datetime.datetime.strptime(expiration, "%Y%m%d").date()
-            for expiration in expirations
-        ]
+        expirations = sorted(list(self.get_chain(chains, exchange=exchange)["Expirations"]))
+        return [datetime.datetime.strptime(expiration, "%Y%m%d").date() for expiration in expirations]
 
     # =======Stream functions=========
     def on_status_event(
@@ -372,19 +346,14 @@ class InteractiveBrokers(Broker):
             mktCapPrice,
         ]
         if order_status in self.order_status_duplicates:
-            logging.debug(
-                f"Duplicate order status event ignored. Order id {orderId} "
-                f"and status {status} "
-            )
+            logging.debug(f"Duplicate order status event ignored. Order id {orderId} " f"and status {status} ")
             return
         else:
             self.order_status_duplicates.append(order_status)
 
         stored_order = self.get_tracked_order(orderId)
         if stored_order is None:
-            logging.info(
-                f"Untracked order {orderId} was logged by broker {self.name}"
-            )
+            logging.info(f"Untracked order {orderId} was logged by broker {self.name}")
             return
 
         # Check the order status submit changes.
@@ -411,9 +380,7 @@ class InteractiveBrokers(Broker):
         stored_order = self.get_tracked_order(orderId)
 
         if stored_order is None:
-            logging.info(
-                "Untracked order %s was logged by broker %s" % (orderId, self.name)
-            )
+            logging.info("Untracked order %s was logged by broker %s" % (orderId, self.name))
             return False
             # Check the order status submit changes.
         if execution.cumQty < stored_order.quantity:
@@ -421,15 +388,11 @@ class InteractiveBrokers(Broker):
         elif execution.cumQty == stored_order.quantity:
             type_event = self.FILLED_ORDER
         else:
-            raise ValueError(
-                f"An order type should not have made it this far. " f"{execution}"
-            )
+            raise ValueError(f"An order type should not have made it this far. " f"{execution}")
 
         price = execution.price
         filled_quantity = execution.shares
-        multiplier = (
-            stored_order.asset.multiplier if stored_order.asset.multiplier else 1
-        )
+        multiplier = stored_order.asset.multiplier if stored_order.asset.multiplier else 1
 
         self._process_trade_event(
             stored_order,
@@ -493,13 +456,10 @@ class IBWrapper(EWrapper):
         if not hasattr(self, "my_errors_queue"):
             self.init_error()
 
-        error_message = (
-            "IBWrapper returned an error with %d error code %d that says %s"
-            % (
-                id,
-                error_code,
-                error_string,
-            )
+        error_message = "IBWrapper returned an error with %d error code %d that says %s" % (
+            id,
+            error_code,
+            error_string,
         )
         # Make sure we don't lose the error, but we only print it if asked for
         logging.debug(error_message)
@@ -679,9 +639,7 @@ class IBWrapper(EWrapper):
                 positionsdict["asset_type"] = k
 
         if positionsdict["asset_type"] in DATE_MAP:
-            positionsdict["expiration"] = datetime.datetime.strptime(
-                positionsdict["expiration"], "%Y%m%d"
-            ).date()
+            positionsdict["expiration"] = datetime.datetime.strptime(positionsdict["expiration"], "%Y%m%d").date()
 
         if positionsdict["right"] == "C":
             positionsdict["right"] = "CALL"
@@ -704,9 +662,7 @@ class IBWrapper(EWrapper):
         self.my_accounts_queue = accounts_queue
         return accounts_queue
 
-    def accountSummary(
-        self, reqId: int, account: str, tag: str, value: str, currency: str
-    ):
+    def accountSummary(self, reqId: int, account: str, tag: str, value: str, currency: str):
         if not hasattr(self, "accounts"):
             self.init_accounts()
 
@@ -720,9 +676,7 @@ class IBWrapper(EWrapper):
 
         self.accounts.append(accountSummarydict)
 
-        accountSummarytxt = ", ".join(
-            [f"{k}: {v}" for k, v in accountSummarydict.items()]
-        )
+        accountSummarytxt = ", ".join([f"{k}: {v}" for k, v in accountSummarydict.items()])
 
         # Keep the logs, but only show if asked for
         logging.debug(accountSummarytxt)
@@ -757,9 +711,7 @@ class IBWrapper(EWrapper):
         self.my_new_orders_queue = new_orders_queue
         return new_orders_queue
 
-    def openOrder(
-        self, orderId: OrderId, contract: Contract, order: Order, orderState: OrderState
-    ):
+    def openOrder(self, orderId: OrderId, contract: Contract, order: Order, orderState: OrderState):
         if not hasattr(self, "orders"):
             self.init_orders()
         openOrdertxt = (
@@ -918,7 +870,6 @@ class IBClient(EClient):
         return self.reqId
 
     def get_timestamp(self):
-
         print("Asking server for Unix time")
 
         # Creates a queue to store the time
@@ -930,9 +881,7 @@ class IBClient(EClient):
         try:
             requested_time = time_storage.get(timeout=self.max_wait_time)
         except queue.Empty:
-            logging.info(
-                "The Interactive Brokers queue was empty or max time reached for timestamp."
-            )
+            logging.info("The Interactive Brokers queue was empty or max time reached for timestamp.")
             requested_time = None
 
         while self.wrapper.is_error():
@@ -940,9 +889,7 @@ class IBClient(EClient):
 
         return requested_time
 
-    def get_tick(
-        self, asset="", greek=False, exchange="SMART", should_use_last_close=True
-    ):
+    def get_tick(self, asset="", greek=False, exchange="SMART", should_use_last_close=True):
         self.should_use_last_close = should_use_last_close
 
         if not greek:
@@ -953,7 +900,7 @@ class IBClient(EClient):
 
         contract = self.create_contract(
             asset,
-            currency=asset.currency,
+            currency="USD",
             exchange=exchange,
         )
         reqId = self.get_reqid()
@@ -1086,18 +1033,13 @@ class IBClient(EClient):
         return requested_positions
 
     def get_historical_account_value(self):
-        logging.error(
-            "The function get_historical_account_value is not implemented yet for Interactive Brokers."
-        )
+        logging.error("The function get_historical_account_value is not implemented yet for Interactive Brokers.")
         return {"hourly": None, "daily": None}
 
     def get_account_summary(self):
         accounts_storage = self.wrapper.init_accounts()
 
-        tags = (
-            "AccountType, TotalCashValue, AccruedCash, "
-            "NetLiquidation, BuyingPower, GrossPositionValue"
-        )
+        tags = "AccountType, TotalCashValue, AccruedCash, " "NetLiquidation, BuyingPower, GrossPositionValue"
 
         as_reqid = self.get_reqid()
         self.reqAccountSummary(as_reqid, "All", tags)
@@ -1105,9 +1047,7 @@ class IBClient(EClient):
         try:
             requested_accounts = accounts_storage.get(timeout=self.max_wait_time)
         except queue.Empty:
-            logging.info(
-                "The Interactive Brokers queue was empty or max time reached for account summary"
-            )
+            logging.info("The Interactive Brokers queue was empty or max time reached for account summary")
             requested_accounts = None
 
         self.cancelAccountSummary(as_reqid)
@@ -1163,9 +1103,7 @@ class IBClient(EClient):
         self.reqContractDetails(self.get_reqid(), contract)
 
         try:
-            requested_contract_details = contract_details_storage.get(
-                timeout=self.max_wait_time
-            )
+            requested_contract_details = contract_details_storage.get(timeout=self.max_wait_time)
         except queue.Empty:
             print("The queue was empty or max time reached for contract details")
             requested_contract_details = None
@@ -1188,14 +1126,9 @@ class IBClient(EClient):
         )
 
         try:
-            requested_option_params = options_params_storage.get(
-                timeout=self.max_wait_time
-            )
+            requested_option_params = options_params_storage.get(timeout=self.max_wait_time)
         except queue.Empty:
-            print(
-                "The queue was empty or max time reached for option contract "
-                "details."
-            )
+            print("The queue was empty or max time reached for option contract " "details.")
             requested_option_params = None
 
         while self.wrapper.is_error():
@@ -1264,8 +1197,7 @@ class IBApp(IBWrapper, IBClient):
             pass
         else:
             raise ValueError(
-                f"The asset {asset.symbol} has a type of {asset.asset_type}. "
-                f"It must be one of {asset._asset_types}"
+                f"The asset {asset.symbol} has a type of {asset.asset_type}. " f"It must be one of {asset._asset_types}"
             )
 
         return contract
@@ -1280,9 +1212,7 @@ class IBApp(IBWrapper, IBClient):
                 )
                 return []
             parent = Order()
-            parent.orderId = (
-                order.identifier if order.identifier else self.nextOrderId()
-            )
+            parent.orderId = order.identifier if order.identifier else self.nextOrderId()
             parent.action = order.side.upper()
             parent.orderType = "LMT"
             parent.totalQuantity = order.quantity
@@ -1320,9 +1250,7 @@ class IBApp(IBWrapper, IBClient):
                 return []
 
             parent = Order()
-            parent.orderId = (
-                order.identifier if order.identifier else self.nextOrderId()
-            )
+            parent.orderId = order.identifier if order.identifier else self.nextOrderId()
             parent.action = order.side.upper()
             parent.orderType = "LMT"
             parent.totalQuantity = order.quantity
@@ -1353,9 +1281,7 @@ class IBApp(IBWrapper, IBClient):
 
         elif order.order_class == "oco":
             takeProfit = Order()
-            takeProfit.orderId = (
-                order.identifier if order.identifier else self.nextOrderId()
-            )
+            takeProfit.orderId = order.identifier if order.identifier else self.nextOrderId()
             takeProfit.action = order.side.upper()
             takeProfit.orderType = "LMT"
             takeProfit.totalQuantity = order.quantity
@@ -1384,20 +1310,12 @@ class IBApp(IBWrapper, IBClient):
             ib_order.totalQuantity = order.quantity
             ib_order.lmtPrice = order.limit_price if order.limit_price else 0
             ib_order.auxPrice = order.stop_price if order.stop_price else ""
-            ib_order.trailingPercent = (
-                order.trail_percent if order.trail_percent else ""
-            )
+            ib_order.trailingPercent = order.trail_percent if order.trail_percent else ""
             if order.trail_price:
                 ib_order.auxPrice = order.trail_price
-            ib_order.orderId = (
-                order.identifier if order.identifier else self.nextOrderId()
-            )
+            ib_order.orderId = order.identifier if order.identifier else self.nextOrderId()
             ib_order.tif = order.time_in_force.upper()
-            ib_order.goodTillDate = (
-                order.good_till_date.strftime("%Y%m%d %H:%M:%S")
-                if order.good_till_date
-                else ""
-            )
+            ib_order.goodTillDate = order.good_till_date.strftime("%Y%m%d %H:%M:%S") if order.good_till_date else ""
             return [ib_order]
 
     def execute_order(self, orders):
@@ -1413,7 +1331,7 @@ class IBApp(IBWrapper, IBClient):
             contract_object = self.create_contract(
                 order.asset,
                 exchange=order.exchange,
-                currency=order.asset.currency,
+                currency=order.quote.symbol,
             )
             order_objects = self.create_order(order)
             if len(order_objects) == 0:
@@ -1426,9 +1344,7 @@ class IBApp(IBWrapper, IBClient):
                 order_object.eTradeOnly = False
                 order_object.firmQuoteOnly = False
 
-                nextID = (
-                    order_object.orderId if order_object.orderId else self.nextOrderId()
-                )
+                nextID = order_object.orderId if order_object.orderId else self.nextOrderId()
                 ib_orders.append((nextID, contract_object, order_object))
 
         for ib_order in ib_orders:

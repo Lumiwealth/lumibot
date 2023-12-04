@@ -32,7 +32,7 @@ class _Strategy:
         self,
         *args,
         broker=None,
-        minutes_before_closing=5,
+        minutes_before_closing=1,
         minutes_before_opening=60,
         sleeptime="1M",
         stats_file=None,
@@ -1043,7 +1043,7 @@ class _Strategy:
     def backtest(
         cls,
         *args,
-        minutes_before_closing=5,
+        minutes_before_closing=1,
         minutes_before_opening=60,
         sleeptime=1,
         stats_file=None,

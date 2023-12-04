@@ -66,6 +66,7 @@ if __name__ == "__main__":
 
     if is_live:
         from credentials import ALPACA_CONFIG
+
         from lumibot.brokers import Alpaca
         from lumibot.traders import Trader
 

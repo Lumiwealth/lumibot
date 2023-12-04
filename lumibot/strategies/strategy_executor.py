@@ -10,8 +10,9 @@ from threading import Event, Lock, Thread
 from apscheduler.jobstores.memory import MemoryJobStore
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
-from lumibot.tools import append_locals, get_trading_days, staticdecorator
 from termcolor import colored
+
+from lumibot.tools import append_locals, get_trading_days, staticdecorator
 
 
 class StrategyExecutor(Thread):
@@ -575,7 +576,12 @@ class StrategyExecutor(Thread):
             time_to_before_closing = float("inf")
         else:
             # TODO: next line speed implication: v high (2233 microseconds) get_time_to_close()
-            time_to_close = self.broker.get_time_to_close()
+            result = self.broker.get_time_to_close()
+
+            if result is None:
+                time_to_close = 0
+            else:
+                time_to_close = result
 
             time_to_before_closing = time_to_close - self.strategy.minutes_before_closing * 60
 

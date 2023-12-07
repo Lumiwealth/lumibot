@@ -4,17 +4,18 @@ from collections import defaultdict
 
 import pandas_market_calendars as mcal
 
-from lumibot.backtesting import BacktestingBroker, PolygonDataBacktesting
+from lumibot.backtesting import BacktestingBroker, ThetaDataBacktesting
 from lumibot.entities import Asset
 from lumibot.strategies import Strategy
 from lumibot.traders import Trader
 
 # Global parameters
-# API Key for testing Polygon.io
-POLYGON_API_KEY = os.environ.get("POLYGON_API_KEY")
+# Username and Password for ThetaData API
+THETADATA_USERNAME = os.environ.get("THETADATA_USERNAME")
+THETADATA_PASSWORD = os.environ.get("THETADATA_PASSWORD")
 
 
-class PolygonBacktestStrat(Strategy):
+class ThetadataBacktestStrat(Strategy):
     parameters = {"symbol": "AMZN"}
 
     # Set the initial values for the strategy
@@ -66,26 +67,26 @@ class PolygonBacktestStrat(Strategy):
             f"Could not find an option expiration date for {days_to_expiration} day(s) " f"from today({today})"
         )
 
-    def before_market_opens(self):
-        underlying_asset = Asset(self.parameters["symbol"])
-        self.market_opens_called = True
-        self.chains = self.get_chains(underlying_asset)
+    # def before_market_opens(self):
+    #     underlying_asset = Asset(self.parameters["symbol"])
+    #     self.market_opens_called = True
+    #     self.chains = self.get_chains(underlying_asset)
 
     def after_market_closes(self):
         orders = self.get_orders()
         self.market_closes_called = True
-        self.log_message(f"PolygonBacktestStrat: {len(orders)} orders executed today")
+        self.log_message(f"ThetadataBacktestStrat: {len(orders)} orders executed today")
 
     def on_filled_order(self, position, order, price, quantity, multiplier):
-        self.log_message(f"PolygonBacktestStrat: Filled Order: {order}")
+        self.log_message(f"ThetadataBacktestStrat: Filled Order: {order}")
         self.order_time_tracker[order.identifier]["fill"] = self.get_datetime()
 
     def on_new_order(self, order):
-        self.log_message(f"PolygonBacktestStrat: New Order: {order}")
+        self.log_message(f"ThetadataBacktestStrat: New Order: {order}")
         self.order_time_tracker[order.identifier]["submit"] = self.get_datetime()
 
     def on_canceled_order(self, order):
-        self.log_message(f"PolygonBacktestStrat: Canceled Order: {order}")
+        self.log_message(f"ThetadataBacktestStrat: Canceled Order: {order}")
         self.order_time_tracker[order.identifier]["cancel"] = self.get_datetime()
 
     # Trading Strategy: Backtest will only buy traded assets on first iteration
@@ -145,7 +146,7 @@ class PolygonBacktestStrat(Strategy):
 
 class TestPolygonBacktestFull:
     def verify_backtest_results(self, poly_strat_obj):
-        assert isinstance(poly_strat_obj, PolygonBacktestStrat)
+        assert isinstance(poly_strat_obj, ThetadataBacktestStrat)
 
         # Checks bug where LifeCycle methods not being called during PANDAS backtesting
         assert poly_strat_obj.market_opens_called
@@ -194,9 +195,9 @@ class TestPolygonBacktestFull:
         )
         assert "fill" not in poly_strat_obj.order_time_tracker[stoploss_order_id]
 
-    def test_polygon_restclient(self):
+    def test_thetadata_restclient(self):
         """
-        Test Polygon REST Client with Lumibot Backtesting and real API calls to Polygon. Using the Amazon stock
+        Test ThetaDataBacktesting with Lumibot Backtesting and real API calls to ThetaData. Using the Amazon stock
         which only has options expiring on Fridays. This test will buy 10 shares of Amazon and 1 option contract
         in the historical 2023-08-04 period (in the past!).
         """
@@ -205,74 +206,21 @@ class TestPolygonBacktestFull:
         backtesting_start = datetime.datetime(2023, 8, 1)
         backtesting_end = datetime.datetime(2023, 8, 4)
 
-        data_source = PolygonDataBacktesting(
+        data_source = ThetaDataBacktesting(
             datetime_start=backtesting_start,
             datetime_end=backtesting_end,
-            api_key=POLYGON_API_KEY,
-            has_paid_subscription=True,
+            username=THETADATA_USERNAME,
+            password=THETADATA_PASSWORD,
         )
         broker = BacktestingBroker(data_source=data_source)
-        poly_strat_obj = PolygonBacktestStrat(
+        strat_obj = ThetadataBacktestStrat(
             broker=broker,
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
         )
         trader = Trader(logfile="", backtest=True)
-        trader.add_strategy(poly_strat_obj)
+        trader.add_strategy(strat_obj)
         results = trader.run_all(show_plot=False, show_tearsheet=False, save_tearsheet=False)
 
         assert results
-        self.verify_backtest_results(poly_strat_obj)
-
-    def test_polygon_legacy_backtest(self):
-        """
-        Do the same backtest as test_polygon_restclient() but using the legacy backtest() function call instead of
-        trader.run_all(backtest=True) (which is the new standard way to run backtests).
-        """
-
-        # Parameters: True = Live Trading | False = Backtest
-        # trade_live = False
-        backtesting_start = datetime.datetime(2023, 8, 1)
-        backtesting_end = datetime.datetime(2023, 8, 4)
-
-        # Execute Backtest | Polygon.io API Connection
-        results, poly_strat_obj = PolygonBacktestStrat.run_backtest(
-            PolygonDataBacktesting,
-            backtesting_start,
-            backtesting_end,
-            minutes_before_opening=5,
-            minutes_before_closing=5,
-            benchmark_asset="SPY",
-            show_plot=False,
-            show_tearsheet=False,
-            save_tearsheet=False,
-            api_key=POLYGON_API_KEY,
-            # Painfully slow with free subscription setting b/c lumibot is over querying and imposing a very
-            # strict rate limit
-            polygon_has_paid_subscription=True,
-        )
-        assert results
-        self.verify_backtest_results(poly_strat_obj)
-
-    def test_polygon_legacy_backtest2(self):
-        """Test that the legacy backtest() function call works without returning the startegy object"""
-        # Parameters: True = Live Trading | False = Backtest
-        # trade_live = False
-        backtesting_start = datetime.datetime(2023, 8, 1)
-        backtesting_end = datetime.datetime(2023, 8, 4)
-
-        # Execute Backtest | Polygon.io API Connection
-        results = PolygonBacktestStrat.backtest(
-            PolygonDataBacktesting,
-            backtesting_start,
-            backtesting_end,
-            benchmark_asset="SPY",
-            show_plot=False,
-            show_tearsheet=False,
-            save_tearsheet=False,
-            polygon_api_key=POLYGON_API_KEY,  # Testing the legacy parameter name while DeprecationWarning is active
-            # Painfully slow with free subscription setting b/c lumibot is over querying and imposing a very
-            # strict rate limit
-            polygon_has_paid_subscription=True,
-        )
-        assert results
+        self.verify_backtest_results(strat_obj)

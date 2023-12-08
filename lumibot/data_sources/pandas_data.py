@@ -3,6 +3,7 @@ from collections import defaultdict, OrderedDict
 from datetime import date, timedelta
 
 import pandas as pd
+
 from lumibot.data_sources import DataSourceBacktesting
 from lumibot.entities import Asset, AssetsMapping, Bars
 
@@ -61,7 +62,7 @@ class PandasData(DataSourceBacktesting):
                 new_pandas_data[key] = data
 
         return new_pandas_data
-    
+
     def load_data(self):
         self._data_store = self.pandas_data
         self._date_index = self.update_date_index()
@@ -387,6 +388,43 @@ class PandasData(DataSourceBacktesting):
         str
             The timestep unit.
         """
+
+
+<< << << < HEAD
+== == == =
+        strikes = []
+        for store_item, data in self._data_store.items():
+            store_asset = store_item[0]
+            if (
+                store_asset.asset_type == "option"
+                and store_asset.symbol == asset.symbol
+                and store_asset.expiration == asset.expiration
+                and store_asset.right == asset.right
+            ):
+                strikes.append(float(store_asset.strike))
+
+        return sorted(list(set(strikes)))
+
+    def get_start_datetime_and_ts_unit(self, length, timestep, start_dt=None, start_buffer=timedelta(days=5)):
+        """
+        Get the start datetime for the data.
+
+        Parameters
+        ----------
+        length : int
+            The number of data points to get.
+        timestep : str
+            The timestep to use. For example, "1minute" or "1hour" or "1day".
+
+
+        Returns
+        -------
+        datetime
+            The start datetime.
+        str
+            The timestep unit.
+        """
+>>>>>>> thetadata almost complete. tests passing
         # Convert timestep string to timedelta and get start datetime
         td, ts_unit = self.convert_timestep_str_to_timedelta(timestep)
 
@@ -403,6 +441,7 @@ class PandasData(DataSourceBacktesting):
         start_datetime = start_datetime - start_buffer
 
         return start_datetime, ts_unit
+<<<<<<< HEAD
 
     def get_historical_prices(
         self, asset, length, timestep="", timeshift=None, quote=None, exchange=None, include_after_hours=True
@@ -430,3 +469,5 @@ class PandasData(DataSourceBacktesting):
 
         bars = self._parse_source_symbol_bars(response, asset, quote=quote, length=length)
         return bars
+=======
+>>>>>>> thetadata almost complete. tests passing

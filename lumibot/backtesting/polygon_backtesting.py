@@ -139,25 +139,25 @@ class PolygonDataBacktesting(PandasData):
             formatted_end_datetime = self.datetime_end.strftime("%Y-%m-%d")
             if "Your plan doesn't include this data timeframe" in str(e):
                 error_message = colored(
-                                "Polygon Access Denied: Your subscription does not allow you to backtest that far back in time. "
-                                f"You requested data for {asset_separated} {ts_unit} bars "
-                                f"from {formatted_start_datetime} to {formatted_end_datetime}. "
-                                "Please consider either changing your backtesting timeframe to start later since your "
-                                "subscription does not allow you to backtest that far back or upgrade your Polygon "
-                                "subscription."
-                                "You can upgrade your Polygon subscription at at https://polygon.io/?utm_source=affiliate&utm_campaign=lumi10 "
-                                "Please use the full link to give us credit for the sale, it helps support this project. "
-                                "You can use the coupon code 'LUMI10' for 10% off. ",
-                                color="red")
+                    "Polygon Access Denied: Your subscription does not allow you to backtest that far back in time. "
+                    f"You requested data for {asset_separated} {ts_unit} bars "
+                    f"from {formatted_start_datetime} to {formatted_end_datetime}. "
+                    "Please consider either changing your backtesting timeframe to start later since your "
+                    "subscription does not allow you to backtest that far back or upgrade your Polygon "
+                    "subscription."
+                    "You can upgrade your Polygon subscription at at https://polygon.io/?utm_source=affiliate&utm_campaign=lumi10 "
+                    "Please use the full link to give us credit for the sale, it helps support this project. "
+                    "You can use the coupon code 'LUMI10' for 10% off. ",
+                    color="red")
                 raise Exception(error_message) from e
             elif "Unknown API Key" in str(e):
                 error_message = colored(
-                                "Polygon Access Denied: Your API key is invalid. "
-                                "Please check your API key and try again. "
-                                "You can get an API key at https://polygon.io/?utm_source=affiliate&utm_campaign=lumi10 "
-                                "Please use the full link to give us credit for the sale, it helps support this project. "
-                                "You can use the coupon code 'LUMI10' for 10% off. ",
-                                color="red")
+                    "Polygon Access Denied: Your API key is invalid. "
+                    "Please check your API key and try again. "
+                    "You can get an API key at https://polygon.io/?utm_source=affiliate&utm_campaign=lumi10 "
+                    "Please use the full link to give us credit for the sale, it helps support this project. "
+                    "You can use the coupon code 'LUMI10' for 10% off. ",
+                    color="red")
                 raise Exception(error_message) from e
             else:
                 # Handle other BadResponse exceptions not related to plan limitations

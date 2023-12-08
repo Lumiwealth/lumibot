@@ -29,45 +29,6 @@ class ThetaDataBacktesting(PandasData):
         self._username = username
         self._password = password
 
-        # # RESTClient API for Polygon.io polygon-api-client
-        # self.polygon_client = RESTClient(self._api_key)
-
-    def get_start_datetime_and_ts_unit(self, length, timestep, start_dt=None):
-        """
-        Get the start datetime for the data.
-
-        Parameters
-        ----------
-        length : int
-            The number of data points to get.
-        timestep : str
-            The timestep to use. For example, "1minute" or "1hour" or "1day".
-
-
-        Returns
-        -------
-        datetime
-            The start datetime.
-        str
-            The timestep unit.
-        """
-        # Convert timestep string to timedelta and get start datetime
-        td, ts_unit = self.convert_timestep_str_to_timedelta(timestep)
-
-        # Multiply td by length to get the end datetime
-        td *= length
-
-        if start_dt is not None:
-            start_datetime = start_dt - td
-        else:
-            start_datetime = self.datetime_start - td
-
-        # Subtract an extra 5 days to the start datetime to make sure we have enough
-        # data when it's a sparsely traded asset, especially over weekends
-        start_datetime = start_datetime - START_BUFFER
-
-        return start_datetime, ts_unit
-
     def update_pandas_data(self, asset, quote, length, timestep, start_dt=None):
         """
         Get asset data and update the self.pandas_data dictionary.
@@ -98,7 +59,9 @@ class ThetaDataBacktesting(PandasData):
             search_asset = (search_asset, quote_asset)
 
         # Get the start datetime and timestep unit
-        start_datetime, ts_unit = self.get_start_datetime_and_ts_unit(length, timestep, start_dt)
+        start_datetime, ts_unit = self.get_start_datetime_and_ts_unit(
+            length, timestep, start_dt, start_buffer=START_BUFFER
+        )
 
         # Check if we have data for this asset
         if search_asset in self.pandas_data:
@@ -241,7 +204,7 @@ class ThetaDataBacktesting(PandasData):
         Returns
         -------
         dictionary:
-            A dictionary nested with a dictionarty of Polygon Option Contracts information broken out by Exchange,
+            A dictionary nested with a dictionary of ThetaData Option Contracts information broken out by Exchange,
             with embedded lists for Expirations and Strikes.
             {'SMART': {'TradingClass': 'SPY', 'Multiplier': 100, 'Expirations': [], 'Strikes': []}}
 
@@ -256,37 +219,24 @@ class ThetaDataBacktesting(PandasData):
         option_contracts = {"SMART": {"TradingClass": None, "Multiplier": None, "Expirations": [], "Strikes": []}}
         contracts = option_contracts["SMART"]  # initialize contracts
         today = self.get_datetime().date()
-        real_today = date.today()
 
-        # All Contracts | to match lumitbot, more inputs required from get_chains()
-        # If the strategy is using a recent backtest date, some contracts might not be expired yet, query those too
-        expired_list = [True, False] if real_today - today <= timedelta(days=31) else [True]
-        polygon_contracts = []
-        for expired in expired_list:
-            polygon_contracts.extend(
-                list(
-                    self.polygon_client.list_options_contracts(
-                        underlying_ticker=asset.symbol,
-                        expiration_date_gte=today,
-                        expired=expired,  # Needed so BackTest can look at old contracts to find the expirations/strikes
-                        limit=1000,
-                    )
-                )
-            )
+        # Get expirations from thetadata_helper
+        expirations = thetadata_helper.get_expirations(self._username, self._password, asset.symbol, today)
 
-        for polygon_contract in polygon_contracts:
-            # Return to Loop and Skip if Multipler is not 100 because non-standard contracts are not supported
-            if polygon_contract.shares_per_contract != 100:
-                continue
+        # Get the first of the expirations and convert to datetime
+        expiration = expirations[0].replace("-", "")
+        expiration_dt = date(int(expiration[:4]), int(expiration[4:6]), int(expiration[6:8]))
 
-            # Contract Data | Attributes
-            exchange = polygon_contract.primary_exchange
-            contracts["TradingClass"] = polygon_contract.underlying_ticker
-            contracts["Multiplier"] = polygon_contract.shares_per_contract
-            contracts["Expirations"].append(polygon_contract.expiration_date)
-            contracts["Strikes"].append(polygon_contract.strike_price)
+        # Get strikes from thetadata_helper
+        strikes = thetadata_helper.get_strikes(self._username, self._password, asset.symbol, expiration_dt)
 
-            option_contracts["SMART"] = contracts
-            option_contracts[exchange] = contracts
+        # Add the data to the contracts dictionary
+        contracts["TradingClass"] = asset.symbol
+        contracts["Multiplier"] = 100
+        contracts["Expirations"] = expirations
+        contracts["Strikes"] = strikes
+
+        # Add the data to the option_contracts dictionary
+        option_contracts["SMART"] = contracts
 
         return option_contracts

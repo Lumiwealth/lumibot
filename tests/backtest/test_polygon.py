@@ -4,7 +4,6 @@ from collections import defaultdict
 import pandas as pd
 
 import pandas_market_calendars as mcal
-
 from lumibot.backtesting import BacktestingBroker, PolygonDataBacktesting
 from lumibot.entities import Asset
 from lumibot.strategies import Strategy
@@ -121,6 +120,19 @@ class PolygonBacktestStrat(Strategy):
                 multiplier=100,
             )
             current_option_price = self.get_last_price(option_asset)
+
+            assert current_option_price == 4.10
+
+            # Get historical prices for the option
+            option_prices = self.get_historical_prices(option_asset, 100, "minute")
+            df = option_prices.df
+
+            # Assert that the first price is the right price
+            assert df["close"].iloc[-1] == 4.23
+
+            # Check that the time of the last bar is 2023-07-31T19:59:00.000Z
+            last_dt = df.index[-1]
+            assert last_dt == datetime.datetime(2023, 7, 31, 19, 59, tzinfo=datetime.timezone.utc)
 
             # Buy 10 shares of the underlying asset for the test
             qty = 10

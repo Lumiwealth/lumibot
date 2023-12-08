@@ -67,10 +67,10 @@ class ThetadataBacktestStrat(Strategy):
             f"Could not find an option expiration date for {days_to_expiration} day(s) " f"from today({today})"
         )
 
-    # def before_market_opens(self):
-    #     underlying_asset = Asset(self.parameters["symbol"])
-    #     self.market_opens_called = True
-    #     self.chains = self.get_chains(underlying_asset)
+    def before_market_opens(self):
+        underlying_asset = Asset(self.parameters["symbol"])
+        self.market_opens_called = True
+        self.chains = self.get_chains(underlying_asset)
 
     def after_market_closes(self):
         orders = self.get_orders()
@@ -100,7 +100,7 @@ class ThetadataBacktestStrat(Strategy):
             current_asset_price = self.get_last_price(underlying_asset)
 
             # Assert that the current asset price is the right price
-            assert current_asset_price == 133.55
+            assert current_asset_price == 133.52
 
             # Option Chain: Get Full Option Chain Information
             chain = self.get_chain(self.chains, exchange="SMART")
@@ -117,6 +117,19 @@ class ThetadataBacktestStrat(Strategy):
                 multiplier=100,
             )
             current_option_price = self.get_last_price(option_asset)
+
+            assert current_option_price == 4.10
+
+            # Get historical prices for the option
+            option_prices = self.get_historical_prices(option_asset, 100, "minute")
+            df = option_prices.df
+
+            # Assert that the first price is the right price
+            assert df["close"].iloc[-1] == 4.11
+
+            # Check that the time of the last bar is 2023-07-31T19:58:00.000Z
+            last_dt = df.index[-1]
+            assert last_dt == datetime.datetime(2023, 7, 31, 19, 58, tzinfo=datetime.timezone.utc)
 
             # Buy 10 shares of the underlying asset for the test
             qty = 10

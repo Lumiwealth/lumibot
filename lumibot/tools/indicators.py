@@ -10,12 +10,12 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import quantstats as qs
-from plotly.subplots import make_subplots
 
 # import lumibot.data_sources.alpha_vantage as av
 from lumibot import LUMIBOT_DEFAULT_PYTZ
 from lumibot.entities.asset import Asset
 from lumibot.tools import to_datetime_aware
+from plotly.subplots import make_subplots
 
 from .yahoo_helper import YahooHelper as yh
 
@@ -353,7 +353,11 @@ def plot_returns(
     _df1 = _df1.sort_index(ascending=True)
     _df1.index.name = "datetime"
     _df1[strategy_name] = (1 + _df1["return"]).cumprod()
-    _df1[strategy_name].iloc[0] = 1
+
+    # Setting the first value using .loc
+    first_index = _df1.index[0]  # Get the first index of _df1
+    _df1.loc[first_index, strategy_name] = 1
+
     _df1[strategy_name] = _df1[strategy_name] * initial_budget
     dfs_concat.append(_df1)
 

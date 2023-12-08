@@ -57,14 +57,14 @@ def get_price_data(
 
     """
 
-    # Check if we already have data for this asset in the csv file
+    # Check if we already have data for this asset in the feather file
     df_all = None
-    df_csv = None
+    df_feather = None
     cache_file = build_cache_filename(asset, timespan)
     if cache_file.exists():
         print(f"\nLoading pricing data for {asset} / {quote_asset} with '{timespan}' timespan from cache file...")
-        df_csv = load_cache(cache_file)
-        df_all = df_csv.copy()  # Make a copy so we can check the original later for differences
+        df_feather = load_cache(cache_file)
+        df_all = df_feather.copy()  # Make a copy so we can check the original later for differences
 
     # Check if we need to get more data
     missing_dates = get_missing_dates(df_all, asset, start, end)
@@ -111,7 +111,7 @@ def get_price_data(
         start = end + timedelta(days=1)
         end = start + delta
 
-    update_cache(cache_file, df_all, df_csv)
+    update_cache(cache_file, df_all, df_feather)
     return df_all
 
 
@@ -170,7 +170,7 @@ def build_cache_filename(asset: Asset, timespan: str):
     else:
         uniq_str = asset.symbol
 
-    cache_filename = f"{asset.asset_type}_{uniq_str}_{timespan}.csv"
+    cache_filename = f"{asset.asset_type}_{uniq_str}_{timespan}.feather"
     cache_file = lumibot_cache_folder / cache_filename
     return cache_file
 
@@ -216,33 +216,40 @@ def get_missing_dates(df_all, asset, start, end):
 
 def load_cache(cache_file):
     """Load the data from the cache file and return a DataFrame with a DateTimeIndex"""
-    df_csv = pd.read_csv(cache_file, index_col="datetime")
-    df_csv.index = pd.to_datetime(
-        df_csv.index
-    )  # TODO: Is there some way to speed this up? It takes several times longer than just reading the csv file
-    df_csv = df_csv.sort_index()
+    df_feather = pd.read_feather(cache_file)
+
+    # Set the 'datetime' column as the index of the DataFrame
+    df_feather.set_index("datetime", inplace=True)
+
+    df_feather.index = pd.to_datetime(
+        df_feather.index
+    )  # TODO: Is there some way to speed this up? It takes several times longer than just reading the feather file
+    df_feather = df_feather.sort_index()
 
     # Check if the index is already timezone aware
-    if df_csv.index.tzinfo is None:
+    if df_feather.index.tzinfo is None:
         # Set the timezone to New York
-        df_csv.index = df_csv.index.tz_localize("America/New_York")
+        df_feather.index = df_feather.index.tz_localize("America/New_York")
 
-    return df_csv
+    return df_feather
 
 
-def update_cache(cache_file, df_all, df_csv):
+def update_cache(cache_file, df_all, df_feather):
     """Update the cache file with the new data"""
-    # Check if df_all is different from df_csv (if df_csv exists)
+    # Check if df_all is different from df_feather (if df_feather exists)
     if df_all is not None and len(df_all) > 0:
         # Check if the dataframes are the same
-        if df_all.equals(df_csv):
+        if df_all.equals(df_feather):
             return
 
         # Create the directory if it doesn't exist
         cache_file.parent.mkdir(parents=True, exist_ok=True)
 
-        # Save the data to a csv file
-        df_all.to_csv(cache_file)
+        # Reset the index to convert DatetimeIndex to a regular column
+        df_all_reset = df_all.reset_index()
+
+        # Save the data to a feather file
+        df_all_reset.to_feather(cache_file)
 
 
 def update_df(df_all, result):

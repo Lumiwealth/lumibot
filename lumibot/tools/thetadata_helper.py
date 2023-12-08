@@ -8,21 +8,14 @@ from pathlib import Path
 import pandas as pd
 import pandas_market_calendars as mcal
 import requests
-from thetadata import DateRange, OptionReqType, StockReqType, ThetaClient
-
 from lumibot import LUMIBOT_CACHE_FOLDER
 from lumibot.entities import Asset
+from thetadata import ThetaClient
 
 WAIT_TIME = 60
 MAX_DAYS = 30
 CACHE_SUBFOLDER = "thetadata"
 BASE_URL = "http://127.0.0.1:25510"
-
-
-# Create enum for request type
-class ReqType(Enum):
-    STOCK = "stock"
-    OPTION = "option"
 
 
 def get_price_data(
@@ -36,7 +29,7 @@ def get_price_data(
 ):
     """
     Queries ThetaData for pricing data for the given asset and returns a DataFrame with the data. Data will be
-    cached in the LUMIBOT_CACHE_FOLDER/polygon folder so that it can be reused later and we don't have to query
+    cached in the LUMIBOT_CACHE_FOLDER/{CACHE_SUBFOLDER} folder so that it can be reused later and we don't have to query
     ThetaData every time we run a backtest.
 
     Parameters
@@ -105,19 +98,7 @@ def get_price_data(
         if end > start + delta:
             end = start + delta
 
-        result_df = get_historical_data(asset.symbol, start, end, interval_ms, ReqType.STOCK)
-
-        # result = polygon_client.get_aggs(
-        #     ticker=symbol,
-        #     from_=start,  # polygon-api-client docs say 'from' but that is a reserved word in python
-        #     to=end,
-        #     # In Polygon, multiplier is the number of "timespans" in each candle, so if you want 5min candles
-        #     # returned you would set multiplier=5 and timespan="minute". This is very different from the
-        #     # asset.multiplier setting for option contracts.
-        #     multiplier=1,
-        #     timespan=timespan,
-        #     limit=50000,  # Max limit for Polygon
-        # )
+        result_df = get_historical_data(asset, start, end, interval_ms, username, password)
 
         if result_df is None or len(result_df) == 0:
             logging.warning(
@@ -134,7 +115,6 @@ def get_price_data(
     return df_all
 
 
-# TODO: Remove this? It's an exact copy of the function in polygon_helper.py
 def get_trading_dates(asset: Asset, start: datetime, end: datetime):
     """
     Get a list of trading days for the asset between the start and end dates
@@ -166,76 +146,12 @@ def get_trading_dates(asset: Asset, start: datetime, end: datetime):
         cal = mcal.get_calendar("CME_FX")
 
     else:
-        raise ValueError(f"Unsupported asset type for polygon: {asset.asset_type}")
+        raise ValueError(f"Unsupported asset type for thetadata: {asset.asset_type}")
 
     # Get the trading days between the start and end dates
     df = cal.schedule(start_date=start.date(), end_date=end.date())
     trading_days = df.index.date.tolist()
     return trading_days
-
-
-def get_polygon_symbol(asset, polygon_client, quote_asset=None):
-    """
-    Get the symbol for the asset in a format that Polygon will understand
-    Parameters
-    ----------
-    asset : Asset
-        Asset we are getting data for
-    polygon_client : RESTClient
-        The RESTClient connection for Polygon Stock-Equity API
-    quote_asset : Asset
-        The quote asset for the asset we are getting data for
-
-    Returns
-    -------
-    str
-        The symbol for the asset in a format that Polygon will understand
-    """
-    # Crypto Asset for Backtesting
-    if asset.asset_type == "crypto":
-        quote_asset_symbol = quote_asset.symbol if quote_asset else "USD"
-        symbol = f"X:{asset.symbol}{quote_asset_symbol}"
-
-    # Stock-Equity Asset for Backtesting
-    elif asset.asset_type == "stock":
-        symbol = asset.symbol
-
-    # Forex Asset for Backtesting
-    elif asset.asset_type == "forex":
-        # If quote_asset is None, throw an error
-        if quote_asset is None:
-            raise ValueError(f"quote_asset is required for asset type {asset.asset_type}")
-
-        symbol = f"C:{asset.symbol}{quote_asset.symbol}"
-
-    # Option Asset for Backtesting - Do a query to Polygon to get the ticker
-    elif asset.asset_type == "option":
-        # Needed so BackTest both old and existing contracts
-        real_today = date.today()
-        expired = True if asset.expiration < real_today else False
-
-        # Query for the historical Option Contract ticker backtest is looking for
-        contracts = list(
-            polygon_client.list_options_contracts(
-                underlying_ticker=asset.symbol,
-                expiration_date=asset.expiration,
-                contract_type=asset.right.lower(),
-                strike_price=asset.strike,
-                expired=expired,
-                limit=10,
-            )
-        )
-
-        if len(contracts) == 0:
-            raise LookupError(f"Unable to find option contract for {asset}")
-
-        # Example: O:SPY230802C00457000
-        symbol = contracts[0].ticker
-
-    else:
-        raise ValueError(f"Unsupported asset type for polygon: {asset.asset_type}")
-
-    return symbol
 
 
 def build_cache_filename(asset: Asset, timespan: str):
@@ -308,8 +224,8 @@ def load_cache(cache_file):
 
     # Check if the index is already timezone aware
     if df_csv.index.tzinfo is None:
-        # Set the timezone to UTC
-        df_csv.index = df_csv.index.tz_localize("UTC")
+        # Set the timezone to New York
+        df_csv.index = df_csv.index.tz_localize("America/New_York")
 
     return df_csv
 
@@ -346,9 +262,6 @@ def update_df(df_all, result):
     if not df.empty:
         df = df.set_index("datetime").sort_index()
 
-        # Set the timezone to UTC
-        df.index = df.index.tz_localize("UTC")
-
         if df_all is None or df_all.empty:
             df_all = df
         else:
@@ -374,83 +287,126 @@ def start_theta_data_client(username: str, password: str):
 
 def check_connection(username: str, password: str):
     # Do endless while loop and check if connected every 100 milliseconds
-    MAX_RETRIES = 10
+    MAX_RETRIES = 15
     counter = 0
     client = None
     while True:
         try:
+            time.sleep(0.5)
             res = requests.get(f"{BASE_URL}/v2/system/mdds/status", timeout=1)
             con_text = res.text
 
             if con_text == "CONNECTED":
-                print("Connected to Theta Data!")
+                logging.debug("Connected to Theta Data!")
                 break
             elif con_text == "DISCONNECTED":
-                print("Disconnected from Theta Data!")
+                logging.debug("Disconnected from Theta Data!")
                 counter += 1
             else:
-                print(f"Unknown connection status: {con_text}, starting theta data client")
+                logging.info(f"Unknown connection status: {con_text}, starting theta data client")
                 client = start_theta_data_client(username=username, password=password)
                 counter += 1
-        except Exception:
+        except Exception as e:
             client = start_theta_data_client(username=username, password=password)
             counter += 1
 
         if counter > MAX_RETRIES:
-            print("Cannot connect to Theta Data!")
+            logging.error("Cannot connect to Theta Data!")
             break
 
     return client
 
 
-def get_historical_data(ticker: str, start_dt: datetime, end_dt: datetime, ivl: int, req_type: ReqType):
+def get_request(url: str, headers: dict, querystring: dict, username: str, password: str):
+    counter = 0
+    while True:
+        try:
+            response = requests.get(url, headers=headers, params=querystring)
+            # If status code is not 200, then we are not connected
+            if response.status_code != 200:
+                check_connection(username=username, password=password)
+            else:
+                json_resp = response.json()
+
+                # Check if json_resp has error_type inside of header
+                if "error_type" in json_resp["header"] and json_resp["header"]["error_type"] != "null":
+                    logging.error(f"Error getting data from Theta Data: {json_resp['header']['error_type']}")
+                    check_connection(username=username, password=password)
+                else:
+                    break
+
+        except Exception as e:
+            check_connection(username=username, password=password)
+
+        counter += 1
+        if counter > 3:
+            raise ValueError("Cannot connect to Theta Data!")
+
+    return json_resp
+
+
+def get_historical_data(asset: Asset, start_dt: datetime, end_dt: datetime, ivl: int, username: str, password: str):
     """
     Get data from ThetaData
 
     Parameters
     ----------
-    ticker : str
-        The ticker for the asset we are getting data for
+    asset : Asset
+        The asset we are getting data for
     start_dt : datetime
         The start date/time for the data we want
     end_dt : datetime
         The end date/time for the data we want
     ivl : int
         The interval for the data we want in milliseconds (eg. 60000 for 1 minute)
-    req_type : ReqType
-        The type of data we are requesting (stock or option)
+    username : str
+        Your ThetaData username
+    password : str
+        Your ThetaData password
+
+    Returns
+    -------
+    pd.DataFrame
+        A DataFrame with the data for the asset
     """
 
     # Comvert start and end dates to strings
     start_date = start_dt.strftime("%Y%m%d")
     end_date = end_dt.strftime("%Y%m%d")
 
-    # Create the url based on the request type
-    if req_type == ReqType.STOCK:
+    # Create the url based on the asset type
+    if asset.asset_type == "stock":
         url = f"{BASE_URL}/hist/stock/ohlc"
-    elif req_type == ReqType.OPTION:
+        querystring = {"root": asset.symbol, "start_date": start_date, "end_date": end_date, "ivl": ivl}
+    elif asset.asset_type == "option":
         url = f"{BASE_URL}/hist/option/ohlc"
 
-    querystring = {"root": ticker, "start_date": start_date, "end_date": end_date, "ivl": ivl}
+        # Convert the expiration date to a string
+        expiration_str = asset.expiration.strftime("%Y%m%d")
+
+        # Convert the strike price to an integer and multiply by 1000
+        strike = int(asset.strike * 1000)
+
+        querystring = {
+            "root": asset.symbol,
+            "start_date": start_date,
+            "end_date": end_date,
+            "ivl": ivl,
+            "strike": strike,  # "140000",
+            "exp": expiration_str,  # "20220930",
+            "right": "C" if asset.right == "CALL" else "P",
+        }
 
     headers = {"Accept": "application/json"}
 
-    try:
-        response = requests.get(url, headers=headers, params=querystring)
-    except Exception:
-        check_connection()
-
-    # If status code is not 200, then we are not connected
-    if response.status_code != 200:
-        check_connection()
-
-    json_resp = response.json()
+    # Send the request
+    json_resp = get_request(url=url, headers=headers, querystring=querystring, username=username, password=password)
 
     # Convert to pandas dataframe
     df = pd.DataFrame(json_resp["response"], columns=json_resp["header"]["format"])
 
-    # Combine ms_of_day and date columns into datetime (date is in the format YYYYMMDD, eg. '20220901')
-    df["datetime"] = pd.to_datetime(df["date"].astype(str) + df["ms_of_day"].astype(str), format="%Y%m%d%H%M%S%f")
+    # Remove any rows where count is 0 (no data - the prices will be 0 at these times too)
+    df = df[df["count"] != 0]
 
     # Function to combine ms_of_day and date into datetime
     def combine_datetime(row):
@@ -464,4 +420,107 @@ def get_historical_data(ticker: str, start_dt: datetime, end_dt: datetime, ivl: 
     # Apply the function to each row to create a new datetime column
     df["datetime"] = df.apply(combine_datetime, axis=1)
 
+    # Convert the datetime column to a datetime
+    df["datetime"] = pd.to_datetime(df["datetime"])
+
+    # Drop the ms_of_day and date columns
+    df = df.drop(columns=["ms_of_day", "date"])
+
     return df
+
+
+def get_expirations(username: str, password: str, ticker: str, after_date: date):
+    """
+    Get a list of expiration dates for the given ticker
+
+    Parameters
+    ----------
+    username : str
+        Your ThetaData username
+    password : str
+        Your ThetaData password
+    ticker : str
+        The ticker for the asset we are getting data for
+
+    Returns
+    -------
+    list[str]
+        A list of expiration dates for the given ticker
+    """
+    # Create the url based on the request type
+    url = f"{BASE_URL}/list/expirations"
+
+    querystring = {"root": ticker}
+
+    headers = {"Accept": "application/json"}
+
+    # Send the request
+    json_resp = get_request(url=url, headers=headers, querystring=querystring, username=username, password=password)
+
+    # Convert to pandas dataframe
+    df = pd.DataFrame(json_resp["response"], columns=json_resp["header"]["format"])
+
+    # Convert df to a list of the first (and only) column
+    expirations = df.iloc[:, 0].tolist()
+
+    # Convert after_date to a number
+    after_date_int = int(after_date.strftime("%Y%m%d"))
+
+    # Filter out any dates before after_date
+    expirations = [x for x in expirations if x >= after_date_int]
+
+    # Convert from "YYYYMMDD" (an int) to "YYYY-MM-DD" (a string)
+    expirations_final = []
+    for expiration in expirations:
+        expiration_str = str(expiration)
+        # Add the dashes to the string
+        expiration_str = f"{expiration_str[:4]}-{expiration_str[4:6]}-{expiration_str[6:]}"
+        # Add the string to the list
+        expirations_final.append(expiration_str)
+
+    return expirations_final
+
+
+def get_strikes(username: str, password: str, ticker: str, expiration: datetime):
+    """
+    Get a list of strike prices for the given ticker and expiration date
+
+    Parameters
+    ----------
+    username : str
+        Your ThetaData username
+    password : str
+        Your ThetaData password
+    ticker : str
+        The ticker for the asset we are getting data for
+    expiration : date
+        The expiration date for the options we want
+
+    Returns
+    -------
+    list[float]
+        A list of strike prices for the given ticker and expiration date
+    """
+    # Create the url based on the request type
+    url = f"{BASE_URL}/list/strikes"
+
+    # Convert the expiration date to a string
+    expiration_str = expiration.strftime("%Y%m%d")
+
+    querystring = {"root": ticker, "exp": expiration_str}
+
+    headers = {"Accept": "application/json"}
+
+    # Send the request
+    json_resp = get_request(url=url, headers=headers, querystring=querystring, username=username, password=password)
+
+    # Convert to pandas dataframe
+    df = pd.DataFrame(json_resp["response"], columns=json_resp["header"]["format"])
+
+    # Convert df to a list of the first (and only) column
+    strikes = df.iloc[:, 0].tolist()
+
+    # Divide each strike by 1000 to get the actual strike price
+    strikes = [x / 1000 for x in strikes]
+
+    return strikes

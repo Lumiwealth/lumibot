@@ -323,6 +323,19 @@ class StrategyExecutor(Thread):
         result["datetime"] = self.strategy.get_datetime()
         result["portfolio_value"] = self.strategy.portfolio_value
         result["cash"] = self.strategy.cash
+
+        # Add positions column
+        positions_list = []
+        positions = self.strategy.get_positions()
+        for position in positions:
+            pos_dict = {
+                "asset": position.asset,
+                "quantity": position.quantity,
+            }
+            positions_list.append(pos_dict)
+
+        result["positions"] = positions_list
+
         self.strategy._append_row(result)
         return result
 

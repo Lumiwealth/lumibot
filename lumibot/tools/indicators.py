@@ -417,12 +417,26 @@ def plot_returns(
     # Fix for minute timeframe backtests plotting
     # Converted to DatetimeIndex because index becomes Index type and UTC timezone in pd.concat
     # The x-axis is not displayed correctly in plotly when not converted to DatetimeIndex type
-    df_final.index = pd.to_datetime(df_final.index,utc=True).tz_convert(LUMIBOT_DEFAULT_TIMEZONE)
+    df_final.index = pd.to_datetime(df_final.index, utc=True).tz_convert(LUMIBOT_DEFAULT_TIMEZONE)
 
     # fig = go.Figure()
     fig = make_subplots(specs=[[{"secondary_y": True}]])
 
-    # Strategy line
+    # Updated format_positions function to handle lists and dicts
+    def format_positions(positions):
+        if isinstance(positions, list):
+            formatted_positions = [
+                f"{pos.get('asset', 'Unknown asset')}: {pos.get('quantity', 0):,.2f}" for pos in positions
+            ]
+            return "<br>".join(formatted_positions)
+        elif isinstance(positions, dict):
+            return f"{positions.get('asset', 'Unknown asset')}: {positions.get('quantity', 0):,.2f}"
+        return "No positions"
+
+    # Manually create a list of formatted positions
+    formatted_positions_list = [format_positions(pos) for pos in df_final["positions"]]
+
+    # Modify the strategy line to include positions
     fig.add_trace(
         go.Scatter(
             x=df_final.index,
@@ -430,7 +444,14 @@ def plot_returns(
             mode="lines",
             name=strategy_name,
             connectgaps=True,
-            hovertemplate=f"{strategy_name}<br>Portfolio Value: %{{y:$,.2f}}<br>%{{x|%b %d %Y %I:%M:%S %p}}<extra></extra>",
+            hovertemplate=(
+                f"{strategy_name}<br>"
+                "Portfolio Value: %{y:$,.2f}<br>"
+                "%{x|%b %d %Y %I:%M:%S %p}<br>"
+                "Positions:<br>"
+                "%{text}<extra></extra>"
+            ),
+            text=formatted_positions_list,  # Apply the formatting function to positions
         )
     )
 

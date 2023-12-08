@@ -1,5 +1,4 @@
 import logging
-import re
 import traceback
 from datetime import date, timedelta
 
@@ -34,42 +33,6 @@ class PolygonDataBacktesting(PandasData):
         # RESTClient API for Polygon.io polygon-api-client
         self.polygon_client = RESTClient(self._api_key)
 
-    def get_start_datetime_and_ts_unit(self, length, timestep, start_dt=None):
-        """
-        Get the start datetime for the data.
-
-        Parameters
-        ----------
-        length : int
-            The number of data points to get.
-        timestep : str
-            The timestep to use. For example, "1minute" or "1hour" or "1day".
-
-
-        Returns
-        -------
-        datetime
-            The start datetime.
-        str
-            The timestep unit.
-        """
-        # Convert timestep string to timedelta and get start datetime
-        td, ts_unit = self.convert_timestep_str_to_timedelta(timestep)
-
-        # Multiply td by length to get the end datetime
-        td *= length
-
-        if start_dt is not None:
-            start_datetime = start_dt - td
-        else:
-            start_datetime = self.datetime_start - td
-
-        # Subtract an extra 5 days to the start datetime to make sure we have enough
-        # data when it's a sparsely traded asset, especially over weekends
-        start_datetime = start_datetime - START_BUFFER
-
-        return start_datetime, ts_unit
-
     def update_pandas_data(self, asset, quote, length, timestep, start_dt=None):
         """
         Get asset data and update the self.pandas_data dictionary.
@@ -100,7 +63,9 @@ class PolygonDataBacktesting(PandasData):
             search_asset = (search_asset, quote_asset)
 
         # Get the start datetime and timestep unit
-        start_datetime, ts_unit = self.get_start_datetime_and_ts_unit(length, timestep, start_dt)
+        start_datetime, ts_unit = self.get_start_datetime_and_ts_unit(
+            length, timestep, start_dt, start_buffer=START_BUFFER
+        )
 
         # Check if we have data for this asset
         if search_asset in self.pandas_data:

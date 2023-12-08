@@ -1,6 +1,8 @@
 import logging
+from datetime import date, timedelta
 
 import pandas as pd
+
 from lumibot.data_sources import DataSourceBacktesting
 from lumibot.entities import Asset, AssetsMapping, Bars
 
@@ -404,3 +406,39 @@ class PandasData(DataSourceBacktesting):
                 strikes.append(float(store_asset.strike))
 
         return sorted(list(set(strikes)))
+
+    def get_start_datetime_and_ts_unit(self, length, timestep, start_dt=None, start_buffer=timedelta(days=5)):
+        """
+        Get the start datetime for the data.
+
+        Parameters
+        ----------
+        length : int
+            The number of data points to get.
+        timestep : str
+            The timestep to use. For example, "1minute" or "1hour" or "1day".
+
+
+        Returns
+        -------
+        datetime
+            The start datetime.
+        str
+            The timestep unit.
+        """
+        # Convert timestep string to timedelta and get start datetime
+        td, ts_unit = self.convert_timestep_str_to_timedelta(timestep)
+
+        # Multiply td by length to get the end datetime
+        td *= length
+
+        if start_dt is not None:
+            start_datetime = start_dt - td
+        else:
+            start_datetime = self.datetime_start - td
+
+        # Subtract an extra 5 days to the start datetime to make sure we have enough
+        # data when it's a sparsely traded asset, especially over weekends
+        start_datetime = start_datetime - start_buffer
+
+        return start_datetime, ts_unit

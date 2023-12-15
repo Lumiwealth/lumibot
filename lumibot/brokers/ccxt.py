@@ -2,10 +2,9 @@ import datetime
 import logging
 from decimal import ROUND_DOWN, Decimal
 
-from termcolor import colored
-
 from lumibot.data_sources import CcxtData
 from lumibot.entities import Asset, Order, Position
+from termcolor import colored
 
 from .broker import Broker
 
@@ -14,6 +13,7 @@ class Ccxt(Broker):
     """
     Crypto broker using CCXT.
     """
+
     def __init__(self, config, data_source: CcxtData = None, max_workers=20, chunk_size=100, **kwargs):
         if data_source is None:
             data_source = CcxtData(config, max_workers=max_workers, chunk_size=chunk_size)
@@ -30,9 +30,7 @@ class Ccxt(Broker):
 
     def get_timestamp(self):
         """Returns the current UNIX timestamp representation from CCXT"""
-        logging.warning(
-            "The method 'get_time_to_close' is not applicable with Crypto 24/7 markets."
-        )
+        logging.warning("The method 'get_time_to_close' is not applicable with Crypto 24/7 markets.")
         return self.api.microseconds() / 1000000
 
     def is_market_open(self):
@@ -51,9 +49,7 @@ class Ccxt(Broker):
         -------
         None
         """
-        logging.warning(
-            "The method 'get_time_to_open' is not applicable with Crypto 24/7 markets."
-        )
+        logging.warning("The method 'get_time_to_open' is not applicable with Crypto 24/7 markets.")
         return None
 
     def get_time_to_close(self):
@@ -63,9 +59,7 @@ class Ccxt(Broker):
         -------
         None
         """
-        logging.debug(
-            "The method 'get_time_to_close' is not applicable with Crypto 24/7 markets."
-        )
+        logging.debug("The method 'get_time_to_close' is not applicable with Crypto 24/7 markets.")
         return None
 
     def is_margin_enabled(self):
@@ -143,14 +137,12 @@ class Ccxt(Broker):
             precision_price = self.api.markets[market]["precision"]["price"]
 
             if self.api.exchangeId == "binance":
-                precision_amount = 10 ** -precision_amount
-                precision_price = 10 ** -precision_price
+                precision_amount = 10**-precision_amount
+                precision_price = 10**-precision_price
 
             # Binance only has `free` and `locked`.
             if self.api.exchangeId == "binance":
-                total_balance = Decimal(currency_info["free"]) + Decimal(
-                    currency_info["locked"]
-                )
+                total_balance = Decimal(currency_info["free"]) + Decimal(currency_info["locked"])
             else:
                 total_balance = currency_info["balance"]
 
@@ -208,9 +200,7 @@ class Ccxt(Broker):
             precision=precision,
         )
 
-        position_return = Position(
-            strategy, asset, quantity, hold=hold, available=available, orders=orders
-        )
+        position_return = Position(strategy, asset, quantity, hold=hold, available=available, orders=orders)
         return position_return
 
     def _pull_broker_position(self, asset):
@@ -306,10 +296,7 @@ class Ccxt(Broker):
             if self.fetch_open_orders_last_request_time is not None:
                 net_rate_limit = (
                     self.binance_all_orders_rate_limit
-                    - (
-                        datetime.datetime.now()
-                        - self.fetch_open_orders_last_request_time
-                    ).seconds
+                    - (datetime.datetime.now() - self.fetch_open_orders_last_request_time).seconds
                 )
                 if net_rate_limit > 0:
                     logging.info(
@@ -346,31 +333,20 @@ class Ccxt(Broker):
         order_class = ""
         order_types = ["market", "limit", "stop_limit"]
         # TODO: Is this actually true?? Try testing this with a bunch of different exchanges.
-        markets_error_message = (
-            f"Only `market`, `limit`, or `stop_limit` orders work "
-            f"with crypto currency markets."
-        )
+        markets_error_message = f"Only `market`, `limit`, or `stop_limit` orders work " f"with crypto currency markets."
 
         if order.order_class != order_class:
-            logging.error(
-                f"A compound order of {order.order_class} was entered. "
-                f"{markets_error_message}"
-            )
+            logging.error(f"A compound order of {order.order_class} was entered. " f"{markets_error_message}")
             return
 
         if order.type not in order_types:
-            logging.error(
-                f"An order type of {order.type} was entered which is not "
-                f"valid. {markets_error_message}"
-            )
+            logging.error(f"An order type of {order.type} was entered which is not " f"valid. {markets_error_message}")
             return
 
         # Check order within limits.
         market = self.api.markets.get(order.pair, None)
         if market is None:
-            logging.error(
-                f"An order for {order.pair} was submitted. The market for that pair does not exist"
-            )
+            logging.error(f"An order for {order.pair} was submitted. The market for that pair does not exist")
             order.set_error("No market for pair.")
             return order
 
@@ -385,7 +361,7 @@ class Ccxt(Broker):
             precision_exp_modifier = 2
             initial_precision_exp = abs(initial_precision_amount.as_tuple().exponent)
             new_precision_exp = initial_precision_exp - precision_exp_modifier
-            factor = 10 ** new_precision_exp
+            factor = 10**new_precision_exp
             precision_amount = Decimal(1) / Decimal(factor)
         else:
             precision_amount = str(precision["amount"])
@@ -440,9 +416,7 @@ class Ccxt(Broker):
                 setattr(
                     order,
                     price_type,
-                    Decimal(getattr(order, price_type)).quantize(
-                        Decimal(str(precision["price"]))
-                    ),
+                    Decimal(getattr(order, price_type)).quantize(Decimal(str(precision["price"]))),
                 )
             else:
                 continue
@@ -488,9 +462,7 @@ class Ccxt(Broker):
 
             try:
                 if limits["cost"]["max"] is not None:
-                    assert getattr(order, price_type) * order.quantity <= Decimal(
-                        limits["cost"]["max"]
-                    )
+                    assert getattr(order, price_type) * order.quantity <= Decimal(limits["cost"]["max"])
             except AssertionError:
                 logging.warning(
                     f"\nThe order {order} was rejected as the order total cost \n"
@@ -521,9 +493,7 @@ class Ccxt(Broker):
         except Exception as e:
             order.set_error(e)
             message = str(e)
-            full_message = (
-                f"{order} did not go through. The following error occurred: {message}"
-            )
+            full_message = f"{order} did not go through. The following error occurred: {message}"
             logging.info(colored(full_message, "red"))
 
         return order
@@ -647,9 +617,7 @@ class Ccxt(Broker):
                 # Remove items with None values
                 params = {k: v for k, v in params.items() if v}
 
-            order_type_map = dict(
-                market="MARKET", limit="LIMIT", stop_limit="STOP_LOSS_LIMIT"
-            )
+            order_type_map = dict(market="MARKET", limit="LIMIT", stop_limit="STOP_LOSS_LIMIT")
 
             args = [
                 order.pair,
@@ -716,10 +684,7 @@ class Ccxt(Broker):
             self.api.cancel_order(order["id"], symbol=order["symbol"])
 
     def get_historical_account_value(self):
-        logging.error(
-            "The function get_historical_account_value is not "
-            "implemented yet for CCXT."
-        )
+        logging.error("The function get_historical_account_value is not " "implemented yet for CCXT.")
         return {"hourly": None, "daily": None}
 
     def wait_for_order_registration(self, order):

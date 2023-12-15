@@ -138,15 +138,32 @@ class PolygonDataBacktesting(PandasData):
 
     def _pull_source_symbol_bars(
         self,
-        asset,
-        length,
-        timestep=None,
-        timeshift=None,
-        quote=None,
-        exchange=None,
-        include_after_hours=True,
+        asset: Asset,
+        length: int,
+        timestep: str = "day",
+        timeshift: int = None,
+        quote: Asset = None,
+        exchange: str = None,
+        include_after_hours: bool = True,
     ):
-        pandas_data_update = self.update_pandas_data(asset, quote, length, timestep)
+        # Get the current datetime
+        dt = self.get_datetime()
+
+        # Calculate the start datetime
+        if timestep == "minute":
+            start_dt = dt - timedelta(minutes=length)
+            start_dt = (start_dt - timedelta(minutes=timeshift)) if timeshift is not None else start_dt
+        elif timestep == "hour":
+            start_dt = dt - timedelta(hours=length)
+            start_dt = (start_dt - timedelta(hours=timeshift)) if timeshift is not None else start_dt
+        elif timestep == "day":
+            start_dt = dt - timedelta(days=length)
+            start_dt = (start_dt - timedelta(days=timeshift)) if timeshift is not None else start_dt
+        else:
+            raise Exception(f"Invalid timestep: {timestep}")
+
+        # Get data from Polygon
+        pandas_data_update = self.update_pandas_data(asset, quote, length, timestep, start_dt)
 
         if pandas_data_update is not None:
             # Add the keys to the self.pandas_data dictionary

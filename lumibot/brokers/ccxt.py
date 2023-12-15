@@ -2,10 +2,9 @@ import datetime
 import logging
 from decimal import ROUND_DOWN, Decimal
 
-from termcolor import colored
-
 from lumibot.data_sources import CcxtData
 from lumibot.entities import Asset, Order, Position
+from termcolor import colored
 
 from .broker import Broker
 
@@ -343,7 +342,7 @@ class Ccxt(Broker):
         """Submit an order for an asset"""
 
         # Orders limited.
-        order_class = ""
+        order_class = None
         order_types = ["market", "limit", "stop_limit"]
         # TODO: Is this actually true?? Try testing this with a bunch of different exchanges.
         markets_error_message = (

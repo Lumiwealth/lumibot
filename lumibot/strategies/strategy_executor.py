@@ -356,8 +356,8 @@ class StrategyExecutor(Thread):
                 # If the cron count is not equal to the cron count target, return and do not execute the
                 # on_trading_iteration method.
                 self.strategy.log_message(
-                    f"The cron count is only {self.cron_count} but the target is {self.cron_count_target}"
-                    f", skipping this trading iteration because it's not time yet.",
+                    "Skipping this iteration because it's not time yet. "
+                    f"{self.cron_count_target - self.cron_count} iterations left before we run again",
                     color="blue",
                 )
                 return

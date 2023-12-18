@@ -318,7 +318,7 @@ class Strategy(_Strategy):
 
     # =======Helper methods=======================
 
-    def log_message(self, message, color=None):
+    def log_message(self, message, color=None, broadcast=False):
         """Logs an info message prefixed with the strategy name.
 
         Uses python logging to log the message at the `info` level.
@@ -331,6 +331,9 @@ class Strategy(_Strategy):
 
         color : str
             Color of the message. Eg. `"red"` or `"green"`.
+
+        broadcast : bool
+            If True, the message will be broadcasted to any connected message services.
 
         Returns
         -------

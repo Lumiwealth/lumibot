@@ -229,15 +229,15 @@ class TestPolygonHelpers:
         )
 
         # No changes in data, don't write cache file
-        ph.update_cache(cache_file, df_all=df, df_csv=df)
+        ph.update_cache(cache_file, df_all=df, df_feather=df)
         assert not cache_file.exists()
 
         # Empty DataFrame, don't write cache file
-        ph.update_cache(cache_file, df_all=pd.DataFrame(), df_csv=df)
+        ph.update_cache(cache_file, df_all=pd.DataFrame(), df_feather=df)
         assert not cache_file.exists()
 
         # Changes in data, write cache file
-        ph.update_cache(cache_file, df_all=df, df_csv=df.iloc[1:])
+        ph.update_cache(cache_file, df_all=df, df_feather=df.iloc[1:])
         assert cache_file.exists()
 
     def test_update_polygon_data(self):

@@ -3,7 +3,7 @@ import os
 import pytest
 
 from lumibot.brokers.tradier import Tradier
-from lumibot.data_sources.tradier_data import TradierData, SomethingBad
+from lumibot.data_sources.tradier_data import TradierData
 from lumibot.entities import Asset
 
 TRADIER_ACCOUNT_ID_PAPER = os.getenv("TRADIER_ACCOUNT_ID_PAPER")

@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="lumibot",
-    version="2.9.9",
+    version="2.9.10",
     author="Robert Grzesik",
     author_email="rob@lumiwealth.com",
     description="Backtesting and Trading Library, Made by Lumiwealth",
@@ -44,6 +44,7 @@ setuptools.setup(
         "apscheduler==3.10.4",
         "appdirs",
         "pyarrow",
+        "tqdm",
     ],
     classifiers=[
         "Programming Language :: Python :: 3",

@@ -6,12 +6,12 @@ from pathlib import Path
 
 import pandas as pd
 import pandas_market_calendars as mcal
+from lumibot import LUMIBOT_CACHE_FOLDER
+from lumibot.entities import Asset
 
 # noinspection PyPackageRequirements
 from polygon import RESTClient
-
-from lumibot import LUMIBOT_CACHE_FOLDER
-from lumibot.entities import Asset
+from tqdm import tqdm
 
 WAIT_TIME = 60
 POLYGON_QUERY_COUNT = 0  # This is a variable that updates every time we query Polygon
@@ -73,7 +73,7 @@ def get_price_data_from_polygon(
     if not missing_dates:
         return df_all
 
-    print(f"\nGetting pricing data for {asset} / {quote_asset} with '{timespan}' timespan from Polygon...")
+    # print(f"\nGetting pricing data for {asset} / {quote_asset} with '{timespan}' timespan from Polygon...")
 
     # RESTClient connection for Polygon Stock-Equity API; traded_asset is standard
     # Add "trace=True" to see the API calls printed to the console for debugging
@@ -85,6 +85,12 @@ def get_price_data_from_polygon(
     # Option data won't have any extended hours data so the padding is extra important for those.
     poly_start = missing_dates[0]  # Data will start at 8am UTC (4am EST)
     poly_end = missing_dates[-1]  # Data will end at 23:59 UTC (7:59pm EST)
+
+    # Initialize tqdm progress bar
+    total_days = (missing_dates[-1] - missing_dates[0]).days + 1
+    total_queries = (total_days // MAX_POLYGON_DAYS) + 1
+    description = f"\nFetching data for {asset} / {quote_asset} '{timespan}' from Polygon..."
+    pbar = tqdm(total=total_queries, desc=description, dynamic_ncols=True)
 
     # Polygon only returns 50k results per query (~30days of 24hr 1min-candles) so we need to break up the query into
     # multiple queries if we are requesting more than 30 days of data
@@ -119,11 +125,17 @@ def get_price_data_from_polygon(
             limit=50000,  # Max limit for Polygon
         )
 
+        # Update progress bar after each query
+        pbar.update(1)
+
         if result:
             df_all = update_polygon_data(df_all, result)
 
         poly_start = poly_end + timedelta(days=1)
         poly_end = poly_start + delta
+
+    # Close the progress bar when done
+    pbar.close()
 
     update_cache(cache_file, df_all, df_feather)
     return df_all

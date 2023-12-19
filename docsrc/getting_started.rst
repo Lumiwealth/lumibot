@@ -38,7 +38,7 @@ Here are the steps to get started using the Alpaca broker, if you want to use a 
         # Put your own Alpaca secret here:
         "API_SECRET": "YOUR_ALPACA_SECRET",
         # If you want to go live, you must change this. It is currently set for paper trading
-        "ENDPOINT": "https://paper-api.alpaca.markets"
+        "PAPER": True,
     }
 
 5. Create a strategy class (See strategy section) e.g. class MyStrategy(Strategy) or import an example from our libraries, like this:
@@ -117,7 +117,7 @@ Here it is all together:
         # Put your own Alpaca secret here:
         "API_SECRET": "YOUR_ALPACA_SECRET",
         # If you want to go live, you must change this. It is currently set for paper trading
-        "ENDPOINT": "https://paper-api.alpaca.markets"
+        "PAPER": True,
     }
 
 

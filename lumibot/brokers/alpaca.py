@@ -12,9 +12,10 @@ from alpaca.trading.enums import QueryOrderStatus
 from alpaca.trading.requests import GetOrdersRequest
 from alpaca.trading.stream import TradingStream
 from dateutil import tz
+from termcolor import colored
+
 from lumibot.data_sources import AlpacaData
 from lumibot.entities import Asset, Order, Position
-from termcolor import colored
 
 from .broker import Broker
 
@@ -61,7 +62,7 @@ class Alpaca(Broker):
     ...     # Put your own Alpaca secret here:
     ...     "API_SECRET": "YOUR_API_SECRET",
     ...     # If you want to go live, you must change this
-    ...     "ENDPOINT": "https://paper-api.alpaca.markets",
+    ...     "PAPER": True,
     ... }
     >>> alpaca = Alpaca(ALPACA_CONFIG)
     >>> print(alpaca.get_time_to_open())
@@ -79,7 +80,7 @@ class Alpaca(Broker):
     ...     # Put your own Alpaca secret here:
     ...     "API_SECRET": "YOUR_API_SECRET",
     ...     # If you want to go live, you must change this
-    ...     "ENDPOINT": "https://paper-api.alpaca.markets",
+    ...     "PAPER": True,
     ... }
     >>>
     >>> class AlpacaStrategy(Strategy):

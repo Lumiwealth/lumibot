@@ -7,7 +7,6 @@ from decimal import Decimal
 
 import jsonpickle
 import pandas as pd
-
 from lumibot.backtesting import BacktestingBroker, PolygonDataBacktesting
 from lumibot.entities import Asset, Position
 from lumibot.tools import (
@@ -516,6 +515,7 @@ class _Strategy:
         if "datetime" in self._stats.columns:
             self._stats = self._stats.set_index("datetime")
         self._stats["return"] = self._stats["portfolio_value"].pct_change()
+
         return self._stats
 
     def _dump_stats(self):

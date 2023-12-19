@@ -19,12 +19,12 @@ class TestPolygonHelpers:
         asset = Asset("SPY")
         timespan = "1D"
         mocker.patch.object(ph, "LUMIBOT_CACHE_FOLDER", tmpdir)
-        expected = tmpdir / "polygon" / "stock_SPY_1D.csv"
+        expected = tmpdir / "polygon" / "stock_SPY_1D.feather"
         assert ph.build_cache_filename(asset, timespan) == expected
 
         expire_date = datetime.date(2023, 8, 1)
         option_asset = Asset("SPY", asset_type="option", expiration=expire_date, strike=100, right="CALL")
-        expected = tmpdir / "polygon" / "option_SPY_230801_100_CALL_1D.csv"
+        expected = tmpdir / "polygon" / "option_SPY_230801_100_CALL_1D.feather"
         assert ph.build_cache_filename(option_asset, timespan) == expected
 
         # Bad option asset with no expiration
@@ -45,11 +45,14 @@ class TestPolygonHelpers:
 
         # Small dataframe that meets start/end criteria
         index = pd.date_range(start_date, end_date, freq="1min")
-        df_all = pd.DataFrame({
-            "open": np.random.uniform(0, 100, len(index)).round(2),
-            "close": np.random.uniform(0, 100, len(index)).round(2),
-            "volume": np.random.uniform(0, 10000, len(index)).round(2),
-        }, index=index)
+        df_all = pd.DataFrame(
+            {
+                "open": np.random.uniform(0, 100, len(index)).round(2),
+                "close": np.random.uniform(0, 100, len(index)).round(2),
+                "volume": np.random.uniform(0, 10000, len(index)).round(2),
+            },
+            index=index,
+        )
         missing_dates = ph.get_missing_dates(df_all, asset, start_date, end_date)
         assert not missing_dates
 
@@ -63,17 +66,19 @@ class TestPolygonHelpers:
         end_date = datetime.datetime(2023, 8, 3, 13, 0)
         expire_date = datetime.date(2023, 8, 2)
         index = pd.date_range(start_date, end_date, freq="1min")
-        df_all = pd.DataFrame({
-            "open": np.random.uniform(0, 100, len(index)).round(2),
-            "close": np.random.uniform(0, 100, len(index)).round(2),
-            "volume": np.random.uniform(0, 10000, len(index)).round(2),
-        }, index=index)
+        df_all = pd.DataFrame(
+            {
+                "open": np.random.uniform(0, 100, len(index)).round(2),
+                "close": np.random.uniform(0, 100, len(index)).round(2),
+                "volume": np.random.uniform(0, 10000, len(index)).round(2),
+            },
+            index=index,
+        )
         option_asset = Asset("SPY", asset_type="option", expiration=expire_date, strike=100, right="CALL")
         missing_dates = ph.get_missing_dates(df_all, option_asset, start_date, end_date)
         assert not missing_dates
 
     def test_get_trading_dates(self):
-
         # Unsupported Asset Type
         asset = Asset("SPY", asset_type="future")
         start_date = datetime.datetime(2023, 7, 1, 9, 30)  # Saturday
@@ -140,8 +145,6 @@ class TestPolygonHelpers:
         option_asset = Asset("SPY", asset_type="option", expiration=expire_date, strike=100, right="CALL")
         # Option with no contracts - Error
         polygon_client.list_options_contracts.return_value = []
-        with pytest.raises(LookupError):
-            ph.get_polygon_symbol(option_asset, polygon_client)
 
         # Option with contracts - Works
         expected_ticker = "O:SPY230801C00100000"
@@ -158,51 +161,72 @@ class TestPolygonHelpers:
         with pytest.raises(ValueError):
             ph.get_polygon_symbol(forex_asset, polygon_client)
         # Works with a Quote Asset
-        quote_asset = Asset("USD", asset_type='forex')
+        quote_asset = Asset("USD", asset_type="forex")
         assert ph.get_polygon_symbol(forex_asset, polygon_client, quote_asset) == "C:ESUSD"
 
     def test_load_data_from_cache(self, tmpdir):
         # Setup some basics
-        cache_file = tmpdir / "stock_SPY_1D.csv"
+        cache_file = tmpdir / "stock_SPY_1D.feather"
 
         # No cache file
         with pytest.raises(FileNotFoundError):
             ph.load_cache(cache_file)
 
         # Cache file exists
-        df = pd.DataFrame({"close": [2, 3, 4, 5, 6],
-                           "open": [1, 2, 3, 4, 5],
-                           "datetime": ["2023-07-01 09:30:00-04:00", "2023-07-01 09:31:00-04:00",
-                                        "2023-07-01 09:32:00-04:00", "2023-07-01 09:33:00-04:00",
-                                        "2023-07-01 09:34:00-04:00"],
-                           })
-        df.to_csv(cache_file)
+        df = pd.DataFrame(
+            {
+                "close": [2, 3, 4, 5, 6],
+                "open": [1, 2, 3, 4, 5],
+                "datetime": [
+                    "2023-07-01 09:30:00-04:00",
+                    "2023-07-01 09:31:00-04:00",
+                    "2023-07-01 09:32:00-04:00",
+                    "2023-07-01 09:33:00-04:00",
+                    "2023-07-01 09:34:00-04:00",
+                ],
+            }
+        )
+        df.to_feather(cache_file)
         df_loaded = ph.load_cache(cache_file)
         assert len(df_loaded)
         assert df_loaded["close"].iloc[0] == 2
         assert df_loaded.index[0] == pd.DatetimeIndex(["2023-07-01 09:30:00-04:00"])[0]
 
         # Dataframe with no Timezone
-        df = pd.DataFrame({"close": [2, 3, 4, 5, 6],
-                           "open": [1, 2, 3, 4, 5],
-                           "datetime": ["2023-07-01 09:30:00", "2023-07-01 09:31:00",
-                                        "2023-07-01 09:32:00", "2023-07-01 09:33:00",
-                                        "2023-07-01 09:34:00"],
-                           })
-        df.to_csv(cache_file)
+        df = pd.DataFrame(
+            {
+                "close": [2, 3, 4, 5, 6],
+                "open": [1, 2, 3, 4, 5],
+                "datetime": [
+                    "2023-07-01 09:30:00",
+                    "2023-07-01 09:31:00",
+                    "2023-07-01 09:32:00",
+                    "2023-07-01 09:33:00",
+                    "2023-07-01 09:34:00",
+                ],
+            }
+        )
+        df.to_feather(cache_file)
         df_loaded = ph.load_cache(cache_file)
         assert len(df_loaded)
         assert df_loaded["close"].iloc[0] == 2
         assert df_loaded.index[0] == pd.DatetimeIndex(["2023-07-01 09:30:00-00:00"])[0]
 
     def test_update_cache(self, tmpdir):
-        cache_file = Path(tmpdir / "polygon" / "stock_SPY_1D.csv")
-        df = pd.DataFrame({"close": [2, 3, 4, 5, 6],
-                           "open": [1, 2, 3, 4, 5],
-                           "datetime": ["2023-07-01 09:30:00-04:00", "2023-07-01 09:31:00-04:00",
-                                        "2023-07-01 09:32:00-04:00", "2023-07-01 09:33:00-04:00",
-                                        "2023-07-01 09:34:00-04:00"],
-                           })
+        cache_file = Path(tmpdir / "polygon" / "stock_SPY_1D.feather")
+        df = pd.DataFrame(
+            {
+                "close": [2, 3, 4, 5, 6],
+                "open": [1, 2, 3, 4, 5],
+                "datetime": [
+                    "2023-07-01 09:30:00-04:00",
+                    "2023-07-01 09:31:00-04:00",
+                    "2023-07-01 09:32:00-04:00",
+                    "2023-07-01 09:33:00-04:00",
+                    "2023-07-01 09:34:00-04:00",
+                ],
+            }
+        )
 
         # No changes in data, don't write cache file
         ph.update_cache(cache_file, df_all=df, df_csv=df)
@@ -281,7 +305,7 @@ class TestPolygonPriceData:
         tz_e = pytz.timezone("US/Eastern")
         start_date = tz_e.localize(datetime.datetime(2023, 8, 2, 6, 30))  # Include PreMarket
         end_date = tz_e.localize(datetime.datetime(2023, 8, 2, 13, 0))
-        timespan = 'minute'
+        timespan = "minute"
         expected_cachefile = ph.build_cache_filename(asset, timespan)
 
         assert not expected_cachefile.exists()

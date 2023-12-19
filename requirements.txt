@@ -27,3 +27,4 @@ jsonpickle
 apscheduler
 alpaca-py
 appdirs
+pyarrow

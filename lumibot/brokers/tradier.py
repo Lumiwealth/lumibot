@@ -1,5 +1,5 @@
 from lumibot.brokers import Broker
-from lumibot.data_sources import TradierData
+from lumibot.data_sources.tradier_data import TradierData
 from lumibot.entities import Asset, Order
 
 

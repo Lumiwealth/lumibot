@@ -43,6 +43,7 @@ setuptools.setup(
         "jsonpickle",
         "apscheduler==3.10.4",
         "appdirs",
+        "pyarrow",
     ],
     classifiers=[
         "Programming Language :: Python :: 3",

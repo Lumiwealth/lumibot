@@ -1,5 +1,5 @@
 from lumibot.brokers import Broker
-from lumibot.data_sources import TRADIER_LIVE_API_URL, TRADIER_PAPER_API_URL, TradierAPIError, TradierData
+from lumibot.data_sources import TradierData
 from lumibot.entities import Asset, Order
 
 
@@ -19,12 +19,6 @@ class Tradier(Broker):
         self._tradier_api_key = api_token
         self._tradier_account_id = account_id
         self._tradier_paper = paper
-        self._tradier_base_url = TRADIER_PAPER_API_URL if self._tradier_paper else TRADIER_LIVE_API_URL
-
-        try:
-            self.validate_credentials()
-        except TradierAPIError as e:
-            raise TradierAPIError("Invalid Tradier Credentials") from e
 
     def validate_credentials(self):
         pass

@@ -1,8 +1,6 @@
-from .data_source import DataSource
+from lumi_tradier import Tradier
 
-TRADIER_LIVE_API_URL = "https://api.tradier.com/v1/"
-TRADIER_PAPER_API_URL = "https://sandbox.tradier.com/v1/"
-TRADIER_STREAM_API_URL = "https://stream.tradier.com/v1/"  # Only valid Live, no Paper support
+from .data_source import DataSource
 
 
 class TradierAPIError(Exception):
@@ -17,8 +15,8 @@ class TradierData(DataSource):
         super().__init__(api_key=api_key)
         self._account_id = account_id
         self._paper = paper
-        self._base_url = TRADIER_PAPER_API_URL if self._paper else TRADIER_LIVE_API_URL
         self.max_workers = min(max_workers, 50)
+        self.tradier = Tradier(account_id, api_key, paper)
 
     def _pull_source_symbol_bars(self, asset, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None, exchange=None,
                                  include_after_hours=True):
@@ -32,4 +30,18 @@ class TradierData(DataSource):
         pass
 
     def get_last_price(self, asset, quote=None, exchange=None):
-        pass
+        """
+        This function returns the last price of an asset.
+        Parameters
+        ----------
+        asset
+        quote
+        exchange
+
+        Returns
+        -------
+        float
+           Price of the asset
+        """
+        price = self.tradier.market.get_last_price(asset.symbol)
+        return price

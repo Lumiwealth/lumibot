@@ -6,13 +6,12 @@ from pathlib import Path
 
 import pandas as pd
 import pandas_market_calendars as mcal
+from lumibot import LUMIBOT_CACHE_FOLDER
+from lumibot.entities import Asset
 
 # noinspection PyPackageRequirements
 from polygon import RESTClient
 from tqdm import tqdm
-
-from lumibot import LUMIBOT_CACHE_FOLDER
-from lumibot.entities import Asset
 
 WAIT_TIME = 60
 POLYGON_QUERY_COUNT = 0  # This is a variable that updates every time we query Polygon
@@ -290,11 +289,6 @@ def get_missing_dates(df_all, asset, start, end):
         A list of dates that we need to get data for
     """
     trading_dates = get_trading_dates(asset, start, end)
-
-    # For options and stocks, exclude weekends
-    if asset.asset_type in ["option", "stock"]:
-        # Remove weekends from the missing dates
-        trading_dates = [x for x in trading_dates if x.weekday() < 5]
 
     # For Options, don't need any dates passed the expiration date
     if asset.asset_type == "option":

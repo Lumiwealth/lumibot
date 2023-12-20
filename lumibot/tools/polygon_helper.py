@@ -6,12 +6,13 @@ from pathlib import Path
 
 import pandas as pd
 import pandas_market_calendars as mcal
-from lumibot import LUMIBOT_CACHE_FOLDER
-from lumibot.entities import Asset
 
 # noinspection PyPackageRequirements
 from polygon import RESTClient
 from tqdm import tqdm
+
+from lumibot import LUMIBOT_CACHE_FOLDER
+from lumibot.entities import Asset
 
 WAIT_TIME = 60
 POLYGON_QUERY_COUNT = 0  # This is a variable that updates every time we query Polygon
@@ -89,7 +90,7 @@ def get_price_data_from_polygon(
     # Initialize tqdm progress bar
     total_days = (missing_dates[-1] - missing_dates[0]).days + 1
     total_queries = (total_days // MAX_POLYGON_DAYS) + 1
-    description = f"\nFetching data for {asset} / {quote_asset} '{timespan}' from Polygon..."
+    description = f"\nDownloading data for {asset} / {quote_asset} '{timespan}' from Polygon..."
     pbar = tqdm(total=total_queries, desc=description, dynamic_ncols=True)
 
     # Polygon only returns 50k results per query (~30days of 24hr 1min-candles) so we need to break up the query into

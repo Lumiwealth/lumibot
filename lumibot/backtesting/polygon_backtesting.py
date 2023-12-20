@@ -2,10 +2,11 @@ import logging
 import traceback
 from datetime import date, timedelta
 
+from polygon import RESTClient
+
 from lumibot.data_sources import PandasData
 from lumibot.entities import Asset, Data
 from lumibot.tools import polygon_helper
-from polygon import RESTClient
 
 START_BUFFER = timedelta(days=5)
 
@@ -147,9 +148,7 @@ class PolygonDataBacktesting(PandasData):
     ):
         # Get the current datetime and calculate the start datetime
         current_dt = self.get_datetime()
-        start_dt, ts_unit = self.get_start_datetime_and_ts_unit(
-            length, timestep, current_dt, start_buffer=START_BUFFER
-        )
+        start_dt, ts_unit = self.get_start_datetime_and_ts_unit(length, timestep, current_dt, start_buffer=START_BUFFER)
 
         # Get data from Polygon
         pandas_data_update = self.update_pandas_data(asset, quote, length, timestep, start_dt)

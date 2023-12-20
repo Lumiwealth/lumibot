@@ -89,7 +89,7 @@ def get_price_data_from_polygon(
     # Initialize tqdm progress bar
     total_days = (missing_dates[-1] - missing_dates[0]).days + 1
     total_queries = (total_days // MAX_POLYGON_DAYS) + 1
-    description = f"\nFetching data for {asset} / {quote_asset} '{timespan}' from Polygon..."
+    description = f"\nDownloading data for {asset} / {quote_asset} '{timespan}' from Polygon..."
     pbar = tqdm(total=total_queries, desc=description, dynamic_ncols=True)
 
     # Polygon only returns 50k results per query (~30days of 24hr 1min-candles) so we need to break up the query into
@@ -289,6 +289,11 @@ def get_missing_dates(df_all, asset, start, end):
         A list of dates that we need to get data for
     """
     trading_dates = get_trading_dates(asset, start, end)
+
+    # For Options, don't need any dates passed the expiration date
+    if asset.asset_type == "option":
+        trading_dates = [x for x in trading_dates if x <= asset.expiration]
+
     if df_all is None or not len(df_all):
         return trading_dates
 
@@ -297,10 +302,6 @@ def get_missing_dates(df_all, asset, start, end):
     # Whole days are easy to check for because we can just check the dates in the index
     dates = pd.Series(df_all.index.date).unique()
     missing_dates = sorted(set(trading_dates) - set(dates))
-
-    # For Options, don't need any dates passed the expiration date
-    if asset.asset_type == "option":
-        missing_dates = [x for x in missing_dates if x <= asset.expiration]
 
     return missing_dates
 

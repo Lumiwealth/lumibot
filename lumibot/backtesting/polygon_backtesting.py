@@ -2,10 +2,11 @@ import logging
 import traceback
 from datetime import date, timedelta
 
+from polygon import RESTClient
+
 from lumibot.data_sources import PandasData
 from lumibot.entities import Asset, Data
 from lumibot.tools import polygon_helper
-from polygon import RESTClient
 
 START_BUFFER = timedelta(days=5)
 
@@ -145,21 +146,9 @@ class PolygonDataBacktesting(PandasData):
         exchange: str = None,
         include_after_hours: bool = True,
     ):
-        # Get the current datetime
-        dt = self.get_datetime()
-
-        # Calculate the start datetime
-        if timestep == "minute":
-            start_dt = dt - timedelta(minutes=length)
-            start_dt = (start_dt - timedelta(minutes=timeshift)) if timeshift is not None else start_dt
-        elif timestep == "hour":
-            start_dt = dt - timedelta(hours=length)
-            start_dt = (start_dt - timedelta(hours=timeshift)) if timeshift is not None else start_dt
-        elif timestep == "day":
-            start_dt = dt - timedelta(days=length)
-            start_dt = (start_dt - timedelta(days=timeshift)) if timeshift is not None else start_dt
-        else:
-            raise Exception(f"Invalid timestep: {timestep}")
+        # Get the current datetime and calculate the start datetime
+        current_dt = self.get_datetime()
+        start_dt, ts_unit = self.get_start_datetime_and_ts_unit(length, timestep, current_dt, start_buffer=START_BUFFER)
 
         # Get data from Polygon
         pandas_data_update = self.update_pandas_data(asset, quote, length, timestep, start_dt)

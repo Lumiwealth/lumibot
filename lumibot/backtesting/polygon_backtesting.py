@@ -33,7 +33,7 @@ class PolygonDataBacktesting(PandasData):
         # RESTClient API for Polygon.io polygon-api-client
         self.polygon_client = RESTClient(self._api_key)
 
-    def update_pandas_data(self, asset, quote, length, timestep, start_dt=None):
+    def update_pandas_data(self, asset, quote, length, timestep, start_dt=None, end_dt=None):
         """
         Get asset data and update the self.pandas_data dictionary.
 
@@ -66,6 +66,12 @@ class PolygonDataBacktesting(PandasData):
         start_datetime, ts_unit = self.get_start_datetime_and_ts_unit(
             length, timestep, start_dt, start_buffer=START_BUFFER
         )
+
+        # Get the end_datetime
+        if end_dt is None:
+            end_datetime = self.get_end_datetime(length, timestep, start_dt)
+        else:
+            end_datetime = end_dt
 
         # Check if we have data for this asset
         if search_asset in self.pandas_data:
@@ -117,7 +123,7 @@ class PolygonDataBacktesting(PandasData):
                 self._api_key,
                 asset_separated,
                 start_datetime,
-                self.datetime_end,
+                end_datetime,
                 timespan=ts_unit,
                 quote_asset=quote_asset,
                 has_paid_subscription=self.has_paid_subscription,

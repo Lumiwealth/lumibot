@@ -2,6 +2,7 @@ import logging
 from datetime import date, timedelta
 
 import pandas as pd
+
 from lumibot.data_sources import DataSourceBacktesting
 from lumibot.entities import Asset, AssetsMapping, Bars
 
@@ -441,3 +442,35 @@ class PandasData(DataSourceBacktesting):
         start_datetime = start_datetime - start_buffer
 
         return start_datetime, ts_unit
+
+    def get_end_datetime(self, length, timestep, start_dt=None):
+        """
+        Get the end datetime for the data.
+
+        Parameters
+        ----------
+        start_dt : datetime
+            The start datetime.
+        length : int
+            The number of data points to get.
+        timestep : str
+            The timestep to use. For example, "1minute" or "1hour" or "1day".
+
+
+        Returns
+        -------
+        datetime
+            The end datetime.
+        """
+        # Convert timestep string to timedelta and get start datetime
+        td, ts_unit = self.convert_timestep_str_to_timedelta(timestep)
+
+        # Multiply td by length to get the end datetime
+        td *= length
+
+        if start_dt is None:
+            start_dt = self.get_datetime()
+
+        end_datetime = start_dt + td
+
+        return end_datetime

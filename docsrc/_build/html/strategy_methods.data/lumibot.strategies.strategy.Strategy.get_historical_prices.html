@@ -7,7 +7,7 @@
 
     <!-- Generated with Sphinx 7.2.6 and Furo 2023.09.10 -->
         <title>self.get_historical_prices - Lumibot documentation</title>
-      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=362ab14a" />
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=a746c00c" />
     <link rel="stylesheet" type="text/css" href="../_static/styles/furo.css?v=135e06be" />
     <link rel="stylesheet" type="text/css" href="../_static/styles/furo-extensions.css?v=36a5483c" />
     <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=1c0cb5c9" />
@@ -352,16 +352,17 @@ starting point can be shifted backwards by time or bars.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>asset</strong> (<em>str</em><em> or </em><a class="reference internal" href="../entities.asset.html#entities.asset.Asset" title="entities.asset.Asset"><em>Asset</em></a>) – The symbol string representation (e.g AAPL, GOOG, …) or asset
-object. Crypto currencies must also specify the quote currency.</p></li>
+<li><p><strong>asset</strong> (<em>str</em><em> or </em><a class="reference internal" href="../entities.asset.html#entities.asset.Asset" title="entities.asset.Asset"><em>Asset</em></a>) – The symbol string representation (e.g. AAPL, GOOG, …) or asset
+object. Cryptocurrencies must also specify the quote currency.</p></li>
 <li><p><strong>length</strong> (<em>int</em>) – The number of rows (number of timesteps)</p></li>
 <li><p><strong>timestep</strong> (<em>str</em>) – Either <code class="docutils literal notranslate"><span class="pre">&quot;minute&quot;</span></code> for minutes data or <code class="docutils literal notranslate"><span class="pre">&quot;day&quot;</span></code>
 for days data default value depends on the data_source (minute
-for alpaca, day for yahoo, …)</p></li>
+for alpaca, day for yahoo, …).  If you need, you can specify the width of the bars by adding a number
+before the timestep (e.g. “5 minutes”, “15 minutes”, “1 day”, “2 weeks”, “1month”, …)</p></li>
 <li><p><strong>timeshift</strong> (<em>timedelta</em>) – <code class="docutils literal notranslate"><span class="pre">None</span></code> by default. If specified indicates the time shift from
 the present. If  backtesting in Pandas, use integer representing
 number of bars.</p></li>
-<li><p><strong>quote</strong> (<a class="reference internal" href="../entities.asset.html#entities.asset.Asset" title="entities.asset.Asset"><em>Asset</em></a>) – The quote currency for crypto currencies (eg. USD, USDT, EUR, …).
+<li><p><strong>quote</strong> (<a class="reference internal" href="../entities.asset.html#entities.asset.Asset" title="entities.asset.Asset"><em>Asset</em></a>) – The quote currency for crypto currencies (e.g. USD, USDT, EUR, …).
 Default is the quote asset for the strategy.</p></li>
 <li><p><strong>exchange</strong> (<em>str</em>) – The exchange to pull the historical data from. Default is None (decided based on the broker)</p></li>
 <li><p><strong>include_after_hours</strong> (<em>bool</em>) – Whether to include after hours data. Default is True. Currently only works with Interactive Brokers.</p></li>

@@ -22,7 +22,7 @@ class PolygonDataBacktesting(PandasData):
         datetime_end,
         pandas_data=None,
         api_key=None,
-        has_paid_subscription=True,  # TODO: Set to False after new backtest is released
+        has_paid_subscription=False,
         **kwargs,
     ):
         super().__init__(

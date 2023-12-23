@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="lumibot",
-    version="2.9.11",
+    version="2.9.12",
     author="Robert Grzesik",
     author_email="rob@lumiwealth.com",
     description="Backtesting and Trading Library, Made by Lumiwealth",
@@ -14,7 +14,7 @@ setuptools.setup(
     url="https://github.com/Lumiwealth/lumibot",
     packages=setuptools.find_packages(),
     install_requires=[
-        "polygon-api-client",
+        "polygon-api-client>=1.13.3",
         "alpaca-py>=0.13.1",
         "alpha_vantage",
         "ibapi==9.81.1.post1",

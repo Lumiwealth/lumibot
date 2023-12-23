@@ -7,7 +7,7 @@
 
     <!-- Generated with Sphinx 7.2.6 and Furo 2023.09.10 -->
         <title>Order - Lumibot documentation</title>
-      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=362ab14a" />
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=a746c00c" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=135e06be" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=36a5483c" />
     <link rel="stylesheet" type="text/css" href="_static/custom.css?v=1c0cb5c9" />
@@ -496,6 +496,14 @@ has not yet been filled.</p>
 <dd></dd></dl>
 
 <dl class="py method">
+<dt class="sig sig-object py" id="entities.order.Order.is_active">
+<span class="sig-name descname"><span class="pre">is_active</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#entities.order.Order.is_active" title="Link to this definition">#</a></dt>
+<dd><p>Returns whether this order is active.
+:returns: True if the order is active, False otherwise.
+:rtype: bool</p>
+</dd></dl>
+
+<dl class="py method">
 <dt class="sig sig-object py" id="entities.order.Order.is_canceled">
 <span class="sig-name descname"><span class="pre">is_canceled</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#entities.order.Order.is_canceled" title="Link to this definition">#</a></dt>
 <dd><p>Returns whether this order has been cancelled.</p>
@@ -564,6 +572,11 @@ has not yet been filled.</p>
 <span class="sig-name descname"><span class="pre">set_partially_filled</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#entities.order.Order.set_partially_filled" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
 
+<dl class="py property">
+<dt class="sig sig-object py" id="entities.order.Order.status">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">status</span></span><a class="headerlink" href="#entities.order.Order.status" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
 <dl class="py method">
 <dt class="sig sig-object py" id="entities.order.Order.to_position">
 <span class="sig-name descname"><span class="pre">to_position</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">quantity</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.order.Order.to_position" title="Link to this definition">#</a></dt>
@@ -572,11 +585,6 @@ has not yet been filled.</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="entities.order.Order.update_raw">
 <span class="sig-name descname"><span class="pre">update_raw</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">raw</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.order.Order.update_raw" title="Link to this definition">#</a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="entities.order.Order.update_status">
-<span class="sig-name descname"><span class="pre">update_status</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">status</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.order.Order.update_status" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
@@ -680,6 +688,7 @@ This will be used to determine if a trailing stop order should be triggered in a
 <li><a class="reference internal" href="#entities.order.Order.cash_pending"><code class="docutils literal notranslate"><span class="pre">Order.cash_pending()</span></code></a></li>
 <li><a class="reference internal" href="#entities.order.Order.get_fill_price"><code class="docutils literal notranslate"><span class="pre">Order.get_fill_price()</span></code></a></li>
 <li><a class="reference internal" href="#entities.order.Order.get_increment"><code class="docutils literal notranslate"><span class="pre">Order.get_increment()</span></code></a></li>
+<li><a class="reference internal" href="#entities.order.Order.is_active"><code class="docutils literal notranslate"><span class="pre">Order.is_active()</span></code></a></li>
 <li><a class="reference internal" href="#entities.order.Order.is_canceled"><code class="docutils literal notranslate"><span class="pre">Order.is_canceled()</span></code></a></li>
 <li><a class="reference internal" href="#entities.order.Order.is_filled"><code class="docutils literal notranslate"><span class="pre">Order.is_filled()</span></code></a></li>
 <li><a class="reference internal" href="#entities.order.Order.is_option"><code class="docutils literal notranslate"><span class="pre">Order.is_option()</span></code></a></li>
@@ -690,9 +699,9 @@ This will be used to determine if a trailing stop order should be triggered in a
 <li><a class="reference internal" href="#entities.order.Order.set_identifier"><code class="docutils literal notranslate"><span class="pre">Order.set_identifier()</span></code></a></li>
 <li><a class="reference internal" href="#entities.order.Order.set_new"><code class="docutils literal notranslate"><span class="pre">Order.set_new()</span></code></a></li>
 <li><a class="reference internal" href="#entities.order.Order.set_partially_filled"><code class="docutils literal notranslate"><span class="pre">Order.set_partially_filled()</span></code></a></li>
+<li><a class="reference internal" href="#entities.order.Order.status"><code class="docutils literal notranslate"><span class="pre">Order.status</span></code></a></li>
 <li><a class="reference internal" href="#entities.order.Order.to_position"><code class="docutils literal notranslate"><span class="pre">Order.to_position()</span></code></a></li>
 <li><a class="reference internal" href="#entities.order.Order.update_raw"><code class="docutils literal notranslate"><span class="pre">Order.update_raw()</span></code></a></li>
-<li><a class="reference internal" href="#entities.order.Order.update_status"><code class="docutils literal notranslate"><span class="pre">Order.update_status()</span></code></a></li>
 <li><a class="reference internal" href="#entities.order.Order.update_trail_stop_price"><code class="docutils literal notranslate"><span class="pre">Order.update_trail_stop_price()</span></code></a></li>
 <li><a class="reference internal" href="#entities.order.Order.wait_to_be_closed"><code class="docutils literal notranslate"><span class="pre">Order.wait_to_be_closed()</span></code></a></li>
 <li><a class="reference internal" href="#entities.order.Order.wait_to_be_registered"><code class="docutils literal notranslate"><span class="pre">Order.wait_to_be_registered()</span></code></a></li>

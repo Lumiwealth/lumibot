@@ -7,7 +7,7 @@
 
     <!-- Generated with Sphinx 7.2.6 and Furo 2023.09.10 -->
         <title>self.submit_order - Lumibot documentation</title>
-      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=362ab14a" />
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=a746c00c" />
     <link rel="stylesheet" type="text/css" href="../_static/styles/furo.css?v=135e06be" />
     <link rel="stylesheet" type="text/css" href="../_static/styles/furo-extensions.css?v=36a5483c" />
     <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=1c0cb5c9" />
@@ -462,22 +462,28 @@ executing the order.</p>
 </pre></div>
 </div>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For buying FOREX</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span>
-<span class="go">    symbol=symbol,</span>
-<span class="go">    currency=currency,</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">base_asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span>
+<span class="go">    symbol=&quot;GBP,</span>
 <span class="go">    asset_type=&quot;forex&quot;,</span>
 <span class="go">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="s2">&quot;buy&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">quote_asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span>
+<span class="go">    symbol=&quot;USD&quot;,</span>
+<span class="go">    asset_type=&quot;forex&quot;,</span>
+<span class="go">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="s2">&quot;buy&quot;</span><span class="p">,</span> <span class="n">quote</span><span class="o">=</span><span class="n">quote_asset</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
 </pre></div>
 </div>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For selling FOREX</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">base_asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span>
 <span class="go">    symbol=&quot;EUR&quot;,</span>
-<span class="go">    currency=&quot;USD&quot;,</span>
 <span class="go">    asset_type=&quot;forex&quot;,</span>
 <span class="go">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="s2">&quot;sell&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">quote_asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span>
+<span class="go">    symbol=&quot;USD&quot;,</span>
+<span class="go">    asset_type=&quot;forex&quot;,</span>
+<span class="go">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="s2">&quot;sell&quot;</span><span class="p">,</span> <span class="n">quote</span><span class="o">=</span><span class="n">quote_asset</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
 </pre></div>
 </div>
@@ -583,7 +589,7 @@ executing the order.</p>
 <span class="gp">&gt;&gt;&gt; </span>               <span class="s2">&quot;sell&quot;</span><span class="p">,</span>
 <span class="gp">&gt;&gt;&gt; </span>               <span class="n">take_profit_price</span><span class="o">=</span><span class="n">limit</span><span class="p">,</span>
 <span class="gp">&gt;&gt;&gt; </span>               <span class="n">stop_loss_price</span><span class="o">=</span><span class="n">stop_loss</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="n">position_filled</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="c1"># Needed for OCO orders (or else it will think it&#39;s a bracket order)</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;oco&quot;</span><span class="p">,</span>
 <span class="gp">&gt;&gt;&gt; </span>           <span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
 </pre></div>

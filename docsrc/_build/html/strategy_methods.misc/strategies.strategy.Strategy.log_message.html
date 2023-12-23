@@ -7,7 +7,7 @@
 
     <!-- Generated with Sphinx 7.2.6 and Furo 2023.09.10 -->
         <title>self.log_message - Lumibot documentation</title>
-      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=362ab14a" />
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=a746c00c" />
     <link rel="stylesheet" type="text/css" href="../_static/styles/furo.css?v=135e06be" />
     <link rel="stylesheet" type="text/css" href="../_static/styles/furo-extensions.css?v=36a5483c" />
     <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=1c0cb5c9" />
@@ -343,7 +343,7 @@
 <h1>self.log_message<a class="headerlink" href="#self-log-message" title="Link to this heading">#</a></h1>
 <dl class="py function">
 <dt class="sig sig-object py" id="strategies.strategy.Strategy.log_message">
-<span class="sig-prename descclassname"><span class="pre">strategies.strategy.Strategy.</span></span><span class="sig-name descname"><span class="pre">log_message</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">message</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">color</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#strategies.strategy.Strategy.log_message" title="Link to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">strategies.strategy.Strategy.</span></span><span class="sig-name descname"><span class="pre">log_message</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">message</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">color</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">broadcast</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#strategies.strategy.Strategy.log_message" title="Link to this definition">#</a></dt>
 <dd><p>Logs an info message prefixed with the strategy name.</p>
 <p>Uses python logging to log the message at the <cite>info</cite> level.
 Logging goes to the logging file, not the console.</p>
@@ -352,6 +352,7 @@ Logging goes to the logging file, not the console.</p>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>message</strong> (<em>str</em>) – String message for logging.</p></li>
 <li><p><strong>color</strong> (<em>str</em>) – Color of the message. Eg. <cite>“red”</cite> or <cite>“green”</cite>.</p></li>
+<li><p><strong>broadcast</strong> (<em>bool</em>) – If True, the message will be broadcasted to any connected message services.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>

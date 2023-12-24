@@ -3,6 +3,7 @@ import os
 from collections import defaultdict
 
 import pandas_market_calendars as mcal
+
 from lumibot.backtesting import BacktestingBroker, PolygonDataBacktesting
 from lumibot.entities import Asset
 from lumibot.strategies import Strategy
@@ -210,8 +211,6 @@ class TestPolygonBacktestFull:
         broker = BacktestingBroker(data_source=data_source)
         poly_strat_obj = PolygonBacktestStrat(
             broker=broker,
-            backtesting_start=backtesting_start,
-            backtesting_end=backtesting_end,
         )
         trader = Trader(logfile="", backtest=True)
         trader.add_strategy(poly_strat_obj)

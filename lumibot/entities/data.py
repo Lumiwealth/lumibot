@@ -3,10 +3,10 @@ import logging
 import re
 
 import pandas as pd
-
 from lumibot import LUMIBOT_DEFAULT_PYTZ as DEFAULT_PYTZ
 from lumibot.tools.helpers import to_datetime_aware
 
+from .asset import Asset
 from .dataline import Dataline
 
 
@@ -22,6 +22,8 @@ class Data:
         from csv.
         Index is date and must be pandas datetime64.
         Columns are strictly ["open", "high", "low", "close", "volume"]
+    quote : Asset Object
+        The quote asset for this data. If not provided, then the quote asset will default to USD.
     date_start : Datetime or None
         Starting date for this data, if not provided then first date in
         the dataframe.
@@ -116,7 +118,6 @@ class Data:
         quote=None,
         timezone=None,
     ):
-
         self.asset = asset
         self.symbol = self.asset.symbol
 
@@ -129,6 +130,12 @@ class Data:
             )
         else:
             self.quote = quote
+
+        # Throw an error if the quote is not an asset object
+        if self.quote is not None and not isinstance(self.quote, Asset):
+            raise ValueError(
+                f"The quote asset for Data must be an Asset object. You provided a {type(self.quote)} object."
+            )
 
         if timestep not in ["minute", "day"]:
             raise ValueError(
@@ -163,9 +170,7 @@ class Data:
         self.df = self.set_date_format(self.df)
         self.df = self.df.sort_index()
 
-        self.trading_hours_start, self.trading_hours_end = self.set_times(
-            trading_hours_start, trading_hours_end
-        )
+        self.trading_hours_start, self.trading_hours_end = self.set_times(trading_hours_start, trading_hours_end)
         self.date_start, self.date_end = self.set_dates(date_start, date_end)
 
         self.df = self.trim_data(
@@ -209,10 +214,7 @@ class Data:
     def columns(self, df):
         # Select columns to use, change to lower case, rename `date` if necessary.
         df.columns = [
-            col.lower()
-            if col.lower() in ["open", "high", "low", "close", "volume"]
-            else col
-            for col in df.columns
+            col.lower() if col.lower() in ["open", "high", "low", "close", "volume"] else col for col in df.columns
         ]
 
         return df
@@ -230,10 +232,7 @@ class Data:
         # Set the start and end dates of the data.
         for dt in [date_start, date_end]:
             if dt and not isinstance(dt, datetime.datetime):
-                raise TypeError(
-                    f"Start and End dates must be entries as full datetimes. {dt} "
-                    f"was entered"
-                )
+                raise TypeError(f"Start and End dates must be entries as full datetimes. {dt} " f"was entered")
 
         if not date_start:
             date_start = self.df.index.min()
@@ -251,9 +250,7 @@ class Data:
             date_end,
         )
 
-    def trim_data(
-        self, df, date_start, date_end, trading_hours_start, trading_hours_end
-    ):
+    def trim_data(self, df, date_start, date_end, trading_hours_start, trading_hours_end):
         # Trim the dataframe to match the desired backtesting dates.
 
         df = df.loc[(df.index >= date_start) & (df.index <= date_end), :]
@@ -344,9 +341,7 @@ class Data:
         # will return data. Runs function if data, returns None if no data.
         def checker(self, *args, **kwargs):
             if type(kwargs.get("length", 1)) not in [int, float]:
-                raise TypeError(
-                    f"Length must be an integer. {type(kwargs.get('length', 1))} was provided."
-                )
+                raise TypeError(f"Length must be an integer. {type(kwargs.get('length', 1))} was provided.")
 
             dt = args[0]
 
@@ -502,14 +497,10 @@ class Data:
             timestep = m.group(2).rstrip("s")  # remove trailing 's' if any
 
         if timestep == "minute" and self.timestep == "day":
-            raise ValueError(
-                "You are requesting minute data from a daily data source. This is not supported."
-            )
+            raise ValueError("You are requesting minute data from a daily data source. This is not supported.")
 
         if timestep != "minute" and timestep != "day":
-            raise ValueError(
-                f"Only minute and day are supported for timestep. You provided: {timestep}"
-            )
+            raise ValueError(f"Only minute and day are supported for timestep. You provided: {timestep}")
 
         agg_column_map = {
             "open": "first",
@@ -521,17 +512,13 @@ class Data:
         if timestep == "day" and self.timestep == "minute":
             # If the data is minute data and we are requesting daily data then multiply the length by 1440
             length = length * 1440
-            unit = 'D'
-            data = self._get_bars_dict(
-                dt, length=length, timestep="minute", timeshift=timeshift
-            )
+            unit = "D"
+            data = self._get_bars_dict(dt, length=length, timestep="minute", timeshift=timeshift)
 
         else:
-            unit = 'T'  # Guarenteed to be minute timestep at this point
+            unit = "T"  # Guarenteed to be minute timestep at this point
             length = length * quantity
-            data = self._get_bars_dict(
-                dt, length=length, timestep=timestep, timeshift=timeshift
-            )
+            data = self._get_bars_dict(dt, length=length, timestep=timestep, timeshift=timeshift)
 
         if data is None:
             return None
@@ -564,22 +551,13 @@ class Data:
         """
 
         if timestep == "minute" and self.timestep == "day":
-            raise ValueError(
-                "You are requesting minute data from a daily data source. This is not supported."
-            )
+            raise ValueError("You are requesting minute data from a daily data source. This is not supported.")
 
         if timestep != "minute" and timestep != "day":
-            raise ValueError(
-                f"Only minute and day are supported for timestep. You provided: {timestep}"
-            )
+            raise ValueError(f"Only minute and day are supported for timestep. You provided: {timestep}")
 
         if timestep == "day" and self.timestep == "minute":
-
-            dict = self._get_bars_between_dates_dict(
-                timestep=timestep,
-                start_date=start_date,
-                end_date=end_date
-            )
+            dict = self._get_bars_between_dates_dict(timestep=timestep, start_date=start_date, end_date=end_date)
 
             if dict is None:
                 return None
@@ -599,11 +577,7 @@ class Data:
             return df_result
 
         else:
-            dict = self._get_bars_between_dates_dict(
-                timestep=timestep,
-                start_date=start_date,
-                end_date=end_date
-            )
+            dict = self._get_bars_between_dates_dict(timestep=timestep, start_date=start_date, end_date=end_date)
 
             if dict is None:
                 return None

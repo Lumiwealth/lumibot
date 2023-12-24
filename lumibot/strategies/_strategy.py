@@ -152,8 +152,12 @@ class _Strategy:
         # Setting the broker object
         self._is_backtesting = self.broker.IS_BACKTESTING_BROKER
         self._benchmark_asset = benchmark_asset
-        self._backtesting_start = to_datetime_aware(backtesting_start)
-        self._backtesting_end = to_datetime_aware(backtesting_end)
+
+        # Get the backtesting start and end dates from the broker data source if we are backtesting
+        if self._is_backtesting:
+            if self.broker.data_source.datetime_start is not None and self.broker.data_source.datetime_end is not None:
+                self._backtesting_start = self.broker.data_source.datetime_start
+                self._backtesting_end = self.broker.data_source.datetime_end
 
         # Force start immediately if we are backtesting
         self.force_start_immediately = force_start_immediately
@@ -209,11 +213,6 @@ class _Strategy:
                 else:
                     budget = self.cash
             else:
-                logger.warning(
-                    "You have set both a starting budget and a starting position for the quote asset. "
-                    "The starting position for the quote asset will be replaced with the budget, and the "
-                    "budget will be used as the cash value instead."
-                )
                 self._set_cash_position(budget)
 
             # #############################################

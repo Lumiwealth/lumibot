@@ -10,9 +10,8 @@ from threading import Event, Lock, Thread
 from apscheduler.jobstores.memory import MemoryJobStore
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
-from termcolor import colored
-
 from lumibot.tools import append_locals, get_trading_days, staticdecorator
+from termcolor import colored
 
 
 class StrategyExecutor(Thread):
@@ -772,7 +771,7 @@ class StrategyExecutor(Thread):
         # TODO: speed up this loop for backtesting (it's a major bottleneck)
 
         if self.strategy.is_backtesting:
-            while is_247 or (time_to_close > self.strategy.minutes_before_closing * 60):
+            while is_247 or (time_to_close is not None and (time_to_close > self.strategy.minutes_before_closing * 60)):
                 # Stop after we pass the backtesting end date
                 if self.broker.IS_BACKTESTING_BROKER and self.broker.datetime > self.broker.data_source.datetime_end:
                     break

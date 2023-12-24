@@ -10,10 +10,11 @@ from threading import RLock, Thread
 import pandas as pd
 import pandas_market_calendars as mcal
 from dateutil import tz
+from termcolor import colored
+
 from lumibot.data_sources import DataSource
 from lumibot.entities import Asset, Order, Position
 from lumibot.trading_builtins import SafeList
-from termcolor import colored
 
 
 class Broker(ABC):
@@ -551,7 +552,11 @@ class Broker(ABC):
 
         market = self.market if self.market is not None else market
         mkt_cal = mcal.get_calendar(market)
-        date = date if date is not None else datetime.now()
+
+        # Get the current datetime in UTC (because the market hours are in UTC)
+        dt_now_utc = datetime.now(timezone.utc)
+
+        date = date if date is not None else dt_now_utc
         trading_hours = mkt_cal.schedule(start_date=date, end_date=date + timedelta(weeks=1)).head(2)
 
         row = 0 if not next else 1
@@ -612,7 +617,8 @@ class Broker(ABC):
 
     def get_time_to_close(self):
         """Return the remaining time for the market to close in seconds"""
-        close_time = self.utc_to_local(self.market_hours(close=True))
+        market_hours = self.market_hours(close=True)
+        close_time = self.utc_to_local(market_hours)
         current_time = datetime.now().astimezone(tz=tz.tzlocal())
         if self.is_market_open():
             result = close_time.timestamp() - current_time.timestamp()

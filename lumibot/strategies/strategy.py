@@ -9,9 +9,8 @@ import jsonpickle
 import numpy as np
 import pandas as pd
 import pandas_market_calendars as mcal
-from termcolor import colored
-
 from lumibot.entities import Asset, Order
+from termcolor import colored
 
 from ._strategy import _Strategy
 
@@ -318,7 +317,7 @@ class Strategy(_Strategy):
 
     # =======Helper methods=======================
 
-    def log_message(self, message, color=None):
+    def log_message(self, message, color=None, broadcast=False):
         """Logs an info message prefixed with the strategy name.
 
         Uses python logging to log the message at the `info` level.
@@ -331,6 +330,9 @@ class Strategy(_Strategy):
 
         color : str
             Color of the message. Eg. `"red"` or `"green"`.
+
+        broadcast : bool
+            If True, the message will be broadcasted to any connected message services.
 
         Returns
         -------
@@ -459,7 +461,7 @@ class Strategy(_Strategy):
         Order
             Order object ready to be submitted for trading.
 
-        Example
+        Examples
         -------
         >>> # For a market buy order
         >>> order = self.create_order("SPY", 100, "buy")
@@ -608,6 +610,7 @@ class Strategy(_Strategy):
         >>> order = self.create_order(base, 0.05, "buy", limit_price=41000,  quote=quote)
         >>> self.submit_order(order)
         """
+
         if quote is None:
             quote = self.quote_asset
 

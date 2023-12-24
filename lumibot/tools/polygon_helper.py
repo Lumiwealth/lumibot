@@ -1,16 +1,17 @@
 # This file contains helper functions for getting data from Polygon.io
+import logging
 import time
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import pandas as pd
 import pandas_market_calendars as mcal
+from lumibot import LUMIBOT_CACHE_FOLDER
+from lumibot.entities import Asset
 
 # noinspection PyPackageRequirements
 from polygon import RESTClient
-
-from lumibot import LUMIBOT_CACHE_FOLDER
-from lumibot.entities import Asset
+from tqdm import tqdm
 
 WAIT_TIME = 60
 POLYGON_QUERY_COUNT = 0  # This is a variable that updates every time we query Polygon
@@ -58,21 +59,21 @@ def get_price_data_from_polygon(
     """
     global POLYGON_QUERY_COUNT  # Track if we need to wait between requests
 
-    # Check if we already have data for this asset in the csv file
+    # Check if we already have data for this asset in the feather file
     df_all = None
-    df_csv = None
+    df_feather = None
     cache_file = build_cache_filename(asset, timespan)
     if cache_file.exists():
         print(f"\nLoading pricing data for {asset} / {quote_asset} with '{timespan}' timespan from cache file...")
-        df_csv = load_cache(cache_file)
-        df_all = df_csv.copy()  # Make a copy so we can check the original later for differences
+        df_feather = load_cache(cache_file)
+        df_all = df_feather.copy()  # Make a copy so we can check the original later for differences
 
     # Check if we need to get more data
     missing_dates = get_missing_dates(df_all, asset, start, end)
     if not missing_dates:
         return df_all
 
-    print(f"\nGetting pricing data for {asset} / {quote_asset} with '{timespan}' timespan from Polygon...")
+    # print(f"\nGetting pricing data for {asset} / {quote_asset} with '{timespan}' timespan from Polygon...")
 
     # RESTClient connection for Polygon Stock-Equity API; traded_asset is standard
     # Add "trace=True" to see the API calls printed to the console for debugging
@@ -84,6 +85,12 @@ def get_price_data_from_polygon(
     # Option data won't have any extended hours data so the padding is extra important for those.
     poly_start = missing_dates[0]  # Data will start at 8am UTC (4am EST)
     poly_end = missing_dates[-1]  # Data will end at 23:59 UTC (7:59pm EST)
+
+    # Initialize tqdm progress bar
+    total_days = (missing_dates[-1] - missing_dates[0]).days + 1
+    total_queries = (total_days // MAX_POLYGON_DAYS) + 1
+    description = f"\nDownloading data for {asset} / {quote_asset} '{timespan}' from Polygon..."
+    pbar = tqdm(total=total_queries, desc=description, dynamic_ncols=True)
 
     # Polygon only returns 50k results per query (~30days of 24hr 1min-candles) so we need to break up the query into
     # multiple queries if we are requesting more than 30 days of data
@@ -118,13 +125,19 @@ def get_price_data_from_polygon(
             limit=50000,  # Max limit for Polygon
         )
 
+        # Update progress bar after each query
+        pbar.update(1)
+
         if result:
             df_all = update_polygon_data(df_all, result)
 
         poly_start = poly_end + timedelta(days=1)
         poly_end = poly_start + delta
 
-    update_cache(cache_file, df_all, df_csv)
+    # Close the progress bar when done
+    pbar.close()
+
+    update_cache(cache_file, df_all, df_feather)
     return df_all
 
 
@@ -220,7 +233,8 @@ def get_polygon_symbol(asset, polygon_client, quote_asset=None):
         )
 
         if len(contracts) == 0:
-            raise LookupError(f"Unable to find option contract for {asset}")
+            logging.error(f"Unable to find option contract for {asset}")
+            return
 
         # Example: O:SPY230802C00457000
         symbol = contracts[0].ticker
@@ -247,7 +261,7 @@ def build_cache_filename(asset: Asset, timespan: str):
     else:
         uniq_str = asset.symbol
 
-    cache_filename = f"{asset.asset_type}_{uniq_str}_{timespan}.csv"
+    cache_filename = f"{asset.asset_type}_{uniq_str}_{timespan}.feather"
     cache_file = lumibot_polygon_cache_folder / cache_filename
     return cache_file
 
@@ -275,6 +289,11 @@ def get_missing_dates(df_all, asset, start, end):
         A list of dates that we need to get data for
     """
     trading_dates = get_trading_dates(asset, start, end)
+
+    # For Options, don't need any dates passed the expiration date
+    if asset.asset_type == "option":
+        trading_dates = [x for x in trading_dates if x <= asset.expiration]
+
     if df_all is None or not len(df_all):
         return trading_dates
 
@@ -284,42 +303,45 @@ def get_missing_dates(df_all, asset, start, end):
     dates = pd.Series(df_all.index.date).unique()
     missing_dates = sorted(set(trading_dates) - set(dates))
 
-    # For Options, don't need any dates passed the expiration date
-    if asset.asset_type == "option":
-        missing_dates = [x for x in missing_dates if x <= asset.expiration]
-
     return missing_dates
 
 
 def load_cache(cache_file):
     """Load the data from the cache file and return a DataFrame with a DateTimeIndex"""
-    df_csv = pd.read_csv(cache_file, index_col="datetime")
-    df_csv.index = pd.to_datetime(
-        df_csv.index
-    )  # TODO: Is there some way to speed this up? It takes several times longer than just reading the csv file
-    df_csv = df_csv.sort_index()
+    df_feather = pd.read_feather(cache_file)
+
+    # Set the 'datetime' column as the index of the DataFrame
+    df_feather.set_index("datetime", inplace=True)
+
+    df_feather.index = pd.to_datetime(
+        df_feather.index
+    )  # TODO: Is there some way to speed this up? It takes several times longer than just reading the feather file
+    df_feather = df_feather.sort_index()
 
     # Check if the index is already timezone aware
-    if df_csv.index.tzinfo is None:
+    if df_feather.index.tzinfo is None:
         # Set the timezone to UTC
-        df_csv.index = df_csv.index.tz_localize("UTC")
+        df_feather.index = df_feather.index.tz_localize("UTC")
 
-    return df_csv
+    return df_feather
 
 
-def update_cache(cache_file, df_all, df_csv):
+def update_cache(cache_file, df_all, df_feather):
     """Update the cache file with the new data"""
-    # Check if df_all is different from df_csv (if df_csv exists)
+    # Check if df_all is different from df_feather (if df_feather exists)
     if df_all is not None and len(df_all) > 0:
         # Check if the dataframes are the same
-        if df_all.equals(df_csv):
+        if df_all.equals(df_feather):
             return
 
         # Create the directory if it doesn't exist
         cache_file.parent.mkdir(parents=True, exist_ok=True)
 
-        # Save the data to a csv file
-        df_all.to_csv(cache_file)
+        # Reset the index to convert DatetimeIndex to a regular column
+        df_all_reset = df_all.reset_index()
+
+        # Save the data to a feather file
+        df_all_reset.to_feather(cache_file)
 
 
 def update_polygon_data(df_all, result):

@@ -1,6 +1,8 @@
 Pandas (CSV or other data)
 ===================================
 
+**Note: For most situations, you will want to use the Polygon backtester or the Yahoo backtester instead, they are much easier to use and get started with. The Pandas backtester is intended for advanced users who have their own data and want to use it with Lumibot.**
+
 Pandas backtester is named after the python dataframe library because the user must provide a strictly formatted dataframe. You can have any csv or parquet or database data you wish, but Lumibot will only accept one format of dataframe for the time being.
 
 Pandas backtester allows for intra-day and inter-day backtesting. Time frames for raw data are 1 minute and 1 day. Resampling of time frames is not yet available.

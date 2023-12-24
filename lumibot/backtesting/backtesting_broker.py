@@ -5,6 +5,7 @@ from decimal import Decimal
 from functools import wraps
 
 import pandas as pd
+
 from lumibot.brokers import Broker
 from lumibot.data_sources import DataSourceBacktesting
 from lumibot.entities import Asset, Order, Position, TradingFee
@@ -157,9 +158,8 @@ class BacktestingBroker(Broker):
         # TODO: speed up the next line. next line speed implication: high (910 microseconds)
         trading_day = search.iloc[0]
 
-        # TODO: speed up the next line. next line speed implication: low (144 microseconds)
         if now < trading_day.market_open:
-            return 0
+            return None
 
         # TODO: speed up the next line. next line speed implication: low (135 microseconds)
         delta = trading_day.market_close - now
@@ -186,7 +186,13 @@ class BacktestingBroker(Broker):
         # or else they don't get processed until the next day
         self.process_pending_orders(strategy=strategy)
 
-        time_to_close = self.get_time_to_close()
+        result = self.get_time_to_close()
+
+        if result is None:
+            time_to_close = 0
+        else:
+            time_to_close = result
+
         if timedelta is not None:
             time_to_close -= 60 * timedelta
         self._update_datetime(time_to_close)
@@ -416,7 +422,13 @@ class BacktestingBroker(Broker):
             if position.asset.expiration is not None and position.asset.expiration <= self.datetime.date():
                 # If it's the same day as the expiration, we need to check the time to see if it's after market close
                 time_to_close = self.get_time_to_close()
-                if position.asset.expiration == self.datetime.date() and time_to_close > (15 * 60):
+
+                # If the time to close is None, then the market is not open so we should not sell the contract
+                if time_to_close is None:
+                    continue
+
+                seconds_before_closing = strategy.minutes_before_closing * 60
+                if position.asset.expiration == self.datetime.date() and time_to_close > seconds_before_closing:
                     continue
 
                 logging.info(f"Automatically selling expired contract for asset {position.asset}")

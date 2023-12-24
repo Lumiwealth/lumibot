@@ -10,6 +10,7 @@ Options methods are meant for managing options, including getting option chains,
     :toctree: strategy_methods.options
     :template: strategy_methods_template.rst
 
+    get_chain
     get_chains
     get_greeks
     get_strikes

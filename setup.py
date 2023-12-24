@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="lumibot",
-    version="2.9.4",
+    version="2.9.12",
     author="Robert Grzesik",
     author_email="rob@lumiwealth.com",
     description="Backtesting and Trading Library, Made by Lumiwealth",
@@ -14,7 +14,7 @@ setuptools.setup(
     url="https://github.com/Lumiwealth/lumibot",
     packages=setuptools.find_packages(),
     install_requires=[
-        "polygon-api-client",
+        "polygon-api-client>=1.13.3",
         "alpaca-py>=0.13.1",
         "alpha_vantage",
         "ibapi==9.81.1.post1",
@@ -36,13 +36,15 @@ setuptools.setup(
         "pytest",
         "scipy==1.10.1",  # Newer versions of scipy are currently causing issues
         "ipython",  # required for quantstats, but not in their dependency list for some reason
-        "quantstats==0.0.62",
+        "quantstats>=0.0.62",
         "python-dotenv",  # Secret Storage
-        "ccxt==3.0.61",
+        "ccxt==4.1.78",
         "termcolor",
         "jsonpickle",
         "apscheduler==3.10.4",
         "appdirs",
+        "pyarrow",
+        "tqdm",
     ],
     classifiers=[
         "Programming Language :: Python :: 3",

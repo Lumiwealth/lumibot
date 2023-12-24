@@ -39,6 +39,7 @@ Finally, run the backtest:
         datetime_start=backtesting_start,
         datetime_end=backtesting_end,
         api_key="YOUR_POLYGON_API_KEY",
+        has_paid_subscription=False, # Set this to True if you have a paid subscription to polygon.io (False assumes you are using the free tier)
     )
     broker = BacktestingBroker(data_source)
     crypto_strat = CryptoEMACross(
@@ -86,6 +87,7 @@ Here's another example but for for stocks:
             datetime_start=backtesting_start,
             datetime_end=backtesting_end,
             api_key="YOUR_POLYGON_API_KEY",
+            has_paid_subscription=False, # Set this to True if you have a paid subscription to polygon.io (False assumes you are using the free tier)
         )
         broker = BacktestingBroker(data_source)
         my_strat = MyStrategy(

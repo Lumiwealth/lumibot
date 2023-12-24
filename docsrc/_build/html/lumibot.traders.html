@@ -7,7 +7,7 @@
 
     <!-- Generated with Sphinx 7.2.6 and Furo 2023.09.10 -->
         <title>Traders - Lumibot documentation</title>
-      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=362ab14a" />
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=a746c00c" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=135e06be" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=36a5483c" />
     <link rel="stylesheet" type="text/css" href="_static/custom.css?v=1c0cb5c9" />
@@ -345,7 +345,7 @@
 <span id="trader"></span><h2>Trader<a class="headerlink" href="#module-lumibot.traders.trader" title="Link to this heading">#</a></h2>
 <dl class="py class">
 <dt class="sig sig-object py" id="lumibot.traders.trader.Trader">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">lumibot.traders.trader.</span></span><span class="sig-name descname"><span class="pre">Trader</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">logfile</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'logs/logs.log'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">debug</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">strategies</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.traders.trader.Trader" title="Link to this definition">#</a></dt>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">lumibot.traders.trader.</span></span><span class="sig-name descname"><span class="pre">Trader</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">logfile</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">backtest</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">debug</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">strategies</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.traders.trader.Trader" title="Link to this definition">#</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <dl class="py method">
 <dt class="sig sig-object py" id="lumibot.traders.trader.Trader.add_strategy">
@@ -354,19 +354,35 @@
 </dd></dl>
 
 <dl class="py property">
-<dt class="sig sig-object py" id="lumibot.traders.trader.Trader.is_backtest">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">is_backtest</span></span><a class="headerlink" href="#lumibot.traders.trader.Trader.is_backtest" title="Link to this definition">#</a></dt>
+<dt class="sig sig-object py" id="lumibot.traders.trader.Trader.is_backtest_broker">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">is_backtest_broker</span></span><a class="headerlink" href="#lumibot.traders.trader.Trader.is_backtest_broker" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="lumibot.traders.trader.Trader.run_all">
-<span class="sig-name descname"><span class="pre">run_all</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.traders.trader.Trader.run_all" title="Link to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">run_all</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">async_</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">show_plot</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">show_tearsheet</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">save_tearsheet</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.traders.trader.Trader.run_all" title="Link to this definition">#</a></dt>
 <dd><p>run all strategies</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>async</strong> (<em>bool</em>) – Whether to run the strategies asynchronously or not. This is not implemented yet.</p></li>
+<li><p><strong>show_plot</strong> (<em>bool</em>) – Whether to disply the plot in the user’s web browser. This is only used for backtesting.</p></li>
+<li><p><strong>show_tearsheet</strong> (<em>bool</em>) – Whether to display the tearsheet in user’s web browser. This is only used for backtesting.</p></li>
+<li><p><strong>save_tearsheet</strong> (<em>bool</em>) – Whether to save the tearsheet or not. This is only used for backtesting.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A dictionary with the keys being the strategy names and the values being the strategy analysis.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="lumibot.traders.trader.Trader.run_all_async">
-<span class="sig-name descname"><span class="pre">run_all_async</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.traders.trader.Trader.run_all_async" title="Link to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">run_all_async</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">backtest</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.traders.trader.Trader.run_all_async" title="Link to this definition">#</a></dt>
 <dd><p>run all strategies</p>
 </dd></dl>
 
@@ -421,7 +437,7 @@
 <li><a class="reference internal" href="#module-lumibot.traders.trader">Trader</a><ul>
 <li><a class="reference internal" href="#lumibot.traders.trader.Trader"><code class="docutils literal notranslate"><span class="pre">Trader</span></code></a><ul>
 <li><a class="reference internal" href="#lumibot.traders.trader.Trader.add_strategy"><code class="docutils literal notranslate"><span class="pre">Trader.add_strategy()</span></code></a></li>
-<li><a class="reference internal" href="#lumibot.traders.trader.Trader.is_backtest"><code class="docutils literal notranslate"><span class="pre">Trader.is_backtest</span></code></a></li>
+<li><a class="reference internal" href="#lumibot.traders.trader.Trader.is_backtest_broker"><code class="docutils literal notranslate"><span class="pre">Trader.is_backtest_broker</span></code></a></li>
 <li><a class="reference internal" href="#lumibot.traders.trader.Trader.run_all"><code class="docutils literal notranslate"><span class="pre">Trader.run_all()</span></code></a></li>
 <li><a class="reference internal" href="#lumibot.traders.trader.Trader.run_all_async"><code class="docutils literal notranslate"><span class="pre">Trader.run_all_async()</span></code></a></li>
 <li><a class="reference internal" href="#lumibot.traders.trader.Trader.stop_all"><code class="docutils literal notranslate"><span class="pre">Trader.stop_all()</span></code></a></li>

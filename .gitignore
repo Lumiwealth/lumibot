@@ -23,12 +23,13 @@ test_bot.py
 .vscode
 .coverage*
 *secret*/**.env
+lumi_tradier
 
 # Pypi deployment
 build
 dist
-lumibot.egg-info
-setup.py
+*.egg-info
+# setup.py
 /alpaca_data_run.py
 /alpaca_run.py
 /lumibot_profiles.png

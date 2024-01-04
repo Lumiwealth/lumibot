@@ -341,22 +341,23 @@
         <article role="main">
           <section id="polygon-io-backtesting">
 <h1>Polygon.io Backtesting<a class="headerlink" href="#polygon-io-backtesting" title="Link to this heading">#</a></h1>
+<p><strong>NOTE: Please ensure you have installed the latest lumibot version using ``pip install lumibot –upgrade`` before proceeding as there have been some major changes to the backtesting module in the latest version.</strong></p>
 <p>Polygon.io backtester allows for flexible and robust backtesting. It uses the polygon.io API to fetch pricing data for stocks, options, forex, and cryptocurrencies. This backtester simplifies the process of getting pricing data; simply use the PolygonDataSource and it will automatically fetch pricing data when you call <cite>get_last_price()</cite> or <cite>get_historical_prices()</cite>.</p>
 <p>As of this writing, polygon provides up to 2 years of historical data for free. If you pay for an API you can get many years of data and the backtesting will download data much faster because it won’t be rate limited.</p>
 <p>This backtesting method caches the data on your computer making it faster for subsequent backtests. So even if it takes a bit of time the first time, the following backtests will be much faster.</p>
 <p>To use this feature, you need to obtain an API key from polygon.io, which is free and you can get in the Dashboard after you have created an account. You must then replace <cite>YOUR_POLYGON_API_KEY</cite> with your own key in the code.</p>
-<p>Start by importing the PolygonDataBacktesting as follows:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">backtesting</span> <span class="kn">import</span> <span class="n">PolygonDataBacktesting</span>
+<p>Start by importing the PolygonDataBacktesting, BacktestingBroker and other necessary classes:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">datetime</span>
+
+<span class="kn">from</span> <span class="nn">lumibot.backtesting</span> <span class="kn">import</span> <span class="n">BacktestingBroker</span><span class="p">,</span> <span class="n">PolygonDataBacktesting</span>
+<span class="kn">from</span> <span class="nn">lumibot.strategies</span> <span class="kn">import</span> <span class="n">Strategy</span>
+<span class="kn">from</span> <span class="nn">lumibot.traders</span> <span class="kn">import</span> <span class="n">Trader</span>
 </pre></div>
 </div>
+<p>Next, create a strategy class that inherits from the Strategy class. This class will be used to define the strategy that will be backtested. In this example, we will create a simple strategy that buys a stock on the first iteration and holds it until the end of the backtest. The strategy will be initialized with a symbol parameter that will be used to determine which stock to buy. The initialize method will be used to set the sleeptime to 1 day. The on_trading_iteration method will be used to buy the stock on the first iteration. The strategy will be run from 2023-01-01 to 2023-05-01.</p>
 <p>Set the start and end dates for the backtest:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">backtesting_start</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">(</span><span class="mi">2023</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
 <span class="n">backtesting_end</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">(</span><span class="mi">2023</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
-</pre></div>
-</div>
-<p>Optional: Set the quote asset (usually only required for crypto, default is USD) and the trading fee.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">quote_asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="n">symbol</span><span class="o">=</span><span class="s2">&quot;USDT&quot;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s2">&quot;crypto&quot;</span><span class="p">)</span>
-<span class="n">trading_fee</span> <span class="o">=</span> <span class="n">TradingFee</span><span class="p">(</span><span class="n">percent_fee</span><span class="o">=</span><span class="mf">0.001</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>Finally, run the backtest:</p>
@@ -365,26 +366,27 @@
     <span class="n">datetime_start</span><span class="o">=</span><span class="n">backtesting_start</span><span class="p">,</span>
     <span class="n">datetime_end</span><span class="o">=</span><span class="n">backtesting_end</span><span class="p">,</span>
     <span class="n">api_key</span><span class="o">=</span><span class="s2">&quot;YOUR_POLYGON_API_KEY&quot;</span><span class="p">,</span>
-    <span class="n">has_paid_subscription</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="c1"># Set this to True if you have a paid subscription to polygon.io (False assumes you are using the free tier)</span>
+    <span class="n">has_paid_subscription</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>  <span class="c1"># Set this to True if you have a paid subscription to polygon.io (False assumes you are using the free tier)</span>
 <span class="p">)</span>
 <span class="n">broker</span> <span class="o">=</span> <span class="n">BacktestingBroker</span><span class="p">(</span><span class="n">data_source</span><span class="p">)</span>
-<span class="n">crypto_strat</span> <span class="o">=</span> <span class="n">CryptoEMACross</span><span class="p">(</span>
+<span class="n">my_strat</span> <span class="o">=</span> <span class="n">MyStrategy</span><span class="p">(</span>
     <span class="n">broker</span><span class="o">=</span><span class="n">broker</span><span class="p">,</span>
     <span class="n">backtesting_start</span><span class="o">=</span><span class="n">backtesting_start</span><span class="p">,</span>
     <span class="n">backtesting_end</span><span class="o">=</span><span class="n">backtesting_end</span><span class="p">,</span>
-    <span class="n">quote_asset</span><span class="o">=</span><span class="n">quote_asset</span><span class="p">,</span>
-    <span class="n">benchmark_asset</span><span class="o">=</span><span class="n">Asset</span><span class="p">(</span><span class="n">symbol</span><span class="o">=</span><span class="s2">&quot;BTC&quot;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s2">&quot;crypto&quot;</span><span class="p">)</span>
-    <span class="n">buy_trading_fees</span><span class="o">=</span><span class="p">[</span><span class="n">trading_fee</span><span class="p">],</span>
-    <span class="n">sell_trading_fees</span><span class="o">=</span><span class="p">[</span><span class="n">trading_fee</span><span class="p">],</span>
+    <span class="n">benchmark_asset</span><span class="o">=</span><span class="s2">&quot;SPY&quot;</span><span class="p">,</span>
 <span class="p">)</span>
-<span class="n">trader</span><span class="o">.</span><span class="n">add_strategy</span><span class="p">(</span><span class="n">crypto_strat</span><span class="p">)</span>
+<span class="n">trader</span><span class="o">.</span><span class="n">add_strategy</span><span class="p">(</span><span class="n">my_strat</span><span class="p">)</span>
 <span class="n">trader</span><span class="o">.</span><span class="n">run_all</span><span class="p">()</span>
 </pre></div>
 </div>
-<p>Here’s another example but for for stocks:</p>
+<p>Here’s the full code:</p>
+<p><strong>Make sure to replace YOUR_POLYGON_API_KEY with your own API key form polygon.io (it’s free)</strong></p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">datetime</span>
-<span class="kn">from</span> <span class="nn">lumibot.backtesting</span> <span class="kn">import</span> <span class="n">PolygonDataBacktesting</span>
+
+<span class="kn">from</span> <span class="nn">lumibot.backtesting</span> <span class="kn">import</span> <span class="n">BacktestingBroker</span><span class="p">,</span> <span class="n">PolygonDataBacktesting</span>
 <span class="kn">from</span> <span class="nn">lumibot.strategies</span> <span class="kn">import</span> <span class="n">Strategy</span>
+<span class="kn">from</span> <span class="nn">lumibot.traders</span> <span class="kn">import</span> <span class="n">Trader</span>
+
 
 <span class="k">class</span> <span class="nc">MyStrategy</span><span class="p">(</span><span class="n">Strategy</span><span class="p">):</span>
     <span class="n">parameters</span> <span class="o">=</span> <span class="p">{</span>
@@ -402,6 +404,7 @@
             <span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">symbol</span><span class="p">,</span> <span class="n">quantity</span><span class="o">=</span><span class="n">qty</span><span class="p">,</span> <span class="n">side</span><span class="o">=</span><span class="s2">&quot;buy&quot;</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
 
+
 <span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
     <span class="n">backtesting_start</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">2023</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
     <span class="n">backtesting_end</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">2023</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
@@ -410,17 +413,15 @@
     <span class="n">data_source</span> <span class="o">=</span> <span class="n">PolygonDataBacktesting</span><span class="p">(</span>
         <span class="n">datetime_start</span><span class="o">=</span><span class="n">backtesting_start</span><span class="p">,</span>
         <span class="n">datetime_end</span><span class="o">=</span><span class="n">backtesting_end</span><span class="p">,</span>
-        <span class="n">api_key</span><span class="o">=</span><span class="s2">&quot;YOUR_POLYGON_API_KEY&quot;</span><span class="p">,</span>
-        <span class="n">has_paid_subscription</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="c1"># Set this to True if you have a paid subscription to polygon.io (False assumes you are using the free tier)</span>
+        <span class="n">api_key</span><span class="o">=</span><span class="s2">&quot;YOUR_API_KEY_HERE&quot;</span><span class="p">,</span>
+        <span class="n">has_paid_subscription</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>  <span class="c1"># Set this to True if you have a paid subscription to polygon.io (False assumes you are using the free tier)</span>
     <span class="p">)</span>
     <span class="n">broker</span> <span class="o">=</span> <span class="n">BacktestingBroker</span><span class="p">(</span><span class="n">data_source</span><span class="p">)</span>
     <span class="n">my_strat</span> <span class="o">=</span> <span class="n">MyStrategy</span><span class="p">(</span>
         <span class="n">broker</span><span class="o">=</span><span class="n">broker</span><span class="p">,</span>
-        <span class="n">backtesting_start</span><span class="o">=</span><span class="n">backtesting_start</span><span class="p">,</span>
-        <span class="n">backtesting_end</span><span class="o">=</span><span class="n">backtesting_end</span><span class="p">,</span>
-        <span class="n">benchmark_asset</span><span class="o">=</span><span class="n">Asset</span><span class="p">(</span><span class="n">symbol</span><span class="o">=</span><span class="s2">&quot;BTC&quot;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s2">&quot;crypto&quot;</span><span class="p">)</span>
+        <span class="n">benchmark_asset</span><span class="o">=</span><span class="s2">&quot;SPY&quot;</span><span class="p">,</span>
     <span class="p">)</span>
-    <span class="n">trader</span><span class="o">.</span><span class="n">add_strategy</span><span class="p">(</span><span class="n">crypto_strat</span><span class="p">)</span>
+    <span class="n">trader</span><span class="o">.</span><span class="n">add_strategy</span><span class="p">(</span><span class="n">my_strat</span><span class="p">)</span>
     <span class="n">trader</span><span class="o">.</span><span class="n">run_all</span><span class="p">()</span>
 </pre></div>
 </div>

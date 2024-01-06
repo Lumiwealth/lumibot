@@ -2,6 +2,7 @@ import logging
 from datetime import date, timedelta
 
 import pandas as pd
+
 from lumibot.data_sources import DataSourceBacktesting
 from lumibot.entities import Asset, AssetsMapping, Bars
 
@@ -73,7 +74,7 @@ class PandasData(DataSourceBacktesting):
 
         pcal = self.get_trading_days_pandas()
         self._date_index = self.clean_trading_times(self._date_index, pcal)
-        for asset, data in self._data_store.items():
+        for _, data in self._data_store.items():
             data.repair_times_and_fill(self._date_index)
         return pcal
 

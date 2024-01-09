@@ -2,7 +2,6 @@ import logging
 from datetime import date, timedelta
 
 import pandas as pd
-
 from lumibot.data_sources import DataSourceBacktesting
 from lumibot.entities import Asset, AssetsMapping, Bars
 
@@ -189,7 +188,14 @@ class PandasData(DataSourceBacktesting):
             data = self._data_store[tuple_to_find]
             try:
                 dt = self.get_datetime()
-                return data.get_last_price(dt)
+                price = data.get_last_price(dt)
+
+                # Check if price is NaN
+                if pd.isna(price):
+                    logging.info(f"Error getting last price for {tuple_to_find}: price is NaN")
+                    return None
+
+                return price
             except Exception as e:
                 logging.info(f"Error getting last price for {tuple_to_find}: {e}")
                 return None

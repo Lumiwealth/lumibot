@@ -3,6 +3,7 @@ import logging
 import re
 
 import pandas as pd
+
 from lumibot import LUMIBOT_DEFAULT_PYTZ as DEFAULT_PYTZ
 from lumibot.tools.helpers import to_datetime_aware
 
@@ -273,7 +274,7 @@ class Data:
         idx = idx[(idx >= self.datetime_start) & (idx <= self.datetime_end)]
 
         # After all time series merged, adjust the local dataframe to reindex and fill nan's.
-        df = self.df.reindex(idx)
+        df = self.df.reindex(idx, method="ffill")
         df.loc[df["volume"].isna(), "volume"] = 0
         df.loc[:, ~df.columns.isin(["open", "high", "low"])] = df.loc[
             :, ~df.columns.isin(["open", "high", "low"])

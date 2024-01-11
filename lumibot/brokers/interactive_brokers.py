@@ -11,12 +11,12 @@ from ibapi.client import *
 from ibapi.contract import *
 from ibapi.order import *
 from ibapi.wrapper import *
+
 from lumibot.data_sources import InteractiveBrokersData
 
 # Naming conflict on Order between IB and Lumibot.
-from lumibot.entities import Asset
+from lumibot.entities import Asset, Position
 from lumibot.entities import Order as OrderLum
-from lumibot.entities import Position
 
 from .broker import Broker
 
@@ -128,6 +128,29 @@ class InteractiveBrokers(Broker):
             logging.debug("No positions found at interactive brokers.")
 
         return positions
+
+    def _parse_broker_positions(self, broker_positions, strategy):
+        """parse a list of broker positions into a
+        list of position objects"""
+        result = []
+        for broker_position in broker_positions:
+            result.append(self._parse_broker_position(broker_position, strategy))
+
+        return result
+
+    def _pull_positions(self, strategy):
+        """Get the account positions. return a list of
+        position objects"""
+        response = self._pull_broker_positions(strategy)
+        result = self._parse_broker_positions(response, strategy.name)
+        return result
+
+    def _pull_position(self, strategy, asset):
+        """Get the account position for a given asset.
+        return a position object"""
+        response = self._pull_broker_position(asset)
+        result = self._parse_broker_position(response, strategy)
+        return result
 
     # =======Orders and assets functions=========
 

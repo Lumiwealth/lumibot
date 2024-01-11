@@ -12,9 +12,10 @@ from alpaca.trading.enums import QueryOrderStatus
 from alpaca.trading.requests import GetOrdersRequest
 from alpaca.trading.stream import TradingStream
 from dateutil import tz
+from termcolor import colored
+
 from lumibot.data_sources import AlpacaData
 from lumibot.entities import Asset, Order, Position
-from termcolor import colored
 
 from .broker import Broker
 
@@ -285,6 +286,29 @@ class Alpaca(Broker):
         """Get the broker representation of all positions"""
         response = self.api.get_all_positions()
         return response
+
+    def _parse_broker_positions(self, broker_positions, strategy):
+        """parse a list of broker positions into a
+        list of position objects"""
+        result = []
+        for broker_position in broker_positions:
+            result.append(self._parse_broker_position(broker_position, strategy))
+
+        return result
+
+    def _pull_positions(self, strategy):
+        """Get the account positions. return a list of
+        position objects"""
+        response = self._pull_broker_positions(strategy)
+        result = self._parse_broker_positions(response, strategy.name)
+        return result
+
+    def _pull_position(self, strategy, asset):
+        """Get the account position for a given asset.
+        return a position object"""
+        response = self._pull_broker_position(asset)
+        result = self._parse_broker_position(response, strategy)
+        return result
 
     # =======Orders and assets functions=========
     def map_asset_type(self, type):

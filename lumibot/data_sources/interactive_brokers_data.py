@@ -2,7 +2,8 @@ import datetime
 import math
 
 import pandas as pd
-from lumibot.entities import Bars
+
+from lumibot.entities import Asset, Bars
 
 from .data_source import DataSource
 
@@ -125,9 +126,7 @@ class InteractiveBrokersData(DataSource):
         elif "day" in freq:
             return f"{str(length)} D"
         else:
-            raise ValueError(
-                f"Timestep must be `day` or `minute`, you entered: {timestep}"
-            )
+            raise ValueError(f"Timestep must be `day` or `minute`, you entered: {timestep}")
 
     def _pull_source_symbol_bars(
         self,
@@ -236,12 +235,12 @@ class InteractiveBrokersData(DataSource):
                         .dt.tz_localize("UTC")
                         .dt.tz_convert(self.DEFAULT_TIMEZONE)
                     )
-                    df = df.iloc[-int(length):, :]
+                    df = df.iloc[-int(length) :, :]
                 elif "day" in parsed_timestep:
                     df["date"] = pd.to_datetime(df["date"], format="%Y%m%d")
                     df["date"] = df["date"].dt.tz_localize(self.DEFAULT_TIMEZONE)
 
-                    df = df.iloc[-int(length):, :]
+                    df = df.iloc[-int(length) :, :]
 
                 response[asset] = df
         return response
@@ -293,6 +292,33 @@ class InteractiveBrokersData(DataSource):
         self.ib.cancel_realtime_bars(asset)
         return 0
 
+    def get_historical_prices(
+        self, asset, length, timestep="", timeshift=None, quote=None, exchange=None, include_after_hours=True
+    ):
+        """Get bars for a given asset"""
+        if isinstance(asset, str):
+            asset = Asset(symbol=asset)
+
+        if not timestep:
+            timestep = self.get_timestep()
+
+        response = self._pull_source_symbol_bars(
+            asset,
+            length,
+            timestep=timestep,
+            timeshift=timeshift,
+            quote=quote,
+            exchange=exchange,
+            include_after_hours=include_after_hours,
+        )
+        if isinstance(response, float):
+            return response
+        elif response is None:
+            return None
+
+        bars = self._parse_source_symbol_bars(response, asset, quote=quote, length=length)
+        return bars
+
     def get_last_price(self, asset, timestep=None, quote=None, exchange=None, **kwargs):
         if exchange is None:
             exchange = "SMART"
@@ -326,9 +352,9 @@ class InteractiveBrokersData(DataSource):
         return result
 
     def get_yesterday_dividend(self, asset, quote=None):
-        """ Unavailable """
+        """Unavailable"""
         return 0
 
     def get_yesterday_dividends(self, asset, quote=None):
-        """ Unavailable """
+        """Unavailable"""
         return None

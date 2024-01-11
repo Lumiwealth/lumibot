@@ -1,8 +1,9 @@
+from lumiwealth_tradier import Tradier as _Tradier
+
 from lumibot.brokers import Broker
 from lumibot.data_sources.tradier_data import TradierData
 from lumibot.entities import Asset, Order, Position
 from lumibot.tools.helpers import parse_symbol
-from lumiwealth_tradier import Tradier as _Tradier
 
 
 class Tradier(Broker):
@@ -78,7 +79,9 @@ class Tradier(Broker):
         pass
 
     def _submit_order(self, order: Order):
-        pass
+        order_response = self.tradier.orders.order(order.asset.symbol, order.side, order.quantity, "market")
+
+        return order
 
     def _get_balances_at_broker(self, quote_asset: Asset) -> float:
         pass

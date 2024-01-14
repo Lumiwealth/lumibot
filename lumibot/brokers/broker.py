@@ -10,11 +10,10 @@ from threading import RLock, Thread
 import pandas as pd
 import pandas_market_calendars as mcal
 from dateutil import tz
-from termcolor import colored
-
 from lumibot.data_sources import DataSource
 from lumibot.entities import Asset, Order, Position
 from lumibot.trading_builtins import SafeList
+from termcolor import colored
 
 
 class Broker(ABC):
@@ -87,7 +86,7 @@ class Broker(ABC):
 
     # =========Account functions=======================
     @abstractmethod
-    def _get_balances_at_broker(self, quote_asset: Asset) -> float:
+    def _get_balances_at_broker(self, quote_asset: Asset) -> tuple:
         """
         Get the actual cash balance at the broker.
         Parameters
@@ -97,8 +96,11 @@ class Broker(ABC):
 
         Returns
         -------
-        float
-            The balance of the quote asset at the broker.
+        tuple of float
+            A tuple containing (cash, positions_value, total_liquidation_value).
+            Cash = cash in the account (whatever the quote asset is).
+            Positions value = the value of all the positions in the account.
+            Portfolio value = the total equity value of the account (aka. portfolio value).
         """
         pass
 
@@ -128,29 +130,20 @@ class Broker(ABC):
         pass
 
     # =========Broker Positions=======================
+
     @abstractmethod
-    def _parse_broker_position(self, broker_position, strategy, orders=None):
-        """
-        parse a broker position representation into a position object
-        TODO: Fill in with the expected input/output of this function.
-        """
+    def _pull_positions(self, strategy):
+        """Get the account positions. return a list of
+        position objects"""
         pass
 
     @abstractmethod
-    def _pull_broker_position(self, asset: Asset):
-        """
-        Given an asset, get the broker representation of the corresponding asset
-        TODO: Fill in with the expected output of this function.
-        """
+    def _pull_position(self, strategy, asset):
+        """Get the account position for a given asset.
+        return a position object"""
         pass
 
-    @abstractmethod
-    def _pull_broker_positions(self, strategy=None):
-        """
-        Get the broker representation of all positions
-        TODO: Fill in with the expected output of this function.
-        """
-        pass
+    # =========Broker Orders=======================
 
     @abstractmethod
     def _parse_broker_order(self, response, strategy_name, strategy_object=None):
@@ -668,29 +661,6 @@ class Broker(ABC):
     def get_tracked_positions(self, strategy):
         """get all tracked positions for a given strategy"""
         result = [position for position in self._filled_positions if position.strategy == strategy]
-        return result
-
-    def _parse_broker_positions(self, broker_positions, strategy):
-        """parse a list of broker positions into a
-        list of position objects"""
-        result = []
-        for broker_position in broker_positions:
-            result.append(self._parse_broker_position(broker_position, strategy))
-
-        return result
-
-    def _pull_positions(self, strategy):
-        """Get the account positions. return a list of
-        position objects"""
-        response = self._pull_broker_positions(strategy)
-        result = self._parse_broker_positions(response, strategy.name)
-        return result
-
-    def _pull_position(self, strategy, asset):
-        """Get the account position for a given asset.
-        return a position object"""
-        response = self._pull_broker_position(asset)
-        result = self._parse_broker_position(response, strategy)
         return result
 
     # =========Orders and assets functions=================

@@ -96,6 +96,18 @@ class Asset:
     >>> self.submit_order(order)
     """
 
+    class AssetRight:
+        CALL = "CALL"
+        PUT = "PUT"
+
+    class AssetType:
+        STOCK = "stock"
+        OPTION = "option"
+        FUTURE = "future"
+        FOREX = "forex"
+        CRYPTO = "crypto"
+        INDEX = "index"
+
     symbol: str
     asset_type: str = "stock"
     expiration: date = None
@@ -104,8 +116,11 @@ class Asset:
     multiplier: int = 1
     precision: str = None
 
-    _asset_types: list = ["stock", "option", "future", "forex", "crypto", "index"]
-    _right: list = ["CALL", "PUT"]
+    # Pull the asset types from the AssetType class
+    _asset_types: list = [v for k, v in AssetType.__dict__.items() if not k.startswith("__")]
+
+    # Pull the rights from the AssetRight class
+    _right: list = [v for k, v in AssetRight.__dict__.items() if not k.startswith("__")]
 
     def __init__(
         self,

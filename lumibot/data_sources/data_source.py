@@ -24,27 +24,30 @@ class DataSource(ABC):
 
     # ========Required Implementations ======================
     @abstractmethod
-    def _pull_source_symbol_bars(
-            self,
-            asset,
-            length,
-            timestep=MIN_TIMESTEP,
-            timeshift=None,
-            quote=None,
-            exchange=None,
-            include_after_hours=True
+    def get_historical_prices(
+        self, asset, length, timestep="", timeshift=None, quote=None, exchange=None, include_after_hours=True
     ):
-        """pull source bars for a given asset"""
-        pass
+        """
+        Get bars for a given asset
 
-    @abstractmethod
-    def _pull_source_bars(
-            self, assets, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None, include_after_hours=True
-    ):
-        pass
-
-    @abstractmethod
-    def _parse_source_symbol_bars(self, response, asset, quote=None, length=None):
+        Parameters
+        ----------
+        asset : Asset
+            The asset to get the bars for.
+        length : int
+            The number of bars to get.
+        timestep : str
+            The timestep to get the bars at. For example, "1minute" or "1hour" or "1day".
+        timeshift : datetime.timedelta
+            The amount of time to shift the bars by. For example, if you want the bars from 1 hour ago to now,
+            you would set timeshift to 1 hour.
+        quote : Asset
+            The quote asset to get the bars for.
+        exchange : str
+            The exchange to get the bars for.
+        include_after_hours : bool
+            Whether to include after hours data.
+        """
         pass
 
     @abstractmethod
@@ -198,7 +201,7 @@ class DataSource(ABC):
                     # Get the unit (minute, hour, or day)
                     # IBRK uses "minutes" instead of "minute" when 'quantity' > 1, for some reason, so handle
                     # that behavior here so backtest is comptiable with IBRK
-                    unit = timestep[i:].strip().rstrip('s')  # Remove extra whitespace and IBKR's extra pluralization
+                    unit = timestep[i:].strip().rstrip("s")  # Remove extra whitespace and IBKR's extra pluralization
                     break
         else:
             unit = timestep
@@ -211,14 +214,12 @@ class DataSource(ABC):
             delta = timedelta(minutes=quantity_in_minutes)
             return delta, unit
         else:
-            raise ValueError(
-                f"Unknown unit: {unit}. Valid units are minute, hour, day, M, H, D"
-            )
+            raise ValueError(f"Unknown unit: {unit}. Valid units are minute, hour, day, M, H, D")
 
     # ========Internal Market Data Methods===================
 
     def _parse_source_timestep(self, timestep, reverse=False):
-        """transform the data source timestep variable 
+        """transform the data source timestep variable
         into lumibot representation. set reverse to True
         for opposite direction"""
         for item in self.TIMESTEP_MAPPING:
@@ -242,33 +243,6 @@ class DataSource(ABC):
 
     # =================Public Market Data Methods==================
 
-    def get_historical_prices(
-        self, asset, length, timestep="", timeshift=None, quote=None, exchange=None, include_after_hours=True
-    ):
-        """Get bars for a given asset"""
-        if isinstance(asset, str):
-            asset = Asset(symbol=asset)
-
-        if not timestep:
-            timestep = self.get_timestep()
-
-        response = self._pull_source_symbol_bars(
-            asset,
-            length,
-            timestep=timestep,
-            timeshift=timeshift,
-            quote=quote,
-            exchange=exchange,
-            include_after_hours=include_after_hours
-        )
-        if isinstance(response, float):
-            return response
-        elif response is None:
-            return None
-
-        bars = self._parse_source_symbol_bars(response, asset, quote=quote, length=length)
-        return bars
-
     def get_bars(
         self,
         assets,
@@ -279,19 +253,21 @@ class DataSource(ABC):
         max_workers=200,
         quote=None,
         exchange=None,
-        include_after_hours=True
+        include_after_hours=True,
     ):
         """Get bars for the list of assets"""
         assets = [Asset(symbol=a) if isinstance(a, str) else a for a in assets]
 
         chunks = get_chunks(assets, chunk_size)
-        with ThreadPoolExecutor(
-            max_workers=max_workers, thread_name_prefix=f"{self.name}_requesting_data"
-        ) as executor:
+        with ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix=f"{self.name}_requesting_data") as executor:
             tasks = []
             func = lambda args, kwargs: self._pull_source_bars(*args, **kwargs)
             kwargs = dict(
-                timestep=timestep, timeshift=timeshift, quote=quote, exchange=exchange, include_after_hours=include_after_hours
+                timestep=timestep,
+                timeshift=timeshift,
+                quote=quote,
+                exchange=exchange,
+                include_after_hours=include_after_hours,
             )
             kwargs = {k: v for k, v in kwargs.items() if v is not None}
             for chunk in chunks:
@@ -310,9 +286,7 @@ class DataSource(ABC):
 
         result = {}
         for asset in assets:
-            result[asset] = self.get_last_price(
-                asset, quote=quote, exchange=exchange
-            )
+            result[asset] = self.get_last_price(asset, quote=quote, exchange=exchange)
 
         if self.SOURCE == "CCXT":
             return result
@@ -322,18 +296,14 @@ class DataSource(ABC):
     def get_yesterday_dividend(self, asset, quote=None):
         """Return dividend per share for a given
         asset for the day before"""
-        bars = self.get_historical_prices(
-            asset, 1, timestep="day"
-        )
+        bars = self.get_historical_prices(asset, 1, timestep="day")
         return bars.get_last_dividend()
 
     def get_yesterday_dividends(self, assets, quote=None):
         """Return dividend per share for a list of
         assets for the day before"""
         result = {}
-        assets_bars = self.get_bars(
-            assets, 1, timestep="day", quote=quote
-        )
+        assets_bars = self.get_bars(assets, 1, timestep="day", quote=quote)
         for asset, bars in assets_bars.items():
             if bars is not None:
                 result[asset] = bars.get_last_dividend()
@@ -343,23 +313,22 @@ class DataSource(ABC):
     def get_greeks(
         self,
         asset,
-
         # API Querying for prices and rates are expensive, so we'll pass them in as arguments most of the time
         asset_price: float,
         underlying_price: float,
         risk_free_rate: float,
     ):
-        """Returns Greeks in backtesting. """
+        """Returns Greeks in backtesting."""
         opt_price = asset_price
         und_price = underlying_price
         interest = risk_free_rate * 100
         current_date = self.get_datetime().date()
-        
+
         # If asset expiration is a datetime object, convert it to date
         expiration = asset.expiration
         if isinstance(expiration, datetime):
             expiration = expiration.date()
-        
+
         days_to_expiration = (expiration - current_date).days
         if asset.right.upper() == "CALL":
             is_call = True

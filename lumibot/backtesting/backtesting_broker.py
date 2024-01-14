@@ -5,7 +5,6 @@ from decimal import Decimal
 from functools import wraps
 
 import pandas as pd
-
 from lumibot.brokers import Broker
 from lumibot.data_sources import DataSourceBacktesting
 from lumibot.entities import Asset, Order, Position, TradingFee
@@ -730,3 +729,17 @@ class BacktestingBroker(Broker):
     def _run_stream(self):
         self._stream_established()
         self.stream._run()
+
+    def _pull_positions(self, strategy):
+        """Get the account positions. return a list of
+        position objects"""
+        response = self._pull_broker_positions(strategy)
+        result = self._parse_broker_positions(response, strategy.name)
+        return result
+
+    def _pull_position(self, strategy, asset):
+        """Get the account position for a given asset.
+        return a position object"""
+        response = self._pull_broker_position(asset)
+        result = self._parse_broker_position(response, strategy)
+        return result

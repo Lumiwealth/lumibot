@@ -5,7 +5,7 @@ import re
 import pandas as pd
 
 from lumibot import LUMIBOT_DEFAULT_PYTZ as DEFAULT_PYTZ
-from lumibot.tools.helpers import to_datetime_aware
+from lumibot.tools.helpers import parse_timestep_qty_and_unit, to_datetime_aware
 
 from .asset import Asset
 from .dataline import Dataline
@@ -490,12 +490,8 @@ class Data:
         pandas.DataFrame
 
         """
-        # Interactive Brokers can use a timespan of something like: '10 minutes'
-        quantity = 1
-        m = re.search(r"(\d+)\s*(\w+)", timestep)
-        if m:
-            quantity = int(m.group(1))
-            timestep = m.group(2).rstrip("s")  # remove trailing 's' if any
+        # Parse the timestep
+        quantity, timestep = parse_timestep_qty_and_unit(timestep)
 
         if timestep == "minute" and self.timestep == "day":
             raise ValueError("You are requesting minute data from a daily data source. This is not supported.")

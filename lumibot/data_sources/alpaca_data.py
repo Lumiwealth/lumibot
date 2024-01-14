@@ -10,6 +10,7 @@ from alpaca.data.requests import (
     StockBarsRequest,
     StockLatestTradeRequest,
 )
+
 from alpaca.data.timeframe import TimeFrame
 
 from lumibot.entities import Asset, Bars
@@ -176,6 +177,33 @@ class AlpacaData(DataSource):
             price = trade.price
 
         return price
+
+    def get_historical_prices(
+        self, asset, length, timestep="", timeshift=None, quote=None, exchange=None, include_after_hours=True
+    ):
+        """Get bars for a given asset"""
+        if isinstance(asset, str):
+            asset = Asset(symbol=asset)
+
+        if not timestep:
+            timestep = self.get_timestep()
+
+        response = self._pull_source_symbol_bars(
+            asset,
+            length,
+            timestep=timestep,
+            timeshift=timeshift,
+            quote=quote,
+            exchange=exchange,
+            include_after_hours=include_after_hours,
+        )
+        if isinstance(response, float):
+            return response
+        elif response is None:
+            return None
+
+        bars = self._parse_source_symbol_bars(response, asset, quote=quote, length=length)
+        return bars
 
     def get_barset_from_api(self, asset, freq, limit=None, end=None, start=None, quote=None):
         """

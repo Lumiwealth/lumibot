@@ -29,3 +29,4 @@ alpaca-py
 appdirs
 pyarrow
 tqdm
+lumiwealth-tradier

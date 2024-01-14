@@ -45,6 +45,7 @@ setuptools.setup(
         "appdirs",
         "pyarrow",
         "tqdm",
+        "lumiwealth-tradier",
     ],
     classifiers=[
         "Programming Language :: Python :: 3",

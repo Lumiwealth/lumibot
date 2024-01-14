@@ -2,11 +2,10 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 import pandas as pd
-from alpaca.data.historical import (CryptoHistoricalDataClient,
-                                    StockHistoricalDataClient)
-from alpaca.data.requests import (CryptoBarsRequest, CryptoLatestTradeRequest,
-                                  StockBarsRequest, StockLatestTradeRequest)
+from alpaca.data.historical import CryptoHistoricalDataClient, StockHistoricalDataClient
+from alpaca.data.requests import CryptoBarsRequest, CryptoLatestTradeRequest, StockBarsRequest, StockLatestTradeRequest
 from alpaca.data.timeframe import TimeFrame
+
 from lumibot.entities import Asset, Bars
 
 from .data_source import DataSource
@@ -160,6 +159,33 @@ class AlpacaData(DataSource):
 
         return trade.price
 
+    def get_historical_prices(
+        self, asset, length, timestep="", timeshift=None, quote=None, exchange=None, include_after_hours=True
+    ):
+        """Get bars for a given asset"""
+        if isinstance(asset, str):
+            asset = Asset(symbol=asset)
+
+        if not timestep:
+            timestep = self.get_timestep()
+
+        response = self._pull_source_symbol_bars(
+            asset,
+            length,
+            timestep=timestep,
+            timeshift=timeshift,
+            quote=quote,
+            exchange=exchange,
+            include_after_hours=include_after_hours,
+        )
+        if isinstance(response, float):
+            return response
+        elif response is None:
+            return None
+
+        bars = self._parse_source_symbol_bars(response, asset, quote=quote, length=length)
+        return bars
+
     def get_barset_from_api(self, asset, freq, limit=None, end=None, start=None, quote=None):
         """
         gets historical bar data for the given stock symbol
@@ -184,7 +210,9 @@ class AlpacaData(DataSource):
         if not start:
             if str(freq) == "1Min":
                 if datetime.now().weekday() == 0:  # for Mondays as prior days were off
-                    loop_limit = limit + 4896  # subtract 4896 minutes to take it from Monday to Friday, as there is no data between Friday 4:00 pm and Monday 9:30 pm causing an incomplete or empty dataframe
+                    loop_limit = (
+                        limit + 4896
+                    )  # subtract 4896 minutes to take it from Monday to Friday, as there is no data between Friday 4:00 pm and Monday 9:30 pm causing an incomplete or empty dataframe
                 else:
                     loop_limit = limit
 
@@ -205,31 +233,19 @@ class AlpacaData(DataSource):
                 symbol = f"{asset.symbol}/{quote.symbol}"
 
                 client = CryptoHistoricalDataClient()
-                params = CryptoBarsRequest(
-                    symbol_or_symbols=symbol,
-                    timeframe=freq,
-                    start=start,
-                    end=end
-                )
+                params = CryptoBarsRequest(symbol_or_symbols=symbol, timeframe=freq, start=start, end=end)
                 barset = client.get_crypto_bars(params)
 
             else:
                 symbol = asset.symbol
 
                 client = StockHistoricalDataClient(self.api_key, self.api_secret)
-                params = StockBarsRequest(
-                    symbol_or_symbols=symbol,
-                    timeframe=freq,
-                    start=start,
-                    end=end
-                )
+                params = StockBarsRequest(symbol_or_symbols=symbol, timeframe=freq, start=start, end=end)
 
                 try:
                     barset = client.get_stock_bars(params)
                 except Exception as e:
-                    logging.error(
-                        f"Could not get pricing data from Alpaca for {symbol} with the following error: {e}"
-                    )
+                    logging.error(f"Could not get pricing data from Alpaca for {symbol} with the following error: {e}")
                     return None
 
             df = barset.df
@@ -238,9 +254,7 @@ class AlpacaData(DataSource):
             df = df.reset_index(level=0, drop=True)
 
             if df.empty:
-                logging.error(
-                    f"Could not get any pricing data from Alpaca for {symbol}, the DataFrame came back empty"
-                )
+                logging.error(f"Could not get any pricing data from Alpaca for {symbol}, the DataFrame came back empty")
                 return None
 
             df = df[~df.index.duplicated(keep="first")]
@@ -256,7 +270,7 @@ class AlpacaData(DataSource):
         return df
 
     def _pull_source_bars(
-        self, assets, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None,  include_after_hours=True
+        self, assets, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None, include_after_hours=True
     ):
         """pull broker bars for a list assets"""
         if timeshift is None and timestep == "day":
@@ -279,14 +293,7 @@ class AlpacaData(DataSource):
         return result
 
     def _pull_source_symbol_bars(
-        self,
-        asset,
-        length,
-        timestep=MIN_TIMESTEP,
-        timeshift=None,
-        quote=None,
-        exchange=None,
-        include_after_hours=True
+        self, asset, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None, exchange=None, include_after_hours=True
     ):
         if exchange is not None:
             logging.warning(
@@ -294,9 +301,7 @@ class AlpacaData(DataSource):
             )
 
         """pull broker bars for a given asset"""
-        response = self._pull_source_bars(
-            [asset], length, timestep=timestep, timeshift=timeshift, quote=quote
-        )
+        response = self._pull_source_bars([asset], length, timestep=timestep, timeshift=timeshift, quote=quote)
         return response[asset]
 
     def _parse_source_symbol_bars(self, response, asset, quote=None, length=None):

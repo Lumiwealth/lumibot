@@ -10,11 +10,10 @@ from threading import RLock, Thread
 import pandas as pd
 import pandas_market_calendars as mcal
 from dateutil import tz
-from termcolor import colored
-
 from lumibot.data_sources import DataSource
 from lumibot.entities import Asset, Order, Position
 from lumibot.trading_builtins import SafeList
+from termcolor import colored
 
 
 class Broker(ABC):
@@ -87,7 +86,7 @@ class Broker(ABC):
 
     # =========Account functions=======================
     @abstractmethod
-    def _get_balances_at_broker(self, quote_asset: Asset) -> float:
+    def _get_balances_at_broker(self, quote_asset: Asset) -> tuple:
         """
         Get the actual cash balance at the broker.
         Parameters
@@ -97,8 +96,11 @@ class Broker(ABC):
 
         Returns
         -------
-        float
-            The balance of the quote asset at the broker.
+        tuple of float
+            A tuple containing (cash, positions_value, total_liquidation_value).
+            Cash = cash in the account (whatever the quote asset is).
+            Positions value = the value of all the positions in the account.
+            Portfolio value = the total equity value of the account (aka. portfolio value).
         """
         pass
 

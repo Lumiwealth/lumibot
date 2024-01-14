@@ -141,8 +141,19 @@ class Tradier(Broker):
 
         return order
 
-    def _get_balances_at_broker(self, quote_asset: Asset) -> float:
-        pass
+    def _get_balances_at_broker(self, quote_asset: Asset):
+        df = self.tradier.account.get_account_balance()
+
+        # Get the portfolio value (total_equity) column
+        portfolio_value = float(df["total_equity"].iloc[0])
+
+        # Get the cash (total_cash) column
+        cash = float(df["total_cash"].iloc[0])
+
+        # Calculate the gross positions value
+        positions_value = portfolio_value - cash
+
+        return (cash, positions_value, portfolio_value)
 
     def get_historical_account_value(self):
         pass

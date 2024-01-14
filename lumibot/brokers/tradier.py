@@ -1,9 +1,11 @@
+import logging
+
 from lumiwealth_tradier import Tradier as _Tradier
 
 from lumibot.brokers import Broker
 from lumibot.data_sources.tradier_data import TradierData
 from lumibot.entities import Asset, Order, Position
-from lumibot.tools.helpers import parse_symbol
+from lumibot.tools.helpers import create_options_symbol, parse_symbol
 
 
 class Tradier(Broker):
@@ -79,7 +81,63 @@ class Tradier(Broker):
         pass
 
     def _submit_order(self, order: Order):
-        order_response = self.tradier.orders.order(order.asset.symbol, order.side, order.quantity, "market")
+        if order.asset.asset_type == "stock":
+            # Place the order
+            self.tradier.orders.order(order.asset.symbol, order.side, order.quantity, order.type, order_class="equity")
+        elif order.asset.asset_type == "option":
+            option_symbol = create_options_symbol(
+                order.asset.symbol,
+                order.asset.expiration,
+                order.asset.right,
+                order.asset.strike,
+            )
+
+            side = order.side
+
+            # Convert the side to the Tradier side for options orders if necessary
+            if side == "buy" or side == "sell":
+                # Check if we currently own the option
+                position = self._pull_position(None, order.asset)
+
+                # Check if we own the option then we need to sell to close or buy to close
+                if position is not None:
+                    if position.quantity > 0 and side == "sell":
+                        side = "sell_to_close"
+                    elif position.quantity > 0 and side == "buy":
+                        side = "buy_to_open"
+                    elif position.quantity < 0 and side == "buy":
+                        side = "buy_to_close"
+                    elif position.quantity < 0 and side == "sell":
+                        side = "sell_to_open"
+                    else:
+                        logging.error(
+                            f"Unable to determine the correct side for the order. "
+                            f"Position: {position}, Order: {order}"
+                        )
+                        return None
+
+                # Otherwise, we don't own the option so we need to buy to open or sell to open
+                else:
+                    if side == "buy":
+                        side = "buy_to_open"
+                    elif side == "sell":
+                        side = "sell_to_open"
+                    else:
+                        logging.error(
+                            f"Unable to determine the correct side for the order. "
+                            f"Position: {position}, Order: {order}"
+                        )
+                        return None
+
+            # Check if the sie is a valid Tradier side
+            if side not in ["buy_to_open", "buy_to_close", "sell_to_open", "sell_to_close"]:
+                logging.error(f"Invalid order side for Tradier: {side}")
+                return None
+
+            # Place the order
+            self.tradier.orders.order(
+                order.asset.symbol, side, order.quantity, order.type, option_symbol=option_symbol, order_class="option"
+            )
 
         return order
 
@@ -149,7 +207,7 @@ class Tradier(Broker):
 
             # Create the position
             position = Position(
-                strategy=strategy.name,
+                strategy=strategy.name if strategy is not None else None,
                 asset=asset,
                 quantity=quantity,
             )
@@ -160,7 +218,15 @@ class Tradier(Broker):
         return positions_ret
 
     def _pull_position(self, strategy, asset):
-        pass
+        all_positions = self._pull_positions(strategy)
+
+        # Loop through each position and check if it matches the asset
+        for position in all_positions:
+            if position.asset == asset:
+                # We found the position, return it
+                return position
+
+        return None
 
     def _parse_broker_order(self, response, strategy_name, strategy_object=None):
         pass

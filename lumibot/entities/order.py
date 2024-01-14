@@ -14,6 +14,26 @@ BUY = "buy"
 class Order:
     Transaction = namedtuple("Transaction", ["quantity", "price"])
 
+    class OrderType:
+        MARKET = "market"
+        LIMIT = "limit"
+        STOP = "stop"
+        STOP_LIMIT = "stop_limit"
+        TRAIL = "trailing_stop"
+        BRACKET = "bracket"
+        OCO = "oco"
+        OTO = "oto"
+
+    class OrderSide:
+        BUY = "buy"
+        SELL = "sell"
+        BUY_TO_COVER = "buy_to_cover"
+        SELL_SHORT = "sell_short"
+        BUY_TO_OPEN = "buy_to_open"
+        BUY_TO_CLOSE = "buy_to_close"
+        SELL_TO_OPEN = "sell_to_open"
+        SELL_TO_CLOSE = "sell_to_close"
+
     def __init__(
         self,
         strategy,

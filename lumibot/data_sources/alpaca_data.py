@@ -3,7 +3,14 @@ from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 from alpaca.data.historical import CryptoHistoricalDataClient, StockHistoricalDataClient
-from alpaca.data.requests import CryptoBarsRequest, CryptoLatestTradeRequest, StockBarsRequest, StockLatestTradeRequest
+from alpaca.data.requests import (
+    CryptoBarsRequest,
+    CryptoLatestQuoteRequest,
+    CryptoLatestTradeRequest,
+    StockBarsRequest,
+    StockLatestTradeRequest,
+)
+
 from alpaca.data.timeframe import TimeFrame
 
 from lumibot.entities import Asset, Bars
@@ -143,21 +150,33 @@ class AlpacaData(DataSource):
 
         if isinstance(asset, tuple) and asset[0].asset_type == "crypto":
             client = CryptoHistoricalDataClient()
-            params = CryptoLatestTradeRequest(symbol_or_symbols=symbol)
-            trade = client.get_crypto_latest_trade(params)[symbol]
+            quote_params = CryptoLatestQuoteRequest(symbol_or_symbols=symbol)
+            quote = client.get_crypto_latest_quote(quote_params)
+
+            # Get the first item in the dictionary
+            quote = quote[list(quote.keys())[0]]
+
+            # The price is the average of the bid and ask
+            price = (quote.bid_price + quote.ask_price) / 2
 
         elif isinstance(asset, Asset) and asset.asset_type == "crypto":
             client = CryptoHistoricalDataClient()
-            params = CryptoLatestTradeRequest(symbol_or_symbols=symbol)
-            trade = client.get_crypto_latest_trade(params)[symbol]
+            quote_params = CryptoLatestQuoteRequest(symbol_or_symbols=symbol)
+            quote = client.get_crypto_latest_quote(quote_params)
 
+            # Get the first item in the dictionary
+            quote = quote[list(quote.keys())[0]]
+
+            # The price is the average of the bid and ask
+            price = (quote.bid_price + quote.ask_price) / 2
         else:
             # Stocks
             client = StockHistoricalDataClient(self.api_key, self.api_secret)
             params = StockLatestTradeRequest(symbol_or_symbols=symbol)
             trade = client.get_stock_latest_trade(params)[symbol]
+            price = trade.price
 
-        return trade.price
+        return price
 
     def get_historical_prices(
         self, asset, length, timestep="", timeshift=None, quote=None, exchange=None, include_after_hours=True

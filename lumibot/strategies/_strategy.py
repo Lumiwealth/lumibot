@@ -7,7 +7,6 @@ from decimal import Decimal
 
 import jsonpickle
 import pandas as pd
-
 from lumibot.backtesting import BacktestingBroker, PolygonDataBacktesting
 from lumibot.entities import Asset, Position
 from lumibot.tools import (
@@ -902,6 +901,7 @@ class _Strategy:
             config=config,
             auto_adjust=auto_adjust,
             api_key=api_key,
+            pandas_data=pandas_data,
             **kwargs,
         )
         if hasattr(data_source, "has_paid_subscription"):

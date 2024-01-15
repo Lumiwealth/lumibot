@@ -74,7 +74,7 @@ class PandasData(DataSourceBacktesting):
 
         pcal = self.get_trading_days_pandas()
         self._date_index = self.clean_trading_times(self._date_index, pcal)
-        for asset, data in self._data_store.items():
+        for _, data in self._data_store.items():
             data.repair_times_and_fill(self._date_index)
         return pcal
 
@@ -189,7 +189,14 @@ class PandasData(DataSourceBacktesting):
             data = self._data_store[tuple_to_find]
             try:
                 dt = self.get_datetime()
-                return data.get_last_price(dt)
+                price = data.get_last_price(dt)
+
+                # Check if price is NaN
+                if pd.isna(price):
+                    logging.info(f"Error getting last price for {tuple_to_find}: price is NaN")
+                    return None
+
+                return price
             except Exception as e:
                 logging.info(f"Error getting last price for {tuple_to_find}: {e}")
                 return None

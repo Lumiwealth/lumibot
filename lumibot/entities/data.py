@@ -274,7 +274,7 @@ class Data:
         idx = idx[(idx >= self.datetime_start) & (idx <= self.datetime_end)]
 
         # After all time series merged, adjust the local dataframe to reindex and fill nan's.
-        df = self.df.reindex(idx)
+        df = self.df.reindex(idx, method="ffill")
         df.loc[df["volume"].isna(), "volume"] = 0
         df.loc[:, ~df.columns.isin(["open", "high", "low"])] = df.loc[
             :, ~df.columns.isin(["open", "high", "low"])

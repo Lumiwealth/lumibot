@@ -2,9 +2,10 @@ import datetime
 import logging
 from decimal import ROUND_DOWN, Decimal
 
+from termcolor import colored
+
 from lumibot.data_sources import CcxtData
 from lumibot.entities import Asset, Order, Position
-from termcolor import colored
 
 from .broker import Broker
 

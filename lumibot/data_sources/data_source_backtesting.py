@@ -2,6 +2,7 @@ from abc import ABC
 from datetime import datetime, timedelta
 
 import pandas as pd
+
 from lumibot.data_sources import DataSource
 from lumibot.tools import print_progress_bar, to_datetime_aware
 

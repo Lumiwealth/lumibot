@@ -58,6 +58,7 @@ class Order:
         trade_cost: float = None,
         custom_params={},
         identifier=None,
+        tag=''
     ):
         """Order class for managing individual orders.
 
@@ -150,6 +151,9 @@ class Order:
         custom_params : dict
             A dictionary of custom parameters that can be used to pass additional information to the broker. This is useful for passing custom parameters to the broker that are not supported by Lumibot.
             Eg. `custom_params={"leverage": 3}` for Kraken margin trading.
+        tag: str
+            A tag that can be used to identify the order. This is useful for tracking orders in the broker. Not all
+            brokers support this feature and lumibot will simply ignore it for those that don't.
         Examples
         --------
         >>> from lumibot.entities import Asset
@@ -239,6 +243,7 @@ class Order:
         self.trade_cost = trade_cost
         self.custom_params = custom_params
         self._trail_stop_price = None
+        self.tag = tag
 
         # Options:
         self.exchange = exchange

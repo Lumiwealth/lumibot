@@ -5,6 +5,7 @@ from decimal import Decimal
 from functools import wraps
 
 import pandas as pd
+
 from lumibot.brokers import Broker
 from lumibot.data_sources import DataSourceBacktesting
 from lumibot.entities import Asset, Order, Position, TradingFee

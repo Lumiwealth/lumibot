@@ -10,7 +10,6 @@ from alpaca.data.requests import (
     StockBarsRequest,
     StockLatestTradeRequest,
 )
-
 from alpaca.data.timeframe import TimeFrame
 
 from lumibot.entities import Asset, Bars

@@ -1,5 +1,6 @@
-from decimal import Decimal
 import warnings
+from decimal import Decimal
+
 
 def check_numeric(
     input, type, error_message, positive=True, strict=False, nullable=False, ratio=False

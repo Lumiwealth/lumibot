@@ -2,6 +2,7 @@ import datetime
 from collections.abc import Hashable
 
 import pytest
+
 from lumibot.entities.asset import Asset
 
 

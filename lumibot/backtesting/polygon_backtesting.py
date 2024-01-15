@@ -2,10 +2,11 @@ import logging
 import traceback
 from datetime import date, timedelta
 
+from polygon import RESTClient
+
 from lumibot.data_sources import PandasData
 from lumibot.entities import Asset, Data
 from lumibot.tools import polygon_helper
-from polygon import RESTClient
 
 START_BUFFER = timedelta(days=5)
 

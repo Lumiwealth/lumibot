@@ -61,6 +61,7 @@ if __name__ == "__main__":
 
     if is_live:
         from credentials import INTERACTIVE_BROKERS_CONFIG
+
         from lumibot.brokers import InteractiveBrokers
         from lumibot.traders import Trader
 

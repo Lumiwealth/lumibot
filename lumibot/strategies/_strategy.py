@@ -7,6 +7,7 @@ from decimal import Decimal
 
 import jsonpickle
 import pandas as pd
+
 from lumibot.backtesting import BacktestingBroker, PolygonDataBacktesting
 from lumibot.entities import Asset, Position
 from lumibot.tools import (

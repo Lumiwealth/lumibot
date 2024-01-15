@@ -6,7 +6,9 @@ from lumibot.example_strategies.options_hold_to_expiry import OptionsHoldToExpir
 from lumibot.example_strategies.stock_bracket import StockBracket
 from lumibot.example_strategies.stock_buy_and_hold import BuyAndHold
 from lumibot.example_strategies.stock_diversified_leverage import DiversifiedLeverage
-from lumibot.example_strategies.stock_limit_and_trailing_stops import LimitAndTrailingStop
+from lumibot.example_strategies.stock_limit_and_trailing_stops import (
+    LimitAndTrailingStop,
+)
 from lumibot.example_strategies.stock_oco import StockOco
 
 # Global parameters

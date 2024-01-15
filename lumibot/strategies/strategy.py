@@ -9,8 +9,9 @@ import jsonpickle
 import numpy as np
 import pandas as pd
 import pandas_market_calendars as mcal
-from lumibot.entities import Asset, Order
 from termcolor import colored
+
+from lumibot.entities import Asset, Order
 
 from ._strategy import _Strategy
 

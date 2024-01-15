@@ -6,12 +6,13 @@ from pathlib import Path
 
 import pandas as pd
 import pandas_market_calendars as mcal
-from lumibot import LUMIBOT_CACHE_FOLDER
-from lumibot.entities import Asset
 
 # noinspection PyPackageRequirements
 from polygon import RESTClient
 from tqdm import tqdm
+
+from lumibot import LUMIBOT_CACHE_FOLDER
+from lumibot.entities import Asset
 
 WAIT_TIME = 60
 POLYGON_QUERY_COUNT = 0  # This is a variable that updates every time we query Polygon

@@ -24,6 +24,7 @@ test_bot.py
 .coverage*
 *secret*/**.env
 lumi_tradier
+lumiwealth_tradier
 
 # Pypi deployment
 build

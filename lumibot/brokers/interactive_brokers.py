@@ -15,8 +15,9 @@ from ibapi.wrapper import *
 from lumibot.data_sources import InteractiveBrokersData
 
 # Naming conflict on Order between IB and Lumibot.
-from lumibot.entities import Asset, Position
+from lumibot.entities import Asset
 from lumibot.entities import Order as OrderLum
+from lumibot.entities import Position
 
 from .broker import Broker
 

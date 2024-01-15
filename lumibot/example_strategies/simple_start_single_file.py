@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from credentials import AlpacaConfig
+
 from lumibot.backtesting import YahooDataBacktesting
 from lumibot.brokers import Alpaca
 from lumibot.strategies.strategy import Strategy

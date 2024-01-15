@@ -1,11 +1,10 @@
 import logging
 
-from lumiwealth_tradier import Tradier as _Tradier
-
 from lumibot.brokers import Broker
 from lumibot.data_sources.tradier_data import TradierData
 from lumibot.entities import Asset, Order, Position
 from lumibot.tools.helpers import create_options_symbol, parse_symbol
+from lumiwealth_tradier import Tradier as _Tradier
 
 
 class Tradier(Broker):
@@ -78,20 +77,45 @@ class Tradier(Broker):
         pass
 
     def cancel_order(self, order: Order):
-        pass
+        """Cancels an order at the broker. Nothing will be done for orders that are already cancelled or filled."""
+        # Check if the order is already cancelled or filled
+        if order.is_filled() or order.is_canceled():
+            return
+
+        if not order.identifier:
+            raise ValueError("Order identifier is not set, unable to cancel order. Did you remember to submit it?")
+
+        # Cancel the order
+        self.tradier.orders.cancel(order.identifier)
 
     def _submit_order(self, order: Order):
+        """
+        Do checking and input sanitization, then submit the order to the broker.
+        Parameters
+        ----------
+        order: Order
+            Order to submit to the broker
+
+        Returns
+        -------
+            Updated order with broker identifier filled in
+        """
+        tag = order.tag if order.tag else order.strategy
+
+        # Replace non-alphanumeric characters with '-', underscore "_" is not allowed by Tradier
+        tag = "".join([c if c.isalnum() or c == '-' else "-" for c in tag])
+
         if order.asset.asset_type == "stock":
             # Place the order
-            self.tradier.orders.order(order.asset.symbol, order.side, order.quantity, order.type, order_class="equity")
-        elif order.asset.asset_type == "option":
-            option_symbol = create_options_symbol(
-                order.asset.symbol,
-                order.asset.expiration,
-                order.asset.right,
-                order.asset.strike,
+            order_response = self.tradier.orders.order(
+                order.asset.symbol, order.side, order.quantity,
+                order_type=order.type,
+                duration=order.time_in_force,
+                limit_price=order.limit_price,
+                stop_price=order.stop_price,
+                tag=tag,
             )
-
+        elif order.asset.asset_type == "option":
             side = order.side
 
             # Convert the side to the Tradier side for options orders if necessary
@@ -134,11 +158,25 @@ class Tradier(Broker):
                 logging.error(f"Invalid order side for Tradier: {side}")
                 return None
 
-            # Place the order
-            self.tradier.orders.order(
-                order.asset.symbol, side, order.quantity, order.type, option_symbol=option_symbol, order_class="option"
+            option_symbol = order.asset.symbol
+            symbol_data = parse_symbol(option_symbol)
+            stock_symbol = symbol_data["stock_symbol"]
+            order_response = self.tradier.orders.order_option(
+                stock_symbol,
+                option_symbol,
+                order.side,
+                order.quantity,
+                order_type=order.type,
+                duration=order.time_in_force,
+                limit_price=order.limit_price,
+                stop_price=order.stop_price,
+                tag=tag,
             )
+        else:
+            raise ValueError(f"Asset type {order.asset.asset_type} not supported by Tradier.")
 
+        order.identifier = order_response["id"]
+        order.status = "submitted"
         return order
 
     def _get_balances_at_broker(self, quote_asset: Asset):
@@ -153,7 +191,7 @@ class Tradier(Broker):
         # Calculate the gross positions value
         positions_value = portfolio_value - cash
 
-        return (cash, positions_value, portfolio_value)
+        return cash, positions_value, portfolio_value
 
     def get_historical_account_value(self):
         pass
@@ -185,6 +223,7 @@ class Tradier(Broker):
             # Check if the asset is an option
             if asset_dict["type"] == "option":
                 # Get the stock symbol
+                option_symbol = symbol
                 stock_symbol = asset_dict["stock_symbol"]
 
                 # Get the strike
@@ -198,7 +237,7 @@ class Tradier(Broker):
 
                 # Create the asset
                 asset = Asset(
-                    symbol=stock_symbol,
+                    symbol=option_symbol,
                     asset_type="option",
                     expiration=expiration,
                     right=right,

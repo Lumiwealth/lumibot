@@ -10,8 +10,9 @@ from threading import Event, Lock, Thread
 from apscheduler.jobstores.memory import MemoryJobStore
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
-from lumibot.tools import append_locals, get_trading_days, staticdecorator
 from termcolor import colored
+
+from lumibot.tools import append_locals, get_trading_days, staticdecorator
 
 
 class StrategyExecutor(Thread):

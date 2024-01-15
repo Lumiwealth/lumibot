@@ -1,10 +1,10 @@
 from datetime import datetime
 
 import pytest
+
 from lumibot.backtesting import PandasDataBacktesting
 from lumibot.strategies.strategy import Strategy
 from lumibot.strategies.strategy_executor import StrategyExecutor
-
 
 # Skip all the tests in this file
 # pytestmark = pytest.mark.skip("all tests still WIP")

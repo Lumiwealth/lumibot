@@ -10,10 +10,11 @@ from threading import RLock, Thread
 import pandas as pd
 import pandas_market_calendars as mcal
 from dateutil import tz
+from termcolor import colored
+
 from lumibot.data_sources import DataSource
 from lumibot.entities import Asset, Order, Position
 from lumibot.trading_builtins import SafeList
-from termcolor import colored
 
 
 class Broker(ABC):

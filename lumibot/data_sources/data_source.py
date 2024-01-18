@@ -312,7 +312,6 @@ class DataSource(ABC):
         """Return dividend per share for a list of
         assets for the day before"""
         result = {}
-        # assets_bars = self.get_historical_prices_for_assets(assets, 1, timestep="day", quote=quote)
         assets_bars = self.get_bars(assets, 1, timestep="day", quote=quote)
         for asset, bars in assets_bars.items():
             if bars is not None:

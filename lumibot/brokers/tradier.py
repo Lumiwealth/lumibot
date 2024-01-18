@@ -163,13 +163,16 @@ class Tradier(Broker):
                 logging.error(f"Invalid order side for Tradier: {side}")
                 return None
 
-            option_symbol = order.asset.symbol
+            option_symbol = create_options_symbol(
+                order.asset.symbol, order.asset.expiration, order.asset.right, order.asset.strike
+            )
+
             symbol_data = parse_symbol(option_symbol)
             stock_symbol = symbol_data["stock_symbol"]
             order_response = self.tradier.orders.order_option(
                 stock_symbol,
                 option_symbol,
-                order.side,
+                side,
                 order.quantity,
                 order_type=order.type,
                 duration=order.time_in_force,

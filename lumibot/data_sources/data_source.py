@@ -249,37 +249,46 @@ class DataSource(ABC):
         length,
         timestep="minute",
         timeshift=None,
-        chunk_size=100,
+        chunk_size=10,
         max_workers=200,
         quote=None,
         exchange=None,
         include_after_hours=True,
     ):
         """Get bars for the list of assets"""
+
+        def process_chunk(chunk):
+            """Process a chunk of assets."""
+            chunk_result = {}
+            for asset in chunk:
+                chunk_result[asset] = self.get_historical_prices(
+                    asset,
+                    length,
+                    timestep=timestep,
+                    timeshift=timeshift,
+                    quote=quote,
+                    exchange=exchange,
+                    include_after_hours=include_after_hours,
+                )
+            return chunk_result
+
+        # Convert strings to Asset objects
         assets = [Asset(symbol=a) if isinstance(a, str) else a for a in assets]
 
-        chunks = get_chunks(assets, chunk_size)
-        with ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix=f"{self.name}_requesting_data") as executor:
-            tasks = []
-            func = lambda args, kwargs: self._pull_source_bars(*args, **kwargs)
-            kwargs = dict(
-                timestep=timestep,
-                timeshift=timeshift,
-                quote=quote,
-                exchange=exchange,
-                include_after_hours=include_after_hours,
-            )
-            kwargs = {k: v for k, v in kwargs.items() if v is not None}
-            for chunk in chunks:
-                tasks.append(executor.submit(func, (chunk, length), kwargs))
+        # Chunking the assets
+        chunks = [assets[i : i + chunk_size] for i in range(0, len(assets), chunk_size)]
 
-            result = {}
-            for task in as_completed(tasks):
-                response = task.result()
-                parsed = self._parse_source_bars(response, quote=quote)
-                result = {**result, **parsed}
+        # Initialize ThreadPoolExecutor
+        results = {}
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Submit tasks
+            futures = [executor.submit(process_chunk, chunk) for chunk in chunks]
 
-        return result
+            # Collect results as they complete
+            for future in as_completed(futures):
+                results.update(future.result())
+
+        return results
 
     def get_last_prices(self, assets, quote=None, exchange=None):
         """Takes a list of assets and returns the last known prices"""

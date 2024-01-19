@@ -10,9 +10,8 @@ from threading import Event, Lock, Thread
 from apscheduler.jobstores.memory import MemoryJobStore
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
-from termcolor import colored
-
 from lumibot.tools import append_locals, get_trading_days, staticdecorator
+from termcolor import colored
 
 
 class StrategyExecutor(Thread):
@@ -632,8 +631,10 @@ class StrategyExecutor(Thread):
                     # Remove the time to close from the strategy sleep time.
                     strategy_sleeptime -= time_to_close
 
-                    # Process expired option contracts.
-                    self.broker.process_expired_option_contracts(self.strategy)
+                    # Check if the broker has a function to process expired option contracts.
+                    if hasattr(self.broker, "process_expired_option_contracts"):
+                        # Process expired option contracts.
+                        self.broker.process_expired_option_contracts(self.strategy)
 
             # TODO: next line speed implication: medium (371 microseconds)
             self.safe_sleep(strategy_sleeptime)

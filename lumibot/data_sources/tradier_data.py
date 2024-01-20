@@ -1,9 +1,11 @@
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
+
+import pytz
+from lumiwealth_tradier import Tradier
 
 from lumibot.entities import Bars
 from lumibot.tools.helpers import create_options_symbol, parse_timestep_qty_and_unit
-from lumiwealth_tradier import Tradier
 
 from .data_source import DataSource
 
@@ -97,8 +99,15 @@ class TradierData(DataSource):
         else:
             symbol = asset.symbol
 
-        # Calculate the end date
         end_date = datetime.now()
+
+        # Use pytz to get the US/Eastern timezone
+        eastern = pytz.timezone("US/Eastern")
+
+        # Convert datetime object to US/Eastern timezone
+        end_date = end_date.astimezone(eastern)
+
+        # Calculate the end date
         if timeshift:
             end_date = end_date - timeshift
 

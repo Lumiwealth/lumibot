@@ -1,6 +1,6 @@
 import datetime
 import logging
-from decimal import ROUND_DOWN, Decimal
+from decimal import ROUND_DOWN, Decimal, getcontext
 
 from termcolor import colored
 
@@ -388,7 +388,10 @@ class Ccxt(Broker):
             factor = 10**new_precision_exp
             precision_amount = Decimal(1) / Decimal(factor)
         else:
-            precision_amount = str(precision["amount"])
+            # Set the precision for the Decimal context
+            getcontext().prec = 8
+            decimal_value = Decimal(precision["amount"])
+            precision_amount = decimal_value.quantize(Decimal('1e-{0}'.format(8)), rounding=ROUND_DOWN)
 
         # Convert the amount to Decimal.
         if hasattr(order, "quantity") and getattr(order, "quantity") is not None:
@@ -683,6 +686,11 @@ class Ccxt(Broker):
             ]
             if order_type_map[order.type] == "limit":
                 args.append(str(order.limit_price))
+                
+            # If coinbase, you need to pass the price even with a market order
+            if broker == "coinbase" and order_type_map[order.type] == "market":
+                price = self.data_source.get_last_price(order.asset, quote=order.quote)
+                args.append(str(price))
 
             if len(params) > 0:
                 args.append(params)

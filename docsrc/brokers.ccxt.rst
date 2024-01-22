@@ -18,6 +18,17 @@ Configuration Settings
 
 Here are the configuration settings for a few common brokers:
 
+Coinbase:
+
+.. code-block:: python
+
+    COINBASE_CONFIG = {
+        "exchange_id": "coinbase",
+        "apiKey": "YOUR_API_KEY",
+        "secret": "YOUR_SECRET_KEY",
+        "sandbox": False,
+    }
+
 Kraken:
 
 .. code-block:: python

@@ -612,6 +612,7 @@ class _Strategy:
         plot_file_html="indicators.html",
         chart_markers_df=None,
         chart_lines_df=None,
+        show_plot=True
     ):
         # Check if we have at least one indicator to plot
         if chart_markers_df is None and chart_lines_df is None:
@@ -623,6 +624,7 @@ class _Strategy:
             chart_markers_df,
             chart_lines_df,
             f"{self._log_strat_name()}Strategy Indicators",
+            show_plot,
         )
 
     def tearsheet(
@@ -1002,6 +1004,7 @@ class _Strategy:
             indicators_file,
             chart_markers_df,
             chart_lines_df,
+            show_plot=show_plot,
         )
         self.tearsheet(
             save_tearsheet=save_tearsheet,

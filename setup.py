@@ -38,7 +38,7 @@ setuptools.setup(
         "ipython",  # required for quantstats, but not in their dependency list for some reason
         "quantstats>=0.0.62",
         "python-dotenv",  # Secret Storage
-        "ccxt==4.1.78",
+        "ccxt==4.2.22",
         "termcolor",
         "jsonpickle",
         "apscheduler==3.10.4",

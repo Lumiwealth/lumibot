@@ -96,23 +96,15 @@ class Ccxt(Broker):
         balances = self._fetch_balance()
 
         currency_key = "currency"
-        if self.api.exchangeId in ["coinbasepro", "kucoin", "kraken", "coinbase"]:
+        if self.api.exchangeId in ["coinbasepro", "kucoin", "kraken", "coinbase","binance"]:
             balances_info = []
-            reserved_keys = ["total", "free", "used", "info", "timestamp", "datetime"]
+            reserved_keys = ["total", "free", "used", "info", "timestamp", "datetime","debt"]
             for key in balances:
                 if key in reserved_keys:
                     continue
                 bal = balances[key]["total"]
                 if Decimal(bal) != Decimal("0"):
                     balances_info.append({"currency": key, "balance": bal})
-
-        # TODO: Test binance and switch it to the way we do it for coinbasepro and others if possible
-        elif self.api.exchangeId == "binance":
-            balances_info = []
-            for bal in balances["info"]["balances"]:
-                if (Decimal(bal["free"]) + Decimal(bal["locked"])) != Decimal("0"):
-                    balances_info.append(bal)
-            currency_key = "asset"
         else:
             raise NotImplementedError(f"{self.api.exchangeId} not implemented yet.")
 
@@ -141,11 +133,7 @@ class Ccxt(Broker):
                 precision_amount = 10**-precision_amount
                 precision_price = 10**-precision_price
 
-            # Binance only has `free` and `locked`.
-            if self.api.exchangeId == "binance":
-                total_balance = Decimal(currency_info["free"]) + Decimal(currency_info["locked"])
-            else:
-                total_balance = currency_info["balance"]
+            total_balance = currency_info["balance"]
 
             units = Decimal(total_balance)
 
@@ -173,8 +161,9 @@ class Ccxt(Broker):
                 f"the total value of the holdings."
             )
 
-        gross_positions_value = float(positions_value) + float(total_cash_value)
-        net_liquidation_value = float(positions_value) + float(total_cash_value)
+        total_cash_value = float(total_cash_value)
+        gross_positions_value = float(positions_value) + total_cash_value
+        net_liquidation_value = float(positions_value) + total_cash_value
 
         return (total_cash_value, gross_positions_value, net_liquidation_value)
 
@@ -182,18 +171,15 @@ class Ccxt(Broker):
         """parse a broker position representation
         into a position object"""
 
+        symbol = position["currency"]
+        hold = position["used"]
+        available = position["free"]
+        quantity = Decimal(position["total"])
+
         if self.api.exchangeId == "binance":
-            symbol = position["asset"]
             precision = str(10 ** -self.api.currencies[symbol]["precision"])
-            quantity = Decimal(position["free"]) + Decimal(position["locked"])
-            hold = position["locked"]
-            available = position["free"]
         else:
-            symbol = position["currency"]
             precision = str(self.api.currencies[symbol]["precision"])
-            quantity = Decimal(position["total"])
-            hold = position["used"]
-            available = position["free"]
 
         asset = Asset(
             symbol=symbol,
@@ -207,16 +193,21 @@ class Ccxt(Broker):
     def _pull_broker_position(self, asset):
         """Given a asset, get the broker representation
         of the corresponding asset"""
-        response = self._pull_broker_positions()["info"][asset.symbol]
-        return response
+
+        position = None
+        if self.api.exchangeId == "binance":
+            for position in self._pull_broker_positions():
+                if position["currency"] == asset.symbol:
+                    return position
+        else:
+            position = self._pull_broker_positions()["info"][asset.symbol]
+        return position
 
     def _pull_broker_positions(self, strategy=None):
         """Get the broker representation of all positions"""
         response = self._fetch_balance()
 
-        if self.api.exchangeId == "binance":
-            return response["info"]["balances"]
-        elif self.api.exchangeId in ["kraken", "kucoin", "coinbasepro", "coinbase"]:
+        if self.api.exchangeId in ["kraken", "kucoin", "coinbasepro", "coinbase","binance"]:
             balances_info = []
             reserved_keys = [
                 "total",
@@ -225,7 +216,8 @@ class Ccxt(Broker):
                 "info",
                 "timestamp",
                 "datetime",
-                strategy.quote_asset.symbol,
+                "debt",
+                strategy.quote_asset.symbol if strategy else None,
             ]
             for key in response:
                 if key in reserved_keys:
@@ -305,6 +297,7 @@ class Ccxt(Broker):
 
     def _pull_broker_closed_orders(self):
         params = {}
+
         if self.is_margin_enabled():
             params["tradeType"] = "MARGIN_TRADE"
 
@@ -331,7 +324,8 @@ class Ccxt(Broker):
             self.fetch_open_orders_last_request_time = datetime.datetime.now()
 
         params = {}
-        if self.is_margin_enabled():
+
+        if self.is_margin_enabled() and self.api.exchangeId != "binance":
             params["tradeType"] = "MARGIN_TRADE"
 
         orders = self.api.fetch_open_orders(params=params)
@@ -342,6 +336,10 @@ class Ccxt(Broker):
         _flatten_order returns a list containing the main order
         and all the derived ones"""
         orders = [order]
+
+        if self.api.exchangeId == "binance":
+            return orders
+
         if "legs" in order._raw and order._raw.legs:
             strategy_name = order.strategy
             for json_sub_order in order._raw.legs:
@@ -377,7 +375,7 @@ class Ccxt(Broker):
         limits = market["limits"]
         precision = market["precision"]
         if self.api.exchangeId in ["binance", "kucoin"]:
-            precision_amount = str(10 ** -precision["amount"])
+            precision_amount = Decimal(str(10 ** -precision["amount"]))
         elif self.api.exchangeId == "kraken":
             initial_precision_amount = Decimal(str(precision["amount"]))
 
@@ -501,7 +499,8 @@ class Ccxt(Broker):
         args = self.create_order_args(order)
 
         params = {}
-        if self.is_margin_enabled():
+
+        if self.is_margin_enabled() and self.api.exchangeId != "binance":
             params["tradeType"] = "MARGIN_TRADE"
 
         # if self.api.exchangeId == "coinbase" and order.type == "market":
@@ -706,9 +705,14 @@ class Ccxt(Broker):
 
     def cancel_order(self, order):
         """Cancel an order"""
-        response = self.api.cancel_order(order.identifier, order.symbol)
-        if order.identifier == response:
-            order.set_canceled()
+        if self.api.exchangeId == "binance":
+            response = self.api.cancel_order(order.identifier, order.pair)
+            if order.identifier == response["id"]:
+                order.set_canceled()
+        else:
+            response = self.api.cancel_order(order.identifier, order.symbol)
+            if order.identifier == response:
+                order.set_canceled()
 
     def cancel_open_orders(self, strategy):
         """Cancel all open orders at the broker."""

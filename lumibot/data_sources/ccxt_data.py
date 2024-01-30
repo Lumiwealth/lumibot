@@ -5,6 +5,7 @@ import time
 import ccxt
 import pandas as pd
 
+from lumibot import LUMIBOT_DEFAULT_PYTZ, LUMIBOT_DEFAULT_TIMEZONE
 from lumibot.entities import Asset, Bars
 
 from .data_source import DataSource
@@ -138,12 +139,18 @@ class CcxtData(DataSource):
         if end is None:
             end = datetime.datetime.utcnow()
 
-        endunix = self.api.parse8601(end.strftime("%Y-%m-%d %H:%M:%S"))
         buffer = 10  # A few extra datapoints in the download then trim the df.
         if freq == "1m":
+            dt = end.replace(second=59, microsecond=999999)
+            end = dt - datetime.timedelta(minutes=1)
             start = end - datetime.timedelta(minutes=limit + buffer)
         else:
+            dt = end.replace(hour=23, minute=59, second=59, microsecond=999999)
+            end = dt - datetime.timedelta(days=1)
             start = end - datetime.timedelta(days=limit + buffer)
+
+        endunix = self.api.parse8601(end.strftime("%Y-%m-%d %H:%M:%S"))
+
         df_ret = None
         curr_start = self.api.parse8601(start.strftime("%Y-%m-%d %H:%M:%S"))
         cnt = 0
@@ -159,6 +166,10 @@ class CcxtData(DataSource):
             df = pd.DataFrame(candles, columns=["datetime", "open", "high", "low", "close", "volume"])
             df["datetime"] = pd.to_datetime(df["datetime"], unit="ms")
             df = df.set_index("datetime")
+            if df.index.tzinfo is None:
+                df.index = df.index.tz_localize(LUMIBOT_DEFAULT_PYTZ)
+            else:
+                df.index = df.index.tz_convert(LUMIBOT_DEFAULT_PYTZ)
 
             if df_ret is None:
                 df_ret = df
@@ -200,7 +211,7 @@ class CcxtData(DataSource):
 
     def _parse_source_symbol_bars(self, response, asset, quote=None, length=None):
         # Parse the dataframe returned from CCXT.
-        response["return"] = response["close"].pct_change()
+        response[:,"return"] = response["close"].pct_change()
         bars = Bars(response, self.SOURCE, asset, quote=quote, raw=response)
         return bars
 

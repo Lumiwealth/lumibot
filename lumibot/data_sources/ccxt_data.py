@@ -205,6 +205,7 @@ class CcxtData(DataSource):
             if cnt > 500:
                 break
 
+        end = self.to_default_timezone(end)
         df_ret = df_ret[~df_ret.index.duplicated(keep="first")]
         df_ret = df_ret.loc[:end]
         df_ret = df_ret.iloc[-limit:]

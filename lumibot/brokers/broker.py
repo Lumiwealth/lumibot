@@ -113,6 +113,8 @@ class Broker(ABC):
         """
         pass
 
+    # =========Streaming functions=======================
+
     @abstractmethod
     def _get_stream_object(self):
         """
@@ -166,6 +168,7 @@ class Broker(ABC):
         pass
 
     # =========Market functions=======================
+
     def get_last_price(self, asset: Asset, quote=None, exchange=None) -> float:
         """
         Takes an asset and returns the last known price

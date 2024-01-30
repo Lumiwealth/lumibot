@@ -244,6 +244,9 @@ class Order:
         self.custom_params = custom_params
         self._trail_stop_price = None
         self.tag = tag
+        self.avg_fill_price = 0.0  # The weighted average filled price for this order. Calculated if not given by broker
+        self.broker_create_date = None  # The datetime the order was created by the broker
+        self.broker_update_date = None  # The datetime the order was last updated by the broker
 
         # Options:
         self.exchange = exchange
@@ -476,6 +479,14 @@ class Order:
         elif self.type == "stop_limit":
             self.limit_price = check_price(limit_price, "limit_price must be positive float.")
             self.stop_price = check_price(stop_price, "stop_price must be positive float.")
+
+    @property
+    def avg_fill_price(self):
+        return self._avg_fill_price
+
+    @avg_fill_price.setter
+    def avg_fill_price(self, value):
+        self._avg_fill_price = round(float(value), 2) if value else 0.0
 
     @property
     def status(self):

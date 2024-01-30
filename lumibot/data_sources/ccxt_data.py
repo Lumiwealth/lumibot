@@ -153,6 +153,8 @@ class CcxtData(DataSource):
 
         df_ret = None
         curr_start = self.api.parse8601(start.strftime("%Y-%m-%d %H:%M:%S"))
+        curr_start = curr_start if curr_start > 0 else 0
+
         cnt = 0
         last_curr_end = None
         # loop_limit = 300 if limit > 300 else limit

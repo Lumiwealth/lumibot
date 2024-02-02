@@ -208,6 +208,11 @@ def plot_indicators(
     strategy_name=None,
     show_plot=True,
 ):
+    # If show plot is False, then we don't want to open the plot in the browser
+    if not show_plot:
+        print("show_plot is False, not creating the plot file.")
+        return
+
     print("\nCreating indicators plot...")
 
     fig = make_subplots(specs=[[{"secondary_y": True}]])
@@ -345,6 +350,11 @@ def plot_returns(
     # chart_markers_df=None,
     # chart_lines_df=None,
 ):
+    # If show plot is False, then we don't want to open the plot in the browser
+    if not show_plot:
+        print("show_plot is False, not creating the plot file.")
+        return
+
     print("\nCreating trades plot...")
 
     dfs_concat = []
@@ -628,6 +638,11 @@ def create_tearsheet(
     show_tearsheet: bool,
     risk_free_rate: float,
 ):
+    # If show tearsheet is False, then we don't want to open the tearsheet in the browser
+    if not show_tearsheet:
+        print("show_tearsheet is False, not creating the tearsheet file.")
+        return
+
     print("\nCreating tearsheet...")
 
     # Check if df1 or df2 are empty and return if they are

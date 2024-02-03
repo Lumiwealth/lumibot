@@ -10,6 +10,20 @@ from lumibot.tools.types import check_positive, check_price, check_quantity
 SELL = "sell"
 BUY = "buy"
 
+VALID_STATUS = ["unprocessed", "new", "open", "submitted", "fill", "partial_fill", "canceled", "error", "cash_settled"]
+STATUS_ALIAS_MAP = {
+    "cancelled": "canceled",
+    "cancel": "canceled",
+    "cash": "cash_settled",
+    "expired": "canceled",  # Tradier status
+    "filled": "fill",
+    "partially_filled": "partial_filled",  # Tradier status
+    "pending": "open",  # Tradier status
+    "presubmitted": "new",  # IBKR status
+    "rejected": "error",  # Tradier status
+    "submit": "submitted"
+}
+
 
 class Order:
     Transaction = namedtuple("Transaction", ["quantity", "price"])
@@ -265,7 +279,7 @@ class Order:
         self._raw = None
         self._transmitted = False
         self._error = None
-        self._error_message = None
+        self.error_message = None
 
         self.quantity = quantity
 
@@ -495,7 +509,12 @@ class Order:
     @status.setter
     def status(self, value):
         if value and isinstance(value, str):
-            self._status = value
+            if value.lower() in VALID_STATUS:
+                self._status = value.lower()
+            elif value.lower() in STATUS_ALIAS_MAP:
+                self._status = STATUS_ALIAS_MAP[value.lower()]
+            else:
+                raise ValueError(f"Invalid status: {value}")
 
     @property
     def quantity(self):
@@ -630,14 +649,28 @@ class Order:
         else:
             return False
 
+    def equivalent_status(self, status) -> bool:
+        """Returns if the status is equivalent to the order status."""
+        status = status.status if isinstance(status, Order) else status
+
+        if not status:
+            return False
+        elif self.status.lower() in [status.lower(), STATUS_ALIAS_MAP.get(status.lower(), "")]:
+            return True
+        # open/new status is equivalent
+        elif {self.status.lower(), status.lower()}.issubset({"open", "new"}):
+            return True
+        else:
+            return False
+
     def set_error(self, error):
         self.status = "error"
         self._error = error
-        self._error_message = str(error)
+        self.error_message = str(error)
         self._closed_event.set()
 
     def was_transmitted(self):
-        return self._transmitted is True
+        return self._transmitted
 
     def update_raw(self, raw):
         if raw is not None:

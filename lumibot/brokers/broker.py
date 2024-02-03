@@ -27,6 +27,7 @@ class Broker(ABC):
     FILLED_ORDER = "fill"
     PARTIALLY_FILLED_ORDER = "partial_fill"
     CASH_SETTLED = "cash_settled"
+    ERROR_ORDER = "error"
 
     def __init__(self, name="", connect_stream=True, data_source: DataSource = None, config=None, max_workers=20):
         """Broker constructor"""
@@ -416,6 +417,7 @@ class Broker(ABC):
     def _process_canceled_order(self, order):
         logging.info("%r was canceled." % order)
         self._new_orders.remove(order.identifier, key="identifier")
+        self._unprocessed_orders.remove(order.identifier, key="identifier")
         self._partially_filled_orders.remove(order.identifier, key="identifier")
         order.status = self.CANCELED_ORDER
         order.set_canceled()
@@ -662,9 +664,9 @@ class Broker(ABC):
                 return position
         return None
 
-    def get_tracked_positions(self, strategy):
+    def get_tracked_positions(self, strategy=None):
         """get all tracked positions for a given strategy"""
-        result = [position for position in self._filled_positions if position.strategy == strategy]
+        result = [position for position in self._filled_positions if strategy is None or position.strategy == strategy]
         return result
 
     # =========Orders and assets functions=================
@@ -676,14 +678,29 @@ class Broker(ABC):
                 return order
         return None
 
-    def get_tracked_orders(self, strategy, asset=None):
+    def get_tracked_orders(self, strategy=None, asset=None) -> list[Order]:
         """get all tracked orders for a given strategy"""
         result = []
         for order in self._tracked_orders:
-            if order.strategy == strategy and (asset is None or order.asset == asset):
+            if (strategy is None or order.strategy == strategy) and (asset is None or order.asset == asset):
                 result.append(order)
 
         return result
+
+    def get_all_orders(self) -> list[Order]:
+        """get all tracked and completed orders"""
+        orders = list(self._tracked_orders + self._canceled_orders)
+        positions = self._filled_positions
+        for pos in positions:
+            orders += pos.orders
+        return orders
+
+    def get_order(self, identifier) -> Order:
+        """get a tracked order given an identifier"""
+        for order in self.get_all_orders():
+            if order.identifier == identifier:
+                return order
+        return None
 
     def get_tracked_assets(self, strategy):
         """Get the list of assets for positions
@@ -843,14 +860,16 @@ class Broker(ABC):
         new order event"""
         payload = dict(order=order)
         subscriber = self._get_subscriber(order.strategy)
-        subscriber.add_event(subscriber.NEW_ORDER, payload)
+        if subscriber:
+            subscriber.add_event(subscriber.NEW_ORDER, payload)
 
     def _on_canceled_order(self, order):
         """notify relevant subscriber/strategy about
         canceled order event"""
         payload = dict(order=order)
         subscriber = self._get_subscriber(order.strategy)
-        subscriber.add_event(subscriber.CANCELED_ORDER, payload)
+        if subscriber:
+            subscriber.add_event(subscriber.CANCELED_ORDER, payload)
 
     def _on_partially_filled_order(self, position, order, price, quantity, multiplier):
         """notify relevant subscriber/strategy about
@@ -863,7 +882,8 @@ class Broker(ABC):
             multiplier=multiplier,
         )
         subscriber = self._get_subscriber(order.strategy)
-        subscriber.add_event(subscriber.PARTIALLY_FILLED_ORDER, payload)
+        if subscriber:
+            subscriber.add_event(subscriber.PARTIALLY_FILLED_ORDER, payload)
 
     def _on_filled_order(self, position, order, price, quantity, multiplier):
         """notify relevant subscriber/strategy about
@@ -876,7 +896,8 @@ class Broker(ABC):
             multiplier=multiplier,
         )
         subscriber = self._get_subscriber(order.strategy)
-        subscriber.add_event(subscriber.FILLED_ORDER, payload)
+        if subscriber:
+            subscriber.add_event(subscriber.FILLED_ORDER, payload)
 
     # ==========Processing streams data=======================
 

@@ -4,7 +4,7 @@ import traceback
 from lumibot.brokers import Broker
 from lumibot.data_sources.tradier_data import TradierData
 from lumibot.entities import Asset, Order, Position
-from lumibot.tools.helpers import create_options_symbol, parse_symbol
+from lumibot.tools.helpers import create_options_symbol
 from lumibot.trading_builtins import PollingStream
 from lumiwealth_tradier import Tradier as _Tradier
 
@@ -155,6 +155,8 @@ class Tradier(Broker):
 
         order.identifier = order_response["id"]
         order.status = "submitted"
+        order.update_raw(order_response)  # This marks order as 'transmitted'
+        self._unprocessed_orders.append(order)
         return order
 
     def _get_balances_at_broker(self, quote_asset: Asset):
@@ -176,52 +178,14 @@ class Tradier(Broker):
 
     def _pull_positions(self, strategy):
         positions_df = self.tradier.account.get_positions()
-
         positions_ret = []
+
         # Loop through each row in the dataframe
         for _, row in positions_df.iterrows():
-            # Get the symbol
+            # Get the symbol/quantity and create the position asset
             symbol = row["symbol"]
-
-            # Get the quantity
             quantity = row["quantity"]
-
-            # Parse the symbol
-            asset_dict = parse_symbol(symbol)
-
-            # Check if the asset is an option
-            if asset_dict["type"] == "option":
-                # Get the stock symbol
-                stock_symbol = asset_dict["stock_symbol"]
-
-                # Get the strike
-                strike = asset_dict["strike_price"]
-
-                # Get the right
-                right = asset_dict["option_type"]
-
-                # Get the expiration
-                expiration = asset_dict["expiration_date"]
-
-                # Create the asset
-                asset = Asset(
-                    symbol=stock_symbol,
-                    asset_type="option",
-                    expiration=expiration,
-                    right=right,
-                    strike=strike,
-                )
-
-            # Otherwise, it's a stock
-            else:
-                # Get the stock symbol
-                stock_symbol = symbol
-
-                # Create the asset
-                asset = Asset(
-                    symbol=stock_symbol,
-                    asset_type="stock",
-                )
+            asset = Asset.symbol2asset(symbol)  # Parse the symbol. Handles 'stock' and 'option' types
 
             # Create the position
             position = Position(
@@ -229,9 +193,7 @@ class Tradier(Broker):
                 asset=asset,
                 quantity=quantity,
             )
-
-            # Add the position to the list
-            positions_ret.append(position)
+            positions_ret.append(position)  # Add the position to the list
 
         return positions_ret
 
@@ -251,27 +213,36 @@ class Tradier(Broker):
         Parse a broker order representation to a Lumi order object. Once the Lumi order has been created, it will
         be dispatched to our "stream" queue for processing until a time when Live Streaming can be implemented.
 
+        Tradier API Documentation:
+        https://documentation.tradier.com/brokerage-api/reference/response/orders
+
         :param response: The output from TradierAPI call returned _by pull_broker_order()
         :param strategy_name: The name of the strategy that placed the order
         :param strategy_object: The strategy object that placed the order
         """
-        asset = Asset(
-            symbol=response["symbol"],
-            asset_type=response["class"],
-            expiration=response["expiration_date"],
-            right=response["option_type"],
-            strike=response["strike_price"],
-        )
+        strategy_name = strategy_name if strategy_name else strategy_object.name if strategy_object else response["tag"]
+
+        # Parse the symbol
+        symbol = response["symbol"]
+        option_symbol = response["option_symbol"] if "option_symbol" in response and response["option_symbol"] else None
+        asset = Asset.symbol2asset(option_symbol) if option_symbol else Asset.symbol2asset(symbol)
+
+        # Create the order object
         order = Order(
+            identifier=response["id"],
             strategy=strategy_name,
             asset=asset,
+            side=self._tradier_side2lumi(response["side"]),
+            quantity=response["quantity"],
+            type=response["type"],
+            time_in_force=response["duration"],
+            limit_price=response["price"] if "price" in response and response["price"] else None,
+            stop_price=response["stop_price"] if "stop_price" in response and response["stop_price"] else None,
+            tag=response["tag"] if "tag" in response and response["tag"] else None,
+            date_created=response["create_date"],
         )
-
-        # There has been an update to this order's status or quantity, to send it to the queue for processing
-        self.stream.dispatch(
-
-            order=order,
-        )
+        order.status = response["status"]
+        order.update_raw(response)  # This marks order as 'transmitted'
         return order
 
     def _pull_broker_order(self, identifier):
@@ -291,7 +262,7 @@ class Tradier(Broker):
         calling parse_broker_order() on the dictionary. Parsing the order will also dispatch it to the stream for
         processing.
         """
-        df = self.tradier.orders.get_orders().to_dict('records')
+        df = self.tradier.orders.get_orders()
         df_open = df[df['status'].isin(['open', 'partially_filled', 'pending'])]
         return df_open.to_dict('records')
 
@@ -348,6 +319,65 @@ class Tradier(Broker):
 
     # ==========Processing streams data=======================
 
+    def do_polling(self):
+        """
+        This function is called every time the broker polls for new orders. It checks for new orders and
+        dispatches them to the stream for processing.
+        """
+        # Get current orders from the broker and dispatch them to the stream for processing. Need to see all
+        # lumi orders (not just active "tracked" ones) to catch any orders that might have changed final
+        # status in Tradier.
+        df_orders = self.tradier.orders.get_orders()
+        stored_orders = {x.identifier: x for x in self.get_all_orders()}
+        for order_row in df_orders.to_dict('records'):
+            order = self._parse_broker_order(order_row, strategy_name=order_row['tag'])
+
+            # First time seeing this order, something weird has happened, dispatch it as a new order
+            if order.identifier not in stored_orders:
+                logging.info(f"Poll Update: Tradier has order {order}, but Lumibot doesn't know about it. "
+                             f"Adding it as a new order.")
+                # If the Tradier status is not "open", the next polling cycle will catch it and dispatch it as needed.
+                self.stream.dispatch(self.NEW_ORDER, order=order)
+            else:
+                stored_order = stored_orders[order.identifier]
+
+                # Status has changed since last time we saw it, dispatch the new status.
+                #  - Polling methods are unable to track partial fills
+                #     - Parti
+                #     al fills often happen quickly and it is highly likely that polling will miss some of them
+                #     - Only dispatch filled orders if they are completely filled.
+                if not order.equivalent_status(stored_order):
+                    match order.status.lower():
+                        case "submitted" | "open":
+                            self.stream.dispatch(self.NEW_ORDER, order=stored_order)
+                        case "partial_filled":
+                            # Not handled for polling, only dispatch completely filled orders
+                            pass
+                        case "fill":
+                            fill_price = order_row['avg_fill_price']
+                            fill_qty = order_row['exec_quantity'] if 'exec_quantity' in order_row else order.quantity
+                            self.stream.dispatch(self.FILLED_ORDER, order=stored_order, price=fill_price,
+                                                 filled_quantity=fill_qty)
+                        case "canceled":
+                            self.stream.dispatch(self.CANCELED_ORDER, order=stored_order)
+                        case "error":
+                            default_msg = f"Tradier encountered an error with order {order.identifier} | {order}"
+                            msg = order_row['reason_description'] if 'reason_description' in order_row else default_msg
+                            self.stream.dispatch(self.ERROR_ORDER, order=stored_order, error_msg=msg)
+                        case "cash_settled":
+                            # Don't know how to detect this case in Tradier.
+                            # Reference: https://documentation.tradier.com/brokerage-api/reference/response/orders
+                            pass
+
+        # See if there are any tracked (aka active) orders that are no longer in the broker's list,
+        # dispatch them as cancelled
+        tracked_orders = {x.identifier: x for x in self.get_tracked_orders()}
+        for order_id, order in tracked_orders.items():
+            if order_id not in df_orders['id'].values:
+                logging.info(f"Poll Update: Tradier no longer has order {order}, but Lumibot does. "
+                             f"Dispatching as cancelled.")
+                self.stream.dispatch(self.CANCELED_ORDER, order=order)
+
     def _get_stream_object(self):
         """get the broker stream connection"""
         stream = PollingStream(self.polling_interval)
@@ -360,8 +390,7 @@ class Tradier(Broker):
 
         @broker.stream.add_action(broker.POLL_EVENT)
         def on_trade_event_poll():
-            # Get current orders from the broker and dispatch them to the stream for processing
-            pass
+            self.do_polling()
 
         @broker.stream.add_action(broker.NEW_ORDER)
         def on_trade_event_new(order):
@@ -395,12 +424,11 @@ class Tradier(Broker):
                     order,
                     broker.CANCELED_ORDER,
                 )
-                return True
             except:
                 logging.error(traceback.format_exc())
 
         @broker.stream.add_action(broker.CASH_SETTLED)
-        def on_trade_event(order, price, filled_quantity):
+        def on_trade_event_cash(order, price, filled_quantity):
             try:
                 broker._process_trade_event(
                     order,
@@ -409,7 +437,18 @@ class Tradier(Broker):
                     filled_quantity=filled_quantity,
                     multiplier=order.asset.multiplier,
                 )
-                return True
+            except:
+                logging.error(traceback.format_exc())
+
+        @broker.stream.add_action(broker.ERROR_ORDER)
+        def on_trade_event_error(order, error_msg):
+            try:
+                broker._process_trade_event(
+                    order,
+                    broker.CANCELED_ORDER,
+                )
+                logging.error(f"Error processing order {order}: {error_msg}")
+                order.set_error(error_msg)
             except:
                 logging.error(traceback.format_exc())
 

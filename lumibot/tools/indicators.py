@@ -2,19 +2,14 @@ import logging
 import math
 import os
 import webbrowser
-from datetime import datetime, timedelta
+from datetime import datetime
 from decimal import Decimal
 
-import numpy as np
 import pandas as pd
-import plotly.express as px
 import plotly.graph_objects as go
 import quantstats as qs
 from plotly.subplots import make_subplots
 
-# import lumibot.data_sources.alpha_vantage as av
-from lumibot import LUMIBOT_DEFAULT_PYTZ
-from lumibot.entities.asset import Asset
 from lumibot.tools import to_datetime_aware
 
 from .yahoo_helper import YahooHelper as yh
@@ -678,7 +673,7 @@ def create_tearsheet(
     strat_name: str,
     tearsheet_file: str,
     benchmark_df: pd.DataFrame,
-    benchmark_asset: Asset,
+    benchmark_asset,  # This is causing a circular import: Asset,
     show_tearsheet: bool,
     risk_free_rate: float,
 ):

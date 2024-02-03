@@ -57,6 +57,19 @@ def test_instances_equal():
     assert a == b
 
 
+def test_symbol2asset():
+    asset = Asset.symbol2asset("ABC")
+    assert asset.symbol == "ABC"
+    assert asset.asset_type == "stock"
+
+    asset = Asset.symbol2asset("ABC200101C00150000")
+    assert asset.symbol == "ABC"
+    assert asset.asset_type == "option"
+    assert asset.expiration == datetime.date(2020, 1, 1)
+    assert asset.strike == 150
+    assert asset.right == "CALL"
+
+
 @pytest.mark.parametrize("param", ["not_call_or_CALL", "not_put_or_PUT", "CALLS", "PUTS"])
 def test_right_validator(param):
     with pytest.raises(Exception):

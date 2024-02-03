@@ -76,4 +76,3 @@ class PollingStream(CustomStream):
             raise ValueError("No action is defined for the poll event. You must register a polling action with "
                              "add_action()")
         self._process_queue_event(self.POLL_EVENT, {})
-        raise NotImplementedError

@@ -14,11 +14,9 @@ class Tradier(Broker):
     Broker that connects to Tradier API to place orders and retrieve data. Tradier API only supports Order streaming
     for live accounts, paper trading accounts must use a 'polling' method to retrieve order updates. This class will
     still use a CustomStream object to process order updates (which can be confusing!), but this will more seamlessly
-    match what other LumiBrokers are doing without requiring changes to the stategy_executor. The CustomStream object
-    will be used to process order updates from the broker when the 'parse_broker_order' function is called, which
-    works because the strategy_executor calls sync_broker() for the start of every trading iteration. This
+    match what other LumiBrokers are doing without requiring changes to the stategy_executor. This
     polling method will also work for Live accounts, so it will be used by default. However, future updates will be
-    made to natively support streaming for Live accounts.
+    made to natively support websocket streaming for Live accounts.
     """
     POLL_EVENT = PollingStream.POLL_EVENT
 
@@ -31,7 +29,7 @@ class Tradier(Broker):
         max_workers=20,
         connect_stream=True,
         data_source=None,
-        polling_interval=10.0,
+        polling_interval=5.0,
     ):
         # Check if the user provided both config file and keys
         if (access_token is not None or account_number is not None or paper is not None) and config is not None:
@@ -343,8 +341,9 @@ class Tradier(Broker):
 
                 # Status has changed since last time we saw it, dispatch the new status.
                 #  - Polling methods are unable to track partial fills
-                #     - Parti
-                #     al fills often happen quickly and it is highly likely that polling will miss some of them
+                #     - Partial fills often happen quickly and it is highly likely that polling will miss some of them
+                #     - Additionally, Lumi Order objects don't have a way to track quantity status changes and
+                #        adjusting the average sell price can be tricky
                 #     - Only dispatch filled orders if they are completely filled.
                 if not order.equivalent_status(stored_order):
                     match order.status.lower():
@@ -367,6 +366,9 @@ class Tradier(Broker):
                         case "cash_settled":
                             # Don't know how to detect this case in Tradier.
                             # Reference: https://documentation.tradier.com/brokerage-api/reference/response/orders
+                            # Theory:
+                            #  - Tradier will auto settle and create a new fill order for cash settled orders. Needs
+                            #    testing to confirm.
                             pass
 
         # See if there are any tracked (aka active) orders that are no longer in the broker's list,

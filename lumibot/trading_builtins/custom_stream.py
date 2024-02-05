@@ -34,9 +34,7 @@ class CustomStream:
             action(**payload)
 
     def run(self, name):
-        # Threads are spawned by the broker._launch_stream() code, not needed here.
-        # thread = Thread(target=self._run, daemon=True, name=name)
-        # thread.start()
+        # Threads are spawned by the broker._launch_stream() code
         self._run()
 
 
@@ -49,7 +47,7 @@ class PollingStream(CustomStream):
     """
     POLL_EVENT = "poll"
 
-    def __init__(self, polling_interval=10.0):
+    def __init__(self, polling_interval=5.0):
         """
         Parameters
         ----------

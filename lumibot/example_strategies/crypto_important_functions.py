@@ -4,7 +4,6 @@ from lumibot.brokers import Ccxt
 from lumibot.entities import Asset
 from lumibot.strategies.strategy import Strategy
 from lumibot.traders import Trader
-import pandas_ta 
 
 
 class ImportantFunctions(Strategy):

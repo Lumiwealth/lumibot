@@ -1,5 +1,8 @@
+import logging
 from collections import UserDict
 from datetime import date, datetime
+
+from lumibot.tools import parse_symbol
 
 
 class Asset:
@@ -154,6 +157,40 @@ class Asset:
 
         self.asset_type_must_be_one_of(self.asset_type)
         self.right_must_be_one_of(self.right)
+
+    @classmethod
+    def symbol2asset(cls, symbol: str):
+        """
+        Convert a symbol string to an Asset object. This is particularly useful for converting option symbols.
+
+        Parameters
+        ----------
+        symbol : str
+            The symbol string to convert.
+
+        Returns
+        -------
+        Asset
+            The Asset object.
+        """
+        if not symbol:
+            raise ValueError("Cannot convert an empty symbol to an Asset object.")
+
+        symbol_info = parse_symbol(symbol)
+        if symbol_info["type"] == "option":
+            return Asset(
+                symbol=symbol_info["stock_symbol"],
+                asset_type="option",
+                expiration=symbol_info["expiration_date"],
+                strike=symbol_info["strike_price"],
+                right=symbol_info["option_type"],
+            )
+        elif symbol_info["type"] == "stock":
+            return Asset(symbol=symbol, asset_type="stock")
+        else:
+            # TODO: Handle Crypto and Forex Symbols
+            logging.info(f"Unknown symbol asset type {symbol_info['type']}, defaulting to stock.")
+            return Asset(symbol=symbol)
 
     def __hash__(self):
         return hash((self.symbol, self.asset_type, self.expiration, self.strike, self.right))

@@ -1,7 +1,7 @@
 import os
 import re
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import pandas_market_calendars as mcal
 from termcolor import colored
@@ -13,7 +13,7 @@ import pandas as pd
 def get_chunks(l, chunk_size):
     chunks = []
     for i in range(0, len(l), chunk_size):
-        chunks.append(l[i : i + chunk_size])
+        chunks.append(l[i: i + chunk_size])
     return chunks
 
 
@@ -154,6 +154,7 @@ def parse_symbol(symbol):
     For options, extract and return the stock symbol, expiration date (as a datetime.date object),
     type (call or put), and strike price.
     For stocks, simply return the stock symbol.
+    TODO: Crypto and Forex support
     """
     # Pattern to match the option symbol format
     option_pattern = r"([A-Z]+)(\d{6})([CP])(\d+)"
@@ -168,7 +169,7 @@ def parse_symbol(symbol):
             "stock_symbol": stock_symbol,
             "expiration_date": expiration_date,
             "option_type": option_type,
-            "strike_price": float(strike_price) / 1000,  # assuming strike price is in thousandths
+            "strike_price": round(float(strike_price) / 1000, 3),  # assuming strike price is in thousandths
         }
     else:
         return {"type": "stock", "stock_symbol": symbol}

@@ -45,8 +45,8 @@ def get_trading_days(market="NYSE", start_date="1950-01-01", end_date=None):
         market_open = pd.date_range(
             start=start_date, end=end_date or today).to_frame(index=False,name="market_open")
         market_close = pd.date_range(
-            start=start_date.replace(hour=23,minute=59,second=59,microsecond=9999), 
-            end=end_date or today.replace(hour=23,minute=59,second=59,microsecond=9999)).to_frame(index=False,name="market_close")
+            start=start_date.replace(hour=23,minute=59,second=59,microsecond=999999), 
+            end=end_date or today.replace(hour=23,minute=59,second=59,microsecond=999999)).to_frame(index=False,name="market_close")
         index = pd.date_range(
             start=start_date.replace(tzinfo=None), end=end_date or today.replace(tzinfo=None))
         days = pd.concat([market_open, market_close], axis=1)

@@ -15,13 +15,25 @@ STATUS_ALIAS_MAP = {
     "cancelled": "canceled",
     "cancel": "canceled",
     "cash": "cash_settled",
-    "expired": "canceled",  # Tradier status
-    "filled": "fill",
-    "partially_filled": "partial_filled",  # Tradier status
+    "expired": "canceled",  # Alpaca/Tradier status
+    "filled": "fill",  # Alpaca/Tradier status
+    "partially_filled": "partial_filled",  # Alpaca/Tradier status
     "pending": "open",  # Tradier status
     "presubmitted": "new",  # IBKR status
     "rejected": "error",  # Tradier status
-    "submit": "submitted"
+    "submit": "submitted",
+    "done_for_day": "canceled",  # Alpaca status
+    "replaced": "canceled",  # Alpaca status
+    "stopped": "canceled",  # Alpaca status
+    "suspended": "canceled",  # Alpaca status
+    "pending_cancel": "canceled",  # Alpaca status
+    "pending_new": "new",  # Alpaca status
+    "pending_replace": "canceled",  # Alpaca status
+    "pending_review": "open",  # Alpaca status
+    "accepted": "open",  # Alpaca status
+    "calculated": "open",  # Alpaca status
+    "accepted_for_bidding": "open",  # Alpaca status
+    "held": "open",  # Alpaca status
 }
 
 

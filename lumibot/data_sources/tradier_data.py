@@ -2,6 +2,7 @@ import logging
 from collections import defaultdict
 from datetime import datetime
 
+import pandas as pd
 import pytz
 from entities import Asset
 
@@ -94,7 +95,7 @@ class TradierData(DataSource):
                             Use 'Chains' for new format.
         """
         df_chains = self.tradier.market.get_option_expirations(asset.symbol)
-        if not df_chains or df_chains.empty:
+        if not isinstance(df_chains, pd.DataFrame) or df_chains.empty:
             raise LookupError(f"Could not find Tradier option chains for {asset.symbol}")
 
         # Tradier doesn't report multiple exchanges, just use SMART

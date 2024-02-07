@@ -7,6 +7,7 @@ from decimal import Decimal
 
 import jsonpickle
 import pandas as pd
+
 from lumibot.backtesting import BacktestingBroker, PolygonDataBacktesting
 from lumibot.entities import Asset, Position
 from lumibot.tools import (
@@ -611,7 +612,7 @@ class _Strategy:
         plot_file_html="indicators.html",
         chart_markers_df=None,
         chart_lines_df=None,
-        show_plot=True
+        show_plot=True,
         show_indicators=True,
     ):
         # Check if we have at least one indicator to plot

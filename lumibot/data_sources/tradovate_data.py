@@ -1,3 +1,5 @@
+from lumibot.entities import Asset
+
 from .data_source import DataSource
 
 
@@ -43,6 +45,9 @@ class TradovateData(DataSource):
     def get_barset_from_api(
         self, api, asset, freq, limit=None, end=None, start=None, quote=None
     ):
+        pass
+
+    def get_chains(self, asset: Asset, quote: Asset=None, exchange=None):
         pass
 
     def get_historical_prices(

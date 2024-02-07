@@ -1,4 +1,5 @@
 import logging
+from collections import defaultdict
 from datetime import date, timedelta
 
 import pandas as pd
@@ -327,7 +328,7 @@ class PandasData(DataSourceBacktesting):
         pass
 
     # =======Options methods.=================
-    def get_chains(self, asset):
+    def get_chains(self, asset: Asset, quote: Asset = None, exchange: str = None):
         """Returns option chains.
 
         Obtains option chain information for the asset (stock) from each
@@ -339,6 +340,10 @@ class PandasData(DataSourceBacktesting):
         asset : Asset object
             The stock whose option chain is being fetched. Represented
             as an asset object.
+        quote : Asset object, optional
+            The quote asset. Default is None.
+        exchange : str, optional
+            The exchange to fetch the option chains from. For PandasData, will only use "SMART".
 
         Returns
         -------
@@ -353,21 +358,23 @@ class PandasData(DataSourceBacktesting):
         smart = dict(
             TradingClass=asset.symbol,
             Multiplier=100,
+            Expirations=[],
+            Strikes=[],
+            Chains={"CALL": defaultdict(list), "PUT": defaultdict(list)},
         )
 
-        expirations = []
-        strikes = []
         for store_item, data in self._data_store.items():
             store_asset = store_item[0]
             if store_asset.asset_type != "option":
                 continue
             if store_asset.symbol != asset.symbol:
                 continue
-            expirations.append(store_asset.expiration)
-            strikes.append(store_asset.strike)
+            smart['Expirations'].append(store_asset.expiration)
+            smart['Strikes'].append(store_asset.strike)
+            smart['Chains'][store_asset.right][store_asset.expiration].append(store_asset.strike)
 
-        smart["Expirations"] = sorted(list(set(expirations)))
-        smart["Strikes"] = sorted(list(set(strikes)))
+        smart["Expirations"] = sorted(list(set(smart['Expirations'])))
+        smart["Strikes"] = sorted(list(set(smart['Strikes'])))
 
         return {"SMART": smart}
 

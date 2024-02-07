@@ -1892,12 +1892,18 @@ class Strategy(_Strategy):
         -------
         dictionary of dictionaries for each exchange. Each exchange
         dictionary has:
-
-            - `Underlying conId` (int)
-            - `TradingClass` (str) eg: `FB`
+            - `Underlying conId` (int)   (InteractiveBrokers only)
+            - `TradingClass` (str) eg: `FB`  (stock symbol)
             - `Multiplier` (str) eg: `100`
-            - `Expirations` (set of str) eg: {`20230616`, ...}
-            - `Strikes` (set of floats)
+            - 'Chains' - paired Expiration/Strke info to guarentee that the stikes are valid for the specific
+                         expiration date.
+                         Format:
+                           chains['SMART']['Chains']['CALL'][exp_date] = [strike1, strike2, ...]
+
+            - `Expirations` (set of str) eg: {`20230616`, ...}  (legacy InteractiveBroker format).
+                            Use 'Chains' for new format.
+            - `Strikes` (set of floats)  (legacy InteractiveBroker format).
+                            Use 'Chains' for new format.
 
         Example
         -------
@@ -1928,12 +1934,18 @@ class Strategy(_Strategy):
         dictionary
             A dictionary of option chain information for one stock and
             for one exchange. It will contain:
+            - `Underlying conId` (int)   (InteractiveBrokers only)
+            - `TradingClass` (str) eg: `FB`  (stock symbol)
+            - `Multiplier` (str) eg: `100`
+            - 'Chains' - paired Expiration/Strke info to guarentee that the stikes are valid for the specific
+                         expiration date.
+                         Format:
+                           chains['SMART']['Chains']['CALL'][exp_date] = [strike1, strike2, ...]
 
-                - `Underlying conId` (int)
-                - `TradingClass` (str) eg: `FB`
-                - `Multiplier` (str) eg: `100`
-                - `Expirations` (set of str) eg: {`20230616`, ...}
-                - `Strikes` (set of floats)
+            - `Expirations` (set of str) eg: {`20230616`, ...}  (legacy InteractiveBroker format).
+                            Use 'Chains' for new format.
+            - `Strikes` (set of floats)  (legacy InteractiveBroker format).
+                            Use 'Chains' for new format.
 
         Example
         -------
@@ -2028,14 +2040,6 @@ class Strategy(_Strategy):
 
         asset = self._sanitize_user_asset(asset)
         return self.broker.get_strikes(asset)
-        # if self.data_source.SOURCE == "PANDAS":
-        #     return self.broker.get_strikes(asset)
-        #
-        # contract_details = self._get_contract_details(asset)
-        # if not contract_details:
-        #     return None
-        #
-        # return sorted(list(set(cd.contract.strike for cd in contract_details)))
 
     def find_first_friday(self, timestamp):
         # Convert the timestamp to a datetime object if it's not already one

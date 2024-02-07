@@ -249,11 +249,12 @@ class TradierData(DataSource):
         stock_symbol = asset.symbol
         expiration = asset.expiration
         option_symbol = create_options_symbol(stock_symbol, expiration, asset.right, asset.strike)
-        df_chians = self.tradier.market.get_option_chains(stock_symbol, expiration, greeks=True)
-        df = df_chians[df_chians["symbol"] == option_symbol]
+        df_chains = self.tradier.market.get_option_chains(stock_symbol, expiration, greeks=True)
+        df = df_chains[df_chains["symbol"] == option_symbol]
         if df.empty:
             return {}
 
         for col in [x for x in df.columns if 'greeks' in x]:
-            greeks[col] = df[col].iloc[0]
+            greek_name = col.replace('greeks.', '')
+            greeks[greek_name] = df[col].iloc[0]
         return greeks

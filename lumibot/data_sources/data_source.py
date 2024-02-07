@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 
 from lumibot import LUMIBOT_DEFAULT_PYTZ, LUMIBOT_DEFAULT_TIMEZONE
 from lumibot.entities import Asset, AssetsMapping
-from lumibot.tools import black_scholes, get_chunks
+from lumibot.tools import black_scholes
 
 from .exceptions import UnavailabeTimestep
 
@@ -23,6 +23,42 @@ class DataSource(ABC):
         self._api_key = api_key
 
     # ========Required Implementations ======================
+    @abstractmethod
+    def get_chains(self, asset: Asset, quote: Asset = None, exchange: str = None):
+        """
+        Obtains option chain information for the asset (stock) from each
+        of the exchanges the options trade on and returns a dictionary
+        for each exchange.
+
+        Parameters
+        ----------
+        asset : Asset
+            The asset to get the option chains for
+        quote : Asset | None
+            The quote asset to get the option chains for
+        exchange: str | None
+            The exchange to get the option chains for
+
+        Returns
+        -------
+        dictionary of dictionary for 'SMART' exchange only in
+        backtesting. Each exchange has:
+            - `Underlying conId` (int)   (InteractiveBrokers only)
+            - `TradingClass` (str) eg: `FB`  (stock symbol)
+            - `Multiplier` (str) eg: `100`
+            - 'Chains' - paired Expiration/Strke info to guarentee that the stikes are valid for the specific
+                         expiration date.
+                         Format:
+                           chains['SMART']['Chains']['CALL'][exp_date] = [strike1, strike2, ...]
+                         Expiration Date Format: 2023-07-31
+
+            - `Expirations` (set of str) eg: {`20230616`, ...}  (legacy InteractiveBroker format).
+                            Use 'Chains' for new format.
+            - `Strikes` (set of floats)  (legacy InteractiveBroker format).
+                            Use 'Chains' for new format.
+        """
+        pass
+
     @abstractmethod
     def get_historical_prices(
         self, asset, length, timestep="", timeshift=None, quote=None, exchange=None, include_after_hours=True

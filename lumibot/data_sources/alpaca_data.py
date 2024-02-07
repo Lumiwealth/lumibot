@@ -133,6 +133,15 @@ class AlpacaData(DataSource):
         else:
             self.version = "v2"
 
+    def get_chains(self, asset: Asset, quote=None, exchange: str = None):
+        """
+        Alpaca doesn't support option trading. This method is here to comply with the DataSource interface
+        """
+        raise NotImplementedError(
+            "Lumibot AlpacaData does not support get_chains() options data. If you need this "
+            "feature, please use a different data source."
+        )
+
     def get_last_price(self, asset, quote=None, exchange=None, **kwargs):
         if quote is not None:
             # If the quote is not None, we use it even if the asset is a tuple

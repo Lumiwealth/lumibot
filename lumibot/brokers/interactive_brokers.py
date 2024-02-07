@@ -1,11 +1,10 @@
 import datetime
 import logging
 import time
-from collections import deque
+from collections import defaultdict, deque
 from decimal import Decimal
 from threading import Thread
 
-import pandas as pd
 from dateutil import tz
 from ibapi.client import *
 from ibapi.contract import *
@@ -15,9 +14,8 @@ from ibapi.wrapper import *
 from lumibot.data_sources import InteractiveBrokersData
 
 # Naming conflict on Order between IB and Lumibot.
-from lumibot.entities import Asset
+from lumibot.entities import Asset, Position
 from lumibot.entities import Order as OrderLum
-from lumibot.entities import Position
 
 from .broker import Broker
 
@@ -293,20 +291,29 @@ class InteractiveBrokers(Broker):
         # Returns option chain data, list of strikes and list of expiry dates.
         return self.ib.option_params(asset=asset, exchange=exchange, underlyingConId=underlyingConId)
 
-    def get_chains(self, asset):
-        """Returns option chain."""
+    def get_chains(self, asset: Asset):
+        """
+        Returns option chain. IBKR chain data is weird because it returns a list of expirations and a separate list of
+        strikes, but no way of coorelating the two. This method returns a dictionary with the expirations and strikes
+        listed separately as well as attempting to combine them together under:
+            [Chains][right][expiration_date] = [strike1, strike2, ...]
+
+        """
         contract_details = self.get_contract_details(asset=asset)
         contract_id = contract_details[0].contract.conId
         chains = self.option_params(asset, underlyingConId=contract_id)
         if len(chains) == 0:
             raise AssertionError(f"No option chain for {asset}")
-        return chains
 
-    def get_chain(self, chains, exchange="SMART"):
-        """Returns option chain for a particular exchange."""
-        for x, p in chains.items():
-            if x == exchange:
-                return p
+        for exchange in chains:
+            all_expr = sorted(set(chains[exchange]["Expirations"]))
+            all_strikes = sorted(set(chains[exchange]["Strikes"]))
+            chains[exchange]['Chains'] = {"CALL": {}, "PUT": {}}
+            for expiration in all_expr:
+                chains[exchange]['Chains']["CALL"][expiration] = all_strikes.copy()
+                chains[exchange]['Chains']["PUT"][expiration] = all_strikes.copy()
+
+        return chains
 
     def get_expiration(self, chains, exchange="SMART"):
         """Returns expirations and strikes high/low of target price.
@@ -1178,7 +1185,7 @@ class IBApp(IBWrapper, IBClient):
 
         thread = Thread(target=self.run)
         thread.start()
-        setattr(self, "_thread", thread)
+        self._thread = thread
 
         self.init_error()
         self.map_reqid_asset = dict()

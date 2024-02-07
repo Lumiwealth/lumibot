@@ -292,6 +292,18 @@ class InteractiveBrokersData(DataSource):
         self.ib.cancel_realtime_bars(asset)
         return 0
 
+    def get_chains(self, asset: Asset, quote: Asset = None, exchange: str = None):
+        """
+        For InteractiveBrokers, this function is defined in the broker because the broker object has access
+        to additional API calls that are not available in the data source object because of the way IBClient and
+        IBWrapper are designed.
+        """
+        raise NotImplementedError(
+            "Lumibot InteractiveBrokersData does not support get_chains options data. However, this is defined in"
+            "the InteractiveBroker broker class as it has access to IBClient and IBWrapper functionality not available"
+            "here. If you need this feature, please use call the broker object method directly"
+        )
+
     def get_historical_prices(
         self, asset, length, timestep="", timeshift=None, quote=None, exchange=None, include_after_hours=True
     ):

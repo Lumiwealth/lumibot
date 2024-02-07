@@ -18,12 +18,16 @@ import pandas as pd
 import pandas_market_calendars as mcal
 import pytz
 import requests
-from lumibot.entities import Asset, Order
 from termcolor import colored
+
+from lumibot.entities import Asset, Order
 
 from ._strategy import _Strategy
 
 matplotlib.use("Agg")
+
+# Set the stats table name for when storing stats in a database, defined by account_history_db_connection_str
+STATS_TABLE_NAME = "strategy_tracker"
 
 
 class Strategy(_Strategy):
@@ -3856,9 +3860,6 @@ class Strategy(_Strategy):
         # Get the datetime
         now = datetime.datetime.now(ny_tz)
 
-        # Set the stats table name
-        STATS_TABLE_NAME = "strategy_tracker"
-
         # Load the stats dataframe from the database
         stats_df = self.get_stats_from_database(STATS_TABLE_NAME)
 
@@ -3908,7 +3909,7 @@ class Strategy(_Strategy):
         # Check that the stats dataframe has at least 1 row and contains the portfolio_value column
         if stats_df.shape[0] > 0 and "portfolio_value" in stats_df.columns:
             # Save the stats to the database
-            self.to_sql(stats_new, stats_table_name, self.account_history_db_connection_str, "append", False)
+            self.to_sql(stats_new, STATS_TABLE_NAME, self.account_history_db_connection_str, "append", False)
 
             # Get the current portfolio value
             portfolio_value = self.get_portfolio_value()
@@ -3995,39 +3996,6 @@ class Strategy(_Strategy):
 
         else:
             return "Not enough data to calculate returns", stats_df
-
-    def on_filled_order(self, position, order, price, quantity, multiplier):
-        self.log_message(f"Filled order for {position.asset} ({order.side} {quantity} at {price}")
-
-        # Get the portfolio value
-        portfolio_value = self.get_portfolio_value()
-
-        # Calculate the percent of the portfolio that this order represents
-        percent_of_portfolio = (price * float(quantity)) / portfolio_value
-
-        # Capitalize the side
-        side = order.side.capitalize()
-
-        # Check if we are buying or selling
-        if side == "Buy":
-            emoji = "🟢📈 "
-        else:
-            emoji = "🔴📉 "
-
-        # Create a message to send to Discord
-        message = f"""
-                {emoji} {side} {quantity:,.2f} {position.asset} @ ${price:,.2f} ({percent_of_portfolio:,.0%} of the account)
-                Trade Total = ${(price * float(quantity)):,.2f}
-                Account Value = ${portfolio_value:,.0f}
-                """
-
-        # Send the message to Discord
-        self.send_discord_message(message, silent=False)
-
-        # Check if super has an on_filled_order method
-        if hasattr(super(), "on_filled_order"):
-            # Call super
-            super().on_filled_order(position, order, price, quantity, multiplier)
 
     def should_send_account_summary_to_discord(self):
         # Check if account_history_db_connection_str has been set, if not, return False

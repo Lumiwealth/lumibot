@@ -2128,6 +2128,7 @@ class Strategy(_Strategy):
         asset_price=None,
         underlying_price=None,
         risk_free_rate=None,
+        query_greeks=False,
     ):
         """Returns the greeks for the option asset at the current
         bar.
@@ -2146,6 +2147,9 @@ class Strategy(_Strategy):
             The price of the underlying asset, by default None
         risk_free_rate : float, optional
             The risk-free rate used in interest calculations, by default None
+        query_greeks : bool, optional
+            Whether to query the greeks from the broker. By default, the greeks are calculated locally, but if the
+            broker supports it, they can be queried instead which could theoretically be more precise.
 
         Returns
         -------

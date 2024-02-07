@@ -274,7 +274,7 @@ class Broker(ABC):
             if x == exchange:
                 return p
 
-    def get_greeks(self, asset, asset_price, underlying_price, risk_free_rate):
+    def get_greeks(self, asset, asset_price, underlying_price, risk_free_rate, query_greeks=False):
         """
         Get the greeks of an option asset.
 
@@ -288,13 +288,24 @@ class Broker(ABC):
             The price of the underlying asset, by default None
         risk_free_rate : float, optional
             The risk-free rate used in interest calculations, by default None
+        query_greeks : bool, optional
+            Whether to query the greeks from the broker. By default, the greeks are calculated locally, but if the
+            broker supports it, they can be queried instead which could theoretically be more precise.
 
         Returns
         -------
         dict
             A dictionary containing the greeks of the option asset.
         """
-        return self.data_source.get_greeks(asset, asset_price, underlying_price, risk_free_rate)
+        if query_greeks:
+            greeks = self.data_source.query_greeks(asset)
+
+            # If greeks could not be queried, continue and calculate them locally
+            if greeks:
+                return greeks
+            logging.info("Greeks could not be queried from the broker. Calculating locally instead.")
+
+        return self.data_source.calculate_greeks(asset, asset_price, underlying_price, risk_free_rate)
 
     def get_multiplier(self, chains, exchange="SMART"):
         """Returns option chain for a particular exchange.

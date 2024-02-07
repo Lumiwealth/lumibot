@@ -38,6 +38,8 @@ class TestTradierDataAPI:
         assert isinstance(price, float)
         assert price > 0.0
 
+    def test_query_greeks(self, tradier_ds):
+        asset = Asset("SPY")
 
 @pytest.mark.apitest
 class TestTradierBrokerAPI:

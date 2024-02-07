@@ -4,7 +4,7 @@ from datetime import datetime
 import pytz
 from lumiwealth_tradier import Tradier
 
-from lumibot.entities import Bars
+from lumibot.entities import Asset, Bars
 from lumibot.tools.helpers import create_options_symbol, parse_timestep_qty_and_unit
 
 from .data_source import DataSource
@@ -175,3 +175,30 @@ class TradierData(DataSource):
 
         price = self.tradier.market.get_last_price(symbol)
         return price
+
+    def query_greeks(self, asset: Asset):
+        """
+        This function returns the greeks of an option as reported by the Tradier API.
+
+        Parameters
+        ----------
+        asset : Asset
+            The option asset to get the greeks for.
+
+        Returns
+        -------
+        dict
+            A dictionary containing the greeks of the option.
+        """
+        greeks = {}
+        stock_symbol = asset.symbol
+        expiration = asset.expiration
+        option_symbol = create_options_symbol(stock_symbol, expiration, asset.right, asset.strike)
+        df_chians = self.tradier.market.get_option_chains(stock_symbol, expiration, greeks=True)
+        df = df_chians[df_chians["symbol"] == option_symbol]
+        if df.empty:
+            return {}
+
+        for col in [x for x in df.columns if 'greeks' in x]:
+            greeks[col] = df[col].iloc[0]
+        return greeks

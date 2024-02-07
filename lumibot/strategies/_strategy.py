@@ -7,6 +7,7 @@ from decimal import Decimal
 
 import jsonpickle
 import pandas as pd
+
 from lumibot.backtesting import BacktestingBroker, PolygonDataBacktesting
 from lumibot.entities import Asset, Position
 from lumibot.tools import (
@@ -606,26 +607,6 @@ class _Strategy:
                 initial_budget=self._initial_budget,
             )
 
-    def plot_indicators(
-        self,
-        plot_file_html="indicators.html",
-        chart_markers_df=None,
-        chart_lines_df=None,
-        show_indicators=True,
-    ):
-        # Check if we have at least one indicator to plot
-        if chart_markers_df is None and chart_lines_df is None:
-            return None
-
-        # Plot the indicators
-        plot_indicators(
-            plot_file_html,
-            chart_markers_df,
-            chart_lines_df,
-            f"{self._log_strat_name()}Strategy Indicators",
-            show_indicators,
-        )
-
     def tearsheet(
         self,
         save_tearsheet=True,
@@ -970,13 +951,13 @@ class _Strategy:
         logfile=None,
         show_plot=True,
         show_tearsheet=True,
+        show_indicators=True,
         save_tearsheet=True,
         plot_file_html=None,
         tearsheet_file=None,
         trades_file=None,
         settings_file=None,
         indicators_file=None,
-        show_indicators=True,
     ):
         name = self._name
 
@@ -1008,12 +989,16 @@ class _Strategy:
         chart_lines_df = pd.DataFrame(self._chart_lines_list)
         # Create chart markers dataframe
         chart_markers_df = pd.DataFrame(self._chart_markers_list)
-        self.plot_indicators(
-            indicators_file,
-            chart_markers_df,
-            chart_lines_df,
-            show_indicators,
-        )
+
+        # Check if we have at least one indicator to plot
+        if chart_markers_df is not None and chart_lines_df is not None:
+            plot_indicators(
+                indicators_file,
+                chart_markers_df,
+                chart_lines_df,
+                f"{self._log_strat_name()}Strategy Indicators",
+                show_indicators=show_indicators,
+            )
         self.tearsheet(
             save_tearsheet=save_tearsheet,
             tearsheet_file=tearsheet_file,

@@ -201,11 +201,11 @@ def plot_indicators(
     chart_markers_df=None,
     chart_lines_df=None,
     strategy_name=None,
-    show_plot=True,
+    show_indicators=True,
 ):
     # If show plot is False, then we don't want to open the plot in the browser
-    if not show_plot:
-        print("show_plot is False, not creating the plot file.")
+    if not show_indicators:
+        print("show_indicators is False, not creating the plot file.")
         return
 
     print("\nCreating indicators plot...")

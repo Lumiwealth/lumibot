@@ -7,6 +7,7 @@ from decimal import Decimal
 
 import jsonpickle
 import pandas as pd
+
 from lumibot.backtesting import BacktestingBroker, PolygonDataBacktesting
 from lumibot.entities import Asset, Position
 from lumibot.tools import (
@@ -996,7 +997,7 @@ class _Strategy:
                 chart_markers_df,
                 chart_lines_df,
                 f"{self._log_strat_name()}Strategy Indicators",
-                show_plot=show_indicators,
+                show_indicators=show_indicators,
             )
         self.tearsheet(
             save_tearsheet=save_tearsheet,

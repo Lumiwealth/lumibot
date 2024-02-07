@@ -8,9 +8,8 @@ from decimal import Decimal
 import pandas as pd
 import plotly.graph_objects as go
 import quantstats_lumi as qs
-from plotly.subplots import make_subplots
-
 from lumibot.tools import to_datetime_aware
+from plotly.subplots import make_subplots
 
 from .yahoo_helper import YahooHelper as yh
 
@@ -201,10 +200,10 @@ def plot_indicators(
     chart_markers_df=None,
     chart_lines_df=None,
     strategy_name=None,
-    show_plot=True,
+    show_indicators=True,
 ):
     # If show plot is False, then we don't want to open the plot in the browser
-    if not show_plot:
+    if not show_indicators:
         print("show_plot is False, not creating the plot file.")
         return
 

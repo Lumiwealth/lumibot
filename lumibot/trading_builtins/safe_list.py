@@ -14,6 +14,14 @@ class SafeList:
     def __repr__(self):
         return repr(self.__items)
 
+    def __bool__(self):
+        with self.__lock:
+            return bool(self.__items)
+
+    def __len__(self):
+        with self.__lock:
+            return len(self.__items) if self.__items else 0
+
     def __iter__(self):
         with self.__lock:
             return iter(self.__items)
@@ -46,10 +54,7 @@ class SafeList:
                 self.__items.remove(value)
             else:
                 if not isinstance(key, str):
-                    raise ValueError(
-                        "key must be a string, received %r of type %s"
-                        % (key, type(key))
-                    )
+                    raise ValueError(f"key must be a string, received {key} of type {type(key)}")
                 self.__items = [
                     item for item in self.__items if getattr(item, key) != value
                 ]

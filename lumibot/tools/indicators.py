@@ -2,19 +2,14 @@ import logging
 import math
 import os
 import webbrowser
-from datetime import datetime, timedelta
+from datetime import datetime
 from decimal import Decimal
 
-import numpy as np
 import pandas as pd
-import plotly.express as px
 import plotly.graph_objects as go
-import quantstats as qs
+import quantstats_lumi as qs
 from plotly.subplots import make_subplots
 
-# import lumibot.data_sources.alpha_vantage as av
-from lumibot import LUMIBOT_DEFAULT_PYTZ
-from lumibot.entities.asset import Asset
 from lumibot.tools import to_datetime_aware
 
 from .yahoo_helper import YahooHelper as yh
@@ -153,9 +148,7 @@ def performance(_df, risk_free, prefix=""):
     print(f"{prefix} CAGR {cagr_adj*100:,.2f}%")
     print(f"{prefix} Volatility {vol_adj*100:,.2f}%")
     print(f"{prefix} Sharpe {sharpe_adj:0.2f}")
-    print(
-        f"{prefix} Max Drawdown {maxdown_adj['drawdown']*100:,.2f}% on {maxdown_adj['date']:%Y-%m-%d}"
-    )
+    print(f"{prefix} Max Drawdown {maxdown_adj['drawdown']*100:,.2f}% on {maxdown_adj['date']:%Y-%m-%d}")
     print(f"{prefix} RoMaD {romad_adj*100:,.2f}%")
 
 
@@ -174,7 +167,7 @@ def get_symbol_returns(symbol, start=datetime(1900, 1, 1), end=datetime.now()):
     Returns
     -------
     pd.DataFrame
-        A dataframe with the returns for the symbol. Includes the columns:  
+        A dataframe with the returns for the symbol. Includes the columns:
         - pct_change: The percent change in the Close price
         - div_yield: The dividend yield
         - return: The pct_change + div_yield
@@ -183,9 +176,7 @@ def get_symbol_returns(symbol, start=datetime(1900, 1, 1), end=datetime.now()):
     """
     # Making start and end datetime aware
     returns_df = yh.get_symbol_data(symbol)
-    returns_df = returns_df.loc[
-        (returns_df.index.date >= start.date()) & (returns_df.index.date <= end.date())
-    ]
+    returns_df = returns_df.loc[(returns_df.index.date >= start.date()) & (returns_df.index.date <= end.date())]
     returns_df.loc[:, "pct_change"] = returns_df["Close"].pct_change()
     returns_df.loc[:, "div_yield"] = returns_df["Dividends"] / returns_df["Close"]
     returns_df.loc[:, "return"] = returns_df["pct_change"] + returns_df["div_yield"]
@@ -212,6 +203,11 @@ def plot_indicators(
     strategy_name=None,
     show_plot=True,
 ):
+    # If show plot is False, then we don't want to open the plot in the browser
+    if not show_plot:
+        print("show_plot is False, not creating the plot file.")
+        return
+
     print("\nCreating indicators plot...")
 
     fig = make_subplots(specs=[[{"secondary_y": True}]])
@@ -224,24 +220,14 @@ def plot_indicators(
 
     def generate_marker_plotly_text(row):
         if row["detail_text"] is None:
-            return (
-                "Value: "
-                + str(row["value"])
-            )
+            return "Value: " + str(row["value"])
         else:
-            return (
-                "Value: "
-                + str(row["value"])
-                + "<br>"
-                + row["detail_text"]
-            )
+            return "Value: " + str(row["value"]) + "<br>" + row["detail_text"]
 
     # Plot the chart markers
     if chart_markers_df is not None and not chart_markers_df.empty:
         chart_markers_df = chart_markers_df.copy()
-        chart_markers_df["detail_text"] = chart_markers_df.apply(
-            generate_marker_plotly_text, axis=1
-        )
+        chart_markers_df["detail_text"] = chart_markers_df.apply(generate_marker_plotly_text, axis=1)
 
         # Loop over the marker names and create a new trace for each one
         for marker_name in chart_markers_df["name"].unique():
@@ -278,24 +264,14 @@ def plot_indicators(
 
     def generate_line_plotly_text(row):
         if row["detail_text"] is None:
-            return (
-                "Value: "
-                + str(row["value"])
-            )
+            return "Value: " + str(row["value"])
         else:
-            return (
-                "Value: "
-                + str(row["value"])
-                + "<br>"
-                + row["detail_text"]
-            )
+            return "Value: " + str(row["value"]) + "<br>" + row["detail_text"]
 
     # Plot the chart lines
     if chart_lines_df is not None and not chart_lines_df.empty:
         chart_lines_df = chart_lines_df.copy()
-        chart_lines_df["detail_text"] = chart_lines_df.apply(
-            generate_line_plotly_text, axis=1
-        )
+        chart_lines_df["detail_text"] = chart_lines_df.apply(generate_line_plotly_text, axis=1)
 
         # Loop over the line names and create a new trace for each one
         for line_name in chart_lines_df["name"].unique():
@@ -369,6 +345,11 @@ def plot_returns(
     # chart_markers_df=None,
     # chart_lines_df=None,
 ):
+    # If show plot is False, then we don't want to open the plot in the browser
+    if not show_plot:
+        print("show_plot is False, not creating the plot file.")
+        return
+
     print("\nCreating trades plot...")
 
     dfs_concat = []
@@ -411,9 +392,7 @@ def plot_returns(
         return
     else:
         trades_df = trades_df.set_index("time")
-        df_final = df_final.merge(
-            trades_df, how="outer", left_index=True, right_index=True
-        )
+        df_final = df_final.merge(trades_df, how="outer", left_index=True, right_index=True)
 
     # fig = go.Figure()
     fig = make_subplots(specs=[[{"secondary_y": True}]])
@@ -471,11 +450,7 @@ def plot_returns(
                 return (
                     row["status"]
                     + "<br>"
-                    + str(
-                        row["filled_quantity"]
-                        .quantize(Decimal("0.01"))
-                        .__format__(",f")
-                    )
+                    + str(row["filled_quantity"].quantize(Decimal("0.01")).__format__(",f"))
                     + " "
                     + row["symbol"]
                     + " "
@@ -489,11 +464,7 @@ def plot_returns(
                     + str(row["asset.expiration"])
                     + "<br>"
                     + "Price: "
-                    + str(
-                       Decimal(row["price"])
-                        .quantize(Decimal("0.0001"))
-                        .__format__(",f")
-                    )
+                    + str(Decimal(row["price"]).quantize(Decimal("0.0001")).__format__(",f"))
                     + "<br>"
                     + "Order Type: "
                     + row["type"]
@@ -511,31 +482,19 @@ def plot_returns(
                     )
                     + "<br>"
                     + "Trade Cost: "
-                    + str(
-                        Decimal(row["trade_cost"])
-                        .quantize(Decimal("0.01"))
-                        .__format__(",f")
-                    )
+                    + str(Decimal(row["trade_cost"]).quantize(Decimal("0.01")).__format__(",f"))
                     + "<br>"
                 )
             else:
                 return (
                     row["status"]
                     + "<br>"
-                    + str(
-                        row["filled_quantity"]
-                        .quantize(Decimal("0.01"))
-                        .__format__(",f")
-                    )
+                    + str(row["filled_quantity"].quantize(Decimal("0.01")).__format__(",f"))
                     + " "
                     + row["symbol"]
                     + "<br>"
                     + "Price: "
-                    + str(
-                       Decimal(row["price"])
-                        .quantize(Decimal("0.0001"))
-                        .__format__(",f")
-                    )
+                    + str(Decimal(row["price"]).quantize(Decimal("0.0001")).__format__(",f"))
                     + "<br>"
                     + "Order Type: "
                     + row["type"]
@@ -553,11 +512,7 @@ def plot_returns(
                     )
                     + "<br>"
                     + "Trade Cost: "
-                    + str(
-                        Decimal(row["trade_cost"])
-                        .quantize(Decimal("0.01"))
-                        .__format__(",f")
-                    )
+                    + str(Decimal(row["trade_cost"]).quantize(Decimal("0.01")).__format__(",f"))
                     + "<br>"
                 )
         else:
@@ -574,9 +529,7 @@ def plot_returns(
 
         buys.index.name = "datetime"
         buys = (
-            buys.groupby(["datetime", strategy_name])["plotly_text_buys"]
-            .apply(lambda x: "<br>".join(x))
-            .reset_index()
+            buys.groupby(["datetime", strategy_name])["plotly_text_buys"].apply(lambda x: "<br>".join(x)).reset_index()
         )
         buys = buys.set_index("datetime")
         buys["buy_shift"] = buys[strategy_name] - vshift
@@ -614,9 +567,7 @@ def plot_returns(
 
         sells.index.name = "datetime"
         sells = (
-            sells.groupby(["datetime", strategy_name], group_keys=True)[
-                "plotly_text_sells"
-            ]
+            sells.groupby(["datetime", strategy_name], group_keys=True)["plotly_text_sells"]
             .apply(lambda x: "<br>".join(x))
             .reset_index()
         )
@@ -678,10 +629,15 @@ def create_tearsheet(
     strat_name: str,
     tearsheet_file: str,
     benchmark_df: pd.DataFrame,
-    benchmark_asset: Asset,
+    benchmark_asset,  # This is causing a circular import: Asset,
     show_tearsheet: bool,
     risk_free_rate: float,
 ):
+    # If show tearsheet is False, then we don't want to open the tearsheet in the browser
+    if not show_tearsheet:
+        print("show_tearsheet is False, not creating the tearsheet file.")
+        return
+
     print("\nCreating tearsheet...")
 
     # Check if df1 or df2 are empty and return if they are
@@ -711,11 +667,7 @@ def create_tearsheet(
     df_final.index = df_final.index.tz_localize(None)
 
     # Check if df_final is empty and return if it is
-    if (
-        df_final.empty
-        or df_final["benchmark"].isnull().all()
-        or df_final["strategy"].isnull().all()
-    ):
+    if df_final.empty or df_final["benchmark"].isnull().all() or df_final["strategy"].isnull().all():
         logging.warning("No data to create tearsheet, skipping")
         return
 

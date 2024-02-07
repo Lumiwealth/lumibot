@@ -201,10 +201,15 @@ class StrategyExecutor(Thread):
                 for order_lumi in orders_lumi:
                     # Remove lumibot orders if not in broker.
                     if order_lumi.identifier not in [order.identifier for order in orders_broker]:
-                        logging.info(
-                            f"Cannot find order {order_lumi} (id={order_lumi.identifier}) in broker, " f"canceling."
-                        )
-                        self.broker._process_trade_event(order_lumi, "canceled")
+                        # Filled or canceled orders can be dropped by the broker as they no longer have any effect.
+                        # However, active orders should not be dropped as they are still in effect and if they can't
+                        # be found in the broker, they should be canceled because something went wrong.
+                        if order_lumi.is_active():
+                            logging.info(
+                                f"Cannot find order {order_lumi} (id={order_lumi.identifier}) in broker "
+                                f"(bkr cnt={len(orders_broker)}), canceling."
+                            )
+                            self.broker._process_trade_event(order_lumi, "canceled")
 
             self.broker._hold_trade_events = False
             self.broker.process_held_trades()
@@ -354,11 +359,6 @@ class StrategyExecutor(Thread):
             else:
                 # If the cron count is not equal to the cron count target, return and do not execute the
                 # on_trading_iteration method.
-                self.strategy.log_message(
-                    "Skipping this iteration because it's not time yet. "
-                    f"{self.cron_count_target - self.cron_count} iterations left before we run again",
-                    color="blue",
-                )
                 return
 
         now = datetime.now()

@@ -7,6 +7,7 @@ import pandas_market_calendars as mcal
 from termcolor import colored
 
 from lumibot import LUMIBOT_DEFAULT_PYTZ
+import pandas as pd
 
 
 def get_chunks(l, chunk_size):
@@ -37,11 +38,24 @@ def deduplicate_sequence(seq, key=""):
 
 def get_trading_days(market="NYSE", start_date="1950-01-01", end_date=None):
     format_datetime = lambda dt: dt.to_pydatetime().astimezone(LUMIBOT_DEFAULT_PYTZ)
-    today = get_lumibot_datetime().date()
-    nyse = mcal.get_calendar(market)
-    days = nyse.schedule(start_date=start_date, end_date=end_date or today)
-    days.market_open = days.market_open.apply(format_datetime)
-    days.market_close = days.market_close.apply(format_datetime)
+    start_date = to_datetime_aware(pd.to_datetime(start_date))
+    today = get_lumibot_datetime()
+    # macl's "24/7" calendar doesn't return consecutive days, so need to be generated manually.
+    if market == "24/7":
+        market_open = pd.date_range(
+            start=start_date, end=end_date or today).to_frame(index=False,name="market_open")
+        market_close = pd.date_range(
+            start=start_date.replace(hour=23,minute=59,second=59,microsecond=999999), 
+            end=end_date or today.replace(hour=23,minute=59,second=59,microsecond=999999)).to_frame(index=False,name="market_close")
+        index = pd.date_range(
+            start=start_date.replace(tzinfo=None), end=end_date or today.replace(tzinfo=None))
+        days = pd.concat([market_open, market_close], axis=1)
+        days.index = index
+    else:
+        nyse = mcal.get_calendar(market)
+        days = nyse.schedule(start_date=start_date, end_date=end_date or today)
+        days.market_open = days.market_open.apply(format_datetime)
+        days.market_close = days.market_close.apply(format_datetime)
     return days
 
 

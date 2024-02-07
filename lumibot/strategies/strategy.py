@@ -1784,9 +1784,10 @@ class Strategy(_Strategy):
             return None
 
         # Check if the Asset object is a string or Asset object
-        if not (isinstance(asset, Asset) or isinstance(asset, str)):
+        if not (isinstance(asset, Asset) or isinstance(asset, str) 
+                or isinstance(asset, tuple)):
             logger.error(
-                f"Asset in get_last_price() must be a string or Asset object. Got {asset} of type {type(asset)}"
+                f"Asset in get_last_price() must be a string or Asset or tuple object. Got {asset} of type {type(asset)}"
             )
             return None
 

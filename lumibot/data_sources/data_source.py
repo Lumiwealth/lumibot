@@ -1,3 +1,4 @@
+import logging
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
@@ -42,7 +43,7 @@ class DataSource(ABC):
         dictionary of dictionary
             Format:
             - `Multiplier` (str) eg: `100`
-            - 'Chains' - paired Expiration/Strke info to guarentee that the stikes are valid for the specific
+            - 'Chains' - paired Expiration/Strike info to guarentee that the strikes are valid for the specific
                          expiration date.
                          Format:
                            chains['Chains']['CALL'][exp_date] = [strike1, strike2, ...]
@@ -356,7 +357,7 @@ class DataSource(ABC):
 
         return AssetsMapping(result)
 
-    def get_greeks(
+    def calculate_greeks(
         self,
         asset,
         # API Querying for prices and rates are expensive, so we'll pass them in as arguments most of the time
@@ -408,3 +409,9 @@ class DataSource(ABC):
         )
 
         return greeks
+
+    def query_greeks(self, asset):
+        """Query for the Greeks as it can be more accurate than calculating locally."""
+        logging.info(f"Querying Options Greeks for {asset.symbol} is not supported for this "
+                     f"data source {self.__class__}.")
+        return {}

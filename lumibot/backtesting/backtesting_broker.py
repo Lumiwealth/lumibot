@@ -655,16 +655,6 @@ class BacktestingBroker(Broker):
         """Returns OHLCV dictionary for last bar of the asset."""
         return self.data_source.get_historical_prices(asset, 1)
 
-    def get_expiration(self, chains, exchange="SMART"):
-        """Returns expirations and strikes high/low of target price."""
-        if exchange != "SMART":
-            raise ValueError(
-                "When getting option expirations in backtesting, only the `SMART`"
-                "exchange may be used. It is the default value. Please delete "
-                "the `exchange` parameter or change the value to `SMART`."
-            )
-        return super().get_expiration(chains, exchange)
-
     # ==========Processing streams data=======================
 
     def _get_stream_object(self):

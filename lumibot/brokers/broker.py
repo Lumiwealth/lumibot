@@ -219,7 +219,7 @@ class Broker(ABC):
     def is_backtesting_broker(self):
         return self.IS_BACKTESTING_BROKER
 
-    def get_chains(self, asset):
+    def get_chains(self, asset) -> dict:
         """Returns option chains.
 
         Obtains option chain information for the asset (stock) from each
@@ -234,25 +234,18 @@ class Broker(ABC):
 
         Returns
         -------
-        dictionary of dictionary for 'SMART' exchange only in
-        backtesting. Each exchange has:
-            - `Underlying conId` (int)   (InteractiveBrokers only)
-            - `TradingClass` (str) eg: `FB`  (stock symbol)
+        dictionary of dictionary
+            Format:
             - `Multiplier` (str) eg: `100`
             - 'Chains' - paired Expiration/Strke info to guarentee that the stikes are valid for the specific
                          expiration date.
                          Format:
-                           chains['SMART']['Chains']['CALL'][exp_date] = [strike1, strike2, ...]
+                           chains['Chains']['CALL'][exp_date] = [strike1, strike2, ...]
                          Expiration Date Format: 2023-07-31
-
-            - `Expirations` (set of str) eg: {`20230616`, ...}  (legacy InteractiveBroker format).
-                            Use 'Chains' for new format.
-            - `Strikes` (set of floats)  (legacy InteractiveBroker format).
-                            Use 'Chains' for new format.
         """
         return self.data_source.get_chains(asset)
 
-    def get_chain(self, chains, exchange="SMART"):
+    def get_chain(self, chains, exchange="SMART") -> dict:
         """Returns option chain for a particular exchange.
 
         Takes in a full set of chains for all the exchanges and returns
@@ -269,23 +262,16 @@ class Broker(ABC):
 
         Returns
         -------
-        dictionary
-            A dictionary of option chain information for one stock and
-            for one exchange. It will contain:
-            - `Underlying conId` (int)   (InteractiveBrokers only)
-            - `TradingClass` (str) eg: `FB`  (stock symbol)
+        dictionary of dictionary
+            Format:
             - `Multiplier` (str) eg: `100`
             - 'Chains' - paired Expiration/Strke info to guarentee that the stikes are valid for the specific
                          expiration date.
                          Format:
-                           chains['SMART']['Chains']['CALL'][exp_date] = [strike1, strike2, ...]
-
-            - `Expirations` (set of str) eg: {`20230616`, ...}  (legacy InteractiveBroker format).
-                            Use 'Chains' for new format.
-            - `Strikes` (set of floats)  (legacy InteractiveBroker format).
-                            Use 'Chains' for new format.
+                           chains['Chains']['CALL'][exp_date] = [strike1, strike2, ...]
+                         Expiration Date Format: 2023-07-31
         """
-        return chains[exchange] if exchange in chains else {}
+        return chains[exchange] if exchange in chains else chains
 
     def get_greeks(self, asset, asset_price, underlying_price, risk_free_rate, query_greeks=False):
         """
@@ -342,7 +328,7 @@ class Broker(ABC):
         """
         return self.get_chain(chains, exchange)["Multiplier"]
 
-    def get_expiration(self, chains, exchange="SMART"):
+    def get_expiration(self, chains):
         """Returns expiration dates for an option chain for a particular
         exchange.
 
@@ -355,23 +341,28 @@ class Broker(ABC):
         chains : dictionary of dictionaries
             The chains dictionary created by `get_chains` method.
 
-        exchange : str optional
-            The exchange such as `SMART`, `CBOE`. Default is `SMART`.
-
         Returns
         -------
         list of str
-            Sorted list of dates in the form of `20221013`.
+            Sorted list of dates in the form of `2022-10-13`.
         """
+        return sorted(set(chains['Chains']['CALL'].keys()) | set(chains['Chains']['PUT'].keys()))
 
-        return sorted(list(self.get_chain(chains, exchange=exchange)["Expirations"]))
-
-    def get_strikes(self, asset):
+    def get_strikes(self, asset, chains=None):
         """Returns the strikes for an option asset with right and expiry."""
-        # This method is required for all data sources (but expirations is not) because different data sources
-        # pair the strikes and expirations together differently. For example, Polygon does a nice job of pairing,
-        # but Interactive Brokers does not.
-        return self.data_source.get_strikes(asset)
+        # If provided chains, use them. It is faster than querying the data source.
+        if chains and 'Chains' in chains:
+            if asset.asset_type == "option":
+                return chains['Chains'][asset.right][asset.expiration]
+            else:
+                strikes = set()
+                for right in chains['Chains']:
+                    for exp in chains['Chains'][right]:
+                        strikes |= set(chains['Chains'][right][exp])
+        else:
+            strikes = self.data_source.get_strikes(asset)
+
+        return sorted(strikes)
 
     def _start_orders_thread(self):
         self._orders_thread = Thread(target=self._wait_for_orders, daemon=True, name=f"{self.name}_orders_thread")

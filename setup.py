@@ -46,6 +46,7 @@ setuptools.setup(
         "pyarrow",
         "tqdm",
         "lumiwealth-tradier>=0.1.4",
+        "pytz",
     ],
     classifiers=[
         "Programming Language :: Python :: 3",

@@ -1890,20 +1890,14 @@ class Strategy(_Strategy):
 
         Returns
         -------
-        dictionary of dictionaries for each exchange. Each exchange
-        dictionary has:
-            - `Underlying conId` (int)   (InteractiveBrokers only)
-            - `TradingClass` (str) eg: `FB`  (stock symbol)
+        dictionary of dictionary
+            Format:
             - `Multiplier` (str) eg: `100`
             - 'Chains' - paired Expiration/Strke info to guarentee that the stikes are valid for the specific
                          expiration date.
                          Format:
-                           chains['SMART']['Chains']['CALL'][exp_date] = [strike1, strike2, ...]
-
-            - `Expirations` (set of str) eg: {`20230616`, ...}  (legacy InteractiveBroker format).
-                            Use 'Chains' for new format.
-            - `Strikes` (set of floats)  (legacy InteractiveBroker format).
-                            Use 'Chains' for new format.
+                           chains['Chains']['CALL'][exp_date] = [strike1, strike2, ...]
+                         Expiration Date Format: 2023-07-31
 
         Example
         -------
@@ -1931,21 +1925,14 @@ class Strategy(_Strategy):
 
         Returns
         -------
-        dictionary
-            A dictionary of option chain information for one stock and
-            for one exchange. It will contain:
-            - `Underlying conId` (int)   (InteractiveBrokers only)
-            - `TradingClass` (str) eg: `FB`  (stock symbol)
+        dictionary of dictionary
+            Format:
             - `Multiplier` (str) eg: `100`
             - 'Chains' - paired Expiration/Strke info to guarentee that the stikes are valid for the specific
                          expiration date.
                          Format:
-                           chains['SMART']['Chains']['CALL'][exp_date] = [strike1, strike2, ...]
-
-            - `Expirations` (set of str) eg: {`20230616`, ...}  (legacy InteractiveBroker format).
-                            Use 'Chains' for new format.
-            - `Strikes` (set of floats)  (legacy InteractiveBroker format).
-                            Use 'Chains' for new format.
+                           chains['Chains']['CALL'][exp_date] = [strike1, strike2, ...]
+                         Expiration Date Format: 2023-07-31
 
         Example
         -------
@@ -1953,14 +1940,14 @@ class Strategy(_Strategy):
         >>> asset = "SPY"
         >>> chain = self.get_chain(asset)
         """
-        return self.broker.get_chain(chains, exchange=exchange)
+        return self.broker.get_chain(chains)
 
-    def get_expiration(self, chains, exchange="SMART"):
+    def get_expiration(self, chains):
         """Returns expiration dates for an option chain for a particular
         exchange.
 
         Using the `chains` dictionary obtained from `get_chains` finds
-        all of the expiry dates for the option chains on a given
+        all expiry dates for the option chains on a given
         exchange. The return list is sorted.
 
         Parameters
@@ -1973,8 +1960,8 @@ class Strategy(_Strategy):
 
         Returns
         -------
-        list of datetime.dates
-            Sorted list of dates in the form of `20221013`.
+        list of datetime.date
+            Sorted list of dates in the form of `2022-10-13`.
 
         Example
         -------
@@ -1982,7 +1969,7 @@ class Strategy(_Strategy):
         >>> asset = "SPY"
         >>> expiry_dates = self.get_expiration(asset)
         """
-        return self.broker.get_expiration(chains, exchange=exchange)
+        return self.broker.get_expiration(chains)
 
     def get_multiplier(self, chains, exchange="SMART"):
         """Returns option chain for a particular exchange.
@@ -2013,7 +2000,7 @@ class Strategy(_Strategy):
 
         return self.broker.get_multiplier(chains, exchange=exchange)
 
-    def get_strikes(self, asset):
+    def get_strikes(self, asset, chains=None):
         """Returns a list of strikes for a give underlying asset.
 
         Using the `chains` dictionary obtained from `get_chains` finds
@@ -2025,6 +2012,9 @@ class Strategy(_Strategy):
         asset : Asset
             Asset object as normally used for an option but without
             the strike information. The Asset object must be an option asset type.
+        chains : dictionary of dictionaries, optional
+            The chains dictionary created by `get_chains` method. If not
+            provided, the method will fetch the chains for the asset.
 
         Returns
         -------
@@ -2039,7 +2029,7 @@ class Strategy(_Strategy):
         """
 
         asset = self._sanitize_user_asset(asset)
-        return self.broker.get_strikes(asset)
+        return self.broker.get_strikes(asset, chains)
 
     def find_first_friday(self, timestamp):
         # Convert the timestamp to a datetime object if it's not already one

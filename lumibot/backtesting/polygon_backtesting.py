@@ -217,31 +217,21 @@ class PolygonDataBacktesting(PandasData):
 
         Returns
         -------
-        dictionary:
-            A dictionary nested with a dictionarty of Polygon Option Contracts information broken out by Exchange,
-            with embedded lists for Expirations and Strikes.
-            {'SMART': {'TradingClass': 'SPY', 'Multiplier': 100, 'Expirations': [], 'Strikes': []}}
-
-            - `TradingClass` (str) eg: `FB` (stock symbol)
+        dictionary of dictionary
+            Format:
             - `Multiplier` (str) eg: `100`
             - 'Chains' - paired Expiration/Strke info to guarentee that the stikes are valid for the specific
                          expiration date.
                          Format:
-                           chains['SMART']['Chains']['CALL'][exp_date] = [strike1, strike2, ...]
+                           chains['Chains']['CALL'][exp_date] = [strike1, strike2, ...]
                          Expiration Date Format: 2023-07-31
-
-            - `Expirations` (list of str) eg: [`'2023-08-04', ...] (legacy InteractiveBroker format).
-                            Use 'Chains' for new format.
-            - `Strikes` (list of floats) eg: [`100.0`, ...] (legacy InteractiveBroker format).
-                            Use 'Chains' for new format.
         """
 
         # All Option Contracts | get_chains matching IBKR |
-        # {'SMART': {'TradingClass': 'SPY', 'Multiplier': 100, 'Expirations': [], 'Strikes': []
-        #            'Chains: {'CALL': {<date1>: [100.00, 101.00]}}, 'PUT': defaultdict(list)}}
-        option_contracts = {"SMART": {"TradingClass": None, "Multiplier": None, "Expirations": [], "Strikes": [],
-                                      "Chains": {"CALL": defaultdict(list), "PUT": defaultdict(list)}}}
-        contracts = option_contracts["SMART"]  # initialize contracts
+        # {'Multiplier': 100, 'Exchange': "NYSE",
+        #      'Chains': {'CALL': {<date1>: [100.00, 101.00]}}, 'PUT': defaultdict(list)}}
+        option_contracts = {"Multiplier": None, "Exchange": None,
+                            "Chains": {"CALL": defaultdict(list), "PUT": defaultdict(list)}}
         today = self.get_datetime().date()
         real_today = date.today()
 
@@ -271,13 +261,8 @@ class PolygonDataBacktesting(PandasData):
             right = polygon_contract.contract_type.upper()
             exp_date = polygon_contract.expiration_date  # Format: '2023-08-04'
             strike = polygon_contract.strike_price
-            contracts["TradingClass"] = polygon_contract.underlying_ticker
-            contracts["Multiplier"] = polygon_contract.shares_per_contract
-            contracts["Expirations"].append(exp_date)
-            contracts["Strikes"].append(strike)
-            contracts['Chains'][right][exp_date].append(strike)
-
-            option_contracts["SMART"] = contracts
-            option_contracts[exchange] = contracts
+            option_contracts["Multiplier"] = polygon_contract.shares_per_contract
+            option_contracts["Exchange"] = exchange
+            option_contracts['Chains'][right][exp_date].append(strike)
 
         return option_contracts

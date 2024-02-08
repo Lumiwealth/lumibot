@@ -347,19 +347,18 @@ class PandasData(DataSourceBacktesting):
 
         Returns
         -------
-        dictionary of dictionary for 'SMART' exchange only in
-        backtesting. Each exchange has:
-            - `Underlying conId` (int)
-            - `TradingClass` (str) eg: `FB`
+        dictionary of dictionary
+            Format:
             - `Multiplier` (str) eg: `100`
-            - `Expirations` (set of str) eg: {`20230616`, ...}
-            - `Strikes` (set of floats)
+            - 'Chains' - paired Expiration/Strke info to guarentee that the stikes are valid for the specific
+                         expiration date.
+                         Format:
+                           chains['Chains']['CALL'][exp_date] = [strike1, strike2, ...]
+                         Expiration Date Format: 2023-07-31
         """
-        smart = dict(
-            TradingClass=asset.symbol,
+        chains = dict(
             Multiplier=100,
-            Expirations=[],
-            Strikes=[],
+            Exchange="SMART",
             Chains={"CALL": defaultdict(list), "PUT": defaultdict(list)},
         )
 
@@ -369,57 +368,9 @@ class PandasData(DataSourceBacktesting):
                 continue
             if store_asset.symbol != asset.symbol:
                 continue
-            smart['Expirations'].append(store_asset.expiration)
-            smart['Strikes'].append(store_asset.strike)
-            smart['Chains'][store_asset.right][store_asset.expiration].append(store_asset.strike)
+            chains['Chains'][store_asset.right][store_asset.expiration].append(store_asset.strike)
 
-        smart["Expirations"] = sorted(list(set(smart['Expirations'])))
-        smart["Strikes"] = sorted(list(set(smart['Strikes'])))
-
-        return {"SMART": smart}
-
-    def get_strikes(self, asset):
-        """Returns a list of strikes for a give underlying asset.
-
-        Using the `chains` dictionary obtained from `get_chains` finds
-        all the Strikes for the option chains on a given
-        exchange.
-
-        Parameters
-        ----------
-        asset : Asset
-            Asset object as normally used for an option but without
-            the strike information.
-
-            Example:
-            asset = self.create_asset(
-                "FB",
-                asset_type="option",
-                expiration=self.options_expiry_to_datetime_date("20210924"),
-                right="CALL",
-                multiplier=100,
-            )
-
-            `expiration` can also be expressed as
-            `datetime.datetime.date()`
-
-        Returns
-        -------
-        list of floats
-            Sorted list of strikes as floats.
-        """
-        strikes = []
-        for store_item, data in self._data_store.items():
-            store_asset = store_item[0]
-            if (
-                store_asset.asset_type == "option"
-                and store_asset.symbol == asset.symbol
-                and store_asset.expiration == asset.expiration
-                and store_asset.right == asset.right
-            ):
-                strikes.append(float(store_asset.strike))
-
-        return sorted(list(set(strikes)))
+        return chains
 
     def get_start_datetime_and_ts_unit(self, length, timestep, start_dt=None, start_buffer=timedelta(days=5)):
         """

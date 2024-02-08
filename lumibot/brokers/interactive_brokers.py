@@ -307,20 +307,19 @@ class InteractiveBrokers(Broker):
 
         for exchange in chains:
             all_expr = sorted(set(chains[exchange]["Expirations"]))
+            # IB format is "20230818", Lumibot/Polygon/Tradier is "2023-08-18"
+            formatted_expr = [x if '-' in x else x[:4] + '-' + x[4:6] + '-' + x[6:] for x in all_expr]
             all_strikes = sorted(set(chains[exchange]["Strikes"]))
             chains[exchange]['Chains'] = {"CALL": {}, "PUT": {}}
-            for expiration in all_expr:
+            for expiration in formatted_expr:
                 chains[exchange]['Chains']["CALL"][expiration] = all_strikes.copy()
                 chains[exchange]['Chains']["PUT"][expiration] = all_strikes.copy()
 
-        return chains
-
-    def get_expiration(self, chains, exchange="SMART"):
-        """Returns expirations and strikes high/low of target price.
-        Return type datetime.date()
-        """
-        expirations = sorted(list(self.get_chain(chains, exchange=exchange)["Expirations"]))
-        return [datetime.datetime.strptime(expiration, "%Y%m%d").date() for expiration in expirations]
+        if "SMART" in chains:
+            return chains["SMART"]
+        else:
+            # Return the 1st exchange if SMART is not available.
+            return chains[list(chains.keys())[0]]
 
     # =======Stream functions=========
     def on_status_event(

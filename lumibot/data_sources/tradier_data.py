@@ -4,9 +4,8 @@ from datetime import datetime
 
 import pandas as pd
 import pytz
-from entities import Asset
 
-from lumibot.entities import Bars
+from lumibot.entities import Asset, Bars
 from lumibot.tools.helpers import create_options_symbol, parse_timestep_qty_and_unit
 from lumiwealth_tradier import Tradier
 
@@ -78,21 +77,14 @@ class TradierData(DataSource):
 
         Returns
         -------
-        dictionary of dictionary for 'SMART' exchange only in
-        backtesting. Each exchange has:
-            - `Underlying conId` (int)   (InteractiveBrokers only)
-            - `TradingClass` (str) eg: `FB`  (stock symbol)
+        dictionary of dictionary
+            Format:
             - `Multiplier` (str) eg: `100`
             - 'Chains' - paired Expiration/Strke info to guarentee that the stikes are valid for the specific
                          expiration date.
                          Format:
-                           chains['SMART']['Chains']['CALL'][exp_date] = [strike1, strike2, ...]
+                           chains['Chains']['CALL'][exp_date] = [strike1, strike2, ...]
                          Expiration Date Format: 2023-07-31
-
-            - `Expirations` (set of str) eg: {`20230616`, ...}  (legacy InteractiveBroker format).
-                            Use 'Chains' for new format.
-            - `Strikes` (set of floats)  (legacy InteractiveBroker format).
-                            Use 'Chains' for new format.
         """
         df_chains = self.tradier.market.get_option_expirations(asset.symbol)
         if not isinstance(df_chains, pd.DataFrame) or df_chains.empty:
@@ -100,16 +92,13 @@ class TradierData(DataSource):
 
         # Tradier doesn't report multiple exchanges, just use SMART
         multiplier = int(df_chains.contract_size.mode()[0])  # Use most common, should always be 100
-        chains = {"SMART": {"TradingClass": asset.symbol, "Multiplier": multiplier, "Expirations": [], "Strikes": [],
-                            "Chains": {"CALL": defaultdict(list), "PUT": defaultdict(list)}}}
+        chains = {"Multiplier": multiplier, "Exchange": "unknown",
+                  "Chains": {"CALL": defaultdict(list), "PUT": defaultdict(list)}}
         for row in df_chains.reset_index().to_dict("records"):
             exp_date = row["date"].strftime('%Y-%m-%d')
-            chains["SMART"]["Expirations"].append(exp_date)
-            chains["SMART"]["Strikes"].extend(row["strikes"])
-            chains["SMART"]["Chains"]["CALL"][exp_date] = row["strikes"]
-            chains["SMART"]["Chains"]["PUT"][exp_date] = row["strikes"]
+            chains["Chains"]["CALL"][exp_date] = row["strikes"]
+            chains["Chains"]["PUT"][exp_date] = row["strikes"]
 
-        chains["SMART"]["Strikes"] = sorted(set(chains["SMART"]["Strikes"]))
         return chains
 
     def get_historical_prices(

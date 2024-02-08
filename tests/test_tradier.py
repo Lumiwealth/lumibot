@@ -59,9 +59,9 @@ class TestTradierDataAPI:
     def test_query_greeks(self, tradier_ds):
         asset = Asset("SPY")
         chains = tradier_ds.get_chains(asset)
-        expir_date = list(chains['SMART']['Chains']['CALL'].keys())[0]
-        num_strikes = len(chains['SMART']['Chains']['CALL'][expir_date])
-        strike = chains['SMART']['Chains']['CALL'][expir_date][num_strikes // 2]  # Get a strike price in the middle
+        expir_date = list(chains['Chains']['CALL'].keys())[0]
+        num_strikes = len(chains['Chains']['CALL'][expir_date])
+        strike = chains['Chains']['CALL'][expir_date][num_strikes // 2]  # Get a strike price in the middle
         option_asset = Asset(asset.symbol, asset_type='option', expiration=expir_date, strike=strike, right='CALL')
         greeks = tradier_ds.query_greeks(option_asset)
         assert greeks

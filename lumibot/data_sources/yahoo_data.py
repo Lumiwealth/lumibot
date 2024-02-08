@@ -139,7 +139,7 @@ class YahooData(DataSourceBacktesting):
             open_ = Decimal(open_.item())
         return open_
 
-    def get_chains(self, asset):
+    def get_chains(self, asset: Asset, quote: Asset = None, exchange: str = None):
         """
         Get the chains for a given asset.  This is not implemented for YahooData becuase Yahoo does not support
         historical options data.

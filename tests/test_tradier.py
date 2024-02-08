@@ -38,6 +38,24 @@ class TestTradierDataAPI:
         assert isinstance(price, float)
         assert price > 0.0
 
+    def test_get_chains(self, tradier_ds):
+        asset = Asset("SPY")
+        chains = tradier_ds.get_chains(asset)
+        assert isinstance(chains, dict)
+        chain = chains['SMART']
+        assert 'Chains' in chain
+        assert 'Expirations' in chain
+        assert 'Strikes' in chain
+        assert "CALL" in chain['Chains']
+        assert len(chain['Chains']['CALL']) > 0
+        expir_date = list(chain['Chains']['CALL'].keys())[0]
+        assert len(chain['Chains']['CALL'][expir_date]) > 0
+        strike = chain['Chains']['CALL'][expir_date][0]
+        assert strike > 0
+        assert expir_date in chain['Expirations']
+        assert strike in chain['Strikes']
+        assert chain['Multiplier'] == 100
+
 
 @pytest.mark.apitest
 class TestTradierBrokerAPI:

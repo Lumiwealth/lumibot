@@ -1,11 +1,13 @@
 import logging
+from collections import defaultdict
 from datetime import datetime
 
+import pandas as pd
 import pytz
-from lumiwealth_tradier import Tradier
 
-from lumibot.entities import Bars
+from lumibot.entities import Asset, Bars
 from lumibot.tools.helpers import create_options_symbol, parse_timestep_qty_and_unit
+from lumiwealth_tradier import Tradier
 
 from .data_source import DataSource
 
@@ -15,6 +17,7 @@ class TradierAPIError(Exception):
 
 
 class TradierData(DataSource):
+
     MIN_TIMESTEP = "minute"
     SOURCE = "Tradier"
     TIMESTEP_MAPPING = [
@@ -56,6 +59,47 @@ class TradierData(DataSource):
         self._paper = paper
         self.max_workers = min(max_workers, 50)
         self.tradier = Tradier(account_number, access_token, paper)
+
+    def get_chains(self, asset: Asset, quote: Asset = None, exchange: str = None):
+        """
+        Obtains option chain information for the asset (stock) from each
+        of the exchanges the options trade on and returns a dictionary
+        for each exchange.
+
+        Parameters
+        ----------
+        asset : Asset
+            The asset to get the option chains for
+        quote : Asset | None
+            The quote asset to get the option chains for
+        exchange: str | None
+            The exchange to get the option chains for
+
+        Returns
+        -------
+        dictionary of dictionary
+            Format:
+            - `Multiplier` (str) eg: `100`
+            - 'Chains' - paired Expiration/Strke info to guarentee that the stikes are valid for the specific
+                         expiration date.
+                         Format:
+                           chains['Chains']['CALL'][exp_date] = [strike1, strike2, ...]
+                         Expiration Date Format: 2023-07-31
+        """
+        df_chains = self.tradier.market.get_option_expirations(asset.symbol)
+        if not isinstance(df_chains, pd.DataFrame) or df_chains.empty:
+            raise LookupError(f"Could not find Tradier option chains for {asset.symbol}")
+
+        # Tradier doesn't report multiple exchanges, just use SMART
+        multiplier = int(df_chains.contract_size.mode()[0])  # Use most common, should always be 100
+        chains = {"Multiplier": multiplier, "Exchange": "unknown",
+                  "Chains": {"CALL": defaultdict(list), "PUT": defaultdict(list)}}
+        for row in df_chains.reset_index().to_dict("records"):
+            exp_date = row["date"].strftime('%Y-%m-%d')
+            chains["Chains"]["CALL"][exp_date] = row["strikes"]
+            chains["Chains"]["PUT"][exp_date] = row["strikes"]
+
+        return chains
 
     def get_historical_prices(
         self, asset, length, timestep="", timeshift=None, quote=None, exchange=None, include_after_hours=True

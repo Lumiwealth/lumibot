@@ -18,9 +18,8 @@ import pandas as pd
 import pandas_market_calendars as mcal
 import pytz
 import requests
-from termcolor import colored
-
 from lumibot.entities import Asset, Order
+from termcolor import colored
 
 from ._strategy import _Strategy
 
@@ -358,10 +357,13 @@ class Strategy(_Strategy):
         --------
         >>> self.log_message('Sending a buy order')
         """
-        message = f"{self._log_strat_name()}: {message}"
         if color is not None:
-            message = colored(message, color)
-        logging.info(message)
+            colored_message = f"{self._log_strat_name()}: {message}"
+            colored_message = colored(message, color)
+            logging.info(colored_message)
+        else:
+            output_message = f"{self._log_strat_name()}: {message}"
+            logging.info(output_message)
 
         if broadcast:
             # Send the message to Discord
@@ -679,6 +681,10 @@ class Strategy(_Strategy):
         >>> # Sleep for 5 seconds
         >>> self.sleep(5)
         """
+        if not self.is_backtesting:
+            # Sleep for the the sleeptime in seconds.
+            time.sleep(sleeptime)
+
         return self.broker.sleep(sleeptime)
 
     def get_selling_order(self, position):
@@ -3764,7 +3770,7 @@ class Strategy(_Strategy):
         positions = self.get_positions()
 
         # Create the positions text
-        positions_text = ""
+        positions_details_list = []
         for position in positions:
             # Check if the position asset is the quote asset
 
@@ -3774,13 +3780,37 @@ class Strategy(_Strategy):
                 # Get the last price
                 last_price = self.get_last_price(position.asset)
 
+            # Make sure last_price is a number
+            if last_price is None or not isinstance(last_price, (int, float, Decimal)):
+                logging.info(f"Last price for {position.asset} is not a number: {last_price}")
+                continue
+
             # Calculate teh value of the position
             position_value = position.quantity * last_price
 
             # Calculate the percent of the portfolio that this position represents
             percent_of_portfolio = position_value / portfolio_value
 
-            positions_text += f"{position.quantity:,.2f} {position.asset} ({percent_of_portfolio:,.0%})\n"
+            # Add the position details to the list
+            positions_details_list.append(
+                {
+                    "asset": position.asset,
+                    "quantity": position.quantity,
+                    "value": position_value,
+                    "percent_of_portfolio": percent_of_portfolio,
+                }
+            )
+
+        # Sort the positions by the percent of the portfolio
+        positions_details_list = sorted(positions_details_list, key=lambda x: x["percent_of_portfolio"], reverse=True)
+
+        # Create the positions text
+        positions_text = ""
+        for position in positions_details_list:
+            # positions_text += f"{position.quantity:,.2f} {position.asset} ({percent_of_portfolio:,.0%})\n"
+            positions_text += (
+                f"{position['quantity']:,.2f} {position['asset']} ({position['percent_of_portfolio']:,.0%})\n"
+            )
 
         # Create a message to send to Discord (round the values to 2 decimal places)
         message = f"""
@@ -3795,6 +3825,9 @@ class Strategy(_Strategy):
         # Remove any leading whitespace
         # Remove the extra spaces at the beginning of each line
         message = "\n".join(line.lstrip() for line in message.split("\n"))
+
+        # Add powered by Lumiwealth to the message
+        message += "[**Powered by 💡 Lumiwealth**](<https://lumiwealth.com>)\n-----------"
 
         # Send the message to Discord
         self.send_discord_message(message, None)

@@ -84,7 +84,7 @@ class Order:
         trade_cost: float = None,
         custom_params={},
         identifier=None,
-        tag=''
+        tag="",
     ):
         """Order class for managing individual orders.
 
@@ -235,6 +235,10 @@ class Order:
 
         # Initialization default values
         self.strategy = strategy
+
+        # Check that quantity is a positive number
+        if not isinstance(quantity, (int, float, Decimal)):
+            raise ValueError("Order quantity must be a positive number")
 
         # It is possible for crypto currencies to arrive as a tuple of
         # two assets.

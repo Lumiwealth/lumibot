@@ -368,6 +368,9 @@ class StrategyExecutor(Thread):
             self.strategy.log_message("The market is not currently open, skipping this trading iteration", color="blue")
             return
 
+        # Send the account summary to Discord
+        self.strategy.send_account_summary_to_discord()
+
         start_time = now.strftime("%Y-%m-%d %H:%M:%S")
 
         self._strategy_context = None
@@ -445,8 +448,6 @@ class StrategyExecutor(Thread):
     @event_method
     def _on_filled_order(self, position, order, price, quantity, multiplier):
         self.strategy.on_filled_order(position, order, price, quantity, multiplier)
-
-        self.log_message(f"Filled order for {position.asset} ({order.side} {quantity} at {price}")
 
         # Get the portfolio value
         portfolio_value = self.strategy.get_portfolio_value()

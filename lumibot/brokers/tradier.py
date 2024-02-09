@@ -189,7 +189,7 @@ class Tradier(Broker):
 
             # Create the position
             position = Position(
-                strategy=strategy.name if strategy is not None else None,
+                strategy=strategy,
                 asset=asset,
                 quantity=quantity,
             )
@@ -464,3 +464,13 @@ class Tradier(Broker):
     def _run_stream(self):
         self._stream_established()
         self.stream._run()
+
+    def _flatten_order(self, order):
+        """Some submitted orders may trigger other orders.
+        _flatten_order returns a list containing the main order
+        and all the derived ones"""
+        orders = [order]
+
+        # TODO: Need to implement this for Tradier
+
+        return orders

@@ -212,7 +212,12 @@ class Asset:
             return f"{self.symbol}"
 
     def __eq__(self, other):
+        # Check if other is None
         if other is None:
+            return False
+
+        # Check if other is an Asset object
+        if not isinstance(other, Asset):
             return False
 
         return (

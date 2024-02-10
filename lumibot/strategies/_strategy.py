@@ -49,6 +49,9 @@ class _Strategy:
         buy_trading_fees=[],
         sell_trading_fees=[],
         force_start_immediately=False,
+        discord_webhook_url=None,
+        account_history_db_connection_str=None,
+        strategy_id=None,
         **kwargs,
     ):
         """Initializes a Strategy object.
@@ -104,6 +107,21 @@ class _Strategy:
         force_start_immidiately : bool
             If True, the strategy will start immediately. If False, the strategy will wait until the market opens
             to start. Defaults to True.
+        discord_webhook_url : str
+            The discord webhook url to use for sending alerts from the strategy. You can send alerts to a discord
+            channel by setting broadcast=True in the log_message method. The strategy will also by default send
+            and account summary to the discord channel at the end of each day (account_history_db_connection_str
+            must be set for this to work). Defaults to None (no discord alerts).
+            For instructions on how to create a discord webhook url, see this link:
+            https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks
+        account_history_db_connection_str : str
+            The connection string to use for the account history database. This is used to store the account history
+            for the strategy. The account history is sent to the discord channel at the end of each day. The connection
+            string should be in the format: "sqlite:///path/to/database.db". The database should have a table named
+            "strategy_tracker". If that table does not exist, it will be created. Defaults to None (no account history).
+        strategy_id : str
+            The id of the strategy that will be used to identify the strategy in the account history database.
+            Defaults to None (lumibot will use the name of the strategy as the id).
         """
         # Handling positional arguments.
         # If there is one positional argument, it is assumed to be `broker`.
@@ -146,6 +164,14 @@ class _Strategy:
 
         if self._name is None:
             self._name = self.__class__.__name__
+
+        self.discord_webhook_url = discord_webhook_url
+        self.account_history_db_connection_str = account_history_db_connection_str
+
+        if strategy_id is None:
+            self.strategy_id = self._name
+        else:
+            self.strategy_id = strategy_id
 
         self._quote_asset = quote_asset
 

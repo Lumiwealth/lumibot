@@ -209,7 +209,7 @@ class PolygonDataBacktesting(PandasData):
         Parameters
         ----------
         asset : Asset
-            The asset to get data for.
+            The underlying asset to get data for.
         quote : Asset
             The quote asset to use. For example, if asset is "SPY" and quote is "USD", the data will be for "SPY/USD".
         exchange : str
@@ -230,8 +230,11 @@ class PolygonDataBacktesting(PandasData):
         # All Option Contracts | get_chains matching IBKR |
         # {'Multiplier': 100, 'Exchange': "NYSE",
         #      'Chains': {'CALL': {<date1>: [100.00, 101.00]}}, 'PUT': defaultdict(list)}}
-        option_contracts = {"Multiplier": None, "Exchange": None,
-                            "Chains": {"CALL": defaultdict(list), "PUT": defaultdict(list)}}
+        option_contracts = {
+            "Multiplier": None,
+            "Exchange": None,
+            "Chains": {"CALL": defaultdict(list), "PUT": defaultdict(list)},
+        }
         today = self.get_datetime().date()
         real_today = date.today()
 
@@ -263,6 +266,6 @@ class PolygonDataBacktesting(PandasData):
             strike = polygon_contract.strike_price
             option_contracts["Multiplier"] = polygon_contract.shares_per_contract
             option_contracts["Exchange"] = exchange
-            option_contracts['Chains'][right][exp_date].append(strike)
+            option_contracts["Chains"][right][exp_date].append(strike)
 
         return option_contracts

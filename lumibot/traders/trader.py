@@ -29,9 +29,15 @@ class Trader:
         self.debug = debug
         self.backtest = backtest
         self.log_format = logging.Formatter("%(asctime)s: %(name)s: %(levelname)s: %(message)s")
-        defualt_logdir = appdirs.user_log_dir(appauthor="LumiWealth", appname="lumibot", version="1.0")
-        self.logfile = Path(logfile) if logfile else Path(defualt_logdir) / "backtest" / "lumibot.log"
-        self.logfile.parent.mkdir(parents=True, exist_ok=True)
+
+        if logfile:
+            self.logfile = Path(logfile)
+            self.logfile.parent.mkdir(parents=True, exist_ok=True)
+            self.logdir = self.logfile.parent
+        else:
+            self.logfile = None
+            # default_logdir = appdirs.user_log_dir(appauthor="Lumiwealth", appname="lumibot", version="1.0")
+            self.logdir = Path("logs")
 
         # Setting the list of strategies if defined
         self._strategies = strategies if strategies else []
@@ -114,7 +120,7 @@ class Trader:
         if self.is_backtest_broker:
             logging.info("Backtesting finished")
             strat.backtest_analysis(
-                logfile=self.logfile,
+                logdir=self.logdir,
                 show_plot=show_plot,
                 show_tearsheet=show_tearsheet,
                 save_tearsheet=save_tearsheet,

@@ -692,6 +692,7 @@ class _Strategy:
         polygon_has_paid_subscription=False,
         indicators_file=None,
         show_indicators=True,
+        save_logfile=True,
         **kwargs,
     ):
         """Backtest a strategy.
@@ -769,6 +770,9 @@ class _Strategy:
             The file to write the indicators to.
         show_indicators : bool
             Whether to show the indicators plot.
+        save_logfile : bool
+            Whether to save the logfile. Defaults to True. If False, the logfile will not be saved.
+
 
         Returns
         -------
@@ -866,10 +870,10 @@ class _Strategy:
 
         datestring = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         basename = f"{name + '_' if name is not None else ''}{datestring}"
-        if logfile is None:
-            logfile = f"logs/{basename}_logs.csv"
+        logdir = "logs"
+        if logfile is None and save_logfile:
+            logfile = f"{logdir}/{basename}_logs.csv"
         if stats_file is None:
-            logdir = os.path.dirname(logfile)
             stats_file = f"{logdir}/{basename}_stats.csv"
 
         # #############################################
@@ -974,7 +978,7 @@ class _Strategy:
 
     def backtest_analysis(
         self,
-        logfile=None,
+        logdir=None,
         show_plot=True,
         show_tearsheet=True,
         show_indicators=True,
@@ -988,7 +992,9 @@ class _Strategy:
         name = self._name
 
         # Filename defaults
-        logdir = os.path.dirname(logfile)
+        if not logdir:
+            logdir = "logs"
+
         datestring = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         basename = f"{name + '_' if name is not None else ''}{datestring}"
         if plot_file_html is None:
@@ -1094,6 +1100,7 @@ class _Strategy:
         polygon_has_paid_subscription=False,
         indicators_file=None,
         show_indicators=True,
+        save_logfile=True,
         **kwargs,
     ):
         """Backtest a strategy.
@@ -1171,6 +1178,8 @@ class _Strategy:
             The file to write the indicators to.
         show_indicators : bool
             Whether to show the indicators plot.
+        save_logfile : bool
+            Whether to save the logs to a file. If False, the logs will not be saved to a file. Default is True.
 
         Returns
         -------
@@ -1236,6 +1245,7 @@ class _Strategy:
             polygon_has_paid_subscription=polygon_has_paid_subscription,
             indicators_file=indicators_file,
             show_indicators=show_indicators,
+            save_logfile=save_logfile,
             **kwargs,
         )
         return results

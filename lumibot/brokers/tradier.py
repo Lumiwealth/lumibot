@@ -1,13 +1,12 @@
 import logging
 import traceback
 
-from lumiwealth_tradier import Tradier as _Tradier
-
 from lumibot.brokers import Broker
 from lumibot.data_sources.tradier_data import TradierData
 from lumibot.entities import Asset, Order, Position
 from lumibot.tools.helpers import create_options_symbol
 from lumibot.trading_builtins import PollingStream
+from lumiwealth_tradier import Tradier as _Tradier
 
 
 class Tradier(Broker):
@@ -265,6 +264,11 @@ class Tradier(Broker):
         processing.
         """
         df = self.tradier.orders.get_orders()
+
+        # Check if the dataframe is empty or None
+        if df is None or df.empty:
+            return []
+
         df_open = df[df["status"].isin(["open", "partially_filled", "pending"])]
         return df_open.to_dict("records")
 

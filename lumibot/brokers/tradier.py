@@ -1,6 +1,7 @@
 import logging
 import traceback
 
+import pandas as pd
 from lumibot.brokers import Broker
 from lumibot.data_sources.tradier_data import TradierData
 from lumibot.entities import Asset, Order, Position
@@ -226,7 +227,12 @@ class Tradier(Broker):
         # Parse the symbol
         symbol = response["symbol"]
         option_symbol = response["option_symbol"] if "option_symbol" in response and response["option_symbol"] else None
-        asset = Asset.symbol2asset(option_symbol) if option_symbol else Asset.symbol2asset(symbol)
+
+        asset = (
+            Asset.symbol2asset(option_symbol)
+            if option_symbol and not pd.isna(option_symbol)
+            else Asset.symbol2asset(symbol)
+        )
 
         # Create the order object
         order = Order(

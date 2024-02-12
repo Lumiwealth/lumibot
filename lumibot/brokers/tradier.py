@@ -1,6 +1,7 @@
 import logging
 import traceback
 
+import pandas as pd
 from lumiwealth_tradier import Tradier as _Tradier
 
 from lumibot.brokers import Broker
@@ -189,7 +190,7 @@ class Tradier(Broker):
 
             # Create the position
             position = Position(
-                strategy=strategy,
+                strategy=strategy.name,
                 asset=asset,
                 quantity=quantity,
             )
@@ -227,7 +228,12 @@ class Tradier(Broker):
         # Parse the symbol
         symbol = response["symbol"]
         option_symbol = response["option_symbol"] if "option_symbol" in response and response["option_symbol"] else None
-        asset = Asset.symbol2asset(option_symbol) if option_symbol else Asset.symbol2asset(symbol)
+
+        asset = (
+            Asset.symbol2asset(option_symbol)
+            if option_symbol and not pd.isna(option_symbol)
+            else Asset.symbol2asset(symbol)
+        )
 
         # Create the order object
         order = Order(
@@ -265,6 +271,11 @@ class Tradier(Broker):
         processing.
         """
         df = self.tradier.orders.get_orders()
+
+        # Check if the dataframe is empty or None
+        if df is None or df.empty:
+            return []
+
         df_open = df[df["status"].isin(["open", "partially_filled", "pending"])]
         return df_open.to_dict("records")
 

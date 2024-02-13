@@ -71,18 +71,18 @@ def test_cache_download_data_without_overap(exchange_id:str, symbol:str, timefra
     with duckdb.connect(cache_file_path) as con:
         df_down_range = con.execute("SELECT * from cache_dt_ranges").fetch_df()
 
-    # 기존 데이터 범위가 새로운 데이터 범위로 업데이트 되었는지 확인
-    # 데이터 범위의 개수는 1개여야 한다.
+    # Verify that the existing data range has been updated with the new data range
+    # The number of data ranges should be 1.
     assert len(df_down_range) == 1
 
     cur_start_dt = df_down_range.iloc[0].start_dt
     cur_end_dt = df_down_range.iloc[0].end_dt
 
-    # 새로운 데이터 범위는 기존 데이터 범위보다 커야 한다.
+    # The new data range must be larger than the existing data range.
     assert cur_start_dt <= prev_start_dt
     assert cur_end_dt >= prev_end_dt
 
-    # 새로운 데이터 범위는 요청한 데이터 범위보다 커야 한다.
+    # The new data range must be larger than the requested data range.
     assert cur_end_dt >= end
     assert cur_start_dt <= start
 

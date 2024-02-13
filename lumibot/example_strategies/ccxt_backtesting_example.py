@@ -55,8 +55,8 @@ class MyStrategy(Strategy):
         return bbands
 
     def on_trading_iteration(self):
-        # backtest 진행시에는 self.get_datetime()으로 현재 시간을 가져온다.
-        # 시간 간격은 self.sleeptime 이다.
+        # During the backtest, we get the current time with self.get_datetime().
+        # The time interval is self.sleeptime.
         current_dt = self.get_datetime()
         cash, last_price, quantity = self._position_sizing()
         history_df = self._get_historical_prices()
@@ -89,8 +89,8 @@ exchange_id = "binance" #"bitmex"
 if exchange_id == "binance":
     CCXT_CONFIG = {
         "exchange_id": exchange_id,
-        "apiKey": os.getenv("B_API_KEY"),
-        "secret": os.getenv("B_SECRET_KEY"),
+        "apiKey": os.getenv("BINANCE_API_KEY"),
+        "secret": os.getenv("BINANCE_SECRET_KEY"),
         "sandbox": True,
         'options': {
             'defaultType': 'spot', # 'margine' or 'spot'

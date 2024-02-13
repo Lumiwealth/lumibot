@@ -5,7 +5,6 @@ from decimal import Decimal
 from functools import wraps
 
 import pandas as pd
-
 from lumibot.brokers import Broker
 from lumibot.data_sources import DataSourceBacktesting
 from lumibot.entities import Asset, Order, Position, TradingFee
@@ -499,7 +498,7 @@ class BacktestingBroker(Broker):
             #############################
 
             # Get the OHLCV data for the asset if we're using the YAHOO, CCXT data source
-            if self.data_source.SOURCE.upper() in ["CCXT","YAHOO"]:
+            if self.data_source.SOURCE.upper() in ["CCXT", "YAHOO"]:
                 timeshift = timedelta(
                     days=-1
                 )  # Is negative so that we get today (normally would get yesterday's data to prevent lookahead bias)
@@ -729,8 +728,22 @@ class BacktestingBroker(Broker):
         return result
 
     def _pull_position(self, strategy, asset):
-        """Get the account position for a given asset.
-        return a position object"""
+        """
+        Pull a single position from the broker that matches the asset and strategy. If no position is found, None is
+        returned.
+
+        Parameters
+        ----------
+        strategy: Strategy
+            The strategy object that placed the order to pull
+        asset: Asset
+            The asset to pull the position for
+
+        Returns
+        -------
+        Position
+            The position object for the asset and strategy if found, otherwise None
+        """
         response = self._pull_broker_position(asset)
         result = self._parse_broker_position(response, strategy)
         return result

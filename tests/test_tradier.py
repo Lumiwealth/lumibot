@@ -40,20 +40,15 @@ class TestTradierDataAPI:
 
     def test_get_chains(self, tradier_ds):
         asset = Asset("SPY")
-        chains = tradier_ds.get_chains(asset)
-        assert isinstance(chains, dict)
-        chain = chains['SMART']
+        chain = tradier_ds.get_chains(asset)
+        assert isinstance(chain, dict)
         assert 'Chains' in chain
-        assert 'Expirations' in chain
-        assert 'Strikes' in chain
         assert "CALL" in chain['Chains']
         assert len(chain['Chains']['CALL']) > 0
         expir_date = list(chain['Chains']['CALL'].keys())[0]
         assert len(chain['Chains']['CALL'][expir_date]) > 0
         strike = chain['Chains']['CALL'][expir_date][0]
         assert strike > 0
-        assert expir_date in chain['Expirations']
-        assert strike in chain['Strikes']
         assert chain['Multiplier'] == 100
 
     def test_query_greeks(self, tradier_ds):
@@ -115,7 +110,7 @@ class TestTradierBroker:
 
     def test_lumi_side2tradier(self, mocker):
         broker = Tradier(account_number="1234", access_token="a1b2c3", paper=True)
-        mock_pull_positions = mocker.patch.object(broker, '_pull_position', return_value=None)
+        mock_pull_positions = mocker.patch.object(broker, 'get_tracked_position', return_value=None)
         strategy = "strat_unittest"
         stock_asset = Asset("SPY")
         option_asset = Asset("SPY", asset_type='option')

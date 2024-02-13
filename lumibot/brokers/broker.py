@@ -10,11 +10,10 @@ from threading import RLock, Thread
 import pandas as pd
 import pandas_market_calendars as mcal
 from dateutil import tz
-from termcolor import colored
-
 from lumibot.data_sources import DataSource
 from lumibot.entities import Asset, Order, Position
 from lumibot.trading_builtins import SafeList
+from termcolor import colored
 
 
 class Broker(ABC):
@@ -143,8 +142,22 @@ class Broker(ABC):
 
     @abstractmethod
     def _pull_position(self, strategy, asset):
-        """Get the account position for a given asset.
-        return a position object"""
+        """
+        Pull a single position from the broker that matches the asset and strategy. If no position is found, None is
+        returned.
+
+        Parameters
+        ----------
+        strategy: Strategy
+            The strategy object that placed the order to pull
+        asset: Asset
+            The asset to pull the position for
+
+        Returns
+        -------
+        Position
+            The position object for the asset and strategy if found, otherwise None
+        """
         pass
 
     # =========Broker Orders=======================
@@ -346,19 +359,19 @@ class Broker(ABC):
         list of str
             Sorted list of dates in the form of `2022-10-13`.
         """
-        return sorted(set(chains['Chains']['CALL'].keys()) | set(chains['Chains']['PUT'].keys()))
+        return sorted(set(chains["Chains"]["CALL"].keys()) | set(chains["Chains"]["PUT"].keys()))
 
     def get_strikes(self, asset, chains=None):
         """Returns the strikes for an option asset with right and expiry."""
         # If provided chains, use them. It is faster than querying the data source.
-        if chains and 'Chains' in chains:
+        if chains and "Chains" in chains:
             if asset.asset_type == "option":
-                return chains['Chains'][asset.right][asset.expiration]
+                return chains["Chains"][asset.right][asset.expiration]
             else:
                 strikes = set()
-                for right in chains['Chains']:
-                    for exp in chains['Chains'][right]:
-                        strikes |= set(chains['Chains'][right][exp])
+                for right in chains["Chains"]:
+                    for exp in chains["Chains"][right]:
+                        strikes |= set(chains["Chains"][right][exp])
         else:
             strikes = self.data_source.get_strikes(asset)
 

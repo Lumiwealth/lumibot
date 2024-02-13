@@ -99,7 +99,7 @@ class Asset:
     >>> self.submit_order(order)
     """
 
-    class AssetRight:
+    class OptionRight:
         CALL = "CALL"
         PUT = "PUT"
 
@@ -122,8 +122,8 @@ class Asset:
     # Pull the asset types from the AssetType class
     _asset_types: list = [v for k, v in AssetType.__dict__.items() if not k.startswith("__")]
 
-    # Pull the rights from the AssetRight class
-    _right: list = [v for k, v in AssetRight.__dict__.items() if not k.startswith("__")]
+    # Pull the rights from the OptionRight class
+    _right: list = [v for k, v in OptionRight.__dict__.items() if not k.startswith("__")]
 
     def __init__(
         self,

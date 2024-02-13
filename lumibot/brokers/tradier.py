@@ -2,13 +2,12 @@ import logging
 import traceback
 
 import pandas as pd
-from lumiwealth_tradier import Tradier as _Tradier
-
 from lumibot.brokers import Broker
 from lumibot.data_sources.tradier_data import TradierData
 from lumibot.entities import Asset, Order, Position
 from lumibot.tools.helpers import create_options_symbol
 from lumibot.trading_builtins import PollingStream
+from lumiwealth_tradier import Tradier as _Tradier
 
 
 class Tradier(Broker):
@@ -199,6 +198,22 @@ class Tradier(Broker):
         return positions_ret
 
     def _pull_position(self, strategy, asset):
+        """
+        Pull a single position from the broker that matches the asset and strategy. If no position is found, None is
+        returned.
+
+        Parameters
+        ----------
+        strategy: Strategy
+            The strategy object that placed the order to pull
+        asset: Asset
+            The asset to pull the position for
+
+        Returns
+        -------
+        Position
+            The position object for the asset and strategy if found, otherwise None
+        """
         all_positions = self._pull_positions(strategy)
 
         # Loop through each position and check if it matches the asset
@@ -286,8 +301,10 @@ class Tradier(Broker):
 
         # Convert the side to the Tradier side for options orders if necessary
         if side == "buy" or side == "sell":
+            # Get the strategy object that has the same name as the strategy in the order
+
             # Check if we currently own the option
-            position = self._pull_position(order.strategy, order.asset)
+            position = self.get_tracked_position(order.strategy, order.asset)
 
             # Check if we own the option then we need to sell to close or buy to close
             if position is not None:

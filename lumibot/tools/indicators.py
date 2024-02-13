@@ -8,9 +8,8 @@ from decimal import Decimal
 import pandas as pd
 import plotly.graph_objects as go
 import quantstats_lumi as qs
-from plotly.subplots import make_subplots
-
 from lumibot.tools import to_datetime_aware
+from plotly.subplots import make_subplots
 
 from .yahoo_helper import YahooHelper as yh
 
@@ -330,7 +329,7 @@ def plot_indicators(
         )
 
         # Create graph
-        fig.write_html(plot_file_html, auto_open=show_plot)
+        fig.write_html(plot_file_html, auto_open=show_indicators)
 
 
 def plot_returns(

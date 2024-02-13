@@ -14,7 +14,7 @@ from pandas import DataFrame
 
 from typing import Union,Any
 
-class CcxtBactestingData(DataSourceBacktesting):
+class CcxtBacktestingData(DataSourceBacktesting):
     """Use CcxtCacheDB to download and cache data.
     """
     # SOURCE must be `CCXT` for the DataSourceBacktesting to work
@@ -278,7 +278,7 @@ if __name__ == "__main__":
     end_date = datetime(2023,12,31)
 
     # b = BinanceData(start_date,end_date, **kwargs)
-    b = CcxtBactestingData(start_date,end_date)
+    b = CcxtBacktestingData(start_date,end_date)
     r = b.get_historical_prices(
         asset=(Asset(symbol="SOL",asset_type="crypto"),Asset(symbol="USDT",asset_type="crypto")),
         length=20,

@@ -1,5 +1,5 @@
-from lumibot.data_sources import CcxtBactestingData
+from lumibot.data_sources import CcxtBacktestingData
 
-class CcxtBacktesting(CcxtBactestingData):
+class CcxtBacktesting(CcxtBacktestingData):
     def __init__(self, datetime_start, datetime_end, **kwargs):
-        CcxtBactestingData.__init__(self, datetime_start, datetime_end, **kwargs)
+        CcxtBacktestingData.__init__(self, datetime_start, datetime_end, **kwargs)

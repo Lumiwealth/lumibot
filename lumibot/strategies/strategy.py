@@ -18,8 +18,9 @@ import pandas as pd
 import pandas_market_calendars as mcal
 import pytz
 import requests
-from lumibot.entities import Asset, Order
 from termcolor import colored
+
+from lumibot.entities import Asset, Order
 
 from ._strategy import _Strategy
 

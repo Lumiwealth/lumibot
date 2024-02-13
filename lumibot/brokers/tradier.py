@@ -2,6 +2,7 @@ import logging
 import traceback
 
 import pandas as pd
+
 from lumibot.brokers import Broker
 from lumibot.data_sources.tradier_data import TradierData
 from lumibot.entities import Asset, Order, Position
@@ -301,8 +302,6 @@ class Tradier(Broker):
 
         # Convert the side to the Tradier side for options orders if necessary
         if side == "buy" or side == "sell":
-            # Get the strategy object that has the same name as the strategy in the order
-
             # Check if we currently own the option
             position = self.get_tracked_position(order.strategy, order.asset)
 
@@ -324,6 +323,11 @@ class Tradier(Broker):
             # Otherwise, we don't own the option so we need to buy to open or sell to open
             else:
                 side = "buy_to_open" if side == "buy" else "sell_to_open"
+
+        # Stoploss and limit orders are always used to close positions, even if they are submitted "before" the
+        # position is technically open (i.e. buy and stoploss order are submitted simultaneously)
+        if order.type in [Order.OrderType.STOP, Order.OrderType.LIMIT, Order.OrderType.TRAIL]:
+            side = side.replace("to_open", "to_close")
 
         # Check if the side is a valid Tradier side
         if side not in ["buy_to_open", "buy_to_close", "sell_to_open", "sell_to_close"]:

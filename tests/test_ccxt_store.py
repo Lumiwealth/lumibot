@@ -5,10 +5,10 @@ from datetime import datetime
 import os
 
 
-# PYTHONWARNINGS="ignore::DeprecationWarning"; pytest test/test_ccxt_cache.py
+# PYTHONWARNINGS="ignore::DeprecationWarning"; pytest test/test_ccxt_store.py
 
 @pytest.mark.parametrize("exchange_id,symbol,timeframe,start,end",
-                         [ ("binance","BTC/USDT","1m",datetime(2023, 3, 2),datetime(2023, 3, 4))
+                         [ ("bitmex","ETH/USDT","1d",datetime(2022, 8, 1),datetime(2022, 10, 30))
                          ])
 def test_cache_download_data(exchange_id:str, symbol:str, timeframe:str, start:datetime, end:datetime)->None:
     cache = CcxtCacheDB(exchange_id)
@@ -46,7 +46,7 @@ def test_cache_download_data(exchange_id:str, symbol:str, timeframe:str, start:d
 
 
 @pytest.mark.parametrize("exchange_id,symbol,timeframe,start,end",
-                         [ ("binance","BTC/USDT","1m",datetime(2023, 3, 3),datetime(2023, 3, 6))
+                         [ ("bitmex","ETH/USDT","1d",datetime(2022, 9, 1),datetime(2024, 1, 30))
                          ])
 def test_cache_download_data_without_overap(exchange_id:str, symbol:str, timeframe:str, start:datetime, end:datetime)->None:
     """Test for cases where the requested time range is partially covered by cache, but not partially covered by cache, if cache already exists.

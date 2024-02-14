@@ -10,12 +10,12 @@ from ibapi.client import *
 from ibapi.contract import *
 from ibapi.order import *
 from ibapi.wrapper import *
-
 from lumibot.data_sources import InteractiveBrokersData
 
 # Naming conflict on Order between IB and Lumibot.
-from lumibot.entities import Asset, Position
+from lumibot.entities import Asset
 from lumibot.entities import Order as OrderLum
+from lumibot.entities import Position
 
 from .broker import Broker
 
@@ -145,8 +145,22 @@ class InteractiveBrokers(Broker):
         return result
 
     def _pull_position(self, strategy, asset):
-        """Get the account position for a given asset.
-        return a position object"""
+        """
+        Pull a single position from the broker that matches the asset and strategy. If no position is found, None is
+        returned.
+
+        Parameters
+        ----------
+        strategy: Strategy
+            The strategy object that placed the order to pull
+        asset: Asset
+            The asset to pull the position for
+
+        Returns
+        -------
+        Position
+            The position object for the asset and strategy if found, otherwise None
+        """
         response = self._pull_broker_position(asset)
         result = self._parse_broker_position(response, strategy)
         return result
@@ -308,12 +322,12 @@ class InteractiveBrokers(Broker):
         for exchange in chains:
             all_expr = sorted(set(chains[exchange]["Expirations"]))
             # IB format is "20230818", Lumibot/Polygon/Tradier is "2023-08-18"
-            formatted_expr = [x if '-' in x else x[:4] + '-' + x[4:6] + '-' + x[6:] for x in all_expr]
+            formatted_expr = [x if "-" in x else x[:4] + "-" + x[4:6] + "-" + x[6:] for x in all_expr]
             all_strikes = sorted(set(chains[exchange]["Strikes"]))
-            chains[exchange]['Chains'] = {"CALL": {}, "PUT": {}}
+            chains[exchange]["Chains"] = {"CALL": {}, "PUT": {}}
             for expiration in formatted_expr:
-                chains[exchange]['Chains']["CALL"][expiration] = all_strikes.copy()
-                chains[exchange]['Chains']["PUT"][expiration] = all_strikes.copy()
+                chains[exchange]["Chains"]["CALL"][expiration] = all_strikes.copy()
+                chains[exchange]["Chains"]["PUT"][expiration] = all_strikes.copy()
 
         if "SMART" in chains:
             return chains["SMART"]

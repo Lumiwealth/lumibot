@@ -81,7 +81,7 @@ class CcxtBacktestingData(DataSourceBacktesting):
                                         ex) (Asset(symbol="SOL",asset_type="crypto"),Asset(symbol="USDT",asset_type="crypto"))
             length (int, optional): Number of data to import. Defaults to None.
             timestep (str, optional): "day", "minute". Defaults to "minute".
-            timeshift (int, optional): The amount of shit for a given datetime. Defaults to None.
+            timeshift (int, optional): The amount of shift for a given datetime. Defaults to None.
             quote (Asset, optional): quote asset. Defaults to Asset.
             exchange (Any, optional): exchange. Defaults to None.
             include_after_hours (bool, optional): include_after_hours. Defaults to True.

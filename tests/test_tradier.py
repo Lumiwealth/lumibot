@@ -117,6 +117,7 @@ class TestTradierBroker:
         stock_order = Order(strategy, stock_asset, 1, 'buy', type='market')
         option_order = Order(strategy, option_asset, 1, 'buy', type='market')
 
+        # No Positions exist
         assert broker._lumi_side2tradier(stock_order) == "buy"
         stock_order.side = "sell"
         assert broker._lumi_side2tradier(stock_order) == "sell"
@@ -127,6 +128,15 @@ class TestTradierBroker:
         option_order.side = "blah"
         assert not broker._lumi_side2tradier(option_order)
 
+        # Stoploss always submits as a "to_close" order
+        stop_stock_order = Order(strategy, stock_asset, 1, 'sell', type='stop', stop_price=100.0)
+        assert broker._lumi_side2tradier(stop_stock_order) == "sell"
+        stop_option_order = Order(strategy, option_asset, 1, 'sell', type='stop', stop_price=100.0)
+        assert broker._lumi_side2tradier(stop_option_order) == "sell_to_close"
+        limit_option_order = Order(strategy, option_asset, 1, 'sell', type='limit', limit_price=100.0)
+        assert broker._lumi_side2tradier(limit_option_order) == "sell_to_close"
+
+        # Positions exist
         mock_pull_positions.return_value = Position(strategy=strategy, asset=option_asset, quantity=1)
         option_order.side = "buy"
         assert broker._lumi_side2tradier(option_order) == "buy_to_open"

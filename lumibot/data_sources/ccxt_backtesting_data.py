@@ -265,7 +265,7 @@ class CcxtBacktestingData(DataSourceBacktesting):
 
     def get_strikes(self, asset):
         raise NotImplementedError(
-            "Lumibot BinanceData does not support historical options data. If you need this "
+            "CcxtBactestingData does not support historical options data. If you need this "
             "feature, please use a different data source."
         )
 

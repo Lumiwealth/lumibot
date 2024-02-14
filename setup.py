@@ -48,6 +48,10 @@ setuptools.setup(
         "lumiwealth-tradier>=0.1.4",
         "pytz",
         "psycopg2-binary",
+        "duckdb",
+        "uuid",
+        "numpy",
+        "tabulate",
     ],
     classifiers=[
         "Programming Language :: Python :: 3",

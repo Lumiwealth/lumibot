@@ -596,6 +596,37 @@ class _Strategy:
 
                     self._benchmark_returns_df = df
 
+                # For data sources of type CCXT, benchmark_asset gets bechmark_asset from the CCXT backtest data source.
+                elif self.broker.data_source.SOURCE.upper() == "CCXT":
+                    benchmark_asset = self._benchmark_asset
+                    # If the benchmark asset is a string, then convert it to an Asset object
+                    if isinstance(benchmark_asset, str):
+                        asset_quote = benchmark_asset.split("/")
+                        if len(asset_quote) == 2:
+                            benchmark_asset = (Asset(symbol=asset_quote[0], asset_type="crypto"),
+                                               Asset(symbol=asset_quote[1], asset_type="crypto"))
+                        else:
+                            benchmark_asset = Asset(symbol=benchmark_asset,asset_type="crypto")
+
+                    timestep = "minute"
+                    # If the strategy sleeptime is in days then use daily data, eg. "1D"
+                    if "D" in str(self._sleeptime):
+                        timestep = "day"
+
+                    bars = self.broker.data_source.get_historical_prices_between_dates(
+                        benchmark_asset,
+                        timestep,
+                        start_date=self._backtesting_start,
+                        end_date=backtesting_end_adjusted,
+                        quote=self._quote_asset,
+                    )
+                    df = bars.df
+
+                    # Add the symbol_cumprod column
+                    df["symbol_cumprod"] = (1 + df["return"]).cumprod()
+
+                    self._benchmark_returns_df = df
+
                 # If we are using any other data source, then get the benchmark returns from yahoo
                 else:
                     self._benchmark_returns_df = get_symbol_returns(

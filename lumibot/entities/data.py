@@ -520,7 +520,7 @@ class Data:
         if data is None:
             return None
 
-        df = pd.DataFrame(data).set_index("datetime")
+        df = pd.DataFrame(data).assign(datetime=lambda df: pd.to_datetime(df['datetime'])).set_index('datetime')
         df_result = df.resample(f"{quantity}{unit}").agg(agg_column_map)
 
         # Drop any rows that have NaN values (this can happen if the data is not complete, eg. weekends)

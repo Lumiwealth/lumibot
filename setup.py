@@ -50,6 +50,9 @@ setuptools.setup(
         "pytz",
         "psycopg2-binary",
         "exchange_calendars>=4.5.2",
+        "duckdb",
+        "uuid",
+        "tabulate",
     ],
     classifiers=[
         "Programming Language :: Python :: 3",

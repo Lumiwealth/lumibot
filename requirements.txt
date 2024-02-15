@@ -31,3 +31,7 @@ pyarrow
 tqdm
 pytz
 lumiwealth-tradier
+tabulate
+duckdb
+uuid
+numpy

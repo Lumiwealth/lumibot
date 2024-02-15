@@ -8,3 +8,4 @@ from .interactive_brokers_data import InteractiveBrokersData
 from .pandas_data import PandasData
 from .tradier_data import TradierData
 from .yahoo_data import YahooData
+from .ccxt_backtesting_data import CcxtBacktestingData

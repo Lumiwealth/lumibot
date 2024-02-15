@@ -1,10 +1,11 @@
+import logging
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 
 from lumibot import LUMIBOT_DEFAULT_PYTZ, LUMIBOT_DEFAULT_TIMEZONE
 from lumibot.entities import Asset, AssetsMapping
-from lumibot.tools import black_scholes, get_chunks
+from lumibot.tools import black_scholes
 
 from .exceptions import UnavailabeTimestep
 
@@ -23,6 +24,33 @@ class DataSource(ABC):
         self._api_key = api_key
 
     # ========Required Implementations ======================
+    @abstractmethod
+    def get_chains(self, asset: Asset, quote: Asset = None) -> dict:
+        """
+        Obtains option chain information for the asset (stock) from each
+        of the exchanges the options trade on and returns a dictionary
+        for each exchange.
+
+        Parameters
+        ----------
+        asset : Asset
+            The asset to get the option chains for
+        quote : Asset | None
+            The quote asset to get the option chains for
+
+        Returns
+        -------
+        dictionary of dictionary
+            Format:
+            - `Multiplier` (str) eg: `100`
+            - 'Chains' - paired Expiration/Strike info to guarentee that the strikes are valid for the specific
+                         expiration date.
+                         Format:
+                           chains['Chains']['CALL'][exp_date] = [strike1, strike2, ...]
+                         Expiration Date Format: 2023-07-31
+        """
+        pass
+
     @abstractmethod
     def get_historical_prices(
         self, asset, length, timestep="", timeshift=None, quote=None, exchange=None, include_after_hours=True
@@ -302,6 +330,16 @@ class DataSource(ABC):
         else:
             return AssetsMapping(result)
 
+    def get_strikes(self, asset) -> list:
+        """Return a set of strikes for a given asset"""
+        chains = self.get_chains(asset)
+        strikes = set()
+        for right in chains["Chains"]:
+            for exp_date, strikes in chains["Chains"][right].items():
+                strikes |= set(strikes)
+
+        return sorted(strikes)
+
     def get_yesterday_dividend(self, asset, quote=None):
         """Return dividend per share for a given
         asset for the day before"""
@@ -319,7 +357,7 @@ class DataSource(ABC):
 
         return AssetsMapping(result)
 
-    def get_greeks(
+    def calculate_greeks(
         self,
         asset,
         # API Querying for prices and rates are expensive, so we'll pass them in as arguments most of the time
@@ -371,3 +409,9 @@ class DataSource(ABC):
         )
 
         return greeks
+
+    def query_greeks(self, asset):
+        """Query for the Greeks as it can be more accurate than calculating locally."""
+        logging.info(f"Querying Options Greeks for {asset.symbol} is not supported for this "
+                     f"data source {self.__class__}.")
+        return {}

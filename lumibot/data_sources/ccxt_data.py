@@ -87,6 +87,12 @@ class CcxtData(DataSource):
 
         return result
 
+    def get_chains(self, asset: Asset, quote: Asset = None, exchange: str = None):
+        raise NotImplementedError(
+            "Lumibot CcxtData does not support historical options data. If you need this "
+            "feature, please use a different data source."
+        )
+
     def get_historical_prices(
         self, asset, length, timestep="", timeshift=None, quote=None, exchange=None, include_after_hours=True
     ):

@@ -368,6 +368,9 @@ class StrategyExecutor(Thread):
             self.strategy.log_message("The market is not currently open, skipping this trading iteration", color="blue")
             return
 
+        # Send the account summary to Discord
+        self.strategy.send_account_summary_to_discord()
+
         start_time = now.strftime("%Y-%m-%d %H:%M:%S")
 
         self._strategy_context = None
@@ -445,6 +448,31 @@ class StrategyExecutor(Thread):
     @event_method
     def _on_filled_order(self, position, order, price, quantity, multiplier):
         self.strategy.on_filled_order(position, order, price, quantity, multiplier)
+
+        # Get the portfolio value
+        portfolio_value = self.strategy.get_portfolio_value()
+
+        # Calculate the percent of the portfolio that this order represents
+        percent_of_portfolio = (price * float(quantity)) / portfolio_value
+
+        # Capitalize the side
+        side = order.side.capitalize()
+
+        # Check if we are buying or selling
+        if side == "Buy":
+            emoji = "🟢📈 "
+        else:
+            emoji = "🔴📉 "
+
+        # Create a message to send to Discord
+        message = f"""
+                {emoji} {side} {quantity:,.2f} {position.asset} @ ${price:,.2f} ({percent_of_portfolio:,.0%} of the account)
+                Trade Total = ${(price * float(quantity)):,.2f}
+                Account Value = ${portfolio_value:,.0f}
+                """
+
+        # Send the message to Discord
+        self.strategy.send_discord_message(message, silent=False)
 
         # Let our listener know that an order has been filled (set in the callback)
         if hasattr(self.strategy, "_filled_order_callback") and callable(self.strategy._filled_order_callback):

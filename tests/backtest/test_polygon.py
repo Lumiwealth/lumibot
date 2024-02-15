@@ -57,9 +57,10 @@ class PolygonBacktestStrat(Strategy):
         # that is today and we want to find the next expiration date.
         #   Date Format: 2023-07-31
         trading_datestrs = [x.to_pydatetime().date() for x in trading_days_df.index.to_list()]
+        expirations = self.get_expiration(chain)
         for trading_day in trading_datestrs[days_to_expiration:]:
             day_str = trading_day.strftime("%Y-%m-%d")
-            if day_str in chain["Expirations"]:
+            if day_str in expirations:
                 return trading_day
 
         raise ValueError(
@@ -99,7 +100,7 @@ class PolygonBacktestStrat(Strategy):
             current_asset_price = self.get_last_price(underlying_asset)
 
             # Option Chain: Get Full Option Chain Information
-            chain = self.get_chain(self.chains, exchange="SMART")
+            chain = self.get_chain(self.chains)
             expiration = self.select_option_expiration(chain, days_to_expiration=1)
             # expiration = datetime.date(2023, 8, 4)
 

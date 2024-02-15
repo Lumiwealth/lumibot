@@ -38,6 +38,32 @@ class TestTradierDataAPI:
         assert isinstance(price, float)
         assert price > 0.0
 
+    def test_get_chains(self, tradier_ds):
+        asset = Asset("SPY")
+        chain = tradier_ds.get_chains(asset)
+        assert isinstance(chain, dict)
+        assert 'Chains' in chain
+        assert "CALL" in chain['Chains']
+        assert len(chain['Chains']['CALL']) > 0
+        expir_date = list(chain['Chains']['CALL'].keys())[0]
+        assert len(chain['Chains']['CALL'][expir_date]) > 0
+        strike = chain['Chains']['CALL'][expir_date][0]
+        assert strike > 0
+        assert chain['Multiplier'] == 100
+
+    def test_query_greeks(self, tradier_ds):
+        asset = Asset("SPY")
+        chains = tradier_ds.get_chains(asset)
+        expir_date = list(chains['Chains']['CALL'].keys())[0]
+        num_strikes = len(chains['Chains']['CALL'][expir_date])
+        strike = chains['Chains']['CALL'][expir_date][num_strikes // 2]  # Get a strike price in the middle
+        option_asset = Asset(asset.symbol, asset_type='option', expiration=expir_date, strike=strike, right='CALL')
+        greeks = tradier_ds.query_greeks(option_asset)
+        assert greeks
+        assert 'delta' in greeks
+        assert 'gamma' in greeks
+        assert greeks['delta'] > 0
+
 
 @pytest.mark.apitest
 class TestTradierBrokerAPI:
@@ -84,13 +110,14 @@ class TestTradierBroker:
 
     def test_lumi_side2tradier(self, mocker):
         broker = Tradier(account_number="1234", access_token="a1b2c3", paper=True)
-        mock_pull_positions = mocker.patch.object(broker, '_pull_position', return_value=None)
+        mock_pull_positions = mocker.patch.object(broker, 'get_tracked_position', return_value=None)
         strategy = "strat_unittest"
         stock_asset = Asset("SPY")
         option_asset = Asset("SPY", asset_type='option')
         stock_order = Order(strategy, stock_asset, 1, 'buy', type='market')
         option_order = Order(strategy, option_asset, 1, 'buy', type='market')
 
+        # No Positions exist
         assert broker._lumi_side2tradier(stock_order) == "buy"
         stock_order.side = "sell"
         assert broker._lumi_side2tradier(stock_order) == "sell"
@@ -101,6 +128,15 @@ class TestTradierBroker:
         option_order.side = "blah"
         assert not broker._lumi_side2tradier(option_order)
 
+        # Stoploss always submits as a "to_close" order
+        stop_stock_order = Order(strategy, stock_asset, 1, 'sell', type='stop', stop_price=100.0)
+        assert broker._lumi_side2tradier(stop_stock_order) == "sell"
+        stop_option_order = Order(strategy, option_asset, 1, 'sell', type='stop', stop_price=100.0)
+        assert broker._lumi_side2tradier(stop_option_order) == "sell_to_close"
+        limit_option_order = Order(strategy, option_asset, 1, 'sell', type='limit', limit_price=100.0)
+        assert broker._lumi_side2tradier(limit_option_order) == "sell_to_close"
+
+        # Positions exist
         mock_pull_positions.return_value = Position(strategy=strategy, asset=option_asset, quantity=1)
         option_order.side = "buy"
         assert broker._lumi_side2tradier(option_order) == "buy_to_open"

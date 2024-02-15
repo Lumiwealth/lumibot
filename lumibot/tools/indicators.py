@@ -8,9 +8,9 @@ from decimal import Decimal
 import pandas as pd
 import plotly.graph_objects as go
 import quantstats_lumi as qs
-from plotly.subplots import make_subplots
-
 from lumibot.tools import to_datetime_aware
+from lumibot import LUMIBOT_DEFAULT_TIMEZONE
+from plotly.subplots import make_subplots
 
 from .yahoo_helper import YahooHelper as yh
 
@@ -201,11 +201,11 @@ def plot_indicators(
     chart_markers_df=None,
     chart_lines_df=None,
     strategy_name=None,
-    show_plot=True,
+    show_indicators=True,
 ):
     # If show plot is False, then we don't want to open the plot in the browser
-    if not show_plot:
-        print("show_plot is False, not creating the plot file.")
+    if not show_indicators:
+        print("show_indicators is False, not creating the plot file.")
         return
 
     print("\nCreating indicators plot...")
@@ -330,7 +330,7 @@ def plot_indicators(
         )
 
         # Create graph
-        fig.write_html(plot_file_html, auto_open=show_plot)
+        fig.write_html(plot_file_html, auto_open=show_indicators)
 
 
 def plot_returns(
@@ -393,6 +393,11 @@ def plot_returns(
     else:
         trades_df = trades_df.set_index("time")
         df_final = df_final.merge(trades_df, how="outer", left_index=True, right_index=True)
+
+    # Fix for minute timeframe backtests plotting
+    # Converted to DatetimeIndex because index becomes Index type and UTC timezone in pd.concat
+    # The x-axis is not displayed correctly in plotly when not converted to DatetimeIndex type
+    df_final.index = pd.to_datetime(df_final.index,utc=True).tz_convert(LUMIBOT_DEFAULT_TIMEZONE)
 
     # fig = go.Figure()
     fig = make_subplots(specs=[[{"secondary_y": True}]])

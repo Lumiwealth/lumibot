@@ -1,5 +1,6 @@
 import logging
 import traceback
+from collections import defaultdict
 from datetime import date, timedelta
 
 from polygon import RESTClient
@@ -200,7 +201,7 @@ class PolygonDataBacktesting(PandasData):
 
         return super().get_last_price(asset=asset, quote=quote, exchange=exchange)
 
-    def get_chains(self, asset):
+    def get_chains(self, asset: Asset, quote: Asset = None, exchange: str = None):
         """
         Integrates the Polygon client library into the LumiBot backtest for Options Data in the same
         structure as Interactive Brokers options chain data
@@ -208,25 +209,32 @@ class PolygonDataBacktesting(PandasData):
         Parameters
         ----------
         asset : Asset
-            The asset to get data for.
+            The underlying asset to get data for.
+        quote : Asset
+            The quote asset to use. For example, if asset is "SPY" and quote is "USD", the data will be for "SPY/USD".
+        exchange : str
+            The exchange to get the data from. Example: "SMART"
 
         Returns
         -------
-        dictionary:
-            A dictionary nested with a dictionarty of Polygon Option Contracts information broken out by Exchange,
-            with embedded lists for Expirations and Strikes.
-            {'SMART': {'TradingClass': 'SPY', 'Multiplier': 100, 'Expirations': [], 'Strikes': []}}
-
-            - `TradingClass` (str) eg: `FB`
+        dictionary of dictionary
+            Format:
             - `Multiplier` (str) eg: `100`
-            - `Expirations` (list of str) eg: [`20230616`, ...]
-            - `Strikes` (list of floats) eg: [`100.0`, ...]
+            - 'Chains' - paired Expiration/Strke info to guarentee that the stikes are valid for the specific
+                         expiration date.
+                         Format:
+                           chains['Chains']['CALL'][exp_date] = [strike1, strike2, ...]
+                         Expiration Date Format: 2023-07-31
         """
 
         # All Option Contracts | get_chains matching IBKR |
-        # {'SMART': {'TradingClass': 'SPY', 'Multiplier': 100, 'Expirations': [], 'Strikes': []}}
-        option_contracts = {"SMART": {"TradingClass": None, "Multiplier": None, "Expirations": [], "Strikes": []}}
-        contracts = option_contracts["SMART"]  # initialize contracts
+        # {'Multiplier': 100, 'Exchange': "NYSE",
+        #      'Chains': {'CALL': {<date1>: [100.00, 101.00]}}, 'PUT': defaultdict(list)}}
+        option_contracts = {
+            "Multiplier": None,
+            "Exchange": None,
+            "Chains": {"CALL": defaultdict(list), "PUT": defaultdict(list)},
+        }
         today = self.get_datetime().date()
         real_today = date.today()
 
@@ -253,12 +261,11 @@ class PolygonDataBacktesting(PandasData):
 
             # Contract Data | Attributes
             exchange = polygon_contract.primary_exchange
-            contracts["TradingClass"] = polygon_contract.underlying_ticker
-            contracts["Multiplier"] = polygon_contract.shares_per_contract
-            contracts["Expirations"].append(polygon_contract.expiration_date)
-            contracts["Strikes"].append(polygon_contract.strike_price)
-
-            option_contracts["SMART"] = contracts
-            option_contracts[exchange] = contracts
+            right = polygon_contract.contract_type.upper()
+            exp_date = polygon_contract.expiration_date  # Format: '2023-08-04'
+            strike = polygon_contract.strike_price
+            option_contracts["Multiplier"] = polygon_contract.shares_per_contract
+            option_contracts["Exchange"] = exchange
+            option_contracts["Chains"][right][exp_date].append(strike)
 
         return option_contracts

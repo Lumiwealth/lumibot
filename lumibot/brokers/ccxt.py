@@ -2,10 +2,9 @@ import datetime
 import logging
 from decimal import ROUND_DOWN, Decimal, getcontext
 
-from termcolor import colored
-
 from lumibot.data_sources import CcxtData
 from lumibot.entities import Asset, Order, Position
+from termcolor import colored
 
 from .broker import Broker
 
@@ -96,9 +95,9 @@ class Ccxt(Broker):
         balances = self._fetch_balance()
 
         currency_key = "currency"
-        if self.api.exchangeId in ["coinbasepro", "kucoin", "kraken", "coinbase","binance"]:
+        if self.api.exchangeId in ["coinbasepro", "kucoin", "kraken", "coinbase", "binance", "bitmex"]:
             balances_info = []
-            reserved_keys = ["total", "free", "used", "info", "timestamp", "datetime","debt"]
+            reserved_keys = ["total", "free", "used", "info", "timestamp", "datetime", "debt"]
             for key in balances:
                 if key in reserved_keys:
                     continue
@@ -207,7 +206,7 @@ class Ccxt(Broker):
         """Get the broker representation of all positions"""
         response = self._fetch_balance()
 
-        if self.api.exchangeId in ["kraken", "kucoin", "coinbasepro", "coinbase","binance"]:
+        if self.api.exchangeId in ["kraken", "kucoin", "coinbasepro", "coinbase", "binance", "bitmex"]:
             balances_info = []
             reserved_keys = [
                 "total",
@@ -252,8 +251,22 @@ class Ccxt(Broker):
         return result
 
     def _pull_position(self, strategy, asset):
-        """Get the account position for a given asset.
-        return a position object"""
+        """
+        Pull a single position from the broker that matches the asset and strategy. If no position is found, None is
+        returned.
+
+        Parameters
+        ----------
+        strategy: Strategy
+            The strategy object that placed the order to pull
+        asset: Asset
+            The asset to pull the position for
+
+        Returns
+        -------
+        Position
+            The position object for the asset and strategy if found, otherwise None
+        """
         response = self._pull_broker_position(asset)
         result = self._parse_broker_position(response, strategy)
         return result
@@ -351,11 +364,24 @@ class Ccxt(Broker):
     def _submit_order(self, order):
         """Submit an order for an asset"""
 
+        # Check if order has a quantity
+        if not hasattr(order, "quantity") or order.quantity is None:
+            raise ValueError(f"Order {order} does not have a quantity.")
+
+        # Check that order quantity is a numeric type
+        if not isinstance(order.quantity, (int, float, Decimal)):
+            raise ValueError(f"Order quantity must be a numeric type, not {type(order.quantity)}")
+
+        # Check if order quantity is greater than 0.
+        if order.quantity <= 0:
+            logging.warning(f"The order {order} was rejected as the order quantity is 0 or less.")
+            return
+
         # Orders limited.
         order_class = None
         order_types = ["market", "limit", "stop_limit"]
         # TODO: Is this actually true?? Try testing this with a bunch of different exchanges.
-        markets_error_message = f"Only `market`, `limit`, or `stop_limit` orders work " f"with crypto currency markets."
+        markets_error_message = "Only `market`, `limit`, or `stop_limit` orders work with crypto currency markets."
 
         if order.order_class != order_class:
             logging.error(f"A compound order of {order.order_class} was entered. " f"{markets_error_message}")
@@ -388,13 +414,18 @@ class Ccxt(Broker):
         else:
             # Set the precision for the Decimal context
             getcontext().prec = 8
+            getcontext().rounding = ROUND_DOWN
             decimal_value = Decimal(precision["amount"])
-            precision_amount = decimal_value.quantize(Decimal('1e-{0}'.format(8)), rounding=ROUND_DOWN)
+            precision_amount = decimal_value.quantize(Decimal("1e-{0}".format(8)), rounding=ROUND_DOWN)
 
         # Convert the amount to Decimal.
         if hasattr(order, "quantity") and getattr(order, "quantity") is not None:
             qty = Decimal(getattr(order, "quantity"))
-            new_qty = qty.quantize(precision_amount, rounding=ROUND_DOWN)
+
+            # Calculate the precision factor as the reciprocal of precision_amount
+            precision_factor = Decimal("1") / precision_amount
+
+            new_qty = (qty * precision_factor).to_integral_value(rounding="ROUND_DOWN") / precision_factor
 
             if new_qty <= Decimal(0):
                 logging.warning(
@@ -685,7 +716,7 @@ class Ccxt(Broker):
             ]
             if order_type_map[order.type] == "limit":
                 args.append(str(order.limit_price))
-                
+
             # If coinbase, you need to pass the price even with a market order
             if broker == "coinbase" and order_type_map[order.type] == "market":
                 price = self.data_source.get_last_price(order.asset, quote=order.quote)

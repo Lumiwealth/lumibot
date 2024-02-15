@@ -1,17 +1,15 @@
 import datetime
 import logging
 import time
-from collections import deque
+from collections import defaultdict, deque
 from decimal import Decimal
 from threading import Thread
 
-import pandas as pd
 from dateutil import tz
 from ibapi.client import *
 from ibapi.contract import *
 from ibapi.order import *
 from ibapi.wrapper import *
-
 from lumibot.data_sources import InteractiveBrokersData
 
 # Naming conflict on Order between IB and Lumibot.
@@ -147,8 +145,22 @@ class InteractiveBrokers(Broker):
         return result
 
     def _pull_position(self, strategy, asset):
-        """Get the account position for a given asset.
-        return a position object"""
+        """
+        Pull a single position from the broker that matches the asset and strategy. If no position is found, None is
+        returned.
+
+        Parameters
+        ----------
+        strategy: Strategy
+            The strategy object that placed the order to pull
+        asset: Asset
+            The asset to pull the position for
+
+        Returns
+        -------
+        Position
+            The position object for the asset and strategy if found, otherwise None
+        """
         response = self._pull_broker_position(asset)
         result = self._parse_broker_position(response, strategy)
         return result
@@ -293,27 +305,35 @@ class InteractiveBrokers(Broker):
         # Returns option chain data, list of strikes and list of expiry dates.
         return self.ib.option_params(asset=asset, exchange=exchange, underlyingConId=underlyingConId)
 
-    def get_chains(self, asset):
-        """Returns option chain."""
+    def get_chains(self, asset: Asset):
+        """
+        Returns option chain. IBKR chain data is weird because it returns a list of expirations and a separate list of
+        strikes, but no way of coorelating the two. This method returns a dictionary with the expirations and strikes
+        listed separately as well as attempting to combine them together under:
+            [Chains][right][expiration_date] = [strike1, strike2, ...]
+
+        """
         contract_details = self.get_contract_details(asset=asset)
         contract_id = contract_details[0].contract.conId
         chains = self.option_params(asset, underlyingConId=contract_id)
         if len(chains) == 0:
             raise AssertionError(f"No option chain for {asset}")
-        return chains
 
-    def get_chain(self, chains, exchange="SMART"):
-        """Returns option chain for a particular exchange."""
-        for x, p in chains.items():
-            if x == exchange:
-                return p
+        for exchange in chains:
+            all_expr = sorted(set(chains[exchange]["Expirations"]))
+            # IB format is "20230818", Lumibot/Polygon/Tradier is "2023-08-18"
+            formatted_expr = [x if "-" in x else x[:4] + "-" + x[4:6] + "-" + x[6:] for x in all_expr]
+            all_strikes = sorted(set(chains[exchange]["Strikes"]))
+            chains[exchange]["Chains"] = {"CALL": {}, "PUT": {}}
+            for expiration in formatted_expr:
+                chains[exchange]["Chains"]["CALL"][expiration] = all_strikes.copy()
+                chains[exchange]["Chains"]["PUT"][expiration] = all_strikes.copy()
 
-    def get_expiration(self, chains, exchange="SMART"):
-        """Returns expirations and strikes high/low of target price.
-        Return type datetime.date()
-        """
-        expirations = sorted(list(self.get_chain(chains, exchange=exchange)["Expirations"]))
-        return [datetime.datetime.strptime(expiration, "%Y%m%d").date() for expiration in expirations]
+        if "SMART" in chains:
+            return chains["SMART"]
+        else:
+            # Return the 1st exchange if SMART is not available.
+            return chains[list(chains.keys())[0]]
 
     # =======Stream functions=========
     def on_status_event(
@@ -1178,7 +1198,7 @@ class IBApp(IBWrapper, IBClient):
 
         thread = Thread(target=self.run)
         thread.start()
-        setattr(self, "_thread", thread)
+        self._thread = thread
 
         self.init_error()
         self.map_reqid_asset = dict()

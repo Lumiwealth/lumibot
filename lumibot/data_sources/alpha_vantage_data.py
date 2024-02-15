@@ -8,7 +8,7 @@ from alpha_vantage.timeseries import TimeSeries
 
 from lumibot import LUMIBOT_DEFAULT_PYTZ, LUMIBOT_DEFAULT_TIMEZONE
 from lumibot.data_sources.exceptions import NoDataFound
-from lumibot.entities import Bars
+from lumibot.entities import Asset, Bars
 
 from .data_source import DataSource
 
@@ -36,6 +36,13 @@ class AlphaVantageData(DataSource):
         )
 
         return result
+
+    def get_chains(self, asset: Asset, quote: Asset=None, exchange=None):
+        """AlphaVantage does not support options chains"""
+        raise NotImplementedError(
+            "Lumibot AlphaVantage does not support get_chains options data. If you need this "
+            "feature, please use a different data source."
+        )
 
     def _pull_source_symbol_bars(
         self,

@@ -5,7 +5,6 @@ from decimal import Decimal
 from functools import wraps
 
 import pandas as pd
-
 from lumibot.brokers import Broker
 from lumibot.data_sources import DataSourceBacktesting
 from lumibot.entities import Asset, Order, Position, TradingFee
@@ -498,8 +497,8 @@ class BacktestingBroker(Broker):
             # Get OHLCV data for the asset
             #############################
 
-            # Get the OHLCV data for the asset if we're using the YAHOO data source
-            if self.data_source.SOURCE == "YAHOO":
+            # Get the OHLCV data for the asset if we're using the YAHOO, CCXT data source
+            if self.data_source.SOURCE.upper() in ["CCXT", "YAHOO"]:
                 timeshift = timedelta(
                     days=-1
                 )  # Is negative so that we get today (normally would get yesterday's data to prevent lookahead bias)
@@ -655,16 +654,6 @@ class BacktestingBroker(Broker):
         """Returns OHLCV dictionary for last bar of the asset."""
         return self.data_source.get_historical_prices(asset, 1)
 
-    def get_expiration(self, chains, exchange="SMART"):
-        """Returns expirations and strikes high/low of target price."""
-        if exchange != "SMART":
-            raise ValueError(
-                "When getting option expirations in backtesting, only the `SMART`"
-                "exchange may be used. It is the default value. Please delete "
-                "the `exchange` parameter or change the value to `SMART`."
-            )
-        return super().get_expiration(chains, exchange)
-
     # ==========Processing streams data=======================
 
     def _get_stream_object(self):
@@ -739,8 +728,22 @@ class BacktestingBroker(Broker):
         return result
 
     def _pull_position(self, strategy, asset):
-        """Get the account position for a given asset.
-        return a position object"""
+        """
+        Pull a single position from the broker that matches the asset and strategy. If no position is found, None is
+        returned.
+
+        Parameters
+        ----------
+        strategy: Strategy
+            The strategy object that placed the order to pull
+        asset: Asset
+            The asset to pull the position for
+
+        Returns
+        -------
+        Position
+            The position object for the asset and strategy if found, otherwise None
+        """
         response = self._pull_broker_position(asset)
         result = self._parse_broker_position(response, strategy)
         return result

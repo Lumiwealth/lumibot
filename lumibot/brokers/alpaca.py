@@ -12,10 +12,9 @@ from alpaca.trading.enums import QueryOrderStatus
 from alpaca.trading.requests import GetOrdersRequest
 from alpaca.trading.stream import TradingStream
 from dateutil import tz
-from termcolor import colored
-
 from lumibot.data_sources import AlpacaData
 from lumibot.entities import Asset, Order, Position
+from termcolor import colored
 
 from .broker import Broker
 
@@ -304,8 +303,22 @@ class Alpaca(Broker):
         return result
 
     def _pull_position(self, strategy, asset):
-        """Get the account position for a given asset.
-        return a position object"""
+        """
+        Pull a single position from the broker that matches the asset and strategy. If no position is found, None is
+        returned.
+
+        Parameters
+        ----------
+        strategy: Strategy
+            The strategy object that placed the order to pull
+        asset: Asset
+            The asset to pull the position for
+
+        Returns
+        -------
+        Position
+            The position object for the asset and strategy if found, otherwise None
+        """
         response = self._pull_broker_position(asset)
         result = self._parse_broker_position(response, strategy)
         return result

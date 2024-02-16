@@ -3,7 +3,6 @@ import logging
 import re
 
 import pandas as pd
-
 from lumibot import LUMIBOT_DEFAULT_PYTZ as DEFAULT_PYTZ
 from lumibot.tools.helpers import parse_timestep_qty_and_unit, to_datetime_aware
 
@@ -513,7 +512,7 @@ class Data:
             data = self._get_bars_dict(dt, length=length, timestep="minute", timeshift=timeshift)
 
         else:
-            unit = "T"  # Guarenteed to be minute timestep at this point
+            unit = "min"  # Guaranteed to be minute timestep at this point
             length = length * quantity
             data = self._get_bars_dict(dt, length=length, timestep=timestep, timeshift=timeshift)
 

@@ -3,7 +3,6 @@ from collections import defaultdict
 from datetime import date, timedelta
 
 import pandas as pd
-
 from lumibot.data_sources import DataSourceBacktesting
 from lumibot.entities import Asset, AssetsMapping, Bars
 
@@ -86,7 +85,7 @@ class PandasData(DataSourceBacktesting):
         df["dates"] = df.index.date
         df = df.merge(pcal[["market_open", "market_close"]], left_on="dates", right_index=True)
         if self._timestep == "minute":
-            df = df.asfreq("1T", method="pad")
+            df = df.asfreq("1min", method="pad")
             result_index = df.loc[(df.index >= df["market_open"]) & (df.index <= df["market_close"]), :].index
         else:
             result_index = df.index
@@ -163,7 +162,7 @@ class PandasData(DataSourceBacktesting):
 
         if dt_index is None:
             # Build a dummy index
-            freq = "1T" if self._timestep == "minute" else "1D"
+            freq = "1min" if self._timestep == "minute" else "1D"
             dt_index = pd.date_range(start=self.datetime_start, end=self.datetime_end, freq=freq)
 
         else:
@@ -368,7 +367,7 @@ class PandasData(DataSourceBacktesting):
                 continue
             if store_asset.symbol != asset.symbol:
                 continue
-            chains['Chains'][store_asset.right][store_asset.expiration].append(store_asset.strike)
+            chains["Chains"][store_asset.right][store_asset.expiration].append(store_asset.strike)
 
         return chains
 

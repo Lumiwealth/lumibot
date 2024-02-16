@@ -3789,6 +3789,10 @@ class Strategy(_Strategy):
             # Calculate teh value of the position
             position_value = position.quantity * last_price
 
+            # If option, multiply % of portfolio by 100
+            if position.asset.asset_type == "option":
+                position_value = position_value * 100
+
             # Calculate the percent of the portfolio that this position represents
             percent_of_portfolio = position_value / portfolio_value
 

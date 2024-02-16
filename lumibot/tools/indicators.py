@@ -1,3 +1,4 @@
+import contextlib
 import logging
 import math
 import os
@@ -358,7 +359,7 @@ def plot_returns(
     _df1 = _df1.sort_index(ascending=True)
     _df1.index.name = "datetime"
     _df1[strategy_name] = (1 + _df1["return"]).cumprod()
-    _df1[strategy_name].iloc[0] = 1
+    _df1.loc[_df1.index[0], strategy_name] = 1
     _df1[strategy_name] = _df1[strategy_name] * initial_budget
     dfs_concat.append(_df1)
 
@@ -653,7 +654,12 @@ def create_tearsheet(
     _strategy_df = strategy_df.copy()
     _benchmark_df = benchmark_df.copy()
 
-    df = pd.concat([_strategy_df, _benchmark_df], join="outer", axis=1)
+    # Convert _strategy_df and _benchmark_df indexes to a date object instead of datetime
+    _strategy_df.index = pd.to_datetime(_strategy_df.index)
+
+    # Merge the strategy and benchmark dataframes on the index column
+    df = pd.merge(_strategy_df, _benchmark_df, left_index=True, right_index=True, how="outer")
+
     df.index = pd.to_datetime(df.index)
     df["portfolio_value"] = df["portfolio_value"].ffill()
 
@@ -663,11 +669,14 @@ def create_tearsheet(
     df["symbol_cumprod"] = df["symbol_cumprod"].ffill()
     df.loc[df.index[0], "symbol_cumprod"] = 1
 
-    df = df.groupby(df.index.date).last()
-    df["strategy"] = df["portfolio_value"].pct_change().fillna(0)
-    df["benchmark"] = df["symbol_cumprod"].pct_change().fillna(0)
+    df = df.resample("D").last()
+    df["strategy"] = df["portfolio_value"].pct_change(fill_method=None).fillna(0)
+    df["benchmark"] = df["symbol_cumprod"].pct_change(fill_method=None).fillna(0)
 
+    # Merge the strategy and benchmark columns into a new dataframe called df_final
     df_final = df.loc[:, ["strategy", "benchmark"]]
+
+    # df_final = df.loc[:, ["strategy", "benchmark"]]
     df_final.index = pd.to_datetime(df_final.index)
     df_final.index = df_final.index.tz_localize(None)
 
@@ -698,15 +707,17 @@ def create_tearsheet(
     # Set the name of the benchmark column so that quantstats can use it in the report
     df_final["benchmark"].name = str(benchmark_asset)
 
-    # TODO: Add the risk free rate, it's currently 0% which is wrong
-    qs.reports.html(
-        df_final["strategy"],
-        df_final["benchmark"],
-        title=title,
-        output=tearsheet_file,
-        download_filename=tearsheet_file,  # TODO: Should we name this slightly different than output?
-        rf=risk_free_rate,
-    )
+    # Run quantstats reports surpressing any logs because it can be noisy for no reason
+    with open(os.devnull, "w") as f, contextlib.redirect_stdout(f), contextlib.redirect_stderr(f):
+        qs.reports.html(
+            df_final["strategy"],
+            df_final["benchmark"],
+            title=title,
+            output=tearsheet_file,
+            download_filename=tearsheet_file,  # Consider if you need a different name for clarity
+            rf=risk_free_rate,
+        )
+
     if show_tearsheet:
         url = "file://" + os.path.abspath(str(tearsheet_file))
         webbrowser.open(url)

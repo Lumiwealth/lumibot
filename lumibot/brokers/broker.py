@@ -227,7 +227,8 @@ class Broker(ABC):
     # ================================ Common functions ================================
     @property
     def _tracked_orders(self):
-        return self._unprocessed_orders + self._new_orders + self._partially_filled_orders
+        return (self._unprocessed_orders.get_list() + self._new_orders.get_list() +
+                self._partially_filled_orders.get_list())
 
     def is_backtesting_broker(self):
         return self.IS_BACKTESTING_BROKER
@@ -717,7 +718,7 @@ class Broker(ABC):
 
     def get_all_orders(self) -> list[Order]:
         """get all tracked and completed orders"""
-        orders = list(self._tracked_orders + self._canceled_orders)
+        orders = self._tracked_orders + self._canceled_orders.get_list()
         positions = self._filled_positions
         for pos in positions:
             orders += pos.orders
@@ -1013,6 +1014,7 @@ class Broker(ABC):
             "time": current_dt,
             "strategy": stored_order.strategy,
             "exchange": stored_order.exchange,
+            "identifier": stored_order.identifier,
             "symbol": stored_order.symbol,
             "side": stored_order.side,
             "type": stored_order.type,

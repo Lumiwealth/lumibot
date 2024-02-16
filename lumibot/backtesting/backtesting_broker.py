@@ -5,6 +5,7 @@ from decimal import Decimal
 from functools import wraps
 
 import pandas as pd
+
 from lumibot.brokers import Broker
 from lumibot.data_sources import DataSourceBacktesting
 from lumibot.entities import Asset, Order, Position, TradingFee
@@ -320,6 +321,7 @@ class BacktestingBroker(Broker):
         order.update_raw(order)
         self.stream.dispatch(
             self.NEW_ORDER,
+            wait_until_complete=True,
             order=order,
         )
         return order
@@ -334,6 +336,7 @@ class BacktestingBroker(Broker):
         """Cancel an order"""
         self.stream.dispatch(
             self.CANCELED_ORDER,
+            wait_until_complete=True,
             order=order,
         )
 
@@ -395,6 +398,7 @@ class BacktestingBroker(Broker):
         # Send filled order event
         self.stream.dispatch(
             self.CASH_SETTLED,
+            wait_until_complete=True,
             order=order,
             price=abs(profit_loss / position.quantity / position.asset.multiplier),
             filled_quantity=abs(position.quantity),
@@ -608,6 +612,7 @@ class BacktestingBroker(Broker):
 
                 self.stream.dispatch(
                     self.FILLED_ORDER,
+                    wait_until_complete=True,
                     order=order,
                     price=price,
                     filled_quantity=filled_quantity,

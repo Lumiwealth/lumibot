@@ -24,15 +24,18 @@ class Tradier(Broker):
     POLL_EVENT = PollingStream.POLL_EVENT
 
     def __init__(
-        self,
-        config=None,
-        account_number=None,
-        access_token=None,
-        paper=None,
-        max_workers=20,
-        connect_stream=True,
-        data_source=None,
-        polling_interval=5.0,
+            self,
+            config=None,
+            account_number=None,
+            access_token=None,
+            paper=None,
+            connect_stream=True,
+            data_source=None,
+            polling_interval=5.0,
+
+            # Need sequential order submission for Tradier becuase it is very strict that buy orders exist
+            # before any stoploss/limit orders.
+            max_workers=1,
     ):
         # Check if the user provided both config file and keys
         if (access_token is not None or account_number is not None or paper is not None) and config is not None:
@@ -158,6 +161,7 @@ class Tradier(Broker):
         order.status = "submitted"
         order.update_raw(order_response)  # This marks order as 'transmitted'
         self._unprocessed_orders.append(order)
+        self.stream.dispatch(self.NEW_ORDER, order=order)
         return order
 
     def _get_balances_at_broker(self, quote_asset: Asset):
@@ -279,12 +283,11 @@ class Tradier(Broker):
         orders = self.tradier.orders.get_order(identifier).to_dict("records")
         return orders[0] if len(orders) > 0 else None
 
-    def _pull_broker_open_orders(self):
+    def _pull_broker_all_orders(self):
         """
-        This function pulls all open orders from the broker. Orders are converted to a list of dictionaries,
+        This function pulls all orders from the broker. Orders are converted to a list of dictionaries,
         and then returned. It is expected that the caller will convert each dictionary to an Order object by
-        calling parse_broker_order() on the dictionary. Parsing the order will also dispatch it to the stream for
-        processing.
+        calling parse_broker_order() on the dictionary.
         """
         df = self.tradier.orders.get_orders()
 
@@ -292,8 +295,7 @@ class Tradier(Broker):
         if df is None or df.empty:
             return []
 
-        df_open = df[df["status"].isin(["open", "partially_filled", "pending"])]
-        return df_open.to_dict("records")
+        return df.to_dict("records")
 
     def _lumi_side2tradier(self, order: Order) -> str:
         side = order.side
@@ -360,6 +362,7 @@ class Tradier(Broker):
         # Get current orders from the broker and dispatch them to the stream for processing. Need to see all
         # lumi orders (not just active "tracked" ones) to catch any orders that might have changed final
         # status in Tradier.
+        logging.info("Polling Tradier for order updates...")
         df_orders = self.tradier.orders.get_orders()
         stored_orders = {x.identifier: x for x in self.get_all_orders()}
         for order_row in df_orders.to_dict("records"):
@@ -408,6 +411,10 @@ class Tradier(Broker):
                             #  - Tradier will auto settle and create a new fill order for cash settled orders. Needs
                             #    testing to confirm.
                             pass
+                else:
+                    # Status hasn't changed, but make sure we use the broker's status.
+                    # I.e. 'submitted' becomes 'open'
+                    stored_order.status = order.status
 
         # See if there are any tracked (aka active) orders that are no longer in the broker's list,
         # dispatch them as cancelled

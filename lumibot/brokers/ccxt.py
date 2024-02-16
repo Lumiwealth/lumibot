@@ -300,7 +300,7 @@ class Ccxt(Broker):
 
     def _pull_broker_order(self, identifier):
         """Get a broker order representation by its id"""
-        open_orders = self._pull_broker_open_orders()
+        open_orders = self._pull_broker_all_orders()
         closed_orders = self._pull_broker_closed_orders()
         all_orders = open_orders + closed_orders
 
@@ -318,7 +318,7 @@ class Ccxt(Broker):
 
         return closed_orders
 
-    def _pull_broker_open_orders(self):
+    def _pull_broker_all_orders(self):
         """Get the broker open orders"""
         # For binance api rate limit on calling all orders at once.
         if self.api.exchangeId == "binance":
@@ -747,7 +747,7 @@ class Ccxt(Broker):
 
     def cancel_open_orders(self, strategy):
         """Cancel all open orders at the broker."""
-        for order in self._pull_broker_open_orders():
+        for order in self._pull_broker_all_orders():
             self.api.cancel_order(order["id"], symbol=order["symbol"])
 
     def get_historical_account_value(self):

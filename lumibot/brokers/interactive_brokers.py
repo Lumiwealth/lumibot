@@ -216,7 +216,7 @@ class InteractiveBrokers(Broker):
         response = pull_order[0] if len(pull_order) > 0 else None
         return response
 
-    def _pull_broker_open_orders(self):
+    def _pull_broker_all_orders(self):
         """Get the broker open orders"""
         orders = self.ib.get_open_orders()
         return orders

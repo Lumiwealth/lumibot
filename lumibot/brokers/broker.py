@@ -174,7 +174,7 @@ class Broker(ABC):
         pass
 
     @abstractmethod
-    def _pull_broker_open_orders(self):
+    def _pull_broker_all_orders(self):
         """
         Get the broker open orders
         TODO: Fill in with the expected output of this function.
@@ -776,10 +776,10 @@ class Broker(ABC):
             return order
         return None
 
-    def _pull_open_orders(self, strategy_name, strategy_object):
+    def _pull_all_orders(self, strategy_name, strategy_object):
         """Get a list of order objects representing the open
         orders"""
-        response = self._pull_broker_open_orders()
+        response = self._pull_broker_all_orders()
         result = self._parse_broker_orders(response, strategy_name, strategy_object=strategy_object)
         return result
 

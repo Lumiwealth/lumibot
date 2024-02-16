@@ -121,7 +121,7 @@ class StrategyExecutor(Thread):
                     self.strategy._set_cash_position(cash_broker)
 
                 positions_broker = self.broker._pull_positions(self.strategy)
-                orders_broker = self.broker._pull_open_orders(self.name, self.strategy)
+                orders_broker = self.broker._pull_all_orders(self.name, self.strategy)
 
                 held_trades_len = len(self.broker._held_trades)
                 if held_trades_len > 0:

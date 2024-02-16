@@ -236,7 +236,7 @@ class BacktestingBroker(Broker):
                 return order
         return None
 
-    def _pull_broker_open_orders(self):
+    def _pull_broker_all_orders(self):
         """Get the broker open orders"""
         orders = self._new_orders.__items
         return orders

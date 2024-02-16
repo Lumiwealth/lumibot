@@ -68,9 +68,16 @@ class PollingStream(CustomStream):
                 # If the queue is empty, it means the polling interval has been reached.
                 self._poll()
                 continue
+            except Exception as e:
+                print(f"Error in PollingStream: {e}")
+                continue
 
     def _poll(self):
         if self.POLL_EVENT not in self._actions_mapping:
             raise ValueError("No action is defined for the poll event. You must register a polling action with "
                              "add_action()")
-        self._process_queue_event(self.POLL_EVENT, {})
+        try:
+            self._process_queue_event(self.POLL_EVENT, {})
+        except Exception as e:
+            print(f"Error in Polling Execution: {e}")
+            return

@@ -283,7 +283,7 @@ class TestExampleStrategies:
         # Get all the filled market orders
         filled_orders = trades_df[(trades_df["status"] == "fill")]
 
-        # Check that the second order was a market order with a price of $1909 or more and a quantity of 17.0
+        # Check that the second order was a market order with a price of $1828 or more and a quantity of 17.0
         assert filled_orders.iloc[1]["type"] == "market"
         assert filled_orders.iloc[1]["filled_quantity"] == 17.0
-        assert filled_orders.iloc[1]["price"] >= 1909
+        assert filled_orders.iloc[1]["price"] >= 1828

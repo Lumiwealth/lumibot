@@ -370,7 +370,6 @@ class Tradier(Broker):
         # Get current orders from the broker and dispatch them to the stream for processing. Need to see all
         # lumi orders (not just active "tracked" ones) to catch any orders that might have changed final
         # status in Tradier.
-        logging.info("Polling Tradier for order updates...")
         df_orders = self.tradier.orders.get_orders()
         stored_orders = {x.identifier: x for x in self.get_all_orders()}
         for order_row in df_orders.to_dict("records"):

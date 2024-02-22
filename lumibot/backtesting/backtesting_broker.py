@@ -47,7 +47,9 @@ class BacktestingBroker(Broker):
                     # Remove the original order from the list of new orders because
                     # it's been replaced by the individual orders
                     broker._new_orders.remove(result)
-                else:
+                elif order not in broker._new_orders:
+                    # David M: This seems weird and I don't understand why we're doing this.  It seems like
+                    # we're adding the order to the new orders list twice, so checking first.
                     broker._new_orders.append(order)
                 return result
 
@@ -239,7 +241,7 @@ class BacktestingBroker(Broker):
 
     def _pull_broker_all_orders(self):
         """Get the broker open orders"""
-        orders = self._new_orders.__items
+        orders = self.get_all_orders()
         return orders
 
     def _flatten_order(self, order):

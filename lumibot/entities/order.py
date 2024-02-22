@@ -647,7 +647,7 @@ class Order:
         bool
             True if the order has been cancelled, False otherwise.
         """
-        return self.status.lower() in ["cancelled", "canceled", "cancel"]
+        return self.status.lower() in ["cancelled", "canceled", "cancel", "error"]
 
     def is_filled(self):
         """

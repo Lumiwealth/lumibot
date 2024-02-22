@@ -2,6 +2,7 @@ import logging
 import traceback
 
 import pandas as pd
+from termcolor import colored
 
 from lumibot.brokers import Broker
 from lumibot.data_sources.tradier_data import TradierData
@@ -9,6 +10,7 @@ from lumibot.entities import Asset, Order, Position
 from lumibot.tools.helpers import create_options_symbol
 from lumibot.trading_builtins import PollingStream
 from lumiwealth_tradier import Tradier as _Tradier
+from lumiwealth_tradier.base import TradierApiError
 
 
 class Tradier(Broker):
@@ -120,48 +122,54 @@ class Tradier(Broker):
         # Replace non-alphanumeric characters with '-', underscore "_" is not allowed by Tradier
         tag = "".join([c if c.isalnum() or c == "-" else "-" for c in tag])
 
-        if order.asset.asset_type == "stock":
-            # Place the order
-            order_response = self.tradier.orders.order(
-                order.asset.symbol,
-                order.side,
-                order.quantity,
-                order_type=order.type,
-                duration=order.time_in_force,
-                limit_price=order.limit_price,
-                stop_price=order.stop_price,
-                tag=tag,
-            )
-        elif order.asset.asset_type == "option":
-            tradier_side = self._lumi_side2tradier(order)
-            stock_symbol = order.asset.symbol
-            option_symbol = create_options_symbol(
-                order.asset.symbol, order.asset.expiration, order.asset.right, order.asset.strike
-            )
+        try:
+            if order.asset.asset_type == "stock":
+                # Place the order
+                order_response = self.tradier.orders.order(
+                    order.asset.symbol,
+                    order.side,
+                    order.quantity,
+                    order_type=order.type,
+                    duration=order.time_in_force,
+                    limit_price=order.limit_price,
+                    stop_price=order.stop_price,
+                    tag=tag,
+                )
+            elif order.asset.asset_type == "option":
+                tradier_side = self._lumi_side2tradier(order)
+                stock_symbol = order.asset.symbol
+                option_symbol = create_options_symbol(
+                    order.asset.symbol, order.asset.expiration, order.asset.right, order.asset.strike
+                )
 
-            if not tradier_side or not option_symbol:
-                logging.error(f"Unable to parse order {order} for Tradier.")
-                return None
+                if not tradier_side or not option_symbol:
+                    logging.error(f"Unable to parse order {order} for Tradier.")
+                    return None
 
-            order_response = self.tradier.orders.order_option(
-                stock_symbol,
-                option_symbol,
-                tradier_side,
-                order.quantity,
-                order_type=order.type,
-                duration=order.time_in_force,
-                limit_price=order.limit_price,
-                stop_price=order.stop_price,
-                tag=tag,
-            )
-        else:
-            raise ValueError(f"Asset type {order.asset.asset_type} not supported by Tradier.")
+                order_response = self.tradier.orders.order_option(
+                    stock_symbol,
+                    option_symbol,
+                    tradier_side,
+                    order.quantity,
+                    order_type=order.type,
+                    duration=order.time_in_force,
+                    limit_price=order.limit_price,
+                    stop_price=order.stop_price,
+                    tag=tag,
+                )
+            else:
+                raise ValueError(f"Asset type {order.asset.asset_type} not supported by Tradier.")
 
-        order.identifier = order_response["id"]
-        order.status = "submitted"
-        order.update_raw(order_response)  # This marks order as 'transmitted'
-        self._unprocessed_orders.append(order)
-        self.stream.dispatch(self.NEW_ORDER, order=order)
+            order.identifier = order_response["id"]
+            order.status = "submitted"
+            order.update_raw(order_response)  # This marks order as 'transmitted'
+            self._unprocessed_orders.append(order)
+            self.stream.dispatch(self.NEW_ORDER, order=order)
+
+        except TradierApiError as e:
+            msg = colored(f"Error submitting order {order}: {e}", color="red")
+            self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=msg)
+
         return order
 
     def _get_balances_at_broker(self, quote_asset: Asset):
@@ -378,6 +386,7 @@ class Tradier(Broker):
                 self.stream.dispatch(self.NEW_ORDER, order=order)
             else:
                 stored_order = stored_orders[order.identifier]
+                stored_order.quantity = order.quantity  # Update the quantity in case it has changed
 
                 # Status has changed since last time we saw it, dispatch the new status.
                 #  - Polling methods are unable to track partial fills
@@ -491,11 +500,12 @@ class Tradier(Broker):
         @broker.stream.add_action(broker.ERROR_ORDER)
         def on_trade_event_error(order, error_msg):
             try:
-                broker._process_trade_event(
-                    order,
-                    broker.CANCELED_ORDER,
-                )
-                logging.error(f"Error processing order {order}: {error_msg}")
+                if order.is_active():
+                    broker._process_trade_event(
+                        order,
+                        broker.CANCELED_ORDER,
+                    )
+                logging.error(error_msg)
                 order.set_error(error_msg)
             except:
                 logging.error(traceback.format_exc())

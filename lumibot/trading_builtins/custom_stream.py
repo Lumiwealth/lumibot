@@ -81,6 +81,6 @@ class PollingStream(CustomStream):
         try:
             self._process_queue_event(self.POLL_EVENT, {})
         except queue.Full:
-            logging.info("Polling action itself has added too many events to the queue. Skipping this polling cycle"
-                         "is incomplete, but the next cycle will occur as scheduled.")
+            logging.info("Polling action itself has added too many events to the queue. Skipping this polling cycle, "
+                         "(it is incomplete) to allow the queue to drain. The next cycle will occur as scheduled.")
             return

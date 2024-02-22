@@ -37,6 +37,7 @@ class Broker(ABC):
         self._new_orders = SafeList(self._lock)
         self._canceled_orders = SafeList(self._lock)
         self._partially_filled_orders = SafeList(self._lock)
+        self._filled_orders = SafeList(self._lock)
         self._filled_positions = SafeList(self._lock)
         self._subscribers = SafeList(self._lock)
         self._is_stream_subscribed = False
@@ -434,7 +435,7 @@ class Broker(ABC):
     def _process_new_order(self, order):
         # Check if this order already exists in self._new_orders based on the identifier
         if order in self._new_orders:
-            return
+            return order
 
         logging.info(colored(f"New {order} was submitted.", color="green"))
         self._unprocessed_orders.remove(order.identifier, key="identifier")
@@ -491,6 +492,7 @@ class Broker(ABC):
         logging.info(f"{order} was filled")
         self._new_orders.remove(order.identifier, key="identifier")
         self._partially_filled_orders.remove(order.identifier, key="identifier")
+        self._filled_orders.append(order)
 
         order.add_transaction(price, quantity)
         order.status = self.FILLED_ORDER
@@ -718,10 +720,8 @@ class Broker(ABC):
 
     def get_all_orders(self) -> list[Order]:
         """get all tracked and completed orders"""
-        orders = self._tracked_orders + self._canceled_orders.get_list()
-        positions = self._filled_positions
-        for pos in positions:
-            orders += pos.orders
+        orders = (self._tracked_orders + self._canceled_orders.get_list() +
+                  self._partially_filled_orders.get_list() + self._filled_orders.get_list())
         return orders
 
     def get_order(self, identifier) -> Order:

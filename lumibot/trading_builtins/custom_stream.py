@@ -1,3 +1,4 @@
+import logging
 import queue
 from queue import Queue
 from threading import Thread
@@ -6,12 +7,16 @@ from threading import Thread
 class CustomStream:
 
     def __init__(self):
-        self._queue = Queue(1)
+        self._queue = Queue(100)
         self._actions_mapping = {}
 
-    def dispatch(self, event, **payload):
-        self._queue.put((event, payload))
-        self._queue.join()
+    def dispatch(self, event, wait_until_complete=False, **payload):
+        self._queue.put((event, payload), block=False)
+
+        # Primarily used for backtesting. If wait_until_complete is True, the function will block until the queue is
+        # empty. This is useful for ensuring that all events have been processed before moving on to the next step.
+        if wait_until_complete:
+            self._queue.join()
 
     def add_action(self, event_name):
         def add_event_action(f):
@@ -73,4 +78,9 @@ class PollingStream(CustomStream):
         if self.POLL_EVENT not in self._actions_mapping:
             raise ValueError("No action is defined for the poll event. You must register a polling action with "
                              "add_action()")
-        self._process_queue_event(self.POLL_EVENT, {})
+        try:
+            self._process_queue_event(self.POLL_EVENT, {})
+        except queue.Full:
+            logging.info("Polling action itself has added too many events to the queue. Skipping this polling cycle, "
+                         "(it is incomplete) to allow the queue to drain. The next cycle will occur as scheduled.")
+            return

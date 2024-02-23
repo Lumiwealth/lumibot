@@ -818,7 +818,7 @@ class Broker(ABC):
 
     def cancel_open_orders(self, strategy):
         """cancel all open orders for a given strategy"""
-        orders = self.get_tracked_orders(strategy)
+        orders = [o for o in self.get_tracked_orders(strategy) if o.is_active()]
         self.cancel_orders(orders)
 
     def wait_orders_clear(self, strategy, max_loop=5):

@@ -165,38 +165,35 @@ class StrategyExecutor(Thread):
 
             # ORDERS
             if len(orders_broker) > 0:
-                orders_lumi = self.broker._tracked_orders
+                orders_lumi = self.broker.get_all_orders()
 
                 # Check orders at the broker against those in lumibot.
                 for order in orders_broker:
-                    if self.strategy._first_iteration:
-                        self.broker._process_new_order(order)
-                    else:
-                        # Check against existing orders.
-                        order_lumi = [ord_lumi for ord_lumi in orders_lumi if ord_lumi.identifier == order.identifier]
-                        order_lumi = order_lumi[0] if len(order_lumi) > 0 else None
+                    # Check against existing orders.
+                    order_lumi = [ord_lumi for ord_lumi in orders_lumi if ord_lumi.identifier == order.identifier]
+                    order_lumi = order_lumi[0] if len(order_lumi) > 0 else None
 
-                        if order_lumi:
-                            # Compare the orders.
-                            if order_lumi.quantity != order.quantity:
-                                order_lumi.quantity = order.quantity
-                            order_attrs = [
-                                # "position_filled",
-                                # "status",
-                                "limit_price"
-                            ]
-                            for order_attr in order_attrs:
-                                olumi = getattr(order_lumi, order_attr)
-                                obroker = getattr(order, order_attr)
-                                if olumi != obroker:
-                                    setattr(order_lumi, order_attr, obroker)
-                                    logging.warning(
-                                        f"We are adjusting the {order_attr} of the order {order_lumi}, from {olumi} "
-                                        f"to be {obroker} because what we have in memory does not match the broker."
-                                    )
-                        else:
-                            # Add to order in lumibot.
-                            self.broker._process_new_order(order)
+                    if order_lumi:
+                        # Compare the orders.
+                        if order_lumi.quantity != order.quantity:
+                            order_lumi.quantity = order.quantity
+                        order_attrs = [
+                            # "position_filled",
+                            # "status",
+                            "limit_price"
+                        ]
+                        for order_attr in order_attrs:
+                            olumi = getattr(order_lumi, order_attr)
+                            obroker = getattr(order, order_attr)
+                            if olumi != obroker:
+                                setattr(order_lumi, order_attr, obroker)
+                                logging.warning(
+                                    f"We are adjusting the {order_attr} of the order {order_lumi}, from {olumi} "
+                                    f"to be {obroker} because what we have in memory does not match the broker."
+                                )
+                    else:
+                        # Add to order in lumibot.
+                        self.broker._process_new_order(order)
 
                 for order_lumi in orders_lumi:
                     # Remove lumibot orders if not in broker.

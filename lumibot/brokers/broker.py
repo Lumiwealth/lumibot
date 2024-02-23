@@ -491,12 +491,13 @@ class Broker(ABC):
         )
         logging.info(f"{order} was filled")
         self._new_orders.remove(order.identifier, key="identifier")
+        self._unprocessed_orders.remove(order.identifier, key="identifier")
         self._partially_filled_orders.remove(order.identifier, key="identifier")
-        self._filled_orders.append(order)
 
         order.add_transaction(price, quantity)
         order.status = self.FILLED_ORDER
         order.set_filled()
+        self._filled_orders.append(order)
 
         position = self.get_tracked_position(order.strategy, order.asset)
         if position is None:
@@ -524,11 +525,13 @@ class Broker(ABC):
         )
         logging.info(f"{order} was cash settled")
         self._new_orders.remove(order.identifier, key="identifier")
+        self._unprocessed_orders.remove(order.identifier, key="identifier")
         self._partially_filled_orders.remove(order.identifier, key="identifier")
 
         order.add_transaction(price, quantity)
         order.status = self.CASH_SETTLED
         order.set_filled()
+        self._filled_orders.append(order)
 
         position = self.get_tracked_position(order.strategy, order.asset)
         if position is not None:

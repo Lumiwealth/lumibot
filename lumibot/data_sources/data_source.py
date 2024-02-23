@@ -18,10 +18,21 @@ class DataSource(ABC):
     DEFAULT_TIMEZONE = LUMIBOT_DEFAULT_TIMEZONE
     DEFAULT_PYTZ = LUMIBOT_DEFAULT_PYTZ
 
-    def __init__(self, api_key=None):
+    def __init__(self, api_key=None, delay=None):
+        """
+
+        Parameters
+        ----------
+        api_key : str
+            The API key to use for the data source
+        delay : int
+            The number of minutes to delay the data by. This is useful for paper trading data sources that
+            provide delayed data (i.e. 15m delayed data).
+        """
         self.name = "data_source"
         self._timestep = None
         self._api_key = api_key
+        self._delay = timedelta(minutes=delay) if delay else None
 
     # ========Required Implementations ======================
     @abstractmethod
@@ -109,7 +120,10 @@ class DataSource(ABC):
         -------
         datetime
         """
-        return self.to_default_timezone(datetime.now())
+        current_time = self.to_default_timezone(datetime.now())
+        if self._delay:
+            current_time -= self._delay
+        return current_time
 
     def get_timestamp(self):
         """

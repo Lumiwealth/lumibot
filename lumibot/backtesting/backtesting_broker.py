@@ -498,10 +498,16 @@ class BacktestingBroker(Broker):
             #############################
 
             # Get the OHLCV data for the asset if we're using the YAHOO, CCXT data source
-            if self.data_source.SOURCE.upper() in ["CCXT", "YAHOO"]:
-                timeshift = timedelta(
-                    days=-1
-                )  # Is negative so that we get today (normally would get yesterday's data to prevent lookahead bias)
+            data_source_name = self.data_source.SOURCE.upper()
+            if data_source_name in ["CCXT", "YAHOO"]:
+                # If we're using the CCXT data source, we don't need to timeshift the data
+                if data_source_name == "CCXT":
+                    timeshift = None
+                else:
+                    timeshift = timedelta(
+                        days=-1
+                    )  # Is negative so that we get today (normally would get yesterday's data to prevent lookahead bias)
+
                 ohlc = strategy.get_historical_prices(
                     asset,
                     1,

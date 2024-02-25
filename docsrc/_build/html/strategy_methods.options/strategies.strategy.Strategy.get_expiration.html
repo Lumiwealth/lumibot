@@ -294,6 +294,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../brokers.alpaca.html">Alpaca</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../brokers.interactive_brokers.html">Interactive Brokers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../brokers.ccxt.html">Crypto Brokers (Using CCXT)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../brokers.tradier.html">Tradier</a></li>
 </ul>
 </li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../entities.html">Entities</a><input class="toctree-checkbox" id="toctree-checkbox-14" name="toctree-checkbox-14" role="switch" type="checkbox"/><label for="toctree-checkbox-14"><div class="visually-hidden">Toggle navigation of Entities</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
@@ -343,11 +344,11 @@
 <h1>self.get_expiration<a class="headerlink" href="#self-get-expiration" title="Link to this heading">#</a></h1>
 <dl class="py function">
 <dt class="sig sig-object py" id="strategies.strategy.Strategy.get_expiration">
-<span class="sig-prename descclassname"><span class="pre">strategies.strategy.Strategy.</span></span><span class="sig-name descname"><span class="pre">get_expiration</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chains</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exchange</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'SMART'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#strategies.strategy.Strategy.get_expiration" title="Link to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">strategies.strategy.Strategy.</span></span><span class="sig-name descname"><span class="pre">get_expiration</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chains</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#strategies.strategy.Strategy.get_expiration" title="Link to this definition">#</a></dt>
 <dd><p>Returns expiration dates for an option chain for a particular
 exchange.</p>
 <p>Using the <cite>chains</cite> dictionary obtained from <cite>get_chains</cite> finds
-all of the expiry dates for the option chains on a given
+all expiry dates for the option chains on a given
 exchange. The return list is sorted.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -357,10 +358,10 @@ exchange. The return list is sorted.</p>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>Sorted list of dates in the form of <cite>20221013</cite>.</p>
+<dd class="field-even"><p>Sorted list of dates in the form of <cite>2022-10-13</cite>.</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>list of datetime.dates</p>
+<dd class="field-odd"><p>list of datetime.date</p>
 </dd>
 </dl>
 <p class="rubric">Example</p>

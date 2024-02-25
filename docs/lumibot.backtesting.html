@@ -294,6 +294,7 @@
 <li class="toctree-l2"><a class="reference internal" href="brokers.alpaca.html">Alpaca</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.interactive_brokers.html">Interactive Brokers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.ccxt.html">Crypto Brokers (Using CCXT)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.tradier.html">Tradier</a></li>
 </ul>
 </li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="entities.html">Entities</a><input class="toctree-checkbox" id="toctree-checkbox-14" name="toctree-checkbox-14" role="switch" type="checkbox"/><label for="toctree-checkbox-14"><div class="visually-hidden">Toggle navigation of Entities</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
@@ -377,12 +378,6 @@ cash position and set the position to 0. Note: only for backtesting</p>
 <dt class="sig sig-object py" id="lumibot.backtesting.backtesting_broker.BacktestingBroker.datetime">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">datetime</span></span><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.datetime" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.backtesting.backtesting_broker.BacktestingBroker.get_expiration">
-<span class="sig-name descname"><span class="pre">get_expiration</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">chains</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exchange</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'SMART'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.get_expiration" title="Link to this definition">#</a></dt>
-<dd><p>Returns expirations and strikes high/low of target price.</p>
-</dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="lumibot.backtesting.backtesting_broker.BacktestingBroker.get_historical_account_value">
@@ -556,7 +551,6 @@ check if the limit datetime was reached</p>
 <li><a class="reference internal" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.cancel_order"><code class="docutils literal notranslate"><span class="pre">BacktestingBroker.cancel_order()</span></code></a></li>
 <li><a class="reference internal" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.cash_settle_options_contract"><code class="docutils literal notranslate"><span class="pre">BacktestingBroker.cash_settle_options_contract()</span></code></a></li>
 <li><a class="reference internal" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.datetime"><code class="docutils literal notranslate"><span class="pre">BacktestingBroker.datetime</span></code></a></li>
-<li><a class="reference internal" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.get_expiration"><code class="docutils literal notranslate"><span class="pre">BacktestingBroker.get_expiration()</span></code></a></li>
 <li><a class="reference internal" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.get_historical_account_value"><code class="docutils literal notranslate"><span class="pre">BacktestingBroker.get_historical_account_value()</span></code></a></li>
 <li><a class="reference internal" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.get_last_bar"><code class="docutils literal notranslate"><span class="pre">BacktestingBroker.get_last_bar()</span></code></a></li>
 <li><a class="reference internal" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.get_time_to_close"><code class="docutils literal notranslate"><span class="pre">BacktestingBroker.get_time_to_close()</span></code></a></li>

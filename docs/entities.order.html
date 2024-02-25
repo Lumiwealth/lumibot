@@ -294,6 +294,7 @@
 <li class="toctree-l2"><a class="reference internal" href="brokers.alpaca.html">Alpaca</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.interactive_brokers.html">Interactive Brokers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.ccxt.html">Crypto Brokers (Using CCXT)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.tradier.html">Tradier</a></li>
 </ul>
 </li>
 <li class="toctree-l1 current has-children"><a class="reference internal" href="entities.html">Entities</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-14" name="toctree-checkbox-14" role="switch" type="checkbox"/><label for="toctree-checkbox-14"><div class="visually-hidden">Toggle navigation of Entities</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul class="current">
@@ -385,7 +386,7 @@
 <p>To create a stop_limit order object, add the keyword parameters stop_price and limit_price.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">my_limit_price</span> <span class="o">=</span> <span class="mi">405</span>
 <span class="n">my_stop_price</span> <span class="o">=</span> <span class="mi">400</span>
-<span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">symbol</span><span class="p">,</span> <span class="n">quantity</span><span class="p">,</span> <span class="n">side</span><span class="p">,</span> <span class="n">stop_price</span><span class="o">=</span><span class="n">my_stop_price</span><span class="p">,</span>               <span class="n">limit_price</span><span class="o">=</span><span class="n">my_limit_price</span><span class="p">)</span>
+<span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">symbol</span><span class="p">,</span> <span class="n">quantity</span><span class="p">,</span> <span class="n">side</span><span class="p">,</span> <span class="n">stop_price</span><span class="o">=</span><span class="n">my_stop_price</span><span class="p">,</span> <span class="n">limit_price</span><span class="o">=</span><span class="n">my_limit_price</span><span class="p">)</span>
 <span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
 </pre></div>
 </div>
@@ -411,9 +412,11 @@
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">my_take_profit_price</span> <span class="o">=</span> <span class="mi">420</span>
 <span class="n">my_stop_loss_price</span> <span class="o">=</span> <span class="mi">400</span>
 <span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span>
-<span class="n">symbol</span><span class="p">,</span> <span class="n">quantity</span><span class="p">,</span> <span class="n">side</span><span class="p">,</span>
-<span class="n">take_profit_price</span><span class="o">=</span><span class="n">my_take_profit_price</span><span class="p">,</span>
-<span class="n">stop_loss_price</span><span class="o">=</span><span class="n">my_stop_loss_price</span>
+   <span class="n">symbol</span><span class="p">,</span>
+   <span class="n">quantity</span><span class="p">,</span>
+   <span class="n">side</span><span class="p">,</span>
+   <span class="n">take_profit_price</span><span class="o">=</span><span class="n">my_take_profit_price</span><span class="p">,</span>
+   <span class="n">stop_loss_price</span><span class="o">=</span><span class="n">my_stop_loss_price</span>
 <span class="p">)</span>
 <span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
 </pre></div>
@@ -430,10 +433,12 @@
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">my_take_profit_price</span> <span class="o">=</span> <span class="mi">420</span>
 <span class="n">my_stop_loss_price</span> <span class="o">=</span> <span class="mi">400</span>
 <span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span>
-<span class="n">symbol</span><span class="p">,</span> <span class="n">quantity</span><span class="p">,</span> <span class="n">side</span><span class="p">,</span>
-<span class="n">take_profit_price</span><span class="o">=</span><span class="n">my_take_profit_price</span><span class="p">,</span>
-<span class="n">stop_loss_price</span><span class="o">=</span><span class="n">my_stop_loss_price</span><span class="p">,</span>
-<span class="n">position_filled</span><span class="o">=</span><span class="kc">True</span>
+   <span class="n">symbol</span><span class="p">,</span>
+   <span class="n">quantity</span><span class="p">,</span>
+   <span class="n">side</span><span class="p">,</span>
+   <span class="n">take_profit_price</span><span class="o">=</span><span class="n">my_take_profit_price</span><span class="p">,</span>
+   <span class="n">stop_loss_price</span><span class="o">=</span><span class="n">my_stop_loss_price</span><span class="p">,</span>
+   <span class="n">position_filled</span><span class="o">=</span><span class="kc">True</span>
 <span class="p">)</span>
 <span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
 </pre></div>
@@ -444,8 +449,100 @@
 <span id="documentation"></span><h2>Documentation<a class="headerlink" href="#module-entities.order" title="Link to this heading">#</a></h2>
 <dl class="py class">
 <dt class="sig sig-object py" id="entities.order.Order">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">entities.order.</span></span><span class="sig-name descname"><span class="pre">Order</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">strategy</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quantity</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">side</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">limit_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stop_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">take_profit_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stop_loss_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stop_loss_limit_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">trail_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">trail_percent</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_in_force</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'day'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">good_till_date</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exchange</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">position_filled</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quote</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pair</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">date_created</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">trade_cost</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">custom_params</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">{}</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">identifier</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.order.Order" title="Link to this definition">#</a></dt>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">entities.order.</span></span><span class="sig-name descname"><span class="pre">Order</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">strategy</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quantity</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">side</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">limit_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stop_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">take_profit_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stop_loss_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stop_loss_limit_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">trail_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">trail_percent</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_in_force</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'day'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">good_till_date</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exchange</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">position_filled</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quote</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pair</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">date_created</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">trade_cost</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">custom_params</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">{}</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">identifier</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tag</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.order.Order" title="Link to this definition">#</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<dl class="py class">
+<dt class="sig sig-object py" id="entities.order.Order.OrderSide">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">OrderSide</span></span><a class="headerlink" href="#entities.order.Order.OrderSide" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="entities.order.Order.OrderSide.BUY">
+<span class="sig-name descname"><span class="pre">BUY</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'buy'</span></em><a class="headerlink" href="#entities.order.Order.OrderSide.BUY" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="entities.order.Order.OrderSide.BUY_TO_CLOSE">
+<span class="sig-name descname"><span class="pre">BUY_TO_CLOSE</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'buy_to_close'</span></em><a class="headerlink" href="#entities.order.Order.OrderSide.BUY_TO_CLOSE" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="entities.order.Order.OrderSide.BUY_TO_COVER">
+<span class="sig-name descname"><span class="pre">BUY_TO_COVER</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'buy_to_cover'</span></em><a class="headerlink" href="#entities.order.Order.OrderSide.BUY_TO_COVER" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="entities.order.Order.OrderSide.BUY_TO_OPEN">
+<span class="sig-name descname"><span class="pre">BUY_TO_OPEN</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'buy_to_open'</span></em><a class="headerlink" href="#entities.order.Order.OrderSide.BUY_TO_OPEN" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="entities.order.Order.OrderSide.SELL">
+<span class="sig-name descname"><span class="pre">SELL</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'sell'</span></em><a class="headerlink" href="#entities.order.Order.OrderSide.SELL" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="entities.order.Order.OrderSide.SELL_SHORT">
+<span class="sig-name descname"><span class="pre">SELL_SHORT</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'sell_short'</span></em><a class="headerlink" href="#entities.order.Order.OrderSide.SELL_SHORT" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="entities.order.Order.OrderSide.SELL_TO_CLOSE">
+<span class="sig-name descname"><span class="pre">SELL_TO_CLOSE</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'sell_to_close'</span></em><a class="headerlink" href="#entities.order.Order.OrderSide.SELL_TO_CLOSE" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="entities.order.Order.OrderSide.SELL_TO_OPEN">
+<span class="sig-name descname"><span class="pre">SELL_TO_OPEN</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'sell_to_open'</span></em><a class="headerlink" href="#entities.order.Order.OrderSide.SELL_TO_OPEN" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="entities.order.Order.OrderType">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">OrderType</span></span><a class="headerlink" href="#entities.order.Order.OrderType" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="entities.order.Order.OrderType.BRACKET">
+<span class="sig-name descname"><span class="pre">BRACKET</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'bracket'</span></em><a class="headerlink" href="#entities.order.Order.OrderType.BRACKET" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="entities.order.Order.OrderType.LIMIT">
+<span class="sig-name descname"><span class="pre">LIMIT</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'limit'</span></em><a class="headerlink" href="#entities.order.Order.OrderType.LIMIT" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="entities.order.Order.OrderType.MARKET">
+<span class="sig-name descname"><span class="pre">MARKET</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'market'</span></em><a class="headerlink" href="#entities.order.Order.OrderType.MARKET" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="entities.order.Order.OrderType.OCO">
+<span class="sig-name descname"><span class="pre">OCO</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'oco'</span></em><a class="headerlink" href="#entities.order.Order.OrderType.OCO" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="entities.order.Order.OrderType.OTO">
+<span class="sig-name descname"><span class="pre">OTO</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'oto'</span></em><a class="headerlink" href="#entities.order.Order.OrderType.OTO" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="entities.order.Order.OrderType.STOP">
+<span class="sig-name descname"><span class="pre">STOP</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'stop'</span></em><a class="headerlink" href="#entities.order.Order.OrderType.STOP" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="entities.order.Order.OrderType.STOP_LIMIT">
+<span class="sig-name descname"><span class="pre">STOP_LIMIT</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'stop_limit'</span></em><a class="headerlink" href="#entities.order.Order.OrderType.STOP_LIMIT" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="entities.order.Order.OrderType.TRAIL">
+<span class="sig-name descname"><span class="pre">TRAIL</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'trailing_stop'</span></em><a class="headerlink" href="#entities.order.Order.OrderType.TRAIL" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
 <dl class="py class">
 <dt class="sig sig-object py" id="entities.order.Order.Transaction">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">Transaction</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">quantity</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">price</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.order.Order.Transaction" title="Link to this definition">#</a></dt>
@@ -469,10 +566,21 @@
 <span class="sig-name descname"><span class="pre">add_transaction</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">price</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quantity</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.order.Order.add_transaction" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
 
+<dl class="py property">
+<dt class="sig sig-object py" id="entities.order.Order.avg_fill_price">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">avg_fill_price</span></span><a class="headerlink" href="#entities.order.Order.avg_fill_price" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
 <dl class="py method">
 <dt class="sig sig-object py" id="entities.order.Order.cash_pending">
 <span class="sig-name descname"><span class="pre">cash_pending</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">strategy</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.order.Order.cash_pending" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="entities.order.Order.equivalent_status">
+<span class="sig-name descname"><span class="pre">equivalent_status</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">status</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">bool</span></span></span><a class="headerlink" href="#entities.order.Order.equivalent_status" title="Link to this definition">#</a></dt>
+<dd><p>Returns if the status is equivalent to the order status.</p>
+</dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="entities.order.Order.get_fill_price">
@@ -679,13 +787,37 @@ This will be used to determine if a trailing stop order should be triggered in a
 <li><a class="reference internal" href="#order-with-legs">Order With Legs</a></li>
 <li><a class="reference internal" href="#module-entities.order">Documentation</a><ul>
 <li><a class="reference internal" href="#entities.order.Order"><code class="docutils literal notranslate"><span class="pre">Order</span></code></a><ul>
+<li><a class="reference internal" href="#entities.order.Order.OrderSide"><code class="docutils literal notranslate"><span class="pre">Order.OrderSide</span></code></a><ul>
+<li><a class="reference internal" href="#entities.order.Order.OrderSide.BUY"><code class="docutils literal notranslate"><span class="pre">Order.OrderSide.BUY</span></code></a></li>
+<li><a class="reference internal" href="#entities.order.Order.OrderSide.BUY_TO_CLOSE"><code class="docutils literal notranslate"><span class="pre">Order.OrderSide.BUY_TO_CLOSE</span></code></a></li>
+<li><a class="reference internal" href="#entities.order.Order.OrderSide.BUY_TO_COVER"><code class="docutils literal notranslate"><span class="pre">Order.OrderSide.BUY_TO_COVER</span></code></a></li>
+<li><a class="reference internal" href="#entities.order.Order.OrderSide.BUY_TO_OPEN"><code class="docutils literal notranslate"><span class="pre">Order.OrderSide.BUY_TO_OPEN</span></code></a></li>
+<li><a class="reference internal" href="#entities.order.Order.OrderSide.SELL"><code class="docutils literal notranslate"><span class="pre">Order.OrderSide.SELL</span></code></a></li>
+<li><a class="reference internal" href="#entities.order.Order.OrderSide.SELL_SHORT"><code class="docutils literal notranslate"><span class="pre">Order.OrderSide.SELL_SHORT</span></code></a></li>
+<li><a class="reference internal" href="#entities.order.Order.OrderSide.SELL_TO_CLOSE"><code class="docutils literal notranslate"><span class="pre">Order.OrderSide.SELL_TO_CLOSE</span></code></a></li>
+<li><a class="reference internal" href="#entities.order.Order.OrderSide.SELL_TO_OPEN"><code class="docutils literal notranslate"><span class="pre">Order.OrderSide.SELL_TO_OPEN</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#entities.order.Order.OrderType"><code class="docutils literal notranslate"><span class="pre">Order.OrderType</span></code></a><ul>
+<li><a class="reference internal" href="#entities.order.Order.OrderType.BRACKET"><code class="docutils literal notranslate"><span class="pre">Order.OrderType.BRACKET</span></code></a></li>
+<li><a class="reference internal" href="#entities.order.Order.OrderType.LIMIT"><code class="docutils literal notranslate"><span class="pre">Order.OrderType.LIMIT</span></code></a></li>
+<li><a class="reference internal" href="#entities.order.Order.OrderType.MARKET"><code class="docutils literal notranslate"><span class="pre">Order.OrderType.MARKET</span></code></a></li>
+<li><a class="reference internal" href="#entities.order.Order.OrderType.OCO"><code class="docutils literal notranslate"><span class="pre">Order.OrderType.OCO</span></code></a></li>
+<li><a class="reference internal" href="#entities.order.Order.OrderType.OTO"><code class="docutils literal notranslate"><span class="pre">Order.OrderType.OTO</span></code></a></li>
+<li><a class="reference internal" href="#entities.order.Order.OrderType.STOP"><code class="docutils literal notranslate"><span class="pre">Order.OrderType.STOP</span></code></a></li>
+<li><a class="reference internal" href="#entities.order.Order.OrderType.STOP_LIMIT"><code class="docutils literal notranslate"><span class="pre">Order.OrderType.STOP_LIMIT</span></code></a></li>
+<li><a class="reference internal" href="#entities.order.Order.OrderType.TRAIL"><code class="docutils literal notranslate"><span class="pre">Order.OrderType.TRAIL</span></code></a></li>
+</ul>
+</li>
 <li><a class="reference internal" href="#entities.order.Order.Transaction"><code class="docutils literal notranslate"><span class="pre">Order.Transaction</span></code></a><ul>
 <li><a class="reference internal" href="#entities.order.Order.Transaction.price"><code class="docutils literal notranslate"><span class="pre">Order.Transaction.price</span></code></a></li>
 <li><a class="reference internal" href="#entities.order.Order.Transaction.quantity"><code class="docutils literal notranslate"><span class="pre">Order.Transaction.quantity</span></code></a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#entities.order.Order.add_transaction"><code class="docutils literal notranslate"><span class="pre">Order.add_transaction()</span></code></a></li>
+<li><a class="reference internal" href="#entities.order.Order.avg_fill_price"><code class="docutils literal notranslate"><span class="pre">Order.avg_fill_price</span></code></a></li>
 <li><a class="reference internal" href="#entities.order.Order.cash_pending"><code class="docutils literal notranslate"><span class="pre">Order.cash_pending()</span></code></a></li>
+<li><a class="reference internal" href="#entities.order.Order.equivalent_status"><code class="docutils literal notranslate"><span class="pre">Order.equivalent_status()</span></code></a></li>
 <li><a class="reference internal" href="#entities.order.Order.get_fill_price"><code class="docutils literal notranslate"><span class="pre">Order.get_fill_price()</span></code></a></li>
 <li><a class="reference internal" href="#entities.order.Order.get_increment"><code class="docutils literal notranslate"><span class="pre">Order.get_increment()</span></code></a></li>
 <li><a class="reference internal" href="#entities.order.Order.is_active"><code class="docutils literal notranslate"><span class="pre">Order.is_active()</span></code></a></li>

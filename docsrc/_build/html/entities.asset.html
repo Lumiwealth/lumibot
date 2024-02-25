@@ -294,6 +294,7 @@
 <li class="toctree-l2"><a class="reference internal" href="brokers.alpaca.html">Alpaca</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.interactive_brokers.html">Interactive Brokers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.ccxt.html">Crypto Brokers (Using CCXT)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.tradier.html">Tradier</a></li>
 </ul>
 </li>
 <li class="toctree-l1 current has-children"><a class="reference internal" href="entities.html">Entities</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-14" name="toctree-checkbox-14" role="switch" type="checkbox"/><label for="toctree-checkbox-14"><div class="visually-hidden">Toggle navigation of Entities</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul class="current">
@@ -377,7 +378,7 @@
 <p>For stocks:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">lumibot.entities</span> <span class="kn">import</span> <span class="n">Asset</span>
 
-<span class="n">asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s1">&#39;SPY&#39;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s2">&quot;stock&quot;</span><span class="p">)</span>
+<span class="n">asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s1">&#39;SPY&#39;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="n">Asset</span><span class="o">.</span><span class="n">AssetType</span><span class="o">.</span><span class="n">STOCK</span><span class="p">)</span>
 <span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="s2">&quot;buy&quot;</span><span class="p">)</span>
 <span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
 </pre></div>
@@ -386,7 +387,7 @@
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">lumibot.entities</span> <span class="kn">import</span> <span class="n">Asset</span>
 
 <span class="n">asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span>
-<span class="s1">&#39;ES&#39;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s2">&quot;future&quot;</span><span class="p">,</span> <span class="n">expiration</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">date</span><span class="p">(</span><span class="mi">2021</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">18</span><span class="p">)</span>
+<span class="s1">&#39;ES&#39;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="n">Asset</span><span class="o">.</span><span class="n">AssetType</span><span class="o">.</span><span class="n">FUTURE</span><span class="p">,</span> <span class="n">expiration</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">date</span><span class="p">(</span><span class="mi">2021</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">18</span><span class="p">)</span>
 <span class="p">)</span>
 <span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="s2">&quot;buy&quot;</span><span class="p">)</span>
 <span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
@@ -572,6 +573,58 @@ symbol if option. For Forex: The base currency.</p>
 <span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
 </pre></div>
 </div>
+<dl class="py class">
+<dt class="sig sig-object py" id="entities.asset.Asset.AssetType">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">AssetType</span></span><a class="headerlink" href="#entities.asset.Asset.AssetType" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="entities.asset.Asset.AssetType.CRYPTO">
+<span class="sig-name descname"><span class="pre">CRYPTO</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'crypto'</span></em><a class="headerlink" href="#entities.asset.Asset.AssetType.CRYPTO" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="entities.asset.Asset.AssetType.FOREX">
+<span class="sig-name descname"><span class="pre">FOREX</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'forex'</span></em><a class="headerlink" href="#entities.asset.Asset.AssetType.FOREX" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="entities.asset.Asset.AssetType.FUTURE">
+<span class="sig-name descname"><span class="pre">FUTURE</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'future'</span></em><a class="headerlink" href="#entities.asset.Asset.AssetType.FUTURE" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="entities.asset.Asset.AssetType.INDEX">
+<span class="sig-name descname"><span class="pre">INDEX</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'index'</span></em><a class="headerlink" href="#entities.asset.Asset.AssetType.INDEX" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="entities.asset.Asset.AssetType.OPTION">
+<span class="sig-name descname"><span class="pre">OPTION</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'option'</span></em><a class="headerlink" href="#entities.asset.Asset.AssetType.OPTION" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="entities.asset.Asset.AssetType.STOCK">
+<span class="sig-name descname"><span class="pre">STOCK</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'stock'</span></em><a class="headerlink" href="#entities.asset.Asset.AssetType.STOCK" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="entities.asset.Asset.OptionRight">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">OptionRight</span></span><a class="headerlink" href="#entities.asset.Asset.OptionRight" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="entities.asset.Asset.OptionRight.CALL">
+<span class="sig-name descname"><span class="pre">CALL</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'CALL'</span></em><a class="headerlink" href="#entities.asset.Asset.OptionRight.CALL" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="entities.asset.Asset.OptionRight.PUT">
+<span class="sig-name descname"><span class="pre">PUT</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'PUT'</span></em><a class="headerlink" href="#entities.asset.Asset.OptionRight.PUT" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
 <dl class="py attribute">
 <dt class="sig sig-object py" id="id0">
 <span class="sig-name descname"><span class="pre">asset_type</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'stock'</span></em><a class="headerlink" href="#id0" title="Link to this definition">#</a></dt>
@@ -621,6 +674,23 @@ symbol if option. For Forex: The base currency.</p>
 <dt class="sig sig-object py" id="id8">
 <span class="sig-name descname"><span class="pre">symbol</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><a class="headerlink" href="#id8" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="entities.asset.Asset.symbol2asset">
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">symbol2asset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">symbol</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.asset.Asset.symbol2asset" title="Link to this definition">#</a></dt>
+<dd><p>Convert a symbol string to an Asset object. This is particularly useful for converting option symbols.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>symbol</strong> (<em>str</em>) – The symbol string to convert.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The Asset object.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#entities.asset.Asset" title="entities.asset.Asset">Asset</a></p>
+</dd>
+</dl>
+</dd></dl>
 
 </dd></dl>
 
@@ -702,6 +772,20 @@ symbol if option. For Forex: The base currency.</p>
 <li><a class="reference internal" href="#entities.asset.Asset._right"><code class="docutils literal notranslate"><span class="pre">Asset._right</span></code></a></li>
 <li><a class="reference internal" href="#entities.asset.Asset.asset_type_must_be_one_of"><code class="docutils literal notranslate"><span class="pre">Asset.asset_type_must_be_one_of()</span></code></a></li>
 <li><a class="reference internal" href="#entities.asset.Asset.right_must_be_one_of"><code class="docutils literal notranslate"><span class="pre">Asset.right_must_be_one_of()</span></code></a></li>
+<li><a class="reference internal" href="#entities.asset.Asset.AssetType"><code class="docutils literal notranslate"><span class="pre">Asset.AssetType</span></code></a><ul>
+<li><a class="reference internal" href="#entities.asset.Asset.AssetType.CRYPTO"><code class="docutils literal notranslate"><span class="pre">Asset.AssetType.CRYPTO</span></code></a></li>
+<li><a class="reference internal" href="#entities.asset.Asset.AssetType.FOREX"><code class="docutils literal notranslate"><span class="pre">Asset.AssetType.FOREX</span></code></a></li>
+<li><a class="reference internal" href="#entities.asset.Asset.AssetType.FUTURE"><code class="docutils literal notranslate"><span class="pre">Asset.AssetType.FUTURE</span></code></a></li>
+<li><a class="reference internal" href="#entities.asset.Asset.AssetType.INDEX"><code class="docutils literal notranslate"><span class="pre">Asset.AssetType.INDEX</span></code></a></li>
+<li><a class="reference internal" href="#entities.asset.Asset.AssetType.OPTION"><code class="docutils literal notranslate"><span class="pre">Asset.AssetType.OPTION</span></code></a></li>
+<li><a class="reference internal" href="#entities.asset.Asset.AssetType.STOCK"><code class="docutils literal notranslate"><span class="pre">Asset.AssetType.STOCK</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#entities.asset.Asset.OptionRight"><code class="docutils literal notranslate"><span class="pre">Asset.OptionRight</span></code></a><ul>
+<li><a class="reference internal" href="#entities.asset.Asset.OptionRight.CALL"><code class="docutils literal notranslate"><span class="pre">Asset.OptionRight.CALL</span></code></a></li>
+<li><a class="reference internal" href="#entities.asset.Asset.OptionRight.PUT"><code class="docutils literal notranslate"><span class="pre">Asset.OptionRight.PUT</span></code></a></li>
+</ul>
+</li>
 <li><a class="reference internal" href="#id0"><code class="docutils literal notranslate"><span class="pre">Asset.asset_type</span></code></a></li>
 <li><a class="reference internal" href="#id1"><code class="docutils literal notranslate"><span class="pre">Asset.asset_type_must_be_one_of()</span></code></a></li>
 <li><a class="reference internal" href="#id2"><code class="docutils literal notranslate"><span class="pre">Asset.expiration</span></code></a></li>
@@ -712,6 +796,7 @@ symbol if option. For Forex: The base currency.</p>
 <li><a class="reference internal" href="#id6"><code class="docutils literal notranslate"><span class="pre">Asset.right_must_be_one_of()</span></code></a></li>
 <li><a class="reference internal" href="#id7"><code class="docutils literal notranslate"><span class="pre">Asset.strike</span></code></a></li>
 <li><a class="reference internal" href="#id8"><code class="docutils literal notranslate"><span class="pre">Asset.symbol</span></code></a></li>
+<li><a class="reference internal" href="#entities.asset.Asset.symbol2asset"><code class="docutils literal notranslate"><span class="pre">Asset.symbol2asset()</span></code></a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#entities.asset.AssetsMapping"><code class="docutils literal notranslate"><span class="pre">AssetsMapping</span></code></a></li>

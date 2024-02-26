@@ -121,7 +121,7 @@ class StrategyExecutor(Thread):
                     self.strategy._set_cash_position(cash_broker)
 
                 positions_broker = self.broker._pull_positions(self.strategy)
-                orders_broker = self.broker._pull_open_orders(self.name, self.strategy)
+                orders_broker = self.broker._pull_all_orders(self.name, self.strategy)
 
                 held_trades_len = len(self.broker._held_trades)
                 if held_trades_len > 0:
@@ -165,46 +165,48 @@ class StrategyExecutor(Thread):
 
             # ORDERS
             if len(orders_broker) > 0:
-                orders_lumi = self.broker._tracked_orders
+                orders_lumi = self.broker.get_all_orders()
 
                 # Check orders at the broker against those in lumibot.
                 for order in orders_broker:
-                    if self.strategy._first_iteration:
-                        self.broker._process_new_order(order)
-                    else:
-                        # Check against existing orders.
-                        order_lumi = [ord_lumi for ord_lumi in orders_lumi if ord_lumi.identifier == order.identifier]
-                        order_lumi = order_lumi[0] if len(order_lumi) > 0 else None
+                    # Check against existing orders.
+                    order_lumi = [ord_lumi for ord_lumi in orders_lumi if ord_lumi.identifier == order.identifier]
+                    order_lumi = order_lumi[0] if len(order_lumi) > 0 else None
 
-                        if order_lumi:
-                            # Compare the orders.
-                            if order_lumi.quantity != order.quantity:
-                                order_lumi.quantity = order.quantity
-                            order_attrs = [
-                                # "position_filled",
-                                # "status",
-                                "limit_price"
-                            ]
-                            for order_attr in order_attrs:
-                                olumi = getattr(order_lumi, order_attr)
-                                obroker = getattr(order, order_attr)
-                                if olumi != obroker:
-                                    setattr(order_lumi, order_attr, obroker)
-                                    logging.warning(
-                                        f"We are adjusting the {order_attr} of the order {order_lumi}, from {olumi} "
-                                        f"to be {obroker} because what we have in memory does not match the broker."
-                                    )
-                        else:
-                            # Add to order in lumibot.
-                            self.broker._process_new_order(order)
+                    if order_lumi:
+                        # Compare the orders.
+                        if order_lumi.quantity != order.quantity:
+                            order_lumi.quantity = order.quantity
+                        order_attrs = [
+                            # "position_filled",
+                            # "status",
+                            "limit_price"
+                        ]
+                        for order_attr in order_attrs:
+                            olumi = getattr(order_lumi, order_attr)
+                            obroker = getattr(order, order_attr)
+                            if olumi != obroker:
+                                setattr(order_lumi, order_attr, obroker)
+                                logging.warning(
+                                    f"We are adjusting the {order_attr} of the order {order_lumi}, from {olumi} "
+                                    f"to be {obroker} because what we have in memory does not match the broker."
+                                )
+                    else:
+                        # Add to order in lumibot.
+                        self.broker._process_new_order(order)
 
                 for order_lumi in orders_lumi:
                     # Remove lumibot orders if not in broker.
                     if order_lumi.identifier not in [order.identifier for order in orders_broker]:
-                        logging.info(
-                            f"Cannot find order {order_lumi} (id={order_lumi.identifier}) in broker, " f"canceling."
-                        )
-                        self.broker._process_trade_event(order_lumi, "canceled")
+                        # Filled or canceled orders can be dropped by the broker as they no longer have any effect.
+                        # However, active orders should not be dropped as they are still in effect and if they can't
+                        # be found in the broker, they should be canceled because something went wrong.
+                        if order_lumi.is_active():
+                            logging.info(
+                                f"Cannot find order {order_lumi} (id={order_lumi.identifier}) in broker "
+                                f"(bkr cnt={len(orders_broker)}), canceling."
+                            )
+                            self.broker._process_trade_event(order_lumi, "canceled")
 
             self.broker._hold_trade_events = False
             self.broker.process_held_trades()
@@ -354,11 +356,6 @@ class StrategyExecutor(Thread):
             else:
                 # If the cron count is not equal to the cron count target, return and do not execute the
                 # on_trading_iteration method.
-                self.strategy.log_message(
-                    "Skipping this iteration because it's not time yet. "
-                    f"{self.cron_count_target - self.cron_count} iterations left before we run again",
-                    color="blue",
-                )
                 return
 
         now = datetime.now()
@@ -367,6 +364,9 @@ class StrategyExecutor(Thread):
         if not self.broker.is_market_open():
             self.strategy.log_message("The market is not currently open, skipping this trading iteration", color="blue")
             return
+
+        # Send the account summary to Discord
+        self.strategy.send_account_summary_to_discord()
 
         start_time = now.strftime("%Y-%m-%d %H:%M:%S")
 
@@ -445,6 +445,31 @@ class StrategyExecutor(Thread):
     @event_method
     def _on_filled_order(self, position, order, price, quantity, multiplier):
         self.strategy.on_filled_order(position, order, price, quantity, multiplier)
+
+        # Get the portfolio value
+        portfolio_value = self.strategy.get_portfolio_value()
+
+        # Calculate the percent of the portfolio that this order represents
+        percent_of_portfolio = (price * float(quantity)) / portfolio_value
+
+        # Capitalize the side
+        side = order.side.capitalize()
+
+        # Check if we are buying or selling
+        if side == "Buy":
+            emoji = "🟢📈 "
+        else:
+            emoji = "🔴📉 "
+
+        # Create a message to send to Discord
+        message = f"""
+                {emoji} {side} {quantity:,.2f} {position.asset} @ ${price:,.2f} ({percent_of_portfolio:,.0%} of the account)
+                Trade Total = ${(price * float(quantity)):,.2f}
+                Account Value = ${portfolio_value:,.0f}
+                """
+
+        # Send the message to Discord
+        self.strategy.send_discord_message(message, silent=False)
 
         # Let our listener know that an order has been filled (set in the callback)
         if hasattr(self.strategy, "_filled_order_callback") and callable(self.strategy._filled_order_callback):
@@ -631,8 +656,10 @@ class StrategyExecutor(Thread):
                     # Remove the time to close from the strategy sleep time.
                     strategy_sleeptime -= time_to_close
 
-                    # Process expired option contracts.
-                    self.broker.process_expired_option_contracts(self.strategy)
+                    # Check if the broker has a function to process expired option contracts.
+                    if hasattr(self.broker, "process_expired_option_contracts"):
+                        # Process expired option contracts.
+                        self.broker.process_expired_option_contracts(self.strategy)
 
             # TODO: next line speed implication: medium (371 microseconds)
             self.safe_sleep(strategy_sleeptime)

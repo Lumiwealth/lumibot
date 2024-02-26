@@ -3,9 +3,10 @@ from datetime import timedelta
 from decimal import Decimal
 
 import numpy
+
 from lumibot.data_sources import DataSourceBacktesting
 from lumibot.entities import Asset, Bars
-from lumibot.tools import YahooHelper 
+from lumibot.tools import YahooHelper
 
 
 class YahooData(DataSourceBacktesting):
@@ -124,7 +125,7 @@ class YahooData(DataSourceBacktesting):
         """Takes an asset and returns the last known price"""
         if timestep is None:
             timestep = self.get_timestep()
-        
+
         # Use -1 timeshift to get the price for the current bar (otherwise gets yesterdays prices)
         bars = self.get_historical_prices(asset, 1, timestep=timestep, quote=quote, timeshift=timedelta(days=-1))
 
@@ -138,7 +139,7 @@ class YahooData(DataSourceBacktesting):
             open_ = Decimal(open_.item())
         return open_
 
-    def get_chains(self, asset):
+    def get_chains(self, asset: Asset, quote: Asset = None, exchange: str = None):
         """
         Get the chains for a given asset.  This is not implemented for YahooData becuase Yahoo does not support
         historical options data.
@@ -160,3 +161,30 @@ class YahooData(DataSourceBacktesting):
             "Lumibot YahooData does not support historical options data. If you need this "
             "feature, please use a different data source."
         )
+
+    def get_historical_prices(
+        self, asset, length, timestep="", timeshift=None, quote=None, exchange=None, include_after_hours=True
+    ):
+        """Get bars for a given asset"""
+        if isinstance(asset, str):
+            asset = Asset(symbol=asset)
+
+        if not timestep:
+            timestep = self.get_timestep()
+
+        response = self._pull_source_symbol_bars(
+            asset,
+            length,
+            timestep=timestep,
+            timeshift=timeshift,
+            quote=quote,
+            exchange=exchange,
+            include_after_hours=include_after_hours,
+        )
+        if isinstance(response, float):
+            return response
+        elif response is None:
+            return None
+
+        bars = self._parse_source_symbol_bars(response, asset, quote=quote, length=length)
+        return bars

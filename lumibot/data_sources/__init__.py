@@ -6,7 +6,6 @@ from .data_source_backtesting import DataSourceBacktesting
 from .exceptions import NoDataFound, UnavailabeTimestep
 from .interactive_brokers_data import InteractiveBrokersData
 from .pandas_data import PandasData
-
-# from .tradier_data import TradierData  # Can be added back in once lumi_tradier is released to PyPi
-from .tradovate_data import TradovateData
+from .tradier_data import TradierData
 from .yahoo_data import YahooData
+from .ccxt_backtesting_data import CcxtBacktestingData

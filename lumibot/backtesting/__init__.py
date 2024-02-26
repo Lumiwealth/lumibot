@@ -4,3 +4,4 @@ from .backtesting_broker import BacktestingBroker
 from .pandas_backtesting import PandasDataBacktesting
 from .polygon_backtesting import PolygonDataBacktesting
 from .yahoo_backtesting import YahooDataBacktesting
+from .ccxt_backtesting import CcxtBacktesting

@@ -57,9 +57,10 @@ class PolygonBacktestStrat(Strategy):
         # that is today and we want to find the next expiration date.
         #   Date Format: 2023-07-31
         trading_datestrs = [x.to_pydatetime().date() for x in trading_days_df.index.to_list()]
+        expirations = self.get_expiration(chain)
         for trading_day in trading_datestrs[days_to_expiration:]:
             day_str = trading_day.strftime("%Y-%m-%d")
-            if day_str in chain["Expirations"]:
+            if day_str in expirations:
                 return trading_day
 
         raise ValueError(
@@ -99,7 +100,7 @@ class PolygonBacktestStrat(Strategy):
             current_asset_price = self.get_last_price(underlying_asset)
 
             # Option Chain: Get Full Option Chain Information
-            chain = self.get_chain(self.chains, exchange="SMART")
+            chain = self.get_chain(self.chains)
             expiration = self.select_option_expiration(chain, days_to_expiration=1)
             # expiration = datetime.date(2023, 8, 4)
 
@@ -159,7 +160,7 @@ class TestPolygonBacktestFull:
         assert asset_order_id in poly_strat_obj.prices
         assert option_order_id in poly_strat_obj.prices
         assert 130.0 < poly_strat_obj.prices[asset_order_id] < 140.0, "Valid asset price between 130 and 140"
-        assert 130.0 < stock_order.get_fill_price() < 140.0, "Valid asset price between 130 and 140"
+        assert 130.0 < stock_order.get_fill_price() < 140.0, "Valid Fill price between 130 and 140"
         assert poly_strat_obj.prices[option_order_id] == 4.10, "Opening Price is $4.10 on 08/01/2023"
         assert option_order.get_fill_price() == 4.10, "Fills at 1st candle open price of $4.10 on 08/01/2023"
 

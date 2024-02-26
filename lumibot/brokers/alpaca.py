@@ -286,6 +286,43 @@ class Alpaca(Broker):
         response = self.api.get_all_positions()
         return response
 
+    def _parse_broker_positions(self, broker_positions, strategy):
+        """parse a list of broker positions into a
+        list of position objects"""
+        result = []
+        for broker_position in broker_positions:
+            result.append(self._parse_broker_position(broker_position, strategy))
+
+        return result
+
+    def _pull_positions(self, strategy):
+        """Get the account positions. return a list of
+        position objects"""
+        response = self._pull_broker_positions(strategy)
+        result = self._parse_broker_positions(response, strategy.name)
+        return result
+
+    def _pull_position(self, strategy, asset):
+        """
+        Pull a single position from the broker that matches the asset and strategy. If no position is found, None is
+        returned.
+
+        Parameters
+        ----------
+        strategy: Strategy
+            The strategy object that placed the order to pull
+        asset: Asset
+            The asset to pull the position for
+
+        Returns
+        -------
+        Position
+            The position object for the asset and strategy if found, otherwise None
+        """
+        response = self._pull_broker_position(asset)
+        result = self._parse_broker_position(response, strategy)
+        return result
+
     # =======Orders and assets functions=========
     def map_asset_type(self, type):
         for k, v in self.ASSET_TYPE_MAP.items():
@@ -328,17 +365,9 @@ class Alpaca(Broker):
         response = self.api.get_order(identifier)
         return response
 
-    def _pull_broker_open_orders(self):
-        """Get the broker open orders"""
-        # params to filter orders by
-        request_params = GetOrdersRequest(
-            status=QueryOrderStatus.OPEN,
-        )
-
-        # orders that satisfy params
-        orders = self.api.get_orders(filter=request_params)
-
-        return orders
+    def _pull_broker_all_orders(self):
+        """Get the broker orders"""
+        return self.api.get_orders()
 
     def _flatten_order(self, order):
         """Some submitted orders may trigger other orders.

@@ -47,7 +47,9 @@ class BacktestingBroker(Broker):
                     # Remove the original order from the list of new orders because
                     # it's been replaced by the individual orders
                     broker._new_orders.remove(result)
-                else:
+                elif order not in broker._new_orders:
+                    # David M: This seems weird and I don't understand why we're doing this.  It seems like
+                    # we're adding the order to the new orders list twice, so checking first.
                     broker._new_orders.append(order)
                 return result
 
@@ -237,9 +239,9 @@ class BacktestingBroker(Broker):
                 return order
         return None
 
-    def _pull_broker_open_orders(self):
+    def _pull_broker_all_orders(self):
         """Get the broker open orders"""
-        orders = self._new_orders.__items
+        orders = self.get_all_orders()
         return orders
 
     def _flatten_order(self, order):
@@ -321,6 +323,7 @@ class BacktestingBroker(Broker):
         order.update_raw(order)
         self.stream.dispatch(
             self.NEW_ORDER,
+            wait_until_complete=True,
             order=order,
         )
         return order
@@ -335,6 +338,7 @@ class BacktestingBroker(Broker):
         """Cancel an order"""
         self.stream.dispatch(
             self.CANCELED_ORDER,
+            wait_until_complete=True,
             order=order,
         )
 
@@ -396,6 +400,7 @@ class BacktestingBroker(Broker):
         # Send filled order event
         self.stream.dispatch(
             self.CASH_SETTLED,
+            wait_until_complete=True,
             order=order,
             price=abs(profit_loss / position.quantity / position.asset.multiplier),
             filled_quantity=abs(position.quantity),
@@ -498,11 +503,17 @@ class BacktestingBroker(Broker):
             # Get OHLCV data for the asset
             #############################
 
-            # Get the OHLCV data for the asset if we're using the YAHOO data source
-            if self.data_source.SOURCE == "YAHOO":
-                timeshift = timedelta(
-                    days=-1
-                )  # Is negative so that we get today (normally would get yesterday's data to prevent lookahead bias)
+            # Get the OHLCV data for the asset if we're using the YAHOO, CCXT data source
+            data_source_name = self.data_source.SOURCE.upper()
+            if data_source_name in ["CCXT", "YAHOO"]:
+                # If we're using the CCXT data source, we don't need to timeshift the data
+                if data_source_name == "CCXT":
+                    timeshift = None
+                else:
+                    timeshift = timedelta(
+                        days=-1
+                    )  # Is negative so that we get today (normally would get yesterday's data to prevent lookahead bias)
+
                 ohlc = strategy.get_historical_prices(
                     asset,
                     1,
@@ -609,6 +620,7 @@ class BacktestingBroker(Broker):
 
                 self.stream.dispatch(
                     self.FILLED_ORDER,
+                    wait_until_complete=True,
                     order=order,
                     price=price,
                     filled_quantity=filled_quantity,
@@ -654,16 +666,6 @@ class BacktestingBroker(Broker):
     def get_last_bar(self, asset):
         """Returns OHLCV dictionary for last bar of the asset."""
         return self.data_source.get_historical_prices(asset, 1)
-
-    def get_expiration(self, chains, exchange="SMART"):
-        """Returns expirations and strikes high/low of target price."""
-        if exchange != "SMART":
-            raise ValueError(
-                "When getting option expirations in backtesting, only the `SMART`"
-                "exchange may be used. It is the default value. Please delete "
-                "the `exchange` parameter or change the value to `SMART`."
-            )
-        return super().get_expiration(chains, exchange)
 
     # ==========Processing streams data=======================
 
@@ -730,3 +732,31 @@ class BacktestingBroker(Broker):
     def _run_stream(self):
         self._stream_established()
         self.stream._run()
+
+    def _pull_positions(self, strategy):
+        """Get the account positions. return a list of
+        position objects"""
+        response = self._pull_broker_positions(strategy)
+        result = self._parse_broker_positions(response, strategy.name)
+        return result
+
+    def _pull_position(self, strategy, asset):
+        """
+        Pull a single position from the broker that matches the asset and strategy. If no position is found, None is
+        returned.
+
+        Parameters
+        ----------
+        strategy: Strategy
+            The strategy object that placed the order to pull
+        asset: Asset
+            The asset to pull the position for
+
+        Returns
+        -------
+        Position
+            The position object for the asset and strategy if found, otherwise None
+        """
+        response = self._pull_broker_position(asset)
+        result = self._parse_broker_position(response, strategy)
+        return result

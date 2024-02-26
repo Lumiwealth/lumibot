@@ -10,3 +10,4 @@ There are several different brokers that you can use to trade with Lumibot, and 
    brokers.alpaca
    brokers.interactive_brokers
    brokers.ccxt
+   brokers.tradier

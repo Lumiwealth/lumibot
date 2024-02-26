@@ -294,6 +294,7 @@
 <li class="toctree-l2"><a class="reference internal" href="brokers.alpaca.html">Alpaca</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.interactive_brokers.html">Interactive Brokers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.ccxt.html">Crypto Brokers (Using CCXT)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.tradier.html">Tradier</a></li>
 </ul>
 </li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="entities.html">Entities</a><input class="toctree-checkbox" id="toctree-checkbox-14" name="toctree-checkbox-14" role="switch" type="checkbox"/><label for="toctree-checkbox-14"><div class="visually-hidden">Toggle navigation of Entities</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
@@ -358,7 +359,7 @@
 <span id="documentation"></span><h2>Documentation<a class="headerlink" href="#module-lumibot.strategies.strategy" title="Link to this heading">#</a></h2>
 <dl class="py class">
 <dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">lumibot.strategies.strategy.</span></span><span class="sig-name descname"><span class="pre">Strategy</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">broker</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">minutes_before_closing</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">minutes_before_opening</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">60</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sleeptime</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'1M'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stats_file</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">risk_free_rate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">benchmark_asset</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'SPY'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">backtesting_start</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">backtesting_end</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quote_asset</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">USD</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">starting_positions</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filled_order_callback</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">budget</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">parameters</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">{}</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">buy_trading_fees</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">[]</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sell_trading_fees</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">[]</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">force_start_immediately</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy" title="Link to this definition">#</a></dt>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">lumibot.strategies.strategy.</span></span><span class="sig-name descname"><span class="pre">Strategy</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">broker</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">minutes_before_closing</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">minutes_before_opening</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">60</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sleeptime</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'1M'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stats_file</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">risk_free_rate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">benchmark_asset</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'SPY'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">backtesting_start</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">backtesting_end</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quote_asset</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">USD</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">starting_positions</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filled_order_callback</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">budget</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">parameters</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">{}</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">buy_trading_fees</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">[]</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sell_trading_fees</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">[]</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">force_start_immediately</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">discord_webhook_url</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">account_history_db_connection_str</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">strategy_id</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy" title="Link to this definition">#</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">_Strategy</span></code></p>
 <dl class="py method">
 <dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.add_line">
@@ -552,6 +553,11 @@ for daily resetting variables</p>
 </pre></div>
 </div>
 </dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.calculate_returns">
+<span class="sig-name descname"><span class="pre">calculate_returns</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.calculate_returns" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.cancel_open_orders">
@@ -1071,21 +1077,21 @@ from <cite>get_chains</cite> method.</p>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p><p>A dictionary of option chain information for one stock and
-for one exchange. It will contain:</p>
+<dd class="field-even"><p><p>Format:
+- <cite>Multiplier</cite> (str) eg: <cite>100</cite>
+- ‘Chains’ - paired Expiration/Strke info to guarentee that the stikes are valid for the specific</p>
 <blockquote>
-<div><ul class="simple">
-<li><p><cite>Underlying conId</cite> (int)</p></li>
-<li><p><cite>TradingClass</cite> (str) eg: <cite>FB</cite></p></li>
-<li><p><cite>Multiplier</cite> (str) eg: <cite>100</cite></p></li>
-<li><p><cite>Expirations</cite> (set of str) eg: {<cite>20230616</cite>, …}</p></li>
-<li><p><cite>Strikes</cite> (set of floats)</p></li>
-</ul>
+<div><p>expiration date.
+Format:</p>
+<blockquote>
+<div><p>chains[‘Chains’][‘CALL’][exp_date] = [strike1, strike2, …]</p>
+</div></blockquote>
+<p>Expiration Date Format: 2023-07-31</p>
 </div></blockquote>
 </p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>dictionary</p>
+<dd class="field-odd"><p>dictionary of dictionary</p>
 </dd>
 </dl>
 <p class="rubric">Example</p>
@@ -1109,19 +1115,21 @@ for each exchange.</p>
 as an asset object.</p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p><ul class="simple">
-<li><p><em>dictionary of dictionaries for each exchange. Each exchange</em></p></li>
-<li><p><em>dictionary has</em> –</p>
-<ul>
-<li><p><cite>Underlying conId</cite> (int)</p></li>
-<li><p><cite>TradingClass</cite> (str) eg: <cite>FB</cite></p></li>
-<li><p><cite>Multiplier</cite> (str) eg: <cite>100</cite></p></li>
-<li><p><cite>Expirations</cite> (set of str) eg: {<cite>20230616</cite>, …}</p></li>
-<li><p><cite>Strikes</cite> (set of floats)</p></li>
-</ul>
-</li>
-</ul>
+<dd class="field-even"><p><p>Format:
+- <cite>Multiplier</cite> (str) eg: <cite>100</cite>
+- ‘Chains’ - paired Expiration/Strike info to guarentee that the strikes are valid for the specific</p>
+<blockquote>
+<div><p>expiration date.
+Format:</p>
+<blockquote>
+<div><p>chains[‘Chains’][‘CALL’][exp_date] = [strike1, strike2, …]</p>
+</div></blockquote>
+<p>Expiration Date Format: 2023-07-31</p>
+</div></blockquote>
 </p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dictionary of dictionary</p>
 </dd>
 </dl>
 <p class="rubric">Example</p>
@@ -1181,11 +1189,11 @@ as an asset object.</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.get_expiration">
-<span class="sig-name descname"><span class="pre">get_expiration</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">chains</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exchange</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'SMART'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.get_expiration" title="Link to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">get_expiration</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">chains</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.get_expiration" title="Link to this definition">#</a></dt>
 <dd><p>Returns expiration dates for an option chain for a particular
 exchange.</p>
 <p>Using the <cite>chains</cite> dictionary obtained from <cite>get_chains</cite> finds
-all of the expiry dates for the option chains on a given
+all expiry dates for the option chains on a given
 exchange. The return list is sorted.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -1195,10 +1203,10 @@ exchange. The return list is sorted.</p>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>Sorted list of dates in the form of <cite>20221013</cite>.</p>
+<dd class="field-even"><p>Sorted list of dates in the form of <cite>2022-10-13</cite>.</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>list of datetime.dates</p>
+<dd class="field-odd"><p>list of datetime.date</p>
 </dd>
 </dl>
 <p class="rubric">Example</p>
@@ -1211,7 +1219,7 @@ exchange. The return list is sorted.</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.get_greeks">
-<span class="sig-name descname"><span class="pre">get_greeks</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">asset_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">underlying_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">risk_free_rate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.get_greeks" title="Link to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">get_greeks</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">asset_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">underlying_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">risk_free_rate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">query_greeks</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.get_greeks" title="Link to this definition">#</a></dt>
 <dd><p>Returns the greeks for the option asset at the current
 bar.</p>
 <p>Will return all the greeks available. API Querying for prices
@@ -1224,6 +1232,8 @@ most of the time.</p>
 <li><p><strong>asset_price</strong> (<em>float</em><em>, </em><em>optional</em>) – The price of the option asset, by default None</p></li>
 <li><p><strong>underlying_price</strong> (<em>float</em><em>, </em><em>optional</em>) – The price of the underlying asset, by default None</p></li>
 <li><p><strong>risk_free_rate</strong> (<em>float</em><em>, </em><em>optional</em>) – The risk-free rate used in interest calculations, by default None</p></li>
+<li><p><strong>query_greeks</strong> (<em>bool</em><em>, </em><em>optional</em>) – Whether to query the greeks from the broker. By default, the greeks are calculated locally, but if the
+broker supports it, they can be queried instead which could theoretically be more precise.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -1887,16 +1897,25 @@ start of the real time bars.</p>
 </dd></dl>
 
 <dl class="py method">
+<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.get_stats_from_database">
+<span class="sig-name descname"><span class="pre">get_stats_from_database</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">stats_table_name</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.get_stats_from_database" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
 <dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.get_strikes">
-<span class="sig-name descname"><span class="pre">get_strikes</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.get_strikes" title="Link to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">get_strikes</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chains</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.get_strikes" title="Link to this definition">#</a></dt>
 <dd><p>Returns a list of strikes for a give underlying asset.</p>
 <p>Using the <cite>chains</cite> dictionary obtained from <cite>get_chains</cite> finds
 all the multiplier for the option chains on a given
 exchange.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>asset</strong> (<a class="reference internal" href="entities.asset.html#entities.asset.Asset" title="entities.asset.Asset"><em>Asset</em></a>) – Asset object as normally used for an option but without
-the strike information. The Asset object must be an option asset type.</p>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>asset</strong> (<a class="reference internal" href="entities.asset.html#entities.asset.Asset" title="entities.asset.Asset"><em>Asset</em></a>) – Asset object as normally used for an option but without
+the strike information. The Asset object must be an option asset type.</p></li>
+<li><p><strong>chains</strong> (<em>dictionary</em><em> of </em><em>dictionaries</em><em>, </em><em>optional</em>) – The chains dictionary created by <cite>get_chains</cite> method. If not
+provided, the method will fetch the chains for the asset.</p></li>
+</ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p>Sorted list of strikes as floats.</p>
@@ -2599,6 +2618,27 @@ False. Default is True.</p>
 </dd></dl>
 
 <dl class="py method">
+<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.send_account_summary_to_discord">
+<span class="sig-name descname"><span class="pre">send_account_summary_to_discord</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.send_account_summary_to_discord" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.send_discord_message">
+<span class="sig-name descname"><span class="pre">send_discord_message</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">message</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">image_buf</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">silent</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.send_discord_message" title="Link to this definition">#</a></dt>
+<dd><p>Sends a message to Discord</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.send_result_text_to_discord">
+<span class="sig-name descname"><span class="pre">send_result_text_to_discord</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">returns_text</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">portfolio_value</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cash</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.send_result_text_to_discord" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.send_spark_chart_to_discord">
+<span class="sig-name descname"><span class="pre">send_spark_chart_to_discord</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">stats_df</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">portfolio_value</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">now</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.send_spark_chart_to_discord" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
 <dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.set_market">
 <span class="sig-name descname"><span class="pre">set_market</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">market</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.set_market" title="Link to this definition">#</a></dt>
 <dd><p>Set the market for trading hours.</p>
@@ -2700,6 +2740,11 @@ the existing parameters (including the default settings).</p>
 </dd>
 </dl>
 </dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.should_send_account_summary_to_discord">
+<span class="sig-name descname"><span class="pre">should_send_account_summary_to_discord</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.should_send_account_summary_to_discord" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.sleep">
@@ -3240,6 +3285,11 @@ instructions for the orders.</p>
 </dd></dl>
 
 <dl class="py method">
+<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.to_sql">
+<span class="sig-name descname"><span class="pre">to_sql</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">stats_df</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stats_table_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">connection_string</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">if_exists</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">index</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.to_sql" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
 <dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.trace_stats">
 <span class="sig-name descname"><span class="pre">trace_stats</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">context</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">snapshot_before</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.trace_stats" title="Link to this definition">#</a></dt>
 <dd><p>Lifecycle method that will be executed after
@@ -3449,6 +3499,7 @@ method to dump stats</p>
 <li><a class="reference internal" href="#lumibot.strategies.strategy.Strategy.before_market_closes"><code class="docutils literal notranslate"><span class="pre">Strategy.before_market_closes()</span></code></a></li>
 <li><a class="reference internal" href="#lumibot.strategies.strategy.Strategy.before_market_opens"><code class="docutils literal notranslate"><span class="pre">Strategy.before_market_opens()</span></code></a></li>
 <li><a class="reference internal" href="#lumibot.strategies.strategy.Strategy.before_starting_trading"><code class="docutils literal notranslate"><span class="pre">Strategy.before_starting_trading()</span></code></a></li>
+<li><a class="reference internal" href="#lumibot.strategies.strategy.Strategy.calculate_returns"><code class="docutils literal notranslate"><span class="pre">Strategy.calculate_returns()</span></code></a></li>
 <li><a class="reference internal" href="#lumibot.strategies.strategy.Strategy.cancel_open_orders"><code class="docutils literal notranslate"><span class="pre">Strategy.cancel_open_orders()</span></code></a></li>
 <li><a class="reference internal" href="#lumibot.strategies.strategy.Strategy.cancel_order"><code class="docutils literal notranslate"><span class="pre">Strategy.cancel_order()</span></code></a></li>
 <li><a class="reference internal" href="#lumibot.strategies.strategy.Strategy.cancel_orders"><code class="docutils literal notranslate"><span class="pre">Strategy.cancel_orders()</span></code></a></li>
@@ -3489,6 +3540,7 @@ method to dump stats</p>
 <li><a class="reference internal" href="#lumibot.strategies.strategy.Strategy.get_round_day"><code class="docutils literal notranslate"><span class="pre">Strategy.get_round_day()</span></code></a></li>
 <li><a class="reference internal" href="#lumibot.strategies.strategy.Strategy.get_round_minute"><code class="docutils literal notranslate"><span class="pre">Strategy.get_round_minute()</span></code></a></li>
 <li><a class="reference internal" href="#lumibot.strategies.strategy.Strategy.get_selling_order"><code class="docutils literal notranslate"><span class="pre">Strategy.get_selling_order()</span></code></a></li>
+<li><a class="reference internal" href="#lumibot.strategies.strategy.Strategy.get_stats_from_database"><code class="docutils literal notranslate"><span class="pre">Strategy.get_stats_from_database()</span></code></a></li>
 <li><a class="reference internal" href="#lumibot.strategies.strategy.Strategy.get_strikes"><code class="docutils literal notranslate"><span class="pre">Strategy.get_strikes()</span></code></a></li>
 <li><a class="reference internal" href="#lumibot.strategies.strategy.Strategy.get_symbol_bars"><code class="docutils literal notranslate"><span class="pre">Strategy.get_symbol_bars()</span></code></a></li>
 <li><a class="reference internal" href="#lumibot.strategies.strategy.Strategy.get_tick"><code class="docutils literal notranslate"><span class="pre">Strategy.get_tick()</span></code></a></li>
@@ -3526,9 +3578,14 @@ method to dump stats</p>
 <li><a class="reference internal" href="#lumibot.strategies.strategy.Strategy.quote_asset"><code class="docutils literal notranslate"><span class="pre">Strategy.quote_asset</span></code></a></li>
 <li><a class="reference internal" href="#lumibot.strategies.strategy.Strategy.risk_free_rate"><code class="docutils literal notranslate"><span class="pre">Strategy.risk_free_rate</span></code></a></li>
 <li><a class="reference internal" href="#lumibot.strategies.strategy.Strategy.sell_all"><code class="docutils literal notranslate"><span class="pre">Strategy.sell_all()</span></code></a></li>
+<li><a class="reference internal" href="#lumibot.strategies.strategy.Strategy.send_account_summary_to_discord"><code class="docutils literal notranslate"><span class="pre">Strategy.send_account_summary_to_discord()</span></code></a></li>
+<li><a class="reference internal" href="#lumibot.strategies.strategy.Strategy.send_discord_message"><code class="docutils literal notranslate"><span class="pre">Strategy.send_discord_message()</span></code></a></li>
+<li><a class="reference internal" href="#lumibot.strategies.strategy.Strategy.send_result_text_to_discord"><code class="docutils literal notranslate"><span class="pre">Strategy.send_result_text_to_discord()</span></code></a></li>
+<li><a class="reference internal" href="#lumibot.strategies.strategy.Strategy.send_spark_chart_to_discord"><code class="docutils literal notranslate"><span class="pre">Strategy.send_spark_chart_to_discord()</span></code></a></li>
 <li><a class="reference internal" href="#lumibot.strategies.strategy.Strategy.set_market"><code class="docutils literal notranslate"><span class="pre">Strategy.set_market()</span></code></a></li>
 <li><a class="reference internal" href="#lumibot.strategies.strategy.Strategy.set_parameter_defaults"><code class="docutils literal notranslate"><span class="pre">Strategy.set_parameter_defaults()</span></code></a></li>
 <li><a class="reference internal" href="#lumibot.strategies.strategy.Strategy.set_parameters"><code class="docutils literal notranslate"><span class="pre">Strategy.set_parameters()</span></code></a></li>
+<li><a class="reference internal" href="#lumibot.strategies.strategy.Strategy.should_send_account_summary_to_discord"><code class="docutils literal notranslate"><span class="pre">Strategy.should_send_account_summary_to_discord()</span></code></a></li>
 <li><a class="reference internal" href="#lumibot.strategies.strategy.Strategy.sleep"><code class="docutils literal notranslate"><span class="pre">Strategy.sleep()</span></code></a></li>
 <li><a class="reference internal" href="#lumibot.strategies.strategy.Strategy.sleeptime"><code class="docutils literal notranslate"><span class="pre">Strategy.sleeptime</span></code></a></li>
 <li><a class="reference internal" href="#lumibot.strategies.strategy.Strategy.start_realtime_bars"><code class="docutils literal notranslate"><span class="pre">Strategy.start_realtime_bars()</span></code></a></li>
@@ -3538,6 +3595,7 @@ method to dump stats</p>
 <li><a class="reference internal" href="#lumibot.strategies.strategy.Strategy.submit_orders"><code class="docutils literal notranslate"><span class="pre">Strategy.submit_orders()</span></code></a></li>
 <li><a class="reference internal" href="#lumibot.strategies.strategy.Strategy.timezone"><code class="docutils literal notranslate"><span class="pre">Strategy.timezone</span></code></a></li>
 <li><a class="reference internal" href="#lumibot.strategies.strategy.Strategy.to_default_timezone"><code class="docutils literal notranslate"><span class="pre">Strategy.to_default_timezone()</span></code></a></li>
+<li><a class="reference internal" href="#lumibot.strategies.strategy.Strategy.to_sql"><code class="docutils literal notranslate"><span class="pre">Strategy.to_sql()</span></code></a></li>
 <li><a class="reference internal" href="#lumibot.strategies.strategy.Strategy.trace_stats"><code class="docutils literal notranslate"><span class="pre">Strategy.trace_stats()</span></code></a></li>
 <li><a class="reference internal" href="#lumibot.strategies.strategy.Strategy.unspent_money"><code class="docutils literal notranslate"><span class="pre">Strategy.unspent_money</span></code></a></li>
 <li><a class="reference internal" href="#lumibot.strategies.strategy.Strategy.update_parameters"><code class="docutils literal notranslate"><span class="pre">Strategy.update_parameters()</span></code></a></li>

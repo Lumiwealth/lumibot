@@ -294,6 +294,7 @@
 <li class="toctree-l2"><a class="reference internal" href="brokers.alpaca.html">Alpaca</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.interactive_brokers.html">Interactive Brokers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.ccxt.html">Crypto Brokers (Using CCXT)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.tradier.html">Tradier</a></li>
 </ul>
 </li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="entities.html">Entities</a><input class="toctree-checkbox" id="toctree-checkbox-14" name="toctree-checkbox-14" role="switch" type="checkbox"/><label for="toctree-checkbox-14"><div class="visually-hidden">Toggle navigation of Entities</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
@@ -354,10 +355,10 @@
 <tr class="row-odd"><td><p><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_greeks.html#strategies.strategy.Strategy.get_greeks" title="strategies.strategy.Strategy.get_greeks"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_greeks</span></code></a>(asset[, asset_price, ...])</p></td>
 <td><p>Returns the greeks for the option asset at the current bar.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_strikes.html#strategies.strategy.Strategy.get_strikes" title="strategies.strategy.Strategy.get_strikes"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_strikes</span></code></a>(asset)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_strikes.html#strategies.strategy.Strategy.get_strikes" title="strategies.strategy.Strategy.get_strikes"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_strikes</span></code></a>(asset[, chains])</p></td>
 <td><p>Returns a list of strikes for a give underlying asset.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_expiration.html#strategies.strategy.Strategy.get_expiration" title="strategies.strategy.Strategy.get_expiration"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_expiration</span></code></a>(chains[, exchange])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_expiration.html#strategies.strategy.Strategy.get_expiration" title="strategies.strategy.Strategy.get_expiration"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_expiration</span></code></a>(chains)</p></td>
 <td><p>Returns expiration dates for an option chain for a particular exchange.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_multiplier.html#strategies.strategy.Strategy.get_multiplier" title="strategies.strategy.Strategy.get_multiplier"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_multiplier</span></code></a>(chains[, exchange])</p></td>

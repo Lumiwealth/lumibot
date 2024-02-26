@@ -4,7 +4,7 @@ import re
 
 import pandas as pd
 from lumibot import LUMIBOT_DEFAULT_PYTZ as DEFAULT_PYTZ
-from lumibot.tools.helpers import to_datetime_aware
+from lumibot.tools.helpers import parse_timestep_qty_and_unit, to_datetime_aware
 
 from .asset import Asset
 from .dataline import Dataline
@@ -273,7 +273,7 @@ class Data:
         idx = idx[(idx >= self.datetime_start) & (idx <= self.datetime_end)]
 
         # After all time series merged, adjust the local dataframe to reindex and fill nan's.
-        df = self.df.reindex(idx)
+        df = self.df.reindex(idx, method="ffill")
         df.loc[df["volume"].isna(), "volume"] = 0
         df.loc[:, ~df.columns.isin(["open", "high", "low"])] = df.loc[
             :, ~df.columns.isin(["open", "high", "low"])
@@ -489,12 +489,8 @@ class Data:
         pandas.DataFrame
 
         """
-        # Interactive Brokers can use a timespan of something like: '10 minutes'
-        quantity = 1
-        m = re.search(r"(\d+)\s*(\w+)", timestep)
-        if m:
-            quantity = int(m.group(1))
-            timestep = m.group(2).rstrip("s")  # remove trailing 's' if any
+        # Parse the timestep
+        quantity, timestep = parse_timestep_qty_and_unit(timestep)
 
         if timestep == "minute" and self.timestep == "day":
             raise ValueError("You are requesting minute data from a daily data source. This is not supported.")
@@ -516,7 +512,7 @@ class Data:
             data = self._get_bars_dict(dt, length=length, timestep="minute", timeshift=timeshift)
 
         else:
-            unit = "T"  # Guarenteed to be minute timestep at this point
+            unit = "min"  # Guaranteed to be minute timestep at this point
             length = length * quantity
             data = self._get_bars_dict(dt, length=length, timestep=timestep, timeshift=timeshift)
 

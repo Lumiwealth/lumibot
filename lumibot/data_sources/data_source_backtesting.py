@@ -13,10 +13,11 @@ class DataSourceBacktesting(DataSource, ABC):
     instantiated directly because it does not define all necessary methods. Instead, instantiate one of the
     child classes like PandasData.
     """
+
     IS_BACKTESTING_DATA_SOURCE = True
 
     def __init__(
-        self, datetime_start, datetime_end, backtesting_started=None, config=None, api_key=None
+        self, datetime_start, datetime_end, backtesting_started=None, config=None, api_key=None, pandas_data=None
     ):
         super().__init__(api_key=api_key)
 

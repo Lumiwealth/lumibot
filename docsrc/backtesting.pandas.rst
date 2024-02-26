@@ -82,7 +82,7 @@ For example, if you have a CSV file for AAPL, you must create an ``Asset`` objec
 
     asset = Asset(
         symbol="AAPL",
-        asset_type="stock",
+        asset_type=Asset.AssetType.STOCK,
     )
 
 Next step will be to load the dataframe from csv.
@@ -175,7 +175,7 @@ Then, the startegy and backtesting code would look something like this:
     df = pd.read_csv("AAPL.csv")
     asset = Asset(
         symbol="AAPL",
-        asset_type="stock",
+        asset_type=Asset.AssetType.STOCK,
     )
     pandas_data = {}
     pandas_data[asset] = Data(

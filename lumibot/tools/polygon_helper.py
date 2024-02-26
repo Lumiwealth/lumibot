@@ -6,12 +6,13 @@ from pathlib import Path
 
 import pandas as pd
 import pandas_market_calendars as mcal
-from lumibot import LUMIBOT_CACHE_FOLDER
-from lumibot.entities import Asset
 
 # noinspection PyPackageRequirements
 from polygon import RESTClient
 from tqdm import tqdm
+
+from lumibot import LUMIBOT_CACHE_FOLDER
+from lumibot.entities import Asset
 
 WAIT_TIME = 60
 POLYGON_QUERY_COUNT = 0  # This is a variable that updates every time we query Polygon
@@ -158,17 +159,21 @@ def get_trading_dates(asset: Asset, start: datetime, end: datetime):
 
     """
     # Crypto Asset Calendar
-    if asset.asset_type == "crypto":
+    if asset.asset_type == Asset.AssetType.CRYPTO:
         # Crypto trades every day, 24/7 so we don't need to check the calendar
         return [start.date() + timedelta(days=x) for x in range((end.date() - start.date()).days + 1)]
 
     # Stock/Option Asset for Backtesting - Assuming NYSE trading days
-    elif asset.asset_type == "stock" or asset.asset_type == "option":
+    elif (
+        asset.asset_type == Asset.AssetType.INDEX
+        or asset.asset_type == Asset.AssetType.STOCK
+        or asset.asset_type == Asset.AssetType.OPTION
+    ):
         cal = mcal.get_calendar("NYSE")
 
     # Forex Asset for Backtesting - Forex trades weekdays, 24hrs starting Sunday 5pm EST
     # Calendar: "CME_FX"
-    elif asset.asset_type == "forex":
+    elif asset.asset_type == Asset.AssetType.FOREX:
         cal = mcal.get_calendar("CME_FX")
 
     else:
@@ -198,16 +203,16 @@ def get_polygon_symbol(asset, polygon_client, quote_asset=None):
         The symbol for the asset in a format that Polygon will understand
     """
     # Crypto Asset for Backtesting
-    if asset.asset_type == "crypto":
+    if asset.asset_type == Asset.AssetType.CRYPTO:
         quote_asset_symbol = quote_asset.symbol if quote_asset else "USD"
         symbol = f"X:{asset.symbol}{quote_asset_symbol}"
 
     # Stock-Equity Asset for Backtesting
-    elif asset.asset_type == "stock":
+    elif asset.asset_type == Asset.AssetType.STOCK:
         symbol = asset.symbol
 
     # Forex Asset for Backtesting
-    elif asset.asset_type == "forex":
+    elif asset.asset_type == Asset.AssetType.FOREX:
         # If quote_asset is None, throw an error
         if quote_asset is None:
             raise ValueError(f"quote_asset is required for asset type {asset.asset_type}")
@@ -215,7 +220,7 @@ def get_polygon_symbol(asset, polygon_client, quote_asset=None):
         symbol = f"C:{asset.symbol}{quote_asset.symbol}"
 
     # Option Asset for Backtesting - Do a query to Polygon to get the ticker
-    elif asset.asset_type == "option":
+    elif asset.asset_type == Asset.AssetType.OPTION:
         # Needed so BackTest both old and existing contracts
         real_today = date.today()
         expired = True if asset.expiration < real_today else False
@@ -238,6 +243,9 @@ def get_polygon_symbol(asset, polygon_client, quote_asset=None):
 
         # Example: O:SPY230802C00457000
         symbol = contracts[0].ticker
+
+    elif asset.asset_type == Asset.AssetType.INDEX:
+        symbol = f"I:{asset.symbol}"
 
     else:
         raise ValueError(f"Unsupported asset type for polygon: {asset.asset_type}")

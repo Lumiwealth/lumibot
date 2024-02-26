@@ -294,6 +294,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../brokers.alpaca.html">Alpaca</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../brokers.interactive_brokers.html">Interactive Brokers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../brokers.ccxt.html">Crypto Brokers (Using CCXT)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../brokers.tradier.html">Tradier</a></li>
 </ul>
 </li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../entities.html">Entities</a><input class="toctree-checkbox" id="toctree-checkbox-14" name="toctree-checkbox-14" role="switch" type="checkbox"/><label for="toctree-checkbox-14"><div class="visually-hidden">Toggle navigation of Entities</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
@@ -408,13 +409,15 @@ instructions for the orders.</p>
 </pre></div>
 </div>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For 2 FOREX buy orders</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">lumibot.entities</span> <span class="kn">import</span> <span class="n">Asset</span>
+<span class="gp">&gt;&gt;&gt;</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">base_asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span>
 <span class="go">    symbol=&quot;EUR&quot;,</span>
-<span class="go">    asset_type=&quot;forex&quot;,</span>
+<span class="go">    asset_type=Asset.AssetType.FOREX,</span>
 <span class="go">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">quote_asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span>
 <span class="go">    symbol=&quot;USD&quot;,</span>
-<span class="go">    asset_type=&quot;forex&quot;,</span>
+<span class="go">    asset_type=Asset.AssetType.FOREX,</span>
 <span class="go">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">order1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">base_asset</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="s2">&quot;buy&quot;</span><span class="p">,</span> <span class="n">quote</span><span class="o">=</span><span class="n">quote_asset</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">order2</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">base_asset</span><span class="p">,</span> <span class="mi">200</span><span class="p">,</span> <span class="s2">&quot;buy&quot;</span><span class="p">,</span> <span class="n">quote</span><span class="o">=</span><span class="n">quote_asset</span><span class="p">)</span>
@@ -422,13 +425,15 @@ instructions for the orders.</p>
 </pre></div>
 </div>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For 2 FOREX sell orders</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">lumibot.entities</span> <span class="kn">import</span> <span class="n">Asset</span>
+<span class="gp">&gt;&gt;&gt;</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">base_asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span>
 <span class="go">    symbol=&quot;EUR&quot;,</span>
-<span class="go">    asset_type=&quot;forex&quot;,</span>
+<span class="go">    asset_type=Asset.AssetType.FOREX,</span>
 <span class="go">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">quote_asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span>
 <span class="go">    symbol=&quot;USD&quot;,</span>
-<span class="go">    asset_type=&quot;forex&quot;,</span>
+<span class="go">    asset_type=Asset.AssetType.FOREX,</span>
 <span class="go">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">order1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">base_asset</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="s2">&quot;sell&quot;</span><span class="p">,</span> <span class="n">quote</span><span class="o">=</span><span class="n">quote_asset</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">order2</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">base_asset</span><span class="p">,</span> <span class="mi">200</span><span class="p">,</span> <span class="s2">&quot;sell&quot;</span><span class="p">,</span> <span class="n">quote</span><span class="o">=</span><span class="n">quote_asset</span><span class="p">)</span>
@@ -436,17 +441,19 @@ instructions for the orders.</p>
 </pre></div>
 </div>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For 2 CRYPTO buy orders.</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">lumibot.entities</span> <span class="kn">import</span> <span class="n">Asset</span>
+<span class="gp">&gt;&gt;&gt;</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">asset_BTC</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span>
 <span class="gp">&gt;&gt;&gt; </span>   <span class="s2">&quot;BTC&quot;</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>   <span class="n">asset_type</span><span class="o">=</span><span class="s2">&quot;crypto&quot;</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="n">asset_type</span><span class="o">=</span><span class="n">Asset</span><span class="o">.</span><span class="n">AssetType</span><span class="o">.</span><span class="n">CRYPTO</span><span class="p">,</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">asset_ETH</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span>
 <span class="gp">&gt;&gt;&gt; </span>   <span class="s2">&quot;ETH&quot;</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>   <span class="n">asset_type</span><span class="o">=</span><span class="s2">&quot;crypto&quot;</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="n">asset_type</span><span class="o">=</span><span class="n">Asset</span><span class="o">.</span><span class="n">AssetType</span><span class="o">.</span><span class="n">CRYPTO</span><span class="p">,</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">asset_quote</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span>
 <span class="gp">&gt;&gt;&gt; </span>   <span class="s2">&quot;USD&quot;</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>   <span class="n">asset_type</span><span class="o">=</span><span class="s2">&quot;crypto&quot;</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>   <span class="n">asset_type</span><span class="o">=</span><span class="n">Aset</span><span class="o">.</span><span class="n">AssetType</span><span class="o">.</span><span class="n">FOREX</span><span class="p">,</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">order1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">asset_BTC</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="s2">&quot;buy&quot;</span><span class="p">,</span> <span class="n">quote</span><span class="o">=</span><span class="n">asset_quote</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">order2</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">asset_ETH</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="s2">&quot;buy&quot;</span><span class="p">,</span> <span class="n">quote</span><span class="o">=</span><span class="n">asset_quote</span><span class="p">)</span>

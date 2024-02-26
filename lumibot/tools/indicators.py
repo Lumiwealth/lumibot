@@ -1,21 +1,17 @@
+import contextlib
 import logging
 import math
 import os
 import webbrowser
-from datetime import datetime, timedelta
+from datetime import datetime
 from decimal import Decimal
 
-import numpy as np
 import pandas as pd
-import plotly.express as px
 import plotly.graph_objects as go
-import quantstats as qs
-from plotly.subplots import make_subplots
-
-# import lumibot.data_sources.alpha_vantage as av
-from lumibot import LUMIBOT_DEFAULT_PYTZ
-from lumibot.entities.asset import Asset
+import quantstats_lumi as qs
 from lumibot.tools import to_datetime_aware
+from lumibot import LUMIBOT_DEFAULT_TIMEZONE
+from plotly.subplots import make_subplots
 
 from .yahoo_helper import YahooHelper as yh
 
@@ -153,9 +149,7 @@ def performance(_df, risk_free, prefix=""):
     print(f"{prefix} CAGR {cagr_adj*100:,.2f}%")
     print(f"{prefix} Volatility {vol_adj*100:,.2f}%")
     print(f"{prefix} Sharpe {sharpe_adj:0.2f}")
-    print(
-        f"{prefix} Max Drawdown {maxdown_adj['drawdown']*100:,.2f}% on {maxdown_adj['date']:%Y-%m-%d}"
-    )
+    print(f"{prefix} Max Drawdown {maxdown_adj['drawdown']*100:,.2f}% on {maxdown_adj['date']:%Y-%m-%d}")
     print(f"{prefix} RoMaD {romad_adj*100:,.2f}%")
 
 
@@ -174,7 +168,7 @@ def get_symbol_returns(symbol, start=datetime(1900, 1, 1), end=datetime.now()):
     Returns
     -------
     pd.DataFrame
-        A dataframe with the returns for the symbol. Includes the columns:  
+        A dataframe with the returns for the symbol. Includes the columns:
         - pct_change: The percent change in the Close price
         - div_yield: The dividend yield
         - return: The pct_change + div_yield
@@ -183,9 +177,7 @@ def get_symbol_returns(symbol, start=datetime(1900, 1, 1), end=datetime.now()):
     """
     # Making start and end datetime aware
     returns_df = yh.get_symbol_data(symbol)
-    returns_df = returns_df.loc[
-        (returns_df.index.date >= start.date()) & (returns_df.index.date <= end.date())
-    ]
+    returns_df = returns_df.loc[(returns_df.index.date >= start.date()) & (returns_df.index.date <= end.date())]
     returns_df.loc[:, "pct_change"] = returns_df["Close"].pct_change()
     returns_df.loc[:, "div_yield"] = returns_df["Dividends"] / returns_df["Close"]
     returns_df.loc[:, "return"] = returns_df["pct_change"] + returns_df["div_yield"]
@@ -210,8 +202,13 @@ def plot_indicators(
     chart_markers_df=None,
     chart_lines_df=None,
     strategy_name=None,
-    show_plot=True,
+    show_indicators=True,
 ):
+    # If show plot is False, then we don't want to open the plot in the browser
+    if not show_indicators:
+        print("show_indicators is False, not creating the plot file.")
+        return
+
     print("\nCreating indicators plot...")
 
     fig = make_subplots(specs=[[{"secondary_y": True}]])
@@ -224,24 +221,14 @@ def plot_indicators(
 
     def generate_marker_plotly_text(row):
         if row["detail_text"] is None:
-            return (
-                "Value: "
-                + str(row["value"])
-            )
+            return "Value: " + str(row["value"])
         else:
-            return (
-                "Value: "
-                + str(row["value"])
-                + "<br>"
-                + row["detail_text"]
-            )
+            return "Value: " + str(row["value"]) + "<br>" + row["detail_text"]
 
     # Plot the chart markers
     if chart_markers_df is not None and not chart_markers_df.empty:
         chart_markers_df = chart_markers_df.copy()
-        chart_markers_df["detail_text"] = chart_markers_df.apply(
-            generate_marker_plotly_text, axis=1
-        )
+        chart_markers_df["detail_text"] = chart_markers_df.apply(generate_marker_plotly_text, axis=1)
 
         # Loop over the marker names and create a new trace for each one
         for marker_name in chart_markers_df["name"].unique():
@@ -278,24 +265,14 @@ def plot_indicators(
 
     def generate_line_plotly_text(row):
         if row["detail_text"] is None:
-            return (
-                "Value: "
-                + str(row["value"])
-            )
+            return "Value: " + str(row["value"])
         else:
-            return (
-                "Value: "
-                + str(row["value"])
-                + "<br>"
-                + row["detail_text"]
-            )
+            return "Value: " + str(row["value"]) + "<br>" + row["detail_text"]
 
     # Plot the chart lines
     if chart_lines_df is not None and not chart_lines_df.empty:
         chart_lines_df = chart_lines_df.copy()
-        chart_lines_df["detail_text"] = chart_lines_df.apply(
-            generate_line_plotly_text, axis=1
-        )
+        chart_lines_df["detail_text"] = chart_lines_df.apply(generate_line_plotly_text, axis=1)
 
         # Loop over the line names and create a new trace for each one
         for line_name in chart_lines_df["name"].unique():
@@ -354,7 +331,7 @@ def plot_indicators(
         )
 
         # Create graph
-        fig.write_html(plot_file_html, auto_open=show_plot)
+        fig.write_html(plot_file_html, auto_open=show_indicators)
 
 
 def plot_returns(
@@ -369,6 +346,11 @@ def plot_returns(
     # chart_markers_df=None,
     # chart_lines_df=None,
 ):
+    # If show plot is False, then we don't want to open the plot in the browser
+    if not show_plot:
+        print("show_plot is False, not creating the plot file.")
+        return
+
     print("\nCreating trades plot...")
 
     dfs_concat = []
@@ -377,7 +359,7 @@ def plot_returns(
     _df1 = _df1.sort_index(ascending=True)
     _df1.index.name = "datetime"
     _df1[strategy_name] = (1 + _df1["return"]).cumprod()
-    _df1[strategy_name].iloc[0] = 1
+    _df1.loc[_df1.index[0], strategy_name] = 1
     _df1[strategy_name] = _df1[strategy_name] * initial_budget
     dfs_concat.append(_df1)
 
@@ -411,9 +393,12 @@ def plot_returns(
         return
     else:
         trades_df = trades_df.set_index("time")
-        df_final = df_final.merge(
-            trades_df, how="outer", left_index=True, right_index=True
-        )
+        df_final = df_final.merge(trades_df, how="outer", left_index=True, right_index=True)
+
+    # Fix for minute timeframe backtests plotting
+    # Converted to DatetimeIndex because index becomes Index type and UTC timezone in pd.concat
+    # The x-axis is not displayed correctly in plotly when not converted to DatetimeIndex type
+    df_final.index = pd.to_datetime(df_final.index,utc=True).tz_convert(LUMIBOT_DEFAULT_TIMEZONE)
 
     # fig = go.Figure()
     fig = make_subplots(specs=[[{"secondary_y": True}]])
@@ -471,11 +456,7 @@ def plot_returns(
                 return (
                     row["status"]
                     + "<br>"
-                    + str(
-                        row["filled_quantity"]
-                        .quantize(Decimal("0.01"))
-                        .__format__(",f")
-                    )
+                    + str(row["filled_quantity"].quantize(Decimal("0.01")).__format__(",f"))
                     + " "
                     + row["symbol"]
                     + " "
@@ -489,11 +470,7 @@ def plot_returns(
                     + str(row["asset.expiration"])
                     + "<br>"
                     + "Price: "
-                    + str(
-                       Decimal(row["price"])
-                        .quantize(Decimal("0.0001"))
-                        .__format__(",f")
-                    )
+                    + str(Decimal(row["price"]).quantize(Decimal("0.0001")).__format__(",f"))
                     + "<br>"
                     + "Order Type: "
                     + row["type"]
@@ -511,31 +488,19 @@ def plot_returns(
                     )
                     + "<br>"
                     + "Trade Cost: "
-                    + str(
-                        Decimal(row["trade_cost"])
-                        .quantize(Decimal("0.01"))
-                        .__format__(",f")
-                    )
+                    + str(Decimal(row["trade_cost"]).quantize(Decimal("0.01")).__format__(",f"))
                     + "<br>"
                 )
             else:
                 return (
                     row["status"]
                     + "<br>"
-                    + str(
-                        row["filled_quantity"]
-                        .quantize(Decimal("0.01"))
-                        .__format__(",f")
-                    )
+                    + str(row["filled_quantity"].quantize(Decimal("0.01")).__format__(",f"))
                     + " "
                     + row["symbol"]
                     + "<br>"
                     + "Price: "
-                    + str(
-                       Decimal(row["price"])
-                        .quantize(Decimal("0.0001"))
-                        .__format__(",f")
-                    )
+                    + str(Decimal(row["price"]).quantize(Decimal("0.0001")).__format__(",f"))
                     + "<br>"
                     + "Order Type: "
                     + row["type"]
@@ -553,11 +518,7 @@ def plot_returns(
                     )
                     + "<br>"
                     + "Trade Cost: "
-                    + str(
-                        Decimal(row["trade_cost"])
-                        .quantize(Decimal("0.01"))
-                        .__format__(",f")
-                    )
+                    + str(Decimal(row["trade_cost"]).quantize(Decimal("0.01")).__format__(",f"))
                     + "<br>"
                 )
         else:
@@ -574,9 +535,7 @@ def plot_returns(
 
         buys.index.name = "datetime"
         buys = (
-            buys.groupby(["datetime", strategy_name])["plotly_text_buys"]
-            .apply(lambda x: "<br>".join(x))
-            .reset_index()
+            buys.groupby(["datetime", strategy_name])["plotly_text_buys"].apply(lambda x: "<br>".join(x)).reset_index()
         )
         buys = buys.set_index("datetime")
         buys["buy_shift"] = buys[strategy_name] - vshift
@@ -614,9 +573,7 @@ def plot_returns(
 
         sells.index.name = "datetime"
         sells = (
-            sells.groupby(["datetime", strategy_name], group_keys=True)[
-                "plotly_text_sells"
-            ]
+            sells.groupby(["datetime", strategy_name], group_keys=True)["plotly_text_sells"]
             .apply(lambda x: "<br>".join(x))
             .reset_index()
         )
@@ -678,10 +635,15 @@ def create_tearsheet(
     strat_name: str,
     tearsheet_file: str,
     benchmark_df: pd.DataFrame,
-    benchmark_asset: Asset,
+    benchmark_asset,  # This is causing a circular import: Asset,
     show_tearsheet: bool,
     risk_free_rate: float,
 ):
+    # If show tearsheet is False, then we don't want to open the tearsheet in the browser
+    if not show_tearsheet:
+        print("show_tearsheet is False, not creating the tearsheet file.")
+        return
+
     print("\nCreating tearsheet...")
 
     # Check if df1 or df2 are empty and return if they are
@@ -692,7 +654,12 @@ def create_tearsheet(
     _strategy_df = strategy_df.copy()
     _benchmark_df = benchmark_df.copy()
 
-    df = pd.concat([_strategy_df, _benchmark_df], join="outer", axis=1)
+    # Convert _strategy_df and _benchmark_df indexes to a date object instead of datetime
+    _strategy_df.index = pd.to_datetime(_strategy_df.index)
+
+    # Merge the strategy and benchmark dataframes on the index column
+    df = pd.merge(_strategy_df, _benchmark_df, left_index=True, right_index=True, how="outer")
+
     df.index = pd.to_datetime(df.index)
     df["portfolio_value"] = df["portfolio_value"].ffill()
 
@@ -702,20 +669,19 @@ def create_tearsheet(
     df["symbol_cumprod"] = df["symbol_cumprod"].ffill()
     df.loc[df.index[0], "symbol_cumprod"] = 1
 
-    df = df.groupby(df.index.date).last()
-    df["strategy"] = df["portfolio_value"].pct_change().fillna(0)
-    df["benchmark"] = df["symbol_cumprod"].pct_change().fillna(0)
+    df = df.resample("D").last()
+    df["strategy"] = df["portfolio_value"].pct_change(fill_method=None).fillna(0)
+    df["benchmark"] = df["symbol_cumprod"].pct_change(fill_method=None).fillna(0)
 
+    # Merge the strategy and benchmark columns into a new dataframe called df_final
     df_final = df.loc[:, ["strategy", "benchmark"]]
+
+    # df_final = df.loc[:, ["strategy", "benchmark"]]
     df_final.index = pd.to_datetime(df_final.index)
     df_final.index = df_final.index.tz_localize(None)
 
     # Check if df_final is empty and return if it is
-    if (
-        df_final.empty
-        or df_final["benchmark"].isnull().all()
-        or df_final["strategy"].isnull().all()
-    ):
+    if df_final.empty or df_final["benchmark"].isnull().all() or df_final["strategy"].isnull().all():
         logging.warning("No data to create tearsheet, skipping")
         return
 
@@ -741,15 +707,17 @@ def create_tearsheet(
     # Set the name of the benchmark column so that quantstats can use it in the report
     df_final["benchmark"].name = str(benchmark_asset)
 
-    # TODO: Add the risk free rate, it's currently 0% which is wrong
-    qs.reports.html(
-        df_final["strategy"],
-        df_final["benchmark"],
-        title=title,
-        output=tearsheet_file,
-        download_filename=tearsheet_file,  # TODO: Should we name this slightly different than output?
-        rf=risk_free_rate,
-    )
+    # Run quantstats reports surpressing any logs because it can be noisy for no reason
+    with open(os.devnull, "w") as f, contextlib.redirect_stdout(f), contextlib.redirect_stderr(f):
+        qs.reports.html(
+            df_final["strategy"],
+            df_final["benchmark"],
+            title=title,
+            output=tearsheet_file,
+            download_filename=tearsheet_file,  # Consider if you need a different name for clarity
+            rf=risk_free_rate,
+        )
+
     if show_tearsheet:
         url = "file://" + os.path.abspath(str(tearsheet_file))
         webbrowser.open(url)

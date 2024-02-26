@@ -1,18 +1,32 @@
 import datetime
+import io
 import logging
 import os
+import time
+import uuid
 from asyncio.log import logger
 from decimal import Decimal
 from typing import Union
 
 import jsonpickle
+import matplotlib
+import matplotlib.dates as mdates
+import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 import numpy as np
 import pandas as pd
 import pandas_market_calendars as mcal
+import pytz
+import requests
 from lumibot.entities import Asset, Order
 from termcolor import colored
 
 from ._strategy import _Strategy
+
+matplotlib.use("Agg")
+
+# Set the stats table name for when storing stats in a database, defined by account_history_db_connection_str
+STATS_TABLE_NAME = "strategy_tracker"
 
 
 class Strategy(_Strategy):
@@ -315,7 +329,7 @@ class Strategy(_Strategy):
     def risk_free_rate(self):
         return self._risk_free_rate
 
-    # =======Helper methods=======================
+    # ======= Helper Methods =======================
 
     def log_message(self, message, color=None, broadcast=False):
         """Logs an info message prefixed with the strategy name.
@@ -343,14 +357,21 @@ class Strategy(_Strategy):
         --------
         >>> self.log_message('Sending a buy order')
         """
-        message = f"{self._log_strat_name()}: {message}"
         if color is not None:
-            message = colored(message, color)
-        logging.info(message)
+            colored_message = f"{self._log_strat_name()}: {message}"
+            colored_message = colored(message, color)
+            logging.info(colored_message)
+        else:
+            output_message = f"{self._log_strat_name()}: {message}"
+            logging.info(output_message)
+
+        if broadcast:
+            # Send the message to Discord
+            self.send_discord_message(message)
 
         return message
 
-    # ======Order methods shortcuts===============
+    # ====== Order Methods ===============
 
     def create_order(
         self,
@@ -380,8 +401,10 @@ class Strategy(_Strategy):
 
         Crypto markets require both a base currency and a quote currency to create an order. For example, use the quote parameter.:
 
+            >>> from lumibot.entities import Asset
+            >>>
             >>> self.create_order(
-            >>>     Asset(symbol='BTC', asset_type='crypto'),
+            >>>     Asset(symbol='BTC', asset_type=Asset.AssetType.CRYPTO),
             >>>     .50,
             >>>     'buy',
             >>>     quote=Asset(symbol='USDT', asset_type='crypto'),
@@ -539,12 +562,16 @@ class Strategy(_Strategy):
         >>>            )
 
         >>> # For a futures order
-        >>> asset = Asset("ES", asset_type="future", expiration="2019-01-01")
+        >>> from lumibot.entities import Asset
+        >>>
+        >>> asset = Asset("ES", asset_type=Asset.AssetType.FUTURE, expiration="2019-01-01")
         >>> order = self.create_order(asset, 100, "buy", limit_price=100.00)
         >>> self.submit_order(order)
 
         >>> # For a futures order with a trailing stop
-        >>> asset = Asset("ES", asset_type="future", expiration="2019-01-01")
+        >>> from lumibot.entities import Asset
+        >>>
+        >>> asset = Asset("ES", asset_type=Asset.AssetType.FUTURE, expiration="2019-01-01")
         >>> order = self.create_order(
         >>>                asset,
         >>>                100,
@@ -556,12 +583,16 @@ class Strategy(_Strategy):
         >>> self.submit_order(order)
 
         >>> # For an option order
-        >>> asset = Asset("SPY", asset_type="option", expiration="2019-01-01", strike=100.00)
+        >>> from lumibot.entities import Asset
+        >>>
+        >>> asset = Asset("SPY", asset_type=Asset.AssetType.OPTION, expiration="2019-01-01", strike=100.00)
         >>> order = self.create_order(asset, 100, "buy", limit_price=100.00)
         >>> self.submit_order(order)
 
         >>> # For an option order with a trailing stop
-        >>> asset = Asset("SPY", asset_type="option", expiration="2019-01-01", strike=100.00)
+        >>> from lumibot.entities import Asset
+        >>>
+        >>> asset = Asset("SPY", asset_type=Asset.AssetType.OPTION, expiration="2019-01-01", strike=100.00)
         >>> order = self.create_order(
         >>>                asset,
         >>>                100,
@@ -573,21 +604,27 @@ class Strategy(_Strategy):
         >>> self.submit_order(order)
 
         >>> # For a FOREX order
+        >>> from lumibot.entities import Asset
+        >>>
         >>> asset = Asset(
         >>>    symbol="CHF",
         >>>    currency="EUR",
-        >>>    asset_type="forex",
+        >>>    asset_type=Asset.AssetType.FOREX,
         >>>  )
         >>> order = self.create_order(asset, 100, "buy", limit_price=100.00)
         >>> self.submit_order(order)
 
         >>> # For a options order with a limit price
-        >>> asset = Asset("SPY", asset_type="option", expiration="2019-01-01", strike=100.00)
+        >>> from lumibot.entities import Asset
+        >>>
+        >>> asset = Asset("SPY", asset_type=Asset.AssetType.OPTION, expiration="2019-01-01", strike=100.00)
         >>> order = self.create_order(asset, 100, "buy", limit_price=100.00)
         >>> self.submit_order(order)
 
         >>> # For a options order with a trailing stop
-        >>> asset = Asset("SPY", asset_type="option", expiration="2019-01-01", strike=100.00)
+        >>> from lumibot.entities import Asset
+        >>>
+        >>> asset = Asset("SPY", asset_type=Asset.AssetType.OPTION, expiration="2019-01-01", strike=100.00)
         >>> order = self.create_order(
         >>>                asset,
         >>>                100,
@@ -599,14 +636,18 @@ class Strategy(_Strategy):
         >>> self.submit_order(order)
 
         >>> # For a cryptocurrency order with a market price
-        >>> base = Asset("BTC", asset_type="crypto")
-        >>> quote = Asset("USD", asset_type="crypto")
+        >>> from lumibot.entities import Asset
+        >>>
+        >>> base = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
+        >>> quote = Asset("USD", asset_type=Asset.AssetType.CRYPTO)
         >>> order = self.create_order(base, 0.05, "buy", quote=quote)
         >>> self.submit_order(order)
 
         >>> # Placing a limit order with a quote asset for cryptocurrencies
-        >>> base = Asset("BTC", asset_type="crypto")
-        >>> quote = Asset("USD", asset_type="crypto")
+        >>> from lumibot.entities import Asset
+        >>>
+        >>> base = Asset("BTC", asset_type=Aset.AssetType.CRYPTO)
+        >>> quote = Asset("USD", asset_type=Asset.AssetType.CRYPTO)
         >>> order = self.create_order(base, 0.05, "buy", limit_price=41000,  quote=quote)
         >>> self.submit_order(order)
         """
@@ -639,7 +680,7 @@ class Strategy(_Strategy):
         )
         return order
 
-    # =======Broker methods shortcuts============
+    # ======= Broker Methods ============
 
     def sleep(self, sleeptime):
         """Sleep for sleeptime seconds.
@@ -660,6 +701,10 @@ class Strategy(_Strategy):
         >>> # Sleep for 5 seconds
         >>> self.sleep(5)
         """
+        if not self.is_backtesting:
+            # Sleep for the the sleeptime in seconds.
+            time.sleep(sleeptime)
+
         return self.broker.sleep(sleeptime)
 
     def get_selling_order(self, position):
@@ -1227,27 +1272,33 @@ class Strategy(_Strategy):
         >>> self.submit_order(order)
 
         >>> # For buying a future
+        >>> from lumibot.entities import Asset
+        >>>
         >>> asset = Asset(
         >>>    "ES",
-        >>>    asset_type="future",
+        >>>    asset_type=Asset.AssetType.FUTURE,
         >>>    expiration_date="2020-01-01",
         >>>    multiplier=100)
         >>> order = self.create_order(asset, 100, "buy")
         >>> self.submit_order(order)
 
         >>> # For selling a future
+        >>> from lumibot.entities import Asset
+        >>>
         >>> asset = Asset(
         >>>    "ES",
-        >>>    asset_type="future",
+        >>>    asset_type=Asset.AssetType.FUTURE,
         >>>    expiration_date="2020-01-01"
         >>>    multiplier=100)
         >>> order = self.create_order(asset, 100, "sell")
         >>> self.submit_order(order)
 
         >>> # For buying an option
+        >>> from lumibot.entities import Asset
+        >>>
         >>> asset = Asset(
         >>>    "SPY",
-        >>>    asset_type="option",
+        >>>    asset_type=Asset.AssetType.OPTION,
         >>>    expiration_date="2020-01-01",
         >>>    strike_price=100.00,
         >>>    right="call")
@@ -1255,9 +1306,11 @@ class Strategy(_Strategy):
         >>> self.submit_order(order)
 
         >>> # For selling an option
+        >>> from lumibot.entities import Asset
+        >>>
         >>> asset = Asset(
         >>>    "SPY",
-        >>>    asset_type="option",
+        >>>    asset_type=Asset.AssetType.OPTION,
         >>>    expiration_date="2020-01-01",
         >>>    strike_price=100.00,
         >>>    right="call")
@@ -1290,33 +1343,39 @@ class Strategy(_Strategy):
         >>> self.submit_order(order)
 
         >>> # For buying FOREX
+        >>> from lumibot.entities import Asset
+        >>>
         >>> base_asset = Asset(
             symbol="GBP,
-            asset_type="forex",
+            asset_type=Asset.AssetType.FOREX,
         )
         >>> quote_asset = Asset(
             symbol="USD",
-            asset_type="forex",
+            asset_type=Asset.AssetType.FOREX,
         )
         >>> order = self.create_order(asset, 10, "buy", quote=quote_asset)
         >>> self.submit_order(order)
 
         >>> # For selling FOREX
+        >>> from lumibot.entities import Asset
+        >>>
         >>> base_asset = Asset(
             symbol="EUR",
-            asset_type="forex",
+            asset_type=Asset.AssetType.FOREX,
         )
         >>> quote_asset = Asset(
             symbol="USD",
-            asset_type="forex",
+            asset_type=Asset.AssetType.FOREX,
         )
         >>> order = self.create_order(asset, 10, "sell", quote=quote_asset)
         >>> self.submit_order(order)
 
         >>> # For buying an option with a limit price
+        >>> from lumibot.entities import Asset
+        >>>
         >>> asset = Asset(
         >>>    "SPY",
-        >>>    asset_type="option",
+        >>>    asset_type=Aset.AssetType.OPTION,
         >>>    expiration_date="2020-01-01",
         >>>    strike_price=100.00,
         >>>    right="call")
@@ -1324,9 +1383,11 @@ class Strategy(_Strategy):
         >>> self.submit_order(order)
 
         >>> # For selling an option with a limit price
+        >>> from lumibot.entities import Asset
+        >>>
         >>> asset = Asset(
         >>>    "SPY",
-        >>>    asset_type="option",
+        >>>    asset_type=Asset.AssetType.OPTION,
         >>>    expiration_date="2020-01-01",
         >>>    strike_price=100.00,
         >>>    right="call")
@@ -1334,9 +1395,11 @@ class Strategy(_Strategy):
         >>> self.submit_order(order)
 
         >>> # For buying an option with a stop price
+        >>> from lumibot.entities import Asset
+        >>>
         >>> asset = Asset(
         >>>    "SPY",
-        >>>    asset_type="option",
+        >>>    asset_type=Asset.AssetType.OPTION,
         >>>    expiration_date="2020-01-01",
         >>>    strike_price=100.00,
         >>>    right="call")
@@ -1358,13 +1421,15 @@ class Strategy(_Strategy):
         >>> self.submit_order(order)
 
         >>> # For buying a crypto with a market price
+        >>> from lumibot.entities import Asset
+        >>>
         >>> asset_base = Asset(
         >>>    "BTC",
-        >>>    asset_type="crypto",
+        >>>    asset_type=Asset.AssetType.CRYPTO,
         >>> )
         >>> asset_quote = Asset(
         >>>    "USD",
-        >>>    asset_type="crypto",
+        >>>    asset_type=Asset.AssetType.CRYPTO,
         >>> )
         >>> order = self.create_order(asset_base, 0.1, "buy", quote=asset_quote)
         >>> or...
@@ -1372,13 +1437,15 @@ class Strategy(_Strategy):
         >>> self.submit_order(order)
 
         >>> # For buying a crypto with a limit price
+        >>> from lumibot.entities import Asset
+        >>>
         >>> asset_base = Asset(
         >>>    "BTC",
-        >>>    asset_type="crypto",
+        >>>    asset_type=Asset.AssetType.CRYPTO,
         >>> )
         >>> asset_quote = Asset(
         >>>    "USD",
-        >>>    asset_type="crypto",
+        >>>    asset_type=Asset.AssetType.CRYPTO,
         >>> )
         >>> order = self.create_order(asset_base, 0.1, "buy", limit_price="41250", quote=asset_quote)
         >>> or...
@@ -1386,13 +1453,15 @@ class Strategy(_Strategy):
         >>> self.submit_order(order)
 
         >>> # For buying a crypto with a stop limit price
+        >>> from lumibot.entities import Asset
+        >>>
         >>> asset_base = Asset(
         >>>    "BTC",
-        >>>    asset_type="crypto",
+        >>>    asset_type=Asset.AssetType.CRYPTO,
         >>> )
         >>> asset_quote = Asset(
         >>>    "USD",
-        >>>    asset_type="crypto",
+        >>>    asset_type=Asset.AssetType.CRYPTO,
         >>> )
         >>> order = self.create_order(asset_base, 0.1, "buy", limit_price="41325", stop_price="41300", quote=asset_quote)
         >>> or...
@@ -1479,43 +1548,49 @@ class Strategy(_Strategy):
         >>> self.submit_orders([order1, order2])
 
         >>> # For 2 FOREX buy orders
+        >>> from lumibot.entities import Asset
+        >>>
         >>> base_asset = Asset(
             symbol="EUR",
-            asset_type="forex",
+            asset_type=Asset.AssetType.FOREX,
         )
         >>> quote_asset = Asset(
             symbol="USD",
-            asset_type="forex",
+            asset_type=Asset.AssetType.FOREX,
         )
         >>> order1 = self.create_order(base_asset, 100, "buy", quote=quote_asset)
         >>> order2 = self.create_order(base_asset, 200, "buy", quote=quote_asset)
         >>> self.submit_orders([order1, order2])
 
         >>> # For 2 FOREX sell orders
+        >>> from lumibot.entities import Asset
+        >>>
         >>> base_asset = Asset(
             symbol="EUR",
-            asset_type="forex",
+            asset_type=Asset.AssetType.FOREX,
         )
         >>> quote_asset = Asset(
             symbol="USD",
-            asset_type="forex",
+            asset_type=Asset.AssetType.FOREX,
         )
         >>> order1 = self.create_order(base_asset, 100, "sell", quote=quote_asset)
         >>> order2 = self.create_order(base_asset, 200, "sell", quote=quote_asset)
         >>> self.submit_orders([order1, order2])
 
         >>> # For 2 CRYPTO buy orders.
+        >>> from lumibot.entities import Asset
+        >>>
         >>> asset_BTC = Asset(
         >>>    "BTC",
-        >>>    asset_type="crypto",
+        >>>    asset_type=Asset.AssetType.CRYPTO,
         >>> )
         >>> asset_ETH = Asset(
         >>>    "ETH",
-        >>>    asset_type="crypto",
+        >>>    asset_type=Asset.AssetType.CRYPTO,
         >>> )
         >>> asset_quote = Asset(
         >>>    "USD",
-        >>>    asset_type="crypto",
+        >>>    asset_type=Aset.AssetType.FOREX,
         >>> )
         >>> order1 = self.create_order(asset_BTC, 0.1, "buy", quote=asset_quote)
         >>> order2 = self.create_order(asset_ETH, 10, "buy", quote=asset_quote)
@@ -1783,9 +1858,9 @@ class Strategy(_Strategy):
             return None
 
         # Check if the Asset object is a string or Asset object
-        if not (isinstance(asset, Asset) or isinstance(asset, str)):
+        if not (isinstance(asset, Asset) or isinstance(asset, str) or isinstance(asset, tuple)):
             logger.error(
-                f"Asset in get_last_price() must be a string or Asset object. Got {asset} of type {type(asset)}"
+                f"Asset in get_last_price() must be a string or Asset or tuple object. Got {asset} of type {type(asset)}"
             )
             return None
 
@@ -1851,7 +1926,7 @@ class Strategy(_Strategy):
         else:
             return asset_prices
 
-    # =======Broker methods shortcuts============
+    # ======= Broker Methods  ============
     def options_expiry_to_datetime_date(self, date):
         """Converts an IB Options expiry to datetime.date.
 
@@ -1888,14 +1963,14 @@ class Strategy(_Strategy):
 
         Returns
         -------
-        dictionary of dictionaries for each exchange. Each exchange
-        dictionary has:
-
-            - `Underlying conId` (int)
-            - `TradingClass` (str) eg: `FB`
+        dictionary of dictionary
+            Format:
             - `Multiplier` (str) eg: `100`
-            - `Expirations` (set of str) eg: {`20230616`, ...}
-            - `Strikes` (set of floats)
+            - 'Chains' - paired Expiration/Strike info to guarentee that the strikes are valid for the specific
+                         expiration date.
+                         Format:
+                           chains['Chains']['CALL'][exp_date] = [strike1, strike2, ...]
+                         Expiration Date Format: 2023-07-31
 
         Example
         -------
@@ -1923,15 +1998,14 @@ class Strategy(_Strategy):
 
         Returns
         -------
-        dictionary
-            A dictionary of option chain information for one stock and
-            for one exchange. It will contain:
-
-                - `Underlying conId` (int)
-                - `TradingClass` (str) eg: `FB`
-                - `Multiplier` (str) eg: `100`
-                - `Expirations` (set of str) eg: {`20230616`, ...}
-                - `Strikes` (set of floats)
+        dictionary of dictionary
+            Format:
+            - `Multiplier` (str) eg: `100`
+            - 'Chains' - paired Expiration/Strke info to guarentee that the stikes are valid for the specific
+                         expiration date.
+                         Format:
+                           chains['Chains']['CALL'][exp_date] = [strike1, strike2, ...]
+                         Expiration Date Format: 2023-07-31
 
         Example
         -------
@@ -1939,14 +2013,14 @@ class Strategy(_Strategy):
         >>> asset = "SPY"
         >>> chain = self.get_chain(asset)
         """
-        return self.broker.get_chain(chains, exchange=exchange)
+        return self.broker.get_chain(chains)
 
-    def get_expiration(self, chains, exchange="SMART"):
+    def get_expiration(self, chains):
         """Returns expiration dates for an option chain for a particular
         exchange.
 
         Using the `chains` dictionary obtained from `get_chains` finds
-        all of the expiry dates for the option chains on a given
+        all expiry dates for the option chains on a given
         exchange. The return list is sorted.
 
         Parameters
@@ -1959,8 +2033,8 @@ class Strategy(_Strategy):
 
         Returns
         -------
-        list of datetime.dates
-            Sorted list of dates in the form of `20221013`.
+        list of datetime.date
+            Sorted list of dates in the form of `2022-10-13`.
 
         Example
         -------
@@ -1968,7 +2042,7 @@ class Strategy(_Strategy):
         >>> asset = "SPY"
         >>> expiry_dates = self.get_expiration(asset)
         """
-        return self.broker.get_expiration(chains, exchange=exchange)
+        return self.broker.get_expiration(chains)
 
     def get_multiplier(self, chains, exchange="SMART"):
         """Returns option chain for a particular exchange.
@@ -1999,7 +2073,7 @@ class Strategy(_Strategy):
 
         return self.broker.get_multiplier(chains, exchange=exchange)
 
-    def get_strikes(self, asset):
+    def get_strikes(self, asset, chains=None):
         """Returns a list of strikes for a give underlying asset.
 
         Using the `chains` dictionary obtained from `get_chains` finds
@@ -2011,6 +2085,9 @@ class Strategy(_Strategy):
         asset : Asset
             Asset object as normally used for an option but without
             the strike information. The Asset object must be an option asset type.
+        chains : dictionary of dictionaries, optional
+            The chains dictionary created by `get_chains` method. If not
+            provided, the method will fetch the chains for the asset.
 
         Returns
         -------
@@ -2025,15 +2102,7 @@ class Strategy(_Strategy):
         """
 
         asset = self._sanitize_user_asset(asset)
-        return self.broker.get_strikes(asset)
-        # if self.data_source.SOURCE == "PANDAS":
-        #     return self.broker.get_strikes(asset)
-        #
-        # contract_details = self._get_contract_details(asset)
-        # if not contract_details:
-        #     return None
-        #
-        # return sorted(list(set(cd.contract.strike for cd in contract_details)))
+        return self.broker.get_strikes(asset, chains)
 
     def find_first_friday(self, timestamp):
         # Convert the timestamp to a datetime object if it's not already one
@@ -2126,6 +2195,7 @@ class Strategy(_Strategy):
         asset_price=None,
         underlying_price=None,
         risk_free_rate=None,
+        query_greeks=False,
     ):
         """Returns the greeks for the option asset at the current
         bar.
@@ -2144,6 +2214,9 @@ class Strategy(_Strategy):
             The price of the underlying asset, by default None
         risk_free_rate : float, optional
             The risk-free rate used in interest calculations, by default None
+        query_greeks : bool, optional
+            Whether to query the greeks from the broker. By default, the greeks are calculated locally, but if the
+            broker supports it, they can be queried instead which could theoretically be more precise.
 
         Returns
         -------
@@ -2203,7 +2276,7 @@ class Strategy(_Strategy):
             risk_free_rate=risk_free_rate,
         )
 
-    # =======Data source methods=================
+    # ======= Data Source Methods =================
 
     @property
     def timezone(self):
@@ -3209,7 +3282,7 @@ class Strategy(_Strategy):
 
         return self.parameters
 
-    # =======Lifecycle methods====================
+    # ======= Lifecycle Methods ====================
 
     def initialize(self, parameters=None):
         """Initialize the strategy. Use this lifecycle method to initialize parameters.
@@ -3404,7 +3477,7 @@ class Strategy(_Strategy):
         """
         pass
 
-    # ======Events methods========================
+    # ====== Events Methods ========================
 
     def on_bot_crash(self, error):
         """Use this lifecycle event to execute code
@@ -3584,3 +3657,451 @@ class Strategy(_Strategy):
         >>>     self.log_message(f"Parameters updated: {parameters}")
         """
         pass
+
+    # ====== Messaging Methods ========================
+
+    def send_discord_message(self, message, image_buf=None, silent=True):
+        """
+        Sends a message to Discord
+        """
+
+        # Check if we are in backtesting mode, if so, don't send the message
+        if self.is_backtesting:
+            return
+
+        # Check if the message is empty
+        if message == "" or message is None:
+            # If the message is empty, log an error and return
+            logging.error("The discord message is empty. Please provide a message to send to Discord.")
+            return
+
+        # Check if the discord webhook URL is set
+        if self.discord_webhook_url is None:
+            # If the webhook URL is not set, log an error and return
+            logging.error(
+                "The discord webhook URL is not set. Please set the discord_webhook_url parameter in the strategy \
+                initialization if you want to send messages to Discord."
+            )
+            return
+
+        # Remove the extra spaces at the beginning of each line
+        message = "\n".join(line.lstrip() for line in message.split("\n"))
+
+        # Get the webhook URL from the environment variables
+        webhook_url = self.discord_webhook_url
+
+        # The payload for text content
+        payload = {"content": message}
+
+        # If silent is true, set the discord message to be silent
+        if silent:
+            payload["flags"] = [4096]
+
+        # Check if we have an image
+        if image_buf is not None:
+            # The files that you want to send
+            files = {"file": ("results.png", image_buf, "image/png")}
+
+            # Make a POST request to the webhook URL with the payload and file
+            response = requests.post(webhook_url, data=payload, files=files)
+        else:
+            # Make a POST request to the webhook URL with the payload
+            response = requests.post(webhook_url, data=payload)
+
+        # Check if the message was sent successfully
+        if response.status_code == 200 or response.status_code == 204:
+            print("Discord message sent successfully.")
+        else:
+            print(
+                f"ERROR: Failed to send message to Discord. Status code: {response.status_code}, message: {response.text}"
+            )
+
+    def send_spark_chart_to_discord(self, stats_df, portfolio_value, now):
+        # Check if we are in backtesting mode, if so, don't send the message
+        if self.is_backtesting:
+            return
+
+        # Only keep the stats for the past week
+        stats_df = stats_df.loc[stats_df["datetime"] >= (now - pd.Timedelta(days=7))]
+
+        # Set the default color
+        color = "black"
+
+        # Check what return we made over the past week
+        if stats_df.shape[0] > 0:
+            # Resanple the stats dataframe to daily but keep the datetime column
+            stats_df = stats_df.resample("D", on="datetime").last().reset_index()
+
+            # Remove nan values
+            stats_df = stats_df.dropna()
+
+            # Get the portfolio value 7 days ago
+            portfolio_value_7_days_ago = stats_df.iloc[0]["portfolio_value"]
+            # Calculate the return over the past 7 days
+            return_7_days = ((portfolio_value / portfolio_value_7_days_ago) - 1) * 100
+
+            # Check if we made a positive return, if so, set the color to green, otherwise set it to red
+            if return_7_days > 0:
+                color = "green"
+            else:
+                color = "red"
+
+        # Plotting the DataFrame
+        plt.figure()
+
+        # Create an axes instance, setting the facecolor to white
+        ax = plt.axes(facecolor="white")
+
+        # Plotting with a thicker line
+        ax = stats_df.plot(
+            x="datetime",
+            y="portfolio_value",
+            kind="line",
+            linewidth=5,
+            color=color,
+            # label="Account Value",
+            ax=ax,
+            legend=False,
+        )
+        plt.title(f"{self.name} Account Value", fontsize=32, pad=60)
+        plt.xlabel("")
+        plt.ylabel("")
+
+        # # Increase the font size of the tick labels
+        # ax.tick_params(axis="both", which="major", labelsize=18)
+
+        # Use a custom formatter for currency
+        formatter = ticker.FuncFormatter(lambda x, pos: "${:1,}".format(int(x)))
+        ax.yaxis.set_major_formatter(formatter)
+
+        # Custom formatter function
+        def custom_date_formatter(x, pos):
+            try:
+                date = mdates.num2date(x)
+                if pos == 0:  # First tick
+                    return date.strftime("%d\n%b\n%Y")
+                else:  # Other ticks
+                    return date.strftime("%d")
+            except Exception:
+                return ""
+
+        # Set the locator for the x-axis to automatically find the dates
+        locator = mdates.AutoDateLocator(minticks=3, maxticks=7)
+        ax.xaxis.set_major_locator(locator)
+
+        # Use custom formatter for the x-axis
+        ax.xaxis.set_major_formatter(ticker.FuncFormatter(custom_date_formatter))
+
+        # Use the ConciseDateFormatter to format the x-axis dates
+        formatter = mdates.ConciseDateFormatter(locator)
+
+        # Increase the font size of the tick labels
+        ax.tick_params(axis="x", which="major", labelsize=18, rotation=0)  # For x-axis
+        ax.tick_params(axis="y", which="major", labelsize=18)  # For y-axis
+
+        # Center align x-axis labels
+        for label in ax.get_xticklabels():
+            label.set_horizontalalignment("center")
+
+        # Save the plot to an in-memory file
+        buf = io.BytesIO()
+        plt.savefig(buf, format="png", bbox_inches="tight", pad_inches=0.25)
+        buf.seek(0)
+
+        # Send the image to Discord
+        self.send_discord_message("-----------\n", buf)
+
+    def send_result_text_to_discord(self, returns_text, portfolio_value, cash):
+        # Check if we are in backtesting mode, if so, don't send the message
+        if self.is_backtesting:
+            return
+
+        # Get the current positions
+        positions = self.get_positions()
+
+        # Create the positions text
+        positions_details_list = []
+        for position in positions:
+            # Check if the position asset is the quote asset
+
+            if position.asset == self.quote_asset:
+                last_price = 1
+            else:
+                # Get the last price
+                last_price = self.get_last_price(position.asset)
+
+            # Make sure last_price is a number
+            if last_price is None or not isinstance(last_price, (int, float, Decimal)):
+                logging.info(f"Last price for {position.asset} is not a number: {last_price}")
+                continue
+
+            # Calculate teh value of the position
+            position_value = position.quantity * last_price
+
+            # If option, multiply % of portfolio by 100
+            if position.asset.asset_type == "option":
+                position_value = position_value * 100
+
+            # Calculate the percent of the portfolio that this position represents
+            percent_of_portfolio = position_value / portfolio_value
+
+            # Add the position details to the list
+            positions_details_list.append(
+                {
+                    "asset": position.asset,
+                    "quantity": position.quantity,
+                    "value": position_value,
+                    "percent_of_portfolio": percent_of_portfolio,
+                }
+            )
+
+        # Sort the positions by the percent of the portfolio
+        positions_details_list = sorted(positions_details_list, key=lambda x: x["percent_of_portfolio"], reverse=True)
+
+        # Create the positions text
+        positions_text = ""
+        for position in positions_details_list:
+            # positions_text += f"{position.quantity:,.2f} {position.asset} ({percent_of_portfolio:,.0%})\n"
+            positions_text += (
+                f"{position['quantity']:,.2f} {position['asset']} ({position['percent_of_portfolio']:,.0%})\n"
+            )
+
+        # Create a message to send to Discord (round the values to 2 decimal places)
+        message = f"""
+                **Update for {self.name}**
+                **Account Value:** ${portfolio_value:,.2f}
+                **Cash:** ${cash:,.2f}
+                {returns_text}
+                **Positions:**
+                {positions_text}
+                """
+
+        # Remove any leading whitespace
+        # Remove the extra spaces at the beginning of each line
+        message = "\n".join(line.lstrip() for line in message.split("\n"))
+
+        # Add powered by Lumiwealth to the message
+        message += "[**Powered by 💡 Lumiwealth**](<https://lumiwealth.com>)\n-----------"
+
+        # Send the message to Discord
+        self.send_discord_message(message, None)
+
+    def send_account_summary_to_discord(self):
+        # Check if we are in backtesting mode, if so, don't send the message
+        if self.is_backtesting:
+            return
+
+        # Check if last_account_summary_dt has been set, if not, set it to None
+        if not hasattr(self, "last_account_summary_dt"):
+            self.last_account_summary_dt = None
+
+        # Check if we should send an account summary to Discord
+        should_send_account_summary = self.should_send_account_summary_to_discord()
+        if not should_send_account_summary:
+            return
+
+        # Get the current portfolio value
+        portfolio_value = self.get_portfolio_value()
+
+        # Get the current cash
+        cash = self.get_cash()
+
+        # # Get the datetime
+        now = pd.Timestamp(datetime.datetime.now()).tz_localize("America/New_York")
+
+        # Get the returns
+        returns_text, stats_df = self.calculate_returns()
+
+        # Send a spark chart to Discord
+        self.send_spark_chart_to_discord(stats_df, portfolio_value, now)
+
+        # Send the results text to Discord
+        self.send_result_text_to_discord(returns_text, portfolio_value, cash)
+
+    def get_stats_from_database(self, stats_table_name):
+        # Load the stats dataframe from the database
+        stats_df = pd.read_sql_table(stats_table_name, self.account_history_db_connection_str)
+
+        return stats_df
+
+    def to_sql(self, stats_df, stats_table_name, connection_string, if_exists, index):
+        # Save the stats to the database
+        stats_df.to_sql(
+            stats_table_name,
+            connection_string,
+            if_exists=if_exists,
+            index=index,
+        )
+
+    def calculate_returns(self):
+        # Check if we are in backtesting mode, if so, don't send the message
+        if self.is_backtesting:
+            return
+
+        # Calculate the return over the past 24 hours, 7 days, and 30 days using the stats dataframe
+
+        # Get the current time in New York
+        ny_tz = pytz.timezone("America/New_York")
+
+        # Get the datetime
+        now = datetime.datetime.now(ny_tz)
+
+        # Load the stats dataframe from the database
+        stats_df = self.get_stats_from_database(STATS_TABLE_NAME)
+
+        # Only keep the stats for this strategy ID
+        stats_df = stats_df.loc[stats_df["strategy_id"] == self.strategy_id]
+
+        # Convert the datetime column to a datetime
+        stats_df["datetime"] = pd.to_datetime(stats_df["datetime"])  # , utc=True)
+
+        # Convert the datetime column to UTC without converting the time data
+        stats_df["datetime"] = stats_df["datetime"].dt.tz_convert(None)
+
+        # Explicitly set the time zone to New York without converting the time data
+        stats_df["datetime"] = stats_df["datetime"].dt.tz_localize("America/New_York", ambiguous="infer")
+
+        # Get the stats
+        stats_new = pd.DataFrame(
+            {
+                "id": str(uuid.uuid4()),
+                "datetime": [now],
+                "portfolio_value": [self.get_portfolio_value()],
+                "cash": [self.get_cash()],
+                "strategy_id": [self.strategy_id],
+            }
+        )
+
+        # Add the new stats to the existing stats
+        stats_df = pd.concat([stats_df, stats_new])
+
+        # # Convert the datetime column to eastern time
+        stats_df["datetime"] = stats_df["datetime"].dt.tz_convert("America/New_York")
+
+        # Remove any duplicate rows
+        stats_df = stats_df[~stats_df["datetime"].duplicated(keep="last")]
+
+        # Sort the stats by the datetime column
+        stats_df = stats_df.sort_values("datetime")
+
+        # Set the strategy ID column to be the strategy ID
+        stats_df["strategy_id"] = self.strategy_id
+
+        # Index should be a uuid, fill the index with uuids
+        stats_df.loc[pd.isna(stats_df["id"]), "id"] = [
+            str(uuid.uuid4()) for _ in range(len(stats_df.loc[pd.isna(stats_df["id"])]))
+        ]
+
+        # Check that the stats dataframe has at least 1 row and contains the portfolio_value column
+        if stats_df.shape[0] > 0 and "portfolio_value" in stats_df.columns:
+            # Save the stats to the database
+            self.to_sql(stats_new, STATS_TABLE_NAME, self.account_history_db_connection_str, "append", False)
+
+            # Get the current portfolio value
+            portfolio_value = self.get_portfolio_value()
+
+            # Initialize the results
+            results_text = ""
+
+            # Add results for the past 24 hours
+            # Get the datetime 24 hours ago
+            datetime_24_hours_ago = now - pd.Timedelta(days=1)
+            # Get the df for the past 24 hours
+            stats_past_24_hours = stats_df.loc[stats_df["datetime"] >= datetime_24_hours_ago]
+            # Check if there are any stats for the past 24 hours
+            if stats_past_24_hours.shape[0] > 0:
+                # Get the portfolio value 24 hours ago
+                portfolio_value_24_hours_ago = stats_past_24_hours.iloc[0]["portfolio_value"]
+                # Calculate the return over the past 24 hours
+                return_24_hours = ((portfolio_value / portfolio_value_24_hours_ago) - 1) * 100
+                # Add the return to the results
+                results_text += f"**24 hour Return:** {return_24_hours:,.2f}% (${(portfolio_value - portfolio_value_24_hours_ago):,.2f} change)\n"
+
+            # Add results for the past 7 days
+            # Get the datetime 7 days ago
+            datetime_7_days_ago = now - pd.Timedelta(days=7)
+            # First check if we have stats that are at least 7 days old
+            if stats_df["datetime"].min() < datetime_7_days_ago:
+                # Get the df for the past 7 days
+                stats_past_7_days = stats_df.loc[stats_df["datetime"] >= datetime_7_days_ago]
+                # Check if there are any stats for the past 7 days
+                if stats_past_7_days.shape[0] > 0:
+                    # Get the portfolio value 7 days ago
+                    portfolio_value_7_days_ago = stats_past_7_days.iloc[0]["portfolio_value"]
+                    # Calculate the return over the past 7 days
+                    return_7_days = ((portfolio_value / portfolio_value_7_days_ago) - 1) * 100
+                    # Add the return to the results
+                    results_text += f"**7 day Return:** {return_7_days:,.2f}% (${(portfolio_value - portfolio_value_7_days_ago):,.2f} change)\n"
+
+                    ## If we are up more than pct_up_threshold over the past 7 days, send a message to Discord
+                    PERCENT_UP_THRESHOLD = 3
+                    if return_7_days > PERCENT_UP_THRESHOLD:
+                        # Create a message to send to Discord
+                        message = f"""
+                                🚀 {self.name} is up {return_7_days:,.2f}% in 7 days.
+                                """
+
+                        # Remove any leading whitespace
+                        # Remove the extra spaces at the beginning of each line
+                        message = "\n".join(line.lstrip() for line in message.split("\n"))
+
+                        # Send the message to Discord
+                        self.send_discord_message(message, silent=False)
+
+            # Add results for the past 30 days
+            # Get the datetime 30 days ago
+            datetime_30_days_ago = now - pd.Timedelta(days=30)
+            # First check if we have stats that are at least 30 days old
+            if stats_df["datetime"].min() < datetime_30_days_ago:
+                # Get the df for the past 30 days
+                stats_past_30_days = stats_df.loc[stats_df["datetime"] >= datetime_30_days_ago]
+                # Check if there are any stats for the past 30 days
+                if stats_past_30_days.shape[0] > 0:
+                    # Get the portfolio value 30 days ago
+                    portfolio_value_30_days_ago = stats_past_30_days.iloc[0]["portfolio_value"]
+                    # Calculate the return over the past 30 days
+                    return_30_days = ((portfolio_value / portfolio_value_30_days_ago) - 1) * 100
+                    # Add the return to the results
+                    results_text += f"**30 day Return:** {return_30_days:,.2f}% (${(portfolio_value - portfolio_value_30_days_ago):,.2f} change)\n"
+
+            # Get inception date
+            inception_date = stats_df["datetime"].min()
+
+            # Inception date text
+            inception_date_text = f"{inception_date.strftime('%b %d, %Y')}"
+
+            # Add results since inception
+            # Get the portfolio value at inception
+            portfolio_value_inception = stats_df.iloc[0]["portfolio_value"]
+            # Calculate the return since inception
+            return_since_inception = ((portfolio_value / portfolio_value_inception) - 1) * 100
+            # Add the return to the results
+            results_text += f"**Since Inception ({inception_date_text}):** {return_since_inception:,.2f}% (${(portfolio_value - portfolio_value_inception):,.2f} change)\n"
+
+            return results_text, stats_df
+
+        else:
+            return "Not enough data to calculate returns", stats_df
+
+    def should_send_account_summary_to_discord(self):
+        # Check if account_history_db_connection_str has been set, if not, return False
+        if not hasattr(self, "account_history_db_connection_str") or self.account_history_db_connection_str is None:
+            return False
+
+        # Check if it has been at least 24 hours since the last account summary
+        if (
+            self.last_account_summary_dt is None
+            or (datetime.datetime.now() - self.last_account_summary_dt).total_seconds()
+            > 60 * 60 * 24  # 60 seconds * 60 minutes * 24 hours
+        ):
+            # Set the last account summary datetime to now
+            self.last_account_summary_dt = datetime.datetime.now()
+
+            # Sleep for 5 seconds to make sure all the orders go through first
+            time.sleep(5)
+
+            # Return True because we should send the account summary to Discord
+            return True
+
+        # Return False because we should not send the account summary to Discord
+        return False

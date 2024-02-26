@@ -28,12 +28,16 @@ class Trader:
         # Setting debug and _logfile parameters and setting global log format
         self.debug = debug
         self.backtest = backtest
-        self.log_format = logging.Formatter(
-            "%(asctime)s: %(name)s: %(levelname)s: %(message)s"
-        )
-        defualt_logdir = appdirs.user_log_dir(appauthor="LumiWealth", appname="lumibot", version="1.0")
-        self.logfile = Path(logfile) if logfile else Path(defualt_logdir) / "backtest" / "lumibot.log"
-        self.logfile.parent.mkdir(parents=True, exist_ok=True)
+        self.log_format = logging.Formatter("%(asctime)s: %(name)s: %(levelname)s: %(message)s")
+
+        if logfile:
+            self.logfile = Path(logfile)
+            self.logfile.parent.mkdir(parents=True, exist_ok=True)
+            self.logdir = self.logfile.parent
+        else:
+            self.logfile = None
+            # default_logdir = appdirs.user_log_dir(appauthor="Lumiwealth", appname="lumibot", version="1.0")
+            self.logdir = Path("logs")
 
         # Setting the list of strategies if defined
         self._strategies = strategies if strategies else []
@@ -50,7 +54,7 @@ class Trader:
         """Adds a strategy to the trader"""
         self._strategies.append(strategy)
 
-    def run_all(self, async_=False, show_plot=True, show_tearsheet=True, save_tearsheet=True):
+    def run_all(self, async_=False, show_plot=True, show_tearsheet=True, save_tearsheet=True, show_indicators=True):
         """
         run all strategies
 
@@ -68,28 +72,37 @@ class Trader:
         save_tearsheet: bool
             Whether to save the tearsheet or not. This is only used for backtesting.
 
+        show_indicators: bool
+            Whether to display the indicators (markers and lines) in the user's web browser. This is only used for backtesting.
+
         Returns
         -------
         dict
             A dictionary with the keys being the strategy names and the values being the strategy analysis.
         """
         if not self._strategies:
-            raise RuntimeError("No strategies to run. You must call trader.add_strategy(strategy) "
-                               "before trader.run_all().")
+            raise RuntimeError(
+                "No strategies to run. You must call trader.add_strategy(strategy) " "before trader.run_all()."
+            )
 
         if self.is_backtest_broker != self.backtest:
-            raise RuntimeError(f"You cannot mix backtesting and live strategies. You passed in "
-                               f"Trader(backtest={self.backtest}) but the strategies are configured with "
-                               f"broker_backtesting={self.is_backtest_broker}.")
+            raise RuntimeError(
+                f"You cannot mix backtesting and live strategies. You passed in "
+                f"Trader(backtest={self.backtest}) but the strategies are configured with "
+                f"broker_backtesting={self.is_backtest_broker}."
+            )
 
         if len(self._strategies) != 1:
             if self.is_backtest_broker:
                 raise Exception(
                     f"Received {len(self._strategies)} strategies for backtesting."
-                    f"You can only backtest one at a time.")
+                    f"You can only backtest one at a time."
+                )
             else:
-                raise NotImplementedError(f"Running multiple live strategies is not implemented yet. You passed "
-                                          f"in {len(self._strategies)} strategies.")
+                raise NotImplementedError(
+                    f"Running multiple live strategies is not implemented yet. You passed "
+                    f"in {len(self._strategies)} strategies."
+                )
 
         strat = self._strategies[0]
         if self.is_backtest_broker:
@@ -106,8 +119,13 @@ class Trader:
 
         if self.is_backtest_broker:
             logging.info("Backtesting finished")
-            strat.backtest_analysis(logfile=self.logfile, show_plot=show_plot, show_tearsheet=show_tearsheet,
-                                    save_tearsheet=save_tearsheet)
+            strat.backtest_analysis(
+                logdir=self.logdir,
+                show_plot=show_plot,
+                show_tearsheet=show_tearsheet,
+                save_tearsheet=save_tearsheet,
+                show_indicators=show_indicators,
+            )
 
         return result
 
@@ -124,8 +142,8 @@ class Trader:
         """Setting Logging to both console and a file if logfile is specified"""
         logging.getLogger("urllib3").setLevel(logging.ERROR)
         logging.getLogger("requests").setLevel(logging.ERROR)
-        logging.getLogger('apscheduler.scheduler').setLevel(logging.ERROR)
-        logging.getLogger('apscheduler.executors.default').setLevel(logging.ERROR)
+        logging.getLogger("apscheduler.scheduler").setLevel(logging.ERROR)
+        logging.getLogger("apscheduler.executors.default").setLevel(logging.ERROR)
 
         logger = logging.getLogger()
 

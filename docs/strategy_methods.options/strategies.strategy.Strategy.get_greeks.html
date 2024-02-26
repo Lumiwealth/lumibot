@@ -294,6 +294,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../brokers.alpaca.html">Alpaca</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../brokers.interactive_brokers.html">Interactive Brokers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../brokers.ccxt.html">Crypto Brokers (Using CCXT)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../brokers.tradier.html">Tradier</a></li>
 </ul>
 </li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../entities.html">Entities</a><input class="toctree-checkbox" id="toctree-checkbox-14" name="toctree-checkbox-14" role="switch" type="checkbox"/><label for="toctree-checkbox-14"><div class="visually-hidden">Toggle navigation of Entities</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
@@ -343,7 +344,7 @@
 <h1>self.get_greeks<a class="headerlink" href="#self-get-greeks" title="Link to this heading">#</a></h1>
 <dl class="py function">
 <dt class="sig sig-object py" id="strategies.strategy.Strategy.get_greeks">
-<span class="sig-prename descclassname"><span class="pre">strategies.strategy.Strategy.</span></span><span class="sig-name descname"><span class="pre">get_greeks</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">asset_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">underlying_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">risk_free_rate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#strategies.strategy.Strategy.get_greeks" title="Link to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">strategies.strategy.Strategy.</span></span><span class="sig-name descname"><span class="pre">get_greeks</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">asset_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">underlying_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">risk_free_rate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">query_greeks</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#strategies.strategy.Strategy.get_greeks" title="Link to this definition">#</a></dt>
 <dd><p>Returns the greeks for the option asset at the current
 bar.</p>
 <p>Will return all the greeks available. API Querying for prices
@@ -356,6 +357,8 @@ most of the time.</p>
 <li><p><strong>asset_price</strong> (<em>float</em><em>, </em><em>optional</em>) – The price of the option asset, by default None</p></li>
 <li><p><strong>underlying_price</strong> (<em>float</em><em>, </em><em>optional</em>) – The price of the underlying asset, by default None</p></li>
 <li><p><strong>risk_free_rate</strong> (<em>float</em><em>, </em><em>optional</em>) – The risk-free rate used in interest calculations, by default None</p></li>
+<li><p><strong>query_greeks</strong> (<em>bool</em><em>, </em><em>optional</em>) – Whether to query the greeks from the broker. By default, the greeks are calculated locally, but if the
+broker supports it, they can be queried instead which could theoretically be more precise.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>

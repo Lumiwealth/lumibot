@@ -37,7 +37,7 @@ setuptools.setup(
         "pytest",
         "scipy==1.10.1",  # Newer versions of scipy are currently causing issues
         "ipython",  # required for quantstats, but not in their dependency list for some reason
-        "quantstats-lumi>=0.1.3",
+        "quantstats-lumi>=0.1.6",
         "python-dotenv",  # Secret Storage
         "ccxt==4.2.22",
         "termcolor",

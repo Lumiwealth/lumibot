@@ -64,7 +64,7 @@ To create a stop_limit order object, add the keyword parameters stop_price and l
 
    my_limit_price = 405
    my_stop_price = 400
-   order = self.create_order(symbol, quantity, side, stop_price=my_stop_price,               limit_price=my_limit_price)
+   order = self.create_order(symbol, quantity, side, stop_price=my_stop_price, limit_price=my_limit_price)
    self.submit_order(order)
 
 
@@ -100,9 +100,11 @@ To create a bracket order object, add the keyword parameters ``take_profit_price
    my_take_profit_price = 420
    my_stop_loss_price = 400
    order = self.create_order(
-   symbol, quantity, side, 
-   take_profit_price=my_take_profit_price,
-   stop_loss_price=my_stop_loss_price
+      symbol, 
+      quantity, 
+      side, 
+      take_profit_price=my_take_profit_price,
+      stop_loss_price=my_stop_loss_price
    )
    self.submit_order(order)
 
@@ -130,10 +132,12 @@ To create an OCO order object, add the keyword parameters ``take_profit_price`` 
    my_take_profit_price = 420
    my_stop_loss_price = 400
    order = self.create_order(
-   symbol, quantity, side, 
-   take_profit_price=my_take_profit_price,
-   stop_loss_price=my_stop_loss_price,
-   position_filled=True
+      symbol, 
+      quantity, 
+      side, 
+      take_profit_price=my_take_profit_price,
+      stop_loss_price=my_stop_loss_price,
+      position_filled=True
    )
    self.submit_order(order)
 

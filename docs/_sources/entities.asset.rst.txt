@@ -44,7 +44,7 @@ For stocks:
 
     from lumibot.entities import Asset
 
-    asset = Asset('SPY', asset_type="stock")
+    asset = Asset('SPY', asset_type=Asset.AssetType.STOCK)
     order = self.create_order(asset, 10, "buy")
     self.submit_order(order)
 
@@ -55,7 +55,7 @@ For futures:
     from lumibot.entities import Asset
 
     asset = Asset(
-    'ES', asset_type="future", expiration=datetime.date(2021, 6, 18)
+    'ES', asset_type=Asset.AssetType.FUTURE, expiration=datetime.date(2021, 6, 18)
     )
     order = self.create_order(asset, 10, "buy")
     self.submit_order(order)

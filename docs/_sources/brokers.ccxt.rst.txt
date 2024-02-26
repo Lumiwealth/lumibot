@@ -18,6 +18,17 @@ Configuration Settings
 
 Here are the configuration settings for a few common brokers:
 
+Coinbase:
+
+.. code-block:: python
+
+    COINBASE_CONFIG = {
+        "exchange_id": "coinbase",
+        "apiKey": "YOUR_API_KEY",
+        "secret": "YOUR_SECRET_KEY",
+        "sandbox": False,
+    }
+
 Kraken:
 
 .. code-block:: python
@@ -107,7 +118,7 @@ Here's a complete example of a strategy that demonstrates the use of important f
             ###########################
 
             # Define the base and quote assets for our transactions
-            base = Asset(symbol="BTC", asset_type="crypto")
+            base = Asset(symbol="BTC", asset_type=Asset.AssetType.CRYPTO)
             quote = self.quote_asset
 
             # Market Order for 0.1 BTC
@@ -169,7 +180,7 @@ Here's a complete example of a strategy that demonstrates the use of important f
                 self.log_message(f"we own {quantity} shares of {symbol}")
 
             # Get one specific position
-            asset_to_get = Asset(symbol="BTC", asset_type="crypto")
+            asset_to_get = Asset(symbol="BTC", asset_type=Asset.AssetType.CRYPTO)
             position = self.get_position(asset_to_get)
 
             # Get all of the outstanding orders

@@ -3,7 +3,7 @@
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
-<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Entities" href="entities.html" /><link rel="prev" title="Interactive Brokers" href="brokers.interactive_brokers.html" />
+<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Tradier" href="brokers.tradier.html" /><link rel="prev" title="Interactive Brokers" href="brokers.interactive_brokers.html" />
 
     <!-- Generated with Sphinx 7.2.6 and Furo 2023.09.10 -->
         <title>Crypto Brokers (Using CCXT) - Lumibot documentation</title>
@@ -294,6 +294,7 @@
 <li class="toctree-l2"><a class="reference internal" href="brokers.alpaca.html">Alpaca</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.interactive_brokers.html">Interactive Brokers</a></li>
 <li class="toctree-l2 current current-page"><a class="current reference internal" href="#">Crypto Brokers (Using CCXT)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.tradier.html">Tradier</a></li>
 </ul>
 </li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="entities.html">Entities</a><input class="toctree-checkbox" id="toctree-checkbox-14" name="toctree-checkbox-14" role="switch" type="checkbox"/><label for="toctree-checkbox-14"><div class="visually-hidden">Toggle navigation of Entities</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
@@ -351,6 +352,15 @@
 <section id="configuration-settings">
 <h2>Configuration Settings<a class="headerlink" href="#configuration-settings" title="Link to this heading">#</a></h2>
 <p>Here are the configuration settings for a few common brokers:</p>
+<p>Coinbase:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">COINBASE_CONFIG</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;exchange_id&quot;</span><span class="p">:</span> <span class="s2">&quot;coinbase&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;apiKey&quot;</span><span class="p">:</span> <span class="s2">&quot;YOUR_API_KEY&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;secret&quot;</span><span class="p">:</span> <span class="s2">&quot;YOUR_SECRET_KEY&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;sandbox&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+<span class="p">}</span>
+</pre></div>
+</div>
 <p>Kraken:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">KRAKEN_CONFIG</span> <span class="o">=</span> <span class="p">{</span>
     <span class="s2">&quot;exchange_id&quot;</span><span class="p">:</span> <span class="s2">&quot;kraken&quot;</span><span class="p">,</span>
@@ -425,7 +435,7 @@
         <span class="c1">###########################</span>
 
         <span class="c1"># Define the base and quote assets for our transactions</span>
-        <span class="n">base</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="n">symbol</span><span class="o">=</span><span class="s2">&quot;BTC&quot;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s2">&quot;crypto&quot;</span><span class="p">)</span>
+        <span class="n">base</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="n">symbol</span><span class="o">=</span><span class="s2">&quot;BTC&quot;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="n">Asset</span><span class="o">.</span><span class="n">AssetType</span><span class="o">.</span><span class="n">CRYPTO</span><span class="p">)</span>
         <span class="n">quote</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">quote_asset</span>
 
         <span class="c1"># Market Order for 0.1 BTC</span>
@@ -487,7 +497,7 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">log_message</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;we own </span><span class="si">{</span><span class="n">quantity</span><span class="si">}</span><span class="s2"> shares of </span><span class="si">{</span><span class="n">symbol</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
         <span class="c1"># Get one specific position</span>
-        <span class="n">asset_to_get</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="n">symbol</span><span class="o">=</span><span class="s2">&quot;BTC&quot;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s2">&quot;crypto&quot;</span><span class="p">)</span>
+        <span class="n">asset_to_get</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="n">symbol</span><span class="o">=</span><span class="s2">&quot;BTC&quot;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="n">Asset</span><span class="o">.</span><span class="n">AssetType</span><span class="o">.</span><span class="n">CRYPTO</span><span class="p">)</span>
         <span class="n">position</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_position</span><span class="p">(</span><span class="n">asset_to_get</span><span class="p">)</span>
 
         <span class="c1"># Get all of the outstanding orders</span>
@@ -569,12 +579,12 @@
       <footer>
         
         <div class="related-pages">
-          <a class="next-page" href="entities.html">
+          <a class="next-page" href="brokers.tradier.html">
               <div class="page-info">
                 <div class="context">
                   <span>Next</span>
                 </div>
-                <div class="title">Entities</div>
+                <div class="title">Tradier</div>
               </div>
               <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
             </a>

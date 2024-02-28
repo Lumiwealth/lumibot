@@ -7,19 +7,12 @@ from decimal import Decimal
 
 import jsonpickle
 import pandas as pd
-
 from lumibot.backtesting import BacktestingBroker, PolygonDataBacktesting
 from lumibot.entities import Asset, Position
-from lumibot.tools import (
-    create_tearsheet,
-    day_deduplicate,
-    get_risk_free_rate,
-    get_symbol_returns,
-    plot_indicators,
-    plot_returns,
-    stats_summary,
-    to_datetime_aware,
-)
+from lumibot.tools import (create_tearsheet, day_deduplicate,
+                           get_risk_free_rate, get_symbol_returns,
+                           plot_indicators, plot_returns, stats_summary,
+                           to_datetime_aware)
 from lumibot.traders import Trader
 
 from .strategy_executor import StrategyExecutor
@@ -215,12 +208,6 @@ class _Strategy:
                         available=Decimal(quantity),
                     )
                     self.broker._filled_positions.append(position)
-
-        if risk_free_rate is None:
-            # Get risk-free rate from US Treasuries by default
-            self._risk_free_rate = get_risk_free_rate()
-        else:
-            self._risk_free_rate = risk_free_rate
 
         # Setting execution parameters
         self._first_iteration = True

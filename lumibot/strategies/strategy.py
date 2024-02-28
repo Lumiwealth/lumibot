@@ -19,9 +19,11 @@ import pandas_market_calendars as mcal
 import pytz
 import requests
 from lumibot.entities import Asset, Order
+from lumibot.tools import get_risk_free_rate
 from termcolor import colored
 
 from ._strategy import _Strategy
+
 
 matplotlib.use("Agg")
 
@@ -327,7 +329,10 @@ class Strategy(_Strategy):
 
     @property
     def risk_free_rate(self):
-        return self._risk_free_rate
+        # TODO: this is pulling the current risk free rate, but it should be the risk free rate for the period of the backtest
+        # Use the yahoo data to get the risk free rate
+        rfr = get_risk_free_rate()
+        return rfr
 
     # ======= Helper Methods =======================
 
@@ -2262,7 +2267,10 @@ class Strategy(_Strategy):
 
         # Do the expensize API calls here if needed
         opt_price = asset_price if asset_price is not None else self.get_last_price(asset)
-        risk_free_rate = risk_free_rate if risk_free_rate is not None else self.risk_free_rate
+        if risk_free_rate is not None:
+            risk_free_rate = risk_free_rate
+        else:
+            risk_free_rate = self.risk_free_rate
         if underlying_price is None:
             underlying_asset = Asset(symbol=asset.symbol, asset_type="stock")
             und_price = self.get_last_price(underlying_asset)

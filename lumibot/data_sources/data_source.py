@@ -383,14 +383,22 @@ class DataSource(ABC):
         opt_price = asset_price
         und_price = underlying_price
         interest = risk_free_rate * 100
-        current_date = self.get_datetime().date()
+        current_date = self.get_datetime()
 
         # If asset expiration is a datetime object, convert it to date
         expiration = asset.expiration
         if isinstance(expiration, datetime):
             expiration = expiration.date()
 
-        days_to_expiration = (expiration - current_date).days
+        # Convert the expiration to be a datetime with 4pm New York time
+        expiration = datetime.combine(expiration, datetime.min.time())
+        expiration = self.DEFAULT_PYTZ.localize(expiration)
+        expiration = expiration.astimezone(self.DEFAULT_PYTZ)
+        expiration = expiration.replace(hour=16, minute=0, second=0, microsecond=0)
+
+        # Calculate the days to expiration, but allow for fractional days
+        days_to_expiration = (expiration - current_date).total_seconds() / (60 * 60 * 24)
+
         if asset.right.upper() == "CALL":
             is_call = True
             iv = black_scholes.BS(

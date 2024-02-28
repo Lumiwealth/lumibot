@@ -6,13 +6,11 @@ from pathlib import Path
 
 import pandas as pd
 import pandas_market_calendars as mcal
-
+from lumibot import LUMIBOT_CACHE_FOLDER
+from lumibot.entities import Asset
 # noinspection PyPackageRequirements
 from polygon import RESTClient
 from tqdm import tqdm
-
-from lumibot import LUMIBOT_CACHE_FOLDER
-from lumibot.entities import Asset
 
 WAIT_TIME = 60
 POLYGON_QUERY_COUNT = 0  # This is a variable that updates every time we query Polygon
@@ -65,7 +63,7 @@ def get_price_data_from_polygon(
     df_feather = None
     cache_file = build_cache_filename(asset, timespan)
     if cache_file.exists():
-        print(f"\nLoading pricing data for {asset} / {quote_asset} with '{timespan}' timespan from cache file...")
+        logging.debug(f"Loading pricing data for {asset} / {quote_asset} with '{timespan}' timespan from cache file...")
         df_feather = load_cache(cache_file)
         df_all = df_feather.copy()  # Make a copy so we can check the original later for differences
 

@@ -545,7 +545,7 @@ class _Strategy:
 
             self._strategy_returns_df = day_deduplicate(self._stats)
 
-            self._analysis = stats_summary(self._strategy_returns_df, self._risk_free_rate)
+            self._analysis = stats_summary(self._strategy_returns_df, self.risk_free_rate)
 
             # Getting performance for the benchmark asset
             if self._backtesting_start is not None and self._backtesting_end is not None:
@@ -674,7 +674,7 @@ class _Strategy:
                 self._benchmark_returns_df,
                 self._benchmark_asset,
                 show_tearsheet,
-                risk_free_rate=self._risk_free_rate,
+                risk_free_rate=self.risk_free_rate,
             )
 
     @classmethod

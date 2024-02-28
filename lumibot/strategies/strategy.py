@@ -3671,14 +3671,14 @@ class Strategy(_Strategy):
 
         # Check if the message is empty
         if message == "" or message is None:
-            # If the message is empty, log an error and return
-            logging.error("The discord message is empty. Please provide a message to send to Discord.")
+            # If the message is empty, log and return
+            logging.debug("The discord message is empty. Please provide a message to send to Discord.")
             return
 
         # Check if the discord webhook URL is set
         if self.discord_webhook_url is None:
-            # If the webhook URL is not set, log an error and return
-            logging.error(
+            # If the webhook URL is not set, log and return
+            logging.debug(
                 "The discord webhook URL is not set. Please set the discord_webhook_url parameter in the strategy \
                 initialization if you want to send messages to Discord."
             )

@@ -9,9 +9,10 @@ from decimal import Decimal
 import pandas as pd
 import plotly.graph_objects as go
 import quantstats_lumi as qs
-from lumibot.tools import to_datetime_aware
-from lumibot import LUMIBOT_DEFAULT_TIMEZONE
 from plotly.subplots import make_subplots
+
+from lumibot import LUMIBOT_DEFAULT_TIMEZONE
+from lumibot.tools import to_datetime_aware
 
 from .yahoo_helper import YahooHelper as yh
 
@@ -670,8 +671,8 @@ def create_tearsheet(
     df.loc[df.index[0], "symbol_cumprod"] = 1
 
     df = df.resample("D").last()
-    df["strategy"] = df["portfolio_value"].pct_change(fill_method=None).fillna(0)
-    df["benchmark"] = df["symbol_cumprod"].pct_change(fill_method=None).fillna(0)
+    df["strategy"] = df["portfolio_value"].bfill().pct_change(fill_method=None).fillna(0)
+    df["benchmark"] = df["symbol_cumprod"].bfill().pct_change(fill_method=None).fillna(0)
 
     # Merge the strategy and benchmark columns into a new dataframe called df_final
     df_final = df.loc[:, ["strategy", "benchmark"]]
@@ -723,9 +724,9 @@ def create_tearsheet(
         webbrowser.open(url)
 
 
-def get_risk_free_rate():
+def get_risk_free_rate(dt: datetime = None):
     try:
-        result = yh.get_risk_free_rate()
+        result = yh.get_risk_free_rate(dt=dt)
     except Exception as e:
         logging.error(f"Error getting the risk free rate: {e}")
         result = 0

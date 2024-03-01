@@ -8,13 +8,12 @@ from decimal import Decimal
 
 import pandas_market_calendars as mcal
 from alpaca.trading.client import TradingClient
-from alpaca.trading.enums import QueryOrderStatus
-from alpaca.trading.requests import GetOrdersRequest
 from alpaca.trading.stream import TradingStream
 from dateutil import tz
+from termcolor import colored
+
 from lumibot.data_sources import AlpacaData
 from lumibot.entities import Asset, Order, Position
-from termcolor import colored
 
 from .broker import Broker
 

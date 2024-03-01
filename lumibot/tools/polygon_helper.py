@@ -6,11 +6,14 @@ from pathlib import Path
 
 import pandas as pd
 import pandas_market_calendars as mcal
-from lumibot import LUMIBOT_CACHE_FOLDER
-from lumibot.entities import Asset
+
 # noinspection PyPackageRequirements
 from polygon import RESTClient
+from termcolor import colored
 from tqdm import tqdm
+
+from lumibot import LUMIBOT_CACHE_FOLDER
+from lumibot.entities import Asset
 
 WAIT_TIME = 60
 POLYGON_QUERY_COUNT = 0  # This is a variable that updates every time we query Polygon
@@ -236,7 +239,8 @@ def get_polygon_symbol(asset, polygon_client, quote_asset=None):
         )
 
         if len(contracts) == 0:
-            logging.error(f"Unable to find option contract for {asset}")
+            text = colored(f"Unable to find option contract for {asset}", "red")
+            logging.error(text)
             return
 
         # Example: O:SPY230802C00457000

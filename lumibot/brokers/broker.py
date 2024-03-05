@@ -464,18 +464,16 @@ class Broker(ABC):
         order.add_transaction(price, quantity)
         order.status = self.PARTIALLY_FILLED_ORDER
         order.set_partially_filled()
+        if order not in self._partially_filled_orders:
+            self._partially_filled_orders.append(order)
 
         position = self.get_tracked_position(order.strategy, order.asset)
         if position is None:
             # Create new position for this given strategy and asset
             position = order.to_position(quantity)
-            self._filled_positions.append(position)
         else:
             # Add the order to the already existing position
             position.add_order(order)
-
-        if order not in self._partially_filled_orders:
-            self._partially_filled_orders.append(order)
 
         if order.asset.asset_type == "crypto":
             self._process_crypto_quote(order, quantity, price)
@@ -505,10 +503,7 @@ class Broker(ABC):
             position = order.to_position(quantity)
         else:
             # Add the order to the already existing position
-            position.add_order(order)
-            if position.quantity == 0:
-                logging.info("Position %r liquidated" % position)
-                self._filled_positions.remove(position)
+            position.add_order(order)  # Don't update quantity here, it's handled by querying broker
 
         if order.asset.asset_type == "crypto":
             self._process_crypto_quote(order, quantity, price)
@@ -535,10 +530,7 @@ class Broker(ABC):
         position = self.get_tracked_position(order.strategy, order.asset)
         if position is not None:
             # Add the order to the already existing position
-            position.add_order(order)
-            if position.quantity == 0:
-                logging.info("Position %r liquidated" % position)
-                self._filled_positions.remove(position)
+            position.add_order(order)  # Don't update quantity here, it's handled by querying broker
 
     def _process_crypto_quote(self, order, quantity, price):
         """Used to process the quote side of a crypto trade."""
@@ -1005,7 +997,7 @@ class Broker(ABC):
             position = self._process_filled_order(stored_order, price, filled_quantity)
             self._on_filled_order(position, stored_order, price, filled_quantity, multiplier)
         elif type_event == self.CASH_SETTLED:
-            position = self._process_cash_settlement(stored_order, price, filled_quantity)
+            self._process_cash_settlement(stored_order, price, filled_quantity)
             stored_order.type = self.CASH_SETTLED
         else:
             logging.info(f"Unhandled type event {type_event} for {stored_order}")

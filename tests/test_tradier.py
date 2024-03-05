@@ -319,11 +319,10 @@ class TestTradierBroker:
         broker.do_polling()
         sleep(0.25)  # Sleep gives a chance for order processing thread to finish
         known_orders = broker.get_tracked_orders(strategy=strategy)
-        positions = broker.get_tracked_positions(strategy=strategy)
+        filled_orders = broker._filled_orders
         assert len(known_orders) == 1, "Tracked does not include filled orders."
-        assert len(positions) == 1
-        assert len(positions[0].orders) == 1
-        order1 = positions[0].orders[0]
+        assert len(filled_orders) == 1
+        order1 = filled_orders[0]
         assert order1.identifier == 123
         assert order1.type == "market"
         assert order1.is_filled()
@@ -331,7 +330,6 @@ class TestTradierBroker:
         assert len(broker._new_orders) == 1
         assert not len(broker._unprocessed_orders)
         assert len(broker.get_all_orders()) == 2, "Includes Filled orders"
-        assert len(broker.get_tracked_positions()) == 1
 
         # Cancel the 2nd order (stoploss)
         second_response["status"] = "canceled"
@@ -343,7 +341,6 @@ class TestTradierBroker:
         assert len(broker._new_orders) == 0
         assert not len(broker._unprocessed_orders)
         assert len(broker.get_all_orders()) == 2, "Includes Filled/Cancelled orders"
-        assert len(broker.get_tracked_positions()) == 1
         assert len(broker._canceled_orders) == 1
         order2 = broker._canceled_orders[0]
         assert order2.identifier == 124
@@ -359,7 +356,6 @@ class TestTradierBroker:
         assert len(broker._new_orders) == 0
         assert not len(broker._unprocessed_orders)
         assert len(broker.get_all_orders()) == 2, "Includes Filled/Cancelled orders"
-        assert len(broker.get_tracked_positions()) == 1
         assert len(broker._canceled_orders) == 1
 
         # 3rd Order: Submit an order that causes a broker error
@@ -397,7 +393,6 @@ class TestTradierBroker:
         assert not len(broker._unprocessed_orders)
         assert len(broker._canceled_orders) == 2
         assert len(broker.get_all_orders()) == 3, "Includes Filled/Cancelled orders"
-        assert len(broker.get_tracked_positions()) == 1
         error_order = broker._canceled_orders[1]
         assert error_order.identifier == 125
         assert error_order.type == "limit"

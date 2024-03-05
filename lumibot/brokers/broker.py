@@ -472,7 +472,7 @@ class Broker(ABC):
             self._filled_positions.append(position)
         else:
             # Add the order to the already existing position
-            position.add_order(order, quantity)
+            position.add_order(order)
 
         if order not in self._partially_filled_orders:
             self._partially_filled_orders.append(order)
@@ -503,10 +503,9 @@ class Broker(ABC):
         if position is None:
             # Create new position for this given strategy and asset
             position = order.to_position(quantity)
-            self._filled_positions.append(position)
         else:
             # Add the order to the already existing position
-            position.add_order(order, quantity)
+            position.add_order(order)
             if position.quantity == 0:
                 logging.info("Position %r liquidated" % position)
                 self._filled_positions.remove(position)
@@ -536,7 +535,7 @@ class Broker(ABC):
         position = self.get_tracked_position(order.strategy, order.asset)
         if position is not None:
             # Add the order to the already existing position
-            position.add_order(order, quantity)
+            position.add_order(order)
             if position.quantity == 0:
                 logging.info("Position %r liquidated" % position)
                 self._filled_positions.remove(position)

@@ -12,6 +12,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from termcolor import colored
 
+from lumibot.entities import Asset
 from lumibot.tools import append_locals, get_trading_days, staticdecorator
 
 
@@ -450,8 +451,15 @@ class StrategyExecutor(Thread):
         # Get the portfolio value
         portfolio_value = self.strategy.get_portfolio_value()
 
-        # Calculate the percent of the portfolio that this order represents
-        percent_of_portfolio = (price * float(quantity)) / portfolio_value
+        # Calculate the value of the position
+        order_value = price * float(quantity)
+
+        # If option, multiply % of portfolio by 100
+        if order.asset.asset_type == Asset.AssetType.OPTION:
+            order_value = order_value * 100
+
+        # Calculate the percent of the portfolio that this position represents
+        percent_of_portfolio = order_value / portfolio_value
 
         # Capitalize the side
         side = order.side.capitalize()

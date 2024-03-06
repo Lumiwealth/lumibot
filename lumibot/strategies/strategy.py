@@ -21,6 +21,7 @@ import requests
 from termcolor import colored
 
 from lumibot.entities import Asset, Order
+from lumibot.tools import get_risk_free_rate
 
 from ._strategy import _Strategy
 
@@ -328,7 +329,12 @@ class Strategy(_Strategy):
 
     @property
     def risk_free_rate(self):
-        return self._risk_free_rate
+        # Get the current datetime
+        now = self.get_datetime()
+
+        # Use the yahoo data to get the risk free rate
+        rfr = get_risk_free_rate(now)
+        return rfr
 
     # ======= Helper Methods =======================
 
@@ -402,8 +408,10 @@ class Strategy(_Strategy):
 
         Crypto markets require both a base currency and a quote currency to create an order. For example, use the quote parameter.:
 
+            >>> from lumibot.entities import Asset
+            >>>
             >>> self.create_order(
-            >>>     Asset(symbol='BTC', asset_type='crypto'),
+            >>>     Asset(symbol='BTC', asset_type=Asset.AssetType.CRYPTO),
             >>>     .50,
             >>>     'buy',
             >>>     quote=Asset(symbol='USDT', asset_type='crypto'),
@@ -561,12 +569,16 @@ class Strategy(_Strategy):
         >>>            )
 
         >>> # For a futures order
-        >>> asset = Asset("ES", asset_type="future", expiration="2019-01-01")
+        >>> from lumibot.entities import Asset
+        >>>
+        >>> asset = Asset("ES", asset_type=Asset.AssetType.FUTURE, expiration="2019-01-01")
         >>> order = self.create_order(asset, 100, "buy", limit_price=100.00)
         >>> self.submit_order(order)
 
         >>> # For a futures order with a trailing stop
-        >>> asset = Asset("ES", asset_type="future", expiration="2019-01-01")
+        >>> from lumibot.entities import Asset
+        >>>
+        >>> asset = Asset("ES", asset_type=Asset.AssetType.FUTURE, expiration="2019-01-01")
         >>> order = self.create_order(
         >>>                asset,
         >>>                100,
@@ -578,12 +590,16 @@ class Strategy(_Strategy):
         >>> self.submit_order(order)
 
         >>> # For an option order
-        >>> asset = Asset("SPY", asset_type="option", expiration="2019-01-01", strike=100.00)
+        >>> from lumibot.entities import Asset
+        >>>
+        >>> asset = Asset("SPY", asset_type=Asset.AssetType.OPTION, expiration="2019-01-01", strike=100.00)
         >>> order = self.create_order(asset, 100, "buy", limit_price=100.00)
         >>> self.submit_order(order)
 
         >>> # For an option order with a trailing stop
-        >>> asset = Asset("SPY", asset_type="option", expiration="2019-01-01", strike=100.00)
+        >>> from lumibot.entities import Asset
+        >>>
+        >>> asset = Asset("SPY", asset_type=Asset.AssetType.OPTION, expiration="2019-01-01", strike=100.00)
         >>> order = self.create_order(
         >>>                asset,
         >>>                100,
@@ -595,21 +611,27 @@ class Strategy(_Strategy):
         >>> self.submit_order(order)
 
         >>> # For a FOREX order
+        >>> from lumibot.entities import Asset
+        >>>
         >>> asset = Asset(
         >>>    symbol="CHF",
         >>>    currency="EUR",
-        >>>    asset_type="forex",
+        >>>    asset_type=Asset.AssetType.FOREX,
         >>>  )
         >>> order = self.create_order(asset, 100, "buy", limit_price=100.00)
         >>> self.submit_order(order)
 
         >>> # For a options order with a limit price
-        >>> asset = Asset("SPY", asset_type="option", expiration="2019-01-01", strike=100.00)
+        >>> from lumibot.entities import Asset
+        >>>
+        >>> asset = Asset("SPY", asset_type=Asset.AssetType.OPTION, expiration="2019-01-01", strike=100.00)
         >>> order = self.create_order(asset, 100, "buy", limit_price=100.00)
         >>> self.submit_order(order)
 
         >>> # For a options order with a trailing stop
-        >>> asset = Asset("SPY", asset_type="option", expiration="2019-01-01", strike=100.00)
+        >>> from lumibot.entities import Asset
+        >>>
+        >>> asset = Asset("SPY", asset_type=Asset.AssetType.OPTION, expiration="2019-01-01", strike=100.00)
         >>> order = self.create_order(
         >>>                asset,
         >>>                100,
@@ -621,14 +643,18 @@ class Strategy(_Strategy):
         >>> self.submit_order(order)
 
         >>> # For a cryptocurrency order with a market price
-        >>> base = Asset("BTC", asset_type="crypto")
-        >>> quote = Asset("USD", asset_type="crypto")
+        >>> from lumibot.entities import Asset
+        >>>
+        >>> base = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
+        >>> quote = Asset("USD", asset_type=Asset.AssetType.CRYPTO)
         >>> order = self.create_order(base, 0.05, "buy", quote=quote)
         >>> self.submit_order(order)
 
         >>> # Placing a limit order with a quote asset for cryptocurrencies
-        >>> base = Asset("BTC", asset_type="crypto")
-        >>> quote = Asset("USD", asset_type="crypto")
+        >>> from lumibot.entities import Asset
+        >>>
+        >>> base = Asset("BTC", asset_type=Aset.AssetType.CRYPTO)
+        >>> quote = Asset("USD", asset_type=Asset.AssetType.CRYPTO)
         >>> order = self.create_order(base, 0.05, "buy", limit_price=41000,  quote=quote)
         >>> self.submit_order(order)
         """
@@ -1253,27 +1279,33 @@ class Strategy(_Strategy):
         >>> self.submit_order(order)
 
         >>> # For buying a future
+        >>> from lumibot.entities import Asset
+        >>>
         >>> asset = Asset(
         >>>    "ES",
-        >>>    asset_type="future",
+        >>>    asset_type=Asset.AssetType.FUTURE,
         >>>    expiration_date="2020-01-01",
         >>>    multiplier=100)
         >>> order = self.create_order(asset, 100, "buy")
         >>> self.submit_order(order)
 
         >>> # For selling a future
+        >>> from lumibot.entities import Asset
+        >>>
         >>> asset = Asset(
         >>>    "ES",
-        >>>    asset_type="future",
+        >>>    asset_type=Asset.AssetType.FUTURE,
         >>>    expiration_date="2020-01-01"
         >>>    multiplier=100)
         >>> order = self.create_order(asset, 100, "sell")
         >>> self.submit_order(order)
 
         >>> # For buying an option
+        >>> from lumibot.entities import Asset
+        >>>
         >>> asset = Asset(
         >>>    "SPY",
-        >>>    asset_type="option",
+        >>>    asset_type=Asset.AssetType.OPTION,
         >>>    expiration_date="2020-01-01",
         >>>    strike_price=100.00,
         >>>    right="call")
@@ -1281,9 +1313,11 @@ class Strategy(_Strategy):
         >>> self.submit_order(order)
 
         >>> # For selling an option
+        >>> from lumibot.entities import Asset
+        >>>
         >>> asset = Asset(
         >>>    "SPY",
-        >>>    asset_type="option",
+        >>>    asset_type=Asset.AssetType.OPTION,
         >>>    expiration_date="2020-01-01",
         >>>    strike_price=100.00,
         >>>    right="call")
@@ -1316,33 +1350,39 @@ class Strategy(_Strategy):
         >>> self.submit_order(order)
 
         >>> # For buying FOREX
+        >>> from lumibot.entities import Asset
+        >>>
         >>> base_asset = Asset(
             symbol="GBP,
-            asset_type="forex",
+            asset_type=Asset.AssetType.FOREX,
         )
         >>> quote_asset = Asset(
             symbol="USD",
-            asset_type="forex",
+            asset_type=Asset.AssetType.FOREX,
         )
         >>> order = self.create_order(asset, 10, "buy", quote=quote_asset)
         >>> self.submit_order(order)
 
         >>> # For selling FOREX
+        >>> from lumibot.entities import Asset
+        >>>
         >>> base_asset = Asset(
             symbol="EUR",
-            asset_type="forex",
+            asset_type=Asset.AssetType.FOREX,
         )
         >>> quote_asset = Asset(
             symbol="USD",
-            asset_type="forex",
+            asset_type=Asset.AssetType.FOREX,
         )
         >>> order = self.create_order(asset, 10, "sell", quote=quote_asset)
         >>> self.submit_order(order)
 
         >>> # For buying an option with a limit price
+        >>> from lumibot.entities import Asset
+        >>>
         >>> asset = Asset(
         >>>    "SPY",
-        >>>    asset_type="option",
+        >>>    asset_type=Aset.AssetType.OPTION,
         >>>    expiration_date="2020-01-01",
         >>>    strike_price=100.00,
         >>>    right="call")
@@ -1350,9 +1390,11 @@ class Strategy(_Strategy):
         >>> self.submit_order(order)
 
         >>> # For selling an option with a limit price
+        >>> from lumibot.entities import Asset
+        >>>
         >>> asset = Asset(
         >>>    "SPY",
-        >>>    asset_type="option",
+        >>>    asset_type=Asset.AssetType.OPTION,
         >>>    expiration_date="2020-01-01",
         >>>    strike_price=100.00,
         >>>    right="call")
@@ -1360,9 +1402,11 @@ class Strategy(_Strategy):
         >>> self.submit_order(order)
 
         >>> # For buying an option with a stop price
+        >>> from lumibot.entities import Asset
+        >>>
         >>> asset = Asset(
         >>>    "SPY",
-        >>>    asset_type="option",
+        >>>    asset_type=Asset.AssetType.OPTION,
         >>>    expiration_date="2020-01-01",
         >>>    strike_price=100.00,
         >>>    right="call")
@@ -1384,13 +1428,15 @@ class Strategy(_Strategy):
         >>> self.submit_order(order)
 
         >>> # For buying a crypto with a market price
+        >>> from lumibot.entities import Asset
+        >>>
         >>> asset_base = Asset(
         >>>    "BTC",
-        >>>    asset_type="crypto",
+        >>>    asset_type=Asset.AssetType.CRYPTO,
         >>> )
         >>> asset_quote = Asset(
         >>>    "USD",
-        >>>    asset_type="crypto",
+        >>>    asset_type=Asset.AssetType.CRYPTO,
         >>> )
         >>> order = self.create_order(asset_base, 0.1, "buy", quote=asset_quote)
         >>> or...
@@ -1398,13 +1444,15 @@ class Strategy(_Strategy):
         >>> self.submit_order(order)
 
         >>> # For buying a crypto with a limit price
+        >>> from lumibot.entities import Asset
+        >>>
         >>> asset_base = Asset(
         >>>    "BTC",
-        >>>    asset_type="crypto",
+        >>>    asset_type=Asset.AssetType.CRYPTO,
         >>> )
         >>> asset_quote = Asset(
         >>>    "USD",
-        >>>    asset_type="crypto",
+        >>>    asset_type=Asset.AssetType.CRYPTO,
         >>> )
         >>> order = self.create_order(asset_base, 0.1, "buy", limit_price="41250", quote=asset_quote)
         >>> or...
@@ -1412,13 +1460,15 @@ class Strategy(_Strategy):
         >>> self.submit_order(order)
 
         >>> # For buying a crypto with a stop limit price
+        >>> from lumibot.entities import Asset
+        >>>
         >>> asset_base = Asset(
         >>>    "BTC",
-        >>>    asset_type="crypto",
+        >>>    asset_type=Asset.AssetType.CRYPTO,
         >>> )
         >>> asset_quote = Asset(
         >>>    "USD",
-        >>>    asset_type="crypto",
+        >>>    asset_type=Asset.AssetType.CRYPTO,
         >>> )
         >>> order = self.create_order(asset_base, 0.1, "buy", limit_price="41325", stop_price="41300", quote=asset_quote)
         >>> or...
@@ -1505,43 +1555,49 @@ class Strategy(_Strategy):
         >>> self.submit_orders([order1, order2])
 
         >>> # For 2 FOREX buy orders
+        >>> from lumibot.entities import Asset
+        >>>
         >>> base_asset = Asset(
             symbol="EUR",
-            asset_type="forex",
+            asset_type=Asset.AssetType.FOREX,
         )
         >>> quote_asset = Asset(
             symbol="USD",
-            asset_type="forex",
+            asset_type=Asset.AssetType.FOREX,
         )
         >>> order1 = self.create_order(base_asset, 100, "buy", quote=quote_asset)
         >>> order2 = self.create_order(base_asset, 200, "buy", quote=quote_asset)
         >>> self.submit_orders([order1, order2])
 
         >>> # For 2 FOREX sell orders
+        >>> from lumibot.entities import Asset
+        >>>
         >>> base_asset = Asset(
             symbol="EUR",
-            asset_type="forex",
+            asset_type=Asset.AssetType.FOREX,
         )
         >>> quote_asset = Asset(
             symbol="USD",
-            asset_type="forex",
+            asset_type=Asset.AssetType.FOREX,
         )
         >>> order1 = self.create_order(base_asset, 100, "sell", quote=quote_asset)
         >>> order2 = self.create_order(base_asset, 200, "sell", quote=quote_asset)
         >>> self.submit_orders([order1, order2])
 
         >>> # For 2 CRYPTO buy orders.
+        >>> from lumibot.entities import Asset
+        >>>
         >>> asset_BTC = Asset(
         >>>    "BTC",
-        >>>    asset_type="crypto",
+        >>>    asset_type=Asset.AssetType.CRYPTO,
         >>> )
         >>> asset_ETH = Asset(
         >>>    "ETH",
-        >>>    asset_type="crypto",
+        >>>    asset_type=Asset.AssetType.CRYPTO,
         >>> )
         >>> asset_quote = Asset(
         >>>    "USD",
-        >>>    asset_type="crypto",
+        >>>    asset_type=Aset.AssetType.FOREX,
         >>> )
         >>> order1 = self.create_order(asset_BTC, 0.1, "buy", quote=asset_quote)
         >>> order2 = self.create_order(asset_ETH, 10, "buy", quote=asset_quote)
@@ -2213,7 +2269,10 @@ class Strategy(_Strategy):
 
         # Do the expensize API calls here if needed
         opt_price = asset_price if asset_price is not None else self.get_last_price(asset)
-        risk_free_rate = risk_free_rate if risk_free_rate is not None else self.risk_free_rate
+        if risk_free_rate is not None:
+            risk_free_rate = risk_free_rate
+        else:
+            risk_free_rate = self.risk_free_rate
         if underlying_price is None:
             underlying_asset = Asset(symbol=asset.symbol, asset_type="stock")
             und_price = self.get_last_price(underlying_asset)
@@ -3622,14 +3681,14 @@ class Strategy(_Strategy):
 
         # Check if the message is empty
         if message == "" or message is None:
-            # If the message is empty, log an error and return
-            logging.error("The discord message is empty. Please provide a message to send to Discord.")
+            # If the message is empty, log and return
+            logging.debug("The discord message is empty. Please provide a message to send to Discord.")
             return
 
         # Check if the discord webhook URL is set
         if self.discord_webhook_url is None:
-            # If the webhook URL is not set, log an error and return
-            logging.error(
+            # If the webhook URL is not set, log and return
+            logging.debug(
                 "The discord webhook URL is not set. Please set the discord_webhook_url parameter in the strategy \
                 initialization if you want to send messages to Discord."
             )
@@ -3788,6 +3847,10 @@ class Strategy(_Strategy):
 
             # Calculate teh value of the position
             position_value = position.quantity * last_price
+
+            # If option, multiply % of portfolio by 100
+            if position.asset.asset_type == "option":
+                position_value = position_value * 100
 
             # Calculate the percent of the portfolio that this position represents
             percent_of_portfolio = position_value / portfolio_value

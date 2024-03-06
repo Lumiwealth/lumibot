@@ -37,6 +37,7 @@ class Broker(ABC):
         self._new_orders = SafeList(self._lock)
         self._canceled_orders = SafeList(self._lock)
         self._partially_filled_orders = SafeList(self._lock)
+        self._filled_orders = SafeList(self._lock)
         self._filled_positions = SafeList(self._lock)
         self._subscribers = SafeList(self._lock)
         self._is_stream_subscribed = False
@@ -174,7 +175,7 @@ class Broker(ABC):
         pass
 
     @abstractmethod
-    def _pull_broker_open_orders(self):
+    def _pull_broker_all_orders(self):
         """
         Get the broker open orders
         TODO: Fill in with the expected output of this function.
@@ -227,7 +228,8 @@ class Broker(ABC):
     # ================================ Common functions ================================
     @property
     def _tracked_orders(self):
-        return self._unprocessed_orders + self._new_orders + self._partially_filled_orders
+        return (self._unprocessed_orders.get_list() + self._new_orders.get_list() +
+                self._partially_filled_orders.get_list())
 
     def is_backtesting_broker(self):
         return self.IS_BACKTESTING_BROKER
@@ -433,7 +435,7 @@ class Broker(ABC):
     def _process_new_order(self, order):
         # Check if this order already exists in self._new_orders based on the identifier
         if order in self._new_orders:
-            return
+            return order
 
         logging.info(colored(f"New {order} was submitted.", color="green"))
         self._unprocessed_orders.remove(order.identifier, key="identifier")
@@ -489,11 +491,13 @@ class Broker(ABC):
         )
         logging.info(f"{order} was filled")
         self._new_orders.remove(order.identifier, key="identifier")
+        self._unprocessed_orders.remove(order.identifier, key="identifier")
         self._partially_filled_orders.remove(order.identifier, key="identifier")
 
         order.add_transaction(price, quantity)
         order.status = self.FILLED_ORDER
         order.set_filled()
+        self._filled_orders.append(order)
 
         position = self.get_tracked_position(order.strategy, order.asset)
         if position is None:
@@ -521,11 +525,13 @@ class Broker(ABC):
         )
         logging.info(f"{order} was cash settled")
         self._new_orders.remove(order.identifier, key="identifier")
+        self._unprocessed_orders.remove(order.identifier, key="identifier")
         self._partially_filled_orders.remove(order.identifier, key="identifier")
 
         order.add_transaction(price, quantity)
         order.status = self.CASH_SETTLED
         order.set_filled()
+        self._filled_orders.append(order)
 
         position = self.get_tracked_position(order.strategy, order.asset)
         if position is not None:
@@ -717,10 +723,7 @@ class Broker(ABC):
 
     def get_all_orders(self) -> list[Order]:
         """get all tracked and completed orders"""
-        orders = list(self._tracked_orders + self._canceled_orders)
-        positions = self._filled_positions
-        for pos in positions:
-            orders += pos.orders
+        orders = (self._tracked_orders + self._canceled_orders.get_list() + self._filled_orders.get_list())
         return orders
 
     def get_order(self, identifier) -> Order:
@@ -776,10 +779,10 @@ class Broker(ABC):
             return order
         return None
 
-    def _pull_open_orders(self, strategy_name, strategy_object):
+    def _pull_all_orders(self, strategy_name, strategy_object):
         """Get a list of order objects representing the open
         orders"""
-        response = self._pull_broker_open_orders()
+        response = self._pull_broker_all_orders()
         result = self._parse_broker_orders(response, strategy_name, strategy_object=strategy_object)
         return result
 
@@ -818,7 +821,7 @@ class Broker(ABC):
 
     def cancel_open_orders(self, strategy):
         """cancel all open orders for a given strategy"""
-        orders = self.get_tracked_orders(strategy)
+        orders = [o for o in self.get_tracked_orders(strategy) if o.is_active()]
         self.cancel_orders(orders)
 
     def wait_orders_clear(self, strategy, max_loop=5):
@@ -1013,6 +1016,7 @@ class Broker(ABC):
             "time": current_dt,
             "strategy": stored_order.strategy,
             "exchange": stored_order.exchange,
+            "identifier": stored_order.identifier,
             "symbol": stored_order.symbol,
             "side": stored_order.side,
             "type": stored_order.type,

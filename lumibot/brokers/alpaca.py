@@ -8,13 +8,12 @@ from decimal import Decimal
 
 import pandas_market_calendars as mcal
 from alpaca.trading.client import TradingClient
-from alpaca.trading.enums import QueryOrderStatus
-from alpaca.trading.requests import GetOrdersRequest
 from alpaca.trading.stream import TradingStream
 from dateutil import tz
+from termcolor import colored
+
 from lumibot.data_sources import AlpacaData
 from lumibot.entities import Asset, Order, Position
-from termcolor import colored
 
 from .broker import Broker
 
@@ -365,17 +364,9 @@ class Alpaca(Broker):
         response = self.api.get_order(identifier)
         return response
 
-    def _pull_broker_open_orders(self):
-        """Get the broker open orders"""
-        # params to filter orders by
-        request_params = GetOrdersRequest(
-            status=QueryOrderStatus.OPEN,
-        )
-
-        # orders that satisfy params
-        orders = self.api.get_orders(filter=request_params)
-
-        return orders
+    def _pull_broker_all_orders(self):
+        """Get the broker orders"""
+        return self.api.get_orders()
 
     def _flatten_order(self, order):
         """Some submitted orders may trigger other orders.

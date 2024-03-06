@@ -9,6 +9,7 @@ import pandas_market_calendars as mcal
 
 # noinspection PyPackageRequirements
 from polygon import RESTClient
+from termcolor import colored
 from tqdm import tqdm
 
 from lumibot import LUMIBOT_CACHE_FOLDER
@@ -65,7 +66,7 @@ def get_price_data_from_polygon(
     df_feather = None
     cache_file = build_cache_filename(asset, timespan)
     if cache_file.exists():
-        print(f"\nLoading pricing data for {asset} / {quote_asset} with '{timespan}' timespan from cache file...")
+        logging.debug(f"Loading pricing data for {asset} / {quote_asset} with '{timespan}' timespan from cache file...")
         df_feather = load_cache(cache_file)
         df_all = df_feather.copy()  # Make a copy so we can check the original later for differences
 
@@ -238,7 +239,8 @@ def get_polygon_symbol(asset, polygon_client, quote_asset=None):
         )
 
         if len(contracts) == 0:
-            logging.error(f"Unable to find option contract for {asset}")
+            text = colored(f"Unable to find option contract for {asset}", "red")
+            logging.error(text)
             return
 
         # Example: O:SPY230802C00457000

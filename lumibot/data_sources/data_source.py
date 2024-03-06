@@ -18,10 +18,21 @@ class DataSource(ABC):
     DEFAULT_TIMEZONE = LUMIBOT_DEFAULT_TIMEZONE
     DEFAULT_PYTZ = LUMIBOT_DEFAULT_PYTZ
 
-    def __init__(self, api_key=None):
+    def __init__(self, api_key=None, delay=None):
+        """
+
+        Parameters
+        ----------
+        api_key : str
+            The API key to use for the data source
+        delay : int
+            The number of minutes to delay the data by. This is useful for paper trading data sources that
+            provide delayed data (i.e. 15m delayed data).
+        """
         self.name = "data_source"
         self._timestep = None
         self._api_key = api_key
+        self._delay = timedelta(minutes=delay) if delay else None
 
     # ========Required Implementations ======================
     @abstractmethod
@@ -109,7 +120,10 @@ class DataSource(ABC):
         -------
         datetime
         """
-        return self.to_default_timezone(datetime.now())
+        current_time = self.to_default_timezone(datetime.now())
+        if self._delay:
+            current_time -= self._delay
+        return current_time
 
     def get_timestamp(self):
         """
@@ -369,14 +383,22 @@ class DataSource(ABC):
         opt_price = asset_price
         und_price = underlying_price
         interest = risk_free_rate * 100
-        current_date = self.get_datetime().date()
+        current_date = self.get_datetime()
 
         # If asset expiration is a datetime object, convert it to date
         expiration = asset.expiration
         if isinstance(expiration, datetime):
             expiration = expiration.date()
 
-        days_to_expiration = (expiration - current_date).days
+        # Convert the expiration to be a datetime with 4pm New York time
+        expiration = datetime.combine(expiration, datetime.min.time())
+        expiration = self.DEFAULT_PYTZ.localize(expiration)
+        expiration = expiration.astimezone(self.DEFAULT_PYTZ)
+        expiration = expiration.replace(hour=16, minute=0, second=0, microsecond=0)
+
+        # Calculate the days to expiration, but allow for fractional days
+        days_to_expiration = (expiration - current_date).total_seconds() / (60 * 60 * 24)
+
         if asset.right.upper() == "CALL":
             is_call = True
             iv = black_scholes.BS(

@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="lumibot",
-    version="3.1.6",
+    version="3.1.14",
     author="Robert Grzesik",
     author_email="rob@lumiwealth.com",
     description="Backtesting and Trading Library, Made by Lumiwealth",
@@ -18,13 +18,14 @@ setuptools.setup(
         "alpaca-py>=0.13.1",
         "alpha_vantage",
         "ibapi==9.81.1.post1",
-        "yfinance",
+        "yfinance>=0.2.37",
         "matplotlib>=3.3.3",
         "quandl",
-        "pandas>=2.0.0,<=2.0.3",
+        "numpy>=1.26.4",
+        "pandas>=2.2.0",
         "pandas_datareader",
         "pandas_market_calendars>=4.3.1",
-        "plotly",
+        "plotly>=5.18.0",
         "flask>=2.2.2",
         "flask-socketio",
         "flask-sqlalchemy",
@@ -36,7 +37,7 @@ setuptools.setup(
         "pytest",
         "scipy==1.10.1",  # Newer versions of scipy are currently causing issues
         "ipython",  # required for quantstats, but not in their dependency list for some reason
-        "quantstats-lumi>=0.1.0",
+        "quantstats-lumi>=0.1.9",
         "python-dotenv",  # Secret Storage
         "ccxt==4.2.22",
         "termcolor",
@@ -45,12 +46,12 @@ setuptools.setup(
         "appdirs",
         "pyarrow",
         "tqdm",
-        "lumiwealth-tradier>=0.1.4",
+        "lumiwealth-tradier>=0.1.6",
         "pytz",
         "psycopg2-binary",
+        "exchange_calendars>=4.5.2",
         "duckdb",
         "uuid",
-        "numpy",
         "tabulate",
     ],
     classifiers=[

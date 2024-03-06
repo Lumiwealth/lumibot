@@ -5,6 +5,7 @@ from decimal import Decimal
 from functools import wraps
 
 import pandas as pd
+
 from lumibot.brokers import Broker
 from lumibot.data_sources import DataSourceBacktesting
 from lumibot.entities import Asset, Order, Position, TradingFee
@@ -46,7 +47,9 @@ class BacktestingBroker(Broker):
                     # Remove the original order from the list of new orders because
                     # it's been replaced by the individual orders
                     broker._new_orders.remove(result)
-                else:
+                elif order not in broker._new_orders:
+                    # David M: This seems weird and I don't understand why we're doing this.  It seems like
+                    # we're adding the order to the new orders list twice, so checking first.
                     broker._new_orders.append(order)
                 return result
 
@@ -236,9 +239,9 @@ class BacktestingBroker(Broker):
                 return order
         return None
 
-    def _pull_broker_open_orders(self):
+    def _pull_broker_all_orders(self):
         """Get the broker open orders"""
-        orders = self._new_orders.__items
+        orders = self.get_all_orders()
         return orders
 
     def _flatten_order(self, order):
@@ -320,6 +323,7 @@ class BacktestingBroker(Broker):
         order.update_raw(order)
         self.stream.dispatch(
             self.NEW_ORDER,
+            wait_until_complete=True,
             order=order,
         )
         return order
@@ -334,6 +338,7 @@ class BacktestingBroker(Broker):
         """Cancel an order"""
         self.stream.dispatch(
             self.CANCELED_ORDER,
+            wait_until_complete=True,
             order=order,
         )
 
@@ -395,6 +400,7 @@ class BacktestingBroker(Broker):
         # Send filled order event
         self.stream.dispatch(
             self.CASH_SETTLED,
+            wait_until_complete=True,
             order=order,
             price=abs(profit_loss / position.quantity / position.asset.multiplier),
             filled_quantity=abs(position.quantity),
@@ -498,10 +504,16 @@ class BacktestingBroker(Broker):
             #############################
 
             # Get the OHLCV data for the asset if we're using the YAHOO, CCXT data source
-            if self.data_source.SOURCE.upper() in ["CCXT", "YAHOO"]:
-                timeshift = timedelta(
-                    days=-1
-                )  # Is negative so that we get today (normally would get yesterday's data to prevent lookahead bias)
+            data_source_name = self.data_source.SOURCE.upper()
+            if data_source_name in ["CCXT", "YAHOO"]:
+                # If we're using the CCXT data source, we don't need to timeshift the data
+                if data_source_name == "CCXT":
+                    timeshift = None
+                else:
+                    timeshift = timedelta(
+                        days=-1
+                    )  # Is negative so that we get today (normally would get yesterday's data to prevent lookahead bias)
+
                 ohlc = strategy.get_historical_prices(
                     asset,
                     1,
@@ -526,6 +538,11 @@ class BacktestingBroker(Broker):
                     timeshift=-2,
                     timestep=self.data_source._timestep,
                 )
+                # Check if we got any ohlc data
+                if ohlc is None:
+                    self.cancel_order(order)
+                    continue
+
                 df_original = ohlc.df
 
                 # Make sure that we are only getting the prices for the current time exactly or in the future
@@ -536,9 +553,6 @@ class BacktestingBroker(Broker):
                 if df.empty:
                     df = df_original.iloc[-1:]
 
-                if ohlc is None:
-                    self.cancel_order(order)
-                    continue
                 dt = df.index[0]
                 open = df["open"].iloc[0]
                 high = df["high"].iloc[0]
@@ -608,6 +622,7 @@ class BacktestingBroker(Broker):
 
                 self.stream.dispatch(
                     self.FILLED_ORDER,
+                    wait_until_complete=True,
                     order=order,
                     price=price,
                     filled_quantity=filled_quantity,

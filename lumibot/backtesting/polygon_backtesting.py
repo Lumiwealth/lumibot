@@ -4,6 +4,9 @@ from collections import defaultdict
 from datetime import date, timedelta
 
 from polygon import RESTClient
+from polygon.exceptions import BadResponse
+from termcolor import colored
+from urllib3.exceptions import MaxRetryError
 
 from lumibot.data_sources import PandasData
 from lumibot.entities import Asset, Data
@@ -123,7 +126,54 @@ class PolygonDataBacktesting(PandasData):
                 quote_asset=quote_asset,
                 has_paid_subscription=self.has_paid_subscription,
             )
+        except BadResponse as e:
+            # Assuming e.message or similar attribute contains the error message
+            formatted_start_datetime = start_datetime.strftime("%Y-%m-%d")
+            formatted_end_datetime = self.datetime_end.strftime("%Y-%m-%d")
+            if "Your plan doesn't include this data timeframe" in str(e):
+                error_message = colored(
+                                "Polygon Access Denied: Your current plan does not support the requested data timeframe "
+                                f"from {formatted_start_datetime} to {formatted_end_datetime}. "
+                                "Please consider either changing your backtesting timeframe to start later since your "
+                                "subscription does not allow you to backtest that far back, or upgrade your subscription "
+                                "so that you can backtest further back in time. Generally speaking, the more you pay for "
+                                "your subscription, the further back in time you can backtest and the faster you can get "
+                                "data. "
+                                "You can upgrade your Polygon subscription at https://polygon.io/pricing ", 
+                                color="red")
+                logging.error(error_message)
+                # Optionally, inform the user through the application's UI or a notification system
+                # For CLI or logs, re-raise the exception with a clearer message
+                raise #Exception("Polygon Access Denied: Upgrade required for requested data timeframe.") from e
+            else:
+                # Handle other BadResponse exceptions not related to plan limitations
+                logging.error(traceback.format_exc())
+                raise
+        except MaxRetryError as e:
+            # TODO: Make this just sleep for a bit and retry (there's no need for people to set
+            # polygon_has_paid_subscription to False)
+
+            # Handle MaxRetriesError
+            error_message = colored(
+                            "Polygon Max Retries Error: The maximum number of retries has been reached. "
+                            "This is probably because you do not have a paid subscription to Polygon. "
+                            "The free version of Polygon has a limit on the number of requests you can make "
+                            "per minute. If you are using the free version of Polygon, you should set "
+                            "polygon_has_paid_subscription to False when you run the backtest() function. eg. \n"
+                            "result = OptionsButterflyCondor.backtest( \n"
+                            "    PolygonDataBacktesting, \n"
+                            "    backtesting_start, \n"
+                            "    backtesting_end, \n"
+                            "    polygon_api_key=polygon_api_key, \n"
+                            "    polygon_has_paid_subscription=False, # Make sure this is False! \n"
+                            " ) \n"
+                            "Otherwise, you should consider upgrading your subscription to Polygon to avoid this error. "
+                            "You can upgrade your Polygon subscription at https://polygon.io/pricing",
+                            color="red")
+            logging.error(error_message)
+            raise
         except Exception as e:
+            # Handle all other exceptions
             logging.error(traceback.format_exc())
             raise Exception("Error getting data from Polygon") from e
 

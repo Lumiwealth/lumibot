@@ -2,6 +2,7 @@ import logging
 import traceback
 
 import pandas as pd
+from termcolor import colored
 
 from lumibot.brokers import Broker
 from lumibot.data_sources.tradier_data import TradierData
@@ -9,6 +10,7 @@ from lumibot.entities import Asset, Order, Position
 from lumibot.tools.helpers import create_options_symbol
 from lumibot.trading_builtins import PollingStream
 from lumiwealth_tradier import Tradier as _Tradier
+from lumiwealth_tradier.base import TradierApiError
 
 
 class Tradier(Broker):
@@ -24,15 +26,18 @@ class Tradier(Broker):
     POLL_EVENT = PollingStream.POLL_EVENT
 
     def __init__(
-        self,
-        config=None,
-        account_number=None,
-        access_token=None,
-        paper=None,
-        max_workers=20,
-        connect_stream=True,
-        data_source=None,
-        polling_interval=5.0,
+            self,
+            config=None,
+            account_number=None,
+            access_token=None,
+            paper=None,
+            connect_stream=True,
+            data_source=None,
+            polling_interval=5.0,
+
+            # Need sequential order submission for Tradier becuase it is very strict that buy orders exist
+            # before any stoploss/limit orders.
+            max_workers=1,
     ):
         # Check if the user provided both config file and keys
         if (access_token is not None or account_number is not None or paper is not None) and config is not None:
@@ -78,6 +83,7 @@ class Tradier(Broker):
                 access_token=access_token,
                 paper=paper,
                 max_workers=max_workers,
+                delay=15 if paper else 0,
             )
 
         super().__init__(
@@ -117,47 +123,54 @@ class Tradier(Broker):
         # Replace non-alphanumeric characters with '-', underscore "_" is not allowed by Tradier
         tag = "".join([c if c.isalnum() or c == "-" else "-" for c in tag])
 
-        if order.asset.asset_type == "stock":
-            # Place the order
-            order_response = self.tradier.orders.order(
-                order.asset.symbol,
-                order.side,
-                order.quantity,
-                order_type=order.type,
-                duration=order.time_in_force,
-                limit_price=order.limit_price,
-                stop_price=order.stop_price,
-                tag=tag,
-            )
-        elif order.asset.asset_type == "option":
-            tradier_side = self._lumi_side2tradier(order)
-            stock_symbol = order.asset.symbol
-            option_symbol = create_options_symbol(
-                order.asset.symbol, order.asset.expiration, order.asset.right, order.asset.strike
-            )
+        try:
+            if order.asset.asset_type == "stock":
+                # Place the order
+                order_response = self.tradier.orders.order(
+                    order.asset.symbol,
+                    order.side,
+                    order.quantity,
+                    order_type=order.type,
+                    duration=order.time_in_force,
+                    limit_price=order.limit_price,
+                    stop_price=order.stop_price,
+                    tag=tag,
+                )
+            elif order.asset.asset_type == "option":
+                tradier_side = self._lumi_side2tradier(order)
+                stock_symbol = order.asset.symbol
+                option_symbol = create_options_symbol(
+                    order.asset.symbol, order.asset.expiration, order.asset.right, order.asset.strike
+                )
 
-            if not tradier_side or not option_symbol:
-                logging.error(f"Unable to parse order {order} for Tradier.")
-                return None
+                if not tradier_side or not option_symbol:
+                    logging.error(f"Unable to parse order {order} for Tradier.")
+                    return None
 
-            order_response = self.tradier.orders.order_option(
-                stock_symbol,
-                option_symbol,
-                tradier_side,
-                order.quantity,
-                order_type=order.type,
-                duration=order.time_in_force,
-                limit_price=order.limit_price,
-                stop_price=order.stop_price,
-                tag=tag,
-            )
-        else:
-            raise ValueError(f"Asset type {order.asset.asset_type} not supported by Tradier.")
+                order_response = self.tradier.orders.order_option(
+                    stock_symbol,
+                    option_symbol,
+                    tradier_side,
+                    order.quantity,
+                    order_type=order.type,
+                    duration=order.time_in_force,
+                    limit_price=order.limit_price,
+                    stop_price=order.stop_price,
+                    tag=tag,
+                )
+            else:
+                raise ValueError(f"Asset type {order.asset.asset_type} not supported by Tradier.")
 
-        order.identifier = order_response["id"]
-        order.status = "submitted"
-        order.update_raw(order_response)  # This marks order as 'transmitted'
-        self._unprocessed_orders.append(order)
+            order.identifier = order_response["id"]
+            order.status = "submitted"
+            order.update_raw(order_response)  # This marks order as 'transmitted'
+            self._unprocessed_orders.append(order)
+            self.stream.dispatch(self.NEW_ORDER, order=order)
+
+        except TradierApiError as e:
+            msg = colored(f"Error submitting order {order}: {e}", color="red")
+            self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=msg)
+
         return order
 
     def _get_balances_at_broker(self, quote_asset: Asset):
@@ -279,12 +292,11 @@ class Tradier(Broker):
         orders = self.tradier.orders.get_order(identifier).to_dict("records")
         return orders[0] if len(orders) > 0 else None
 
-    def _pull_broker_open_orders(self):
+    def _pull_broker_all_orders(self):
         """
-        This function pulls all open orders from the broker. Orders are converted to a list of dictionaries,
+        This function pulls all orders from the broker. Orders are converted to a list of dictionaries,
         and then returned. It is expected that the caller will convert each dictionary to an Order object by
-        calling parse_broker_order() on the dictionary. Parsing the order will also dispatch it to the stream for
-        processing.
+        calling parse_broker_order() on the dictionary.
         """
         df = self.tradier.orders.get_orders()
 
@@ -292,8 +304,7 @@ class Tradier(Broker):
         if df is None or df.empty:
             return []
 
-        df_open = df[df["status"].isin(["open", "partially_filled", "pending"])]
-        return df_open.to_dict("records")
+        return df.to_dict("records")
 
     def _lumi_side2tradier(self, order: Order) -> str:
         side = order.side
@@ -375,6 +386,7 @@ class Tradier(Broker):
                 self.stream.dispatch(self.NEW_ORDER, order=order)
             else:
                 stored_order = stored_orders[order.identifier]
+                stored_order.quantity = order.quantity  # Update the quantity in case it has changed
 
                 # Status has changed since last time we saw it, dispatch the new status.
                 #  - Polling methods are unable to track partial fills
@@ -408,6 +420,10 @@ class Tradier(Broker):
                             #  - Tradier will auto settle and create a new fill order for cash settled orders. Needs
                             #    testing to confirm.
                             pass
+                else:
+                    # Status hasn't changed, but make sure we use the broker's status.
+                    # I.e. 'submitted' becomes 'open'
+                    stored_order.status = order.status
 
         # See if there are any tracked (aka active) orders that are no longer in the broker's list,
         # dispatch them as cancelled
@@ -484,11 +500,12 @@ class Tradier(Broker):
         @broker.stream.add_action(broker.ERROR_ORDER)
         def on_trade_event_error(order, error_msg):
             try:
-                broker._process_trade_event(
-                    order,
-                    broker.CANCELED_ORDER,
-                )
-                logging.error(f"Error processing order {order}: {error_msg}")
+                if order.is_active():
+                    broker._process_trade_event(
+                        order,
+                        broker.CANCELED_ORDER,
+                    )
+                logging.error(error_msg)
                 order.set_error(error_msg)
             except:
                 logging.error(traceback.format_exc())

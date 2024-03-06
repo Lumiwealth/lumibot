@@ -229,16 +229,16 @@ class TestPolygonHelpers:
             }
         )
 
-        # No changes in data, don't write cache file
-        ph.update_cache(cache_file, df_all=df, df_feather=df)
+        # Empty DataFrame, don't write cache file
+        ph.update_cache(cache_file, df_all=pd.DataFrame())
         assert not cache_file.exists()
 
-        # Empty DataFrame, don't write cache file
-        ph.update_cache(cache_file, df_all=pd.DataFrame(), df_feather=df)
-        assert not cache_file.exists()
+        # No changes in data, write file just in case we got comparison wrong.
+        ph.update_cache(cache_file, df_all=df)
+        assert cache_file.exists()
 
         # Changes in data, write cache file
-        ph.update_cache(cache_file, df_all=df, df_feather=df.iloc[1:])
+        ph.update_cache(cache_file, df_all=df)
         assert cache_file.exists()
 
     def test_update_polygon_data(self):
@@ -332,6 +332,7 @@ class TestPolygonPriceData:
         mock_polyclient().get_aggs.reset_mock()
         df = ph.get_price_data_from_polygon(api_key, asset, start_date, end_date, timespan)
         assert len(df) == 6
+        assert len(df.dropna()) == 6
         assert df["close"].iloc[0] == 2
         assert mock_polyclient().get_aggs.call_count == 0
 

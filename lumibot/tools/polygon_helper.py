@@ -14,6 +14,7 @@ from tqdm import tqdm
 
 from lumibot import LUMIBOT_CACHE_FOLDER
 from lumibot.entities import Asset
+from lumibot import LUMIBOT_DEFAULT_PYTZ
 
 WAIT_TIME = 60
 POLYGON_QUERY_COUNT = 0  # This is a variable that updates every time we query Polygon
@@ -63,16 +64,17 @@ def get_price_data_from_polygon(
 
     # Check if we already have data for this asset in the feather file
     df_all = None
-    df_feather = None
     cache_file = build_cache_filename(asset, timespan)
     if cache_file.exists():
         logging.debug(f"Loading pricing data for {asset} / {quote_asset} with '{timespan}' timespan from cache file...")
-        df_feather = load_cache(cache_file)
-        df_all = df_feather.copy()  # Make a copy so we can check the original later for differences
+        df_all = load_cache(cache_file)
 
     # Check if we need to get more data
     missing_dates = get_missing_dates(df_all, asset, start, end)
     if not missing_dates:
+        # TODO: Do this upstream so we don't called repeatedly for known-to-be-missing bars.
+        # Drop the rows with all NaN values that were added to the feather for symbols that have missing bars.
+        df_all.dropna(inplace=True)
         return df_all
 
     # print(f"\nGetting pricing data for {asset} / {quote_asset} with '{timespan}' timespan from Polygon...")
@@ -139,7 +141,14 @@ def get_price_data_from_polygon(
     # Close the progress bar when done
     pbar.close()
 
-    update_cache(cache_file, df_all, df_feather)
+    # Recheck for missing dates so they can be added in the feather update.
+    missing_dates = get_missing_dates(df_all, asset, start, end)
+    update_cache(cache_file, df_all, missing_dates)
+
+    # TODO: Do this upstream so we don't have to reload feather repeatedly for known-to-be-missing bars.
+    # Drop the rows with all NaN values that were added to the feather for symbols that have missing bars.
+    df_all.dropna(inplace=True)
+
     return df_all
 
 
@@ -336,16 +345,29 @@ def load_cache(cache_file):
     return df_feather
 
 
-def update_cache(cache_file, df_all, df_feather):
+def update_cache(cache_file, df_all, missing_dates=None):
     """Update the cache file with the new data"""
     # Check if df_all is different from df_feather (if df_feather exists)
     if df_all is not None and len(df_all) > 0:
-        # Check if the dataframes are the same
-        if df_all.equals(df_feather):
-            return
-
         # Create the directory if it doesn't exist
         cache_file.parent.mkdir(parents=True, exist_ok=True)
+
+        if missing_dates:
+            missing_df = pd.DataFrame(
+                [datetime(year=d.year, month=d.month, day=d.day, tzinfo=LUMIBOT_DEFAULT_PYTZ) for d in missing_dates],
+                columns=["datetime"])
+            missing_df.set_index("datetime", inplace=True)
+            # Set the timezone to UTC
+            missing_df.index = missing_df.index.tz_convert("UTC")
+            df_concat = pd.concat([df_all, missing_df]).sort_index()
+            # Let's be careful and check for duplicates to avoid corrupting the feather file.
+            if df_concat.index.duplicated().any():
+                print(f"WARN: Duplicate index entries found in {cache_file}")
+                if df_all.index.duplicated():
+                    print("WARN: The duplicate index entries were already in df_all")
+            else:
+                # All good, persist with the missing dates added
+                df_all = df_concat
 
         # Reset the index to convert DatetimeIndex to a regular column
         df_all_reset = df_all.reset_index()

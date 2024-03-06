@@ -47,6 +47,7 @@ class Broker(ABC):
         self._config = config
         self.data_source = data_source
         self.max_workers = min(max_workers, 200)
+        self.quote_assets = set()  # Quote positions will never be removed from tracking during sync operations
 
         if self.data_source is None:
             raise ValueError("Broker must have a data source")
@@ -214,7 +215,7 @@ class Broker(ABC):
                 if position_broker.asset == position.asset:
                     found = True
                     break
-            if not found and (not strategy or position.asset != strategy.quote_asset):
+            if not found and (position.asset not in self.quote_assets):
                 self._filled_positions.remove(position)
 
     # =========Market functions=======================

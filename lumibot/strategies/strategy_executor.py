@@ -119,9 +119,6 @@ class StrategyExecutor(Thread):
             if cash_broker is not None:
                 self.strategy._set_cash_position(cash_broker)
 
-            positions_broker = self.broker._pull_positions(self.strategy)
-            orders_broker = self.broker._pull_all_orders(self.name, self.strategy)
-
             held_trades_len = len(self.broker._held_trades)
             if held_trades_len > 0:
                 self.broker._hold_trade_events = False
@@ -132,37 +129,10 @@ class StrategyExecutor(Thread):
         # Update Lumibot positions to match broker positions.
         # Any new trade notifications will not affect the sync as they
         # are being held pending the completion of the sync.
-        for position in positions_broker:
-            # Check against existing position.
-            position_lumi = [
-                pos_lumi
-                for pos_lumi in self.broker._filled_positions.get_list()
-                if pos_lumi.asset == position.asset
-            ]
-            position_lumi = position_lumi[0] if len(position_lumi) > 0 else None
-
-            if position_lumi:
-                # Compare to existing lumi position.
-                if position_lumi.quantity != position.quantity:
-                    position_lumi.quantity = position.quantity
-            else:
-                # Add to positions in lumibot, position does not exist
-                # in lumibot.
-                if position.quantity != 0:
-                    self.broker._filled_positions.append(position)
-
-        # Now iterate through lumibot positions.
-        # Remove lumibot position if not at the broker.
-        for position in self.broker._filled_positions.get_list():
-            found = False
-            for position_broker in positions_broker:
-                if position_broker.asset == position.asset:
-                    found = True
-                    break
-            if not found and position.asset != self.strategy.quote_asset:
-                self.broker._filled_positions.remove(position)
+        self.broker.sync_positions(self.strategy)
 
         # ORDERS
+        orders_broker = self.broker._pull_all_orders(self.name, self.strategy)
         if len(orders_broker) > 0:
             orders_lumi = self.broker.get_all_orders()
 

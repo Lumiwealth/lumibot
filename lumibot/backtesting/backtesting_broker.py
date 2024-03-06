@@ -322,7 +322,7 @@ class BacktestingBroker(Broker):
         """
         BackTesting needs to create/update positions when orders are filled becuase there is no broker to do it
         """
-        existing_position = self.get_tracked_position(order.asset, order.strategy)
+        existing_position = self.get_tracked_position(order.strategy, order.asset)
         position = super()._process_filled_order(order, price, quantity)
         if existing_position:
             position.add_order(order, quantity)  # Add will update quantity, but not double count the order
@@ -338,7 +338,7 @@ class BacktestingBroker(Broker):
         BackTesting needs to create/update positions when orders are partially filled becuase there is no broker
         to do it
         """
-        existing_position = self.get_tracked_position(order.asset, order.strategy)
+        existing_position = self.get_tracked_position(order.strategy, order.asset)
         stored_order, position = super()._process_partially_filled_order(order, price, quantity)
         if existing_position:
             position.add_order(stored_order, quantity)  # Add will update quantity, but not double count the order
@@ -348,7 +348,7 @@ class BacktestingBroker(Broker):
         """
         BackTesting needs to create/update positions when orders are filled becuase there is no broker to do it
         """
-        existing_position = self.get_tracked_position(order.asset, order.strategy)
+        existing_position = self.get_tracked_position(order.strategy, order.asset)
         super()._process_cash_settlement(order, price, quantity)
         if existing_position:
             existing_position.add_order(order, quantity)  # Add will update quantity, but not double count the order

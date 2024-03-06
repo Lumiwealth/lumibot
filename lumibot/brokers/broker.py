@@ -182,6 +182,41 @@ class Broker(ABC):
         """
         pass
 
+    def sync_positions(self, strategy):
+        """
+        Sync the broker positions with the lumibot positions. Remove any lumibot positions that are not at the broker.
+        """
+        positions_broker = self._pull_positions(strategy)
+        for position in positions_broker:
+            # Check against existing position.
+            position_lumi = [
+                pos_lumi
+                for pos_lumi in self._filled_positions.get_list()
+                if pos_lumi.asset == position.asset
+            ]
+            position_lumi = position_lumi[0] if len(position_lumi) > 0 else None
+
+            if position_lumi:
+                # Compare to existing lumi position.
+                if position_lumi.quantity != position.quantity:
+                    position_lumi.quantity = position.quantity
+            else:
+                # Add to positions in lumibot, position does not exist
+                # in lumibot.
+                if position.quantity != 0:
+                    self._filled_positions.append(position)
+
+        # Now iterate through lumibot positions.
+        # Remove lumibot position if not at the broker.
+        for position in self._filled_positions.get_list():
+            found = False
+            for position_broker in positions_broker:
+                if position_broker.asset == position.asset:
+                    found = True
+                    break
+            if not found and (not strategy or position.asset != strategy.quote_asset):
+                self._filled_positions.remove(position)
+
     # =========Market functions=======================
 
     def get_last_price(self, asset: Asset, quote=None, exchange=None) -> float:
@@ -685,7 +720,7 @@ class Broker(ABC):
         """get a tracked position given an asset and
         a strategy"""
         for position in self._filled_positions:
-            if position.asset == asset and position.strategy == strategy:
+            if position.asset == asset and (not strategy or position.strategy == strategy):
                 return position
         return None
 

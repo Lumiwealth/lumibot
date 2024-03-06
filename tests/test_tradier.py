@@ -213,9 +213,10 @@ class TestTradierBroker:
     def test_do_polling(self, mocker):
         broker = Tradier(account_number="1234", access_token="a1b2c3", paper=True, polling_interval=None)
         strategy = "strat_unittest"
-        mock_get_orders = mocker.patch.object(broker.tradier.orders, 'get_orders', return_value=pd.DataFrame())
+        mock_get_orders = mocker.patch.object(broker, '_pull_broker_all_orders', return_value=[])
         submit_response = {'id': 123, 'status': 'ok'}
         mock_submit_order = mocker.patch.object(broker.tradier.orders, 'order', return_value=submit_response)
+        mocker.patch.object(broker, 'sync_positions', return_value=None)
 
         # Test polling with no orders
         broker.do_polling()
@@ -251,7 +252,7 @@ class TestTradierBroker:
             "exec_quantity": 0,
             "tag": strategy,
         }
-        mock_get_orders.return_value = pd.DataFrame([first_response])
+        mock_get_orders.return_value = [first_response]
         broker.do_polling()
         sleep(0.25)  # Sleep gives a chance for order processing thread to finish
         known_orders = broker.get_tracked_orders(strategy=strategy)
@@ -298,7 +299,7 @@ class TestTradierBroker:
             "exec_quantity": 0,
             "tag": strategy,
         }
-        mock_get_orders.return_value = pd.DataFrame([first_response, second_response])
+        mock_get_orders.return_value = [first_response, second_response]
         broker.do_polling()
         sleep(0.25)  # Sleep gives a chance for order processing thread to finish
         known_orders = broker.get_tracked_orders(strategy=strategy)
@@ -315,7 +316,7 @@ class TestTradierBroker:
         first_response["status"] = "filled"
         first_response["avg_fill_price"] = 101.0
         first_response["exec_quantity"] = stock_qty
-        mock_get_orders.return_value = pd.DataFrame([first_response, second_response])
+        mock_get_orders.return_value = [first_response, second_response]
         broker.do_polling()
         sleep(0.25)  # Sleep gives a chance for order processing thread to finish
         known_orders = broker.get_tracked_orders(strategy=strategy)
@@ -333,7 +334,7 @@ class TestTradierBroker:
 
         # Cancel the 2nd order (stoploss)
         second_response["status"] = "canceled"
-        mock_get_orders.return_value = pd.DataFrame([first_response, second_response])
+        mock_get_orders.return_value = [first_response, second_response]
         broker.do_polling()
         sleep(0.25)  # Sleep gives a chance for order processing thread to finish
         known_orders = broker.get_tracked_orders(strategy=strategy)
@@ -384,7 +385,7 @@ class TestTradierBroker:
             "exec_quantity": 0,
             "tag": strategy,
         }
-        mock_get_orders.return_value = pd.DataFrame([first_response, second_response, third_response])
+        mock_get_orders.return_value = [first_response, second_response, third_response]
         broker.do_polling()
         sleep(0.25)  # Sleep gives a chance for order processing thread to finish
         known_orders = broker.get_tracked_orders(strategy=strategy)
@@ -409,7 +410,7 @@ class TestTradierBroker:
         assert len(broker.get_all_orders()) == 4, "Includes Filled/Cancelled orders"
 
         # Poll, but broker returns no info on the Lumibot order so it should be canceled.
-        mock_get_orders.return_value = pd.DataFrame([first_response, second_response, third_response])
+        mock_get_orders.return_value = [first_response, second_response, third_response]
         broker.do_polling()
         sleep(0.25)  # Sleep gives a chance for order processing thread to finish
         known_orders = broker.get_tracked_orders(strategy=strategy)
@@ -435,7 +436,7 @@ class TestTradierBroker:
             "exec_quantity": stock_qty,
             "tag": strategy,
         }
-        mock_get_orders.return_value = pd.DataFrame([first_response, second_response, third_response, fourth_response])
+        mock_get_orders.return_value = [first_response, second_response, third_response, fourth_response]
         broker.do_polling()
         sleep(0.25)  # Sleep gives a chance for order processing thread to finish
         known_orders = broker.get_tracked_orders(strategy=strategy)
@@ -448,7 +449,7 @@ class TestTradierBroker:
         assert not order.get_fill_price()
 
         # Poll again, order fill will now be processed
-        mock_get_orders.return_value = pd.DataFrame([first_response, second_response, third_response, fourth_response])
+        mock_get_orders.return_value = [first_response, second_response, third_response, fourth_response]
         broker.do_polling()
         sleep(0.25)  # Sleep gives a chance for order processing thread to finish
         known_orders = broker.get_tracked_orders(strategy=strategy)

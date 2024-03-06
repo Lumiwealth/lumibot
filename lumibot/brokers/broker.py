@@ -201,6 +201,14 @@ class Broker(ABC):
                 # Compare to existing lumi position.
                 if position_lumi.quantity != position.quantity:
                     position_lumi.quantity = position.quantity
+
+                # No current brokers have anyway to distinguish between strategies for an open position.
+                # Therefore, we will just update the strategy to the current strategy.
+                # This is added here because with initial polling, no strategy is set for the positions so we
+                # can create ones that have no strategy attached. This will ensure that all stored positions have a
+                # strategy with subsequent updates.
+                if strategy:
+                    position_lumi.strategy = strategy.name if not isinstance(strategy, str) else strategy
             else:
                 # Add to positions in lumibot, position does not exist
                 # in lumibot.

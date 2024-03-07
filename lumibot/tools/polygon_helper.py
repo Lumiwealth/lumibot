@@ -363,9 +363,9 @@ def update_cache(cache_file, df_all, missing_dates=None):
             df_concat = pd.concat([df_all, missing_df]).sort_index()
             # Let's be careful and check for duplicates to avoid corrupting the feather file.
             if df_concat.index.duplicated().any():
-                print(f"WARN: Duplicate index entries found in {cache_file}")
-                if df_all.index.duplicated():
-                    print("WARN: The duplicate index entries were already in df_all")
+                logging.warn(f"Duplicate index entries found when trying to update Polygon cache {cache_file}")
+                if df_all.index.duplicated().any():
+                    logging.warn("The duplicate index entries were already in df_all")
             else:
                 # All good, persist with the missing dates added
                 df_all = df_concat

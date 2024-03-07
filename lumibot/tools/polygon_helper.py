@@ -74,7 +74,7 @@ def get_price_data_from_polygon(
     if not missing_dates:
         # TODO: Do this upstream so we don't called repeatedly for known-to-be-missing bars.
         # Drop the rows with all NaN values that were added to the feather for symbols that have missing bars.
-        df_all.dropna(inplace=True)
+        df_all.dropna(how="all", inplace=True)
         return df_all
 
     # print(f"\nGetting pricing data for {asset} / {quote_asset} with '{timespan}' timespan from Polygon...")
@@ -147,7 +147,7 @@ def get_price_data_from_polygon(
 
     # TODO: Do this upstream so we don't have to reload feather repeatedly for known-to-be-missing bars.
     # Drop the rows with all NaN values that were added to the feather for symbols that have missing bars.
-    df_all.dropna(inplace=True)
+    df_all.dropna(how="all", inplace=True)
 
     return df_all
 

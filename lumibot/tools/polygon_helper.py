@@ -147,7 +147,8 @@ def get_price_data_from_polygon(
 
     # TODO: Do this upstream so we don't have to reload feather repeatedly for known-to-be-missing bars.
     # Drop the rows with all NaN values that were added to the feather for symbols that have missing bars.
-    df_all.dropna(how="all", inplace=True)
+    if df_all is not None:
+        df_all.dropna(how="all", inplace=True)
 
     return df_all
 

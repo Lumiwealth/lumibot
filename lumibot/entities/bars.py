@@ -171,7 +171,7 @@ class Bars:
         float
 
         """
-        return self.df["close"][-1]
+        return self.df["close"].iloc[-1]
 
     def get_last_dividend(self):
         """Return the last dividend of the last bar
@@ -185,7 +185,7 @@ class Bars:
         float
         """
         if "dividend" in self.df.columns:
-            return self.df["dividend"][-1]
+            return self.df["dividend"].iloc[-1]
         else:
             logging.debug("Unable to find 'dividend' column in bars")
             return 0
@@ -233,7 +233,7 @@ class Bars:
         if n_rows == 0:
             return 0
 
-        momentum = df_copy["close"].pct_change(n_rows - 1)[-1]
+        momentum = df_copy["close"].pct_change(n_rows - 1).iloc[-1]
         return momentum
 
     def get_total_volume(self, start=None, end=None):

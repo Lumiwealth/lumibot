@@ -29,11 +29,18 @@ def get_price_data_from_polygon(
     timespan: str = "minute",
     has_paid_subscription: bool = False,
     quote_asset: Asset = None,
+    force_cache_update: bool = False,
 ):
     """
     Queries Polygon.io for pricing data for the given asset and returns a DataFrame with the data. Data will be
     cached in the LUMIBOT_CACHE_FOLDER/polygon folder so that it can be reused later and we don't have to query
     Polygon.io every time we run a backtest.
+
+    If the Polygon respone has missing bars for a date, the missing bars will be added as empty (all NaN) rows
+    to the cache file to avoid querying Polygon for the same missing bars in the future.  Note that means if
+    a request is for a future time then we won't make a request to Polygon for it later when that data might
+    be available.  That should result in an error rather than missing data from Polygon, but just in case a
+    problem occurs and you want to ensure that the data is up to date, you can set force_cache_update=True.
 
     Parameters
     ----------
@@ -65,7 +72,7 @@ def get_price_data_from_polygon(
     # Check if we already have data for this asset in the feather file
     df_all = None
     cache_file = build_cache_filename(asset, timespan)
-    if cache_file.exists():
+    if cache_file.exists() and not force_cache_update:
         logging.debug(f"Loading pricing data for {asset} / {quote_asset} with '{timespan}' timespan from cache file...")
         df_all = load_cache(cache_file)
 
@@ -347,28 +354,41 @@ def load_cache(cache_file):
 
 
 def update_cache(cache_file, df_all, missing_dates=None):
-    """Update the cache file with the new data"""
-    # Check if df_all is different from df_feather (if df_feather exists)
-    if df_all is not None and len(df_all) > 0:
+    """Update the cache file with the new data.  Missing dates are added as empty (all NaN) 
+    rows before it is saved to the cache file.
+
+    Parameters
+    ----------
+    cache_file : Path
+        The path to the cache file
+    df_all : pd.DataFrame
+        The DataFrame with the data we want to cache
+    missing_dates : list[datetime.date]
+        A list of dates that are missing bars from Polygon"""
+
+    if df_all is None:
+        df_all = pd.DataFrame()
+
+    if missing_dates:
+        missing_df = pd.DataFrame(
+            [datetime(year=d.year, month=d.month, day=d.day, tzinfo=LUMIBOT_DEFAULT_PYTZ) for d in missing_dates],
+            columns=["datetime"])
+        missing_df.set_index("datetime", inplace=True)
+        # Set the timezone to UTC
+        missing_df.index = missing_df.index.tz_convert("UTC")
+        df_concat = pd.concat([df_all, missing_df]).sort_index()
+        # Let's be careful and check for duplicates to avoid corrupting the feather file.
+        if df_concat.index.duplicated().any():
+            logging.warn(f"Duplicate index entries found when trying to update Polygon cache {cache_file}")
+            if df_all.index.duplicated().any():
+                logging.warn("The duplicate index entries were already in df_all")
+        else:
+            # All good, persist with the missing dates added
+            df_all = df_concat
+
+    if len(df_all) > 0:
         # Create the directory if it doesn't exist
         cache_file.parent.mkdir(parents=True, exist_ok=True)
-
-        if missing_dates:
-            missing_df = pd.DataFrame(
-                [datetime(year=d.year, month=d.month, day=d.day, tzinfo=LUMIBOT_DEFAULT_PYTZ) for d in missing_dates],
-                columns=["datetime"])
-            missing_df.set_index("datetime", inplace=True)
-            # Set the timezone to UTC
-            missing_df.index = missing_df.index.tz_convert("UTC")
-            df_concat = pd.concat([df_all, missing_df]).sort_index()
-            # Let's be careful and check for duplicates to avoid corrupting the feather file.
-            if df_concat.index.duplicated().any():
-                logging.warn(f"Duplicate index entries found when trying to update Polygon cache {cache_file}")
-                if df_all.index.duplicated().any():
-                    logging.warn("The duplicate index entries were already in df_all")
-            else:
-                # All good, persist with the missing dates added
-                df_all = df_concat
 
         # Reset the index to convert DatetimeIndex to a regular column
         df_all_reset = df_all.reset_index()

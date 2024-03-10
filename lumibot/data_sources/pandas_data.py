@@ -146,7 +146,7 @@ class PandasData(DataSourceBacktesting):
         list of Asset
         """
         store_assets = self.get_assets()
-        if type is None:
+        if asset_type is None:
             return [asset for asset in store_assets if asset.symbol == symbol]
         else:
             return [asset for asset in store_assets if (asset.symbol == symbol and asset.asset_type == asset_type)]

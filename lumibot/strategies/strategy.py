@@ -1,6 +1,5 @@
 import datetime
 import io
-import logging
 import os
 import time
 import uuid
@@ -29,7 +28,6 @@ matplotlib.use("Agg")
 
 # Set the stats table name for when storing stats in a database, defined by account_history_db_connection_str
 STATS_TABLE_NAME = "strategy_tracker"
-
 
 class Strategy(_Strategy):
     @property
@@ -365,12 +363,10 @@ class Strategy(_Strategy):
         >>> self.log_message('Sending a buy order')
         """
         if color is not None:
-            colored_message = f"{self._log_strat_name()}: {message}"
             colored_message = colored(message, color)
-            logging.info(colored_message)
+            self.logger.info(colored_message)
         else:
-            output_message = f"{self._log_strat_name()}: {message}"
-            logging.info(output_message)
+            self.logger.info(message)
 
         if broadcast:
             # Send the message to Discord
@@ -1489,7 +1485,7 @@ class Strategy(_Strategy):
         """
 
         if order is None:
-            logging.error(
+            self.logger.error(
                 "Cannot submit a None order, please check to make sure that you have actually created an order before submitting."
             )
             return
@@ -1859,7 +1855,7 @@ class Strategy(_Strategy):
 
         # Check if the asset is valid
         if asset is None or (type(asset) == Asset and asset.is_valid() is False):
-            logging.error(
+            self.logger.error(
                 f"Asset in get_last_price() must be a valid asset. Got {asset} of type {type(asset)}. You may be missing some of the required parameters for the asset type (eg. strike price for options, expiry for options/futures, etc)."
             )
             return None
@@ -2918,7 +2914,7 @@ class Strategy(_Strategy):
         if quote is None:
             quote = self.quote_asset
 
-        logging.info(f"Getting historical prices for {asset}, {length} bars, {timestep}")
+        self.logger.info(f"Getting historical prices for {asset}, {length} bars, {timestep}")
 
         asset = self._sanitize_user_asset(asset)
 
@@ -3031,7 +3027,7 @@ class Strategy(_Strategy):
         >>> df = bars.df
         """
 
-        logging.info(f"Getting historical prices for {assets}, {length} bars, {timestep}")
+        self.logger.info(f"Getting historical prices for {assets}, {length} bars, {timestep}")
 
         assets = [self._sanitize_user_asset(asset) for asset in assets]
         return self.broker.data_source.get_bars(
@@ -3682,13 +3678,13 @@ class Strategy(_Strategy):
         # Check if the message is empty
         if message == "" or message is None:
             # If the message is empty, log and return
-            logging.debug("The discord message is empty. Please provide a message to send to Discord.")
+            self.logger.debug("The discord message is empty. Please provide a message to send to Discord.")
             return
 
         # Check if the discord webhook URL is set
         if self.discord_webhook_url is None:
             # If the webhook URL is not set, log and return
-            logging.debug(
+            self.logger.debug(
                 "The discord webhook URL is not set. Please set the discord_webhook_url parameter in the strategy \
                 initialization if you want to send messages to Discord."
             )
@@ -3720,10 +3716,10 @@ class Strategy(_Strategy):
 
         # Check if the message was sent successfully
         if response.status_code == 200 or response.status_code == 204:
-            print("Discord message sent successfully.")
+            self.logger.info("Discord message sent successfully.")
         else:
-            print(
-                f"ERROR: Failed to send message to Discord. Status code: {response.status_code}, message: {response.text}"
+            self.logger.error(
+                f"Failed to send message to Discord. Status code: {response.status_code}, message: {response.text}"
             )
 
     def send_spark_chart_to_discord(self, stats_df, portfolio_value, now):
@@ -3842,7 +3838,7 @@ class Strategy(_Strategy):
 
             # Make sure last_price is a number
             if last_price is None or not isinstance(last_price, (int, float, Decimal)):
-                logging.info(f"Last price for {position.asset} is not a number: {last_price}")
+                self.logger.info(f"Last price for {position.asset} is not a number: {last_price}")
                 continue
 
             # Calculate teh value of the position

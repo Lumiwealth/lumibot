@@ -54,6 +54,7 @@ class _Strategy:
         discord_webhook_url=None,
         account_history_db_connection_str=None,
         strategy_id=None,
+        discord_account_summary_footer=None,
         **kwargs,
     ):
         """Initializes a Strategy object.
@@ -116,6 +117,10 @@ class _Strategy:
             must be set for this to work). Defaults to None (no discord alerts).
             For instructions on how to create a discord webhook url, see this link:
             https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks
+        discord_account_summary_footer : str
+            The footer to use for the account summary sent to the discord channel if discord_webhook_url is set and the
+            account_history_db_connection_str is set.
+            Defaults to None (no footer).
         account_history_db_connection_str : str
             The connection string to use for the account history database. This is used to store the account history
             for the strategy. The account history is sent to the discord channel at the end of each day. The connection
@@ -172,6 +177,7 @@ class _Strategy:
 
         self.discord_webhook_url = discord_webhook_url
         self.account_history_db_connection_str = account_history_db_connection_str
+        self.discord_account_summary_footer = discord_account_summary_footer
 
         if strategy_id is None:
             self.strategy_id = self._name

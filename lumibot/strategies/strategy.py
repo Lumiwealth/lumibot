@@ -3887,6 +3887,10 @@ class Strategy(_Strategy):
         # Remove the extra spaces at the beginning of each line
         message = "\n".join(line.lstrip() for line in message.split("\n"))
 
+        # Add self.discord_account_summary_footer to the message
+        if hasattr(self, "discord_account_summary_footer") and self.discord_account_summary_footer is not None:
+            message += f"{self.discord_account_summary_footer}\n\n"
+
         # Add powered by Lumiwealth to the message
         message += "[**Powered by 💡 Lumiwealth**](<https://lumiwealth.com>)\n-----------"
 

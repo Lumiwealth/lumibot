@@ -1,22 +1,31 @@
 import datetime
 import logging
-import os
 import warnings
 from asyncio.log import logger
 from decimal import Decimal
 
-import jsonpickle
 import pandas as pd
+
 from lumibot.backtesting import BacktestingBroker, PolygonDataBacktesting
 from lumibot.entities import Asset, Position
-from lumibot.tools import (create_tearsheet, day_deduplicate,
-                           get_risk_free_rate, get_symbol_returns,
-                           plot_indicators, plot_returns, stats_summary,
-                           to_datetime_aware)
+from lumibot.tools import (
+    create_tearsheet,
+    day_deduplicate,
+    get_symbol_returns,
+    plot_indicators,
+    plot_returns,
+    stats_summary,
+    to_datetime_aware,
+)
 from lumibot.traders import Trader
 
 from .strategy_executor import StrategyExecutor
 
+
+class CustomLoggerAdapter(logging.LoggerAdapter):
+    def process(self, msg, kwargs):
+        # Use an f-string for formatting
+        return f'[{self.extra["strategy_name"]}] {msg}', kwargs
 
 class _Strategy:
     IS_BACKTESTABLE = True
@@ -158,6 +167,9 @@ class _Strategy:
         if self._name is None:
             self._name = self.__class__.__name__
 
+        # Create an adapter with 'strategy_name' set to the instance's name
+        self.logger = CustomLoggerAdapter(logger, {'strategy_name': self._name})
+
         self.discord_webhook_url = discord_webhook_url
         self.account_history_db_connection_str = account_history_db_connection_str
 
@@ -290,7 +302,7 @@ class _Strategy:
                     result[key] = self.__dict__[key]
                 except KeyError:
                     pass
-                    # logging.warning(
+                    # self.logger.warning(
                     #     "Cannot perform deepcopy on %r" % self.__dict__[key]
                     # )
             elif key in [
@@ -637,9 +649,9 @@ class _Strategy:
         if not show_plot:
             return
         elif self._strategy_returns_df is None:
-            logging.warning("Cannot plot returns because the strategy returns are missing")
+            self.logger.warning("Cannot plot returns because the strategy returns are missing")
         elif self._benchmark_returns_df is None:
-            logging.warning("Cannot plot returns because the benchmark returns are missing")
+            self.logger.warning("Cannot plot returns because the benchmark returns are missing")
         else:
             plot_returns(
                 self._strategy_returns_df,
@@ -665,7 +677,7 @@ class _Strategy:
             save_tearsheet = True
 
         if self._strategy_returns_df is None:
-            logging.warning("Cannot create a tearsheet because the strategy returns are missing")
+            self.logger.warning("Cannot create a tearsheet because the strategy returns are missing")
         else:
             strat_name = self._name if self._name is not None else "Strategy"
             create_tearsheet(

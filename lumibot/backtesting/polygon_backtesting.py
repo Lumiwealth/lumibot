@@ -174,14 +174,11 @@ class PolygonDataBacktesting(PandasData):
             logging.error(traceback.format_exc())
             raise Exception("Error getting data from Polygon") from e
 
-        if df is None:
+        if (df is None) or df.empty:
             return
 
         data = Data(asset_separated, df, timestep=ts_unit, quote=quote_asset)
         pandas_data_update = self._set_pandas_data_keys([data])
-
-        if pandas_data_update is None:
-            return
 
         # Add the keys to the self.pandas_data dictionary
         self.pandas_data.update(pandas_data_update)

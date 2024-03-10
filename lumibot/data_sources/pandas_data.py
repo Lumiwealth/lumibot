@@ -67,7 +67,7 @@ class PandasData(DataSourceBacktesting):
 
     def enforce_storage_limit(self, pandas_data: OrderedDict):
         storage_used = sum([data.df.memory_usage().sum() for data in pandas_data.values()])
-        logging.info(f"{storage_used = }")
+        logging.info(f"{storage_used = :,} bytes for {len(pandas_data)} items")
         while storage_used > self.MAX_STORAGE_BYTES:
             k, d = pandas_data.popitem(last=False)
             mu = d.df.memory_usage().sum()

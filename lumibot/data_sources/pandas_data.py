@@ -7,6 +7,8 @@ from lumibot.data_sources import DataSourceBacktesting
 from lumibot.entities import Asset, AssetsMapping, Bars
 
 
+MAX_STORAGE_BYTES = 1_000_000_000  # 1 GB
+
 class PandasData(DataSourceBacktesting):
     """
     PandasData is a Backtesting-only DataSource that uses a Pandas DataFrame (read from CSV) as the source of
@@ -18,8 +20,6 @@ class PandasData(DataSourceBacktesting):
         {"timestep": "day", "representations": ["1D", "day"]},
         {"timestep": "minute", "representations": ["1M", "minute"]},
     ]
-
-    MAX_STORAGE_BYTES = 1_000_000_000  # 1 GB
 
     def __init__(self, *args, pandas_data=None, auto_adjust=True, **kwargs):
         super().__init__(*args, **kwargs)
@@ -65,10 +65,11 @@ class PandasData(DataSourceBacktesting):
 
         return new_pandas_data
 
-    def enforce_storage_limit(self, pandas_data: OrderedDict):
+    @staticmethod
+    def _enforce_storage_limit(pandas_data: OrderedDict):
         storage_used = sum([data.df.memory_usage().sum() for data in pandas_data.values()])
         logging.info(f"{storage_used = :,} bytes for {len(pandas_data)} items")
-        while storage_used > self.MAX_STORAGE_BYTES:
+        while storage_used > MAX_STORAGE_BYTES:
             k, d = pandas_data.popitem(last=False)
             mu = d.df.memory_usage().sum()
             storage_used -= mu

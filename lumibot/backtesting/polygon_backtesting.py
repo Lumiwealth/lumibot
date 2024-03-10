@@ -183,11 +183,11 @@ class PolygonDataBacktesting(PandasData):
         # Add the keys to the self.pandas_data dictionary
         self.pandas_data.update(pandas_data_update)
         # Don't let memory usage get out of control
-        self.enforce_storage_limit(self.pandas_data)
+        self._enforce_storage_limit(self.pandas_data)
         if update_data_store:
             # TODO: Why do we have both self.pandas_data and self._data_store?
             self._data_store.update(pandas_data_update)
-            self.enforce_storage_limit(self._data_store)
+            self._enforce_storage_limit(self._data_store)
 
     def _pull_source_symbol_bars(
         self,

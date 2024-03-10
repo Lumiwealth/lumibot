@@ -19,6 +19,8 @@ class PandasData(DataSourceBacktesting):
         {"timestep": "minute", "representations": ["1M", "minute"]},
     ]
 
+    MAX_STORAGE_BYTES = 1_000_000_000  # 1 GB
+
     def __init__(self, *args, pandas_data=None, auto_adjust=True, **kwargs):
         super().__init__(*args, **kwargs)
         self.name = "pandas"
@@ -64,6 +66,13 @@ class PandasData(DataSourceBacktesting):
         return new_pandas_data
 
     def enforce_storage_limit(self, pandas_data: OrderedDict):
+        storage_used = sum([data.df.memory_usage().sum() for data in pandas_data.values()])
+        logging.info(f"{storage_used = }")
+        while storage_used > self.MAX_STORAGE_BYTES:
+            k, d = pandas_data.popitem(last=False)
+            mu = d.df.memory_usage().sum()
+            storage_used -= mu
+            logging.info(f"Storage limit exceeded. Evicted LRU data: {k} used {mu:,} bytes")
         return
     
     def load_data(self):

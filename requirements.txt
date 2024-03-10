@@ -21,7 +21,7 @@ scipy==1.10.1  # Newer versions of scipy are currently causing issues
 ipython  # required for quantstats, but not in their dependency list for some reason
 quantstats-lumi
 python-dotenv  # Secret Storage
-ccxt
+ccxt==4.2.22
 termcolor
 jsonpickle
 apscheduler

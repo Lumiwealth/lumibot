@@ -47,6 +47,7 @@ class Broker(ABC):
         self._config = config
         self.data_source = data_source
         self.max_workers = min(max_workers, 200)
+        self.quote_assets = set()  # Quote positions will never be removed from tracking during sync operations
 
         if self.data_source is None:
             raise ValueError("Broker must have a data source")
@@ -181,6 +182,49 @@ class Broker(ABC):
         TODO: Fill in with the expected output of this function.
         """
         pass
+
+    def sync_positions(self, strategy):
+        """
+        Sync the broker positions with the lumibot positions. Remove any lumibot positions that are not at the broker.
+        """
+        positions_broker = self._pull_positions(strategy)
+        for position in positions_broker:
+            # Check against existing position.
+            position_lumi = [
+                pos_lumi
+                for pos_lumi in self._filled_positions.get_list()
+                if pos_lumi.asset == position.asset
+            ]
+            position_lumi = position_lumi[0] if len(position_lumi) > 0 else None
+
+            if position_lumi:
+                # Compare to existing lumi position.
+                if position_lumi.quantity != position.quantity:
+                    position_lumi.quantity = position.quantity
+
+                # No current brokers have anyway to distinguish between strategies for an open position.
+                # Therefore, we will just update the strategy to the current strategy.
+                # This is added here because with initial polling, no strategy is set for the positions so we
+                # can create ones that have no strategy attached. This will ensure that all stored positions have a
+                # strategy with subsequent updates.
+                if strategy:
+                    position_lumi.strategy = strategy.name if not isinstance(strategy, str) else strategy
+            else:
+                # Add to positions in lumibot, position does not exist
+                # in lumibot.
+                if position.quantity != 0:
+                    self._filled_positions.append(position)
+
+        # Now iterate through lumibot positions.
+        # Remove lumibot position if not at the broker.
+        for position in self._filled_positions.get_list():
+            found = False
+            for position_broker in positions_broker:
+                if position_broker.asset == position.asset:
+                    found = True
+                    break
+            if not found and (position.asset not in self.quote_assets):
+                self._filled_positions.remove(position)
 
     # =========Market functions=======================
 
@@ -464,18 +508,16 @@ class Broker(ABC):
         order.add_transaction(price, quantity)
         order.status = self.PARTIALLY_FILLED_ORDER
         order.set_partially_filled()
+        if order not in self._partially_filled_orders:
+            self._partially_filled_orders.append(order)
 
         position = self.get_tracked_position(order.strategy, order.asset)
         if position is None:
             # Create new position for this given strategy and asset
             position = order.to_position(quantity)
-            self._filled_positions.append(position)
         else:
             # Add the order to the already existing position
-            position.add_order(order, quantity)
-
-        if order not in self._partially_filled_orders:
-            self._partially_filled_orders.append(order)
+            position.add_order(order)
 
         if order.asset.asset_type == "crypto":
             self._process_crypto_quote(order, quantity, price)
@@ -503,13 +545,9 @@ class Broker(ABC):
         if position is None:
             # Create new position for this given strategy and asset
             position = order.to_position(quantity)
-            self._filled_positions.append(position)
         else:
             # Add the order to the already existing position
-            position.add_order(order, quantity)
-            if position.quantity == 0:
-                logging.info("Position %r liquidated" % position)
-                self._filled_positions.remove(position)
+            position.add_order(order)  # Don't update quantity here, it's handled by querying broker
 
         if order.asset.asset_type == "crypto":
             self._process_crypto_quote(order, quantity, price)
@@ -536,10 +574,7 @@ class Broker(ABC):
         position = self.get_tracked_position(order.strategy, order.asset)
         if position is not None:
             # Add the order to the already existing position
-            position.add_order(order, quantity)
-            if position.quantity == 0:
-                logging.info("Position %r liquidated" % position)
-                self._filled_positions.remove(position)
+            position.add_order(order)  # Don't update quantity here, it's handled by querying broker
 
     def _process_crypto_quote(self, order, quantity, price):
         """Used to process the quote side of a crypto trade."""
@@ -694,7 +729,7 @@ class Broker(ABC):
         """get a tracked position given an asset and
         a strategy"""
         for position in self._filled_positions:
-            if position.asset == asset and position.strategy == strategy:
+            if position.asset == asset and (not strategy or position.strategy == strategy):
                 return position
         return None
 
@@ -1006,7 +1041,7 @@ class Broker(ABC):
             position = self._process_filled_order(stored_order, price, filled_quantity)
             self._on_filled_order(position, stored_order, price, filled_quantity, multiplier)
         elif type_event == self.CASH_SETTLED:
-            position = self._process_cash_settlement(stored_order, price, filled_quantity)
+            self._process_cash_settlement(stored_order, price, filled_quantity)
             stored_order.type = self.CASH_SETTLED
         else:
             logging.info(f"Unhandled type event {type_event} for {stored_order}")

@@ -57,8 +57,7 @@ class Position:
             self.orders = orders
 
     def __repr__(self):
-        repr = "%f shares of %s" % (self.quantity, self.asset)
-        return repr
+        return f"{self.strategy} Position: {self.quantity} shares of {self.asset} ({len(self.orders)} orders)"
 
     @property
     def quantity(self):
@@ -151,7 +150,7 @@ class Position:
             )
         return order
 
-    def add_order(self, order: entities.Order, quantity: Decimal):
+    def add_order(self, order: entities.Order, quantity: Decimal = Decimal(0)):
         increment = quantity if order.side == "buy" else -quantity
         self._quantity += Decimal(increment)
         if order not in self.orders:

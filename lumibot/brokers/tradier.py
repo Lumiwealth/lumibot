@@ -203,7 +203,7 @@ class Tradier(Broker):
 
             # Create the position
             position = Position(
-                strategy=strategy.name,
+                strategy=strategy.name if strategy else "Unknown",
                 asset=asset,
                 quantity=quantity,
             )
@@ -368,18 +368,22 @@ class Tradier(Broker):
         This function is called every time the broker polls for new orders. It checks for new orders and
         dispatches them to the stream for processing.
         """
-        # Get current orders from the broker and dispatch them to the stream for processing. Need to see all
+        # Pull the current Tradier positions and sync them with Lumibot's positions
+        self.sync_positions(None)
+
+        # Get current orders from Tradier and dispatch them to the stream for processing. Need to see all
         # lumi orders (not just active "tracked" ones) to catch any orders that might have changed final
         # status in Tradier.
-        df_orders = self.tradier.orders.get_orders()
+        # df_orders = self.tradier.orders.get_orders()
+        raw_orders = self._pull_broker_all_orders()
         stored_orders = {x.identifier: x for x in self.get_all_orders()}
-        for order_row in df_orders.to_dict("records"):
+        for order_row in raw_orders:
             order = self._parse_broker_order(order_row, strategy_name=order_row.get("tag"))
 
             # First time seeing this order, something weird has happened, dispatch it as a new order
             if order.identifier not in stored_orders:
                 logging.info(
-                    f"Poll Update: Tradier has order {order}, but Lumibot doesn't know about it. "
+                    f"Poll Update: {self.name} has order {order}, but Lumibot doesn't know about it. "
                     f"Adding it as a new order."
                 )
                 # If the Tradier status is not "open", the next polling cycle will catch it and dispatch it as needed.
@@ -410,7 +414,7 @@ class Tradier(Broker):
                         case "canceled":
                             self.stream.dispatch(self.CANCELED_ORDER, order=stored_order)
                         case "error":
-                            default_msg = f"Tradier encountered an error with order {order.identifier} | {order}"
+                            default_msg = f"{self.name} encountered an error with order {order.identifier} | {order}"
                             msg = order_row["reason_description"] if "reason_description" in order_row else default_msg
                             self.stream.dispatch(self.ERROR_ORDER, order=stored_order, error_msg=msg)
                         case "cash_settled":
@@ -428,10 +432,12 @@ class Tradier(Broker):
         # See if there are any tracked (aka active) orders that are no longer in the broker's list,
         # dispatch them as cancelled
         tracked_orders = {x.identifier: x for x in self.get_tracked_orders()}
+        broker_ids = [o["id"] for o in raw_orders]
         for order_id, order in tracked_orders.items():
-            if order_id not in df_orders["id"].values:
+            if order_id not in broker_ids:
                 logging.info(
-                    f"Poll Update: Tradier no longer has order {order}, but Lumibot does. " f"Dispatching as cancelled."
+                    f"Poll Update: {self.name} no longer has order {order}, but Lumibot does. " 
+                    f"Dispatching as cancelled."
                 )
                 self.stream.dispatch(self.CANCELED_ORDER, order=order)
 

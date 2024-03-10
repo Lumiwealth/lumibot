@@ -167,6 +167,7 @@ class _Strategy:
             self.strategy_id = strategy_id
 
         self._quote_asset = quote_asset
+        self.broker.quote_assets.add(self._quote_asset)
 
         # Setting the broker object
         self._is_backtesting = self.broker.IS_BACKTESTING_BROKER

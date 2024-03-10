@@ -268,6 +268,11 @@ class Data:
             )
         return df
 
+    # ./lumibot/build/__editable__.lumibot-3.1.14-py3-none-any/lumibot/entities/data.py:280: 
+    # FutureWarning: Downcasting object dtype arrays on .fillna, .ffill, .bfill is deprecated and will change in a future version. 
+    # Call result.infer_objects(copy=False) instead.
+    # To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)`
+
     def repair_times_and_fill(self, idx):
         # Trim the global index so that it is within the local data.
         idx = idx[(idx >= self.datetime_start) & (idx <= self.datetime_end)]

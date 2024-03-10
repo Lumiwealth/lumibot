@@ -75,6 +75,7 @@ class Strategy(_Strategy):
     @quote_asset.setter
     def quote_asset(self, value):
         self._quote_asset = value
+        self.broker.quote_assets.add(value)
 
     @property
     def last_on_trading_iteration_datetime(self):

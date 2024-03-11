@@ -8,7 +8,8 @@ import pandas as pd
 import pandas_market_calendars as mcal
 
 # noinspection PyPackageRequirements
-from polygon import RESTClient, HTTPResponse
+from polygon import RESTClient
+from typing import Iterator
 from termcolor import colored
 from tqdm import tqdm
 
@@ -72,7 +73,8 @@ def get_price_data_from_polygon(
     # Check if we already have data for this asset in the feather file
     cache_file = build_cache_filename(asset, timespan)
     # Check whether it might be stale because of splits.
-    force_cache_update = validate_cache(asset, force_cache_update, cache_file, api_key)
+    force_cache_update = validate_cache(force_cache_update, asset, cache_file, api_key)
+
     df_all = None
     # Load from the cache file if it exists.  
     if cache_file.exists() and not force_cache_update:
@@ -163,31 +165,41 @@ def get_price_data_from_polygon(
     return df_all
 
 
-def validate_cache(asset: Asset, force_cache_update: bool, cache_file: Path, api_key: str):
-    if asset.type == Asset.AssetType.STOCK:
-        # Get the splits data from Polygon once per day.
-        # So if the splits file wasn't updated today, then we should check it.
-        cached_splits = pd.DataFrame()
-        splits_file_stale = True
-        splits_file_path = Path(str(cache_file).rpartition(".feather")[0] + "_splits.feather")
-        if splits_file_path.exists():
-            splits_file_stale = datetime.fromtimestamp(splits_file_path.stat().st_mtime).date() < date.today()
-            if splits_file_stale:
-                cached_splits = pd.read_feather(splits_file_path)
+def validate_cache(force_cache_update: bool, asset: Asset, cache_file: Path, api_key: str):
+    """
+    If the list of splits for a stock have changed then we need to invalidate its cache
+    because all of the prices will have changed (because we're using split adjusted prices).
+    Get the splits data from Polygon only once per day per stock.
+    Use the timestamp on the splits feather file to determine if we need to get the splits again.
+    When invalidating we delete the cache file and return force_cache_update=True too.
+    """
+    if asset.asset_type != Asset.AssetType.STOCK:
+        return force_cache_update
+    cached_splits = pd.DataFrame()
+    splits_file_stale = True
+    splits_file_path = Path(str(cache_file).rpartition(".feather")[0] + "_splits.feather")
+    if splits_file_path.exists():
+        splits_file_stale = datetime.fromtimestamp(splits_file_path.stat().st_mtime).date() != date.today()
         if splits_file_stale:
-            polygon_client = RESTClient(api_key)
-            splits = polygon_client.list_splits(ticker=asset.symbol)
-            if isinstance(splits, HTTPResponse):
-                logging.warn(f"Error getting splits for {asset.symbol} from Polygon.  Response: {splits}")
+            cached_splits = pd.read_feather(splits_file_path)
+    if splits_file_stale:
+        polygon_client = RESTClient(api_key)
+        splits = polygon_client.list_splits(ticker=asset.symbol)
+        if isinstance(splits, Iterator):
+            # Convert the generator to a list so DataFrame will make a row per item.
+            splits_df = pd.DataFrame(list(splits))
+            if splits_file_path.exists() and cached_splits.eq(splits_df).all().all():
+                # No need to rewrite contents.  Just update the timestamp.
+                splits_file_path.touch()
             else:
-                splits_df = pd.DataFrame(splits)
-                if cached_splits.eq(splits_df):
-                    splits_file_path.touch()  # Update the timestamp so we don't check again today
-                else:
-                    logging.info(f"Invalidating cache for {asset.symbol} because its splits have changed.")
-                    cache_file.unlink(missing_ok=True)
-                    force_cache_update = True
-                    splits_df.to_feather(splits_file_path)
+                logging.info(f"Invalidating cache for {asset.symbol} because its splits have changed.")
+                force_cache_update = True
+                cache_file.unlink(missing_ok=True)
+                # Create the directory if it doesn't exist
+                cache_file.parent.mkdir(parents=True, exist_ok=True)
+                splits_df.to_feather(splits_file_path)
+        else:
+            logging.warn(f"Unexpected response getting splits for {asset.symbol} from Polygon.  Response: {splits}")
     return force_cache_update
 
 

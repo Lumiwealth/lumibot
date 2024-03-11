@@ -1855,7 +1855,7 @@ class Strategy(_Strategy):
         """
 
         # Check if the asset is valid
-        if asset is None or (type(asset) == Asset and asset.is_valid() is False):
+        if asset is None or (isinstance(asset, Asset) and not asset.is_valid()):
             self.logger.error(
                 f"Asset in get_last_price() must be a valid asset. Got {asset} of type {type(asset)}. You may be missing some of the required parameters for the asset type (eg. strike price for options, expiry for options/futures, etc)."
             )

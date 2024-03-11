@@ -184,7 +184,8 @@ def validate_cache(force_cache_update: bool, asset: Asset, cache_file: Path, api
             cached_splits = pd.read_feather(splits_file_path)
     if splits_file_stale:
         polygon_client = RESTClient(api_key)
-        splits = polygon_client.list_splits(ticker=asset.symbol)
+        # Need to get the splits in execution order to make the list comparable across invocations.
+        splits = polygon_client.list_splits(ticker=asset.symbol, sort="execution_date", order="asc")
         if isinstance(splits, Iterator):
             # Convert the generator to a list so DataFrame will make a row per item.
             splits_df = pd.DataFrame(list(splits))

@@ -182,7 +182,7 @@ def validate_cache(force_cache_update: bool, asset: Asset, cache_file: Path, api
         splits_file_stale = datetime.fromtimestamp(splits_file_path.stat().st_mtime).date() != date.today()
         if splits_file_stale:
             cached_splits = pd.read_feather(splits_file_path)
-    if splits_file_stale:
+    if splits_file_stale or force_cache_update:
         polygon_client = RESTClient(api_key)
         # Need to get the splits in execution order to make the list comparable across invocations.
         splits = polygon_client.list_splits(ticker=asset.symbol, sort="execution_date", order="asc")

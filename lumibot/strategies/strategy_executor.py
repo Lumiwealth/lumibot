@@ -1,5 +1,4 @@
 import inspect
-import logging
 import time
 import traceback
 from datetime import datetime, timedelta
@@ -12,6 +11,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from termcolor import colored
 
+from lumibot.entities import Asset
 from lumibot.tools import append_locals, get_trading_days, staticdecorator
 
 
@@ -104,11 +104,11 @@ class StrategyExecutor(Thread):
             # Snapshot for the broker and lumibot:
             cash_broker = self.broker._get_balances_at_broker(self.strategy.quote_asset)
             if cash_broker is None and cash_broker_retries < cash_broker_max_retries:
-                logging.info("Unable to get cash from broker, trying again.")
+                self.strategy.logger.info("Unable to get cash from broker, trying again.")
                 cash_broker_retries += 1
                 continue
             elif cash_broker is None and cash_broker_retries >= cash_broker_max_retries:
-                logging.info(
+                self.strategy.logger.info(
                     f"Unable to get the cash balance after {cash_broker_max_retries} "
                     f"tries, setting cash to zero."
                 )
@@ -118,9 +118,6 @@ class StrategyExecutor(Thread):
 
             if cash_broker is not None:
                 self.strategy._set_cash_position(cash_broker)
-
-            positions_broker = self.broker._pull_positions(self.strategy)
-            orders_broker = self.broker._pull_all_orders(self.name, self.strategy)
 
             held_trades_len = len(self.broker._held_trades)
             if held_trades_len > 0:
@@ -132,37 +129,10 @@ class StrategyExecutor(Thread):
         # Update Lumibot positions to match broker positions.
         # Any new trade notifications will not affect the sync as they
         # are being held pending the completion of the sync.
-        for position in positions_broker:
-            # Check against existing position.
-            position_lumi = [
-                pos_lumi
-                for pos_lumi in self.broker._filled_positions.get_list()
-                if pos_lumi.asset == position.asset
-            ]
-            position_lumi = position_lumi[0] if len(position_lumi) > 0 else None
-
-            if position_lumi:
-                # Compare to existing lumi position.
-                if position_lumi.quantity != position.quantity:
-                    position_lumi.quantity = position.quantity
-            else:
-                # Add to positions in lumibot, position does not exist
-                # in lumibot.
-                if position.quantity != 0:
-                    self.broker._filled_positions.append(position)
-
-        # Now iterate through lumibot positions.
-        # Remove lumibot position if not at the broker.
-        for position in self.broker._filled_positions.get_list():
-            found = False
-            for position_broker in positions_broker:
-                if position_broker.asset == position.asset:
-                    found = True
-                    break
-            if not found and position.asset != self.strategy.quote_asset:
-                self.broker._filled_positions.remove(position)
+        self.broker.sync_positions(self.strategy)
 
         # ORDERS
+        orders_broker = self.broker._pull_all_orders(self.name, self.strategy)
         if len(orders_broker) > 0:
             orders_lumi = self.broker.get_all_orders()
 
@@ -186,7 +156,7 @@ class StrategyExecutor(Thread):
                         obroker = getattr(order, order_attr)
                         if olumi != obroker:
                             setattr(order_lumi, order_attr, obroker)
-                            logging.warning(
+                            self.strategy.logger.warning(
                                 f"We are adjusting the {order_attr} of the order {order_lumi}, from {olumi} "
                                 f"to be {obroker} because what we have in memory does not match the broker."
                             )
@@ -201,7 +171,7 @@ class StrategyExecutor(Thread):
                     # However, active orders should not be dropped as they are still in effect and if they can't
                     # be found in the broker, they should be canceled because something went wrong.
                     if order_lumi.is_active():
-                        logging.info(
+                        self.strategy.logger.info(
                             f"Cannot find order {order_lumi} (id={order_lumi.identifier}) in broker "
                             f"(bkr cnt={len(orders_broker)}), canceling."
                         )
@@ -371,30 +341,41 @@ class StrategyExecutor(Thread):
         on_trading_iteration = append_locals(self.strategy.on_trading_iteration)
 
         # Time-consuming
-        on_trading_iteration()
+        try:
+            on_trading_iteration()
 
-        self.strategy._first_iteration = False
-        self._strategy_context = on_trading_iteration.locals
-        self.strategy._last_on_trading_iteration_datetime = datetime.now()
-        self.process_queue()
+            self.strategy._first_iteration = False
+            self._strategy_context = on_trading_iteration.locals
+            self.strategy._last_on_trading_iteration_datetime = datetime.now()
+            self.process_queue()
 
-        end_dt = datetime.now()
-        end_str = end_dt.strftime("%Y-%m-%d %H:%M:%S")
-        runtime = (end_dt - start_dt).total_seconds()
+            end_dt = datetime.now()
+            end_str = end_dt.strftime("%Y-%m-%d %H:%M:%S")
+            runtime = (end_dt - start_dt).total_seconds()
 
-        # Update cron count to account for how long this iteration took to complete so that the next iteration will
-        # occur at the correct time.
-        self.cron_count = self._seconds_to_sleeptime_count(int(runtime), sleep_units)
-        next_run_time = self.get_next_ap_scheduler_run_time()
-        if next_run_time is not None:
-            # Format the date to be used in the log message.
-            dt_str = next_run_time.strftime("%Y-%m-%d %H:%M:%S")
+            # Update cron count to account for how long this iteration took to complete so that the next iteration will
+            # occur at the correct time.
+            self.cron_count = self._seconds_to_sleeptime_count(int(runtime), sleep_units)
+            next_run_time = self.get_next_ap_scheduler_run_time()
+            if next_run_time is not None:
+                # Format the date to be used in the log message.
+                dt_str = next_run_time.strftime("%Y-%m-%d %H:%M:%S")
+                self.strategy.log_message(
+                    f"Trading iteration ended at {end_str}, next check in time is {dt_str}. Took {runtime:.2f}s", color="blue"
+                )
+
+            else:
+                self.strategy.log_message(f"Trading iteration ended at {end_str}", color="blue")
+        except Exception as e:
+            # Log the error
             self.strategy.log_message(
-                f"Trading iteration ended at {end_str}, next check in time is {dt_str}. Took {runtime:.2f}s", color="blue"
+                f"An error occurred during the on_trading_iteration lifecycle method: {e}", color="red"
             )
 
-        else:
-            self.strategy.log_message(f"Trading iteration ended at {end_str}", color="blue")
+            # Log the traceback
+            self.strategy.log_message(traceback.format_exc(), color="red")
+
+            self._on_bot_crash(e)
 
     @lifecycle_method
     def _before_market_closes(self):
@@ -450,8 +431,15 @@ class StrategyExecutor(Thread):
         # Get the portfolio value
         portfolio_value = self.strategy.get_portfolio_value()
 
-        # Calculate the percent of the portfolio that this order represents
-        percent_of_portfolio = (price * float(quantity)) / portfolio_value
+        # Calculate the value of the position
+        order_value = price * float(quantity)
+
+        # If option, multiply % of portfolio by 100
+        if order.asset.asset_type == Asset.AssetType.OPTION:
+            order_value = order_value * 100
+
+        # Calculate the percent of the portfolio that this position represents
+        percent_of_portfolio = order_value / portfolio_value
 
         # Capitalize the side
         side = order.side.capitalize()
@@ -634,7 +622,7 @@ class StrategyExecutor(Thread):
                 # Second with 0 in front if less than 10
                 kwargs["second"] = f"0{second}" if second < 10 else str(second)
 
-                logging.warning(
+                self.strategy.logger.warning(
                     f"The strategy will run at {kwargs['hour']}:{kwargs['minute']}:{kwargs['second']} every day. "
                     f"If instead you want to start right now and run every {time_raw} days then set "
                     f"force_start_immediately=True in the strategy's initialization."
@@ -899,13 +887,13 @@ class StrategyExecutor(Thread):
                 self._run_trading_session()
             except Exception as e:
                 # The bot crashed so log the error, call the on_bot_crash method, and continue
-                logging.error(e)
-                logging.error(traceback.format_exc())
+                self.strategy.logger.error(e)
+                self.strategy.logger.error(traceback.format_exc())
                 try:
                     self._on_bot_crash(e)
                 except Exception as e1:
-                    logging.error(e1)
-                    logging.error(traceback.format_exc())
+                    self.strategy.logger.error(e1)
+                    self.strategy.logger.error(traceback.format_exc())
 
                 # In BackTesting, we want to stop the bot if it crashes so there isn't an infinite loop
                 if self.strategy.is_backtesting:
@@ -919,8 +907,8 @@ class StrategyExecutor(Thread):
         try:
             self._on_strategy_end()
         except Exception as e:
-            logging.error(e)
-            logging.error(traceback.format_exc())
+            self.strategy.logger.error(e)
+            self.strategy.logger.error(traceback.format_exc())
             self._on_bot_crash(e)
             self.result = self.strategy._analysis
             return False

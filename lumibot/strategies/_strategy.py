@@ -228,8 +228,10 @@ class _Strategy:
                     )
                     self.broker._filled_positions.append(position)
 
-        # Setting execution parameters
+        # Set the the state of first iteration to True. This will later be updated to False by the strategy executor
         self._first_iteration = True
+
+        # Setting execution parameters
         self._last_on_trading_iteration_datetime = None
         if not self._is_backtesting:
             self.update_broker_balances()

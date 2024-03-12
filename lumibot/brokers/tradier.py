@@ -2,6 +2,8 @@ import logging
 import traceback
 
 import pandas as pd
+from lumiwealth_tradier import Tradier as _Tradier
+from lumiwealth_tradier.base import TradierApiError
 from termcolor import colored
 
 from lumibot.brokers import Broker
@@ -9,8 +11,6 @@ from lumibot.data_sources.tradier_data import TradierData
 from lumibot.entities import Asset, Order, Position
 from lumibot.tools.helpers import create_options_symbol
 from lumibot.trading_builtins import PollingStream
-from lumiwealth_tradier import Tradier as _Tradier
-from lumiwealth_tradier.base import TradierApiError
 
 
 class Tradier(Broker):

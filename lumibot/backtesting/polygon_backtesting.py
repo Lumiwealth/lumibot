@@ -1,6 +1,6 @@
 import logging
 import traceback
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 from datetime import date, timedelta
 
 from polygon import RESTClient
@@ -20,6 +20,10 @@ class PolygonDataBacktesting(PandasData):
     Backtesting implementation of Polygon
     """
 
+    # Size limit for the pandas_data and _data_store (dicts of Pandas DataFrames) in bytes.
+    # Set to None to disable the limit.
+    MAX_STORAGE_BYTES = None
+
     def __init__(
         self,
         datetime_start,
@@ -37,7 +41,17 @@ class PolygonDataBacktesting(PandasData):
         # RESTClient API for Polygon.io polygon-api-client
         self.polygon_client = RESTClient(self._api_key)
 
-    def update_pandas_data(self, asset, quote, length, timestep, start_dt=None):
+    @staticmethod
+    def _enforce_storage_limit(pandas_data: OrderedDict):
+        storage_used = sum(data.df.memory_usage().sum() for data in pandas_data.values())
+        logging.info(f"{storage_used = :,} bytes for {len(pandas_data)} items")
+        while storage_used > PolygonDataBacktesting.MAX_STORAGE_BYTES:
+            k, d = pandas_data.popitem(last=False)
+            mu = d.df.memory_usage().sum()
+            storage_used -= mu
+            logging.info(f"Storage limit exceeded. Evicted LRU data: {k} used {mu:,} bytes")
+
+    def _update_pandas_data(self, asset, quote, length, timestep, start_dt=None, update_data_store=False):
         """
         Get asset data and update the self.pandas_data dictionary.
 
@@ -51,11 +65,12 @@ class PolygonDataBacktesting(PandasData):
             The number of data points to get.
         timestep : str
             The timestep to use. For example, "1minute" or "1hour" or "1day".
-
-        Returns
-        -------
-        dict
-            A dictionary with the keys being the asset and the values being the PandasData objects.
+        start_dt : datetime
+            The start datetime to use. If None, the current self.start_datetime will be used.
+        update_data_store : bool
+            If True, the data will also be added to the self._data_store dictionary.
+            That update will not include the adjustments made by PandasData.load_data.
+            See https://github.com/Lumiwealth/lumibot/issues/391 and its PR for further discussion.
         """
         search_asset = asset
         asset_separated = asset
@@ -84,7 +99,7 @@ class PolygonDataBacktesting(PandasData):
             if data_timestep == ts_unit:
                 # Check if we have enough data (5 days is the buffer we subtracted from the start datetime)
                 if (data_start_datetime - start_datetime) < START_BUFFER:
-                    return None
+                    return
 
             # Always try to get the lowest timestep possible because we can always resample
             # If day is requested then make sure we at least have data that's less than a day
@@ -92,14 +107,14 @@ class PolygonDataBacktesting(PandasData):
                 if data_timestep == "minute":
                     # Check if we have enough data (5 days is the buffer we subtracted from the start datetime)
                     if (data_start_datetime - start_datetime) < START_BUFFER:
-                        return None
+                        return
                     else:
                         # We don't have enough data, so we need to get more (but in minutes)
                         ts_unit = "minute"
                 elif data_timestep == "hour":
                     # Check if we have enough data (5 days is the buffer we subtracted from the start datetime)
                     if (data_start_datetime - start_datetime) < START_BUFFER:
-                        return None
+                        return
                     else:
                         # We don't have enough data, so we need to get more (but in hours)
                         ts_unit = "hour"
@@ -109,7 +124,7 @@ class PolygonDataBacktesting(PandasData):
                 if data_timestep == "minute":
                     # Check if we have enough data (5 days is the buffer we subtracted from the start datetime)
                     if (data_start_datetime - start_datetime) < START_BUFFER:
-                        return None
+                        return
                     else:
                         # We don't have enough data, so we need to get more (but in minutes)
                         ts_unit = "minute"
@@ -177,15 +192,21 @@ class PolygonDataBacktesting(PandasData):
             logging.error(traceback.format_exc())
             raise Exception("Error getting data from Polygon") from e
 
-        if df is None:
-            return None
+        if (df is None) or df.empty:
+            return
 
-        pandas_data = []
         data = Data(asset_separated, df, timestep=ts_unit, quote=quote_asset)
-        pandas_data.append(data)
-        pandas_data_updated = self._set_pandas_data_keys(pandas_data)
+        pandas_data_update = self._set_pandas_data_keys([data])
 
-        return pandas_data_updated
+        # Add the keys to the self.pandas_data dictionary
+        self.pandas_data.update(pandas_data_update)
+        if PolygonDataBacktesting.MAX_STORAGE_BYTES:
+            self._enforce_storage_limit(self.pandas_data)
+        if update_data_store:
+            # TODO: Why do we have both self.pandas_data and self._data_store?
+            self._data_store.update(pandas_data_update)
+            if PolygonDataBacktesting.MAX_STORAGE_BYTES:
+                self._enforce_storage_limit(self._data_store)
 
     def _pull_source_symbol_bars(
         self,
@@ -202,11 +223,7 @@ class PolygonDataBacktesting(PandasData):
         start_dt, ts_unit = self.get_start_datetime_and_ts_unit(length, timestep, current_dt, start_buffer=START_BUFFER)
 
         # Get data from Polygon
-        pandas_data_update = self.update_pandas_data(asset, quote, length, timestep, start_dt)
-
-        if pandas_data_update is not None:
-            # Add the keys to the self.pandas_data dictionary
-            self.pandas_data.update(pandas_data_update)
+        self._update_pandas_data(asset, quote, length, timestep, start_dt)
 
         return super()._pull_source_symbol_bars(
             asset, length, timestep, timeshift, quote, exchange, include_after_hours
@@ -223,10 +240,7 @@ class PolygonDataBacktesting(PandasData):
         start_date=None,
         end_date=None,
     ):
-        pandas_data_update = self.update_pandas_data(asset, quote, 1, timestep)
-        if pandas_data_update is not None:
-            # Add the keys to the self.pandas_data dictionary
-            self.pandas_data.update(pandas_data_update)
+        self._update_pandas_data(asset, quote, 1, timestep)
 
         response = super()._pull_source_symbol_bars_between_dates(
             asset, timestep, quote, exchange, include_after_hours, start_date, end_date
@@ -241,11 +255,7 @@ class PolygonDataBacktesting(PandasData):
     def get_last_price(self, asset, timestep="minute", quote=None, exchange=None, **kwargs):
         try:
             dt = self.get_datetime()
-            pandas_data_update = self.update_pandas_data(asset, quote, 1, timestep, dt)
-            if pandas_data_update is not None:
-                # Add the keys to the self.pandas_data dictionary
-                self.pandas_data.update(pandas_data_update)
-                self._data_store.update(pandas_data_update)
+            self._update_pandas_data(asset, quote, 1, timestep, dt, update_data_store=True)
         except Exception as e:
             print(f"Error get_last_price from Polygon: {e}")
 

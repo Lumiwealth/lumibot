@@ -36,7 +36,7 @@ def get_price_data_from_polygon(
     cached in the LUMIBOT_CACHE_FOLDER/polygon folder so that it can be reused later and we don't have to query
     Polygon.io every time we run a backtest.
 
-    If the Polygon respone has missing bars for a date, the missing bars will be added as empty (all NaN) rows
+    If the Polygon response has missing bars for a date, the missing bars will be added as empty (all NaN) rows
     to the cache file to avoid querying Polygon for the same missing bars in the future.  Note that means if
     a request is for a future time then we won't make a request to Polygon for it later when that data might
     be available.  That should result in an error rather than missing data from Polygon, but just in case a

@@ -370,7 +370,7 @@ class YahooHelper:
         return result
 
     @staticmethod
-    def get_risk_free_rate(with_logging: bool = True, caching: bool = True, dt: datetime = None):
+    def get_risk_free_rate(with_logging: bool = False, caching: bool = True, dt: datetime = None):
         # 13 Week Treasury Rate (^IRX)
         if dt is None:
             # If we don't have a datetime, we will get the latest value

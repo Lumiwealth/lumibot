@@ -70,7 +70,7 @@ class PolygonDataBacktesting(PandasData):
         update_data_store : bool
             If True, the data will also be added to the self._data_store dictionary.
             That update will not include the adjustments made by PandasData.load_data.
-            See https://github.com/Lumiwealth/lumibot/issues/390 and its PR if you have questions or answers.
+            See https://github.com/Lumiwealth/lumibot/issues/391 and its PR for further discussion.
         """
         search_asset = asset
         asset_separated = asset

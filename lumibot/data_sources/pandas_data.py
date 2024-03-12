@@ -7,8 +7,6 @@ from lumibot.data_sources import DataSourceBacktesting
 from lumibot.entities import Asset, AssetsMapping, Bars
 
 
-MAX_STORAGE_BYTES = 1_000_000_000  # 1 GB
-
 class PandasData(DataSourceBacktesting):
     """
     PandasData is a Backtesting-only DataSource that uses a Pandas DataFrame (read from CSV) as the source of
@@ -64,17 +62,6 @@ class PandasData(DataSourceBacktesting):
                 new_pandas_data[key] = data
 
         return new_pandas_data
-
-    @staticmethod
-    def _enforce_storage_limit(pandas_data: OrderedDict):
-        storage_used = sum(data.df.memory_usage().sum() for data in pandas_data.values())
-        logging.info(f"{storage_used = :,} bytes for {len(pandas_data)} items")
-        while storage_used > MAX_STORAGE_BYTES:
-            k, d = pandas_data.popitem(last=False)
-            mu = d.df.memory_usage().sum()
-            storage_used -= mu
-            logging.info(f"Storage limit exceeded. Evicted LRU data: {k} used {mu:,} bytes")
-        return
     
     def load_data(self):
         self._data_store = self.pandas_data

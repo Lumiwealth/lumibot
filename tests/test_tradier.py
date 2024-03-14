@@ -218,6 +218,9 @@ class TestTradierBroker:
         mock_submit_order = mocker.patch.object(broker.tradier.orders, 'order', return_value=submit_response)
         mocker.patch.object(broker, 'sync_positions', return_value=None)
 
+        # Set to false for testing purposes
+        broker._first_iteration = False
+
         # Test polling with no orders
         broker.do_polling()
         known_orders = broker.get_all_orders()

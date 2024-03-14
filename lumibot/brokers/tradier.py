@@ -2,6 +2,8 @@ import logging
 import traceback
 
 import pandas as pd
+from lumiwealth_tradier import Tradier as _Tradier
+from lumiwealth_tradier.base import TradierApiError
 from termcolor import colored
 
 from lumibot.brokers import Broker
@@ -9,8 +11,6 @@ from lumibot.data_sources.tradier_data import TradierData
 from lumibot.entities import Asset, Order, Position
 from lumibot.tools.helpers import create_options_symbol
 from lumibot.trading_builtins import PollingStream
-from lumiwealth_tradier import Tradier as _Tradier
-from lumiwealth_tradier.base import TradierApiError
 
 
 class Tradier(Broker):
@@ -382,12 +382,23 @@ class Tradier(Broker):
 
             # First time seeing this order, something weird has happened, dispatch it as a new order
             if order.identifier not in stored_orders:
-                logging.info(
-                    f"Poll Update: {self.name} has order {order}, but Lumibot doesn't know about it. "
-                    f"Adding it as a new order."
-                )
-                # If the Tradier status is not "open", the next polling cycle will catch it and dispatch it as needed.
-                self.stream.dispatch(self.NEW_ORDER, order=order)
+                # If it is the brokers first iteration then fully process the order because it is likely
+                # that the order was filled/canceled/etc before the strategy started.
+                if self._first_iteration:
+                    if order.status == Order.OrderStatus.FILLED:
+                        self._process_new_order(order)
+                        self._process_filled_order(order, order.avg_fill_price, order.quantity)
+                    elif order.status == Order.OrderStatus.CANCELED:
+                        self._process_new_order(order)
+                        self._process_canceled_order(order)
+                    elif order.status == Order.OrderStatus.PARTIALLY_FILLED:
+                        self._process_new_order(order)
+                        self._process_partially_filled_order(order, order.avg_fill_price, order.quantity)
+                    elif order.status == Order.OrderStatus.NEW:
+                        self._process_new_order(order)
+                else:
+                    # Add to order in lumibot.
+                    self._process_new_order(order)
             else:
                 stored_order = stored_orders[order.identifier]
                 stored_order.quantity = order.quantity  # Update the quantity in case it has changed

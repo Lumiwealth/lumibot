@@ -11,7 +11,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from termcolor import colored
 
-from lumibot.entities import Asset
+from lumibot.entities import Asset, Order
 from lumibot.tools import append_locals, get_trading_days, staticdecorator
 
 
@@ -161,8 +161,23 @@ class StrategyExecutor(Thread):
                                 f"to be {obroker} because what we have in memory does not match the broker."
                             )
                 else:
-                    # Add to order in lumibot.
-                    self.broker._process_new_order(order)
+                    # If it is the brokers first iteration then fully process the order because it is likely
+                    # that the order was filled/canceled/etc before the strategy started.
+                    if self.broker._first_iteration:
+                        if order.status == Order.OrderStatus.FILLED:
+                            self.broker._process_new_order(order)
+                            self.broker._process_filled_order(order, order.avg_fill_price, order.quantity)
+                        elif order.status == Order.OrderStatus.CANCELED:
+                            self.broker._process_new_order(order)
+                            self.broker._process_canceled_order(order)
+                        elif order.status == Order.OrderStatus.PARTIALLY_FILLED:
+                            self.broker._process_new_order(order)
+                            self.broker._process_partially_filled_order(order, order.avg_fill_price, order.quantity)
+                        elif order.status == Order.OrderStatus.NEW:
+                            self.broker._process_new_order(order)
+                    else:
+                        # Add to order in lumibot.
+                        self.broker._process_new_order(order)
 
             for order_lumi in orders_lumi:
                 # Remove lumibot orders if not in broker.
@@ -184,6 +199,11 @@ class StrategyExecutor(Thread):
         self.queue.put((event_name, payload))
 
     def process_event(self, event, payload):
+        # If it's the first iteration, we don't want to process any events.
+        # This is because in this case we are most likely processing events that occurred before the strategy started.
+        if self.strategy._first_iteration or self.broker._first_iteration:
+            return
+
         if event == self.NEW_ORDER:
             self._on_new_order(**payload)
 
@@ -345,6 +365,7 @@ class StrategyExecutor(Thread):
             on_trading_iteration()
 
             self.strategy._first_iteration = False
+            self.broker._first_iteration = False
             self._strategy_context = on_trading_iteration.locals
             self.strategy._last_on_trading_iteration_datetime = datetime.now()
             self.process_queue()
@@ -453,7 +474,7 @@ class StrategyExecutor(Thread):
         # Create a message to send to Discord
         message = f"""
                 {emoji} {side} {quantity:,.2f} {position.asset} @ ${price:,.2f} ({percent_of_portfolio:,.0%} of the account)
-                Trade Total = ${(price * float(quantity)):,.2f}
+                Trade Total = ${order_value:,.2f}
                 Account Value = ${portfolio_value:,.0f}
                 """
 
@@ -872,6 +893,9 @@ class StrategyExecutor(Thread):
     def run(self):
         # Overloading the broker sleep method
         self.broker.sleep = self.safe_sleep
+
+        # Set the strategy name at the broker
+        self.broker.set_strategy_name(self.strategy._name)
 
         self._initialize()
 

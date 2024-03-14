@@ -3759,9 +3759,12 @@ class Strategy(_Strategy):
         # Create an axes instance, setting the facecolor to white
         ax = plt.axes(facecolor="white")
 
+        # Convert 'datetime' to Matplotlib's numeric format right after cleaning
+        stats_df['mpl_datetime'] = mdates.date2num(stats_df['datetime'])
+
         # Plotting with a thicker line
         ax = stats_df.plot(
-            x="datetime",
+            x="mpl_datetime",
             y="portfolio_value",
             kind="line",
             linewidth=5,

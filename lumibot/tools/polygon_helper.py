@@ -9,6 +9,7 @@ import pandas_market_calendars as mcal
 
 # noinspection PyPackageRequirements
 from polygon import RESTClient
+from typing import Iterator
 from termcolor import colored
 from tqdm import tqdm
 
@@ -70,8 +71,12 @@ def get_price_data_from_polygon(
     global POLYGON_QUERY_COUNT  # Track if we need to wait between requests
 
     # Check if we already have data for this asset in the feather file
-    df_all = None
     cache_file = build_cache_filename(asset, timespan)
+    # Check whether it might be stale because of splits.
+    force_cache_update = validate_cache(force_cache_update, asset, cache_file, api_key)
+
+    df_all = None
+    # Load from the cache file if it exists.  
     if cache_file.exists() and not force_cache_update:
         logging.debug(f"Loading pricing data for {asset} / {quote_asset} with '{timespan}' timespan from cache file...")
         df_all = load_cache(cache_file)
@@ -158,6 +163,45 @@ def get_price_data_from_polygon(
         df_all.dropna(how="all", inplace=True)
 
     return df_all
+
+
+def validate_cache(force_cache_update: bool, asset: Asset, cache_file: Path, api_key: str):
+    """
+    If the list of splits for a stock have changed then we need to invalidate its cache
+    because all of the prices will have changed (because we're using split adjusted prices).
+    Get the splits data from Polygon only once per day per stock.
+    Use the timestamp on the splits feather file to determine if we need to get the splits again.
+    When invalidating we delete the cache file and return force_cache_update=True too.
+    """
+    if asset.asset_type != Asset.AssetType.STOCK:
+        return force_cache_update
+    cached_splits = pd.DataFrame()
+    splits_file_stale = True
+    splits_file_path = Path(str(cache_file).rpartition(".feather")[0] + "_splits.feather")
+    if splits_file_path.exists():
+        splits_file_stale = datetime.fromtimestamp(splits_file_path.stat().st_mtime).date() != date.today()
+        if splits_file_stale:
+            cached_splits = pd.read_feather(splits_file_path)
+    if splits_file_stale or force_cache_update:
+        polygon_client = RESTClient(api_key)
+        # Need to get the splits in execution order to make the list comparable across invocations.
+        splits = polygon_client.list_splits(ticker=asset.symbol, sort="execution_date", order="asc")
+        if isinstance(splits, Iterator):
+            # Convert the generator to a list so DataFrame will make a row per item.
+            splits_df = pd.DataFrame(list(splits))
+            if splits_file_path.exists() and cached_splits.eq(splits_df).all().all():
+                # No need to rewrite contents.  Just update the timestamp.
+                splits_file_path.touch()
+            else:
+                logging.info(f"Invalidating cache for {asset.symbol} because its splits have changed.")
+                force_cache_update = True
+                cache_file.unlink(missing_ok=True)
+                # Create the directory if it doesn't exist
+                cache_file.parent.mkdir(parents=True, exist_ok=True)
+                splits_df.to_feather(splits_file_path)
+        else:
+            logging.warn(f"Unexpected response getting splits for {asset.symbol} from Polygon.  Response: {splits}")
+    return force_cache_update
 
 
 def get_trading_dates(asset: Asset, start: datetime, end: datetime):

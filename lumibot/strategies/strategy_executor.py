@@ -474,7 +474,7 @@ class StrategyExecutor(Thread):
         # Create a message to send to Discord
         message = f"""
                 {emoji} {side} {quantity:,.2f} {position.asset} @ ${price:,.2f} ({percent_of_portfolio:,.0%} of the account)
-                Trade Total = ${(price * float(quantity)):,.2f}
+                Trade Total = ${order_value:,.2f}
                 Account Value = ${portfolio_value:,.0f}
                 """
 

@@ -1,6 +1,6 @@
 import logging
 import traceback
-from collections import defaultdict, OrderedDict
+from collections import OrderedDict, defaultdict
 from datetime import date, timedelta
 
 from polygon import RESTClient
@@ -258,6 +258,7 @@ class PolygonDataBacktesting(PandasData):
             self._update_pandas_data(asset, quote, 1, timestep, dt, update_data_store=True)
         except Exception as e:
             print(f"Error get_last_price from Polygon: {e}")
+            print(f"Error get_last_price from Polygon: {asset=} {quote=} {timestep=} {dt=} {e}")
 
         return super().get_last_price(asset=asset, quote=quote, exchange=exchange)
 

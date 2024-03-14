@@ -23,6 +23,9 @@ class CustomLoggerAdapter(logging.LoggerAdapter):
         # Use an f-string for formatting
         return f'[{self.extra["strategy_name"]}] {msg}', kwargs
 
+    def update_strategy_name(self, new_strategy_name):
+        self.extra['strategy_name'] = new_strategy_name
+
 class Broker(ABC):
     # Metainfo
     IS_BACKTESTING_BROKER = False
@@ -1123,5 +1126,5 @@ class Broker(ABC):
         """
         self._strategy_name = strategy_name
 
-        # Create an adapter with 'strategy_name' set to the instance's name
-        self.logger = CustomLoggerAdapter(logger, {'strategy_name': self._strategy_name})
+        # Update the strategy name in the logger
+        self.logger.update_strategy_name(strategy_name)

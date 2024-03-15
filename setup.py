@@ -15,7 +15,7 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     install_requires=[
         "polygon-api-client>=1.13.3",
-        "alpaca-py>=0.13.1",
+        "alpaca-py>=0.18.1",
         "alpha_vantage",
         "ibapi==9.81.1.post1",
         "yfinance>=0.2.37",

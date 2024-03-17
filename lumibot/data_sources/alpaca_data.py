@@ -246,6 +246,9 @@ class AlpacaData(DataSource):
             elif str(freq) == "1Day":
                 loop_limit = limit * 1.5  # number almost perfect for normal weeks where only weekends are off
 
+                # Add 3 days to the start date to make sure we get enough data on extra long weekends (like Thanksgiving)
+                loop_limit += 3
+
         df = []  # to use len(df) below without an error
 
         # arbitrary limit of upto 4 calls after which it will give up

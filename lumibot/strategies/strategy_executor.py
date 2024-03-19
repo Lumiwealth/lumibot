@@ -343,7 +343,11 @@ class StrategyExecutor(Thread):
                 # on_trading_iteration method.
                 return
 
-        sleep_units = self.strategy.sleeptime[-1].lower()
+        # Check if self.strategy.sleeptime is a number or a string.
+        if isinstance(self.strategy.sleeptime, (int, float)):
+            sleep_units = "m"
+        else:
+            sleep_units = self.strategy.sleeptime[-1].lower()
         start_dt = datetime.now()
         self.sync_broker()
 

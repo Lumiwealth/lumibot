@@ -83,7 +83,7 @@ class Tradier(Broker):
                 access_token=access_token,
                 paper=paper,
                 max_workers=max_workers,
-                delay=15 if paper else 0,
+                delay=0
             )
 
         super().__init__(

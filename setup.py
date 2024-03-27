@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="lumibot",
-    version="3.2.13",
+    version="3.2.15",
     author="Robert Grzesik",
     author_email="rob@lumiwealth.com",
     description="Backtesting and Trading Library, Made by Lumiwealth",
@@ -39,7 +39,7 @@ setuptools.setup(
         "ipython",  # required for quantstats, but not in their dependency list for some reason
         "quantstats-lumi>=0.1.11",
         "python-dotenv",  # Secret Storage
-        "ccxt==4.2.50",
+        "ccxt==4.2.85",
         "termcolor",
         "jsonpickle",
         "apscheduler==3.10.4",

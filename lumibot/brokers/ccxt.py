@@ -181,10 +181,11 @@ class Ccxt(Broker):
                 f"The symbol {symbol} is not in the currencies list. "
                 f"Please check the symbol and the exchange currencies list."
             )
-            return None
+            precision = None
         
-        if self.api.exchangeId == "binance":
+        elif self.api.exchangeId == "binance":
             precision = str(10 ** -self.api.currencies[symbol]["precision"])
+            
         else:
             precision = str(self.api.currencies[symbol]["precision"])
 
@@ -247,8 +248,12 @@ class Ccxt(Broker):
         list of position objects"""
         result = []
         for broker_position in broker_positions:
-            result.append(self._parse_broker_position(broker_position, strategy))
+            new_pos = self._parse_broker_position(broker_position, strategy)
 
+            # Check if the position is not None
+            if new_pos is not None:
+                result.append(new_pos)
+                
         return result
 
     def _pull_positions(self, strategy):

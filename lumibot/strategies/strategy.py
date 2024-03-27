@@ -3723,13 +3723,13 @@ class Strategy(_Strategy):
                 f"Failed to send message to Discord. Status code: {response.status_code}, message: {response.text}"
             )
 
-    def send_spark_chart_to_discord(self, stats_df, portfolio_value, now):
+    def send_spark_chart_to_discord(self, stats_df, portfolio_value, now, days=180):
         # Check if we are in backtesting mode, if so, don't send the message
         if self.is_backtesting:
             return
 
-        # Only keep the stats for the past week
-        stats_df = stats_df.loc[stats_df["datetime"] >= (now - pd.Timedelta(days=7))]
+        # Only keep the stats for the past X days
+        stats_df = stats_df.loc[stats_df["datetime"] >= (now - pd.Timedelta(days=days))]
 
         # Set the default color
         color = "black"
@@ -3742,13 +3742,14 @@ class Strategy(_Strategy):
             # Remove nan values
             stats_df = stats_df.dropna()
 
-            # Get the portfolio value 7 days ago
-            portfolio_value_7_days_ago = stats_df.iloc[0]["portfolio_value"]
+            # Get the portfolio value at the beginning of the dataframe
+            portfolio_value_start = stats_df.iloc[0]["portfolio_value"]
+
             # Calculate the return over the past 7 days
-            return_7_days = ((portfolio_value / portfolio_value_7_days_ago) - 1) * 100
+            total_return = ((portfolio_value / portfolio_value_start) - 1) * 100
 
             # Check if we made a positive return, if so, set the color to green, otherwise set it to red
-            if return_7_days > 0:
+            if total_return > 0:
                 color = "green"
             else:
                 color = "red"

@@ -331,7 +331,7 @@ class _Strategy:
         # Check if cash is in the list of positions yet
         for x in range(len(self.broker._filled_positions.get_list())):
             position = self.broker._filled_positions[x]
-            if position.asset == self.quote_asset:
+            if position is not None and position.asset == self.quote_asset:
                 position.quantity = cash
                 self.broker._filled_positions[x] = position
                 return

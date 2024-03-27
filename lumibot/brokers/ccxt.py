@@ -477,10 +477,11 @@ class Ccxt(Broker):
             "stop_price",
         ]:
             if hasattr(order, price_type) and getattr(order, price_type) is not None:
+                precision_price = Decimal(str(10 ** -precision["price"])) if self.api.exchangeId == "binance" else precision["price"]
                 setattr(
                     order,
                     price_type,
-                    Decimal(getattr(order, price_type)).quantize(Decimal(str(precision["price"]))),
+                    Decimal(getattr(order, price_type)).quantize(Decimal(str(precision_price))),
                 )
             else:
                 continue

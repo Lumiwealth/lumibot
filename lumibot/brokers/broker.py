@@ -206,6 +206,10 @@ class Broker(ABC):
         """
         positions_broker = self._pull_positions(strategy)
         for position in positions_broker:
+            # Check if the position is None
+            if position is None:
+                continue
+
             # Check against existing position.
             position_lumi = [
                 pos_lumi

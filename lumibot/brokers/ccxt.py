@@ -175,6 +175,14 @@ class Ccxt(Broker):
         available = position["free"]
         quantity = Decimal(position["total"])
 
+        # Check if symbol is in the currencies list
+        if symbol not in self.api.currencies:
+            logging.error(
+                f"The symbol {symbol} is not in the currencies list. "
+                f"Please check the symbol and the exchange currencies list."
+            )
+            return None
+        
         if self.api.exchangeId == "binance":
             precision = str(10 ** -self.api.currencies[symbol]["precision"])
         else:

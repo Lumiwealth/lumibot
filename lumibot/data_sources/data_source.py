@@ -121,8 +121,6 @@ class DataSource(ABC):
         datetime
         """
         current_time = self.to_default_timezone(datetime.now())
-        if self._delay:
-            current_time -= self._delay
         return current_time
 
     def get_timestamp(self):

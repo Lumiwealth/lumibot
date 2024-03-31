@@ -639,6 +639,7 @@ def create_tearsheet(
     benchmark_asset,  # This is causing a circular import: Asset,
     show_tearsheet: bool,
     risk_free_rate: float,
+    strategy_parameters: dict = None,
 ):
     # If show tearsheet is False, then we don't want to open the tearsheet in the browser
     if not show_tearsheet:
@@ -717,6 +718,7 @@ def create_tearsheet(
             output=tearsheet_file,
             download_filename=tearsheet_file,  # Consider if you need a different name for clarity
             rf=risk_free_rate,
+            parameters=strategy_parameters,
         )
 
     if show_tearsheet:

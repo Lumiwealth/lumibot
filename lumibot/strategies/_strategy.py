@@ -687,6 +687,13 @@ class _Strategy:
         if self._strategy_returns_df is None:
             self.logger.warning("Cannot create a tearsheet because the strategy returns are missing")
         else:
+            # Get the strategy parameters
+            strategy_parameters = self.parameters
+
+            # Remove pandas_data from the strategy parameters if it exists
+            if "pandas_data" in strategy_parameters:
+                del strategy_parameters["pandas_data"]
+
             strat_name = self._name if self._name is not None else "Strategy"
             create_tearsheet(
                 self._strategy_returns_df,
@@ -696,6 +703,7 @@ class _Strategy:
                 self._benchmark_asset,
                 show_tearsheet,
                 risk_free_rate=self.risk_free_rate,
+                strategy_parameters=strategy_parameters,
             )
 
     @classmethod

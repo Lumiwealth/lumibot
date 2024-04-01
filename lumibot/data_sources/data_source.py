@@ -112,15 +112,23 @@ class DataSource(ABC):
 
     # ========Python datetime helpers======================
 
-    def get_datetime(self):
+    def get_datetime(self, adjust_for_delay=False):
         """
         Returns the current datetime in the default timezone
+
+        Parameters
+        ----------
+        adjust_for_delay : bool
+            Whether to adjust the current time for the delay. This is useful for paper trading data sources that
+            provide delayed data.
 
         Returns
         -------
         datetime
         """
         current_time = self.to_default_timezone(datetime.now())
+        if adjust_for_delay and self._delay:
+            current_time -= self._delay
         return current_time
 
     def get_timestamp(self):

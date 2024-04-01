@@ -39,7 +39,20 @@ class DataSourceBacktesting(DataSource, ABC):
         # catch it here and ignore it in this class. Child classes that need it should error check it themselves.
         self._config = config
 
-    def get_datetime(self):
+    def get_datetime(self, adjust_for_delay=False):
+        """
+        Get the current datetime of the backtest.
+
+        Parameters
+        ----------
+        adjust_for_delay: bool
+            Not used for backtesting data sources.  This parameter is only used for live data sources.
+
+        Returns
+        -------
+        datetime
+            The current datetime of the backtest.
+        """
         return self._datetime
 
     def get_datetime_range(self, length, timestep="minute", timeshift=None):

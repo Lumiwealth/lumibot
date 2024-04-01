@@ -2319,7 +2319,7 @@ class Strategy(_Strategy):
         """
         return self.broker.data_source.DEFAULT_PYTZ
 
-    def get_datetime(self):
+    def get_datetime(self, adjust_for_delay=False):
         """Returns the current datetime according to the data source. In a backtest this will be the current bar's datetime. In live trading this will be the current datetime on the exchange.
 
         Returns
@@ -2333,7 +2333,7 @@ class Strategy(_Strategy):
         >>> datetime = self.get_datetime()
         >>> self.log_message(f"The current datetime is {datetime}")
         """
-        return self.broker.data_source.get_datetime()
+        return self.broker.data_source.get_datetime(adjust_for_delay=adjust_for_delay)
 
     def get_timestamp(self):
         """Returns the current timestamp according to the data source. In a backtest this will be the current bar's timestamp. In live trading this will be the current timestamp on the exchange.

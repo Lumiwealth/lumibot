@@ -173,7 +173,7 @@ def validate_cache(force_cache_update: bool, asset: Asset, cache_file: Path, api
     Use the timestamp on the splits feather file to determine if we need to get the splits again.
     When invalidating we delete the cache file and return force_cache_update=True too.
     """
-    if asset.asset_type != Asset.AssetType.STOCK:
+    if asset.asset_type not in [Asset.AssetType.STOCK, Asset.AssetType.OPTION]:
         return force_cache_update
     cached_splits = pd.DataFrame()
     splits_file_stale = True

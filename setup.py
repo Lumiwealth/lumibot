@@ -46,7 +46,7 @@ setuptools.setup(
         "appdirs",
         "pyarrow",
         "tqdm",
-        "lumiwealth-tradier>=0.1.6",
+        "lumiwealth-tradier>=0.1.7",
         "pytz",
         "psycopg2-binary",
         "exchange_calendars>=4.5.2",

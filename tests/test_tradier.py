@@ -30,15 +30,15 @@ class TestTradierDataAPI:
     python -m pytest -m apitest
     """
     def test_basics(self):
-        tdata = TradierData(account_number="1234", access_token="a1b2c3", paper=True)
-        assert tdata._account_number == "1234"
+        tdata = TradierData(account_number=TRADIER_ACCOUNT_ID_PAPER, access_token=TRADIER_TOKEN_PAPER, paper=True)
+        assert tdata._account_number == TRADIER_ACCOUNT_ID_PAPER
 
     def test_get_last_price(self, tradier_ds):
         asset = Asset("AAPL")
         price = tradier_ds.get_last_price(asset)
         assert isinstance(price, float)
         assert price > 0.0
-
+               
     def test_get_chains(self, tradier_ds):
         asset = Asset("SPY")
         chain = tradier_ds.get_chains(asset)
@@ -65,6 +65,19 @@ class TestTradierDataAPI:
         assert 'gamma' in greeks
         assert greeks['delta'] > 0
 
+    def test_get_quote(self, tradier_ds):
+        asset = Asset("AAPL")
+        quote = tradier_ds.get_quote(asset)
+        assert isinstance(quote, dict)
+        assert 'last' in quote
+        assert 'bid' in quote
+        assert 'ask' in quote
+        assert 'volume' in quote
+        assert 'open' in quote
+        assert 'high' in quote
+        assert 'low' in quote
+        assert 'close' in quote
+
 
 @pytest.mark.apitest
 class TestTradierBrokerAPI:
@@ -88,7 +101,6 @@ class TestTradierBrokerAPI:
         # Cancel the testing order once we are done
         # How do we check this? Who changes the Lumibot order status to "canceled"?
         tradier.cancel_order(submitted_order)
-
 
 class TestTradierBroker:
     """

@@ -366,7 +366,7 @@ class BacktestingBroker(Broker):
         )
         return order
 
-    def submit_orders(self, orders):
+    def submit_orders(self, orders, **kwargs):
         results = []
         for order in orders:
             results.append(self.submit_order(order))

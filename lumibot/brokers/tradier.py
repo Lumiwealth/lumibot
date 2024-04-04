@@ -4,6 +4,7 @@ import traceback
 import pandas as pd
 from lumiwealth_tradier import Tradier as _Tradier
 from lumiwealth_tradier.base import TradierApiError
+from lumiwealth_tradier.orders import OrderLeg
 from termcolor import colored
 
 from lumibot.brokers import Broker
@@ -106,6 +107,94 @@ class Tradier(Broker):
         # Cancel the order
         self.tradier.orders.cancel(order.identifier)
 
+    def submit_orders(self, orders, is_multileg=False, **kwargs):
+        """
+        Submit multiple orders to the broker. This function will submit the orders in the order they are provided.
+        If any order fails to submit, the function will stop submitting orders and return the last successful order.
+        """
+        # Check if the orders are empty
+        if not orders:
+            return
+        
+        # Check if it is a multi-leg order
+        if is_multileg:
+            # Submit the multi-leg order
+            return self._submit_multileg_order(orders, **kwargs)
+
+        # Submit each order
+        for order in orders:
+            self.submit_order(order)
+
+    def _submit_multileg_order(self, orders, order_type="market", duration="day", price=None, tag=None, **kwargs):
+        """
+        Submit a multi-leg order to Tradier. This function will submit the multi-leg order to Tradier.
+
+        Parameters
+        ----------
+        orders: list[Order]
+            List of orders to submit
+        order_type: str
+            The type of multi-leg order to submit. Valid values are ('market', 'debit', 'credit', 'even'). Default is 'market'.
+        duration: str
+            The duration of the order. Valid values are ('day', 'gtc', 'pre', 'post'). Default is 'day'.
+        price: float
+            The limit price for the order. Required for 'debit' and 'credit' order types.
+        tag: str
+            The tag to associate with the order.
+
+        Returns
+        -------
+            list of Order objects
+                List of processed order objects.
+        """
+
+        # Check if the order type is valid
+        if order_type not in ["market", "debit", "credit", "even"]:
+            raise ValueError(f"Invalid order type '{order_type}' for multi-leg order.")
+        
+        # Check if the duration is valid
+        if duration not in ["day", "gtc", "pre", "post"]:   
+            raise ValueError(f"Invalid duration {duration} for multi-leg order.")
+        
+        # Check if the price is required
+        if order_type in ["debit", "credit"] and price is None:
+            raise ValueError(f"Price is required for '{order_type}' order type.")
+
+        # Check that all the order objects have the same symbol
+        if len(set([order.asset.symbol for order in orders])) > 1:
+            raise ValueError("All orders in a multi-leg order must have the same symbol.")
+        
+        # Get the symbol from the first order
+        symbol = orders[0].asset.symbol
+
+        # Create the legs for the multi-leg order
+        legs = []
+        for order in orders:
+            # Create the options symbol
+            option_symbol = create_options_symbol(
+                order.asset.symbol, order.asset.expiration, order.asset.right, order.asset.strike
+            )
+
+            # Example leg: leg1 = OrderLeg(option_symbol=option_symbol_1, quantity=1, side='buy_to_open')
+            leg = OrderLeg(
+                option_symbol=option_symbol,
+                quantity=int(order.quantity), # Quantity for Tradier must be a positive integer
+                side=self._lumi_side2tradier(order),
+            )
+            legs.append(leg)
+
+        # Example assuming order_type and duration are required and correctly set
+        result = self.tradier.orders.multileg_order(
+            symbol=symbol,
+            order_type=order_type,
+            duration=duration,
+            legs=legs,
+            price=price,
+            tag=tag,
+        )
+
+        return result
+        
     def _submit_order(self, order: Order):
         """
         Do checking and input sanitization, then submit the order to the broker.

@@ -833,7 +833,7 @@ class Broker(ABC):
         """Submit an order for an asset"""
         self._orders_queue.put(order)
 
-    def submit_orders(self, orders):
+    def submit_orders(self, orders, **kwargs):
         """Submit orders"""
         self._orders_queue.put(orders)
 

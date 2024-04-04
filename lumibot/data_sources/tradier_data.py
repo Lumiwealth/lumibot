@@ -197,9 +197,12 @@ class TradierData(DataSource):
         This function returns the last price of an asset.
         Parameters
         ----------
-        asset
-        quote
-        exchange
+        asset: Asset
+            The asset to get the last price for
+        quote: Asset
+            The quote asset to get the last price for (currently not used for Tradier)
+        exchange: str
+            The exchange to get the last price for (currently not used for Tradier)
 
         Returns
         -------
@@ -219,6 +222,46 @@ class TradierData(DataSource):
 
         price = self.tradier.market.get_last_price(symbol)
         return price
+
+    def get_quote(self, asset, quote=None, exchange=None):
+        """
+        This function returns the quote of an asset.
+        Parameters
+        ----------
+        asset: Asset
+            The asset to get the quote for
+        quote: Asset
+            The quote asset to get the quote for (currently not used for Tradier)
+        exchange: str
+            The exchange to get the quote for (currently not used for Tradier)
+
+        Returns
+        -------
+        dict
+           Quote of the asset
+        """
+
+        if asset.asset_type == "option":
+            symbol = create_options_symbol(
+                asset.symbol,
+                asset.expiration,
+                asset.right,
+                asset.strike,
+            )
+        else:
+            symbol = asset.symbol
+
+        quotes_df = self.tradier.market.get_quotes([symbol])
+
+        # If the dataframe is empty, return an empty dictionary
+        if quotes_df is None or quotes_df.empty:
+            return {}
+        
+        # Get the quote from the dataframe and convert it to a dictionary
+        quote = quotes_df.iloc[0].to_dict()
+
+        # Return the quote
+        return quote
 
     def query_greeks(self, asset: Asset):
         """

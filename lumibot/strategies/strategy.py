@@ -1493,7 +1493,7 @@ class Strategy(_Strategy):
 
         return self.broker.submit_order(order)
 
-    def submit_orders(self, orders, is_multileg=False, **kwargs):
+    def submit_orders(self, orders, **kwargs):
         """Submit a list of orders
 
         Submits a list of orders for processing by the active broker.
@@ -1622,7 +1622,7 @@ class Strategy(_Strategy):
         >>> order2 = self.create_order((asset_ETH, asset_quote), 10, "buy")
         >>> self.submit_order([order1, order2])
         """
-        return self.broker.submit_orders(orders, is_multileg=is_multileg, **kwargs)
+        return self.broker.submit_orders(orders, **kwargs)
 
     def wait_for_order_registration(self, order):
         """Wait for the order to be registered by the broker

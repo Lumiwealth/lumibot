@@ -107,7 +107,7 @@ class Tradier(Broker):
         # Cancel the order
         self.tradier.orders.cancel(order.identifier)
 
-    def submit_orders(self, orders, is_multileg=False, **kwargs):
+    def submit_orders(self, orders, is_multileg=False, order_type="market", duration="day", price=None, tag=None):
         """
         Submit multiple orders to the broker. This function will submit the orders in the order they are provided.
         If any order fails to submit, the function will stop submitting orders and return the last successful order.
@@ -119,13 +119,13 @@ class Tradier(Broker):
         # Check if it is a multi-leg order
         if is_multileg:
             # Submit the multi-leg order
-            return self._submit_multileg_order(orders, **kwargs)
+            return self._submit_multileg_order(orders, order_type, duration, price, tag)
 
         # Submit each order
         for order in orders:
             self.submit_order(order)
 
-    def _submit_multileg_order(self, orders, order_type="market", duration="day", price=None, tag=None, **kwargs):
+    def _submit_multileg_order(self, orders, order_type="market", duration="day", price=None, tag=None):
         """
         Submit a multi-leg order to Tradier. This function will submit the multi-leg order to Tradier.
 

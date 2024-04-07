@@ -60,6 +60,14 @@ class Order:
         SELL_TO_OPEN = "sell_to_open"
         SELL_TO_CLOSE = "sell_to_close"
 
+    class OrderStatus:
+        NEW = "new"
+        CANCELED = "canceled"
+        FILLED = "fill"
+        PARTIALLY_FILLED = "partial_fill"
+        CASH_SETTLED = "cash_settled"
+        ERROR = "error"
+
     def __init__(
         self,
         strategy,

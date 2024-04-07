@@ -1,7 +1,9 @@
 import logging
 import os
 import pickle
+from datetime import datetime
 
+import pandas as pd
 import yfinance as yf
 
 from lumibot import LUMIBOT_CACHE_FOLDER, LUMIBOT_DEFAULT_PYTZ
@@ -368,9 +370,34 @@ class YahooHelper:
         return result
 
     @staticmethod
-    def get_risk_free_rate(with_logging=True, caching=True):
+    def get_risk_free_rate(with_logging: bool = False, caching: bool = True, dt: datetime = None):
         # 13 Week Treasury Rate (^IRX)
-        irx_price = YahooHelper.get_symbol_last_price("^IRX")
+        if dt is None:
+            # If we don't have a datetime, we will get the latest value
+            irx_price = YahooHelper.get_symbol_last_price("^IRX")
+        else:
+            # If we do have a datetime, we will get the value at that datetime
+            irx_df = YahooHelper.get_symbol_data("^IRX")
+
+            if irx_df is None or irx_df.empty:
+                return None
+
+            # Ensure the DataFrame index is in datetime format and sort it
+            irx_df.index = pd.to_datetime(irx_df.index)
+            irx_df.sort_index(inplace=True)
+
+            # Calculate the absolute difference between the given datetime and all dates in the index
+            delta = abs(irx_df.index - dt)
+
+            # Find the index of the minimum difference
+            closest_date_index = delta.argmin()
+
+            # Extract the row for the closest date
+            irx_row = irx_df.iloc[closest_date_index]
+
+            # Get the close price
+            irx_price = irx_row["Close"]
+
         risk_free_rate = irx_price / 100
         if with_logging:
             logging.info(f"Risk Free Rate {risk_free_rate * 100:0.2f}%")

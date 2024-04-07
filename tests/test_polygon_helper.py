@@ -229,16 +229,16 @@ class TestPolygonHelpers:
             }
         )
 
-        # No changes in data, don't write cache file
-        ph.update_cache(cache_file, df_all=df, df_feather=df)
+        # Empty DataFrame, don't write cache file
+        ph.update_cache(cache_file, df_all=pd.DataFrame())
         assert not cache_file.exists()
 
-        # Empty DataFrame, don't write cache file
-        ph.update_cache(cache_file, df_all=pd.DataFrame(), df_feather=df)
-        assert not cache_file.exists()
+        # No changes in data, write file just in case we got comparison wrong.
+        ph.update_cache(cache_file, df_all=df)
+        assert cache_file.exists()
 
         # Changes in data, write cache file
-        ph.update_cache(cache_file, df_all=df, df_feather=df.iloc[1:])
+        ph.update_cache(cache_file, df_all=df)
         assert cache_file.exists()
 
     def test_update_polygon_data(self):
@@ -332,6 +332,7 @@ class TestPolygonPriceData:
         mock_polyclient().get_aggs.reset_mock()
         df = ph.get_price_data_from_polygon(api_key, asset, start_date, end_date, timespan)
         assert len(df) == 6
+        assert len(df.dropna()) == 6
         assert df["close"].iloc[0] == 2
         assert mock_polyclient().get_aggs.call_count == 0
 
@@ -385,3 +386,74 @@ class TestPolygonPriceData:
         df = ph.get_price_data_from_polygon(api_key, asset, start_date, end_date, timespan)
         assert mock_polyclient().get_aggs.call_count == 3
         assert len(df) == 2 + 2 + 2
+
+    @pytest.mark.parametrize("timespan", ["day", "minute"])
+    @pytest.mark.parametrize("force_cache_update", [True, False])
+    def test_polygon_missing_day_caching(self, mocker, tmpdir, timespan, force_cache_update):
+        # Ensure we don't accidentally call the real Polygon API
+        mock_polyclient = mocker.MagicMock()
+        mocker.patch.object(ph, "RESTClient", mock_polyclient)
+        mocker.patch.object(ph, "WAIT_TIME", 0)
+        mocker.patch.object(ph, "LUMIBOT_CACHE_FOLDER", tmpdir)
+
+        # Basic Setup
+        api_key = "abc123"
+        asset = Asset("SPY")
+        tz_e = pytz.timezone("US/Eastern")
+        start_date = tz_e.localize(datetime.datetime(2023, 8, 2, 6, 30))  # Include PreMarket
+        end_date = tz_e.localize(datetime.datetime(2023, 8, 2, 13, 0))
+        expected_cachefile = ph.build_cache_filename(asset, timespan)
+        assert not expected_cachefile.exists()
+
+        # Polygon is only called once for the same date range even when they are all missing.
+        mock_polyclient().get_aggs.return_value = []
+        df = ph.get_price_data_from_polygon(api_key, asset, start_date, end_date, timespan, force_cache_update=force_cache_update)
+        assert mock_polyclient().get_aggs.call_count == 1
+        assert expected_cachefile.exists()
+        if df is None:
+            df = pd.DataFrame()
+        assert len(df) == 0
+        df = ph.get_price_data_from_polygon(api_key, asset, start_date, end_date, timespan, force_cache_update=force_cache_update)
+        if df is None:
+            df = pd.DataFrame()
+        assert len(df) == 0
+        if force_cache_update:
+            assert mock_polyclient().get_aggs.call_count == 2
+        else:
+            assert mock_polyclient().get_aggs.call_count == 1
+        expected_cachefile.unlink()
+
+        # Polygon is only called once for the same date range when some are missing.
+        mock_polyclient().get_aggs.reset_mock()
+        start_date = tz_e.localize(datetime.datetime(2023, 8, 1, 6, 30))
+        end_date = tz_e.localize(datetime.datetime(2023, 10, 31, 13, 0))  # ~90 days
+        aggs_result_list = [
+            # First call for Auguest Data
+            [
+                {"o": 5, "h": 8, "l": 3, "c": 7, "v": 100, "t": 1690876800000},  # 8/1/2023 8am UTC
+                {"o": 9, "h": 12, "l": 7, "c": 10, "v": 100, "t": 1693497600000},  # 8/31/2023 8am UTC
+            ],
+            # Second call for September Data
+            [
+                {"o": 13, "h": 16, "l": 11, "c": 14, "v": 100, "t": 1693584000000},  # 9/1/2023 8am UTC
+                {"o": 17, "h": 20, "l": 15, "c": 18, "v": 100, "t": 1696176000000},  # 10/1/2023 8am UTC
+                {"o": 17, "h": 20, "l": 15, "c": 18, "v": 100, "t": 1696118400000},  # 10/1/2023 12am UTC
+            ],
+            # Third call for October Data
+            [
+                {"o": 21, "h": 24, "l": 19, "c": 22, "v": 100, "t": 1696262400000},  # 10/2/2023 8am UTC
+                {"o": 25, "h": 28, "l": 23, "c": 26, "v": 100, "t": 1698768000000},  # 10/31/2023 8am UTC
+            ],
+        ]
+        mock_polyclient().get_aggs.side_effect = aggs_result_list + aggs_result_list if force_cache_update else aggs_result_list
+        df = ph.get_price_data_from_polygon(api_key, asset, start_date, end_date, timespan, force_cache_update=force_cache_update)
+        assert mock_polyclient().get_aggs.call_count == 3
+        assert expected_cachefile.exists()
+        assert len(df) == 7
+        df = ph.get_price_data_from_polygon(api_key, asset, start_date, end_date, timespan, force_cache_update=force_cache_update)
+        assert len(df) == 7
+        if force_cache_update:
+            assert mock_polyclient().get_aggs.call_count == 2 * 3
+        else:
+            assert mock_polyclient().get_aggs.call_count == 3
+        expected_cachefile.unlink()

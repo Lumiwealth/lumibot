@@ -2,6 +2,9 @@ import logging
 import traceback
 
 import pandas as pd
+from lumiwealth_tradier import Tradier as _Tradier
+from lumiwealth_tradier.base import TradierApiError
+from lumiwealth_tradier.orders import OrderLeg
 from termcolor import colored
 
 from lumibot.brokers import Broker
@@ -9,8 +12,6 @@ from lumibot.data_sources.tradier_data import TradierData
 from lumibot.entities import Asset, Order, Position
 from lumibot.tools.helpers import create_options_symbol
 from lumibot.trading_builtins import PollingStream
-from lumiwealth_tradier import Tradier as _Tradier
-from lumiwealth_tradier.base import TradierApiError
 
 
 class Tradier(Broker):
@@ -106,6 +107,94 @@ class Tradier(Broker):
         # Cancel the order
         self.tradier.orders.cancel(order.identifier)
 
+    def submit_orders(self, orders, is_multileg=False, order_type="market", duration="day", price=None, tag=None):
+        """
+        Submit multiple orders to the broker. This function will submit the orders in the order they are provided.
+        If any order fails to submit, the function will stop submitting orders and return the last successful order.
+        """
+        # Check if the orders are empty
+        if not orders:
+            return
+        
+        # Check if it is a multi-leg order
+        if is_multileg:
+            # Submit the multi-leg order
+            return self._submit_multileg_order(orders, order_type, duration, price, tag)
+
+        # Submit each order
+        for order in orders:
+            self.submit_order(order)
+
+    def _submit_multileg_order(self, orders, order_type="market", duration="day", price=None, tag=None):
+        """
+        Submit a multi-leg order to Tradier. This function will submit the multi-leg order to Tradier.
+
+        Parameters
+        ----------
+        orders: list[Order]
+            List of orders to submit
+        order_type: str
+            The type of multi-leg order to submit. Valid values are ('market', 'debit', 'credit', 'even'). Default is 'market'.
+        duration: str
+            The duration of the order. Valid values are ('day', 'gtc', 'pre', 'post'). Default is 'day'.
+        price: float
+            The limit price for the order. Required for 'debit' and 'credit' order types.
+        tag: str
+            The tag to associate with the order.
+
+        Returns
+        -------
+            list of Order objects
+                List of processed order objects.
+        """
+
+        # Check if the order type is valid
+        if order_type not in ["market", "debit", "credit", "even"]:
+            raise ValueError(f"Invalid order type '{order_type}' for multi-leg order.")
+        
+        # Check if the duration is valid
+        if duration not in ["day", "gtc", "pre", "post"]:   
+            raise ValueError(f"Invalid duration {duration} for multi-leg order.")
+        
+        # Check if the price is required
+        if order_type in ["debit", "credit"] and price is None:
+            raise ValueError(f"Price is required for '{order_type}' order type.")
+
+        # Check that all the order objects have the same symbol
+        if len(set([order.asset.symbol for order in orders])) > 1:
+            raise ValueError("All orders in a multi-leg order must have the same symbol.")
+        
+        # Get the symbol from the first order
+        symbol = orders[0].asset.symbol
+
+        # Create the legs for the multi-leg order
+        legs = []
+        for order in orders:
+            # Create the options symbol
+            option_symbol = create_options_symbol(
+                order.asset.symbol, order.asset.expiration, order.asset.right, order.asset.strike
+            )
+
+            # Example leg: leg1 = OrderLeg(option_symbol=option_symbol_1, quantity=1, side='buy_to_open')
+            leg = OrderLeg(
+                option_symbol=option_symbol,
+                quantity=int(order.quantity), # Quantity for Tradier must be a positive integer
+                side=self._lumi_side2tradier(order),
+            )
+            legs.append(leg)
+
+        # Example assuming order_type and duration are required and correctly set
+        result = self.tradier.orders.multileg_order(
+            symbol=symbol,
+            order_type=order_type,
+            duration=duration,
+            legs=legs,
+            price=price,
+            tag=tag,
+        )
+
+        return result
+        
     def _submit_order(self, order: Order):
         """
         Do checking and input sanitization, then submit the order to the broker.
@@ -203,7 +292,7 @@ class Tradier(Broker):
 
             # Create the position
             position = Position(
-                strategy=strategy.name,
+                strategy=strategy.name if strategy else "Unknown",
                 asset=asset,
                 quantity=quantity,
             )
@@ -368,22 +457,37 @@ class Tradier(Broker):
         This function is called every time the broker polls for new orders. It checks for new orders and
         dispatches them to the stream for processing.
         """
-        # Get current orders from the broker and dispatch them to the stream for processing. Need to see all
+        # Pull the current Tradier positions and sync them with Lumibot's positions
+        self.sync_positions(None)
+
+        # Get current orders from Tradier and dispatch them to the stream for processing. Need to see all
         # lumi orders (not just active "tracked" ones) to catch any orders that might have changed final
         # status in Tradier.
-        df_orders = self.tradier.orders.get_orders()
+        # df_orders = self.tradier.orders.get_orders()
+        raw_orders = self._pull_broker_all_orders()
         stored_orders = {x.identifier: x for x in self.get_all_orders()}
-        for order_row in df_orders.to_dict("records"):
+        for order_row in raw_orders:
             order = self._parse_broker_order(order_row, strategy_name=order_row.get("tag"))
 
             # First time seeing this order, something weird has happened, dispatch it as a new order
             if order.identifier not in stored_orders:
-                logging.info(
-                    f"Poll Update: Tradier has order {order}, but Lumibot doesn't know about it. "
-                    f"Adding it as a new order."
-                )
-                # If the Tradier status is not "open", the next polling cycle will catch it and dispatch it as needed.
-                self.stream.dispatch(self.NEW_ORDER, order=order)
+                # If it is the brokers first iteration then fully process the order because it is likely
+                # that the order was filled/canceled/etc before the strategy started.
+                if self._first_iteration:
+                    if order.status == Order.OrderStatus.FILLED:
+                        self._process_new_order(order)
+                        self._process_filled_order(order, order.avg_fill_price, order.quantity)
+                    elif order.status == Order.OrderStatus.CANCELED:
+                        self._process_new_order(order)
+                        self._process_canceled_order(order)
+                    elif order.status == Order.OrderStatus.PARTIALLY_FILLED:
+                        self._process_new_order(order)
+                        self._process_partially_filled_order(order, order.avg_fill_price, order.quantity)
+                    elif order.status == Order.OrderStatus.NEW:
+                        self._process_new_order(order)
+                else:
+                    # Add to order in lumibot.
+                    self._process_new_order(order)
             else:
                 stored_order = stored_orders[order.identifier]
                 stored_order.quantity = order.quantity  # Update the quantity in case it has changed
@@ -410,7 +514,7 @@ class Tradier(Broker):
                         case "canceled":
                             self.stream.dispatch(self.CANCELED_ORDER, order=stored_order)
                         case "error":
-                            default_msg = f"Tradier encountered an error with order {order.identifier} | {order}"
+                            default_msg = f"{self.name} encountered an error with order {order.identifier} | {order}"
                             msg = order_row["reason_description"] if "reason_description" in order_row else default_msg
                             self.stream.dispatch(self.ERROR_ORDER, order=stored_order, error_msg=msg)
                         case "cash_settled":
@@ -428,10 +532,12 @@ class Tradier(Broker):
         # See if there are any tracked (aka active) orders that are no longer in the broker's list,
         # dispatch them as cancelled
         tracked_orders = {x.identifier: x for x in self.get_tracked_orders()}
+        broker_ids = [o["id"] for o in raw_orders]
         for order_id, order in tracked_orders.items():
-            if order_id not in df_orders["id"].values:
+            if order_id not in broker_ids:
                 logging.info(
-                    f"Poll Update: Tradier no longer has order {order}, but Lumibot does. " f"Dispatching as cancelled."
+                    f"Poll Update: {self.name} no longer has order {order}, but Lumibot does. " 
+                    f"Dispatching as cancelled."
                 )
                 self.stream.dispatch(self.CANCELED_ORDER, order=order)
 

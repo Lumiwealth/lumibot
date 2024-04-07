@@ -30,15 +30,15 @@ class TestTradierDataAPI:
     python -m pytest -m apitest
     """
     def test_basics(self):
-        tdata = TradierData(account_number="1234", access_token="a1b2c3", paper=True)
-        assert tdata._account_number == "1234"
+        tdata = TradierData(account_number=TRADIER_ACCOUNT_ID_PAPER, access_token=TRADIER_TOKEN_PAPER, paper=True)
+        assert tdata._account_number == TRADIER_ACCOUNT_ID_PAPER
 
     def test_get_last_price(self, tradier_ds):
         asset = Asset("AAPL")
         price = tradier_ds.get_last_price(asset)
         assert isinstance(price, float)
         assert price > 0.0
-
+               
     def test_get_chains(self, tradier_ds):
         asset = Asset("SPY")
         chain = tradier_ds.get_chains(asset)
@@ -65,6 +65,19 @@ class TestTradierDataAPI:
         assert 'gamma' in greeks
         assert greeks['delta'] > 0
 
+    def test_get_quote(self, tradier_ds):
+        asset = Asset("AAPL")
+        quote = tradier_ds.get_quote(asset)
+        assert isinstance(quote, dict)
+        assert 'last' in quote
+        assert 'bid' in quote
+        assert 'ask' in quote
+        assert 'volume' in quote
+        assert 'open' in quote
+        assert 'high' in quote
+        assert 'low' in quote
+        assert 'close' in quote
+
 
 @pytest.mark.apitest
 class TestTradierBrokerAPI:
@@ -88,7 +101,6 @@ class TestTradierBrokerAPI:
         # Cancel the testing order once we are done
         # How do we check this? Who changes the Lumibot order status to "canceled"?
         tradier.cancel_order(submitted_order)
-
 
 class TestTradierBroker:
     """
@@ -213,9 +225,13 @@ class TestTradierBroker:
     def test_do_polling(self, mocker):
         broker = Tradier(account_number="1234", access_token="a1b2c3", paper=True, polling_interval=None)
         strategy = "strat_unittest"
-        mock_get_orders = mocker.patch.object(broker.tradier.orders, 'get_orders', return_value=pd.DataFrame())
+        mock_get_orders = mocker.patch.object(broker, '_pull_broker_all_orders', return_value=[])
         submit_response = {'id': 123, 'status': 'ok'}
         mock_submit_order = mocker.patch.object(broker.tradier.orders, 'order', return_value=submit_response)
+        mocker.patch.object(broker, 'sync_positions', return_value=None)
+
+        # Set to false for testing purposes
+        broker._first_iteration = False
 
         # Test polling with no orders
         broker.do_polling()
@@ -251,7 +267,7 @@ class TestTradierBroker:
             "exec_quantity": 0,
             "tag": strategy,
         }
-        mock_get_orders.return_value = pd.DataFrame([first_response])
+        mock_get_orders.return_value = [first_response]
         broker.do_polling()
         sleep(0.25)  # Sleep gives a chance for order processing thread to finish
         known_orders = broker.get_tracked_orders(strategy=strategy)
@@ -298,7 +314,7 @@ class TestTradierBroker:
             "exec_quantity": 0,
             "tag": strategy,
         }
-        mock_get_orders.return_value = pd.DataFrame([first_response, second_response])
+        mock_get_orders.return_value = [first_response, second_response]
         broker.do_polling()
         sleep(0.25)  # Sleep gives a chance for order processing thread to finish
         known_orders = broker.get_tracked_orders(strategy=strategy)
@@ -315,15 +331,14 @@ class TestTradierBroker:
         first_response["status"] = "filled"
         first_response["avg_fill_price"] = 101.0
         first_response["exec_quantity"] = stock_qty
-        mock_get_orders.return_value = pd.DataFrame([first_response, second_response])
+        mock_get_orders.return_value = [first_response, second_response]
         broker.do_polling()
         sleep(0.25)  # Sleep gives a chance for order processing thread to finish
         known_orders = broker.get_tracked_orders(strategy=strategy)
-        positions = broker.get_tracked_positions(strategy=strategy)
+        filled_orders = broker._filled_orders
         assert len(known_orders) == 1, "Tracked does not include filled orders."
-        assert len(positions) == 1
-        assert len(positions[0].orders) == 1
-        order1 = positions[0].orders[0]
+        assert len(filled_orders) == 1
+        order1 = filled_orders[0]
         assert order1.identifier == 123
         assert order1.type == "market"
         assert order1.is_filled()
@@ -331,11 +346,10 @@ class TestTradierBroker:
         assert len(broker._new_orders) == 1
         assert not len(broker._unprocessed_orders)
         assert len(broker.get_all_orders()) == 2, "Includes Filled orders"
-        assert len(broker.get_tracked_positions()) == 1
 
         # Cancel the 2nd order (stoploss)
         second_response["status"] = "canceled"
-        mock_get_orders.return_value = pd.DataFrame([first_response, second_response])
+        mock_get_orders.return_value = [first_response, second_response]
         broker.do_polling()
         sleep(0.25)  # Sleep gives a chance for order processing thread to finish
         known_orders = broker.get_tracked_orders(strategy=strategy)
@@ -343,7 +357,6 @@ class TestTradierBroker:
         assert len(broker._new_orders) == 0
         assert not len(broker._unprocessed_orders)
         assert len(broker.get_all_orders()) == 2, "Includes Filled/Cancelled orders"
-        assert len(broker.get_tracked_positions()) == 1
         assert len(broker._canceled_orders) == 1
         order2 = broker._canceled_orders[0]
         assert order2.identifier == 124
@@ -359,7 +372,6 @@ class TestTradierBroker:
         assert len(broker._new_orders) == 0
         assert not len(broker._unprocessed_orders)
         assert len(broker.get_all_orders()) == 2, "Includes Filled/Cancelled orders"
-        assert len(broker.get_tracked_positions()) == 1
         assert len(broker._canceled_orders) == 1
 
         # 3rd Order: Submit an order that causes a broker error
@@ -388,7 +400,7 @@ class TestTradierBroker:
             "exec_quantity": 0,
             "tag": strategy,
         }
-        mock_get_orders.return_value = pd.DataFrame([first_response, second_response, third_response])
+        mock_get_orders.return_value = [first_response, second_response, third_response]
         broker.do_polling()
         sleep(0.25)  # Sleep gives a chance for order processing thread to finish
         known_orders = broker.get_tracked_orders(strategy=strategy)
@@ -397,7 +409,6 @@ class TestTradierBroker:
         assert not len(broker._unprocessed_orders)
         assert len(broker._canceled_orders) == 2
         assert len(broker.get_all_orders()) == 3, "Includes Filled/Cancelled orders"
-        assert len(broker.get_tracked_positions()) == 1
         error_order = broker._canceled_orders[1]
         assert error_order.identifier == 125
         assert error_order.type == "limit"
@@ -414,7 +425,7 @@ class TestTradierBroker:
         assert len(broker.get_all_orders()) == 4, "Includes Filled/Cancelled orders"
 
         # Poll, but broker returns no info on the Lumibot order so it should be canceled.
-        mock_get_orders.return_value = pd.DataFrame([first_response, second_response, third_response])
+        mock_get_orders.return_value = [first_response, second_response, third_response]
         broker.do_polling()
         sleep(0.25)  # Sleep gives a chance for order processing thread to finish
         known_orders = broker.get_tracked_orders(strategy=strategy)
@@ -440,7 +451,7 @@ class TestTradierBroker:
             "exec_quantity": stock_qty,
             "tag": strategy,
         }
-        mock_get_orders.return_value = pd.DataFrame([first_response, second_response, third_response, fourth_response])
+        mock_get_orders.return_value = [first_response, second_response, third_response, fourth_response]
         broker.do_polling()
         sleep(0.25)  # Sleep gives a chance for order processing thread to finish
         known_orders = broker.get_tracked_orders(strategy=strategy)
@@ -453,7 +464,7 @@ class TestTradierBroker:
         assert not order.get_fill_price()
 
         # Poll again, order fill will now be processed
-        mock_get_orders.return_value = pd.DataFrame([first_response, second_response, third_response, fourth_response])
+        mock_get_orders.return_value = [first_response, second_response, third_response, fourth_response]
         broker.do_polling()
         sleep(0.25)  # Sleep gives a chance for order processing thread to finish
         known_orders = broker.get_tracked_orders(strategy=strategy)

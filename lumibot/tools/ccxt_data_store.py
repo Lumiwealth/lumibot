@@ -229,7 +229,7 @@ class CcxtCacheDB:
         with duckdb.connect(cache_file) as con:
             con.execute("""CREATE TABLE IF NOT EXISTS candles (
                             datetime DATETIME,
-                            open FLOAT, high FLOAT, low FLOAT, close FLOAT, volume INTEGER, missing INTEGER)""")
+                            open DECIMAL, high DECIMAL, low DECIMAL, close DECIMAL, volume DECIMAL, missing INTEGER)""")
 
             # cache ranges table
             con.execute("""CREATE TABLE  IF NOT EXISTS cache_dt_ranges (

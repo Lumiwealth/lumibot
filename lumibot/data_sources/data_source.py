@@ -112,16 +112,22 @@ class DataSource(ABC):
 
     # ========Python datetime helpers======================
 
-    def get_datetime(self):
+    def get_datetime(self, adjust_for_delay=False):
         """
         Returns the current datetime in the default timezone
+
+        Parameters
+        ----------
+        adjust_for_delay : bool
+            Whether to adjust the current time for the delay. This is useful for paper trading data sources that
+            provide delayed data.
 
         Returns
         -------
         datetime
         """
         current_time = self.to_default_timezone(datetime.now())
-        if self._delay:
+        if adjust_for_delay and self._delay:
             current_time -= self._delay
         return current_time
 
@@ -383,14 +389,22 @@ class DataSource(ABC):
         opt_price = asset_price
         und_price = underlying_price
         interest = risk_free_rate * 100
-        current_date = self.get_datetime().date()
+        current_date = self.get_datetime()
 
         # If asset expiration is a datetime object, convert it to date
         expiration = asset.expiration
         if isinstance(expiration, datetime):
             expiration = expiration.date()
 
-        days_to_expiration = (expiration - current_date).days
+        # Convert the expiration to be a datetime with 4pm New York time
+        expiration = datetime.combine(expiration, datetime.min.time())
+        expiration = self.DEFAULT_PYTZ.localize(expiration)
+        expiration = expiration.astimezone(self.DEFAULT_PYTZ)
+        expiration = expiration.replace(hour=16, minute=0, second=0, microsecond=0)
+
+        # Calculate the days to expiration, but allow for fractional days
+        days_to_expiration = (expiration - current_date).total_seconds() / (60 * 60 * 24)
+
         if asset.right.upper() == "CALL":
             is_call = True
             iv = black_scholes.BS(

@@ -318,6 +318,44 @@ class BacktestingBroker(Broker):
 
         return orders
 
+    def _process_filled_order(self, order, price, quantity):
+        """
+        BackTesting needs to create/update positions when orders are filled becuase there is no broker to do it
+        """
+        existing_position = self.get_tracked_position(order.strategy, order.asset)
+        position = super()._process_filled_order(order, price, quantity)
+        if existing_position:
+            position.add_order(order, quantity)  # Add will update quantity, but not double count the order
+            if position.quantity == 0:
+                logging.info("Position %r liquidated" % position)
+                self._filled_positions.remove(position)
+        else:
+            self._filled_positions.append(position)  # New position, add it to the tracker
+        return position
+
+    def _process_partially_filled_order(self, order, price, quantity):
+        """
+        BackTesting needs to create/update positions when orders are partially filled becuase there is no broker
+        to do it
+        """
+        existing_position = self.get_tracked_position(order.strategy, order.asset)
+        stored_order, position = super()._process_partially_filled_order(order, price, quantity)
+        if existing_position:
+            position.add_order(stored_order, quantity)  # Add will update quantity, but not double count the order
+        return stored_order, position
+
+    def _process_cash_settlement(self, order, price, quantity):
+        """
+        BackTesting needs to create/update positions when orders are filled becuase there is no broker to do it
+        """
+        existing_position = self.get_tracked_position(order.strategy, order.asset)
+        super()._process_cash_settlement(order, price, quantity)
+        if existing_position:
+            existing_position.add_order(order, quantity)  # Add will update quantity, but not double count the order
+            if existing_position.quantity == 0:
+                logging.info("Position %r liquidated" % existing_position)
+                self._filled_positions.remove(existing_position)
+
     def submit_order(self, order):
         """Submit an order for an asset"""
         order.update_raw(order)
@@ -328,7 +366,7 @@ class BacktestingBroker(Broker):
         )
         return order
 
-    def submit_orders(self, orders):
+    def submit_orders(self, orders, **kwargs):
         results = []
         for order in orders:
             results.append(self.submit_order(order))
@@ -538,6 +576,11 @@ class BacktestingBroker(Broker):
                     timeshift=-2,
                     timestep=self.data_source._timestep,
                 )
+                # Check if we got any ohlc data
+                if ohlc is None:
+                    self.cancel_order(order)
+                    continue
+
                 df_original = ohlc.df
 
                 # Make sure that we are only getting the prices for the current time exactly or in the future
@@ -548,9 +591,6 @@ class BacktestingBroker(Broker):
                 if df.empty:
                     df = df_original.iloc[-1:]
 
-                if ohlc is None:
-                    self.cancel_order(order)
-                    continue
                 dt = df.index[0]
                 open = df["open"].iloc[0]
                 high = df["high"].iloc[0]

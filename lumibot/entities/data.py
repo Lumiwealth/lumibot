@@ -268,6 +268,11 @@ class Data:
             )
         return df
 
+    # ./lumibot/build/__editable__.lumibot-3.1.14-py3-none-any/lumibot/entities/data.py:280: 
+    # FutureWarning: Downcasting object dtype arrays on .fillna, .ffill, .bfill is deprecated and will change in a future version. 
+    # Call result.infer_objects(copy=False) instead.
+    # To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)`
+
     def repair_times_and_fill(self, idx):
         # Trim the global index so that it is within the local data.
         idx = idx[(idx >= self.datetime_start) & (idx <= self.datetime_end)]
@@ -519,7 +524,7 @@ class Data:
         if data is None:
             return None
 
-        df = pd.DataFrame(data).set_index("datetime")
+        df = pd.DataFrame(data).assign(datetime=lambda df: pd.to_datetime(df['datetime'])).set_index('datetime')
         df_result = df.resample(f"{quantity}{unit}").agg(agg_column_map)
 
         # Drop any rows that have NaN values (this can happen if the data is not complete, eg. weekends)

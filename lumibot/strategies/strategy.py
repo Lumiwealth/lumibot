@@ -1,6 +1,5 @@
 import datetime
 import io
-import logging
 import os
 import time
 import uuid
@@ -18,8 +17,10 @@ import pandas as pd
 import pandas_market_calendars as mcal
 import pytz
 import requests
-from lumibot.entities import Asset, Order
 from termcolor import colored
+
+from lumibot.entities import Asset, Order
+from lumibot.tools import get_risk_free_rate
 
 from ._strategy import _Strategy
 
@@ -27,7 +28,6 @@ matplotlib.use("Agg")
 
 # Set the stats table name for when storing stats in a database, defined by account_history_db_connection_str
 STATS_TABLE_NAME = "strategy_tracker"
-
 
 class Strategy(_Strategy):
     @property
@@ -73,6 +73,7 @@ class Strategy(_Strategy):
     @quote_asset.setter
     def quote_asset(self, value):
         self._quote_asset = value
+        self.broker.quote_assets.add(value)
 
     @property
     def last_on_trading_iteration_datetime(self):
@@ -327,7 +328,12 @@ class Strategy(_Strategy):
 
     @property
     def risk_free_rate(self):
-        return self._risk_free_rate
+        # Get the current datetime
+        now = self.get_datetime()
+
+        # Use the yahoo data to get the risk free rate
+        rfr = get_risk_free_rate(now)
+        return rfr
 
     # ======= Helper Methods =======================
 
@@ -358,12 +364,10 @@ class Strategy(_Strategy):
         >>> self.log_message('Sending a buy order')
         """
         if color is not None:
-            colored_message = f"{self._log_strat_name()}: {message}"
             colored_message = colored(message, color)
-            logging.info(colored_message)
+            self.logger.info(colored_message)
         else:
-            output_message = f"{self._log_strat_name()}: {message}"
-            logging.info(output_message)
+            self.logger.info(message)
 
         if broadcast:
             # Send the message to Discord
@@ -1482,14 +1486,14 @@ class Strategy(_Strategy):
         """
 
         if order is None:
-            logging.error(
+            self.logger.error(
                 "Cannot submit a None order, please check to make sure that you have actually created an order before submitting."
             )
             return
 
         return self.broker.submit_order(order)
 
-    def submit_orders(self, orders):
+    def submit_orders(self, orders, **kwargs):
         """Submit a list of orders
 
         Submits a list of orders for processing by the active broker.
@@ -1499,11 +1503,29 @@ class Strategy(_Strategy):
         orders : list of orders
             A list of order objects containing the asset and
             instructions for the orders.
-
+        is_multileg : bool
+            Tradier only.
+            A boolean value to indicate if the orders are part of one multileg order.
+            Currently this is only available for Tradier.
+        order_type : str
+            Tradier only.
+            The order type for the multileg order. Possible values are:
+            ('market', 'debit', 'credit', 'even'). Default is 'market'.
+        duration : str
+            Tradier only.
+            The duration for the multileg order. Possible values are:
+            ('day', 'gtc', 'pre', 'post'). Default is 'day'.
+        price : float
+            Tradier only.
+            The limit price for the multileg order. Required for 'debit' and 'credit' order types.
+        tag : str
+            Tradier only.
+            A tag for the multileg order.
+        
         Returns
         -------
-        list of orders
-            List of processed order object.
+        list of Order objects
+            List of processed order objects.
 
         Example
         -------
@@ -1600,7 +1622,7 @@ class Strategy(_Strategy):
         >>> order2 = self.create_order((asset_ETH, asset_quote), 10, "buy")
         >>> self.submit_order([order1, order2])
         """
-        return self.broker.submit_orders(orders)
+        return self.broker.submit_orders(orders, **kwargs)
 
     def wait_for_order_registration(self, order):
         """Wait for the order to be registered by the broker
@@ -1851,8 +1873,8 @@ class Strategy(_Strategy):
         """
 
         # Check if the asset is valid
-        if asset is None or (type(asset) == Asset and asset.is_valid() is False):
-            logging.error(
+        if asset is None or (isinstance(asset, Asset) and not asset.is_valid()):
+            self.logger.error(
                 f"Asset in get_last_price() must be a valid asset. Got {asset} of type {type(asset)}. You may be missing some of the required parameters for the asset type (eg. strike price for options, expiry for options/futures, etc)."
             )
             return None
@@ -1882,6 +1904,31 @@ class Strategy(_Strategy):
             self.log_message(f"Could not get last price for {asset}", color="red")
             self.log_message(f"{e}")
             return None
+        
+    def get_quote(self, asset):
+        """Get a quote for the asset.
+
+        NOTE: This currently only works with Tradier. It does not work with backtetsing or other brokers.
+        
+        Parameters
+        ----------
+        asset : Asset object
+            The asset for which the quote is needed.
+            
+        Returns
+        -------
+        dict
+            A dictionary with the quote information, eg. bid, ask, etc.
+        """
+
+        asset = self._sanitize_user_asset(asset)
+
+        # Check if the broker has the get_quote method (not all brokers do)
+        if not hasattr(self.broker.data_source, "get_quote"):
+            self.log_message("Broker does not have a get_quote method.")
+            return None
+
+        return self.broker.data_source.get_quote(asset)
 
     def get_tick(self, asset):
         """Takes an Asset and returns the last known price"""
@@ -1980,6 +2027,33 @@ class Strategy(_Strategy):
         """
         asset = self._sanitize_user_asset(asset)
         return self.broker.get_chains(asset)
+    
+    def get_next_trading_day(self, date, exchange='NYSE'):
+        """
+        Finds the next trading day for the given date and exchange.
+        
+        Parameters:
+            date (str): The date from which to find the next trading day, in 'YYYY-MM-DD' format.
+            exchange (str): The exchange calendar to use, default is 'NYSE'.
+            
+        Returns:
+            next_trading_day (datetime.date): The next trading day after the given date.
+        """
+        
+        # Load the specified market calendar
+        calendar = mcal.get_calendar(exchange)
+        
+        # Convert the input string date to pandas Timestamp
+        date_timestamp = pd.Timestamp(date)
+        
+        # Get the next trading day. The schedule is inclusive of the start_date when the market is open on this day.
+        # Hence, we add 1 day to the start_date to ensure we start checking from the day after.
+        schedule = calendar.schedule(start_date=date_timestamp + pd.Timedelta(days=1), end_date=date_timestamp + pd.Timedelta(days=10))
+        
+        # The next trading day is the first entry in the schedule
+        next_trading_day = schedule.index[0].date()
+        
+        return next_trading_day
 
     def get_chain(self, chains, exchange="SMART"):
         """Returns option chain for a particular exchange.
@@ -2262,7 +2336,10 @@ class Strategy(_Strategy):
 
         # Do the expensize API calls here if needed
         opt_price = asset_price if asset_price is not None else self.get_last_price(asset)
-        risk_free_rate = risk_free_rate if risk_free_rate is not None else self.risk_free_rate
+        if risk_free_rate is not None:
+            risk_free_rate = risk_free_rate
+        else:
+            risk_free_rate = self.risk_free_rate
         if underlying_price is None:
             underlying_asset = Asset(symbol=asset.symbol, asset_type="stock")
             und_price = self.get_last_price(underlying_asset)
@@ -2312,7 +2389,7 @@ class Strategy(_Strategy):
         """
         return self.broker.data_source.DEFAULT_PYTZ
 
-    def get_datetime(self):
+    def get_datetime(self, adjust_for_delay=False):
         """Returns the current datetime according to the data source. In a backtest this will be the current bar's datetime. In live trading this will be the current datetime on the exchange.
 
         Returns
@@ -2326,7 +2403,7 @@ class Strategy(_Strategy):
         >>> datetime = self.get_datetime()
         >>> self.log_message(f"The current datetime is {datetime}")
         """
-        return self.broker.data_source.get_datetime()
+        return self.broker.data_source.get_datetime(adjust_for_delay=adjust_for_delay)
 
     def get_timestamp(self):
         """Returns the current timestamp according to the data source. In a backtest this will be the current bar's timestamp. In live trading this will be the current timestamp on the exchange.
@@ -2908,7 +2985,7 @@ class Strategy(_Strategy):
         if quote is None:
             quote = self.quote_asset
 
-        logging.info(f"Getting historical prices for {asset}, {length} bars, {timestep}")
+        self.logger.info(f"Getting historical prices for {asset}, {length} bars, {timestep}")
 
         asset = self._sanitize_user_asset(asset)
 
@@ -3021,7 +3098,7 @@ class Strategy(_Strategy):
         >>> df = bars.df
         """
 
-        logging.info(f"Getting historical prices for {assets}, {length} bars, {timestep}")
+        self.logger.info(f"Getting historical prices for {assets}, {length} bars, {timestep}")
 
         assets = [self._sanitize_user_asset(asset) for asset in assets]
         return self.broker.data_source.get_bars(
@@ -3671,14 +3748,14 @@ class Strategy(_Strategy):
 
         # Check if the message is empty
         if message == "" or message is None:
-            # If the message is empty, log an error and return
-            logging.error("The discord message is empty. Please provide a message to send to Discord.")
+            # If the message is empty, log and return
+            self.logger.debug("The discord message is empty. Please provide a message to send to Discord.")
             return
 
         # Check if the discord webhook URL is set
         if self.discord_webhook_url is None:
-            # If the webhook URL is not set, log an error and return
-            logging.error(
+            # If the webhook URL is not set, log and return
+            self.logger.debug(
                 "The discord webhook URL is not set. Please set the discord_webhook_url parameter in the strategy \
                 initialization if you want to send messages to Discord."
             )
@@ -3710,19 +3787,19 @@ class Strategy(_Strategy):
 
         # Check if the message was sent successfully
         if response.status_code == 200 or response.status_code == 204:
-            print("Discord message sent successfully.")
+            self.logger.info("Discord message sent successfully.")
         else:
-            print(
-                f"ERROR: Failed to send message to Discord. Status code: {response.status_code}, message: {response.text}"
+            self.logger.error(
+                f"Failed to send message to Discord. Status code: {response.status_code}, message: {response.text}"
             )
 
-    def send_spark_chart_to_discord(self, stats_df, portfolio_value, now):
+    def send_spark_chart_to_discord(self, stats_df, portfolio_value, now, days=180):
         # Check if we are in backtesting mode, if so, don't send the message
         if self.is_backtesting:
             return
 
-        # Only keep the stats for the past week
-        stats_df = stats_df.loc[stats_df["datetime"] >= (now - pd.Timedelta(days=7))]
+        # Only keep the stats for the past X days
+        stats_df = stats_df.loc[stats_df["datetime"] >= (now - pd.Timedelta(days=days))]
 
         # Set the default color
         color = "black"
@@ -3735,13 +3812,14 @@ class Strategy(_Strategy):
             # Remove nan values
             stats_df = stats_df.dropna()
 
-            # Get the portfolio value 7 days ago
-            portfolio_value_7_days_ago = stats_df.iloc[0]["portfolio_value"]
+            # Get the portfolio value at the beginning of the dataframe
+            portfolio_value_start = stats_df.iloc[0]["portfolio_value"]
+
             # Calculate the return over the past 7 days
-            return_7_days = ((portfolio_value / portfolio_value_7_days_ago) - 1) * 100
+            total_return = ((portfolio_value / portfolio_value_start) - 1) * 100
 
             # Check if we made a positive return, if so, set the color to green, otherwise set it to red
-            if return_7_days > 0:
+            if total_return > 0:
                 color = "green"
             else:
                 color = "red"
@@ -3752,9 +3830,12 @@ class Strategy(_Strategy):
         # Create an axes instance, setting the facecolor to white
         ax = plt.axes(facecolor="white")
 
+        # Convert 'datetime' to Matplotlib's numeric format right after cleaning
+        stats_df['mpl_datetime'] = mdates.date2num(stats_df['datetime'])
+
         # Plotting with a thicker line
         ax = stats_df.plot(
-            x="datetime",
+            x="mpl_datetime",
             y="portfolio_value",
             kind="line",
             linewidth=5,
@@ -3832,7 +3913,7 @@ class Strategy(_Strategy):
 
             # Make sure last_price is a number
             if last_price is None or not isinstance(last_price, (int, float, Decimal)):
-                logging.info(f"Last price for {position.asset} is not a number: {last_price}")
+                self.logger.info(f"Last price for {position.asset} is not a number: {last_price}")
                 continue
 
             # Calculate teh value of the position
@@ -3879,6 +3960,10 @@ class Strategy(_Strategy):
         # Remove any leading whitespace
         # Remove the extra spaces at the beginning of each line
         message = "\n".join(line.lstrip() for line in message.split("\n"))
+
+        # Add self.discord_account_summary_footer to the message
+        if hasattr(self, "discord_account_summary_footer") and self.discord_account_summary_footer is not None:
+            message += f"{self.discord_account_summary_footer}\n\n"
 
         # Add powered by Lumiwealth to the message
         message += "[**Powered by 💡 Lumiwealth**](<https://lumiwealth.com>)\n-----------"

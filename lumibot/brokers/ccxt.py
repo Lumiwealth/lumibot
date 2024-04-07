@@ -175,8 +175,17 @@ class Ccxt(Broker):
         available = position["free"]
         quantity = Decimal(position["total"])
 
-        if self.api.exchangeId == "binance":
+        # Check if symbol is in the currencies list
+        if symbol not in self.api.currencies:
+            logging.error(
+                f"The symbol {symbol} is not in the currencies list. "
+                f"Please check the symbol and the exchange currencies list."
+            )
+            precision = None
+        
+        elif self.api.exchangeId == "binance":
             precision = str(10 ** -self.api.currencies[symbol]["precision"])
+            
         else:
             precision = str(self.api.currencies[symbol]["precision"])
 
@@ -239,8 +248,12 @@ class Ccxt(Broker):
         list of position objects"""
         result = []
         for broker_position in broker_positions:
-            result.append(self._parse_broker_position(broker_position, strategy))
+            new_pos = self._parse_broker_position(broker_position, strategy)
 
+            # Check if the position is not None
+            if new_pos is not None:
+                result.append(new_pos)
+                
         return result
 
     def _pull_positions(self, strategy):
@@ -469,10 +482,11 @@ class Ccxt(Broker):
             "stop_price",
         ]:
             if hasattr(order, price_type) and getattr(order, price_type) is not None:
+                precision_price = Decimal(str(10 ** -precision["price"])) if self.api.exchangeId == "binance" else precision["price"]
                 setattr(
                     order,
                     price_type,
-                    Decimal(getattr(order, price_type)).quantize(Decimal(str(precision["price"]))),
+                    Decimal(getattr(order, price_type)).quantize(Decimal(str(precision_price))),
                 )
             else:
                 continue

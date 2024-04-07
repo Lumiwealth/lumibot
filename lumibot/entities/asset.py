@@ -263,11 +263,6 @@ class Asset:
             if self.right is None:
                 return False
 
-        # If it's a future it should have an expiration date
-        if self.asset_type == "future":
-            if self.expiration is None:
-                return False
-
         return True
 
 

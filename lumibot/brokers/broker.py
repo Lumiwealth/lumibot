@@ -1,6 +1,7 @@
 import logging
 import time
 from abc import ABC, abstractmethod
+from asyncio.log import logger
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
@@ -10,11 +11,20 @@ from threading import RLock, Thread
 import pandas as pd
 import pandas_market_calendars as mcal
 from dateutil import tz
+from termcolor import colored
+
 from lumibot.data_sources import DataSource
 from lumibot.entities import Asset, Order, Position
 from lumibot.trading_builtins import SafeList
-from termcolor import colored
 
+
+class CustomLoggerAdapter(logging.LoggerAdapter):
+    def process(self, msg, kwargs):
+        # Use an f-string for formatting
+        return f'[{self.extra["strategy_name"]}] {msg}', kwargs
+
+    def update_strategy_name(self, new_strategy_name):
+        self.extra['strategy_name'] = new_strategy_name
 
 class Broker(ABC):
     # Metainfo
@@ -45,8 +55,16 @@ class Broker(ABC):
         self._hold_trade_events = False
         self._held_trades = []
         self._config = config
+        self._strategy_name = ""
         self.data_source = data_source
         self.max_workers = min(max_workers, 200)
+        self.quote_assets = set()  # Quote positions will never be removed from tracking during sync operations
+
+        # Set the the state of first iteration to True. This will later be updated to False by the strategy executor
+        self._first_iteration = True
+
+        # Create an adapter with 'strategy_name' set to the instance's name
+        self.logger = CustomLoggerAdapter(logger, {'strategy_name': "unknown"})
 
         if self.data_source is None:
             raise ValueError("Broker must have a data source")
@@ -181,6 +199,53 @@ class Broker(ABC):
         TODO: Fill in with the expected output of this function.
         """
         pass
+
+    def sync_positions(self, strategy):
+        """
+        Sync the broker positions with the lumibot positions. Remove any lumibot positions that are not at the broker.
+        """
+        positions_broker = self._pull_positions(strategy)
+        for position in positions_broker:
+            # Check if the position is None
+            if position is None:
+                continue
+
+            # Check against existing position.
+            position_lumi = [
+                pos_lumi
+                for pos_lumi in self._filled_positions.get_list()
+                if pos_lumi.asset == position.asset
+            ]
+            position_lumi = position_lumi[0] if len(position_lumi) > 0 else None
+
+            if position_lumi:
+                # Compare to existing lumi position.
+                if position_lumi.quantity != position.quantity:
+                    position_lumi.quantity = position.quantity
+
+                # No current brokers have anyway to distinguish between strategies for an open position.
+                # Therefore, we will just update the strategy to the current strategy.
+                # This is added here because with initial polling, no strategy is set for the positions so we
+                # can create ones that have no strategy attached. This will ensure that all stored positions have a
+                # strategy with subsequent updates.
+                if strategy:
+                    position_lumi.strategy = strategy.name if not isinstance(strategy, str) else strategy
+            else:
+                # Add to positions in lumibot, position does not exist
+                # in lumibot.
+                if position.quantity != 0:
+                    self._filled_positions.append(position)
+
+        # Now iterate through lumibot positions.
+        # Remove lumibot position if not at the broker.
+        for position in self._filled_positions.get_list():
+            found = False
+            for position_broker in positions_broker:
+                if position_broker.asset == position.asset:
+                    found = True
+                    break
+            if not found and (position.asset not in self.quote_assets):
+                self._filled_positions.remove(position)
 
     # =========Market functions=======================
 
@@ -317,7 +382,7 @@ class Broker(ABC):
             # If greeks could not be queried, continue and calculate them locally
             if greeks:
                 return greeks
-            logging.info("Greeks could not be queried from the broker. Calculating locally instead.")
+            self.logger.info("Greeks could not be queried from the broker. Calculating locally instead.")
 
         return self.data_source.calculate_greeks(asset, asset_price, underlying_price, risk_free_rate)
 
@@ -399,9 +464,9 @@ class Broker(ABC):
                 if order.was_transmitted():
                     flat_orders = self._flatten_order(order)
                     for flat_order in flat_orders:
-                        logging.info(
+                        self.logger.info(
                             colored(
-                                "%r was sent to broker %s" % (flat_order, self.name),
+                                f"Order {flat_order} was sent to broker {self.name}",
                                 color="green",
                             )
                         )
@@ -437,7 +502,6 @@ class Broker(ABC):
         if order in self._new_orders:
             return order
 
-        logging.info(colored(f"New {order} was submitted.", color="green"))
         self._unprocessed_orders.remove(order.identifier, key="identifier")
         order.status = self.NEW_ORDER
         order.set_new()
@@ -445,7 +509,6 @@ class Broker(ABC):
         return order
 
     def _process_canceled_order(self, order):
-        logging.info("%r was canceled." % order)
         self._new_orders.remove(order.identifier, key="identifier")
         self._unprocessed_orders.remove(order.identifier, key="identifier")
         self._partially_filled_orders.remove(order.identifier, key="identifier")
@@ -455,27 +518,21 @@ class Broker(ABC):
         return order
 
     def _process_partially_filled_order(self, order, price, quantity):
-        logging.info(
-            "Partial Fill Transaction: %s %d of %s at $%s per share" % (order.side, quantity, order.asset, price)
-        )
-        logging.info("%r was partially filled" % order)
         self._new_orders.remove(order.identifier, key="identifier")
 
         order.add_transaction(price, quantity)
         order.status = self.PARTIALLY_FILLED_ORDER
         order.set_partially_filled()
+        if order not in self._partially_filled_orders:
+            self._partially_filled_orders.append(order)
 
         position = self.get_tracked_position(order.strategy, order.asset)
         if position is None:
             # Create new position for this given strategy and asset
             position = order.to_position(quantity)
-            self._filled_positions.append(position)
         else:
             # Add the order to the already existing position
-            position.add_order(order, quantity)
-
-        if order not in self._partially_filled_orders:
-            self._partially_filled_orders.append(order)
+            position.add_order(order)
 
         if order.asset.asset_type == "crypto":
             self._process_crypto_quote(order, quantity, price)
@@ -483,13 +540,6 @@ class Broker(ABC):
         return order, position
 
     def _process_filled_order(self, order, price, quantity):
-        logging.info(
-            colored(
-                f"Filled Transaction: {order.side} {quantity} of {order.asset.symbol} at {price:,.8f} {'USD'} per share",
-                color="green",
-            )
-        )
-        logging.info(f"{order} was filled")
         self._new_orders.remove(order.identifier, key="identifier")
         self._unprocessed_orders.remove(order.identifier, key="identifier")
         self._partially_filled_orders.remove(order.identifier, key="identifier")
@@ -503,13 +553,9 @@ class Broker(ABC):
         if position is None:
             # Create new position for this given strategy and asset
             position = order.to_position(quantity)
-            self._filled_positions.append(position)
         else:
             # Add the order to the already existing position
-            position.add_order(order, quantity)
-            if position.quantity == 0:
-                logging.info("Position %r liquidated" % position)
-                self._filled_positions.remove(position)
+            position.add_order(order)  # Don't update quantity here, it's handled by querying broker
 
         if order.asset.asset_type == "crypto":
             self._process_crypto_quote(order, quantity, price)
@@ -517,13 +563,13 @@ class Broker(ABC):
         return position
 
     def _process_cash_settlement(self, order, price, quantity):
-        logging.info(
+        self.logger.info(
             colored(
                 f"Cash Settled: {order.side} {quantity} of {order.asset.symbol} at {price:,.8f} {'USD'} per share",
                 color="green",
             )
         )
-        logging.info(f"{order} was cash settled")
+
         self._new_orders.remove(order.identifier, key="identifier")
         self._unprocessed_orders.remove(order.identifier, key="identifier")
         self._partially_filled_orders.remove(order.identifier, key="identifier")
@@ -536,10 +582,7 @@ class Broker(ABC):
         position = self.get_tracked_position(order.strategy, order.asset)
         if position is not None:
             # Add the order to the already existing position
-            position.add_order(order, quantity)
-            if position.quantity == 0:
-                logging.info("Position %r liquidated" % position)
-                self._filled_positions.remove(position)
+            position.add_order(order)  # Don't update quantity here, it's handled by querying broker
 
     def _process_crypto_quote(self, order, quantity, price):
         """Used to process the quote side of a crypto trade."""
@@ -674,7 +717,7 @@ class Broker(ABC):
                 time_to_open -= 60 * timedelta
 
             sleeptime = max(0, time_to_open)
-            logging.info("Sleeping until the market opens")
+            self.logger.info("Sleeping until the market opens")
             self.sleep(sleeptime)
 
     def _await_market_to_close(self, timedelta=None, strategy=None):
@@ -686,7 +729,7 @@ class Broker(ABC):
                 time_to_close -= 60 * timedelta
 
             sleeptime = max(0, time_to_close)
-            logging.info("Sleeping until the market closes")
+            self.logger.info("Sleeping until the market closes")
             self.sleep(sleeptime)
 
     # =========Positions functions==================
@@ -694,7 +737,7 @@ class Broker(ABC):
         """get a tracked position given an asset and
         a strategy"""
         for position in self._filled_positions:
-            if position.asset == asset and position.strategy == strategy:
+            if position.asset == asset and (not strategy or position.strategy == strategy):
                 return position
         return None
 
@@ -767,7 +810,7 @@ class Broker(ABC):
             for broker_order in broker_orders:
                 result.append(self._parse_broker_order(broker_order, strategy_name, strategy_object=strategy_object))
         else:
-            logging.warning("No orders found in broker._parse_broker_orders: the broker_orders object is None")
+            self.logger.warning("No orders found in broker._parse_broker_orders: the broker_orders object is None")
 
         return result
 
@@ -790,7 +833,7 @@ class Broker(ABC):
         """Submit an order for an asset"""
         self._orders_queue.put(order)
 
-    def submit_orders(self, orders):
+    def submit_orders(self, orders, **kwargs):
         """Submit orders"""
         self._orders_queue.put(orders)
 
@@ -848,14 +891,14 @@ class Broker(ABC):
 
     def sell_all(self, strategy_name, cancel_open_orders=True, strategy=None):
         """sell all positions"""
-        logging.warning("Strategy %s: sell all" % strategy_name)
+        self.logger.warning(f"Selling all positions for {strategy_name} strategy")
         if cancel_open_orders:
             self.cancel_open_orders(strategy_name)
 
         if not self.IS_BACKTESTING_BROKER:
             orders_result = self.wait_orders_clear(strategy_name)
             if not orders_result:
-                logging.info("From sell_all, orders were still outstanding before the sell all event")
+                self.logger.info("From sell_all, orders were still outstanding before the sell all event")
 
         orders = []
         positions = self.get_tracked_positions(strategy_name)
@@ -889,6 +932,9 @@ class Broker(ABC):
     def _on_new_order(self, order):
         """notify relevant subscriber/strategy about
         new order event"""
+
+        self.logger.info(colored(f"New order was created: {order}", color="green"))
+
         payload = dict(order=order)
         subscriber = self._get_subscriber(order.strategy)
         if subscriber:
@@ -897,6 +943,9 @@ class Broker(ABC):
     def _on_canceled_order(self, order):
         """notify relevant subscriber/strategy about
         canceled order event"""
+
+        self.logger.info(colored(f"Order was canceled: {order}", color="green"))
+
         payload = dict(order=order)
         subscriber = self._get_subscriber(order.strategy)
         if subscriber:
@@ -905,6 +954,9 @@ class Broker(ABC):
     def _on_partially_filled_order(self, position, order, price, quantity, multiplier):
         """notify relevant subscriber/strategy about
         partially filled order event"""
+
+        self.logger.info(colored(f"Order was partially filled: {order}", color="green"))
+
         payload = dict(
             position=position,
             order=order,
@@ -919,6 +971,9 @@ class Broker(ABC):
     def _on_filled_order(self, position, order, price, quantity, multiplier):
         """notify relevant subscriber/strategy about
         filled order event"""
+
+        self.logger.info(colored(f"Order was filled: {order}", color="green"))
+
         payload = dict(
             position=position,
             order=order,
@@ -1006,10 +1061,10 @@ class Broker(ABC):
             position = self._process_filled_order(stored_order, price, filled_quantity)
             self._on_filled_order(position, stored_order, price, filled_quantity, multiplier)
         elif type_event == self.CASH_SETTLED:
-            position = self._process_cash_settlement(stored_order, price, filled_quantity)
+            self._process_cash_settlement(stored_order, price, filled_quantity)
             stored_order.type = self.CASH_SETTLED
         else:
-            logging.info(f"Unhandled type event {type_event} for {stored_order}")
+            self.logger.info(f"Unhandled type event {type_event} for {stored_order}")
 
         current_dt = self.data_source.get_datetime()
         new_row = {
@@ -1050,7 +1105,7 @@ class Broker(ABC):
         t = Thread(target=self._run_stream, daemon=True, name=f"broker_{self.name}_thread")
         t.start()
         if not self.IS_BACKTESTING_BROKER:
-            logging.info(
+            self.logger.info(
                 """Waiting for the socket stream connection to be established, 
                 method _stream_established must be called"""
             )
@@ -1063,3 +1118,17 @@ class Broker(ABC):
         if len(self._trade_event_log_df) > 0:
             output_df = self._trade_event_log_df.set_index("time")
             output_df.to_csv(filename)
+
+    def set_strategy_name(self, strategy_name):
+        """
+        Let's the broker know the name of the strategy that is using it for logging purposes.
+
+        Parameters
+        ----------
+        strategy_name : str
+            The name of the strategy that is using the broker.
+        """
+        self._strategy_name = strategy_name
+
+        # Update the strategy name in the logger
+        self.logger.update_strategy_name(strategy_name)

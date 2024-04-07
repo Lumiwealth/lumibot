@@ -1,5 +1,5 @@
 import logging
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 from datetime import date, timedelta
 
 import pandas as pd
@@ -24,7 +24,7 @@ class PandasData(DataSourceBacktesting):
         self.name = "pandas"
         self.pandas_data = self._set_pandas_data_keys(pandas_data)
         self.auto_adjust = auto_adjust
-        self._data_store = {}
+        self._data_store = OrderedDict()
         self._date_index = None
         self._date_supply = None
         self._timestep = "minute"
@@ -32,7 +32,8 @@ class PandasData(DataSourceBacktesting):
 
     @staticmethod
     def _set_pandas_data_keys(pandas_data):
-        new_pandas_data = {}
+        # OrderedDict tracks the LRU dataframes for when it comes time to do evictions.
+        new_pandas_data = OrderedDict()
 
         def _get_new_pandas_data_key(data):
             # Always save the asset as a tuple of Asset and quote
@@ -61,7 +62,7 @@ class PandasData(DataSourceBacktesting):
                 new_pandas_data[key] = data
 
         return new_pandas_data
-
+    
     def load_data(self):
         self._data_store = self.pandas_data
         self._expiries_exist = (
@@ -146,7 +147,7 @@ class PandasData(DataSourceBacktesting):
         list of Asset
         """
         store_assets = self.get_assets()
-        if type is None:
+        if asset_type is None:
             return [asset for asset in store_assets if asset.symbol == symbol]
         else:
             return [asset for asset in store_assets if (asset.symbol == symbol and asset.asset_type == asset_type)]

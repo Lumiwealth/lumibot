@@ -5,7 +5,7 @@
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Trading Fee" href="entities.trading_fee.html" /><link rel="prev" title="Order" href="entities.order.html" />
 
-    <!-- Generated with Sphinx 7.2.6 and Furo 2023.09.10 -->
+    <!-- Generated with Sphinx 7.2.6 and Furo 2024.01.29 -->
         <title>Position - Lumibot documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=a746c00c" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=135e06be" />
@@ -158,7 +158,8 @@
 <div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
   <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="index.html">Home</a></li>
-<li class="toctree-l1"><a class="reference external" href="https://lumiwealth.circle.so/c/lumibot/">Community/Forum</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://github.com/Lumiwealth/lumibot">GitHUb</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://discord.gg/v6asVjTCvh">Community/Forum</a></li>
 <li class="toctree-l1"><a class="reference internal" href="getting_started.html">What is Lumibot?</a></li>
 <li class="toctree-l1"><a class="reference internal" href="getting_started.html#getting-started">Getting Started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="getting_started.html#adding-trading-fees">Adding Trading Fees</a></li>
@@ -208,11 +209,12 @@
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_last_prices.html">self.get_last_prices</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_historical_prices.html">self.get_historical_prices</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_historical_prices_for_assets.html">self.get_historical_prices_for_assets</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_quote.html">self.get_quote</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.start_realtime_bars.html">self.start_realtime_bars</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_realtime_bars.html">self.get_realtime_bars</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.cancel_realtime_bars.html">self.cancel_realtime_bars</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_yesterday_dividend.html">self.get_yesterday_dividend</a></li>
-<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_yesterday_dividends.html">self.get_yesterday_dividends</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_next_trading_day.html">self.get_next_trading_day</a></li>
 </ul>
 </li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.chart.html">Chart Functions</a><input class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><div class="visually-hidden">Toggle navigation of Chart Functions</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
@@ -235,7 +237,7 @@
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_expiration.html">self.get_expiration</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_multiplier.html">self.get_multiplier</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.options_expiry_to_datetime_date.html">self.options_expiry_to_datetime_date</a></li>
-<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_option_expiration_after_date.html">self.get_option_expiration_after_date</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_next_trading_day.html">self.get_next_trading_day</a></li>
 </ul>
 </li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.datetime.html">DateTime</a><input class="toctree-checkbox" id="toctree-checkbox-9" name="toctree-checkbox-9" role="switch" type="checkbox"/><label for="toctree-checkbox-9"><div class="visually-hidden">Toggle navigation of DateTime</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
@@ -405,7 +407,7 @@ Position objects are retreived from the broker using the get_positions() or get_
 
 <dl class="py method">
 <dt class="sig sig-object py" id="entities.position.Position.add_order">
-<span class="sig-name descname"><span class="pre">add_order</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">order</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Order</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quantity</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Decimal</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.position.Position.add_order" title="Link to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">add_order</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">order</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Order</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quantity</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Decimal</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">Decimal('0')</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.position.Position.add_order" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
 
 <dl class="py property">

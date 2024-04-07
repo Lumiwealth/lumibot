@@ -44,3 +44,4 @@ my_dev
 data/SRNE_Minute.csv
 .vscode/**
 *.tmp
+.env

@@ -13,8 +13,9 @@ Data methods are made to get data for you to use in your strategies. You can use
     get_last_prices
     get_historical_prices
     get_historical_prices_for_assets
+    get_quote
     start_realtime_bars
     get_realtime_bars
     cancel_realtime_bars
     get_yesterday_dividend
-    get_yesterday_dividends
+    get_next_trading_day

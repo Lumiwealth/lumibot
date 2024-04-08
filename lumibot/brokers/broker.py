@@ -1028,10 +1028,10 @@ class Broker(ABC):
             )
 
         if filled_quantity is not None:
-            error = ValueError(f"filled_quantity must be a positive integer, received {filled_quantity} instead")
+            error = ValueError(f"filled_quantity must be a positive integer or float, received {filled_quantity} instead")
             try:
-                if not isinstance(filled_quantity, Decimal):
-                    filled_quantity = Decimal(filled_quantity)
+                if not isinstance(filled_quantity, float):
+                    filled_quantity = float(filled_quantity)
                 if filled_quantity < 0:
                     raise error
             except ValueError:

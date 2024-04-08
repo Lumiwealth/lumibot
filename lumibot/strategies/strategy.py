@@ -3690,7 +3690,7 @@ class Strategy(_Strategy):
         price : float
             The price of the fill.
 
-        quantity : int
+        quantity : float
             The quantity of the fill.
 
         multiplier : float

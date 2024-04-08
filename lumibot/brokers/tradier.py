@@ -426,7 +426,7 @@ class Tradier(Broker):
 
         # Stoploss and limit orders are always used to close positions, even if they are submitted "before" the
         # position is technically open (i.e. buy and stoploss order are submitted simultaneously)
-        if order.type in [Order.OrderType.STOP, Order.OrderType.LIMIT, Order.OrderType.TRAIL]:
+        if order.type in [Order.OrderType.STOP, Order.OrderType.TRAIL]:
             side = side.replace("to_open", "to_close")
 
         # Check if the side is a valid Tradier side

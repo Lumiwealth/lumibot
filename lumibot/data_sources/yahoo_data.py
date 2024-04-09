@@ -13,7 +13,9 @@ class YahooData(DataSourceBacktesting):
     SOURCE = "YAHOO"
     MIN_TIMESTEP = "day"
     TIMESTEP_MAPPING = [
-        {"timestep": "day", "representations": ["1D", "day"]},
+        {"timestep": "day", "representations": ["1d", "day"]},
+        {"timestep": "15 minutes", "representations": ["15m", "15 minutes"]},
+        {"timestep": "minute", "representations": ["1m", "1 minute"]},
     ]
 
     def __init__(self, *args, auto_adjust=True, **kwargs):
@@ -64,12 +66,13 @@ class YahooData(DataSourceBacktesting):
         if quote is not None:
             logging.warning(f"quote is not implemented for YahooData, but {quote} was passed as the quote")
 
-        self._parse_source_timestep(timestep, reverse=True)
+        interval = self._parse_source_timestep(timestep, reverse=True)
         if asset in self._data_store:
             data = self._data_store[asset]
         else:
             data = YahooHelper.get_symbol_data(
                 asset.symbol,
+                interval=interval,
                 auto_adjust=self.auto_adjust,
                 last_needed_datetime=self.datetime_end,
             )
@@ -79,11 +82,13 @@ class YahooData(DataSourceBacktesting):
                 return None
             data = self._append_data(asset, data)
 
-        # Get the last minute of self._datetime to get the current bar
-        dt = self._datetime.replace(hour=23, minute=59, second=59, microsecond=999999)
+        if timestep == "day":
+            # Get the last minute of self._datetime to get the current bar
+            dt = self._datetime.replace(hour=23, minute=59, second=59, microsecond=999999)
+            end = dt - timedelta(days=1)
+        else:
+            end = self._datetime.replace(second=59, microsecond=999999)
 
-        # End should be yesterday because otherwise you can see the future
-        end = dt - timedelta(days=1)
         if timeshift:
             end = end - timeshift
 
@@ -101,11 +106,11 @@ class YahooData(DataSourceBacktesting):
         if quote is not None:
             logging.warning(f"quote is not implemented for YahooData, but {quote} was passed as the quote")
 
-        self._parse_source_timestep(timestep, reverse=True)
+        interval = self._parse_source_timestep(timestep, reverse=True)
         missing_assets = [asset.symbol for asset in assets if asset not in self._data_store]
 
         if missing_assets:
-            dfs = YahooHelper.get_symbols_data(missing_assets, auto_adjust=self.auto_adjust)
+            dfs = YahooHelper.get_symbols_data(missing_assets, interval=interval, auto_adjust=self.auto_adjust)
             for symbol, df in dfs.items():
                 self._append_data(symbol, df)
 

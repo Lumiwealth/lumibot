@@ -1,7 +1,7 @@
 import logging
 import os
 import pickle
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pandas as pd
 import yfinance as yf
@@ -169,10 +169,17 @@ class YahooHelper:
         return df["Close"].iloc[-1]
 
     @staticmethod
-    def download_symbol_day_data(symbol):
+    def download_symbol_data(symbol, interval="1d"):
         ticker = yf.Ticker(symbol)
         try:
-            df = ticker.history(period="max", auto_adjust=False)
+            if interval == "1m":
+                # Yahoo only supports 1 minute interval for past 7 days
+                df = ticker.history(interval=interval, start=get_lumibot_datetime() - timedelta(days=7), auto_adjust=False)
+            elif interval == "15m":
+                # Yahoo only supports 15 minute interval for past 60 days
+                df = ticker.history(interval=interval, start=get_lumibot_datetime() - timedelta(days=60), auto_adjust=False)
+            else:
+                df = ticker.history(interval=interval, period="max", auto_adjust=False)
         except Exception as e:
             logging.debug(f"Error while downloading symbol day data for {symbol}, returning empty dataframe for now.")
             logging.debug(e)
@@ -200,9 +207,9 @@ class YahooHelper:
         return df
 
     @staticmethod
-    def download_symbols_day_data(symbols):
+    def download_symbols_data(symbols, interval="1d"):
         if len(symbols) == 1:
-            item = YahooHelper.download_symbol_day_data(symbols[0])
+            item = YahooHelper.download_symbol_data(symbols[0], interval)
             return {symbols[0]: item}
 
         result = {}
@@ -236,42 +243,42 @@ class YahooHelper:
         return data
 
     @staticmethod
-    def fetch_symbol_day_data(symbol, caching=True, last_needed_datetime=None):
+    def fetch_symbol_data(symbol, caching=True, last_needed_datetime=None, interval="1d"):
         if caching:
-            cached_data = YahooHelper.check_pickle_file(symbol, DAY_DATA)
+            cached_data = YahooHelper.check_pickle_file(symbol, interval)
             if cached_data:
                 if cached_data.is_up_to_date(last_needed_datetime=last_needed_datetime):
                     return cached_data.data
 
         # Caching is disabled or no previous data found
         # or data found not up to date
-        data = YahooHelper.download_symbol_day_data(symbol)
+        data = YahooHelper.download_symbol_data(symbol, interval)
 
         # Check if the data is empty
         if data is None or data.empty:
             return data
 
-        YahooHelper.dump_pickle_file(symbol, DAY_DATA, data)
+        YahooHelper.dump_pickle_file(symbol, interval, data)
         return data
 
     @staticmethod
-    def fetch_symbols_day_data(symbols, caching=True):
+    def fetch_symbols_data(symbols, interval, caching=True):
         result = {}
         missing_symbols = symbols.copy()
 
         if caching:
             for symbol in symbols:
-                cached_data = YahooHelper.check_pickle_file(symbol, DAY_DATA)
+                cached_data = YahooHelper.check_pickle_file(symbol, interval)
                 if cached_data:
                     if cached_data.is_up_to_date():
                         result[symbol] = cached_data.data
                         missing_symbols.remove(symbol)
 
         if missing_symbols:
-            missing_data = YahooHelper.download_symbols_day_data(missing_symbols)
+            missing_data = YahooHelper.download_symbols_data(missing_symbols, interval)
             for symbol, data in missing_data.items():
                 result[symbol] = data
-                YahooHelper.dump_pickle_file(symbol, DAY_DATA, data)
+                YahooHelper.dump_pickle_file(symbol, interval, data)
 
         return result
 
@@ -282,53 +289,49 @@ class YahooHelper:
         return YahooHelper.fetch_symbol_info(symbol, caching=caching)
 
     @staticmethod
-    def get_symbol_day_data(symbol, auto_adjust=True, caching=True, last_needed_datetime=None):
-        result = YahooHelper.fetch_symbol_day_data(symbol, caching=caching, last_needed_datetime=last_needed_datetime)
-        return result
-
-    @staticmethod
     def get_symbol_data(
         symbol,
-        timestep="day",
-        auto_adjust=True,
+        interval="1d",
         caching=True,
+        auto_adjust=False,
         last_needed_datetime=None,
     ):
-        if timestep == "day":
-            return YahooHelper.get_symbol_day_data(
+        if interval in ["1m", "15m", "1d"]:
+            df = YahooHelper.fetch_symbol_data(
                 symbol,
-                auto_adjust=auto_adjust,
+                interval=interval,
                 caching=caching,
                 last_needed_datetime=last_needed_datetime,
             )
+            return YahooHelper.format_df(df, False)
         else:
-            raise ValueError("Unknown timestep %s" % timestep)
+            raise ValueError("Unknown interval %s" % interval)
 
     @staticmethod
-    def get_symbols_day_data(symbols, auto_adjust=True, caching=True):
-        result = YahooHelper.fetch_symbols_day_data(symbols, caching=caching)
+    def get_symbols_data(symbols, interval="1d", auto_adjust=True, caching=True):
+        result = YahooHelper.fetch_symbols_data(symbols, interval=interval, caching=caching)
         for key, df in result.items():
             result[key] = YahooHelper.format_df(df, auto_adjust)
         return result
 
     @staticmethod
-    def get_symbols_data(symbols, timestep="day", auto_adjust=True, caching=True):
-        if timestep == "day":
-            return YahooHelper.get_symbols_day_data(symbols, auto_adjust=auto_adjust, caching=caching)
+    def get_symbols_data(symbols, interval="1d", auto_adjust=True, caching=True):
+        if interval in ["1m", "15m", "1d"]:
+            return YahooHelper.get_symbols_data(symbols, interval=interval, auto_adjust=auto_adjust, caching=caching)
         else:
-            raise ValueError("Unknown timestep %s" % timestep)
+            raise ValueError("Unknown interval %s" % interval)
 
     @staticmethod
     def get_symbol_dividends(symbol, caching=True):
         """https://github.com/ranaroussi/yfinance/blob/main/yfinance/base.py"""
-        history = YahooHelper.get_symbol_day_data(symbol, caching=caching)
+        history = YahooHelper.get_symbol_data(symbol, caching=caching)
         dividends = history["Dividends"]
         return dividends[dividends != 0].dropna()
 
     @staticmethod
     def get_symbols_dividends(symbols, caching=True):
         result = {}
-        data = YahooHelper.get_symbols_day_data(symbols, caching=caching)
+        data = YahooHelper.get_symbols_data(symbols, caching=caching)
         for symbol, df in data.items():
             dividends = df["Dividends"]
             result[symbol] = dividends[dividends != 0].dropna()
@@ -338,14 +341,14 @@ class YahooHelper:
     @staticmethod
     def get_symbol_splits(symbol, caching=True):
         """https://github.com/ranaroussi/yfinance/blob/main/yfinance/base.py"""
-        history = YahooHelper.get_symbol_day_data(symbol, caching=caching)
+        history = YahooHelper.get_symbol_data(symbol, caching=caching)
         splits = history["Stock Splits"]
         return splits[splits != 0].dropna()
 
     @staticmethod
     def get_symbols_splits(symbols, caching=True):
         result = {}
-        data = YahooHelper.get_symbols_day_data(symbols, caching=caching)
+        data = YahooHelper.get_symbols_data(symbols, caching=caching)
         for symbol, df in data.items():
             splits = df["Stock Splits"]
             result[symbol] = splits[splits != 0].dropna()
@@ -355,14 +358,14 @@ class YahooHelper:
     @staticmethod
     def get_symbol_actions(symbol, caching=True):
         """https://github.com/ranaroussi/yfinance/blob/main/yfinance/base.py"""
-        history = YahooHelper.get_symbol_day_data(symbol, caching=caching)
+        history = YahooHelper.get_symbol__data(symbol, caching=caching)
         actions = history[["Dividends", "Stock Splits"]]
         return actions[actions != 0].dropna(how="all").fillna(0)
 
     @staticmethod
     def get_symbols_actions(symbols, caching=True):
         result = {}
-        data = YahooHelper.get_symbols_day_data(symbols, caching=caching)
+        data = YahooHelper.get_symbols__data(symbols, caching=caching)
         for symbol, df in data.items():
             actions = df[["Dividends", "Stock Splits"]]
             result[symbol] = actions[actions != 0].dropna(how="all").fillna(0)

@@ -358,6 +358,14 @@ class BacktestingBroker(Broker):
 
     def submit_order(self, order):
         """Submit an order for an asset"""
+        # NOTE: This code is to address Tradier API requirements, they want is as "to_open" or "to_close" instead of just "buy" or "sell"
+        # If the order has a "buy_to_open" or "buy_to_close" side, then we should change it to "buy"
+        if order.side in ["buy_to_open", "buy_to_close"]:
+            order.side = "buy"
+        # If the order has a "sell_to_open" or "sell_to_close" side, then we should change it to "sell"
+        if order.side in ["sell_to_open", "sell_to_close"]:
+            order.side = "sell"
+
         order.update_raw(order)
         self.stream.dispatch(
             self.NEW_ORDER,

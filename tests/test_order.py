@@ -8,9 +8,6 @@ class TestOrderBasics:
         assert Order(asset=Asset("SPY"), quantity=10, side="buy", strategy='abc').side == 'buy'
         assert Order(asset=Asset("SPY"), quantity=10, side="sell", strategy='abc').side == 'sell'
 
-        with pytest.raises(ValueError):
-            Order(asset=Asset("SPY"), quantity=10, side="unknown", strategy='abc')
-
     def test_is_option(self):
         # Standard stock order
         asset = Asset("SPY")

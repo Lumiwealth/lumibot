@@ -392,6 +392,10 @@ class StrategyExecutor(Thread):
             else:
                 self.strategy.log_message(f"Trading iteration ended at {end_str}", color="blue")
         except Exception as e:
+            # If backtesting, raise the exception
+            if self.broker.IS_BACKTESTING_BROKER:
+                raise e
+
             # Log the error
             self.strategy.log_message(
                 f"An error occurred during the on_trading_iteration lifecycle method: {e}", color="red"

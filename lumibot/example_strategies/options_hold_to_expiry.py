@@ -47,13 +47,18 @@ class OptionsHoldToExpiry(Strategy):
                 right="call",
             )
 
-            # Bracket order
+            # Create order
             order = self.create_order(
                 asset,
                 10,
-                "buy",
+                "buy_to_open",
             )
+            
+            # Submit order
             self.submit_order(order)
+
+            # Log a message
+            self.log_message(f"Bought {order.quantity} of {asset}")
 
 
 if __name__ == "__main__":

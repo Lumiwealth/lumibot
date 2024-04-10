@@ -8,6 +8,7 @@ from decimal import Decimal
 
 import pandas as pd
 import plotly.graph_objects as go
+import pytz
 import quantstats_lumi as qs
 from plotly.subplots import make_subplots
 
@@ -47,8 +48,8 @@ def cagr(_df):
     df = df.sort_index(ascending=True)
     df["cum_return"] = (1 + df["return"]).cumprod()
     total_ret = df["cum_return"].iloc[-1]
-    start = datetime.utcfromtimestamp(df.index.values[0].astype("O") / 1e9)
-    end = datetime.utcfromtimestamp(df.index.values[-1].astype("O") / 1e9)
+    start = datetime.fromtimestamp(df.index.values[0].astype("O") / 1e9, pytz.UTC)
+    end = datetime.fromtimestamp(df.index.values[-1].astype("O") / 1e9, pytz.UTC)
     period_years = (end - start).days / 365.25
     if period_years == 0:
         return 0
@@ -62,8 +63,8 @@ def volatility(_df):
     has the return for that time period (eg. daily)
     """
     df = _df.copy()
-    start = datetime.utcfromtimestamp(df.index.values[0].astype("O") / 1e9)
-    end = datetime.utcfromtimestamp(df.index.values[-1].astype("O") / 1e9)
+    start = datetime.fromtimestamp(df.index.values[0].astype("O") / 1e9, pytz.UTC)
+    end = datetime.fromtimestamp(df.index.values[-1].astype("O") / 1e9, pytz.UTC)
     period_years = (end - start).days / 365.25
     if period_years == 0:
         return 0

@@ -307,9 +307,6 @@ class Order:
 
         self.quantity = quantity
 
-        # setting the side
-        if side not in [BUY, SELL]:
-            raise ValueError("Side must be either sell or buy, got %r instead" % side)
         self.side = side
 
         self._set_type(

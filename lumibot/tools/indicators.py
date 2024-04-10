@@ -458,7 +458,7 @@ def plot_returns(
                 return (
                     row["status"]
                     + "<br>"
-                    + str(row["filled_quantity"].quantize(Decimal("0.01")).__format__(",f"))
+                    + str(Decimal(row["filled_quantity"]).quantize(Decimal("0.01")).__format__(",f"))
                     + " "
                     + row["symbol"]
                     + " "
@@ -497,7 +497,7 @@ def plot_returns(
                 return (
                     row["status"]
                     + "<br>"
-                    + str(row["filled_quantity"].quantize(Decimal("0.01")).__format__(",f"))
+                    + str(Decimal(row["filled_quantity"]).quantize(Decimal("0.01")).__format__(",f"))
                     + " "
                     + row["symbol"]
                     + "<br>"

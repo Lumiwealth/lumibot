@@ -279,6 +279,7 @@ class _Strategy:
         self._minutes_before_closing = minutes_before_closing
         self._minutes_before_opening = minutes_before_opening
         self._sleeptime = sleeptime
+        self._risk_free_rate = risk_free_rate
         self._executor = StrategyExecutor(self)
         self.broker._add_subscriber(self._executor)
 

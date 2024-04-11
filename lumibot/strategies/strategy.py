@@ -328,6 +328,9 @@ class Strategy(_Strategy):
 
     @property
     def risk_free_rate(self):
+        if self._risk_free_rate is not None:
+            return self._risk_free_rate
+        
         # Get the current datetime
         now = self.get_datetime()
 

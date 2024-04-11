@@ -1041,8 +1041,6 @@ class Broker(ABC):
             error = ValueError("price must be a positive float, received %r instead" % price)
             try:
                 price = float(price)
-                if price < 0:
-                    raise error
             except ValueError:
                 raise error
 

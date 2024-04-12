@@ -327,18 +327,13 @@ class Strategy(_Strategy):
         return self._analysis
 
     @property
-    def risk_free_rate(self):
-        rfr = 0
+    def risk_free_rate(self) -> float:
         if self._risk_free_rate is not None:
-            rfr = self._risk_free_rate
+            return self._risk_free_rate
         else:
-            # Get the current datetime
-            now = self.get_datetime()
-
             # Use the yahoo data to get the risk free rate
-            rfr = get_risk_free_rate(now)
-        
-        return rfr
+            now = self.get_datetime()
+            return get_risk_free_rate(now)
 
     # ======= Helper Methods =======================
 

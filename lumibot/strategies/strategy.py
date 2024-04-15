@@ -331,9 +331,9 @@ class Strategy(_Strategy):
         if self._risk_free_rate is not None:
             return self._risk_free_rate
         else:
-            # Use the yahoo data to get the risk free rate
+            # Use the yahoo data to get the risk free rate, or 0 if None is returned
             now = self.get_datetime()
-            return get_risk_free_rate(now)
+            return get_risk_free_rate(now) or 0.0
 
     # ======= Helper Methods =======================
 

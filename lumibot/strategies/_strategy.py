@@ -1008,6 +1008,7 @@ class _Strategy:
             show_tearsheet=show_tearsheet,
             save_tearsheet=save_tearsheet,
             show_indicators=show_indicators,
+            tearsheet_file=tearsheet_file,
         )
 
         end = datetime.datetime.now()

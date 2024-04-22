@@ -54,7 +54,7 @@ class Trader:
         """Adds a strategy to the trader"""
         self._strategies.append(strategy)
 
-    def run_all(self, async_=False, show_plot=True, show_tearsheet=True, save_tearsheet=True, show_indicators=True):
+    def run_all(self, async_=False, show_plot=True, show_tearsheet=True, save_tearsheet=True, show_indicators=True, tearsheet_file=""):
         """
         run all strategies
 
@@ -125,6 +125,7 @@ class Trader:
                 show_tearsheet=show_tearsheet,
                 save_tearsheet=save_tearsheet,
                 show_indicators=show_indicators,
+                tearsheet_file=tearsheet_file,
             )
 
         return result

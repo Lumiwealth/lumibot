@@ -51,7 +51,7 @@ class PolygonDataBacktesting(PandasData):
             storage_used -= mu
             logging.info(f"Storage limit exceeded. Evicted LRU data: {k} used {mu:,} bytes")
 
-    def _update_pandas_data(self, asset, quote, length, timestep, start_dt=None, update_data_store=False):
+    def _update_pandas_data(self, asset, quote, length, timestep, start_dt=None, update_data_store=True):
         """
         Get asset data and update the self.pandas_data dictionary.
 

@@ -4,6 +4,7 @@ from collections import defaultdict
 
 import pandas_market_calendars as mcal
 
+import pytz
 from lumibot.backtesting import BacktestingBroker, PolygonDataBacktesting
 from lumibot.entities import Asset
 from lumibot.strategies import Strategy
@@ -272,3 +273,18 @@ class TestPolygonBacktestFull:
             polygon_has_paid_subscription=True,
         )
         assert results
+
+
+class TestPolygonDataSource:
+
+    def test_get_historical_prices_is_not_none(self):
+        tzinfo = pytz.timezone("America/New_York")
+        start = datetime.datetime(2024, 2, 5).astimezone(tzinfo)
+        end = datetime.datetime(2024, 2, 10).astimezone(tzinfo)
+
+        data_source = PolygonDataBacktesting(
+            start, end, api_key=POLYGON_API_KEY, has_paid_subscription=True
+        )
+        data_source._datetime = datetime.datetime(2024, 2, 7, 10).astimezone(tzinfo)
+        prices = data_source.get_historical_prices("SPY", 1, "day")
+        assert prices is not None

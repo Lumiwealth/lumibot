@@ -496,6 +496,7 @@ class Data:
         """
         # Parse the timestep
         quantity, timestep = parse_timestep_qty_and_unit(timestep)
+        num_periods = length
 
         if timestep == "minute" and self.timestep == "day":
             raise ValueError("You are requesting minute data from a daily data source. This is not supported.")

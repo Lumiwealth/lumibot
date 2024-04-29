@@ -19,8 +19,8 @@ class PolygonBacktestStrat(Strategy):
     parameters = {"symbol": "AMZN"}
 
     # Set the initial values for the strategy
-    def initialize(self, parameters=None):
-        self.sleeptime = "1D"
+    def initialize(self, custom_sleeptime="1D"):
+        self.sleeptime = custom_sleeptime
         self.first_price = None
         self.first_option_price = None
         self.orders = []
@@ -220,6 +220,30 @@ class TestPolygonBacktestFull:
 
         assert results
         self.verify_backtest_results(poly_strat_obj)
+
+    def test_intraday_daterange(self):
+        tzinfo = pytz.timezone("America/New_York")
+        backtesting_start = datetime.datetime(2024, 2, 7).astimezone(tzinfo)
+        backtesting_end = datetime.datetime(2024, 2, 10).astimezone(tzinfo)
+
+        data_source = PolygonDataBacktesting(
+            datetime_start=backtesting_start,
+            datetime_end=backtesting_end,
+            api_key=POLYGON_API_KEY,
+            has_paid_subscription=True,
+        )
+        broker = BacktestingBroker(data_source=data_source)
+        poly_strat_obj = PolygonBacktestStrat(
+            broker=broker,
+            custom_sleeptime="30m",  # Sleep time for intra-day trading.
+        )
+        trader = Trader(logfile="", backtest=True)
+        trader.add_strategy(poly_strat_obj)
+        results = trader.run_all(show_plot=False, show_tearsheet=False, save_tearsheet=False, tearsheet_file="")
+        # Assert the results are not empty
+        assert results
+        # Assert the end datetime is before the market open of the next trading day.
+        assert broker.datetime == datetime.datetime.fromisoformat("2024-02-12 08:30:00-05:00")
 
     def test_polygon_legacy_backtest(self):
         """

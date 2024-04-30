@@ -51,7 +51,7 @@ class PolygonDataBacktesting(PandasData):
             storage_used -= mu
             logging.info(f"Storage limit exceeded. Evicted LRU data: {k} used {mu:,} bytes")
 
-    def _update_pandas_data(self, asset, quote, length, timestep, start_dt=None, update_data_store=False):
+    def _update_pandas_data(self, asset, quote, length, timestep, start_dt=None):
         """
         Get asset data and update the self.pandas_data dictionary.
 
@@ -67,10 +67,6 @@ class PolygonDataBacktesting(PandasData):
             The timestep to use. For example, "1minute" or "1hour" or "1day".
         start_dt : datetime
             The start datetime to use. If None, the current self.start_datetime will be used.
-        update_data_store : bool
-            If True, the data will also be added to the self._data_store dictionary.
-            That update will not include the adjustments made by PandasData.load_data.
-            See https://github.com/Lumiwealth/lumibot/issues/391 and its PR for further discussion.
         """
         search_asset = asset
         asset_separated = asset
@@ -202,11 +198,6 @@ class PolygonDataBacktesting(PandasData):
         self.pandas_data.update(pandas_data_update)
         if PolygonDataBacktesting.MAX_STORAGE_BYTES:
             self._enforce_storage_limit(self.pandas_data)
-        if update_data_store:
-            # TODO: Why do we have both self.pandas_data and self._data_store?
-            self._data_store.update(pandas_data_update)
-            if PolygonDataBacktesting.MAX_STORAGE_BYTES:
-                self._enforce_storage_limit(self._data_store)
 
     def _pull_source_symbol_bars(
         self,
@@ -255,7 +246,7 @@ class PolygonDataBacktesting(PandasData):
     def get_last_price(self, asset, timestep="minute", quote=None, exchange=None, **kwargs):
         try:
             dt = self.get_datetime()
-            self._update_pandas_data(asset, quote, 1, timestep, dt, update_data_store=True)
+            self._update_pandas_data(asset, quote, 1, timestep, dt)
         except Exception as e:
             print(f"Error get_last_price from Polygon: {e}")
             print(f"Error get_last_price from Polygon: {asset=} {quote=} {timestep=} {dt=} {e}")

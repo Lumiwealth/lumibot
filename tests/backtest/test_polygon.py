@@ -1,6 +1,7 @@
 import datetime
 import os
 from collections import defaultdict
+import pandas as pd
 
 import pandas_market_calendars as mcal
 
@@ -277,7 +278,7 @@ class TestPolygonBacktestFull:
 
 class TestPolygonDataSource:
 
-    def test_get_historical_prices_is_not_none(self):
+    def test_get_historical_prices(self):
         tzinfo = pytz.timezone("America/New_York")
         start = datetime.datetime(2024, 2, 5).astimezone(tzinfo)
         end = datetime.datetime(2024, 2, 10).astimezone(tzinfo)
@@ -286,5 +287,32 @@ class TestPolygonDataSource:
             start, end, api_key=POLYGON_API_KEY, has_paid_subscription=True
         )
         data_source._datetime = datetime.datetime(2024, 2, 7, 10).astimezone(tzinfo)
-        prices = data_source.get_historical_prices("SPY", 1, "day")
+        # This call will set make the data source use minute bars.
+        prices = data_source.get_historical_prices("SPY", 2, "minute")
+        # The data source will aggregate day bars from the minute bars.
+        prices = data_source.get_historical_prices("SPY", 2, "day")
+
+        # The expected df contains 2 days of data. And it is most recent from the
+        # past of the requested date.
+        expected_df = pd.DataFrame.from_records([
+            {
+                "datetime": "2024-02-05 00:00:00-05:00",
+                "open": 493.65,
+                "high": 494.3778,
+                "low": 490.23,
+                "close": 492.57,
+                "volume": 74655145.0
+            },
+            {
+                "datetime": "2024-02-06 00:00:00-05:00",
+                "open": 492.99,
+                "high": 494.3200,
+                "low": 492.03,
+                "close": 493.82,
+                "volume": 54775803.0
+            },
+        ], index="datetime")
+        expected_df.index = pd.to_datetime(expected_df.index).tz_convert(tzinfo)
+
         assert prices is not None
+        assert prices.df.equals(expected_df)

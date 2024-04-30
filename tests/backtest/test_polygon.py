@@ -287,6 +287,9 @@ class TestPolygonDataSource:
             start, end, api_key=POLYGON_API_KEY, has_paid_subscription=True
         )
         data_source._datetime = datetime.datetime(2024, 2, 7, 10).astimezone(tzinfo)
+        # This call will set make the data source use minute bars.
+        prices = data_source.get_historical_prices("SPY", 2, "minute")
+        # The data source will aggregate day bars from the minute bars.
         prices = data_source.get_historical_prices("SPY", 2, "day")
 
         # The expected df contains 2 days of data. And it is most recent from the
@@ -294,19 +297,19 @@ class TestPolygonDataSource:
         expected_df = pd.DataFrame.from_records([
             {
                 "datetime": "2024-02-05 00:00:00-05:00",
-                "open": 493.695,
+                "open": 493.65,
                 "high": 494.3778,
                 "low": 490.23,
-                "close": 492.55,
-                "volume": 75677102.0
+                "close": 492.57,
+                "volume": 74655145.0
             },
             {
                 "datetime": "2024-02-06 00:00:00-05:00",
-                "open": 493.520,
+                "open": 492.99,
                 "high": 494.3200,
-                "low": 492.05,
-                "close": 493.98,
-                "volume": 55918602.0
+                "low": 492.03,
+                "close": 493.82,
+                "volume": 54775803.0
             },
         ], index="datetime")
         expected_df.index = pd.to_datetime(expected_df.index).tz_convert(tzinfo)

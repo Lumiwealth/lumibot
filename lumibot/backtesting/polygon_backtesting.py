@@ -211,10 +211,9 @@ class PolygonDataBacktesting(PandasData):
     ):
         # Get the current datetime and calculate the start datetime
         current_dt = self.get_datetime()
-        start_dt, ts_unit = self.get_start_datetime_and_ts_unit(length, timestep, current_dt, start_buffer=START_BUFFER)
 
         # Get data from Polygon
-        self._update_pandas_data(asset, quote, length, timestep, start_dt)
+        self._update_pandas_data(asset, quote, length, timestep, current_dt)
 
         return super()._pull_source_symbol_bars(
             asset, length, timestep, timeshift, quote, exchange, include_after_hours

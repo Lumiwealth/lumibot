@@ -5,11 +5,15 @@ import pandas as pd
 
 import pandas_market_calendars as mcal
 
+from tests.backtest.fixtures import polygon_data_backtesting
 import pytz
 from lumibot.backtesting import BacktestingBroker, PolygonDataBacktesting
 from lumibot.entities import Asset
 from lumibot.strategies import Strategy
 from lumibot.traders import Trader
+
+from unittest.mock import MagicMock, patch
+from datetime import timedelta
 
 # Global parameters
 # API Key for testing Polygon.io
@@ -274,6 +278,48 @@ class TestPolygonBacktestFull:
             polygon_has_paid_subscription=True,
         )
         assert results
+
+    def test_pull_source_symbol_bars_with_api_call(self, polygon_data_backtesting, mocker):
+        """Test that polygon_helper.get_price_data_from_polygon() is called with the right parameters"""
+        
+        # Only simulate first date
+        mocker.patch.object(
+            polygon_data_backtesting,
+            'get_datetime',
+            return_value=polygon_data_backtesting.datetime_start
+        )
+
+        mocked_get_price_data = mocker.patch(
+            'lumibot.tools.polygon_helper.get_price_data_from_polygon',
+            return_value=MagicMock()
+        )
+        
+        asset = Asset(symbol="AAPL", asset_type="stock")
+        quote = Asset(symbol="USD", asset_type="forex")
+        length = 10
+        timestep = "day"
+        START_BUFFER = timedelta(days=5)
+
+        with patch('lumibot.backtesting.polygon_backtesting.START_BUFFER', new=START_BUFFER):
+            polygon_data_backtesting._pull_source_symbol_bars(
+                asset=asset,
+                length=length,
+                timestep=timestep,
+                quote=quote
+            )
+
+            mocked_get_price_data.assert_called_once()
+            call_args = mocked_get_price_data.call_args
+            
+            expected_start_date = polygon_data_backtesting.datetime_start - datetime.timedelta(days=length) - START_BUFFER
+            
+            assert call_args[0][0] == polygon_data_backtesting._api_key
+            assert call_args[0][1] == asset
+            assert call_args[0][2] == expected_start_date
+            assert call_args[0][3] == polygon_data_backtesting.datetime_end
+            assert call_args[1]["timespan"] == timestep
+            assert call_args[1]["quote_asset"] == quote
+            assert call_args[1]["has_paid_subscription"] == polygon_data_backtesting.has_paid_subscription
 
 
 class TestPolygonDataSource:

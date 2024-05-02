@@ -77,8 +77,10 @@ class CcxtData(DataSource):
         result = {}
         for asset in assets:
             if isinstance(asset, tuple):
+                # TODO: Check if we need to compose the symbol differently for futures/swap
                 symbol = f"{asset[0].symbol.upper()}/{asset[1].symbol.upper()}"
             elif quote is not None:
+                # TODO: Check if we need to compose the symbol differently for futures/swap
                 symbol = f"{asset.symbol.upper()}/{quote.symbol.upper()}"
             else:
                 symbol = asset
@@ -212,6 +214,7 @@ class CcxtData(DataSource):
 
     def get_last_price(self, asset, quote=None, exchange=None, **kwargs):
         if quote is not None:
+            # TODO: Check if we need to compose the symbol differently for futures/swap
             symbol = f"{asset.symbol}/{quote.symbol}"
         else:
             symbol = asset.symbol

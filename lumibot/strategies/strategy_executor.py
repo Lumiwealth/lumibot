@@ -768,6 +768,10 @@ class StrategyExecutor(Thread):
         if not is_247:
             # Set date to the start date, but account for minutes_before_opening
             self.strategy.await_market_to_open()  # set new time and bar length. Check if hit bar max or date max.
+            # Check if we should continue to run when we are in a new day.
+            broker_continue = self.broker.should_continue()
+            if not broker_continue:
+                return
 
             if not has_data_source or (has_data_source and self.broker.data_source.SOURCE != "PANDAS"):
                 self.strategy._update_cash_with_dividends()

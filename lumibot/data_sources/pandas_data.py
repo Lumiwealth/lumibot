@@ -19,7 +19,7 @@ class PandasData(DataSourceBacktesting):
         {"timestep": "minute", "representations": ["1M", "minute"]},
     ]
 
-    def __init__(self, *args, pandas_data=None, auto_adjust=True, **kwargs):
+    def __init__(self, *args, pandas_data=None, auto_adjust=True, timestep="minute", **kwargs):
         super().__init__(*args, **kwargs)
         self.name = "pandas"
         self.pandas_data = self._set_pandas_data_keys(pandas_data)
@@ -27,7 +27,7 @@ class PandasData(DataSourceBacktesting):
         self._data_store = self.pandas_data
         self._date_index = None
         self._date_supply = None
-        self._timestep = "minute"
+        self._timestep = timestep
 
     @staticmethod
     def _set_pandas_data_keys(pandas_data):
@@ -203,7 +203,7 @@ class PandasData(DataSourceBacktesting):
     def get_last_prices(self, assets, quote=None, exchange=None, **kwargs):
         result = {}
         for asset in assets:
-            result[asset] = self.get_last_price(asset, quote=quote, exchange=exchange)
+            result[asset] = self.get_last_price(asset, timestep=self._timestep, quote=quote, exchange=exchange)
         return result
 
     def find_asset_in_data_store(self, asset, quote=None):

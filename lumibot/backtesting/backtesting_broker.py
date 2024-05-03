@@ -582,7 +582,7 @@ class BacktestingBroker(Broker):
                     2,
                     quote=order.quote,
                     timeshift=-2,
-                    timestep=self.data_source._timestep,
+                    timestep=self.data_source._timestep
                 )
                 # Check if we got any ohlc data
                 if ohlc is None:

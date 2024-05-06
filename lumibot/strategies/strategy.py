@@ -2991,7 +2991,7 @@ class Strategy(_Strategy):
 
         asset = self.crypto_assets_to_tuple(asset, quote)
         if not timestep:
-            timestep = self.broker.data_source.MIN_TIMESTEP
+            timestep = self.broker.data_source.get_timestep()
         return self.broker.data_source.get_historical_prices(
             asset,
             length,

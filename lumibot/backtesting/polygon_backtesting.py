@@ -31,10 +31,14 @@ class PolygonDataBacktesting(PandasData):
         pandas_data=None,
         api_key=None,
         has_paid_subscription=False,
+        timestep=None,
         **kwargs,
     ):
+        if timestep not in ('day', 'minute'):
+            raise ValueError("timestep parameter must be 'day' or 'minute'.")
+        
         super().__init__(
-            datetime_start=datetime_start, datetime_end=datetime_end, pandas_data=pandas_data, api_key=api_key, **kwargs
+            datetime_start=datetime_start, datetime_end=datetime_end, timestep=timestep, pandas_data=pandas_data, api_key=api_key, **kwargs
         )
         self.has_paid_subscription = has_paid_subscription
 

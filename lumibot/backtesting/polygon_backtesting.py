@@ -203,12 +203,15 @@ class PolygonDataBacktesting(PandasData):
         self,
         asset: Asset,
         length: int,
-        timestep: str = "day",
+        timestep: str = None,
         timeshift: int = None,
         quote: Asset = None,
         exchange: str = None,
         include_after_hours: bool = True,
     ):
+        if timestep is None:
+            raise ValueError("'timestep' argument is mandatory in _pull_source_symbol_bars.")
+        
         # Get the current datetime and calculate the start datetime
         current_dt = self.get_datetime()
 

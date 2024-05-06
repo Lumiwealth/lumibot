@@ -31,7 +31,7 @@ class PolygonDataBacktesting(PandasData):
         pandas_data=None,
         api_key=None,
         has_paid_subscription=False,
-        timestep=None,
+        timestep='minute',
         **kwargs,
     ):
         if timestep not in ('day', 'minute'):

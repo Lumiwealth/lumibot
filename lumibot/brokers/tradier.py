@@ -368,6 +368,7 @@ class Tradier(Broker):
             date_created=response["create_date"],
         )
         order.status = response["status"]
+        order.avg_fill_price = response.get("avg_fill_price", order.avg_fill_price)
         order.update_raw(response)  # This marks order as 'transmitted'
         return order
 

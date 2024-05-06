@@ -732,7 +732,7 @@ class StrategyExecutor(Thread):
         minutes, hours.
         """
 
-        has_data_source = hasattr(self.broker, "_data_source")
+        has_data_source = hasattr(self.broker, "data_source")
         is_247 = hasattr(self.broker, "market") and self.broker.market == "24/7"
 
         # Set the time_to_close variable to infinity if the market is 24/7.

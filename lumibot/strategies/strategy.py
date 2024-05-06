@@ -2893,7 +2893,7 @@ class Strategy(_Strategy):
         self,
         asset: Union[Asset, str],
         length: int,
-        timestep: str = "",
+        timestep: str = None,
         timeshift: datetime.timedelta = None,
         quote: Asset = None,
         exchange: str = None,
@@ -2990,8 +2990,10 @@ class Strategy(_Strategy):
         asset = self._sanitize_user_asset(asset)
 
         asset = self.crypto_assets_to_tuple(asset, quote)
-        if not timestep:
-            timestep = self.broker.data_source.get_timestep()
+
+        if timestep is None:
+            raise ValueError("timestep not specified in get_historical_prices.")
+        
         return self.broker.data_source.get_historical_prices(
             asset,
             length,

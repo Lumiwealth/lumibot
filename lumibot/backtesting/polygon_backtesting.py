@@ -242,7 +242,8 @@ class PolygonDataBacktesting(PandasData):
         bars = self._parse_source_symbol_bars(response, asset, quote=quote)
         return bars
 
-    def get_last_price(self, asset, timestep="minute", quote=None, exchange=None, **kwargs):
+    def get_last_price(self, asset, timestep=None, quote=None, exchange=None, **kwargs):
+        timestep = timestep or self.get_timestep()
         try:
             dt = self.get_datetime()
             self._update_pandas_data(asset, quote, 1, timestep, dt)

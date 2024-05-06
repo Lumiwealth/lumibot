@@ -158,9 +158,16 @@ class PandasData(DataSourceBacktesting):
                 dt_index = dt_index.join(data.df.index, how="outer")
 
         if dt_index is None:
-            # Build a dummy index
-            freq = "1min" if self._timestep == "minute" else "1D"
-            dt_index = pd.date_range(start=self.datetime_start, end=self.datetime_end, freq=freq)
+            # Determine the frequency and adjust the end date accordingly
+            if self._timestep == "minute":
+                freq = "1min"
+                adjusted_end = self.datetime_end
+            else:  # Assumes the only other option is daily
+                freq = "1D"
+                adjusted_end = self.datetime_end + pd.Timedelta(days=1)
+
+            # Generate date range with the determined frequency and adjusted end date
+            dt_index = pd.date_range(start=self.datetime_start, end=adjusted_end, freq=freq)
 
         else:
             if self.datetime_end < dt_index[0]:

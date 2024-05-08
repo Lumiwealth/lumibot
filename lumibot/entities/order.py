@@ -92,6 +92,7 @@ class Order:
         trade_cost: float = None,
         custom_params={},
         identifier=None,
+        avg_fill_price=None,
         tag="",
     ):
         """Order class for managing individual orders.
@@ -185,6 +186,8 @@ class Order:
         custom_params : dict
             A dictionary of custom parameters that can be used to pass additional information to the broker. This is useful for passing custom parameters to the broker that are not supported by Lumibot.
             Eg. `custom_params={"leverage": 3}` for Kraken margin trading.
+        avg_fill_price: float
+            The average price that the order was fileld at.
         tag: str
             A tag that can be used to identify the order. This is useful for tracking orders in the broker. Not all
             brokers support this feature and lumibot will simply ignore it for those that don't.
@@ -282,7 +285,7 @@ class Order:
         self.custom_params = custom_params
         self._trail_stop_price = None
         self.tag = tag
-        self.avg_fill_price = 0.0  # The weighted average filled price for this order. Calculated if not given by broker
+        self.avg_fill_price = avg_fill_price # The weighted average filled price for this order. Calculated if not given by broker
         self.broker_create_date = None  # The datetime the order was created by the broker
         self.broker_update_date = None  # The datetime the order was last updated by the broker
 

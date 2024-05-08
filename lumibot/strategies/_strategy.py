@@ -638,8 +638,11 @@ class _Strategy:
 
                 # If we are using any other data source, then get the benchmark returns from yahoo
                 else:
+                    # Get the benchmark symbol
+                    benchmark_symbol = self._benchmark_asset if isinstance(self._benchmark_asset, str) else self._benchmark_asset.symbol
+
                     self._benchmark_returns_df = get_symbol_returns(
-                        self._benchmark_asset,
+                        benchmark_symbol,
                         self._backtesting_start,
                         backtesting_end_adjusted,
                     )

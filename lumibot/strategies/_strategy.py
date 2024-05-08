@@ -1047,15 +1047,15 @@ class _Strategy:
 
         datestring = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         basename = f"{name + '_' if name is not None else ''}{datestring}"
-        if plot_file_html is None:
+        if not plot_file_html:
             plot_file_html = f"{logdir}/{basename}_trades.html"
-        if trades_file is None:
+        if not trades_file:
             trades_file = f"{logdir}/{basename}_trades.csv"
-        if tearsheet_file is None:
+        if not tearsheet_file:
             tearsheet_file = f"{logdir}/{basename}_tearsheet.html"
-        if settings_file is None:
+        if not settings_file:
             settings_file = f"{logdir}/{basename}_settings.json"
-        if indicators_file is None:
+        if not indicators_file:
             indicators_file = f"{logdir}/{basename}_indicators.html"
 
         self.write_backtest_settings(settings_file)

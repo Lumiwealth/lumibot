@@ -517,6 +517,10 @@ class Data:
             unit = "D"
             data = self._get_bars_dict(dt, length=length, timestep="minute", timeshift=timeshift)
 
+        elif timestep == "day" and self.timestep == "day":
+            length = length
+            unit = "D"
+            data = self._get_bars_dict(dt, length=length, timestep="day", timeshift=timeshift)
         else:
             unit = "min"  # Guaranteed to be minute timestep at this point
             length = length * quantity
@@ -532,7 +536,7 @@ class Data:
         df_result = df_result.dropna()
 
         # Remove partial day data from the current day, which can happen if the data is in minute timestep.
-        if timestep == "day":
+        if timestep == "day" and self.timestep == "minute":
             df_result = df_result[df_result.index < dt.replace(hour=0, minute=0, second=0, microsecond=0)]
 
         # The original df_result may include more rows when timestep is day and self.timestep is minute.

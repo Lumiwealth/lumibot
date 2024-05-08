@@ -396,7 +396,7 @@ def load_cache(cache_file):
     # Check if the index is already timezone aware
     if df_feather.index.tzinfo is None:
         # Set the timezone to UTC
-        df_feather.index = df_feather.index.tz_localize(LUMIBOT_DEFAULT_PYTZ)
+        df_feather.index = df_feather.index.tz_localize('UTC')
 
     return df_feather
 

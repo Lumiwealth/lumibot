@@ -105,7 +105,7 @@ def get_price_data_from_polygon(
     # Initialize tqdm progress bar
     total_days = (missing_dates[-1] - missing_dates[0]).days + 1
     total_queries = (total_days // MAX_POLYGON_DAYS) + 1
-    description = f"\nDownloading data for {asset} / {quote_asset} '{timespan}' from Polygon..."
+    description = f"\nDownloading data for {asset} / {quote_asset} '{timespan}' from Polygon [{poly_start}:{poly_end}]"
     pbar = tqdm(total=total_queries, desc=description, dynamic_ncols=True)
 
     # Polygon only returns 50k results per query (~30days of 24hr 1min-candles) so we need to break up the query into
@@ -475,7 +475,7 @@ def update_polygon_data(df_all, result):
         df = df.set_index("datetime").sort_index()
 
         # Set the timezone to UTC
-        df.index = df.index.tz_localize("UTC")
+        df.index = df.index.tz_localize(LUMIBOT_DEFAULT_PYTZ)
 
         if df_all is None or df_all.empty:
             df_all = df

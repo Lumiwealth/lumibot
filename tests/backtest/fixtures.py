@@ -126,10 +126,10 @@ def generate_test_data(start_date, end_date, timestep):
     date_range = pd.date_range(start=start_date, end=end_date, freq=freq)
     return pd.DataFrame({
         "datetime": date_range,
-        "open": [100 + i for i in range(len(date_range))],
-        "high": [110 + i for i in range(len(date_range))],
-        "low": [90 + i for i in range(len(date_range))],
-        "close": [100 + i for i in range(len(date_range))],
+        "open": [100.0 + 0.1 * i for i in range(len(date_range))],
+        "high": [110.0 + 0.1 * i for i in range(len(date_range))],
+        "low": [90.0 + 0.1 * i for i in range(len(date_range))],
+        "close": [100.0 + 0.1 * i for i in range(len(date_range))],
         "volume": [1000 + 100 * i for i in range(len(date_range))],
     })
 

@@ -10,7 +10,7 @@ from .fixtures import *
      'asset_type': "crypto",
      'start': datetime(2023, 1, 1),
      'end': datetime(2023, 4, 1),
-     'asset': Asset(symbol="BTC", asset_type="crypto")  # Agregar el asset aquí si necesitas pasarlo al fixture
+     'asset': Asset(symbol="BTC", asset_type="crypto")
     }
 ], indirect=True)
 @pytest.mark.parametrize('mock_pd_read_feather', [
@@ -34,7 +34,7 @@ def test_polygon_1D_day_crypto(backtest_environment, mock_polygon_client, mock_v
      'asset_type': "crypto",
      'start': datetime(2023, 1, 1),
      'end': datetime(2023, 4, 1),
-     'asset': Asset(symbol="BTC", asset_type="crypto")  # Agregar el asset aquí si necesitas pasarlo al fixture
+     'asset': Asset(symbol="BTC", asset_type="crypto")
     }
 ], indirect=True)
 @pytest.mark.parametrize('mock_pd_read_feather', [

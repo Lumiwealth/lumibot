@@ -652,6 +652,10 @@ class Broker(ABC):
 
     def market_close_time(self):
         return self.utc_to_local(self.market_hours(close=True))
+    
+    @abstractmethod
+    def is_holiday(self):
+        pass
 
     def is_market_open(self):
         """Determines if the market is open.

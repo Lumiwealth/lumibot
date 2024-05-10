@@ -109,6 +109,14 @@ class BacktestingBroker(Broker):
         # All other cases we should continue
         return True
 
+    def is_holiday(self):
+        today = pd.Timestamp(self.datetime.date())
+        
+        if today in self._trading_days.index:
+            return False
+        else:
+            return True
+        
     def is_market_open(self):
         """Return True if market is open else false"""
         now = self.datetime
@@ -168,9 +176,6 @@ class BacktestingBroker(Broker):
         return delta.total_seconds()
 
     def _await_market_to_open(self, timedelta=None, strategy=None):
-        if self.data_source.SOURCE == "PANDAS" and self.data_source._timestep == "day":
-            return
-
         # Process outstanding orders first before waiting for market to open
         # or else they don't get processed until the next day
         self.process_pending_orders(strategy=strategy)

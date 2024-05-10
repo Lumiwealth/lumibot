@@ -3,6 +3,7 @@ from lumibot.entities import Asset
 from unittest.mock import MagicMock, patch
 import pytest
 from .fixtures import *
+from zoneinfo import ZoneInfo
 
 BUFFER = 7 # We need a buffer of 5+2 days or minutes 
 
@@ -10,7 +11,7 @@ BUFFER = 7 # We need a buffer of 5+2 days or minutes
     {'sleeptime': "1D", 
      'timestep': "day",
      'start': datetime(2024, 1, 1),
-     'end': datetime(2024, 1, 2),
+     'end': datetime(2024, 1, 3),
      'asset': Asset(symbol="BTC", asset_type="crypto")
     }
 ], indirect=True)
@@ -18,7 +19,7 @@ BUFFER = 7 # We need a buffer of 5+2 days or minutes
     {'asset': Asset(symbol="BTC", asset_type="crypto"),
      'timestep': 'day',
      'start': datetime(2024, 1, 1) - timedelta(days=BUFFER),
-     'end': datetime(2024, 1, 2)}
+     'end': datetime(2024, 1, 3)}
 ], indirect=True)
 @pytest.mark.filterwarnings("error")
 def test_polygon_1D_day_crypto(backtest_environment, mock_polygon_client, mock_validate_cache, mock_pd_read_feather):
@@ -26,6 +27,8 @@ def test_polygon_1D_day_crypto(backtest_environment, mock_polygon_client, mock_v
     try:
         results = backtest_environment.run_all(show_plot=False, show_tearsheet=False, save_tearsheet=False)
         assert results is not None, "Results should not be None"
+        broker = backtest_environment._strategies[0].broker
+        assert broker.datetime == datetime(2024, 1, 3, 0, 0, tzinfo=ZoneInfo("America/New_York"))
         assert len(backtest_environment._strategies[0].positions) > 1, "Expected a position in BTC."
         orders = backtest_environment._strategies[0].positions[1].orders
         assert len(orders) == 2
@@ -35,8 +38,8 @@ def test_polygon_1D_day_crypto(backtest_environment, mock_polygon_client, mock_v
 @pytest.mark.parametrize("backtest_environment", [
     {'sleeptime': "1D", 
      'timestep': "day",
-     'start': datetime(2024, 1, 1), # not a trading day!
-     'end': datetime(2024, 1, 2),
+     'start': datetime(2024, 1, 1), # 1 is not a trading day!
+     'end': datetime(2024, 1, 3), # 3 is not included
      'asset': Asset(symbol="SPY", asset_type="stock")
     }
 ], indirect=True)
@@ -44,7 +47,7 @@ def test_polygon_1D_day_crypto(backtest_environment, mock_polygon_client, mock_v
     {'asset': Asset(symbol="SPY", asset_type="stock"),
      'timestep': 'day',
      'start': datetime(2024, 1, 1) - timedelta(days=BUFFER),
-     'end': datetime(2024, 1, 2)}
+     'end': datetime(2024, 1, 3)}
 ], indirect=True)
 @pytest.mark.filterwarnings("error")
 def test_polygon_1D_day_stock(backtest_environment, mock_polygon_client, mock_validate_cache, mock_pd_read_feather):
@@ -52,6 +55,8 @@ def test_polygon_1D_day_stock(backtest_environment, mock_polygon_client, mock_va
     try:
         results = backtest_environment.run_all(show_plot=False, show_tearsheet=False, save_tearsheet=False)
         assert results is not None, "Results should not be None"
+        broker = backtest_environment._strategies[0].broker
+        assert broker.datetime == datetime(2024, 1, 3, 0, 0, tzinfo=ZoneInfo("America/New_York"))
         assert len(backtest_environment._strategies[0].positions) > 1, "Expected a position in SPY."
         orders = backtest_environment._strategies[0].positions[1].orders
         assert len(orders) == 1
@@ -62,7 +67,7 @@ def test_polygon_1D_day_stock(backtest_environment, mock_polygon_client, mock_va
     {'sleeptime': "1D", 
      'timestep': "minute",
      'start': datetime(2024, 1, 1),
-     'end': datetime(2024, 1, 2),
+     'end': datetime(2024, 1, 3), # 3 is not included
      'asset': Asset(symbol="BTC", asset_type="crypto")
     }
 ], indirect=True)
@@ -70,7 +75,7 @@ def test_polygon_1D_day_stock(backtest_environment, mock_polygon_client, mock_va
     {'asset': Asset(symbol="BTC", asset_type="crypto"),
      'timestep': 'minute',
      'start': datetime(2024, 1, 1) - timedelta(days=BUFFER),
-     'end': datetime(2024, 1, 2)}
+     'end': datetime(2024, 1, 3)}
 ], indirect=True)
 @pytest.mark.filterwarnings("error")
 def test_polygon_1D_minute_crypto(backtest_environment, mock_polygon_client, mock_validate_cache, mock_pd_read_feather):
@@ -78,6 +83,8 @@ def test_polygon_1D_minute_crypto(backtest_environment, mock_polygon_client, moc
     try:
         results = backtest_environment.run_all(show_plot=False, show_tearsheet=False, save_tearsheet=False)
         assert results is not None, "Results should not be None"
+        broker = backtest_environment._strategies[0].broker
+        assert broker.datetime == datetime(2024, 1, 3, 0, 0, tzinfo=ZoneInfo("America/New_York"))
         assert len(backtest_environment._strategies[0].positions) > 1, "Expected a position in BTC."
         orders = backtest_environment._strategies[0].positions[1].orders
         assert len(orders) == 2

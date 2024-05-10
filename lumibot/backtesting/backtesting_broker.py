@@ -108,14 +108,6 @@ class BacktestingBroker(Broker):
 
         # All other cases we should continue
         return True
-
-    def is_holiday(self):
-        today = pd.Timestamp(self.datetime.date())
-        
-        if today in self._trading_days.index:
-            return False
-        else:
-            return True
         
     def is_market_open(self):
         """Return True if market is open else false"""

@@ -475,7 +475,7 @@ def update_polygon_data(df_all, result):
         df = df.set_index("datetime").sort_index()
 
         # Set the timezone to UTC
-        df.index = df.index.tz_localize(LUMIBOT_DEFAULT_PYTZ)
+        df.index = df.index.tz_localize('UTC')
 
         if df_all is None or df_all.empty:
             df_all = df

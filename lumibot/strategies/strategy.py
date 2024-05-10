@@ -2993,9 +2993,6 @@ class Strategy(_Strategy):
         asset = self._sanitize_user_asset(asset)
 
         asset = self.crypto_assets_to_tuple(asset, quote)
-
-        if timestep is None:
-            raise ValueError("timestep not specified in get_historical_prices.")
         
         return self.broker.data_source.get_historical_prices(
             asset,

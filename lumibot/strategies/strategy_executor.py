@@ -757,6 +757,9 @@ class StrategyExecutor(Thread):
 
             self.broker._update_datetime(dt, cash=self.strategy.cash, portfolio_value=self.strategy.portfolio_value)
 
+            if not self.strategy.is_holiday():
+                self.strategy.await_market_to_open(timedelta=0)
+
             self.strategy._update_cash_with_dividends()
 
             self._on_trading_iteration()

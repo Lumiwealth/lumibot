@@ -907,6 +907,9 @@ class Strategy(_Strategy):
 
         self.broker.market = market
 
+    def is_holiday(self):
+        return self.broker.is_holiday()
+
     def await_market_to_open(self, timedelta=None):
         """Executes infinite loop until market opens
 

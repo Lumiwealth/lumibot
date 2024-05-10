@@ -34,8 +34,8 @@ class PolygonDataBacktesting(PandasData):
         timestep='minute',
         **kwargs,
     ):
-        if timestep not in ('day', 'minute'):
-            raise ValueError("timestep parameter must be 'day' or 'minute'.")
+        # This should be better in Data class
+        timestep = self._parse_source_timestep(timestep)
         
         super().__init__(
             datetime_start=datetime_start, datetime_end=datetime_end, timestep=timestep, pandas_data=pandas_data, api_key=api_key, **kwargs

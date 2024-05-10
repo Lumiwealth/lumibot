@@ -19,21 +19,17 @@ def mock_pd_read_feather(request):
     end_date = request.param.get('end', datetime(2023, 4, 1))
 
     def custom_read_feather(_):
-        return generate_test_data(start_date, end_date, timestep)
+        return generate_test_data(asset, start_date, end_date, timestep)
 
     with patch('pandas.read_feather', side_effect=custom_read_feather) as mock:
         yield mock
 
 @pytest.fixture
 def mock_polygon_client():
-    with patch('polygon.RESTClient') as MockClient:
-
-        def get_aggs_side_effect(*args, **kwargs):
-            raise Exception("Bad request error")
-        
+    with patch('lumibot.tools.polygon_helper.RESTClient') as MockClient:
         mock_instance = MockClient.return_value
         mock_instance.get_aggs.return_value = {}
-        mock_instance.get_aggs.side_effect = get_aggs_side_effect
+        mock_instance.get_aggs.side_effect = Exception("get_aggs polygon REST API was called")
 
         mock_instance.list_splits.return_value = iter([])
         mock_instance._get.return_value = MagicMock()
@@ -121,7 +117,10 @@ def backtest_environment(request):
 
 #### helper functions ####
 
-def generate_test_data(start_date, end_date, timestep):
+def generate_test_data(asset, start_date, end_date, timestep):
+    if asset.asset_type == Asset.AssetType.OPTION:
+        raise Exception("option data generation is still not supported")
+    
     freq = {'minute': 'min', 'hour': 'H', 'day': 'D', 'week': 'W', 'month': 'M'}.get(timestep, 'D')
     date_range = pd.date_range(start=start_date, end=end_date, freq=freq)
     return pd.DataFrame({

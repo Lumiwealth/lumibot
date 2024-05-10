@@ -32,9 +32,6 @@ class DataSourceBacktesting(DataSource, ABC):
         self._iter_count = None
         self.backtesting_started = _backtesting_started
 
-        # Subtract one minute from the datetime_end so that the strategy stops right before the datetime_end
-        self.datetime_end -= timedelta(minutes=1)
-
         # Legacy strategy.backtest code will always pass in a config even for DataSources that don't need it, so
         # catch it here and ignore it in this class. Child classes that need it should error check it themselves.
         self._config = config

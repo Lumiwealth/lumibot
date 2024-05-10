@@ -64,7 +64,7 @@ def backtest_environment(request):
     config_params = request.param
     sleeptime = config_params['sleeptime']
     timestep = config_params['timestep']
-    asset_type = config_params['asset_type']
+    asset_type = config_params['asset'].asset_type
     start = config_params['start']
     end = config_params['end']
 

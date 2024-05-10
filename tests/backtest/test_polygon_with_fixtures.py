@@ -26,8 +26,9 @@ def test_polygon_1D_day_crypto(backtest_environment, mock_polygon_client, mock_v
     try:
         results = backtest_environment.run_all(show_plot=False, show_tearsheet=False, save_tearsheet=False)
         assert results is not None, "Results should not be None"
-        btc_orders = backtest_environment._strategies[0].positions[1].orders
-        assert len(btc_orders) == 2
+        assert len(backtest_environment._strategies[0].positions) > 1, "Expected a position in BTC."
+        orders = backtest_environment._strategies[0].positions[1].orders
+        assert len(orders) == 2
     except Exception as e:
         pytest.fail(e.args[0])
 
@@ -51,8 +52,9 @@ def test_polygon_1D_day_stock(backtest_environment, mock_polygon_client, mock_va
     try:
         results = backtest_environment.run_all(show_plot=False, show_tearsheet=False, save_tearsheet=False)
         assert results is not None, "Results should not be None"
-        btc_orders = backtest_environment._strategies[0].positions[1].orders
-        assert len(btc_orders) == 1
+        assert len(backtest_environment._strategies[0].positions) > 1, "Expected a position in SPY."
+        orders = backtest_environment._strategies[0].positions[1].orders
+        assert len(orders) == 1
     except Exception as e:
         pytest.fail(e.args[0])
 
@@ -76,8 +78,9 @@ def test_polygon_1D_minute_crypto(backtest_environment, mock_polygon_client, moc
     try:
         results = backtest_environment.run_all(show_plot=False, show_tearsheet=False, save_tearsheet=False)
         assert results is not None, "Results should not be None"
-        btc_orders = backtest_environment._strategies[0].positions[1].orders
-        assert len(btc_orders) == 2
+        assert len(backtest_environment._strategies[0].positions) > 1, "Expected a position in BTC."
+        orders = backtest_environment._strategies[0].positions[1].orders
+        assert len(orders) == 2
     except Exception as e:
         pytest.fail(e.args[0])
 

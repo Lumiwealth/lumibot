@@ -72,20 +72,25 @@ def backtest_environment(request):
     backtesting_end = end
     risk_free_rate = 0.0532
     trading_fee = TradingFee(percent_fee=0.0033, flat_fee=0.0)
-
+    market = None
 
     if asset_type == "stock":
         benchmark_asset = Asset(symbol="SPY", asset_type="stock")
         quote_asset = Asset(symbol="USD", asset_type="forex")
+        market = "NYSE"
         
+    elif asset_type == "crypto":
+        benchmark_asset = Asset(symbol="BTC", asset_type="crypto")
+        quote_asset = Asset(symbol="USD", asset_type="forex")
+        market = "24/7"
+
     else:
         benchmark_asset = Asset(symbol="BTC", asset_type="crypto")
         quote_asset = Asset(symbol="USD", asset_type="forex")
+        market = "24/7"
+
 
     asset = benchmark_asset
-
-    # For now only support sleeptime = "1D"
-    strategy = DailyStrategy
 
     data_source = PolygonDataBacktesting(
         datetime_start=backtesting_start,
@@ -97,8 +102,9 @@ def backtest_environment(request):
 
     broker = BacktestingBroker(data_source)
 
-    strategy = strategy(
+    strategy = TestStrategy(
         asset=asset,
+        market=market,
         sleeptime=sleeptime,
         broker=broker,
         risk_free_rate=risk_free_rate,
@@ -141,10 +147,22 @@ def cache_needs_update(cache_file):
 
 ### Test Strategies ###
 
-class DailyStrategy(Strategy):
-    def initialize(self, asset):
+class TestStrategy(Strategy):
+    def __init__(self, *args, asset=None, market=None, sleeptime=None, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        if not asset:
+            raise Exception("No asset in TestStrategy")
+        if not market:
+            raise Exception("no market in TestStrategy")
+        if not sleeptime:
+            raise Exception("no sleeptime in TestStrategy")
+        
+        self.sleeptime = sleeptime
         self.asset = asset
-        self.sleeptime = "1D"
+        self.set_market(market)
+        
+        
 
     def on_trading_iteration(self):
         self.order = self.create_order(self.asset, 1, "buy")

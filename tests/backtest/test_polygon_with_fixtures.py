@@ -4,6 +4,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from .fixtures import *
 
+BUFFER = 7 # We need a buffer of 5+2 days or minutes 
+
 @pytest.mark.parametrize("backtest_environment", [
     {'sleeptime': "1D", 
      'timestep': "day",
@@ -16,7 +18,7 @@ from .fixtures import *
 @pytest.mark.parametrize('mock_pd_read_feather', [
     {'asset': Asset(symbol="BTC", asset_type="crypto"),
      'timestep': 'day',
-     'start': datetime(2023, 1, 1) - timedelta(days=6),
+     'start': datetime(2023, 1, 1) - timedelta(days=BUFFER),
      'end': datetime(2023, 4, 1)}
 ], indirect=True)
 @pytest.mark.filterwarnings("error")
@@ -40,7 +42,7 @@ def test_polygon_1D_day_crypto(backtest_environment, mock_polygon_client, mock_v
 @pytest.mark.parametrize('mock_pd_read_feather', [
     {'asset': Asset(symbol="BTC", asset_type="crypto"),
      'timestep': 'minute',
-     'start': datetime(2023, 1, 1) - timedelta(days=6),
+     'start': datetime(2023, 1, 1) - timedelta(days=BUFFER),
      'end': datetime(2023, 2, 1)}
 ], indirect=True)
 @pytest.mark.filterwarnings("error")
@@ -49,6 +51,8 @@ def test_polygon_1D_minute_crypto(backtest_environment, mock_polygon_client, moc
     try:
         results = backtest_environment.run_all(show_plot=False, show_tearsheet=False, save_tearsheet=False)
         assert results is not None, "Results should not be None"
+        btc_orders = backtest_environment._strategies[0].positions[1].orders
+        assert len(btc_orders) == 31
     except Exception as e:
         pytest.fail(e.args[0])
 

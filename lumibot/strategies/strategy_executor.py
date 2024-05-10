@@ -757,6 +757,11 @@ class StrategyExecutor(Thread):
 
             self.broker._update_datetime(dt, cash=self.strategy.cash, portfolio_value=self.strategy.portfolio_value)
 
+            # Check if we should continue
+            broker_continue = self.broker.should_continue()
+            if not broker_continue:
+                return
+
             if not self.strategy.is_holiday():
                 self.strategy.await_market_to_open(timedelta=0)
 
@@ -867,7 +872,7 @@ class StrategyExecutor(Thread):
         if self.strategy.is_backtesting:
             while is_247 or (time_to_close is not None and (time_to_close > self.strategy.minutes_before_closing * 60)):
                 # Stop after we pass the backtesting end date
-                if self.broker.IS_BACKTESTING_BROKER and self.broker.datetime > self.broker.data_source.datetime_end:
+                if self.broker.IS_BACKTESTING_BROKER and self.broker.datetime >= self.broker.data_source.datetime_end:
                     break
 
                 # TODO: next line speed implication: v high (7563 microseconds) _on_trading_iteration()

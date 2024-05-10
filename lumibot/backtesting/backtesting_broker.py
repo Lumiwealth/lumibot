@@ -404,11 +404,15 @@ class BacktestingBroker(Broker):
             logging.error(f"Cannot cash settle non-option contract {position.asset}")
             return
 
-        # Create a stock asset for the underlying asset
-        underlying_asset = Asset(
-            symbol=position.asset.symbol,
-            asset_type="stock",
-        )
+        # First check if the option asset has an underlying asset
+        if position.asset.underlying_asset is None:
+            # Create a stock asset for the underlying asset
+            underlying_asset = Asset(
+                symbol=position.asset.symbol,
+                asset_type="stock",
+            )
+        else:
+            underlying_asset = position.asset.underlying_asset
 
         # Get the price of the underlying asset
         underlying_price = self.get_last_price(underlying_asset)

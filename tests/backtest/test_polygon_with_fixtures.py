@@ -29,9 +29,8 @@ def test_polygon_1D_day_crypto(backtest_environment, mock_polygon_client, mock_v
         assert results is not None, "Results should not be None"
 
         strategy = backtest_environment._strategies[0]
-        data_source = strategy.broker.data_source
 
-        assert data_source.get_datetime() == datetime(2024, 1, 3, 0, 0, tzinfo=ZoneInfo("America/New_York"))
+        assert strategy.broker.datetime == datetime(2024, 1, 3, 0, 0, tzinfo=ZoneInfo("America/New_York"))
         assert len(strategy.positions) > 1, "Expected a position in BTC."
         orders = strategy.positions[1].orders
         assert len(orders) == 2
@@ -60,9 +59,8 @@ def test_polygon_1D_day_stock(backtest_environment, mock_polygon_client, mock_va
         assert results is not None, "Results should not be None"
         
         strategy = backtest_environment._strategies[0]
-        data_source = strategy.broker.data_source
 
-        assert data_source.get_datetime() == datetime(2024, 1, 3, 0, 0, tzinfo=ZoneInfo("America/New_York"))
+        assert strategy.broker.datetime == datetime(2024, 1, 3, 0, 0, tzinfo=ZoneInfo("America/New_York"))
         assert len(strategy.positions) > 1, "Expected a position in SPY."
         orders = strategy.positions[1].orders
         assert len(orders) == 1
@@ -91,9 +89,8 @@ def test_polygon_1D_minute_crypto(backtest_environment, mock_polygon_client, moc
         assert results is not None, "Results should not be None"
 
         strategy = backtest_environment._strategies[0]
-        data_source = strategy.broker.data_source
         
-        assert data_source.get_datetime() == datetime(2024, 1, 3, 0, 0, tzinfo=ZoneInfo("America/New_York"))
+        assert strategy.broker.datetime == datetime(2024, 1, 3, 0, 0, tzinfo=ZoneInfo("America/New_York"))
         assert len(strategy.positions) > 1, "Expected a position in BTC."
         orders = strategy.positions[1].orders
         assert len(orders) == 2
@@ -124,9 +121,8 @@ def test_polygon_30m_minute_stock(backtest_environment, mock_polygon_client, moc
         assert results is not None, "Results should not be None"
 
         strategy = backtest_environment._strategies[0]
-        data_source = strategy.broker.data_source
 
-        assert data_source.get_datetime() == datetime(2024, 1, 3, 8, 30, tzinfo=ZoneInfo("America/New_York"))
+        assert strategy.broker.datetime == datetime(2024, 1, 3, 8, 30, tzinfo=ZoneInfo("America/New_York"))
         assert len(strategy.positions) > 1, "Expected a position in SPY."
         orders = strategy.positions[1].orders
         assert len(orders) == 13 # 30m*13 => 9:30 to 15.30 (16:00 is closed)

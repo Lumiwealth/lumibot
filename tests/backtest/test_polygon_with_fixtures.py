@@ -27,10 +27,13 @@ def test_polygon_1D_day_crypto(backtest_environment, mock_polygon_client, mock_v
     try:
         results = backtest_environment.run_all(show_plot=False, show_tearsheet=False, save_tearsheet=False)
         assert results is not None, "Results should not be None"
-        broker = backtest_environment._strategies[0].broker
-        assert broker.datetime == datetime(2024, 1, 3, 0, 0, tzinfo=ZoneInfo("America/New_York"))
-        assert len(backtest_environment._strategies[0].positions) > 1, "Expected a position in BTC."
-        orders = backtest_environment._strategies[0].positions[1].orders
+
+        strategy = backtest_environment._strategies[0]
+        data_source = strategy.broker.data_source
+
+        assert data_source.get_datetime() == datetime(2024, 1, 3, 0, 0, tzinfo=ZoneInfo("America/New_York"))
+        assert len(strategy.positions) > 1, "Expected a position in BTC."
+        orders = strategy.positions[1].orders
         assert len(orders) == 2
     except Exception as e:
         pytest.fail(e.args[0])
@@ -55,10 +58,13 @@ def test_polygon_1D_day_stock(backtest_environment, mock_polygon_client, mock_va
     try:
         results = backtest_environment.run_all(show_plot=False, show_tearsheet=False, save_tearsheet=False)
         assert results is not None, "Results should not be None"
-        broker = backtest_environment._strategies[0].broker
-        assert broker.datetime == datetime(2024, 1, 3, 0, 0, tzinfo=ZoneInfo("America/New_York"))
-        assert len(backtest_environment._strategies[0].positions) > 1, "Expected a position in SPY."
-        orders = backtest_environment._strategies[0].positions[1].orders
+        
+        strategy = backtest_environment._strategies[0]
+        data_source = strategy.broker.data_source
+
+        assert data_source.get_datetime() == datetime(2024, 1, 3, 0, 0, tzinfo=ZoneInfo("America/New_York"))
+        assert len(strategy.positions) > 1, "Expected a position in SPY."
+        orders = strategy.positions[1].orders
         assert len(orders) == 1
     except Exception as e:
         pytest.fail(e.args[0])
@@ -83,10 +89,13 @@ def test_polygon_1D_minute_crypto(backtest_environment, mock_polygon_client, moc
     try:
         results = backtest_environment.run_all(show_plot=False, show_tearsheet=False, save_tearsheet=False)
         assert results is not None, "Results should not be None"
-        broker = backtest_environment._strategies[0].broker
-        assert broker.datetime == datetime(2024, 1, 3, 0, 0, tzinfo=ZoneInfo("America/New_York"))
-        assert len(backtest_environment._strategies[0].positions) > 1, "Expected a position in BTC."
-        orders = backtest_environment._strategies[0].positions[1].orders
+
+        strategy = backtest_environment._strategies[0]
+        data_source = strategy.broker.data_source
+        
+        assert data_source.get_datetime() == datetime(2024, 1, 3, 0, 0, tzinfo=ZoneInfo("America/New_York"))
+        assert len(strategy.positions) > 1, "Expected a position in BTC."
+        orders = strategy.positions[1].orders
         assert len(orders) == 2
     except Exception as e:
         pytest.fail(e.args[0])
@@ -113,10 +122,13 @@ def test_polygon_30m_minute_stock(backtest_environment, mock_polygon_client, moc
     try:
         results = backtest_environment.run_all(show_plot=False, show_tearsheet=False, save_tearsheet=False)
         assert results is not None, "Results should not be None"
-        broker = backtest_environment._strategies[0].broker
-        assert broker.datetime == datetime(2024, 1, 3, 8, 30, tzinfo=ZoneInfo("America/New_York"))
-        assert len(backtest_environment._strategies[0].positions) > 1, "Expected a position in SPY."
-        orders = backtest_environment._strategies[0].positions[1].orders
+
+        strategy = backtest_environment._strategies[0]
+        data_source = strategy.broker.data_source
+
+        assert data_source.get_datetime() == datetime(2024, 1, 3, 8, 30, tzinfo=ZoneInfo("America/New_York"))
+        assert len(strategy.positions) > 1, "Expected a position in SPY."
+        orders = strategy.positions[1].orders
         assert len(orders) == 13 # 30m*13 => 9:30 to 15.30 (16:00 is closed)
     except Exception as e:
         pytest.fail(e.args[0])

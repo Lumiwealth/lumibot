@@ -92,6 +92,10 @@ class BacktestingBroker(Broker):
         else:
             new_datetime = update_dt
 
+        # Make sure we return a datetime object
+        if isinstance(new_datetime, pd.Timestamp):
+            new_datetime = new_datetime.to_pydatetime()
+
         self.data_source._update_datetime(new_datetime, cash=cash, portfolio_value=portfolio_value)
         logging.info(f"Current backtesting datetime {self.datetime}")
 

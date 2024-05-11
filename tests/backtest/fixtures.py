@@ -165,5 +165,6 @@ class BuyEachIterationStrategy(Strategy):
         
 
     def on_trading_iteration(self):
+        historical_prices = self.get_historical_prices(self.asset, length=10)
         self.order = self.create_order(self.asset, 1, "buy")
         self.submit_order(self.order)

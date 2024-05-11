@@ -102,7 +102,7 @@ def backtest_environment(request):
 
     broker = BacktestingBroker(data_source)
 
-    strategy = TestStrategy(
+    strategy = BuyEachIterationStrategy(
         asset=asset,
         market=market,
         sleeptime=sleeptime,
@@ -147,16 +147,16 @@ def cache_needs_update(cache_file):
 
 ### Test Strategies ###
 
-class TestStrategy(Strategy):
+class BuyEachIterationStrategy(Strategy):
     def __init__(self, *args, asset=None, market=None, sleeptime=None, **kwargs):
         super().__init__(*args, **kwargs)
 
         if not asset:
-            raise Exception("No asset in TestStrategy")
+            raise Exception("No asset in BuyEachIterationStrategy")
         if not market:
-            raise Exception("no market in TestStrategy")
+            raise Exception("no market in BuyEachIterationStrategy")
         if not sleeptime:
-            raise Exception("no sleeptime in TestStrategy")
+            raise Exception("no sleeptime in BuyEachIterationStrategy")
         
         self.sleeptime = sleeptime
         self.asset = asset

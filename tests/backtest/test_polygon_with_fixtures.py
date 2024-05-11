@@ -3,7 +3,7 @@ from lumibot.entities import Asset
 from unittest.mock import MagicMock, patch
 import pytest
 from .fixtures import *
-from zoneinfo import ZoneInfo
+import pytz
 
 BUFFER = 7 # We need a buffer of 5+2 days or minutes 
 
@@ -30,7 +30,8 @@ def test_polygon_1D_day_crypto(backtest_environment, mock_polygon_client, mock_v
 
         strategy = backtest_environment._strategies[0]
 
-        assert strategy.broker.datetime == datetime(2024, 1, 3, 0, 0, tzinfo=ZoneInfo("America/New_York"))
+        timezone = pytz.timezone("America/New_York")
+        assert strategy.broker.datetime == timezone.localize(datetime(2024, 1, 3, 0, 0))
         assert len(strategy.positions) > 1, "Expected a position in BTC."
         orders = strategy.positions[1].orders
         assert len(orders) == 2
@@ -60,7 +61,8 @@ def test_polygon_1D_day_stock(backtest_environment, mock_polygon_client, mock_va
         
         strategy = backtest_environment._strategies[0]
 
-        assert strategy.broker.datetime == datetime(2024, 1, 3, 0, 0, tzinfo=ZoneInfo("America/New_York"))
+        timezone = pytz.timezone("America/New_York")
+        assert strategy.broker.datetime == timezone.localize(datetime(2024, 1, 3, 0, 0))
         assert len(strategy.positions) > 1, "Expected a position in SPY."
         orders = strategy.positions[1].orders
         assert len(orders) == 1
@@ -90,7 +92,8 @@ def test_polygon_1D_minute_crypto(backtest_environment, mock_polygon_client, moc
 
         strategy = backtest_environment._strategies[0]
         
-        assert strategy.broker.datetime == datetime(2024, 1, 3, 0, 0, tzinfo=ZoneInfo("America/New_York"))
+        timezone = pytz.timezone("America/New_York")
+        assert strategy.broker.datetime == timezone.localize(datetime(2024, 1, 3, 0, 0))
         assert len(strategy.positions) > 1, "Expected a position in BTC."
         orders = strategy.positions[1].orders
         assert len(orders) == 2
@@ -122,7 +125,8 @@ def test_polygon_30m_minute_stock(backtest_environment, mock_polygon_client, moc
 
         strategy = backtest_environment._strategies[0]
 
-        assert strategy.broker.datetime == datetime(2024, 1, 3, 8, 30, tzinfo=ZoneInfo("America/New_York"))
+        timezone = pytz.timezone("America/New_York")
+        assert strategy.broker.datetime == timezone.localize(datetime(2024, 1, 3, 8, 30))
         assert len(strategy.positions) > 1, "Expected a position in SPY."
         orders = strategy.positions[1].orders
         assert len(orders) == 13 # 30m*13 => 9:30 to 15.30 (16:00 is closed)

@@ -5,7 +5,7 @@ import pytest
 from .fixtures import *
 import pytz
 
-BUFFER = 7 # We need a buffer of 5+2 days or minutes 
+BUFFER = 7 # We need a buffer of 5+2 days or minutes
 
 @pytest.mark.parametrize("backtest_environment", [
     {'sleeptime': "1D", 
@@ -18,7 +18,7 @@ BUFFER = 7 # We need a buffer of 5+2 days or minutes
 @pytest.mark.parametrize('mock_pd_read_feather', [
     {'asset': Asset(symbol="BTC", asset_type="crypto"),
      'timestep': 'day',
-     'start': datetime(2024, 1, 1) - timedelta(days=BUFFER),
+     'start': datetime(2023, 12, 1) - timedelta(days=BUFFER),
      'end': datetime(2024, 1, 3)}
 ], indirect=True)
 @pytest.mark.filterwarnings("error")
@@ -49,7 +49,7 @@ def test_polygon_1D_day_crypto(backtest_environment, mock_polygon_client, mock_v
 @pytest.mark.parametrize('mock_pd_read_feather', [
     {'asset': Asset(symbol="SPY", asset_type="stock"),
      'timestep': 'day',
-     'start': datetime(2024, 1, 1) - timedelta(days=BUFFER),
+     'start': datetime(2023, 12, 1) - timedelta(days=BUFFER),
      'end': datetime(2024, 1, 3)}
 ], indirect=True)
 @pytest.mark.filterwarnings("error")
@@ -80,7 +80,7 @@ def test_polygon_1D_day_stock(backtest_environment, mock_polygon_client, mock_va
 @pytest.mark.parametrize('mock_pd_read_feather', [
     {'asset': Asset(symbol="BTC", asset_type="crypto"),
      'timestep': 'minute',
-     'start': datetime(2024, 1, 1) - timedelta(days=BUFFER),
+     'start': datetime(2023, 12, 1) - timedelta(days=BUFFER),
      'end': datetime(2024, 1, 3)}
 ], indirect=True)
 @pytest.mark.filterwarnings("error")
@@ -113,7 +113,7 @@ def test_polygon_1D_minute_crypto(backtest_environment, mock_polygon_client, moc
 @pytest.mark.parametrize('mock_pd_read_feather', [
     {'asset': Asset(symbol="SPY", asset_type="stock"),
      'timestep': 'minute',
-     'start': datetime(2024, 1, 1) - timedelta(days=BUFFER),
+     'start': datetime(2023, 12, 1) - timedelta(days=BUFFER),
      'end': datetime(2024, 1, 3)}
 ], indirect=True)
 @pytest.mark.filterwarnings("error")

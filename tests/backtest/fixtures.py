@@ -123,10 +123,7 @@ def backtest_environment(request):
 
 #### helper functions ####
 
-def generate_test_data(asset, start_date, end_date, timestep):
-    if asset.asset_type == Asset.AssetType.OPTION:
-        raise Exception("option data generation is still not supported")
-    
+def generate_test_data(asset, start_date, end_date, timestep):   
     freq = {'minute': 'min', 'hour': 'H', 'day': 'D', 'week': 'W', 'month': 'M'}.get(timestep, 'D')
     date_range = pd.date_range(start=start_date, end=end_date, freq=freq)
     return pd.DataFrame({

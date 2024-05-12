@@ -384,10 +384,6 @@ def load_cache(cache_file):
     # Set the 'datetime' column as the index of the DataFrame
     df_feather.set_index("datetime", inplace=True)
 
-    # Remove timezone if is UTC
-    if df_feather.index.tzinfo is not None and df_feather.index.tz.zone == 'UTC':
-        df_feather.index = df_feather.index.tz_localize(None)
-
     df_feather.index = pd.to_datetime(
         df_feather.index
     )  # TODO: Is there some way to speed this up? It takes several times longer than just reading the feather file

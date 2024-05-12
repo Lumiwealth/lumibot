@@ -22,7 +22,7 @@ BUFFER = 7 # We need a buffer of 5+2 days or minutes
      'end': datetime(2024, 1, 3)}
 ], indirect=True)
 @pytest.mark.filterwarnings("error")
-def test_polygon_1D_day_crypto(backtest_environment, mock_polygon_client, mock_validate_cache, mock_pd_read_feather):
+def test_polygon_1D_day_crypto(backtest_environment, mock_polygon_client, mock_validate_cache, mock_pd_read_feather, mock_should_load_from_cache):
     results = None
     try:
         results = backtest_environment.run_all(show_plot=False, show_tearsheet=False, save_tearsheet=False)
@@ -53,7 +53,7 @@ def test_polygon_1D_day_crypto(backtest_environment, mock_polygon_client, mock_v
      'end': datetime(2024, 1, 3)}
 ], indirect=True)
 @pytest.mark.filterwarnings("error")
-def test_polygon_1D_day_stock(backtest_environment, mock_polygon_client, mock_validate_cache, mock_pd_read_feather):
+def test_polygon_1D_day_stock(backtest_environment, mock_polygon_client, mock_validate_cache, mock_pd_read_feather, mock_should_load_from_cache):
     results = None
     try:
         results = backtest_environment.run_all(show_plot=False, show_tearsheet=False, save_tearsheet=False)
@@ -84,7 +84,7 @@ def test_polygon_1D_day_stock(backtest_environment, mock_polygon_client, mock_va
      'end': datetime(2024, 1, 3)}
 ], indirect=True)
 @pytest.mark.filterwarnings("error")
-def test_polygon_1D_minute_crypto(backtest_environment, mock_polygon_client, mock_validate_cache, mock_pd_read_feather):
+def test_polygon_1D_minute_crypto(backtest_environment, mock_polygon_client, mock_validate_cache, mock_pd_read_feather, mock_should_load_from_cache):
     results = None
     try:
         results = backtest_environment.run_all(show_plot=False, show_tearsheet=False, save_tearsheet=False)
@@ -117,7 +117,7 @@ def test_polygon_1D_minute_crypto(backtest_environment, mock_polygon_client, moc
      'end': datetime(2024, 1, 3)}
 ], indirect=True)
 @pytest.mark.filterwarnings("error")
-def test_polygon_30m_minute_stock(backtest_environment, mock_polygon_client, mock_validate_cache, mock_pd_read_feather):
+def test_polygon_30m_minute_stock(backtest_environment, mock_polygon_client, mock_validate_cache, mock_pd_read_feather, mock_should_load_from_cache):
     results = None
     try:
         results = backtest_environment.run_all(show_plot=False, show_tearsheet=False, save_tearsheet=False)

@@ -35,6 +35,12 @@ def mock_polygon_client():
         mock_instance._get.return_value = MagicMock()
         yield mock_instance
 
+
+@pytest.fixture
+def mock_should_load_from_cache():
+    with patch('lumibot.tools.polygon_helper.should_load_from_cache', return_value=True) as mock:
+        yield mock
+
 @pytest.fixture
 def mock_validate_cache():
     with patch('lumibot.tools.polygon_helper.validate_cache', return_value=False) as mock_method:

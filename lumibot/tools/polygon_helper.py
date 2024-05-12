@@ -76,8 +76,8 @@ def get_price_data_from_polygon(
     force_cache_update = validate_cache(force_cache_update, asset, cache_file, api_key)
 
     df_all = None
-    # Load from the cache file if it exists.  
-    if cache_file.exists() and not force_cache_update:
+    # Load from the cache file if it exists and not a forced cache updated needed
+    if should_load_from_cache(cache_file, force_cache_update):
         logging.debug(f"Loading pricing data for {asset} / {quote_asset} with '{timespan}' timespan from cache file...")
         df_all = load_cache(cache_file)
 
@@ -480,3 +480,6 @@ def update_polygon_data(df_all, result):
             df_all = df_all[~df_all.index.duplicated(keep="first")]  # Remove any duplicate rows
 
     return df_all
+
+def should_load_from_cache(cache_file, force_cache_update):
+    return cache_file.exists() and not force_cache_update

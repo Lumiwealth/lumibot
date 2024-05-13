@@ -129,7 +129,8 @@ def backtest_environment(request):
 
 #### helper functions ####
 
-def generate_test_data(asset, start_date, end_date, timestep):   
+# TODO: Implement calendar option for removing data when market is closed
+def generate_test_data(asset, start_date, end_date, timestep, market=None):   
     freq = {'minute': 'min', 'hour': 'H', 'day': 'D', 'week': 'W', 'month': 'M'}.get(timestep, 'D')
     date_range = pd.date_range(start=start_date, end=end_date, freq=freq)
     return pd.DataFrame({

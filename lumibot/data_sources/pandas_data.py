@@ -210,7 +210,7 @@ class PandasData(DataSourceBacktesting):
     def get_last_prices(self, assets, quote=None, exchange=None, **kwargs):
         result = {}
         for asset in assets:
-            result[asset] = self.get_last_price(asset, timestep=self._timestep, quote=quote, exchange=exchange)
+            result[asset] = self.get_last_price(asset, quote=quote, exchange=exchange)
         return result
 
     def find_asset_in_data_store(self, asset, quote=None):

@@ -762,7 +762,7 @@ class StrategyExecutor(Thread):
             if not broker_continue:
                 return
 
-            if not self.strategy.is_holiday():
+            if self.strategy.is_market_day():
                 self.strategy.await_market_to_open(timedelta=0)
 
             self.strategy._update_cash_with_dividends()

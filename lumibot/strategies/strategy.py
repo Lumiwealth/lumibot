@@ -907,8 +907,16 @@ class Strategy(_Strategy):
 
         self.broker.market = market
 
-    def is_holiday(self):
-        return self.broker.is_holiday()
+    def is_market_day(self):
+        """
+        Determine if the current day is a market day.
+
+        Returns
+        -------
+        bool
+            True if today is a market day, otherwise False.
+        """
+        return self.broker.is_market_day()
 
     def await_market_to_open(self, timedelta=None):
         """Executes infinite loop until market opens

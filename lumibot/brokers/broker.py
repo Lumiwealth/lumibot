@@ -653,14 +653,13 @@ class Broker(ABC):
     def market_close_time(self):
         return self.utc_to_local(self.market_hours(close=True))
     
-    # TODO: _trading_days is initialized in StrategyExecutor!!
-    def is_holiday(self):
+    def is_market_day(self):
+        if self._trading_days is None:
+            return True
+
         today = pd.Timestamp(self.datetime.date())
         
-        if today in self._trading_days.index:
-            return False
-        else:
-            return True
+        return today in self._trading_days.index
 
     def is_market_open(self):
         """Determines if the market is open.

@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from .fixtures import *
 import pytz
+import math
 
 BUFFER = 7 # We need a buffer of 5+2 days or minutes
 
@@ -35,6 +36,7 @@ def test_polygon_1D_day_crypto(backtest_environment, mock_polygon_client, mock_v
         assert len(strategy.positions) > 1, "Expected a position in BTC."
         orders = strategy.positions[1].orders
         assert len(orders) == 2
+        assert math.isclose(strategy.get_portfolio_value(), 99966.6860, rel_tol=1e-4)
     except Exception as e:
         pytest.fail(e.args[0])
 
@@ -97,6 +99,7 @@ def test_polygon_1D_minute_crypto(backtest_environment, mock_polygon_client, moc
         assert len(strategy.positions) > 1, "Expected a position in BTC."
         orders = strategy.positions[1].orders
         assert len(orders) == 2
+        assert math.isclose(strategy.get_portfolio_value(), 99966.6860, rel_tol=1e-4)
     except Exception as e:
         pytest.fail(e.args[0])
 

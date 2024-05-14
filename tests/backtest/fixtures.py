@@ -130,18 +130,22 @@ def backtest_environment(request):
 #### helper functions ####
 
 # TODO: Implement calendar option for removing data when market is closed
-def generate_test_data(asset, start_date, end_date, timestep, market=None):   
+def generate_test_data(asset, start_date, end_date, timestep, market=None):
     freq = {'minute': 'min', 'hour': 'H', 'day': 'D', 'week': 'W', 'month': 'M'}.get(timestep, 'D')
+    
     date_range = pd.date_range(start=start_date, end=end_date, freq=freq)
+    
+    total_points = len(date_range)
+    increment = 100.0 / total_points
+    
     return pd.DataFrame({
         "datetime": date_range,
-        "open": [100.0 + 0.1 * i for i in range(len(date_range))],
-        "high": [110.0 + 0.1 * i for i in range(len(date_range))],
-        "low": [90.0 + 0.1 * i for i in range(len(date_range))],
-        "close": [100.0 + 0.1 * i for i in range(len(date_range))],
-        "volume": [1000 + 100 * i for i in range(len(date_range))],
+        "open": [10000.0 + increment * i for i in range(total_points)],
+        "high": [11000.0 + increment * i for i in range(total_points)],
+        "low": [9000.0 + increment * i for i in range(total_points)],
+        "close": [10000.0 + increment * i for i in range(total_points)],
+        "volume": [100000 + 100 * increment * i for i in range(total_points)],
     })
-
 def cache_needs_update(cache_file):
     """Check if the cache file needs to be updated."""
     last_modified = datetime.fromtimestamp(cache_file.stat().st_mtime)

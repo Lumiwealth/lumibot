@@ -6,6 +6,8 @@ from decimal import Decimal
 
 import pandas as pd
 
+pd.options.mode.copy_on_write = True
+
 from lumibot.backtesting import BacktestingBroker, PolygonDataBacktesting
 from lumibot.entities import Asset, Position
 from lumibot.tools import (
@@ -599,6 +601,7 @@ class _Strategy:
 
                     # Add returns column
                     df["return"] = df["close"].pct_change()
+
 
                     # Add the symbol_cumprod column
                     df["symbol_cumprod"] = (1 + df["return"]).cumprod()

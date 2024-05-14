@@ -14,6 +14,7 @@ class PandasData(DataSourceBacktesting):
     """
 
     SOURCE = "PANDAS"
+    MIN_TIMESTEP = "minute"
     TIMESTEP_MAPPING = [
         {"timestep": "day", "representations": ["1D", "day"]},
         {"timestep": "minute", "representations": ["1M", "minute"]},
@@ -22,7 +23,7 @@ class PandasData(DataSourceBacktesting):
     def __init__(self, *args, pandas_data=None, auto_adjust=True, timestep="minute", **kwargs):
         super().__init__(*args, **kwargs)
         self.name = "pandas"
-        self.pandas_data = self._set_pandas_data_keys(pandas_data)
+        self.pandas_data = self._set_pandas_data_keys(OrderedDict(), pandas_data)
         self.auto_adjust = auto_adjust
         self._data_store = self.pandas_data
         self._date_index = None
@@ -30,9 +31,24 @@ class PandasData(DataSourceBacktesting):
         self._timestep = timestep
 
     @staticmethod
-    def _set_pandas_data_keys(pandas_data):
-        # OrderedDict tracks the LRU dataframes for when it comes time to do evictions.
-        new_pandas_data = OrderedDict()
+    def _set_pandas_data_keys(existing_pandas_data, new_pandas_data):
+        """
+        Update existing_pandas_data with new_pandas_data, respecting existing timesteps.
+
+        Parameters
+        ----------
+        existing_pandas_data : OrderedDict
+            The existing pandas data to update.
+        new_pandas_data : list
+            The new pandas data to add to the existing data.
+
+        Returns
+        -------
+        OrderedDict
+            The updated pandas data with new timesteps added without overwriting existing ones.
+        """
+        if existing_pandas_data is None:
+            existing_pandas_data = OrderedDict()
 
         def _get_new_pandas_data_key(data):
             # Always save the asset as a tuple of Asset and quote
@@ -48,19 +64,19 @@ class PandasData(DataSourceBacktesting):
             else:
                 raise ValueError("Asset must be an Asset or a tuple of Asset and quote")
 
-        # Check if pandas_data is a dictionary
-        if isinstance(pandas_data, dict):
-            for k, data in pandas_data.items():
-                key = _get_new_pandas_data_key(data)
-                new_pandas_data[key] = data
+        if new_pandas_data is None:
+            return existing_pandas_data
 
-        # Check if pandas_data is a list
-        elif isinstance(pandas_data, list):
-            for data in pandas_data:
-                key = _get_new_pandas_data_key(data)
-                new_pandas_data[key] = data
+        # Convert new_pandas_data to nested dict with timesteps
+        for data in new_pandas_data:
+            # Ensure the DataFrame has a DateTimeIndex
+            if 'datetime' in data.df.columns:
+                data.df = data.df.set_index(pd.DatetimeIndex(data.df['datetime']))
 
-        return new_pandas_data
+            key = _get_new_pandas_data_key(data)
+            if key not in existing_pandas_data:
+                existing_pandas_data[key] = {}
+            existing_pandas_data[key][data.timestep] = data
     
     def load_data(self):
         self._data_store = self.pandas_data
@@ -185,57 +201,84 @@ class PandasData(DataSourceBacktesting):
 
         return dt_index
 
-    def get_last_price(self, asset, quote=None, exchange=None):
-        # Takes an asset and returns the last known price
+    def get_last_price(self, asset, quote=None, timestep="minute", exchange=None):
+        """
+        Takes an asset and returns the last known price for the specified timestep.
+        """
         tuple_to_find = self.find_asset_in_data_store(asset, quote)
 
         if tuple_to_find in self._data_store:
-            data = self._data_store[tuple_to_find]
-            try:
-                dt = self.get_datetime()
-                price = data.get_last_price(dt)
+            data_store = self._data_store[tuple_to_find]
 
-                # Check if price is NaN
-                if pd.isna(price):
-                    logging.info(f"Error getting last price for {tuple_to_find}: price is NaN")
+            if timestep in data_store:
+                data = data_store[timestep]
+                try:
+                    dt = self.get_datetime()
+                    price = data.get_last_price(dt)
+
+                    # Check if price is NaN
+                    if pd.isna(price):
+                        logging.info(f"Error getting last price for {tuple_to_find} with timestep {timestep}: price is NaN")
+                        return None
+
+                    return price
+                except Exception as e:
+                    logging.info(f"Error getting last price for {tuple_to_find} with timestep {timestep}: {e}")
                     return None
-
-                return price
-            except Exception as e:
-                logging.info(f"Error getting last price for {tuple_to_find}: {e}")
+            else:
+                logging.info(f"Error: No data for {tuple_to_find} with timestep {timestep}")
                 return None
         else:
+            logging.info(f"Error: Asset {asset} with quote {quote} not found in data store")
             return None
+
 
     def get_last_prices(self, assets, quote=None, exchange=None, **kwargs):
         result = {}
         for asset in assets:
-            result[asset] = self.get_last_price(asset, timestep=self._timestep, quote=quote, exchange=exchange)
+            result[asset] = self.get_last_price(asset, quote=quote, exchange=exchange)
         return result
 
     def find_asset_in_data_store(self, asset, quote=None):
-        if asset in self._data_store:
-            return asset
-        elif quote is not None:
-            asset = (asset, quote)
-            if asset in self._data_store:
-                return asset
-        elif isinstance(asset, Asset) and asset.asset_type in ["option", "future", "stock", "index"]:
-            asset = (asset, Asset("USD", "forex"))
-            if asset in self._data_store:
-                return asset
-        return None
+        """
+        Find the asset in the data store, handling quotes if necessary.
+
+        Parameters
+        ----------
+        asset : Asset or tuple
+            The asset to find in the data store. Can be an Asset object or a tuple (symbol, quote).
+        quote : Asset, optional
+            The quote asset to use, if applicable.
+
+        Returns
+        -------
+        tuple
+            A tuple representing the asset and quote combination found in the data store.
+        """
+        if isinstance(asset, tuple):
+            search_asset = asset
+        else:
+            if quote is None:
+                quote = Asset("USD", "forex")  # Asumimos USD como la cotización predeterminada si no se proporciona ninguna
+            search_asset = (asset, quote)
+        
+        if search_asset in self._data_store:
+            return search_asset
+        else:
+            logging.warning(f"Asset {asset} with quote {quote} not found in data store.")
+            return None
 
     def _pull_source_symbol_bars(
-        self,
-        asset,
-        length,
-        timestep="",
-        timeshift=0,
-        quote=None,
-        exchange=None,
-        include_after_hours=True,
-    ):
+            self,
+            asset,
+            length,
+            timestep="",
+            timeshift=0,
+            quote=None,
+            exchange=None,
+            include_after_hours=True,
+        ):
+        """Pull all bars for an asset"""
         timestep = timestep if timestep else self.MIN_TIMESTEP
         if exchange is not None:
             logging.warning(
@@ -247,16 +290,20 @@ class PandasData(DataSourceBacktesting):
 
         asset_to_find = self.find_asset_in_data_store(asset, quote)
 
-        if asset_to_find in self._data_store:
-            data = self._data_store[asset_to_find]
-        else:
+        if asset_to_find is None:
             logging.warning(f"The asset: `{asset}` does not exist or does not have data.")
-            return
+            return None
+
+        # Verify that we have data for the specific timestep
+        if timestep in self._data_store[asset_to_find]:
+            data = self._data_store[asset_to_find][timestep]
+        else:
+            logging.warning(f"The asset: `{asset}` does not have data for the timestep `{timestep}`.")
+            return None
 
         now = self.get_datetime()
         try:
             res = data.get_bars(now, length=length, timestep=timestep, timeshift=timeshift)
-        # Return None if data.get_bars returns a ValueError
         except ValueError as e:
             logging.info(f"Error getting bars for {asset}: {e}")
             return None
@@ -277,14 +324,14 @@ class PandasData(DataSourceBacktesting):
         timestep = timestep if timestep else self.MIN_TIMESTEP
         asset_to_find = self.find_asset_in_data_store(asset, quote)
 
-        if asset_to_find in self._data_store:
-            data = self._data_store[asset_to_find]
+        if asset_to_find in self._data_store and timestep in self._data_store[asset_to_find]:
+            data = self._data_store[asset_to_find][timestep]
         else:
-            logging.warning(f"The asset: `{asset}` does not exist or does not have data.")
+            logging.warning(f"The asset: `{asset}` with timestep `{timestep}` does not exist or does not have data.")
             return
 
         try:
-            res = data.get_bars_between_dates(start_date=start_date, end_date=end_date, timestep=timestep)
+            res = self.get_bars_between_dates(asset,start_date=start_date, end_date=end_date, timestep=timestep)
         # Return None if data.get_bars returns a ValueError
         except ValueError as e:
             logging.info(f"Error getting bars for {asset}: {e}")
@@ -437,3 +484,46 @@ class PandasData(DataSourceBacktesting):
 
         bars = self._parse_source_symbol_bars(response, asset, quote=quote, length=length)
         return bars
+    
+    def get_bars_between_dates(self, asset, timestep="minute", exchange=None, start_date=None, end_date=None):
+        """Returns a dataframe of all the data available between the start and end dates.
+
+        Parameters
+        ----------
+        asset : Asset
+            The asset to get data for.
+        timestep : str
+            The frequency of the data to get the data. Only minute and day are supported.
+        exchange : str
+            The exchange to get the data for.
+        start_date : datetime.datetime
+            The start date to get the data for.
+        end_date : datetime.datetime
+            The end date to get the data for.
+
+        Returns
+        -------
+        pandas.DataFrame
+        """
+
+        if timestep != "minute" and timestep != "day":
+            raise ValueError(f"Only minute and day are supported for timestep. You provided: {timestep}")
+
+        # Assuming USD as default quote
+        asset_to_find = (asset, Asset("USD", "forex"))
+
+        if asset_to_find not in self._data_store or timestep not in self._data_store[asset_to_find]:
+            logging.warning(f"No data available for asset `{asset}` with timestep `{timestep}`.")
+            return None
+
+        data = self._data_store[asset_to_find][timestep]
+        df = data.df
+
+        if start_date and end_date:
+            df = df[(df.index >= start_date) & (df.index <= end_date)]
+        elif start_date:
+            df = df[df.index >= start_date]
+        elif end_date:
+            df = df[df.index <= end_date]
+
+        return df

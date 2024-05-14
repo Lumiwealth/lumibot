@@ -8,21 +8,30 @@ from lumibot.traders import Trader
 from lumibot.strategies import Strategy
 import pandas as pd
 from datetime import datetime, timedelta
+from pathlib import Path
 
 current_test_params = {}
 
 @pytest.fixture
 def mock_pd_read_feather(request):
     asset = request.param.get('asset', Asset(symbol="BTC", asset_type="crypto"))
-    timestep = request.param.get('timestep', 'day')
     start_date = request.param.get('start', datetime(2023, 1, 1))
     end_date = request.param.get('end', datetime(2023, 4, 1))
 
-    def custom_read_feather(_):
+    def custom_read_feather(cache_file):
+        cache_file_str = str(cache_file)
+
+        if 'minute' in cache_file_str:
+            timestep = 'minute'
+        elif 'day' in cache_file_str:
+            timestep = 'day'
+        else:
+            timestep = 'day'
         return generate_test_data(asset, start_date, end_date, timestep)
 
     with patch('pandas.read_feather', side_effect=custom_read_feather) as mock:
         yield mock
+
 
 @pytest.fixture
 def mock_polygon_client():
@@ -47,18 +56,15 @@ def mock_validate_cache():
         yield mock_method
 
 
-# TODO: Parameters!
 @pytest.fixture
 def polygon_data_backtesting():
     datetime_start = datetime(2023, 1, 1)
     datetime_end = datetime(2023, 2, 1)
     api_key = "fake_api_key"
-    pandas_data = {}
     
     polygon_data_instance = PolygonDataBacktesting(
         datetime_start=datetime_start,
         datetime_end=datetime_end,
-        pandas_data=pandas_data,
         api_key=api_key,
         has_paid_subscription=False
     )
@@ -133,19 +139,25 @@ def backtest_environment(request):
 def generate_test_data(asset, start_date, end_date, timestep, market=None):
     freq = {'minute': 'min', 'hour': 'H', 'day': 'D', 'week': 'W', 'month': 'M'}.get(timestep, 'D')
     
+    reference_date = pd.to_datetime('2000-01-01')
+    
     date_range = pd.date_range(start=start_date, end=end_date, freq=freq)
     
     total_points = len(date_range)
-    increment = 100.0 / total_points
+    
+    days_from_reference = (pd.to_datetime(start_date) - reference_date).days
+    
+    increment = 100.0 / (total_points - 1) if total_points > 1 else 0
     
     return pd.DataFrame({
         "datetime": date_range,
-        "open": [10000.0 + increment * i for i in range(total_points)],
-        "high": [11000.0 + increment * i for i in range(total_points)],
-        "low": [9000.0 + increment * i for i in range(total_points)],
-        "close": [10000.0 + increment * i for i in range(total_points)],
-        "volume": [100000 + 100 * increment * i for i in range(total_points)],
+        "open": [10000.0 + increment * (days_from_reference + i) for i in range(total_points)],
+        "high": [11000.0 + increment * (days_from_reference + i) for i in range(total_points)],
+        "low": [9000.0 + increment * (days_from_reference + i) for i in range(total_points)],
+        "close": [10000.0 + increment * (days_from_reference + i) for i in range(total_points)],
+        "volume": [100000 + 100 * increment * (days_from_reference + i) for i in range(total_points)],
     })
+
 def cache_needs_update(cache_file):
     """Check if the cache file needs to be updated."""
     last_modified = datetime.fromtimestamp(cache_file.stat().st_mtime)

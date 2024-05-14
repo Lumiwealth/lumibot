@@ -86,48 +86,30 @@ class PolygonDataBacktesting(PandasData):
             length, timestep, start_dt, start_buffer=START_BUFFER
         )
 
-        # Check if we have data for this asset
-        if search_asset in self.pandas_data:
-            asset_data = self.pandas_data[search_asset]
+        # Initialize the asset cache if it doesn't exist
+        if search_asset not in self.pandas_data:
+            self.pandas_data[search_asset] = {}
+
+        # Check if we have data for this asset and timestep
+        if ts_unit in self.pandas_data[search_asset]:
+            asset_data = self.pandas_data[search_asset][ts_unit]
             asset_data_df = asset_data.df
             data_start_datetime = asset_data_df.index[0]
+            # Check if we have data for this asset
+        
+        # if search_asset in self.pandas_data:
+        #     asset_data = self.pandas_data[search_asset]
+        #     asset_data_df = asset_data.df
+        #     data_start_datetime = asset_data_df.index[0]
 
             # Get the timestep of the data
-            data_timestep = asset_data.timestep
+            #data_timestep = asset_data.timestep
 
             # If the timestep is the same, we don't need to update the data
-            if data_timestep == ts_unit:
+            #if data_timestep == ts_unit:
                 # Check if we have enough data (5 days is the buffer we subtracted from the start datetime)
-                if (data_start_datetime - start_datetime) < START_BUFFER:
-                    return
-
-            # Always try to get the lowest timestep possible because we can always resample
-            # If day is requested then make sure we at least have data that's less than a day
-            if ts_unit == "day":
-                if data_timestep == "minute":
-                    # Check if we have enough data (5 days is the buffer we subtracted from the start datetime)
-                    if (data_start_datetime - start_datetime) < START_BUFFER:
-                        return
-                    else:
-                        # We don't have enough data, so we need to get more (but in minutes)
-                        ts_unit = "minute"
-                elif data_timestep == "hour":
-                    # Check if we have enough data (5 days is the buffer we subtracted from the start datetime)
-                    if (data_start_datetime - start_datetime) < START_BUFFER:
-                        return
-                    else:
-                        # We don't have enough data, so we need to get more (but in hours)
-                        ts_unit = "hour"
-
-            # If hour is requested then make sure we at least have data that's less than an hour
-            if ts_unit == "hour":
-                if data_timestep == "minute":
-                    # Check if we have enough data (5 days is the buffer we subtracted from the start datetime)
-                    if (data_start_datetime - start_datetime) < START_BUFFER:
-                        return
-                    else:
-                        # We don't have enough data, so we need to get more (but in minutes)
-                        ts_unit = "minute"
+            if (data_start_datetime - start_datetime) < START_BUFFER:
+                return
 
         # Download data from Polygon
         try:
@@ -196,10 +178,10 @@ class PolygonDataBacktesting(PandasData):
             return
 
         data = Data(asset_separated, df, timestep=ts_unit, quote=quote_asset)
-        pandas_data_update = self._set_pandas_data_keys([data])
+        self._set_pandas_data_keys(self.pandas_data, [data])
 
         # Add the keys to the self.pandas_data dictionary
-        self.pandas_data.update(pandas_data_update)
+        #self.pandas_data.update(pandas_data_update)
         if PolygonDataBacktesting.MAX_STORAGE_BYTES:
             self._enforce_storage_limit(self.pandas_data)
 
@@ -247,8 +229,7 @@ class PolygonDataBacktesting(PandasData):
         bars = self._parse_source_symbol_bars(response, asset, quote=quote)
         return bars
 
-    def get_last_price(self, asset, timestep=None, quote=None, exchange=None, **kwargs):
-        timestep = timestep or self.get_timestep()
+    def get_last_price(self, asset, timestep="minute", quote=None, exchange=None, **kwargs):
         try:
             dt = self.get_datetime()
             self._update_pandas_data(asset, quote, 1, timestep, dt)

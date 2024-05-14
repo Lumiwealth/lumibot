@@ -18,7 +18,6 @@ BUFFER = 7 # We need a buffer of 5+2 days or minutes
 ], indirect=True)
 @pytest.mark.parametrize('mock_pd_read_feather', [
     {'asset': Asset(symbol="BTC", asset_type="crypto"),
-     'timestep': 'day',
      'start': datetime(2023, 12, 1) - timedelta(days=BUFFER),
      'end': datetime(2024, 1, 3)}
 ], indirect=True)
@@ -36,7 +35,7 @@ def test_polygon_1D_day_crypto(backtest_environment, mock_polygon_client, mock_v
         assert len(strategy.positions) > 1, "Expected a position in BTC."
         orders = strategy.positions[1].orders
         assert len(orders) == 2
-        assert math.isclose(strategy.get_portfolio_value(), 99966.6860, rel_tol=1e-4)
+        assert math.isclose(strategy.get_portfolio_value(), 78090.3459, rel_tol=1e-4)
     except Exception as e:
         pytest.fail(e.args[0])
 
@@ -50,7 +49,6 @@ def test_polygon_1D_day_crypto(backtest_environment, mock_polygon_client, mock_v
 ], indirect=True)
 @pytest.mark.parametrize('mock_pd_read_feather', [
     {'asset': Asset(symbol="SPY", asset_type="stock"),
-     'timestep': 'day',
      'start': datetime(2023, 12, 1) - timedelta(days=BUFFER),
      'end': datetime(2024, 1, 3)}
 ], indirect=True)
@@ -81,7 +79,6 @@ def test_polygon_1D_day_stock(backtest_environment, mock_polygon_client, mock_va
 ], indirect=True)
 @pytest.mark.parametrize('mock_pd_read_feather', [
     {'asset': Asset(symbol="BTC", asset_type="crypto"),
-     'timestep': 'minute',
      'start': datetime(2023, 12, 1) - timedelta(days=BUFFER),
      'end': datetime(2024, 1, 3)}
 ], indirect=True)
@@ -99,7 +96,7 @@ def test_polygon_1D_minute_crypto(backtest_environment, mock_polygon_client, moc
         assert len(strategy.positions) > 1, "Expected a position in BTC."
         orders = strategy.positions[1].orders
         assert len(orders) == 2
-        assert math.isclose(strategy.get_portfolio_value(), 99966.6860, rel_tol=1e-4)
+        assert math.isclose(strategy.get_portfolio_value(), 99969.1348, rel_tol=1e-4)
     except Exception as e:
         pytest.fail(e.args[0])
 

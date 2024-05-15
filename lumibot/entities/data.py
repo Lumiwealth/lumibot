@@ -164,7 +164,7 @@ class Data:
                     self.df = self.df.set_index(date_col)
                     break
 
-        if timezone is not None:
+        if timezone:
             self.df.index = self.df.index.tz_localize(timezone)
 
         self.df = self.set_date_format(self.df)
@@ -222,10 +222,16 @@ class Data:
     def set_date_format(self, df):
         df.index.name = "datetime"
         df.index = pd.to_datetime(df.index)
+
+        # Remove 'UTC' timezone
+        if df.index.tz is not None and df.index.tz == datetime.timezone.utc:
+            df.index = df.index.tz_localize(None)
+
         if not df.index.tzinfo:
             df.index = df.index.tz_localize(DEFAULT_PYTZ)
         elif df.index.tzinfo != DEFAULT_PYTZ:
             df.index = df.index.tz_convert(DEFAULT_PYTZ)
+        
         return df
 
     def set_dates(self, date_start, date_end):

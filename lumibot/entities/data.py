@@ -164,7 +164,7 @@ class Data:
                     self.df = self.df.set_index(date_col)
                     break
 
-        if timezone:
+        if timezone is not None:
             self.df.index = self.df.index.tz_localize(timezone)
 
         self.df = self.set_date_format(self.df)

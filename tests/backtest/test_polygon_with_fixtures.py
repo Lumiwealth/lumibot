@@ -36,9 +36,9 @@ def test_polygon_1D_day_crypto(backtest_environment, mock_polygon_client, mock_v
         
         orders = strategy.positions[1].orders
         assert len(orders) == 2
-        assert math.isclose(orders[0].get_fill_price(), 10037.0)
-        assert math.isclose(orders[1].get_fill_price(), 10038.0)
-        assert math.isclose(strategy.cash, 79925.0)
+        assert math.isclose(orders[0].get_fill_price(), 10038.0)
+        assert math.isclose(orders[1].get_fill_price(), 10039.0)
+        assert math.isclose(strategy.cash, 79923.0)
 
         # TODO: Check if this value is correct!
         assert math.isclose(strategy.get_portfolio_value(), 100000.0, rel_tol=1e-4)

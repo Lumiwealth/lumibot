@@ -43,7 +43,9 @@ jobs:
           coverage run
           coverage report
           coverage html
-          coverage xml
+          coverage xml -o coverage.xml 
+      - name: Verify Coverage File
+        run: ls -l coverage.xml
       - name: Python Coverage Comment
         uses: py-cov-action/python-coverage-comment-action@v3.23
         with:

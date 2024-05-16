@@ -33,5 +33,5 @@ jobs:
           coverage report
           coverage html
       - name: Python Coverage Comment
-          uses: py-cov-action/python-coverage-comment-action@v3.23
+        uses: py-cov-action/python-coverage-comment-action@v3.23
             

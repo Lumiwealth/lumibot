@@ -358,6 +358,14 @@ class BacktestingBroker(Broker):
 
     def submit_order(self, order):
         """Submit an order for an asset"""
+        # NOTE: This code is to address Tradier API requirements, they want is as "to_open" or "to_close" instead of just "buy" or "sell"
+        # If the order has a "buy_to_open" or "buy_to_close" side, then we should change it to "buy"
+        if order.side in ["buy_to_open", "buy_to_close"]:
+            order.side = "buy"
+        # If the order has a "sell_to_open" or "sell_to_close" side, then we should change it to "sell"
+        if order.side in ["sell_to_open", "sell_to_close"]:
+            order.side = "sell"
+
         order.update_raw(order)
         self.stream.dispatch(
             self.NEW_ORDER,
@@ -396,11 +404,15 @@ class BacktestingBroker(Broker):
             logging.error(f"Cannot cash settle non-option contract {position.asset}")
             return
 
-        # Create a stock asset for the underlying asset
-        underlying_asset = Asset(
-            symbol=position.asset.symbol,
-            asset_type="stock",
-        )
+        # First check if the option asset has an underlying asset
+        if position.asset.underlying_asset is None:
+            # Create a stock asset for the underlying asset
+            underlying_asset = Asset(
+                symbol=position.asset.symbol,
+                asset_type="stock",
+            )
+        else:
+            underlying_asset = position.asset.underlying_asset
 
         # Get the price of the underlying asset
         underlying_price = self.get_last_price(underlying_asset)
@@ -560,11 +572,11 @@ class BacktestingBroker(Broker):
                 )
 
                 dt = ohlc.df.index[-1]
-                open = ohlc.df.open[-1]
-                high = ohlc.df.high[-1]
-                low = ohlc.df.low[-1]
-                close = ohlc.df.close[-1]
-                volume = ohlc.df.volume[-1]
+                open = ohlc.df['open'].iloc[-1]
+                high = ohlc.df['high'].iloc[-1]
+                low = ohlc.df['low'].iloc[-1]
+                close = ohlc.df['close'].iloc[-1]
+                volume = ohlc.df['volume'].iloc[-1]
 
             # Get the OHLCV data for the asset if we're using the PANDAS data source
             elif self.data_source.SOURCE == "PANDAS":

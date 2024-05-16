@@ -279,6 +279,7 @@ class _Strategy:
         self._minutes_before_closing = minutes_before_closing
         self._minutes_before_opening = minutes_before_opening
         self._sleeptime = sleeptime
+        self._risk_free_rate = risk_free_rate
         self._executor = StrategyExecutor(self)
         self.broker._add_subscriber(self._executor)
 
@@ -702,6 +703,7 @@ class _Strategy:
                 self._benchmark_returns_df,
                 self._benchmark_asset,
                 show_tearsheet,
+                save_tearsheet,
                 risk_free_rate=self.risk_free_rate,
                 strategy_parameters=strategy_parameters,
             )
@@ -1006,6 +1008,7 @@ class _Strategy:
             show_tearsheet=show_tearsheet,
             save_tearsheet=save_tearsheet,
             show_indicators=show_indicators,
+            tearsheet_file=tearsheet_file,
         )
 
         end = datetime.datetime.now()
@@ -1044,15 +1047,15 @@ class _Strategy:
 
         datestring = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         basename = f"{name + '_' if name is not None else ''}{datestring}"
-        if plot_file_html is None:
+        if not plot_file_html:
             plot_file_html = f"{logdir}/{basename}_trades.html"
-        if trades_file is None:
+        if not trades_file:
             trades_file = f"{logdir}/{basename}_trades.csv"
-        if tearsheet_file is None:
+        if not tearsheet_file:
             tearsheet_file = f"{logdir}/{basename}_tearsheet.html"
-        if settings_file is None:
+        if not settings_file:
             settings_file = f"{logdir}/{basename}_settings.json"
-        if indicators_file is None:
+        if not indicators_file:
             indicators_file = f"{logdir}/{basename}_indicators.html"
 
         self.write_backtest_settings(settings_file)

@@ -327,13 +327,13 @@ class Strategy(_Strategy):
         return self._analysis
 
     @property
-    def risk_free_rate(self):
-        # Get the current datetime
-        now = self.get_datetime()
-
-        # Use the yahoo data to get the risk free rate
-        rfr = get_risk_free_rate(now)
-        return rfr
+    def risk_free_rate(self) -> float:
+        if self._risk_free_rate is not None:
+            return self._risk_free_rate
+        else:
+            # Use the yahoo data to get the risk free rate, or 0 if None is returned
+            now = self.get_datetime()
+            return get_risk_free_rate(now) or 0.0
 
     # ======= Helper Methods =======================
 
@@ -3690,7 +3690,7 @@ class Strategy(_Strategy):
         price : float
             The price of the fill.
 
-        quantity : int
+        quantity : float
             The quantity of the fill.
 
         multiplier : float

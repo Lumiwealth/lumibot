@@ -8,6 +8,7 @@ from decimal import Decimal
 
 import pandas as pd
 import plotly.graph_objects as go
+import pytz
 import quantstats_lumi as qs
 from plotly.subplots import make_subplots
 
@@ -47,8 +48,8 @@ def cagr(_df):
     df = df.sort_index(ascending=True)
     df["cum_return"] = (1 + df["return"]).cumprod()
     total_ret = df["cum_return"].iloc[-1]
-    start = datetime.utcfromtimestamp(df.index.values[0].astype("O") / 1e9)
-    end = datetime.utcfromtimestamp(df.index.values[-1].astype("O") / 1e9)
+    start = datetime.fromtimestamp(df.index.values[0].astype("O") / 1e9, pytz.UTC)
+    end = datetime.fromtimestamp(df.index.values[-1].astype("O") / 1e9, pytz.UTC)
     period_years = (end - start).days / 365.25
     if period_years == 0:
         return 0
@@ -62,8 +63,8 @@ def volatility(_df):
     has the return for that time period (eg. daily)
     """
     df = _df.copy()
-    start = datetime.utcfromtimestamp(df.index.values[0].astype("O") / 1e9)
-    end = datetime.utcfromtimestamp(df.index.values[-1].astype("O") / 1e9)
+    start = datetime.fromtimestamp(df.index.values[0].astype("O") / 1e9, pytz.UTC)
+    end = datetime.fromtimestamp(df.index.values[-1].astype("O") / 1e9, pytz.UTC)
     period_years = (end - start).days / 365.25
     if period_years == 0:
         return 0
@@ -457,7 +458,7 @@ def plot_returns(
                 return (
                     row["status"]
                     + "<br>"
-                    + str(row["filled_quantity"].quantize(Decimal("0.01")).__format__(",f"))
+                    + str(Decimal(row["filled_quantity"]).quantize(Decimal("0.01")).__format__(",f"))
                     + " "
                     + row["symbol"]
                     + " "
@@ -496,7 +497,7 @@ def plot_returns(
                 return (
                     row["status"]
                     + "<br>"
-                    + str(row["filled_quantity"].quantize(Decimal("0.01")).__format__(",f"))
+                    + str(Decimal(row["filled_quantity"]).quantize(Decimal("0.01")).__format__(",f"))
                     + " "
                     + row["symbol"]
                     + "<br>"
@@ -638,12 +639,14 @@ def create_tearsheet(
     benchmark_df: pd.DataFrame,
     benchmark_asset,  # This is causing a circular import: Asset,
     show_tearsheet: bool,
+    save_tearsheet: bool,
     risk_free_rate: float,
     strategy_parameters: dict = None,
 ):
     # If show tearsheet is False, then we don't want to open the tearsheet in the browser
-    if not show_tearsheet:
-        print("show_tearsheet is False, not creating the tearsheet file.")
+    # IMS create the tearsheet even if we are not showinbg it
+    if not save_tearsheet:
+        print("save_tearsheet is False, not creating the tearsheet file.")
         return
 
     print("\nCreating tearsheet...")

@@ -368,6 +368,7 @@ class Tradier(Broker):
             date_created=response["create_date"],
         )
         order.status = response["status"]
+        order.avg_fill_price = response.get("avg_fill_price", order.avg_fill_price)
         order.update_raw(response)  # This marks order as 'transmitted'
         return order
 
@@ -426,7 +427,7 @@ class Tradier(Broker):
 
         # Stoploss and limit orders are always used to close positions, even if they are submitted "before" the
         # position is technically open (i.e. buy and stoploss order are submitted simultaneously)
-        if order.type in [Order.OrderType.STOP, Order.OrderType.LIMIT, Order.OrderType.TRAIL]:
+        if order.type in [Order.OrderType.STOP, Order.OrderType.TRAIL]:
             side = side.replace("to_open", "to_close")
 
         # Check if the side is a valid Tradier side

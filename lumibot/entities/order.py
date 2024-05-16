@@ -307,9 +307,6 @@ class Order:
 
         self.quantity = quantity
 
-        # setting the side
-        if side not in [BUY, SELL]:
-            raise ValueError("Side must be either sell or buy, got %r instead" % side)
         self.side = side
 
         self._set_type(
@@ -552,7 +549,7 @@ class Order:
                 value = Decimal(str(value))
 
         quantity = Decimal(value)
-        self._quantity = check_quantity(quantity, "Order quantity must be a positive Decimal")
+        self._quantity = quantity
 
     def __hash__(self):
         return hash(self.identifier)

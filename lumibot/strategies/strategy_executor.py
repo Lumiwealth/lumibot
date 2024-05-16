@@ -392,6 +392,10 @@ class StrategyExecutor(Thread):
             else:
                 self.strategy.log_message(f"Trading iteration ended at {end_str}", color="blue")
         except Exception as e:
+            # If backtesting, raise the exception
+            if self.broker.IS_BACKTESTING_BROKER:
+                raise e
+
             # Log the error
             self.strategy.log_message(
                 f"An error occurred during the on_trading_iteration lifecycle method: {e}", color="red"
@@ -764,6 +768,10 @@ class StrategyExecutor(Thread):
         if not is_247:
             # Set date to the start date, but account for minutes_before_opening
             self.strategy.await_market_to_open()  # set new time and bar length. Check if hit bar max or date max.
+            # Check if we should continue to run when we are in a new day.
+            broker_continue = self.broker.should_continue()
+            if not broker_continue:
+                return
 
             if not has_data_source or (has_data_source and self.broker.data_source.SOURCE != "PANDAS"):
                 self.strategy._update_cash_with_dividends()

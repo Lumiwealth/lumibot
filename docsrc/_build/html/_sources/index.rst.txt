@@ -97,7 +97,7 @@ Table of Contents
    :maxdepth: 3
    
    Home <self>
-   GitHUb <https://github.com/Lumiwealth/lumibot>
+   GitHub <https://github.com/Lumiwealth/lumibot>
    Community/Forum <https://discord.gg/v6asVjTCvh>
    getting_started
    lifecycle_methods

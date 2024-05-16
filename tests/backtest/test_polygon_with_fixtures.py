@@ -19,7 +19,9 @@ BUFFER = 7 # We need a buffer of 5+2 days or minutes
 @pytest.mark.parametrize('mock_pd_read_feather', [
     {'asset': Asset(symbol="BTC", asset_type="crypto"),
      'start': datetime(2023, 12, 1) - timedelta(days=BUFFER),
-     'end': datetime(2024, 1, 3)}
+     'end': datetime(2024, 1, 3),
+     'multiplier': 24
+     }
 ], indirect=True)
 @pytest.mark.filterwarnings("error")
 def test_polygon_1D_day_crypto(backtest_environment, mock_polygon_client, mock_validate_cache, mock_pd_read_feather, mock_should_load_from_cache):
@@ -36,12 +38,12 @@ def test_polygon_1D_day_crypto(backtest_environment, mock_polygon_client, mock_v
         
         orders = strategy.positions[1].orders
         assert len(orders) == 2
-        assert math.isclose(orders[0].get_fill_price(), 10038.0)
-        assert math.isclose(orders[1].get_fill_price(), 10039.0)
-        assert math.isclose(strategy.cash, 79923.0)
+        assert math.isclose(orders[0].get_fill_price(), 10912.0)
+        assert math.isclose(orders[1].get_fill_price(), 10936.0)
+        assert math.isclose(strategy.cash, 78152.0)
 
         # TODO: Check if this value is correct!
-        assert math.isclose(strategy.get_portfolio_value(), 100000.0, rel_tol=1e-4)
+        assert math.isclose(strategy.get_portfolio_value(), 100024.0)
     except Exception as e:
         pytest.fail(e.args[0])
 
@@ -85,7 +87,9 @@ def test_polygon_1D_day_stock(backtest_environment, mock_polygon_client, mock_va
 @pytest.mark.parametrize('mock_pd_read_feather', [
     {'asset': Asset(symbol="BTC", asset_type="crypto"),
      'start': datetime(2023, 12, 1) - timedelta(days=BUFFER),
-     'end': datetime(2024, 1, 3)}
+     'end': datetime(2024, 1, 3),
+     'multiplier': 24
+     }
 ], indirect=True)
 @pytest.mark.filterwarnings("error")
 def test_polygon_1D_minute_crypto(backtest_environment, mock_polygon_client, mock_validate_cache, mock_pd_read_feather, mock_should_load_from_cache):
@@ -103,11 +107,11 @@ def test_polygon_1D_minute_crypto(backtest_environment, mock_polygon_client, moc
         assert len(orders) == 2
 
         # TODO: check process_pending_orders!
-        assert math.isclose(orders[0].get_fill_price(), 10038.0)
-        assert math.isclose(orders[1].get_fill_price(), 10039.0)
-        assert math.isclose(strategy.cash, 79923.0, rel_tol=1e-4)
+        assert math.isclose(orders[0].get_fill_price(), 10912.0)
+        assert math.isclose(orders[1].get_fill_price(), 10936.0)
+        assert math.isclose(strategy.cash, 78152.0, rel_tol=1e-4)
 
-        assert math.isclose(strategy.get_portfolio_value(), 100001.0, rel_tol=1e-4)
+        assert math.isclose(strategy.get_portfolio_value(), 100024.0)
     except Exception as e:
         pytest.fail(e.args[0])
 

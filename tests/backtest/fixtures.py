@@ -17,6 +17,7 @@ def mock_pd_read_feather(request):
     asset = request.param.get('asset', Asset(symbol="BTC", asset_type="crypto"))
     start_date = request.param.get('start', datetime(2023, 1, 1))
     end_date = request.param.get('end', datetime(2023, 4, 1))
+    multiplier = request.param.get('multiplier', 1.0)
 
     def custom_read_feather(cache_file):
         cache_file_str = str(cache_file)
@@ -27,7 +28,7 @@ def mock_pd_read_feather(request):
             timestep = 'day'
         else:
             timestep = 'day'
-        return generate_test_data(asset, start_date, end_date, timestep)
+        return generate_test_data(asset, start_date, end_date, timestep, multiplier=multiplier)
 
     with patch('pandas.read_feather', side_effect=custom_read_feather) as mock:
         yield mock
@@ -138,7 +139,7 @@ def backtest_environment(request):
 #### helper functions ####
 
 # TODO: Implement calendar option for removing data when market is closed
-def generate_test_data(asset, start_date, end_date, timestep, market=None):
+def generate_test_data(asset, start_date, end_date, timestep, multiplier=1.0, market=None):
     freq = {'minute': 'min', 'hour': 'H', 'day': 'D', 'week': 'W', 'month': 'M'}.get(timestep, 'D')
 
     start_date = pd.Timestamp(start_date)
@@ -158,6 +159,7 @@ def generate_test_data(asset, start_date, end_date, timestep, market=None):
     
     # Calcular el incremento
     increment = (end_days_from_reference - start_days_from_reference) / (total_points - 1) if total_points > 1 else 0
+    increment *= multiplier
     
 # Generate the data for the DataFrame
     opens = [10000.0 + increment * i for i in range(total_points)]

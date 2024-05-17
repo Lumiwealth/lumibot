@@ -223,10 +223,6 @@ class Data:
         df.index.name = "datetime"
         df.index = pd.to_datetime(df.index)
 
-        # Remove 'UTC' timezone
-        if df.index.tz is not None and df.index.tz == datetime.timezone.utc:
-            df.index = df.index.tz_localize(None)
-
         if not df.index.tzinfo:
             df.index = df.index.tz_localize(DEFAULT_PYTZ)
         elif df.index.tzinfo != DEFAULT_PYTZ:

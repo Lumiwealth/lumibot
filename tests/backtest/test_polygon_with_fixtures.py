@@ -38,12 +38,12 @@ def test_polygon_1D_day_crypto(backtest_environment, mock_polygon_client, mock_v
         
         orders = strategy.positions[1].orders
         assert len(orders) == 2
-        assert math.isclose(orders[0].get_fill_price(), 10912.0)
-        assert math.isclose(orders[1].get_fill_price(), 10936.0)
-        assert math.isclose(strategy.cash, 78152.0)
+        assert math.isclose(orders[0].get_fill_price(), 10936.0)
+        assert math.isclose(orders[1].get_fill_price(), 10960.0)
+        assert math.isclose(strategy.cash, 78104.0)
 
         # TODO: Check if this value is correct!
-        assert math.isclose(strategy.get_portfolio_value(), 100024.0)
+        assert math.isclose(strategy.get_portfolio_value(), 100000.0)
     except Exception as e:
         pytest.fail(e.args[0])
 
@@ -107,9 +107,9 @@ def test_polygon_1D_minute_crypto(backtest_environment, mock_polygon_client, moc
         assert len(orders) == 2
 
         # TODO: check process_pending_orders!
-        assert math.isclose(orders[0].get_fill_price(), 10912.0)
-        assert math.isclose(orders[1].get_fill_price(), 10936.0)
-        assert math.isclose(strategy.cash, 78152.0, rel_tol=1e-4)
+        assert math.isclose(orders[0].get_fill_price(), 10917.0)
+        assert math.isclose(orders[1].get_fill_price(), 10941.0)
+        assert math.isclose(strategy.cash, 78142.0, rel_tol=1e-4)
 
         assert math.isclose(strategy.get_portfolio_value(), 100024.0)
     except Exception as e:

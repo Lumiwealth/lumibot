@@ -150,24 +150,20 @@ def generate_test_data(asset, start_date, end_date, timestep, multiplier=1.0, ma
     total_points = len(date_range)
     
     if total_points < 2:
-        raise ValueError("El rango de fechas y el timestep proporcionado deben generar al menos dos puntos de datos.")
+        raise ValueError("At least two points of data needed.")
     
-    # Calcular los días desde la fecha de referencia
     reference_date = pd.to_datetime('2000-01-01')
     start_days_from_reference = (pd.to_datetime(start_date) - reference_date).days
     end_days_from_reference = (pd.to_datetime(end_date) - reference_date).days
     
-    # Calcular el incremento
     increment = (end_days_from_reference - start_days_from_reference) / (total_points - 1) if total_points > 1 else 0
     increment *= multiplier
     
-# Generate the data for the DataFrame
     opens = [10000.0 + increment * i for i in range(total_points)]
     highs = [open_ + 50 for open_ in opens]  # High is slightly higher
     lows = [open_ - 50 for open_ in opens]   # Low is slightly lower
     closes = opens[1:] + [opens[-1] + increment]  # Close is the next open, and the last close is slightly higher
     
-    # Create DataFrame
     data = pd.DataFrame({
         "datetime": date_range,
         "open": opens,

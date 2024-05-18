@@ -18,7 +18,7 @@ from datetime import timedelta
 # Global parameters
 # API Key for testing Polygon.io
 POLYGON_API_KEY = os.environ.get("POLYGON_API_KEY")
-POLYGON_IS_PAID_SUBSCRIPTION = os.environ.get("POLYGON_IS_PAID_SUBSCRIPTION") or True
+POLYGON_IS_PAID_SUBSCRIPTION = os.getenv("POLYGON_IS_PAID_SUBSCRIPTION", "true").lower() not in {'false', '0', 'f', 'n', 'no'}
 
 
 class PolygonBacktestStrat(Strategy):

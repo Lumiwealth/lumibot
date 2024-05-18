@@ -17,8 +17,6 @@ from lumibot import LUMIBOT_CACHE_FOLDER
 from lumibot.entities import Asset
 from lumibot import LUMIBOT_DEFAULT_PYTZ
 
-WAIT_TIME = 60
-POLYGON_QUERY_COUNT = 0  # This is a variable that updates every time we query Polygon
 MAX_POLYGON_DAYS = 30
 
 
@@ -68,7 +66,6 @@ def get_price_data_from_polygon(
         A DataFrame with the pricing data for the asset
 
     """
-    global POLYGON_QUERY_COUNT  # Track if we need to wait between requests
 
     # Check if we already have data for this asset in the feather file
     cache_file = build_cache_filename(asset, timespan)
@@ -92,8 +89,8 @@ def get_price_data_from_polygon(
     # print(f"\nGetting pricing data for {asset} / {quote_asset} with '{timespan}' timespan from Polygon...")
 
     # RESTClient connection for Polygon Stock-Equity API; traded_asset is standard
-    # Add "trace=True" to see the API calls printed to the console for debugging
-    polygon_client = RESTClient(api_key)
+    # Add "trace=True" to see the API capolygon_clientlls printed to the console for debugging
+    polygon_client = RLRESTClient(api_key, paid=has_paid_subscription)
     symbol = get_polygon_symbol(asset, polygon_client, quote_asset)  # Will do a Polygon query for option contracts
 
     # To reduce calls to Polygon, we call on full date ranges instead of including hours/minutes
@@ -112,23 +109,9 @@ def get_price_data_from_polygon(
     # multiple queries if we are requesting more than 30 days of data
     delta = timedelta(days=MAX_POLYGON_DAYS)
     while poly_start <= missing_dates[-1]:
-        # If we don't have a paid subscription, we need to wait 1 minute between requests because of
-        # the rate limit. Wait every other query so that we don't spend too much time waiting.
-        if not has_paid_subscription and POLYGON_QUERY_COUNT % 3 == 0:
-            print(
-                f"\nSleeping {WAIT_TIME} seconds while price data for {asset} from Polygon because "
-                f"we don't want to hit the rate limit. IT IS NORMAL FOR THIS TEXT TO SHOW UP SEVERAL TIMES "
-                "and IT MAY TAKE UP TO 10 MINUTES PER ASSET while we download all the data from Polygon. The next "
-                "time you run this it should be faster because the data will be cached to your machine. \n"
-                "If you want this to go faster, you can get a paid Polygon subscription at https://polygon.io/pricing "
-                f"and set `polygon_has_paid_subscription=True` when starting the backtest.\n"
-            )
-            time.sleep(WAIT_TIME)
-
         if poly_end > poly_start + delta:
             poly_end = poly_start + delta
 
-        POLYGON_QUERY_COUNT += 1
         result = polygon_client.get_aggs(
             ticker=symbol,
             from_=poly_start,  # polygon-api-client docs say 'from' but that is a reserved word in python
@@ -163,7 +146,6 @@ def get_price_data_from_polygon(
         df_all.dropna(how="all", inplace=True)
 
     return df_all
-
 
 def validate_cache(force_cache_update: bool, asset: Asset, cache_file: Path, api_key: str):
     """
@@ -480,3 +462,23 @@ def update_polygon_data(df_all, result):
             df_all = df_all[~df_all.index.duplicated(keep="first")]  # Remove any duplicate rows
 
     return df_all
+
+class RLRESTClient(RESTClient):
+    ''' Rate Limited RESTClient '''
+    def __init__(self, *args, **kwargs):
+        self.paid = kwargs.pop('paid', True)
+        self.seconds = 60
+        super().__init__(*args, **kwargs)
+
+    def _get(self, *args, **kwargs):
+        if not self.paid:
+            print(
+                f"\nSleeping {self.seconds} seconds while getting data from Polygon because "
+                f"we don't want to hit the rate limit. IT IS NORMAL FOR THIS TEXT TO SHOW UP SEVERAL TIMES "
+                "and IT MAY TAKE UP TO 10 MINUTES PER ASSET while we download all the data from Polygon. The next "
+                "time you run this it should be faster because the data will be cached to your machine. \n"
+                "If you want this to go faster, you can get a paid Polygon subscription at https://polygon.io/pricing "
+                f"and set `polygon_has_paid_subscription=True` when starting the backtest.\n"
+            )
+            time.sleep(self.seconds)
+        return super()._get(*args, **kwargs)

@@ -90,7 +90,7 @@ def get_price_data_from_polygon(
 
     # RESTClient connection for Polygon Stock-Equity API; traded_asset is standard
     # Add "trace=True" to see the API capolygon_clientlls printed to the console for debugging
-    polygon_client = PolygonClient(api_key, paid=has_paid_subscription)
+    polygon_client = PolygonClient(api_key=api_key, paid=has_paid_subscription)
     symbol = get_polygon_symbol(asset, polygon_client, quote_asset)  # Will do a Polygon query for option contracts
 
     # To reduce calls to Polygon, we call on full date ranges instead of including hours/minutes
@@ -165,7 +165,7 @@ def validate_cache(force_cache_update: bool, asset: Asset, cache_file: Path, api
         if splits_file_stale:
             cached_splits = pd.read_feather(splits_file_path)
     if splits_file_stale or force_cache_update:
-        polygon_client = PolygonClient(api_key, paid=paid)
+        polygon_client = PolygonClient(api_key=api_key, paid=paid)
         # Need to get the splits in execution order to make the list comparable across invocations.
         splits = polygon_client.list_splits(ticker=asset.symbol, sort="execution_date", order="asc")
         if isinstance(splits, Iterator):
@@ -476,8 +476,8 @@ class PolygonClient(RESTClient):
             hitting the rate limit. Default is True.
         
         Usage:
-        client = PolygonClient(paid=False)  # For rate limited client
-        client = PolygonClient(paid=True)   # For non-rate limited client (default)
+        client = PolygonClient(api_key=<API_KEY>, paid=False)  # For rate limited client
+        client = PolygonClient(api_key=<API_KEY>, paid=True)   # For non-rate limited client (default)
         """
 
         self.paid = kwargs.pop('paid', True)

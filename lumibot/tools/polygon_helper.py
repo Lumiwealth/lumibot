@@ -472,13 +472,10 @@ class RLRESTClient(RESTClient):
 
     def _get(self, *args, **kwargs):
         if not self.paid:
-            print(
-                f"\nSleeping {self.seconds} seconds while getting data from Polygon because "
-                f"we don't want to hit the rate limit. IT IS NORMAL FOR THIS TEXT TO SHOW UP SEVERAL TIMES "
-                "and IT MAY TAKE UP TO 10 MINUTES PER ASSET while we download all the data from Polygon. The next "
-                "time you run this it should be faster because the data will be cached to your machine. \n"
-                "If you want this to go faster, you can get a paid Polygon subscription at https://polygon.io/pricing "
-                f"and set `polygon_has_paid_subscription=True` when starting the backtest.\n"
+            logging.info(
+                f"\nSleeping {self.seconds} seconds while getting data from Polygon "
+                 "to avoid hitting the rate limit; "
+                 "consider a paid Polygon subscription for faster results.\n"
             )
             time.sleep(self.seconds)
         return super()._get(*args, **kwargs)

@@ -70,7 +70,7 @@ def get_price_data_from_polygon(
     # Check if we already have data for this asset in the feather file
     cache_file = build_cache_filename(asset, timespan)
     # Check whether it might be stale because of splits.
-    force_cache_update = validate_cache(force_cache_update, asset, cache_file, api_key)
+    force_cache_update = validate_cache(force_cache_update, asset, cache_file, api_key, has_paid_subscription)
 
     df_all = None
     # Load from the cache file if it exists.  
@@ -147,7 +147,7 @@ def get_price_data_from_polygon(
 
     return df_all
 
-def validate_cache(force_cache_update: bool, asset: Asset, cache_file: Path, api_key: str):
+def validate_cache(force_cache_update: bool, asset: Asset, cache_file: Path, api_key: str, paid: bool):
     """
     If the list of splits for a stock have changed then we need to invalidate its cache
     because all of the prices will have changed (because we're using split adjusted prices).
@@ -165,7 +165,7 @@ def validate_cache(force_cache_update: bool, asset: Asset, cache_file: Path, api
         if splits_file_stale:
             cached_splits = pd.read_feather(splits_file_path)
     if splits_file_stale or force_cache_update:
-        polygon_client = RESTClient(api_key)
+        polygon_client = PolygonClient(api_key, paid=paid)
         # Need to get the splits in execution order to make the list comparable across invocations.
         splits = polygon_client.list_splits(ticker=asset.symbol, sort="execution_date", order="asc")
         if isinstance(splits, Iterator):

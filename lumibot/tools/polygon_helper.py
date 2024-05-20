@@ -479,17 +479,19 @@ class PolygonClient(RESTClient):
         client = PolygonClient(paid=False)  # For rate limited client
         client = PolygonClient(paid=True)   # For non-rate limited client (default)
         """
-    
+
         self.paid = kwargs.pop('paid', True)
         self.seconds = 60
         super().__init__(*args, **kwargs)
-
-    def _get(self, *args, **kwargs):
+        
         if not self.paid:
-            logging.info(
-                f"\nSleeping {self.seconds} seconds while getting data from Polygon "
-                 "to avoid hitting the rate limit; "
-                 "consider a paid Polygon subscription for faster results.\n"
-            )
-            time.sleep(self.seconds)
+            self._get = self._get_rate_limited
+
+    def _get_rate_limited(self, *args, **kwargs):
+        logging.info(
+            f"\nSleeping {self.seconds} seconds while getting data from Polygon "
+            "to avoid hitting the rate limit; "
+            "consider a paid Polygon subscription for faster results.\n"
+        )
+        time.sleep(self.seconds)
         return super()._get(*args, **kwargs)

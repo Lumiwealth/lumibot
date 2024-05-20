@@ -78,6 +78,18 @@ class TestTradierDataAPI:
         assert 'low' in quote
         assert 'close' in quote
 
+    def test_get_chain_full_info(self, tradier_ds):
+        asset = Asset("SPY")
+        chains = tradier_ds.get_chains(asset)
+        expir_date = list(chains['Chains']['CALL'].keys())[0]
+
+        df = tradier_ds.get_chain_full_info(asset, expir_date)
+        assert isinstance(df, pd.DataFrame)
+        assert 'strike' in df.columns
+        assert 'last' in df.columns
+        assert 'greeks.delta' in df.columns
+        assert len(df)
+
 
 @pytest.mark.apitest
 class TestTradierBrokerAPI:

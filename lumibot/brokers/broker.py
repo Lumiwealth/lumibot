@@ -353,6 +353,40 @@ class Broker(ABC):
         """
         return chains[exchange] if exchange in chains else chains
 
+    def get_chain_full_info(self, asset: Asset, expiry: str, chains=None, underlying_price=None, risk_free_rate=None,
+                            strike_min=None, strike_max=None) -> pd.DataFrame:
+        """
+        Get the full chain information for an option asset, including: greeks, bid/ask, open_interest, etc. For
+        brokers that do not support this, greeks will be calculated locally. For brokers like Tradier this function
+        is much faster as only a single API call can be done to return the data for all options simultaneously.
+
+        Parameters
+        ----------
+        asset : Asset
+            The option asset to get the chain information for.
+        expiry
+            The expiry date of the option chain.
+        chains
+            The chains dictionary created by `get_chains` method. This is used
+            to get the list of strikes needed to calculate the greeks.
+        underlying_price
+            Price of the underlying asset.
+        risk_free_rate
+            The risk-free rate used in interest calculations.
+        strike_min
+            The minimum strike price to return in the chain. If None, will return all strikes.
+        strike_max
+            The maximum strike price to return in the chain. If None, will return all strikes.
+
+        Returns
+        -------
+        pd.DataFrame
+            A DataFrame containing the full chain information for the option asset. Greeks columns will be named as
+            'greeks.delta', 'greeks.theta', etc.
+        """
+        return self.data_source.get_chain_full_info(asset, expiry, chains, underlying_price, risk_free_rate,
+                                                    strike_min, strike_max)
+
     def get_greeks(self, asset, asset_price, underlying_price, risk_free_rate, query_greeks=False):
         """
         Get the greeks of an option asset.

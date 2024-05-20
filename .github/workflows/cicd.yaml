@@ -8,6 +8,7 @@ jobs:
     env: 
       AIOHTTP_NO_EXTENSIONS: 1
       POLYGON_API_KEY: ${{secrets.POLYGON_API_KEY}}  # Required for Polygon API BackTests
+      POLYGON_IS_PAID_SUBSCRIPTION: ${{secrets.POLYGON_IS_PAID_SUBSCRIPTION}}
     steps:
       - uses: actions/checkout@v3
       - name: Set up Python 3.11
@@ -33,5 +34,5 @@ jobs:
           coverage report
           coverage html
       - name: Python Coverage Comment
-          uses: py-cov-action/python-coverage-comment-action@v3.23
+        uses: py-cov-action/python-coverage-comment-action@v3.23
             

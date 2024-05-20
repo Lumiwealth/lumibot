@@ -465,7 +465,7 @@ def update_polygon_data(df_all, result):
 
 class PolygonClient(RESTClient):
     ''' Rate Limited RESTClient '''
-    
+
     def __init__(self, *args, **kwargs):
         """
         Initialize the PolygonClient with optional rate limiting.
@@ -474,6 +474,10 @@ class PolygonClient(RESTClient):
         paid : bool, optional
             If False, the client will sleep for 60 seconds before each request to avoid
             hitting the rate limit. Default is True.
+        
+        Usage:
+        client = PolygonClient(paid=False)  # For rate limited client
+        client = PolygonClient(paid=True)   # For non-rate limited client (default)
         """
     
         self.paid = kwargs.pop('paid', True)

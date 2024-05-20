@@ -90,7 +90,7 @@ def get_price_data_from_polygon(
 
     # RESTClient connection for Polygon Stock-Equity API; traded_asset is standard
     # Add "trace=True" to see the API capolygon_clientlls printed to the console for debugging
-    polygon_client = RLRESTClient(api_key, paid=has_paid_subscription)
+    polygon_client = PolygonClient(api_key, paid=has_paid_subscription)
     symbol = get_polygon_symbol(asset, polygon_client, quote_asset)  # Will do a Polygon query for option contracts
 
     # To reduce calls to Polygon, we call on full date ranges instead of including hours/minutes
@@ -463,7 +463,7 @@ def update_polygon_data(df_all, result):
 
     return df_all
 
-class RLRESTClient(RESTClient):
+class PolygonClient(RESTClient):
     ''' Rate Limited RESTClient '''
     def __init__(self, *args, **kwargs):
         self.paid = kwargs.pop('paid', True)

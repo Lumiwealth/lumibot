@@ -10,7 +10,7 @@ from urllib3.exceptions import MaxRetryError
 from lumibot.data_sources import PandasData
 from lumibot.entities import Asset, Data
 from lumibot.tools import polygon_helper
-from lumibot.tools.polygon_helper import RLRESTClient
+from lumibot.tools.polygon_helper import PolygonClient
 
 START_BUFFER = timedelta(days=5)
 
@@ -39,7 +39,7 @@ class PolygonDataBacktesting(PandasData):
         self.has_paid_subscription = has_paid_subscription
 
         # RESTClient API for Polygon.io polygon-api-client
-        self.polygon_client = RLRESTClient(self._api_key, paid=self.has_paid_subscription)
+        self.polygon_client = PolygonClient(self._api_key, paid=self.has_paid_subscription)
 
     @staticmethod
     def _enforce_storage_limit(pandas_data: OrderedDict):

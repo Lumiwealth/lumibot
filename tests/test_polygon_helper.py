@@ -293,7 +293,6 @@ class TestPolygonPriceData:
         # Ensure we don't accidentally call the real Polygon API
         mock_polyclient = mocker.MagicMock()
         mocker.patch.object(ph, "PolygonClient", mock_polyclient)
-        #mocker.patch.object(ph, "WAIT_TIME", 0)
         mocker.patch.object(ph, "LUMIBOT_CACHE_FOLDER", tmpdir)
 
         # Options Contracts to return
@@ -393,7 +392,6 @@ class TestPolygonPriceData:
         # Ensure we don't accidentally call the real Polygon API
         mock_polyclient = mocker.MagicMock()
         mocker.patch.object(ph, "PolygonClient", mock_polyclient)
-        #mocker.patch.object(ph, "WAIT_TIME", 0)
         mocker.patch.object(ph, "LUMIBOT_CACHE_FOLDER", tmpdir)
 
         # Basic Setup

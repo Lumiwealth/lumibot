@@ -292,7 +292,7 @@ class TestPolygonPriceData:
     def test_get_price_data_from_polygon(self, mocker, tmpdir):
         # Ensure we don't accidentally call the real Polygon API
         mock_polyclient = mocker.MagicMock()
-        mocker.patch.object(ph, "PolygonClient", mock_polyclient)
+        mocker.patch.object(ph, "RESTClient", mock_polyclient)
         #mocker.patch.object(ph, "WAIT_TIME", 0)
         mocker.patch.object(ph, "LUMIBOT_CACHE_FOLDER", tmpdir)
 
@@ -392,7 +392,7 @@ class TestPolygonPriceData:
     def test_polygon_missing_day_caching(self, mocker, tmpdir, timespan, force_cache_update):
         # Ensure we don't accidentally call the real Polygon API
         mock_polyclient = mocker.MagicMock()
-        mocker.patch.object(ph, "PolygonClient", mock_polyclient)
+        mocker.patch.object(ph, "RESTClient", mock_polyclient)
         #mocker.patch.object(ph, "WAIT_TIME", 0)
         mocker.patch.object(ph, "LUMIBOT_CACHE_FOLDER", tmpdir)
 

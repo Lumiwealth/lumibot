@@ -89,7 +89,7 @@ def get_price_data_from_polygon(
     # print(f"\nGetting pricing data for {asset} / {quote_asset} with '{timespan}' timespan from Polygon...")
 
     # RESTClient connection for Polygon Stock-Equity API; traded_asset is standard
-    # Add "trace=True" to see the API capolygon_clientlls printed to the console for debugging
+    # Add "trace=True" to see the API calls printed to the console for debugging
     polygon_client = PolygonClient.create(api_key=api_key, paid=has_paid_subscription)
     symbol = get_polygon_symbol(asset, polygon_client, quote_asset)  # Will do a Polygon query for option contracts
 

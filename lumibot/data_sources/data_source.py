@@ -3,9 +3,11 @@ from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 
+import pandas as pd
+
 from lumibot import LUMIBOT_DEFAULT_PYTZ, LUMIBOT_DEFAULT_TIMEZONE
 from lumibot.entities import Asset, AssetsMapping
-from lumibot.tools import black_scholes
+from lumibot.tools import black_scholes, create_options_symbol
 
 from .exceptions import UnavailabeTimestep
 
@@ -376,6 +378,88 @@ class DataSource(ABC):
                 result[asset] = bars.get_last_dividend()
 
         return AssetsMapping(result)
+
+    def get_chain_full_info(self, asset: Asset, expiry: str, chains=None, underlying_price=float, risk_free_rate=float,
+                            strike_min=None, strike_max=None) -> pd.DataFrame:
+        """
+        Get the full chain information for an option asset, including: greeks, bid/ask, open_interest, etc. For
+        brokers that do not support this, greeks will be calculated locally. For brokers like Tradier this function
+        is much faster as only a single API call can be done to return the data for all options simultaneously.
+
+        Parameters
+        ----------
+        asset : Asset
+            The option asset to get the chain information for.
+        expiry : str | datetime.datetime | datetime.date
+            The expiry date of the option chain.
+        chains : dict
+            The chains dictionary created by `get_chains` method. This is used
+            to get the list of strikes needed to calculate the greeks.
+        underlying_price : float
+            Price of the underlying asset.
+        risk_free_rate : float
+            The risk-free rate used in interest calculations.
+        strike_min : float
+            The minimum strike price to return in the chain. If None, will return all strikes.
+            Providing this will speed up execution by limiting the number of strikes queried.
+        strike_max : float
+            The maximum strike price to return in the chain. If None, will return all strikes.
+            Providing this will speed up execution by limiting the number of strikes queried.
+
+        Returns
+        -------
+        pd.DataFrame
+            A DataFrame containing the full chain information for the option asset. Greeks columns will be named as
+            'greeks.delta', 'greeks.theta', etc.
+        """
+        # Base level DataSource assumes that the data source does not support this and the greeks will be calculated
+        # locally. Subclasses can override this method to provide a more efficient implementation.
+        expiry_dt = datetime.strptime(expiry, "%Y-%m-%d") if isinstance(expiry, str) else expiry
+        if chains is None:
+            chains = self.get_chains(asset)
+
+        rows = []
+        for right in chains["Chains"]:
+            for strike in chains["Chains"][right][expiry]:
+                # Skip strikes outside the requested range. Saves querying time.
+                if strike_min and strike < strike_min or strike_max and strike > strike_max:
+                    continue
+
+                # Build the option asset and query for the price
+                opt_asset = Asset(
+                    asset.symbol,
+                    asset_type="option",
+                    expiration=expiry_dt,
+                    strike=strike,
+                    right=right,
+                )
+                option_symbol = create_options_symbol(opt_asset.symbol, expiry_dt, right, strike)
+                opt_price = self.get_last_price(opt_asset)
+                greeks = self.calculate_greeks(opt_asset, opt_price, underlying_price, risk_free_rate)
+
+                # Build the row. Match the Tradier column naming conventions.
+                row = {
+                    "symbol": option_symbol,
+                    "last": opt_price,
+                    "expiration_date": expiry,
+                    "strike": strike,
+                    "option_type": right,
+                    "underlying": opt_asset.symbol,
+                    "open_interest": 0,
+                    "bid": 0.0,
+                    "ask": 0.0,
+                    "bidsize": 0,
+                    "asksize": 0,
+                    "volume": 0,
+                    "last_volume": 0,
+                    "average_volume": 0,
+                    "type": 'option',
+                }
+                # Add in the greeks. Format: greeks.delta, greeks.theta, etc.
+                row.update({f"greeks.{col}": val for col, val in greeks.items()})
+                rows.append(row)
+
+        return pd.DataFrame(rows).sort_values("strike")
 
     def calculate_greeks(
         self,

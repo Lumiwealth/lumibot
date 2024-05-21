@@ -101,6 +101,49 @@ class TradierData(DataSource):
 
         return chains
 
+    def get_chain_full_info(self, asset: Asset, expiry: str, chains=None, underlying_price=float, risk_free_rate=float,
+                            strike_min=None, strike_max=None) -> pd.DataFrame:
+        """
+        Get the full chain information for an option asset, including: greeks, bid/ask, open_interest, etc. For
+        brokers that do not support this, greeks will be calculated locally. For brokers like Tradier this function
+        is much faster as only a single API call can be done to return the data for all options simultaneously.
+
+        Parameters
+        ----------
+        asset : Asset
+            The option asset to get the chain information for.
+        expiry : str | datetime.datetime | datetime.date
+            The expiry date of the option chain.
+        chains : dict
+            The chains dictionary created by `get_chains` method. This is used
+            to get the list of strikes needed to calculate the greeks.
+        underlying_price : float
+            Price of the underlying asset.
+        risk_free_rate : float
+            The risk-free rate used in interest calculations.
+        strike_min : float
+            The minimum strike price to return in the chain. If None, will return all strikes.
+            This is not necessary for Tradier as all option data is returned in a single query.
+        strike_max : float
+            The maximum strike price to return in the chain. If None, will return all strikes.
+            This is not necessary for Tradier as all option data is returned in a single query.
+
+        Returns
+        -------
+        pd.DataFrame
+            A DataFrame containing the full chain information for the option asset. Greeks columns will be named as
+            'greeks.delta', 'greeks.theta', etc.
+        """
+        df = self.tradier.market.get_option_chains(asset.symbol, expiry, greeks=True)
+
+        # Filter the dataframe by strike_min and strike_max
+        if strike_min is not None:
+            df = df[df.strike >= strike_min]
+        if strike_max is not None:
+            df = df[df.strike <= strike_max]
+
+        return df
+
     def get_historical_prices(
         self, asset, length, timestep="", timeshift=None, quote=None, exchange=None, include_after_hours=True
     ):

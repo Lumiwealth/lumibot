@@ -2089,6 +2089,71 @@ class Strategy(_Strategy):
         """
         return self.broker.get_chain(chains)
 
+    def get_chain_full_info(self, asset, expiry, chains=None, underlying_price=None,
+                            risk_free_rate=None, strike_min=None, strike_max=None) -> pd.DataFrame:
+        """Returns full option chain information for a given asset and expiry. This will include all known broker
+        option information for each strike price, including: greeks, bid, ask, volume, open_interest etc. Not all
+        Lumibot brokers provide all of this data and tick-style data like bid/ask/open_interest are not available
+        during BackTesting.
+
+        This method can be quite slow for brokers that do not provide this data natively, as it will need to make
+        multiple API calls (1 per strike) to get all the data.  Min/Max strike values can be provided to reduce the
+        number of queries made.
+
+        Using the `chains` dictionary obtained from `get_chains` finds
+        all the options information for a given asset and expiry.
+
+        Parameters
+        ----------
+        asset : Asset object
+            The asset for which the option chain is being fetched.
+        expiry : str | datetime.datetime | datetime.date
+            The expiry date for the option chain in the format of
+            `2023-07-31`.
+        chains : dictionary of dictionaries, optional
+            The chains dictionary created by `get_chains` method. If not
+            provided, the method will fetch the chains for the asset (if needed). This is
+            needed to discover the list of strikes. Some brokers like Tradier or
+            Polygon LiveData do not need the strike list.
+        underlying_price : float, optional
+            The price of the underlying asset. If not provided, the
+            method will fetch the price from the broker. Useful to provide to reduce the
+            number of API calls.
+        risk_free_rate : float, optional
+            The risk-free rate to use in the calculations. If not
+            provided, the method will use the default risk-free rate.
+        strike_min : float, optional
+            The minimum strike price to return. If not provided, the
+            method will return all strikes.
+        strike_max : float, optional
+            The maximum strike price to return. If not provided, the
+            method will return all strikes.
+
+        Returns
+        -------
+        pd.DataFrame
+            A DataFrame with the option chain information.
+
+        Example
+        -------
+        >>> # Will return the option chains for SPY
+        >>> asset = "SPY"
+        >>> expiry = "2023-07-31"
+        >>> df = self.get_chain_full_info(asset, expiry)
+        >>> print(f"Strike: {df.iloc[0]['strike']}, Delta: {df.iloc[0]['greeks.delta']}")
+        """
+        asset = self._sanitize_user_asset(asset)
+        risk_free_rate = risk_free_rate if risk_free_rate is not None else self.risk_free_rate
+        if underlying_price is None:
+            underlying_asset = Asset(symbol=asset.symbol, asset_type="stock")
+            und_price = self.get_last_price(underlying_asset)
+        else:
+            und_price = underlying_price
+
+        return self.broker.get_chain_full_info(asset, expiry, chains=chains, underlying_price=und_price,
+                                               risk_free_rate=risk_free_rate, strike_min=strike_min,
+                                               strike_max=strike_max)
+
     def get_expiration(self, chains):
         """Returns expiration dates for an option chain for a particular
         exchange.
@@ -2351,6 +2416,7 @@ class Strategy(_Strategy):
             asset_price=opt_price,
             underlying_price=und_price,
             risk_free_rate=risk_free_rate,
+            query_greeks=query_greeks,
         )
 
     # ======= Data Source Methods =================

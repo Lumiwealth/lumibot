@@ -1,5 +1,10 @@
 name: LumiBot CI/CD
-on: [pull_request]
+on:
+  pull_request:
+  push:
+    branches:
+      - dev
+  workflow_dispatch:
 jobs:
   LintAndTest:
     runs-on: ubuntu-latest

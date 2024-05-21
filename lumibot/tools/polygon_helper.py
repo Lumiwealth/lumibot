@@ -492,7 +492,7 @@ class PolygonClient(RESTClient):
         """
         Initialize the PolygonClient with rate limiting.
         """
-        self.seconds = 60
+        self.seconds = 12
         super().__init__(*args, **kwargs)
 
     def _get(self, *args, **kwargs):

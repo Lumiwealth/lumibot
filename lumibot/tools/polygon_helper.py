@@ -90,7 +90,7 @@ def get_price_data_from_polygon(
 
     # RESTClient connection for Polygon Stock-Equity API; traded_asset is standard
     # Add "trace=True" to see the API capolygon_clientlls printed to the console for debugging
-    polygon_client = PolygonClient(api_key=api_key, paid=has_paid_subscription)
+    polygon_client = PolygonClient.create(api_key=api_key, paid=has_paid_subscription)
     symbol = get_polygon_symbol(asset, polygon_client, quote_asset)  # Will do a Polygon query for option contracts
 
     # To reduce calls to Polygon, we call on full date ranges instead of including hours/minutes
@@ -165,7 +165,7 @@ def validate_cache(force_cache_update: bool, asset: Asset, cache_file: Path, api
         if splits_file_stale:
             cached_splits = pd.read_feather(splits_file_path)
     if splits_file_stale or force_cache_update:
-        polygon_client = PolygonClient(api_key=api_key, paid=paid)
+        polygon_client = PolygonClient.create(api_key=api_key, paid=paid)
         # Need to get the splits in execution order to make the list comparable across invocations.
         splits = polygon_client.list_splits(ticker=asset.symbol, sort="execution_date", order="asc")
         if isinstance(splits, Iterator):
@@ -464,30 +464,38 @@ def update_polygon_data(df_all, result):
     return df_all
 
 class PolygonClient(RESTClient):
-    ''' Rate Limited RESTClient '''
+    ''' Rate Limited RESTClient with factory method '''
 
-    def __init__(self, *args, **kwargs):
+    @classmethod
+    def create(cls, *args, **kwargs) -> RESTClient:
         """
-        Initialize the PolygonClient with optional rate limiting.
+        Factory method to create a RESTClient or PolygonClient instance.
 
         Keyword Arguments:
         paid : bool, optional
-            If False, the client will sleep for 60 seconds before each request to avoid
-            hitting the rate limit. Default is True.
+            If False, a PolygonClient (rate limited) is created.
+            If True, a standard RESTClient is created. Default is True.
         
-        Usage:
-        client = PolygonClient(api_key=<API_KEY>, paid=False)  # For rate limited client
-        client = PolygonClient(api_key=<API_KEY>, paid=True)   # For non-rate limited client (default)
+        Returns:
+        RESTClient
+            An instance of RESTClient or PolygonClient.
         """
+        paid = kwargs.pop('paid', True)
+        
+        if paid:
+            return RESTClient(*args, **kwargs)
+        else:
+            return cls(*args, **kwargs)
 
-        self.paid = kwargs.pop('paid', True)
+
+    def __init__(self, *args, **kwargs):
+        """
+        Initialize the PolygonClient with rate limiting.
+        """
         self.seconds = 60
         super().__init__(*args, **kwargs)
-        
-        if not self.paid:
-            self._get = self._get_rate_limited
 
-    def _get_rate_limited(self, *args, **kwargs):
+    def _get(self, *args, **kwargs):
         logging.info(
             f"\nSleeping {self.seconds} seconds while getting data from Polygon "
             "to avoid hitting the rate limit; "

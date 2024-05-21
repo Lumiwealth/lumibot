@@ -39,7 +39,7 @@ class PolygonDataBacktesting(PandasData):
         self.has_paid_subscription = has_paid_subscription
 
         # RESTClient API for Polygon.io polygon-api-client
-        self.polygon_client = PolygonClient.create(api_key=self._api_key, paid=self.has_paid_subscription)
+        self.polygon_client = PolygonClient.create(api_key=api_key, paid=has_paid_subscription)
 
     @staticmethod
     def _enforce_storage_limit(pandas_data: OrderedDict):

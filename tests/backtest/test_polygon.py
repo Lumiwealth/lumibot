@@ -372,7 +372,7 @@ class TestPolygonDataSource:
                 "high": 494.3778,
                 "low": 490.23,
                 "close": 492.57,
-                "volume": 74773591.0
+                "volume": 74655145.0
             },
             {
                 "datetime": "2024-02-06 00:00:00-05:00",
@@ -380,7 +380,7 @@ class TestPolygonDataSource:
                 "high": 494.3200,
                 "low": 492.03,
                 "close": 493.82,
-                "volume": 54891827.0
+                "volume": 54775803.0
             },
         ], index="datetime")
         expected_df.index = pd.to_datetime(expected_df.index).tz_convert(tzinfo)

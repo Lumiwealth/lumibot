@@ -466,6 +466,8 @@ def update_polygon_data(df_all, result):
 class PolygonClient(RESTClient):
     ''' Rate Limited RESTClient with factory method '''
 
+    WAIT_SECONDS = 12
+
     @classmethod
     def create(cls, *args, **kwargs) -> RESTClient:
         """
@@ -488,18 +490,11 @@ class PolygonClient(RESTClient):
             return cls(*args, **kwargs)
 
 
-    def __init__(self, *args, **kwargs):
-        """
-        Initialize the PolygonClient with rate limiting.
-        """
-        self.seconds = 12
-        super().__init__(*args, **kwargs)
-
     def _get(self, *args, **kwargs):
         logging.info(
-            f"\nSleeping {self.seconds} seconds while getting data from Polygon "
+            f"\nSleeping {PolygonClient.WAIT_SECONDS} seconds while getting data from Polygon "
             "to avoid hitting the rate limit; "
             "consider a paid Polygon subscription for faster results.\n"
         )
-        time.sleep(self.seconds)
+        time.sleep(PolygonClient.WAIT_SECONDS)
         return super()._get(*args, **kwargs)

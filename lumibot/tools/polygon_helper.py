@@ -3,6 +3,7 @@ import logging
 import time
 from datetime import date, datetime, timedelta
 from pathlib import Path
+import os
 
 import pandas as pd
 import pandas_market_calendars as mcal
@@ -473,16 +474,49 @@ class PolygonClient(RESTClient):
         """
         Factory method to create a RESTClient or PolygonClient instance.
 
+        The method uses environment variables to determine default values for the API key 
+        and subscription type. If the `api_key` is not provided in `kwargs`, it defaults 
+        to the value of the `POLYGON_API_KEY` environment variable. Similarly, the 
+        `paid` parameter defaults to the value of the `POLYGON_IS_PAID_SUBSCRIPTION` 
+        environment variable, which can be set to "true", "1", "t", "y", or "yes" to 
+        indicate a paid subscription. If the environment variable is not set, it defaults to False.
+
         Keyword Arguments:
+        api_key : str, optional
+            The API key to authenticate with the service. Defaults to the value of the 
+            `POLYGON_API_KEY` environment variable if not provided.
         paid : bool, optional
             If False, a PolygonClient (rate limited) is created.
-            If True, a standard RESTClient is created. Default is True.
-        
+            If True, a standard RESTClient is created. Default is False if the 
+            `POLYGON_IS_PAID_SUBSCRIPTION` environment variable is not set.
+
         Returns:
         RESTClient
             An instance of RESTClient or PolygonClient.
+
+        Examples:
+        ---------
+        Using default environment variables:
+        
+        >>> client = PolygonClient.create()
+        
+        Providing an API key explicitly:
+        
+        >>> client = PolygonClient.create(api_key='your_api_key_here')
+        
+        Indicating a paid subscription explicitly:
+        
+        >>> client = PolygonClient.create(paid=True)
+        
+        Providing both an API key and indicating a paid subscription:
+        
+        >>> client = PolygonClient.create(api_key='your_api_key_here', paid=True)
         """
-        paid = kwargs.pop('paid', True)
+        POLYGON_API_KEY = os.environ.get("POLYGON_API_KEY")
+        POLYGON_IS_PAID_SUBSCRIPTION = os.getenv("POLYGON_IS_PAID_SUBSCRIPTION", "false").lower() in {'true', '1', 't', 'y', 'yes'}
+
+        kwargs['api_key'] = kwargs.get('api_key', POLYGON_API_KEY)
+        paid = kwargs.pop('paid', POLYGON_IS_PAID_SUBSCRIPTION)
         
         if paid:
             return RESTClient(*args, **kwargs)

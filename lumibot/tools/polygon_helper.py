@@ -512,11 +512,13 @@ class PolygonClient(RESTClient):
         
         >>> client = PolygonClient.create(api_key='your_api_key_here', paid=True)
         """
-        POLYGON_API_KEY = os.environ.get("POLYGON_API_KEY")
-        POLYGON_IS_PAID_SUBSCRIPTION = os.getenv("POLYGON_IS_PAID_SUBSCRIPTION", "false").lower() in {'true', '1', 't', 'y', 'yes'}
-
-        kwargs['api_key'] = kwargs.get('api_key', POLYGON_API_KEY)
-        paid = kwargs.pop('paid', POLYGON_IS_PAID_SUBSCRIPTION)
+        if 'api_key' not in kwargs:
+            kwargs['api_key'] = os.environ.get("POLYGON_API_KEY")
+        
+        if 'paid' not in kwargs:
+            paid = os.getenv("POLYGON_IS_PAID_SUBSCRIPTION", "false").lower() in {'true', '1', 't', 'y', 'yes'}
+        else:
+            paid = kwargs.pop('paid')
         
         if paid:
             return RESTClient(*args, **kwargs)

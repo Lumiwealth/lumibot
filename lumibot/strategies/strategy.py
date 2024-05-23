@@ -3925,7 +3925,7 @@ class Strategy(_Strategy):
         def custom_date_formatter(x, pos):
             try:
                 date = mdates.num2date(x)
-                if pos == 0:  # First tick
+                if pos % 2 == 0:  # Every second tick
                     return date.strftime("%d\n%b\n%Y")
                 else:  # Other ticks
                     return date.strftime("%d")

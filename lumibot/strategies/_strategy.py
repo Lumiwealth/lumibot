@@ -570,7 +570,7 @@ class _Strategy:
             self._analysis = stats_summary(self._strategy_returns_df, self.risk_free_rate)
 
             # Getting performance for the benchmark asset
-            if self._backtesting_start is not None and self._backtesting_end is not None:
+            if self._is_backtesting and self._backtesting_start is not None and self._backtesting_end is not None:
                 # Need to adjust the backtesting end date because the data from Yahoo
                 # is at the start of the day, so the graph cuts short. This may be needed
                 # for other timeframes as well

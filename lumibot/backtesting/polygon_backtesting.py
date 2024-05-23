@@ -3,7 +3,6 @@ import traceback
 from collections import OrderedDict, defaultdict
 from datetime import date, timedelta
 
-from polygon import RESTClient
 from polygon.exceptions import BadResponse
 from termcolor import colored
 from urllib3.exceptions import MaxRetryError
@@ -11,6 +10,7 @@ from urllib3.exceptions import MaxRetryError
 from lumibot.data_sources import PandasData
 from lumibot.entities import Asset, Data
 from lumibot.tools import polygon_helper
+from lumibot.tools.polygon_helper import PolygonClient
 
 START_BUFFER = timedelta(days=5)
 
@@ -39,7 +39,7 @@ class PolygonDataBacktesting(PandasData):
         self.has_paid_subscription = has_paid_subscription
 
         # RESTClient API for Polygon.io polygon-api-client
-        self.polygon_client = RESTClient(self._api_key)
+        self.polygon_client = PolygonClient.create(api_key=api_key, paid=has_paid_subscription)
 
     @staticmethod
     def _enforce_storage_limit(pandas_data: OrderedDict):

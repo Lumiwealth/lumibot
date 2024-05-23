@@ -19,6 +19,7 @@ jobs:
     env: 
       AIOHTTP_NO_EXTENSIONS: 1
       POLYGON_API_KEY: ${{secrets.POLYGON_API_KEY}}  # Required for Polygon API BackTests
+      POLYGON_IS_PAID_SUBSCRIPTION: $POLYGON_IS_PAID_SUBSCRIPTION
     steps:
       - uses: actions/checkout@v3
       - name: Set up Python 3.11

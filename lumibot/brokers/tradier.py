@@ -107,17 +107,19 @@ class Tradier(Broker):
         # Cancel the order
         self.tradier.orders.cancel(order.identifier)
 
-    def submit_orders(self, orders, is_multileg=False, order_type="market", duration="day", price=None, tag=None):
+    def submit_orders(self, orders, is_multileg=False, order_type="market", duration="day", price=None):
         """
         Submit multiple orders to the broker. This function will submit the orders in the order they are provided.
         If any order fails to submit, the function will stop submitting orders and return the last successful order.
         """
         # Check if the orders are empty
-        if not orders:
+        if not orders or len(orders) == 0:
             return
         
         # Check if it is a multi-leg order
         if is_multileg:
+            tag = orders[0].tag if orders[0].tag else orders[0].strategy
+
             # Submit the multi-leg order
             return self._submit_multileg_order(orders, order_type, duration, price, tag)
 
@@ -326,6 +328,47 @@ class Tradier(Broker):
                 return position
 
         return None
+    
+    def _parse_broker_order_dict(self, response: dict, strategy_name: str, strategy_object=None):
+        """
+        Parse a broker order representation to a Lumi order object or objects. Once the Lumi order has been created,
+        it will be dispatched to our "stream" queue for processing until a time when Live Streaming can be implemented.
+
+        Parameters
+        ----------
+        response: dict
+            The output from TradierAPI call returned by pull_broker_order()
+        strategy_name: str
+            The name of the strategy that placed the order
+        strategy_object: Strategy
+            The strategy object that placed the order
+
+        Returns
+        -------
+        list[Order]
+            The Lumibot order objects created from the response
+        """
+
+        # Check if the order is a multileg order
+        if "leg" in response and isinstance(response["leg"], list):
+            # Create the orders list
+            orders = []
+
+            # Loop through each leg in the response
+            for leg in response["leg"]:
+                # Create the order object
+                order = self._parse_broker_order(leg, strategy_name, strategy_object)
+
+                # TODO: Get the average fill price and quantity
+
+                # Add the order to the list
+                orders.append(order)
+
+            return orders
+        
+        # Create the order object
+        order = self._parse_broker_order(response, strategy_name, strategy_object)
+        return [order]
 
     def _parse_broker_order(self, response: dict, strategy_name: str, strategy_object=None):
         """
@@ -366,6 +409,7 @@ class Tradier(Broker):
             stop_price=response["stop_price"] if "stop_price" in response and response["stop_price"] else None,
             tag=response["tag"] if "tag" in response and response["tag"] else None,
             date_created=response["create_date"],
+            avg_fill_price=response["avg_fill_price"] if "avg_fill_price" in response else None,
         )
         order.status = response["status"]
         order.avg_fill_price = response.get("avg_fill_price", order.avg_fill_price)
@@ -468,72 +512,83 @@ class Tradier(Broker):
         raw_orders = self._pull_broker_all_orders()
         stored_orders = {x.identifier: x for x in self.get_all_orders()}
         for order_row in raw_orders:
-            order = self._parse_broker_order(order_row, strategy_name=order_row.get("tag"))
+            orders = self._parse_broker_order_dict(order_row, strategy_name=order_row.get("tag"))
 
-            # First time seeing this order, something weird has happened, dispatch it as a new order
-            if order.identifier not in stored_orders:
-                # If it is the brokers first iteration then fully process the order because it is likely
-                # that the order was filled/canceled/etc before the strategy started.
-                if self._first_iteration:
-                    if order.status == Order.OrderStatus.FILLED:
-                        self._process_new_order(order)
-                        self._process_filled_order(order, order.avg_fill_price, order.quantity)
-                    elif order.status == Order.OrderStatus.CANCELED:
-                        self._process_new_order(order)
-                        self._process_canceled_order(order)
-                    elif order.status == Order.OrderStatus.PARTIALLY_FILLED:
-                        self._process_new_order(order)
-                        self._process_partially_filled_order(order, order.avg_fill_price, order.quantity)
-                    elif order.status == Order.OrderStatus.NEW:
+            for order in orders:
+                # First time seeing this order, something weird has happened
+                if order.identifier not in stored_orders:
+                    # If it is the brokers first iteration then fully process the order because it is likely
+                    # that the order was filled/canceled/etc before the strategy started.
+                    if self._first_iteration:
+                        if order.status == Order.OrderStatus.FILLED:
+                            self._process_new_order(order)
+                            self._process_filled_order(order, order.avg_fill_price, order.quantity)
+                        elif order.status == Order.OrderStatus.CANCELED:
+                            self._process_new_order(order)
+                            self._process_canceled_order(order)
+                        elif order.status == Order.OrderStatus.PARTIALLY_FILLED:
+                            self._process_new_order(order)
+                            self._process_partially_filled_order(order, order.avg_fill_price, order.quantity)
+                        elif order.status == Order.OrderStatus.NEW:
+                            self._process_new_order(order)
+                    else:
+                        # Add to order in lumibot.
                         self._process_new_order(order)
                 else:
-                    # Add to order in lumibot.
-                    self._process_new_order(order)
-            else:
-                stored_order = stored_orders[order.identifier]
-                stored_order.quantity = order.quantity  # Update the quantity in case it has changed
+                    stored_order = stored_orders[order.identifier]
+                    stored_order.quantity = order.quantity  # Update the quantity in case it has changed
 
-                # Status has changed since last time we saw it, dispatch the new status.
-                #  - Polling methods are unable to track partial fills
-                #     - Partial fills often happen quickly and it is highly likely that polling will miss some of them
-                #     - Additionally, Lumi Order objects don't have a way to track quantity status changes and
-                #        adjusting the average sell price can be tricky
-                #     - Only dispatch filled orders if they are completely filled.
-                if not order.equivalent_status(stored_order):
-                    match order.status.lower():
-                        case "submitted" | "open":
-                            self.stream.dispatch(self.NEW_ORDER, order=stored_order)
-                        case "partial_filled":
-                            # Not handled for polling, only dispatch completely filled orders
-                            pass
-                        case "fill":
-                            fill_price = order_row["avg_fill_price"]
-                            fill_qty = order_row["exec_quantity"] if "exec_quantity" in order_row else order.quantity
-                            self.stream.dispatch(
-                                self.FILLED_ORDER, order=stored_order, price=fill_price, filled_quantity=fill_qty
-                            )
-                        case "canceled":
-                            self.stream.dispatch(self.CANCELED_ORDER, order=stored_order)
-                        case "error":
-                            default_msg = f"{self.name} encountered an error with order {order.identifier} | {order}"
-                            msg = order_row["reason_description"] if "reason_description" in order_row else default_msg
-                            self.stream.dispatch(self.ERROR_ORDER, order=stored_order, error_msg=msg)
-                        case "cash_settled":
-                            # Don't know how to detect this case in Tradier.
-                            # Reference: https://documentation.tradier.com/brokerage-api/reference/response/orders
-                            # Theory:
-                            #  - Tradier will auto settle and create a new fill order for cash settled orders. Needs
-                            #    testing to confirm.
-                            pass
-                else:
-                    # Status hasn't changed, but make sure we use the broker's status.
-                    # I.e. 'submitted' becomes 'open'
-                    stored_order.status = order.status
+                    # Status has changed since last time we saw it, dispatch the new status.
+                    #  - Polling methods are unable to track partial fills
+                    #     - Partial fills often happen quickly and it is highly likely that polling will miss some of them
+                    #     - Additionally, Lumi Order objects don't have a way to track quantity status changes and
+                    #        adjusting the average sell price can be tricky
+                    #     - Only dispatch filled orders if they are completely filled.
+                    if not order.equivalent_status(stored_order):
+                        match order.status.lower():
+                            case "submitted" | "open":
+                                self.stream.dispatch(self.NEW_ORDER, order=stored_order)
+                            case "partial_filled":
+                                # Not handled for polling, only dispatch completely filled orders
+                                pass
+                            case "fill":
+                                # Check if the order has an avg_fill_price, if not use the order_row price
+                                if order.avg_fill_price is None:
+                                    fill_price = order_row["avg_fill_price"] 
+                                else:
+                                    fill_price = order.avg_fill_price
+
+                                # Check if the order has a quantity, if not 
+                                if order.quantity is None:
+                                    fill_qty = order_row["exec_quantity"]
+                                else:
+                                    fill_qty = order.quantity
+
+                                self.stream.dispatch(
+                                    self.FILLED_ORDER, order=stored_order, price=fill_price, filled_quantity=fill_qty
+                                )
+                            case "canceled":
+                                self.stream.dispatch(self.CANCELED_ORDER, order=stored_order)
+                            case "error":
+                                default_msg = f"{self.name} encountered an error with order {order.identifier} | {order}"
+                                msg = order_row["reason_description"] if "reason_description" in order_row else default_msg
+                                self.stream.dispatch(self.ERROR_ORDER, order=stored_order, error_msg=msg)
+                            case "cash_settled":
+                                # Don't know how to detect this case in Tradier.
+                                # Reference: https://documentation.tradier.com/brokerage-api/reference/response/orders
+                                # Theory:
+                                #  - Tradier will auto settle and create a new fill order for cash settled orders. Needs
+                                #    testing to confirm.
+                                pass
+                    else:
+                        # Status hasn't changed, but make sure we use the broker's status.
+                        # I.e. 'submitted' becomes 'open'
+                        stored_order.status = order.status
 
         # See if there are any tracked (aka active) orders that are no longer in the broker's list,
         # dispatch them as cancelled
         tracked_orders = {x.identifier: x for x in self.get_tracked_orders()}
-        broker_ids = [o["id"] for o in raw_orders]
+        broker_ids = self._get_broker_id_from_raw_orders(raw_orders)
         for order_id, order in tracked_orders.items():
             if order_id not in broker_ids:
                 logging.info(
@@ -541,6 +596,18 @@ class Tradier(Broker):
                     f"Dispatching as cancelled."
                 )
                 self.stream.dispatch(self.CANCELED_ORDER, order=order)
+
+    def _get_broker_id_from_raw_orders(self, raw_orders):
+        ids = []
+        for o in raw_orders:
+            if "id" in o:
+                ids.append(o["id"])
+            if "leg" in o:
+                for leg in o["leg"]:
+                    if "id" in leg:
+                        ids.append(leg["id"])
+
+        return ids
 
     def _get_stream_object(self):
         """get the broker stream connection"""

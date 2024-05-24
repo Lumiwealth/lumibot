@@ -842,7 +842,14 @@ class Broker(ABC):
         result = []
         if broker_orders is not None:
             for broker_order in broker_orders:
-                result.append(self._parse_broker_order(broker_order, strategy_name, strategy_object=strategy_object))
+                # Check if it is a multileg order
+                if "leg" in broker_order and isinstance(broker_order["leg"], list):
+                    for leg in broker_order["leg"]:
+                        order = self._parse_broker_order(leg, strategy_name, strategy_object=strategy_object)
+                        result.append(order)
+                else:
+                    order = self._parse_broker_order(broker_order, strategy_name, strategy_object=strategy_object)
+                    result.append(order)
         else:
             self.logger.warning("No orders found in broker._parse_broker_orders: the broker_orders object is None")
 

@@ -552,7 +552,7 @@ class Order:
                 value = Decimal(str(value))
 
         quantity = Decimal(value)
-        self._quantity = check_quantity(quantity, "Order quantity must be a positive Decimal")
+        self._quantity = quantity
 
     def __hash__(self):
         return hash(self.identifier)

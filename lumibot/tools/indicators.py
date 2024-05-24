@@ -639,12 +639,14 @@ def create_tearsheet(
     benchmark_df: pd.DataFrame,
     benchmark_asset,  # This is causing a circular import: Asset,
     show_tearsheet: bool,
+    save_tearsheet: bool,
     risk_free_rate: float,
     strategy_parameters: dict = None,
 ):
     # If show tearsheet is False, then we don't want to open the tearsheet in the browser
-    if not show_tearsheet:
-        print("show_tearsheet is False, not creating the tearsheet file.")
+    # IMS create the tearsheet even if we are not showinbg it
+    if not save_tearsheet:
+        print("save_tearsheet is False, not creating the tearsheet file.")
         return
 
     print("\nCreating tearsheet...")

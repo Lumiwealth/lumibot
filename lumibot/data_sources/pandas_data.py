@@ -24,11 +24,10 @@ class PandasData(DataSourceBacktesting):
         self.name = "pandas"
         self.pandas_data = self._set_pandas_data_keys(pandas_data)
         self.auto_adjust = auto_adjust
-        self._data_store = OrderedDict()
+        self._data_store = self.pandas_data
         self._date_index = None
         self._date_supply = None
         self._timestep = "minute"
-        self._expiries_exist = False
 
     @staticmethod
     def _set_pandas_data_keys(pandas_data):
@@ -65,9 +64,6 @@ class PandasData(DataSourceBacktesting):
     
     def load_data(self):
         self._data_store = self.pandas_data
-        self._expiries_exist = (
-            len([v.asset.expiration for v in self._data_store.values() if v.asset.expiration is not None]) > 0
-        )
         self._date_index = self.update_date_index()
 
         if len(self._data_store.values()) > 0:
@@ -217,7 +213,7 @@ class PandasData(DataSourceBacktesting):
             asset = (asset, quote)
             if asset in self._data_store:
                 return asset
-        elif isinstance(asset, Asset) and asset.asset_type in ["option", "future", "stock"]:
+        elif isinstance(asset, Asset) and asset.asset_type in ["option", "future", "stock", "index"]:
             asset = (asset, Asset("USD", "forex"))
             if asset in self._data_store:
                 return asset

@@ -18,6 +18,7 @@ from lumibot.entities import Asset
 # Global parameters
 # API Key for testing Polygon.io
 POLYGON_API_KEY = os.environ.get("POLYGON_API_KEY")
+POLYGON_IS_PAID_SUBSCRIPTION = os.getenv("POLYGON_IS_PAID_SUBSCRIPTION", "true").lower() not in {'false', '0', 'f', 'n', 'no'}
 
 
 class TestExampleStrategies:
@@ -40,6 +41,8 @@ class TestExampleStrategies:
             show_plot=False,
             show_tearsheet=False,
             save_tearsheet=False,
+            polygon_api_key=POLYGON_API_KEY,
+            polygon_has_paid_subscription=POLYGON_IS_PAID_SUBSCRIPTION
         )
         assert results
         assert isinstance(strat_obj, StockBracket)

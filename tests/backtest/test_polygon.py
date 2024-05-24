@@ -13,6 +13,7 @@ from lumibot.traders import Trader
 # Global parameters
 # API Key for testing Polygon.io
 POLYGON_API_KEY = os.environ.get("POLYGON_API_KEY")
+POLYGON_IS_PAID_SUBSCRIPTION = os.getenv("POLYGON_IS_PAID_SUBSCRIPTION", "true").lower() not in {'false', '0', 'f', 'n', 'no'}
 
 logger = logging.getLogger(__name__)
 
@@ -210,7 +211,7 @@ class TestPolygonBacktestFull:
             datetime_start=backtesting_start,
             datetime_end=backtesting_end,
             api_key=POLYGON_API_KEY,
-            has_paid_subscription=True,
+            has_paid_subscription=POLYGON_IS_PAID_SUBSCRIPTION,
         )
         broker = BacktestingBroker(data_source=data_source)
         poly_strat_obj = PolygonBacktestStrat(
@@ -232,7 +233,7 @@ class TestPolygonBacktestFull:
             datetime_start=backtesting_start,
             datetime_end=backtesting_end,
             api_key=POLYGON_API_KEY,
-            has_paid_subscription=True,
+            has_paid_subscription=POLYGON_IS_PAID_SUBSCRIPTION,
         )
         broker = BacktestingBroker(data_source=data_source)
         poly_strat_obj = PolygonBacktestStrat(
@@ -272,7 +273,7 @@ class TestPolygonBacktestFull:
             api_key=POLYGON_API_KEY,
             # Painfully slow with free subscription setting b/c lumibot is over querying and imposing a very
             # strict rate limit
-            polygon_has_paid_subscription=True,
+            polygon_has_paid_subscription=POLYGON_IS_PAID_SUBSCRIPTION,
         )
         assert results
         self.verify_backtest_results(poly_strat_obj)
@@ -296,7 +297,7 @@ class TestPolygonBacktestFull:
             polygon_api_key=POLYGON_API_KEY,  # Testing the legacy parameter name while DeprecationWarning is active
             # Painfully slow with free subscription setting b/c lumibot is over querying and imposing a very
             # strict rate limit
-            polygon_has_paid_subscription=True,
+            polygon_has_paid_subscription=POLYGON_IS_PAID_SUBSCRIPTION,
         )
         assert results
 
@@ -309,7 +310,7 @@ class TestPolygonDataSource:
         end = datetime.datetime(2024, 2, 10).astimezone(tzinfo)
 
         data_source = PolygonDataBacktesting(
-            start, end, api_key=POLYGON_API_KEY, has_paid_subscription=True
+            start, end, api_key=POLYGON_API_KEY, has_paid_subscription=POLYGON_IS_PAID_SUBSCRIPTION
         )
         data_source._datetime = datetime.datetime(2024, 2, 7, 10).astimezone(tzinfo)
         # This call will set make the data source use minute bars.

@@ -514,7 +514,7 @@ class Tradier(Broker):
             orders = self._parse_broker_order_dict(order_row, strategy_name=order_row.get("tag"))
 
             for order in orders:
-                # First time seeing this order, something weird has happened, dispatch it as a new order
+                # First time seeing this order, something weird has happened
                 if order.identifier not in stored_orders:
                     # If it is the brokers first iteration then fully process the order because it is likely
                     # that the order was filled/canceled/etc before the strategy started.
@@ -587,7 +587,7 @@ class Tradier(Broker):
         # See if there are any tracked (aka active) orders that are no longer in the broker's list,
         # dispatch them as cancelled
         tracked_orders = {x.identifier: x for x in self.get_tracked_orders()}
-        broker_ids = [o["id"] for o in raw_orders]
+        broker_ids = self._get_broker_id_from_raw_orders(raw_orders)
         for order_id, order in tracked_orders.items():
             if order_id not in broker_ids:
                 logging.info(
@@ -595,6 +595,18 @@ class Tradier(Broker):
                     f"Dispatching as cancelled."
                 )
                 self.stream.dispatch(self.CANCELED_ORDER, order=order)
+
+    def _get_broker_id_from_raw_orders(self, raw_orders):
+        ids = []
+        for o in raw_orders:
+            if "id" in o:
+                ids.append(o["id"])
+            if "leg" in o:
+                for leg in o["leg"]:
+                    if "id" in leg:
+                        ids.append(leg["id"])
+
+        return ids
 
     def _get_stream_object(self):
         """get the broker stream connection"""

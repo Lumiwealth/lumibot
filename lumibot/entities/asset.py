@@ -29,6 +29,8 @@ class Asset:
     multiplier : int
         Price multiplier.
         default : 1
+    underlying_asset : Asset
+        Underlying asset for options.
 
     Attributes
     ----------
@@ -118,6 +120,7 @@ class Asset:
     right: str = None
     multiplier: int = 1
     precision: str = None
+    underlying_asset: "Asset" = None
 
     # Pull the asset types from the AssetType class
     _asset_types: list = [v for k, v in AssetType.__dict__.items() if not k.startswith("__")]
@@ -134,12 +137,18 @@ class Asset:
         right: str = None,
         multiplier: int = 1,
         precision: str = None,
+        underlying_asset: "Asset" = None,
     ):
         self.symbol = symbol
         self.asset_type = asset_type
         self.strike = strike
         self.multiplier = multiplier
         self.precision = precision
+        self.underlying_asset = underlying_asset
+
+        # If the underlying asset is set but the symbol is not, set the symbol to the underlying asset symbol
+        if self.underlying_asset is not None and self.symbol is None:
+            self.symbol = self.underlying_asset.symbol
 
         # If the expiration is a datetime object, convert it to date
         if isinstance(expiration, datetime):

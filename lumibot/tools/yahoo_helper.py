@@ -73,6 +73,8 @@ class YahooHelper:
                         return pickle.load(f)
                 except Exception as e:
                     logging.error("Error while loading pickle file %s: %s" % (pickle_file_path, e))
+                    # Remove the file because it is corrupted.  This will enable re-download.
+                    os.remove(pickle_file_path)
                     return None
 
         return None

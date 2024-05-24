@@ -412,6 +412,7 @@ class Tradier(Broker):
             avg_fill_price=response["avg_fill_price"] if "avg_fill_price" in response else None,
         )
         order.status = response["status"]
+        order.avg_fill_price = response.get("avg_fill_price", order.avg_fill_price)
         order.update_raw(response)  # This marks order as 'transmitted'
         return order
 

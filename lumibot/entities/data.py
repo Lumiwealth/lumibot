@@ -496,6 +496,7 @@ class Data:
         """
         # Parse the timestep
         quantity, timestep = parse_timestep_qty_and_unit(timestep)
+        num_periods = length
 
         if timestep == "minute" and self.timestep == "day":
             raise ValueError("You are requesting minute data from a daily data source. This is not supported.")
@@ -529,6 +530,14 @@ class Data:
 
         # Drop any rows that have NaN values (this can happen if the data is not complete, eg. weekends)
         df_result = df_result.dropna()
+
+        # Remove partial day data from the current day, which can happen if the data is in minute timestep.
+        if timestep == "day":
+            df_result = df_result[df_result.index < dt.replace(hour=0, minute=0, second=0, microsecond=0)]
+
+        # The original df_result may include more rows when timestep is day and self.timestep is minute.
+        # In this case, we only want to return the last n rows.
+        df_result = df_result.tail(n=num_periods)
 
         return df_result
 

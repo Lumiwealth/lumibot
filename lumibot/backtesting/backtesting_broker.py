@@ -324,7 +324,7 @@ class BacktestingBroker(Broker):
         """
         existing_position = self.get_tracked_position(order.strategy, order.asset)
 
-        # Currently perfect filling backtesting!
+        # Currently perfect fill price in backtesting!
         order.avg_fill_price = price
 
         position = super()._process_filled_order(order, order.avg_fill_price, quantity)

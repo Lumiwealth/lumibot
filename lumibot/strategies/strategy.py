@@ -4079,15 +4079,18 @@ class Strategy(_Strategy):
         
         # Check if the table exists
         if not inspect(engine).has_table(stats_table_name):
+            # Log that the table does not exist and we are creating it
+            self.logger.info(f"Table {stats_table_name} does not exist. Creating it now.")
+
             # Define the columns and create a DataFrame with the correct columns
-            now = datetime.now()
+            now = datetime.datetime.now()
             stats_new = pd.DataFrame(
                 {
                     "id": [str(uuid.uuid4())],
                     "datetime": [now],
                     "portfolio_value": [0.0],  # Default or initial value
                     "cash": [0.0],             # Default or initial value
-                    "strategy_id": [self.strategy_id],
+                    "strategy_id": ["INITIAL VALUE"], # Default or initial value
                 }
             )
             # Create the table by saving this empty DataFrame to the database

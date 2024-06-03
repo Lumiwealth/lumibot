@@ -4042,9 +4042,6 @@ class Strategy(_Strategy):
         # Check if we are in backtesting mode, if so, don't send the message
         if self.is_backtesting:
             return
-        
-        # Log that we are sending the account summary to Discord
-        self.logger.info("Sending account summary to Discord")
 
         # Check if last_account_summary_dt has been set, if not, set it to None
         if not hasattr(self, "last_account_summary_dt"):
@@ -4054,6 +4051,9 @@ class Strategy(_Strategy):
         should_send_account_summary = self.should_send_account_summary_to_discord()
         if not should_send_account_summary:
             return
+        
+        # Log that we are sending the account summary to Discord
+        self.logger.info("Sending account summary to Discord")
 
         # Get the current portfolio value
         portfolio_value = self.get_portfolio_value()

@@ -4082,8 +4082,13 @@ class Strategy(_Strategy):
             # Log that the table does not exist and we are creating it
             self.logger.info(f"Table {stats_table_name} does not exist. Creating it now.")
 
-            # Define the columns and create a DataFrame with the correct columns
-            now = datetime.datetime.now()
+            # Get the current time in New York
+            ny_tz = pytz.timezone("America/New_York")
+
+            # Get the datetime
+            now = datetime.datetime.now(ny_tz)
+
+            # Create an empty stats dataframe
             stats_new = pd.DataFrame(
                 {
                     "id": [str(uuid.uuid4())],

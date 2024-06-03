@@ -430,7 +430,7 @@ class BacktestingBroker(Broker):
         if position.quantity > 0 and profit_loss < 0:
             profit_loss = 0  # Long position can't lose more than the premium paid
         elif position.quantity < 0 and profit_loss > 0:
-            profit_loss = 0  # Short position can't gain more than the strike price
+            profit_loss = 0  # Short position can't gain more than the cash collected
 
         # Add the profit/loss to the cash position
         new_cash = strategy.get_cash() + profit_loss

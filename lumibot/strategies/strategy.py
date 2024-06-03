@@ -6,6 +6,7 @@ import uuid
 from asyncio.log import logger
 from decimal import Decimal
 from typing import Union
+from sqlalchemy import create_engine, inspect
 
 import jsonpickle
 import matplotlib
@@ -4041,6 +4042,9 @@ class Strategy(_Strategy):
         # Check if we are in backtesting mode, if so, don't send the message
         if self.is_backtesting:
             return
+        
+        # Log that we are sending the account summary to Discord
+        self.logger.info("Sending account summary to Discord")
 
         # Check if last_account_summary_dt has been set, if not, set it to None
         if not hasattr(self, "last_account_summary_dt"):
@@ -4070,8 +4074,27 @@ class Strategy(_Strategy):
         self.send_result_text_to_discord(returns_text, portfolio_value, cash)
 
     def get_stats_from_database(self, stats_table_name):
+        # Create a database connection
+        engine = create_engine(self.account_history_db_connection_str)
+        
+        # Check if the table exists
+        if not inspect(engine).has_table(stats_table_name):
+            # Define the columns and create a DataFrame with the correct columns
+            now = datetime.now()
+            stats_new = pd.DataFrame(
+                {
+                    "id": [str(uuid.uuid4())],
+                    "datetime": [now],
+                    "portfolio_value": [0.0],  # Default or initial value
+                    "cash": [0.0],             # Default or initial value
+                    "strategy_id": [self.strategy_id],
+                }
+            )
+            # Create the table by saving this empty DataFrame to the database
+            stats_new.to_sql(stats_table_name, engine, if_exists='replace', index=False)
+        
         # Load the stats dataframe from the database
-        stats_df = pd.read_sql_table(stats_table_name, self.account_history_db_connection_str)
+        stats_df = pd.read_sql_table(stats_table_name, engine)
 
         return stats_df
 

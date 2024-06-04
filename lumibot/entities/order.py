@@ -538,7 +538,9 @@ class Order:
             elif value.lower() in STATUS_ALIAS_MAP:
                 self._status = STATUS_ALIAS_MAP[value.lower()]
             else:
-                raise ValueError(f"Invalid status: {value}")
+                self._status = value.lower()
+                # Log an error
+                logging.error(f"Invalid order status: {value}")
 
     @property
     def quantity(self):

@@ -862,14 +862,6 @@ class _Strategy:
         >>> )
         """
 
-        warnings.warn(
-            "The backtest() method will be depricated in future versions of Lumibot. Instead "
-            "please use 'trader.run_all(backtest=True)' as this more closely models how your strategy "
-            "will behave in Live Trading sessions.  <web link>",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-
         positional_args_error_message = (
             "Please do not use `name' or 'budget' as positional arguments. \n"
             "These have been changed to keyword arguments. For example, \n"

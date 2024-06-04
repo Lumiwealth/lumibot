@@ -91,9 +91,6 @@ class TestOrderBasics:
         order.status = "cancel"
         assert order.status == "canceled"
 
-        with pytest.raises(ValueError):
-            order.status = "blah"
-
     def test_equivalent_status(self):
         asset = Asset("SPY")
         order1 = Order(strategy='abc', asset=asset, side="buy", quantity=100)

@@ -151,8 +151,35 @@ def test_polygon_1D_minute_stock(backtest_environment, mock_polygon_client, mock
         pytest.fail(e.args[0])
 
 
-# TODO: test_polygon_1M_minute_stock
 # TODO: test_polygon_1M_day_stock
+@pytest.mark.parametrize("backtest_environment", [
+    {'sleeptime': "1M",
+     'timestep': "day",
+     'start': datetime(2024, 1, 1), # 1 is not a trading day!
+     'end': datetime(2024, 1, 3), # 3 is not included
+    }
+], indirect=True)
+@pytest.mark.parametrize('mock_pd_read_feather', [
+    {'asset': Asset(symbol="SPY", asset_type="stock"),
+     'start': datetime(2023, 12, 1) - timedelta(days=BUFFER),
+     'end': datetime(2024, 1, 3)}
+], indirect=True)
+@pytest.mark.filterwarnings("error")
+def test_polygon_1M_day_stock(backtest_environment, mock_polygon_client, mock_validate_cache, mock_pd_read_feather, mock_should_load_from_cache):
+    results = None
+    try:
+        results = backtest_environment.run_all(show_plot=False, show_tearsheet=False, save_tearsheet=False)
+        assert results is not None, "Results should not be None"
+
+        strategy = backtest_environment._strategies[0]
+
+        timezone = pytz.timezone("America/New_York")
+
+    except Exception as e:
+        pytest.fail(e.args[0])
+
+# TODO: test_polygon_1M_minute_stock
+
 
 @pytest.mark.parametrize("backtest_environment", [
     {'sleeptime': "30m", 

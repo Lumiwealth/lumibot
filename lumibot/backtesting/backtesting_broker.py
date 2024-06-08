@@ -178,8 +178,8 @@ class BacktestingBroker(Broker):
         self._update_datetime(time_to_open)
 
     def _await_market_to_close(self, timedelta=None, strategy=None):
-        if self.data_source.SOURCE == "PANDAS" and self.data_source._timestep == "day":
-            return
+        #if self.data_source.SOURCE == "PANDAS" and self.data_source._timestep == "day":
+        #    return
 
         # Process outstanding orders first before waiting for market to close
         # or else they don't get processed until the next day

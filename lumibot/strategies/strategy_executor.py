@@ -764,13 +764,15 @@ class StrategyExecutor(Thread):
 
             if self.strategy.is_market_day():
                 self.strategy.await_market_to_open(timedelta=0)
+                self.strategy._update_cash_with_dividends()
+                self._on_trading_iteration()
 
-            self.strategy._update_cash_with_dividends()
+                if self.broker.IS_BACKTESTING_BROKER:
+                    self.broker.process_pending_orders(strategy=self.strategy)
+            
+                self.strategy.await_market_to_close()
+                self._before_market_closes()
 
-            self._on_trading_iteration()
-
-            if self.broker.IS_BACKTESTING_BROKER:
-                self.broker.process_pending_orders(strategy=self.strategy)
             return
 
         if not is_247:

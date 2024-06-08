@@ -323,7 +323,11 @@ class BacktestingBroker(Broker):
         BackTesting needs to create/update positions when orders are filled becuase there is no broker to do it
         """
         existing_position = self.get_tracked_position(order.strategy, order.asset)
-        position = super()._process_filled_order(order, price, quantity)
+
+        # Currently perfect fill price in backtesting!
+        order.avg_fill_price = price
+
+        position = super()._process_filled_order(order, order.avg_fill_price, quantity)
         if existing_position:
             position.add_order(order, quantity)  # Add will update quantity, but not double count the order
             if position.quantity == 0:

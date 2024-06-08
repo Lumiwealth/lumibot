@@ -151,7 +151,6 @@ def test_polygon_1D_minute_stock(backtest_environment, mock_polygon_client, mock
         pytest.fail(e.args[0])
 
 
-# TODO: test_polygon_1M_day_stock
 @pytest.mark.parametrize("backtest_environment", [
     {'sleeptime': "1M",
      'timestep': "day",
@@ -166,6 +165,7 @@ def test_polygon_1D_minute_stock(backtest_environment, mock_polygon_client, mock
 ], indirect=True)
 @pytest.mark.filterwarnings("error")
 def test_polygon_1M_day_stock(backtest_environment, mock_polygon_client, mock_validate_cache, mock_pd_read_feather, mock_should_load_from_cache):
+    # note that sleeptime is ignored if timestep is "day"
     results = None
     try:
         results = backtest_environment.run_all(show_plot=False, show_tearsheet=False, save_tearsheet=False)
@@ -175,11 +175,17 @@ def test_polygon_1M_day_stock(backtest_environment, mock_polygon_client, mock_va
 
         timezone = pytz.timezone("America/New_York")
 
+        assert strategy.broker.datetime == timezone.localize(datetime(2024, 1, 3, 0, 0))
+        assert len(strategy.positions) > 1, "Expected a position in SPY."
+        orders = strategy.positions[1].orders
+        assert len(orders) == 1
+        assert math.isclose(orders[0].get_fill_price(), 10040.0)
+
+
     except Exception as e:
         pytest.fail(e.args[0])
 
 # TODO: test_polygon_1M_minute_stock
-
 
 @pytest.mark.parametrize("backtest_environment", [
     {'sleeptime': "30m", 

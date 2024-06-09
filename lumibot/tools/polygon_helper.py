@@ -20,6 +20,45 @@ from lumibot import LUMIBOT_DEFAULT_PYTZ
 
 MAX_POLYGON_DAYS = 30
 
+# Define a cache dictionary to store schedules and a global buffered schedule
+schedule_cache = {}
+buffered_schedule = None
+
+def get_cached_schedule(cal, start_date, end_date, buffer_days=30):
+    """
+    Fetch schedule with a buffer at the end. This is done to reduce the number of calls to the calendar API (which is slow).
+    """
+    global buffered_schedule
+
+    buffer_end = end_date + timedelta(days=buffer_days)
+    cache_key = (start_date, end_date)
+    
+    # Check if the required range is in the schedule cache
+    if cache_key in schedule_cache:
+        return schedule_cache[cache_key]
+    
+    # Convert start_date and end_date to pd.Timestamp for comparison
+    start_timestamp = pd.Timestamp(start_date)
+    end_timestamp = pd.Timestamp(end_date)
+    
+    # Check if we have the buffered schedule
+    if buffered_schedule is not None:
+        # Check if the current buffered schedule covers the required range
+        if buffered_schedule.index.min() <= start_timestamp and buffered_schedule.index.max() >= end_timestamp:
+            filtered_schedule = buffered_schedule[(buffered_schedule.index >= start_timestamp) & (buffered_schedule.index <= end_timestamp)]
+            schedule_cache[cache_key] = filtered_schedule
+            return filtered_schedule
+    
+    # Fetch and cache the new buffered schedule
+    buffered_schedule = cal.schedule(start_date=start_date, end_date=buffer_end)
+    
+    # Filter the schedule to only include the requested date range
+    filtered_schedule = buffered_schedule[(buffered_schedule.index >= start_timestamp) & (buffered_schedule.index <= end_timestamp)]
+    
+    # Cache the filtered schedule for quick lookup
+    schedule_cache[cache_key] = filtered_schedule
+    
+    return filtered_schedule
 
 def get_price_data_from_polygon(
     api_key: str,
@@ -225,7 +264,7 @@ def get_trading_dates(asset: Asset, start: datetime, end: datetime):
         raise ValueError(f"Unsupported asset type for polygon: {asset.asset_type}")
 
     # Get the trading days between the start and end dates
-    df = cal.schedule(start_date=start.date(), end_date=end.date())
+    df = get_cached_schedule(cal, start.date(), end.date())
     trading_days = df.index.date.tolist()
     return trading_days
 

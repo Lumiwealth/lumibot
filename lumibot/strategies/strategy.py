@@ -716,7 +716,9 @@ class Strategy(_Strategy):
             start_time = time.time()
             if process_pending_orders:
                 self.broker.process_pending_orders(strategy=self)
-                time.sleep(time.time() - start_time)
+                remaining_time = time.time() - start_time
+                if remaining_time > 0:
+                    time.sleep(remaining_time)
 
         return self.broker.sleep(sleeptime)
 

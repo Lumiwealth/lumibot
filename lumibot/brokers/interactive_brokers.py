@@ -289,11 +289,11 @@ class InteractiveBrokers(Broker):
         finally:
             if summary is None:
                 return None
-        total_cash_value = [float(c["Value"]) for c in summary if c["Tag"] == "TotalCashValue"][0]
+        total_cash_value = [float(c["Value"]) for c in summary if c["Tag"] == "TotalCashBalance" and c["Currency"] == 'BASE'][0]
 
-        gross_position_value = [float(c["Value"]) for c in summary if c["Tag"] == "GrossPositionValue"][0]
+        gross_position_value = [float(c["Value"]) for c in summary if c["Tag"] == "NetLiquidationByCurrency" and c["Currency"] == 'BASE'][0]
 
-        net_liquidation_value = [float(c["Value"]) for c in summary if c["Tag"] == "NetLiquidation"][0]
+        net_liquidation_value = [float(c["Value"]) for c in summary if c["Tag"] == "NetLiquidationByCurrency" and c["Currency"] == 'BASE'][0]
 
         return (total_cash_value, gross_position_value, net_liquidation_value)
 
@@ -1082,11 +1082,9 @@ class IBClient(EClient):
 
     def get_account_summary(self):
         accounts_storage = self.wrapper.init_accounts()
-
-        tags = "AccountType, TotalCashValue, AccruedCash, " "NetLiquidation, BuyingPower, GrossPositionValue"
-
+        
         as_reqid = self.get_reqid()
-        self.reqAccountSummary(as_reqid, "All", tags)
+        self.reqAccountSummary(as_reqid, "All", "$LEDGER")
 
         try:
             requested_accounts = accounts_storage.get(timeout=self.max_wait_time)

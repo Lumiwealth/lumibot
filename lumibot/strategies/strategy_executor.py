@@ -919,6 +919,9 @@ class StrategyExecutor(Thread):
 
         # Sort the trading days by market close time so that we can search them faster
         self.broker._trading_days.sort_values('market_close', inplace=True)  # Ensure sorted order
+        
+        # Set DataFrame index to market_close for fast lookups
+        self.broker._trading_days.set_index('market_close', inplace=True)
 
         #####
         # The main loop for running any strategy

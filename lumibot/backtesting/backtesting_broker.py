@@ -112,7 +112,7 @@ class BacktestingBroker(Broker):
     def is_market_open(self):
         """Return True if market is open else false"""
         now = self.datetime
-        return ((now >= self._trading_days.market_open) & (now < self._trading_days.market_close)).any()
+        return ((now >= self._trading_days.market_open) & (now < self._trading_days.index)).any()
 
     def _get_next_trading_day(self):
         now = self.datetime
@@ -126,7 +126,7 @@ class BacktestingBroker(Broker):
         """Return the remaining time for the market to open in seconds"""
         now = self.datetime
 
-        search = self._trading_days[now < self._trading_days.market_close]
+        search = self._trading_days[now < self._trading_days.index]
         if search.empty:
             logging.error("Cannot predict future")
             return 0
@@ -150,21 +150,22 @@ class BacktestingBroker(Broker):
     def get_time_to_close(self):
         """Return the remaining time for the market to close in seconds"""
         now = self.datetime
-
+        
         # Use searchsorted for efficient searching
-        idx = self._trading_days['market_close'].searchsorted(now, side='left')
-
+        idx = self._trading_days.index.searchsorted(now, side='left')
+        
         if idx >= len(self._trading_days):
             logging.error("Cannot predict future")
             return 0
 
-        # Ensure that idx is within bounds after the search
-        trading_day = self._trading_days.iloc[idx]
+        # Retrieve the trading day directly using .iloc[idx]
+        market_close_time = self._trading_days.index[idx]
+        trading_day = self._trading_days.loc[market_close_time]
 
         if now < trading_day['market_open']:
             return None
 
-        delta = trading_day['market_close'] - now
+        delta = trading_day.name - now  # Since we set index to market_close, trading_day.name is market_close
         return delta.total_seconds()
 
     def _await_market_to_open(self, timedelta=None, strategy=None):

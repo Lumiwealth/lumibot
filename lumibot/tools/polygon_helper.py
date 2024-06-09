@@ -20,18 +20,18 @@ from lumibot import LUMIBOT_DEFAULT_PYTZ
 
 MAX_POLYGON_DAYS = 30
 
-# Define a cache dictionary to store schedules and a global buffered schedule
+# Define a cache dictionary to store schedules and a global dictionary for buffered schedules
 schedule_cache = {}
-buffered_schedule = None
+buffered_schedules = {}
 
 def get_cached_schedule(cal, start_date, end_date, buffer_days=30):
     """
     Fetch schedule with a buffer at the end. This is done to reduce the number of calls to the calendar API (which is slow).
     """
-    global buffered_schedule
+    global buffered_schedules
 
     buffer_end = end_date + timedelta(days=buffer_days)
-    cache_key = (start_date, end_date)
+    cache_key = (cal.name, start_date, end_date)
     
     # Check if the required range is in the schedule cache
     if cache_key in schedule_cache:
@@ -41,8 +41,9 @@ def get_cached_schedule(cal, start_date, end_date, buffer_days=30):
     start_timestamp = pd.Timestamp(start_date)
     end_timestamp = pd.Timestamp(end_date)
     
-    # Check if we have the buffered schedule
-    if buffered_schedule is not None:
+    # Check if we have the buffered schedule for this calendar
+    if cal.name in buffered_schedules:
+        buffered_schedule = buffered_schedules[cal.name]
         # Check if the current buffered schedule covers the required range
         if buffered_schedule.index.min() <= start_timestamp and buffered_schedule.index.max() >= end_timestamp:
             filtered_schedule = buffered_schedule[(buffered_schedule.index >= start_timestamp) & (buffered_schedule.index <= end_timestamp)]
@@ -51,6 +52,7 @@ def get_cached_schedule(cal, start_date, end_date, buffer_days=30):
     
     # Fetch and cache the new buffered schedule
     buffered_schedule = cal.schedule(start_date=start_date, end_date=buffer_end)
+    buffered_schedules[cal.name] = buffered_schedule  # Store the buffered schedule for this calendar
     
     # Filter the schedule to only include the requested date range
     filtered_schedule = buffered_schedule[(buffered_schedule.index >= start_timestamp) & (buffered_schedule.index <= end_timestamp)]

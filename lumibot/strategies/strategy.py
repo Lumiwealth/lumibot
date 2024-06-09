@@ -4042,9 +4042,6 @@ class Strategy(_Strategy):
         # Check if we are in backtesting mode, if so, don't send the message
         if self.is_backtesting:
             return
-        
-        # Log that we are sending the account summary to Discord
-        self.logger.info("Sending account summary to Discord")
 
         # Check if last_account_summary_dt has been set, if not, set it to None
         if not hasattr(self, "last_account_summary_dt"):
@@ -4054,6 +4051,9 @@ class Strategy(_Strategy):
         should_send_account_summary = self.should_send_account_summary_to_discord()
         if not should_send_account_summary:
             return
+        
+        # Log that we are sending the account summary to Discord
+        self.logger.info("Sending account summary to Discord")
 
         # Get the current portfolio value
         portfolio_value = self.get_portfolio_value()
@@ -4079,15 +4079,23 @@ class Strategy(_Strategy):
         
         # Check if the table exists
         if not inspect(engine).has_table(stats_table_name):
-            # Define the columns and create a DataFrame with the correct columns
-            now = datetime.now()
+            # Log that the table does not exist and we are creating it
+            self.logger.info(f"Table {stats_table_name} does not exist. Creating it now.")
+
+            # Get the current time in New York
+            ny_tz = pytz.timezone("America/New_York")
+
+            # Get the datetime
+            now = datetime.datetime.now(ny_tz)
+
+            # Create an empty stats dataframe
             stats_new = pd.DataFrame(
                 {
                     "id": [str(uuid.uuid4())],
                     "datetime": [now],
                     "portfolio_value": [0.0],  # Default or initial value
                     "cash": [0.0],             # Default or initial value
-                    "strategy_id": [self.strategy_id],
+                    "strategy_id": ["INITIAL VALUE"], # Default or initial value
                 }
             )
             # Create the table by saving this empty DataFrame to the database

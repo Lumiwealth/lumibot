@@ -364,7 +364,8 @@ class Strategy(_Strategy):
         --------
         >>> self.log_message('Sending a buy order')
         """
-        if color is not None:
+        
+        if color:
             colored_message = colored(message, color)
             self.logger.info(colored_message)
         else:

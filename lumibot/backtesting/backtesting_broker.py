@@ -112,7 +112,18 @@ class BacktestingBroker(Broker):
     def is_market_open(self):
         """Return True if market is open else false"""
         now = self.datetime
-        return ((now >= self._trading_days.market_open) & (now < self._trading_days.index)).any()
+
+        # As the index is sorted, use searchsorted to find the relevant day
+        idx = self._trading_days.index.searchsorted(now, side='right')
+
+        # The index of the trading_day is used as the market close time
+        market_close = self._trading_days.index[idx]
+
+        # Retrieve market open time using .at since idx is a valid datetime index
+        market_open = self._trading_days.at[market_close, 'market_open']
+
+        # Check if 'now' is within the trading hours of the located day
+        return market_open <= now < market_close
 
     def _get_next_trading_day(self):
         now = self.datetime

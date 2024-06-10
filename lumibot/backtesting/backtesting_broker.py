@@ -112,7 +112,18 @@ class BacktestingBroker(Broker):
     def is_market_open(self):
         """Return True if market is open else false"""
         now = self.datetime
-        return ((now >= self._trading_days.market_open) & (now < self._trading_days.market_close)).any()
+
+        # As the index is sorted, use searchsorted to find the relevant day
+        idx = self._trading_days.index.searchsorted(now, side='right')
+
+        # The index of the trading_day is used as the market close time
+        market_close = self._trading_days.index[idx]
+
+        # Retrieve market open time using .at since idx is a valid datetime index
+        market_open = self._trading_days.at[market_close, 'market_open']
+
+        # Check if 'now' is within the trading hours of the located day
+        return market_open <= now < market_close
 
     def _get_next_trading_day(self):
         now = self.datetime
@@ -126,7 +137,7 @@ class BacktestingBroker(Broker):
         """Return the remaining time for the market to open in seconds"""
         now = self.datetime
 
-        search = self._trading_days[now < self._trading_days.market_close]
+        search = self._trading_days[now < self._trading_days.index]
         if search.empty:
             logging.error("Cannot predict future")
             return 0
@@ -147,24 +158,26 @@ class BacktestingBroker(Broker):
         delta = open_time - now
         return delta.total_seconds()
 
-    # TODO: speed up this function, it is a major bottleneck
     def get_time_to_close(self):
         """Return the remaining time for the market to close in seconds"""
         now = self.datetime
-        # TODO: speed up the next line. next line speed implication: v high (1738 microseconds)
-        search = self._trading_days[now <= self._trading_days.market_close]
-        if search.empty:
+        
+        # Use searchsorted for efficient searching and reduce unnecessary DataFrame access
+        idx = self._trading_days.index.searchsorted(now, side='left')
+        
+        if idx >= len(self._trading_days):
             logging.error("Cannot predict future")
             return 0
 
-        # TODO: speed up the next line. next line speed implication: high (910 microseconds)
-        trading_day = search.iloc[0]
+        # Directly access the data needed using more efficient methods
+        market_close_time = self._trading_days.index[idx]
+        market_open = self._trading_days.at[market_close_time, 'market_open']
+        market_close = market_close_time  # Assuming this is a scalar value directly from the index
 
-        if now < trading_day.market_open:
+        if now < market_open:
             return None
 
-        # TODO: speed up the next line. next line speed implication: low (135 microseconds)
-        delta = trading_day.market_close - now
+        delta = market_close - now
         return delta.total_seconds()
 
     def _await_market_to_open(self, timedelta=None, strategy=None):
@@ -475,24 +488,27 @@ class BacktestingBroker(Broker):
         """
         if self.data_source.SOURCE != "PANDAS":
             return
+        
+        # If it's the same day as the expiration, we need to check the time to see if it's after market close
+        time_to_close = self.get_time_to_close()
+
+        # If the time to close is None, then the market is not open so we should not sell the contracts
+        if time_to_close is None:
+            return
+        
+        # Calculate the number of seconds before market close
+        seconds_before_closing = strategy.minutes_before_closing * 60
 
         positions = self.get_tracked_positions(strategy.name)
         for position in positions:
             if position.asset.expiration is not None and position.asset.expiration <= self.datetime.date():
-                # If it's the same day as the expiration, we need to check the time to see if it's after market close
-                time_to_close = self.get_time_to_close()
-
-                # If the time to close is None, then the market is not open so we should not sell the contract
-                if time_to_close is None:
-                    continue
-
-                seconds_before_closing = strategy.minutes_before_closing * 60
+                # If the contract has expired, we should sell it
                 if position.asset.expiration == self.datetime.date() and time_to_close > seconds_before_closing:
                     continue
 
                 logging.info(f"Automatically selling expired contract for asset {position.asset}")
 
-                # TODO: Make this cash settle, not just sell the contract
+                # Cash settle the options contract
                 self.cash_settle_options_contract(position, strategy)
 
     def calculate_trade_cost(self, order: Order, strategy, price: float):

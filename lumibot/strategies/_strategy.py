@@ -20,12 +20,14 @@ from lumibot.tools import (
 from lumibot.traders import Trader
 
 from .strategy_executor import StrategyExecutor
-
-
+    
 class CustomLoggerAdapter(logging.LoggerAdapter):
+    def __init__(self, logger, extra):
+        super().__init__(logger, extra)
+        self.prefix = f'[{self.extra["strategy_name"]}] '
+
     def process(self, msg, kwargs):
-        # Use an f-string for formatting
-        return f'[{self.extra["strategy_name"]}] {msg}', kwargs
+        return self.prefix + msg, kwargs
 
 class _Strategy:
     IS_BACKTESTABLE = True

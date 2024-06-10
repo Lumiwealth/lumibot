@@ -687,7 +687,7 @@ class Strategy(_Strategy):
 
     # ======= Broker Methods ============
 
-    def sleep(self, sleeptime=0, process_pending_orders=False):
+    def sleep(self, sleeptime=0, process_pending_orders=True):
         """Sleep for sleeptime seconds.
 
         Use to pause the execution of the program. This should be used instead of `time.sleep` within the strategy. Also processes pending orders in the meantime.

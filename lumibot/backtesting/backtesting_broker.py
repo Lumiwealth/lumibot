@@ -146,26 +146,27 @@ class BacktestingBroker(Broker):
 
         delta = open_time - now
         return delta.total_seconds()
-    
+
     def get_time_to_close(self):
         """Return the remaining time for the market to close in seconds"""
         now = self.datetime
         
-        # Use searchsorted for efficient searching
+        # Use searchsorted for efficient searching and reduce unnecessary DataFrame access
         idx = self._trading_days.index.searchsorted(now, side='left')
         
         if idx >= len(self._trading_days):
             logging.error("Cannot predict future")
             return 0
 
-        # Retrieve the trading day directly using .iloc[idx]
+        # Directly access the data needed using more efficient methods
         market_close_time = self._trading_days.index[idx]
-        trading_day = self._trading_days.loc[market_close_time]
+        market_open = self._trading_days.at[market_close_time, 'market_open']
+        market_close = market_close_time  # Assuming this is a scalar value directly from the index
 
-        if now < trading_day['market_open']:
+        if now < market_open:
             return None
 
-        delta = trading_day.name - now  # Since we set index to market_close, trading_day.name is market_close
+        delta = market_close - now
         return delta.total_seconds()
 
     def _await_market_to_open(self, timedelta=None, strategy=None):

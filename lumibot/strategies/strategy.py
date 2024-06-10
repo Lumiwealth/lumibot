@@ -687,15 +687,17 @@ class Strategy(_Strategy):
 
     # ======= Broker Methods ============
 
-    def sleep(self, sleeptime):
+    def sleep(self, sleeptime=0, process_pending_orders=True):
         """Sleep for sleeptime seconds.
 
-        Use to pause the execution of the program. This should be used instead of `time.sleep` within the strategy.
+        Use to pause the execution of the program. This should be used instead of `time.sleep` within the strategy. Also processes pending orders in the meantime.
 
         Parameters
         ----------
         sleeptime : float
             Time in seconds the program will be paused.
+        process_pending_orders : bool
+            If true, all pending orders will be processed.
 
         Returns
         -------
@@ -706,11 +708,20 @@ class Strategy(_Strategy):
         >>> # Sleep for 5 seconds
         >>> self.sleep(5)
         """
-        if not self.is_backtesting:
-            # Sleep for the the sleeptime in seconds.
-            time.sleep(sleeptime)
+
+        # Process pending orders and keep track of time 
+        if self.is_backtesting:
+            self.broker.process_pending_orders(strategy=self)
+        else:
+            start_time = time.time()
+            if process_pending_orders:
+                self.broker.process_pending_orders(strategy=self)
+                remaining_time = time.time() - start_time
+                if remaining_time > 0:
+                    time.sleep(remaining_time)
 
         return self.broker.sleep(sleeptime)
+
 
     def get_selling_order(self, position):
         """Get the selling order for a position.

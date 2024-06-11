@@ -3,6 +3,7 @@ import logging
 import warnings
 from asyncio.log import logger
 from decimal import Decimal
+import os
 
 import pandas as pd
 
@@ -569,6 +570,13 @@ class _Strategy:
         if len(self._stats_list) > 0:
             self._format_stats()
             if self._stats_file:
+                # Get the directory name from the stats file path
+                stats_directory = os.path.dirname(self._stats_file)
+
+                # Check if the directory exists
+                if not os.path.exists(stats_directory):
+                    os.makedirs(stats_directory)
+
                 self._stats.to_csv(self._stats_file)
 
             self._strategy_returns_df = day_deduplicate(self._stats)

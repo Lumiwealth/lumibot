@@ -13,6 +13,8 @@ import pandas_market_calendars as mcal
 from dateutil import tz
 from termcolor import colored
 
+
+from lumibot import LUMIBOT_DEFAULT_TIMEZONE
 from lumibot.data_sources import DataSource
 from lumibot.entities import Asset, Order, Position
 from lumibot.trading_builtins import SafeList
@@ -696,9 +698,11 @@ class Broker(ABC):
         if self._trading_days is None:
             return True
 
-        today = pd.Timestamp(self.datetime.date())
+        trading_days_dates = self._trading_days.index.normalize()
+
+        today = pd.Timestamp(self.datetime.date()).tz_localize(LUMIBOT_DEFAULT_TIMEZONE)
         
-        return today in self._trading_days.index
+        return today in trading_days_dates
 
     def is_market_open(self):
         """Determines if the market is open.

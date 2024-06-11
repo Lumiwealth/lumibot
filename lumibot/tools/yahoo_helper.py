@@ -10,7 +10,6 @@ from lumibot import LUMIBOT_CACHE_FOLDER, LUMIBOT_DEFAULT_PYTZ
 
 from .helpers import get_lumibot_datetime
 
-DAY_DATA = "day_data"
 INFO_DATA = "info"
 
 
@@ -25,7 +24,7 @@ class _YahooData:
         if last_needed_datetime is None:
             last_needed_datetime = get_lumibot_datetime()
 
-        if self.type == DAY_DATA:
+        if self.type == '1d':
             last_needed_date = last_needed_datetime.date()
             last_day = self.data.index[-1].to_pydatetime().date()
 
@@ -382,7 +381,7 @@ class YahooHelper:
             irx_price = YahooHelper.get_symbol_last_price("^IRX")
         else:
             # If we do have a datetime, we will get the value at that datetime
-            irx_df = YahooHelper.get_symbol_data("^IRX")
+            irx_df = YahooHelper.get_symbol_data("^IRX", last_needed_datetime=dt)
 
             if irx_df is None or irx_df.empty:
                 return None

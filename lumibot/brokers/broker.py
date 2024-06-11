@@ -17,14 +17,19 @@ from lumibot.data_sources import DataSource
 from lumibot.entities import Asset, Order, Position
 from lumibot.trading_builtins import SafeList
 
-
 class CustomLoggerAdapter(logging.LoggerAdapter):
     def process(self, msg, kwargs):
-        # Use an f-string for formatting
-        return f'[{self.extra["strategy_name"]}] {msg}', kwargs
+        # Check if the level is enabled to avoid formatting costs if not necessary
+        if self.logger.isEnabledFor(kwargs.get('level', logging.INFO)):
+            # Lazy formatting of the message
+            return f'[{self.extra["strategy_name"]}] {msg}', kwargs
+        else:
+            return msg, kwargs
 
     def update_strategy_name(self, new_strategy_name):
         self.extra['strategy_name'] = new_strategy_name
+        # Pre-format part of the log message that's static or changes infrequently
+        self.formatted_prefix = f'[{new_strategy_name}]'
 
 class Broker(ABC):
     # Metainfo
@@ -851,7 +856,7 @@ class Broker(ABC):
         if broker_orders is not None:
             for broker_order in broker_orders:
                 # Check if it is a multileg order
-                if "leg" in broker_order and isinstance(broker_order["leg"], list):
+                if isinstance(broker_order, dict) and "leg" in broker_order and isinstance(broker_order["leg"], list):
                     for leg in broker_order["leg"]:
                         order = self._parse_broker_order(leg, strategy_name, strategy_object=strategy_object)
                         result.append(order)

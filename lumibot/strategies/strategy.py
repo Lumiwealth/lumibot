@@ -6,6 +6,7 @@ import uuid
 from asyncio.log import logger
 from decimal import Decimal
 from typing import Union
+from sqlalchemy import create_engine, inspect
 
 import jsonpickle
 import matplotlib
@@ -363,7 +364,8 @@ class Strategy(_Strategy):
         --------
         >>> self.log_message('Sending a buy order')
         """
-        if color is not None:
+        
+        if color:
             colored_message = colored(message, color)
             self.logger.info(colored_message)
         else:
@@ -686,15 +688,17 @@ class Strategy(_Strategy):
 
     # ======= Broker Methods ============
 
-    def sleep(self, sleeptime):
+    def sleep(self, sleeptime, process_pending_orders=True):
         """Sleep for sleeptime seconds.
 
-        Use to pause the execution of the program. This should be used instead of `time.sleep` within the strategy.
+        Use to pause the execution of the program. This should be used instead of `time.sleep` within the strategy. Also processes pending orders in the meantime.
 
         Parameters
         ----------
         sleeptime : float
             Time in seconds the program will be paused.
+        process_pending_orders : bool
+            If True, the broker will process any pending orders.
 
         Returns
         -------
@@ -705,11 +709,17 @@ class Strategy(_Strategy):
         >>> # Sleep for 5 seconds
         >>> self.sleep(5)
         """
+
         if not self.is_backtesting:
             # Sleep for the the sleeptime in seconds.
             time.sleep(sleeptime)
 
+        # Process pending orders and keep track of time 
+        if process_pending_orders:
+            self.broker.process_pending_orders(strategy=self)
+
         return self.broker.sleep(sleeptime)
+
 
     def get_selling_order(self, position):
         """Get the selling order for a position.
@@ -4060,6 +4070,9 @@ class Strategy(_Strategy):
         should_send_account_summary = self.should_send_account_summary_to_discord()
         if not should_send_account_summary:
             return
+        
+        # Log that we are sending the account summary to Discord
+        self.logger.info("Sending account summary to Discord")
 
         # Get the current portfolio value
         portfolio_value = self.get_portfolio_value()
@@ -4080,8 +4093,35 @@ class Strategy(_Strategy):
         self.send_result_text_to_discord(returns_text, portfolio_value, cash)
 
     def get_stats_from_database(self, stats_table_name):
+        # Create a database connection
+        engine = create_engine(self.account_history_db_connection_str)
+        
+        # Check if the table exists
+        if not inspect(engine).has_table(stats_table_name):
+            # Log that the table does not exist and we are creating it
+            self.logger.info(f"Table {stats_table_name} does not exist. Creating it now.")
+
+            # Get the current time in New York
+            ny_tz = pytz.timezone("America/New_York")
+
+            # Get the datetime
+            now = datetime.datetime.now(ny_tz)
+
+            # Create an empty stats dataframe
+            stats_new = pd.DataFrame(
+                {
+                    "id": [str(uuid.uuid4())],
+                    "datetime": [now],
+                    "portfolio_value": [0.0],  # Default or initial value
+                    "cash": [0.0],             # Default or initial value
+                    "strategy_id": ["INITIAL VALUE"], # Default or initial value
+                }
+            )
+            # Create the table by saving this empty DataFrame to the database
+            stats_new.to_sql(stats_table_name, engine, if_exists='replace', index=False)
+        
         # Load the stats dataframe from the database
-        stats_df = pd.read_sql_table(stats_table_name, self.account_history_db_connection_str)
+        stats_df = pd.read_sql_table(stats_table_name, engine)
 
         return stats_df
 

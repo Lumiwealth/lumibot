@@ -20,12 +20,14 @@ from lumibot.tools import (
 from lumibot.traders import Trader
 
 from .strategy_executor import StrategyExecutor
-
-
+    
 class CustomLoggerAdapter(logging.LoggerAdapter):
+    def __init__(self, logger, extra):
+        super().__init__(logger, extra)
+        self.prefix = f'[{self.extra["strategy_name"]}] '
+
     def process(self, msg, kwargs):
-        # Use an f-string for formatting
-        return f'[{self.extra["strategy_name"]}] {msg}', kwargs
+        return self.prefix + msg, kwargs
 
 class _Strategy:
     IS_BACKTESTABLE = True
@@ -861,14 +863,6 @@ class _Strategy:
         >>>     benchmark_asset=benchmark_asset,
         >>> )
         """
-
-        warnings.warn(
-            "The backtest() method will be depricated in future versions of Lumibot. Instead "
-            "please use 'trader.run_all(backtest=True)' as this more closely models how your strategy "
-            "will behave in Live Trading sessions.  <web link>",
-            DeprecationWarning,
-            stacklevel=2,
-        )
 
         positional_args_error_message = (
             "Please do not use `name' or 'budget' as positional arguments. \n"

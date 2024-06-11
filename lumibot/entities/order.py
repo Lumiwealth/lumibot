@@ -250,10 +250,6 @@ class Order:
         # Check that quantity is a number
         if not isinstance(quantity, (int, float, Decimal)):
             raise ValueError("Order quantity must be a number")
-        
-        # Check that quantity is not zero
-        if quantity == 0:
-            raise ValueError("Order quantity cannot be zero")
 
         # It is possible for crypto currencies to arrive as a tuple of
         # two assets.

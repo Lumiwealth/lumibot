@@ -1499,9 +1499,24 @@ class Strategy(_Strategy):
 
         """
 
+        # Check if order is None
         if order is None:
             self.logger.error(
                 "Cannot submit a None order, please check to make sure that you have actually created an order before submitting."
+            )
+            return
+        
+        # Check if the order is an Order object
+        if not isinstance(order, Order):
+            self.logger.error(
+                f"Order must be an Order object. You entered {order}."
+            )
+            return
+        
+        # Check if the order does not have a quantity of zero
+        if order.quantity == 0:
+            self.logger.error(
+                f"Order quantity cannot be zero. You entered {order.quantity}."
             )
             return
 

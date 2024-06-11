@@ -364,16 +364,20 @@ class Strategy(_Strategy):
         --------
         >>> self.log_message('Sending a buy order')
         """
+
+        if broadcast:
+            # Send the message to Discord
+            self.send_discord_message(message)
+        
+        # If we are backtesting and we don't want to save the logfile, don't log (they're not displayed in the console anyway)
+        if not self.save_logfile and self.is_backtesting:
+            return
         
         if color:
             colored_message = colored(message, color)
             self.logger.info(colored_message)
         else:
             self.logger.info(message)
-
-        if broadcast:
-            # Send the message to Discord
-            self.send_discord_message(message)
 
         return message
 

@@ -718,8 +718,8 @@ class Strategy(_Strategy):
             # Sleep for the the sleeptime in seconds.
             time.sleep(sleeptime)
 
-        # Process pending orders and keep track of time 
-        if process_pending_orders:
+        # Process pending orders if process_pending_orders is True and the broker has the method process_pending_orders
+        if process_pending_orders and hasattr(self.broker, "process_pending_orders"):
             self.broker.process_pending_orders(strategy=self)
 
         return self.broker.sleep(sleeptime)

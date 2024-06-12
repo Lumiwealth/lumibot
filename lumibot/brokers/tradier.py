@@ -602,7 +602,7 @@ class Tradier(Broker):
         for o in raw_orders:
             if "id" in o:
                 ids.append(o["id"])
-            if "leg" in o:
+            if "leg" in o and isinstance(o["leg"], list):
                 for leg in o["leg"]:
                     if "id" in leg:
                         ids.append(leg["id"])

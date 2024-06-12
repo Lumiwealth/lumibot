@@ -3,6 +3,7 @@ import logging
 import warnings
 from asyncio.log import logger
 from decimal import Decimal
+import os
 
 import pandas as pd
 
@@ -57,6 +58,7 @@ class _Strategy:
         account_history_db_connection_str=None,
         strategy_id=None,
         discord_account_summary_footer=None,
+        save_logfile=False,
         **kwargs,
     ):
         """Initializes a Strategy object.
@@ -131,6 +133,8 @@ class _Strategy:
         strategy_id : str
             The id of the strategy that will be used to identify the strategy in the account history database.
             Defaults to None (lumibot will use the name of the strategy as the id).
+        save_logfile : bool
+            Whether to save the logfile. Defaults to False. If True, the logfile will be saved to the logs directory.
         """
         # Handling positional arguments.
         # If there is one positional argument, it is assumed to be `broker`.
@@ -143,6 +147,7 @@ class _Strategy:
 
         self.buy_trading_fees = buy_trading_fees
         self.sell_trading_fees = sell_trading_fees
+        self.save_logfile = save_logfile
 
         if len(args) == 1:
             if isinstance(args[0], str):
@@ -565,6 +570,13 @@ class _Strategy:
         if len(self._stats_list) > 0:
             self._format_stats()
             if self._stats_file:
+                # Get the directory name from the stats file path
+                stats_directory = os.path.dirname(self._stats_file)
+
+                # Check if the directory exists
+                if not os.path.exists(stats_directory):
+                    os.makedirs(stats_directory)
+
                 self._stats.to_csv(self._stats_file)
 
             self._strategy_returns_df = day_deduplicate(self._stats)
@@ -748,7 +760,7 @@ class _Strategy:
         polygon_has_paid_subscription=False,
         indicators_file=None,
         show_indicators=True,
-        save_logfile=True,
+        save_logfile=False,
         **kwargs,
     ):
         """Backtest a strategy.
@@ -827,8 +839,7 @@ class _Strategy:
         show_indicators : bool
             Whether to show the indicators plot.
         save_logfile : bool
-            Whether to save the logfile. Defaults to True. If False, the logfile will not be saved.
-
+            Whether to save the logfile. Defaults to False. If True, the logfile will be saved to the logs directory. Turning on this option will slow down the backtest.
 
         Returns
         -------
@@ -993,6 +1004,7 @@ class _Strategy:
             parameters=parameters,
             buy_trading_fees=buy_trading_fees,
             sell_trading_fees=sell_trading_fees,
+            save_logfile=save_logfile,
             **kwargs,
         )
         trader.add_strategy(strategy)
@@ -1149,7 +1161,7 @@ class _Strategy:
         polygon_has_paid_subscription=False,
         indicators_file=None,
         show_indicators=True,
-        save_logfile=True,
+        save_logfile=False,
         **kwargs,
     ):
         """Backtest a strategy.
@@ -1228,7 +1240,8 @@ class _Strategy:
         show_indicators : bool
             Whether to show the indicators plot.
         save_logfile : bool
-            Whether to save the logs to a file. If False, the logs will not be saved to a file. Default is True.
+            Whether to save the logs to a file. If True, the logs will be saved to the logs directory. Defaults to False.
+            Turning on this option will slow down the backtest.
 
         Returns
         -------

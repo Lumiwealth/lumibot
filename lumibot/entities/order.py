@@ -247,9 +247,9 @@ class Order:
         # Initialization default values
         self.strategy = strategy
 
-        # Check that quantity is a positive number
+        # Check that quantity is a number
         if not isinstance(quantity, (int, float, Decimal)):
-            raise ValueError("Order quantity must be a positive number")
+            raise ValueError("Order quantity must be a number")
 
         # It is possible for crypto currencies to arrive as a tuple of
         # two assets.

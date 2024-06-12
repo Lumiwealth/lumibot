@@ -364,16 +364,20 @@ class Strategy(_Strategy):
         --------
         >>> self.log_message('Sending a buy order')
         """
+
+        if broadcast:
+            # Send the message to Discord
+            self.send_discord_message(message)
+        
+        # If we are backtesting and we don't want to save the logfile, don't log (they're not displayed in the console anyway)
+        if not self.save_logfile and self.is_backtesting:
+            return
         
         if color:
             colored_message = colored(message, color)
             self.logger.info(colored_message)
         else:
             self.logger.info(message)
-
-        if broadcast:
-            # Send the message to Discord
-            self.send_discord_message(message)
 
         return message
 
@@ -1506,9 +1510,24 @@ class Strategy(_Strategy):
 
         """
 
+        # Check if order is None
         if order is None:
             self.logger.error(
                 "Cannot submit a None order, please check to make sure that you have actually created an order before submitting."
+            )
+            return
+        
+        # Check if the order is an Order object
+        if not isinstance(order, Order):
+            self.logger.error(
+                f"Order must be an Order object. You entered {order}."
+            )
+            return
+        
+        # Check if the order does not have a quantity of zero
+        if order.quantity == 0:
+            self.logger.error(
+                f"Order quantity cannot be zero. You entered {order.quantity}."
             )
             return
 

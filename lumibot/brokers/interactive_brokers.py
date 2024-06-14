@@ -1188,17 +1188,20 @@ class IBApp(IBWrapper, IBClient):
         trailing_stop="TRAIL",
     )
 
-    def __init__(self, ipaddress, portid, clientid, ib_broker=None):
+    def __init__(self, ipaddress, portid, clientid, ib_broker=None, max_connection_retries=100):
         IBWrapper.__init__(self)
         IBClient.__init__(self, wrapper=self)
         self.ib_broker = ib_broker
 
         # Ensure a connection before running
         connected = False
-        while not connected:
+        retries = 0
+
+        while (not connected) and (retries<=max_connection_retries):
             self.connect(ipaddress, portid, clientid)
             connected = self.isConnected()
-            time.sleep(0.2)
+            time.sleep(1)
+            retries+=1
 
         thread = Thread(target=self.run)
         thread.start()

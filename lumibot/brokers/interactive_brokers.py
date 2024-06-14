@@ -1192,7 +1192,13 @@ class IBApp(IBWrapper, IBClient):
         IBWrapper.__init__(self)
         IBClient.__init__(self, wrapper=self)
         self.ib_broker = ib_broker
-        self.connect(ipaddress, portid, clientid)
+
+        # Ensure a connection before running
+        connected = False
+        while not connected:
+            self.connect(ipaddress, portid, clientid)
+            connected = self.isConnected()
+            time.sleep(0.2)
 
         thread = Thread(target=self.run)
         thread.start()

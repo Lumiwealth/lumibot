@@ -69,7 +69,7 @@ def test_polygon_1D_day_stock(backtest_environment, mock_polygon_client, mock_va
         strategy = backtest_environment._strategies[0]
 
         timezone = pytz.timezone("America/New_York")
-        assert strategy.broker.datetime == timezone.localize(datetime(2024, 1, 3, 0, 0))
+        assert strategy.broker.datetime == timezone.localize(datetime(2024, 1, 3, 8, 30))
         assert len(strategy.positions) > 1, "Expected a position in SPY."
         orders = strategy.positions[1].orders
         assert len(orders) == 1
@@ -142,7 +142,7 @@ def test_polygon_1D_minute_stock(backtest_environment, mock_polygon_client, mock
         strategy = backtest_environment._strategies[0]
 
         timezone = pytz.timezone("America/New_York")
-        assert strategy.broker.datetime == timezone.localize(datetime(2024, 1, 3, 16, 0))
+        assert strategy.broker.datetime == timezone.localize(datetime(2024, 1, 3, 8, 30))
         assert len(strategy.positions) > 1, "Expected a position in SPY."
         orders = strategy.positions[1].orders
         assert len(orders) == 1
@@ -175,10 +175,10 @@ def test_polygon_1M_day_stock(backtest_environment, mock_polygon_client, mock_va
 
         timezone = pytz.timezone("America/New_York")
 
-        assert strategy.broker.datetime == timezone.localize(datetime(2024, 1, 3, 0, 0))
+        assert strategy.broker.datetime == timezone.localize(datetime(2024, 1, 3, 8, 30))
         assert len(strategy.positions) > 1, "Expected a position in SPY."
         orders = strategy.positions[1].orders
-        assert len(orders) == 1
+        assert len(orders) == 390
         assert math.isclose(orders[0].get_fill_price(), 10040.0)
 
 

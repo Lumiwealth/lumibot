@@ -6,6 +6,7 @@ from functools import wraps
 
 import pandas as pd
 
+
 from lumibot.brokers import Broker
 from lumibot.data_sources import DataSourceBacktesting
 from lumibot.entities import Asset, Order, Position, TradingFee
@@ -111,19 +112,9 @@ class BacktestingBroker(Broker):
 
     def is_market_open(self):
         """Return True if market is open else false"""
-        now = self.datetime
+        market_open, market_close = self._get_market_hours(self.datetime)
 
-        # As the index is sorted, use searchsorted to find the relevant day
-        idx = self._trading_days.index.searchsorted(now, side='right')
-
-        # The index of the trading_day is used as the market close time
-        market_close = self._trading_days.index[idx]
-
-        # Retrieve market open time using .at since idx is a valid datetime index
-        market_open = self._trading_days.at[market_close, 'market_open']
-
-        # Check if 'now' is within the trading hours of the located day
-        return market_open <= now < market_close
+        return market_open <= self.datetime < market_close
 
     def _get_next_trading_day(self):
         now = self.datetime
@@ -136,43 +127,46 @@ class BacktestingBroker(Broker):
     def get_time_to_open(self):
         """Return the remaining time for the market to open in seconds"""
         now = self.datetime
+        today = pd.Timestamp(now.date())
 
-        search = self._trading_days[now < self._trading_days.index]
-        if search.empty:
+        idx = self._trading_days.index.searchsorted(today)
+
+        if idx >= len(self._trading_days):
             logging.error("Cannot predict future")
             return 0
 
-        trading_day = search.iloc[0]
-        open_time = trading_day.market_open
-
+        market_open = self._trading_days.market_open.iloc[idx]
+        
+        #search = self._trading_days[now < self._trading_days.index]
+        
         # For Backtesting, sometimes the user can just pass in dates (i.e. 2023-08-01) and not datetimes
         # In this case the "now" variable is starting at midnight, so we need to adjust the open_time to be actual
         # market open time.  In the case where the user passes in a time inside a valid trading day, use that time
         # as the start of trading instead of market open.
-        if self.IS_BACKTESTING_BROKER and now > open_time:
-            open_time = self.data_source.datetime_start
+        if self.IS_BACKTESTING_BROKER and now > market_open:
+            market_open = self.data_source.datetime_start
 
-        if now >= open_time:
+        if now >= market_open:
             return 0
 
-        delta = open_time - now
+        delta = market_open - now
         return delta.total_seconds()
 
     def get_time_to_close(self):
         """Return the remaining time for the market to close in seconds"""
         now = self.datetime
+        today = pd.Timestamp(now.date())
         
         # Use searchsorted for efficient searching and reduce unnecessary DataFrame access
-        idx = self._trading_days.index.searchsorted(now, side='left')
+        idx = self._trading_days.index.searchsorted(today)
         
         if idx >= len(self._trading_days):
             logging.error("Cannot predict future")
             return 0
 
         # Directly access the data needed using more efficient methods
-        market_close_time = self._trading_days.index[idx]
-        market_open = self._trading_days.at[market_close_time, 'market_open']
-        market_close = market_close_time  # Assuming this is a scalar value directly from the index
+        market_open = self._trading_days.market_open.iloc[idx]
+        market_close = self._trading_days.market_close.iloc[idx]
 
         if now < market_open:
             return None
@@ -180,15 +174,32 @@ class BacktestingBroker(Broker):
         delta = market_close - now
         return delta.total_seconds()
 
-    def _await_market_to_open(self, timedelta=None, strategy=None):
+    def _get_market_hours(self, dt):
+        today = pd.Timestamp(dt.date())
+
+        idx = self._trading_days.index.searchsorted(today)
+
+        market_open = self._trading_days.market_open.iloc[idx]    
+        market_close = self._trading_days.market_close.iloc[idx]
+    
+        return [market_open, market_close]
+    
+    def _await_market_to_open(self, minutes_delta=None, strategy=None):
         # Process outstanding orders first before waiting for market to open
         # or else they don't get processed until the next day
         self.process_pending_orders(strategy=strategy)
 
-        time_to_open = self.get_time_to_open()
-        if timedelta:
-            time_to_open -= 60 * timedelta
-        self._update_datetime(time_to_open)
+        # If after market close get next day!
+        market_open, market_close = self._get_market_hours(self.datetime)
+        if self.datetime >= market_close:
+            new_datetime = self.datetime + pd.Timedelta(days=1)
+            new_datetime = new_datetime.replace(hour=0, minute=0, second=0, microsecond=0)
+            self._update_datetime(new_datetime)
+            market_open, market_close = self._get_market_hours(self.datetime)
+
+        if minutes_delta:
+            market_open -= timedelta(seconds = 60 * minutes_delta)
+        self._update_datetime(market_open)
 
     def _await_market_to_close(self, timedelta=None, strategy=None):
         #if self.data_source.SOURCE == "PANDAS" and self.data_source._timestep == "day":

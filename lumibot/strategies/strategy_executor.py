@@ -698,7 +698,7 @@ class StrategyExecutor(Thread):
 
         strategy_sleeptime = self._sleeptime_to_seconds(self.strategy.sleeptime)
 
-        if not self.should_continue or strategy_sleeptime == 0 or time_to_before_closing <= 0:
+        if not self.should_continue or strategy_sleeptime == 0 or time_to_before_closing <= 0 or time_to_before_closing < strategy_sleeptime:
             return False
         else:
             self.strategy.log_message(colored(f"Sleeping for {strategy_sleeptime} seconds", color="blue"))
@@ -738,42 +738,6 @@ class StrategyExecutor(Thread):
         # Set the time_to_close variable to infinity if the market is 24/7.
         if is_247:
             time_to_close = float("inf")
-
-        # Process pandas daily and get out.
-        if (
-            has_data_source
-            and self.broker.data_source.SOURCE == "PANDAS"
-            and self.broker.data_source._timestep == "day"
-        ):
-            if self.broker.data_source._iter_count is None:
-                # Get the first date from _date_index equal or greater than
-                # backtest start date.
-                dates = self.broker.data_source._date_index
-                self.broker.data_source._iter_count = dates.get_loc(dates[dates >= self.broker.datetime][0])
-            else:
-                self.broker.data_source._iter_count += 1
-
-            dt = self.broker.data_source._date_index[self.broker.data_source._iter_count]
-
-            self.broker._update_datetime(dt, cash=self.strategy.cash, portfolio_value=self.strategy.portfolio_value)
-
-            # Check if we should continue
-            broker_continue = self.broker.should_continue()
-            if not broker_continue:
-                return
-
-            if self.strategy.is_market_day():
-                self.strategy.await_market_to_open(timedelta=0)
-                self.strategy._update_cash_with_dividends()
-                self._on_trading_iteration()
-
-                if self.broker.IS_BACKTESTING_BROKER:
-                    self.broker.process_pending_orders(strategy=self.strategy)
-            
-                self.strategy.await_market_to_close()
-                self._before_market_closes()
-
-            return
 
         if not is_247:
             # Set date to the start date, but account for minutes_before_opening
@@ -896,6 +860,10 @@ class StrategyExecutor(Thread):
         self.strategy.await_market_to_close(timedelta=0)
         self._after_market_closes()
 
+        if self.strategy.is_backtesting and not is_247:
+            self.strategy.await_market_to_open()
+            
+
     def get_next_ap_scheduler_run_time(self):
         # Check if scheduler object exists.
         if self.scheduler is None or not isinstance(self.scheduler, BackgroundScheduler):
@@ -928,10 +896,10 @@ class StrategyExecutor(Thread):
         self.broker._trading_days = get_trading_days(market)
 
         # Sort the trading days by market close time so that we can search them faster
-        self.broker._trading_days.sort_values('market_close', inplace=True)  # Ensure sorted order
+        #self.broker._trading_days.sort_values('market_close', inplace=True)  # Ensure sorted order
         
         # Set DataFrame index to market_close for fast lookups
-        self.broker._trading_days.set_index('market_close', inplace=True)
+        #self.broker._trading_days.set_index('market_close', inplace=True)
 
         #####
         # The main loop for running any strategy

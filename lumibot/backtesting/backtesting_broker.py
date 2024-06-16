@@ -3,7 +3,7 @@ import traceback
 from datetime import timedelta
 from decimal import Decimal
 from functools import wraps
-
+from lumibot import LUMIBOT_DEFAULT_TIMEZONE
 import pandas as pd
 
 
@@ -113,7 +113,10 @@ class BacktestingBroker(Broker):
     def is_market_open(self):
         """Return True if market is open else false"""
         market_open, market_close = self._get_market_hours(self.datetime)
-
+        
+        if market_open is None:
+            return False
+        
         return market_open <= self.datetime < market_close
 
     def _get_next_trading_day(self):
@@ -177,7 +180,12 @@ class BacktestingBroker(Broker):
     def _get_market_hours(self, dt):
         today = pd.Timestamp(dt.date())
 
-        idx = self._trading_days.index.searchsorted(today)
+        try:
+            idx = self._trading_days.index.get_loc(today)
+        except KeyError:
+            return [None, None]
+        
+        idx = self._trading_days.index.get_loc(today)
 
         market_open = self._trading_days.market_open.iloc[idx]    
         market_close = self._trading_days.market_close.iloc[idx]
@@ -188,14 +196,23 @@ class BacktestingBroker(Broker):
         # Process outstanding orders first before waiting for market to open
         # or else they don't get processed until the next day
         self.process_pending_orders(strategy=strategy)
-
-        # If after market close get next day!
+        
+        is_market_closed = False
         market_open, market_close = self._get_market_hours(self.datetime)
-        if self.datetime >= market_close:
-            new_datetime = self.datetime + pd.Timedelta(days=1)
-            new_datetime = new_datetime.replace(hour=0, minute=0, second=0, microsecond=0)
-            self._update_datetime(new_datetime)
+        
+        if market_open is None:
+            is_market_closed = True
+        elif self.datetime >= market_close:
+            is_market_closed = True
+
+        # If market closed get next day!
+        while is_market_closed:
+            today = pd.Timestamp(self.datetime.date())
+            tomorrow = (today + timedelta(days=1)).tz_localize(LUMIBOT_DEFAULT_TIMEZONE)
+            self._update_datetime(tomorrow)
             market_open, market_close = self._get_market_hours(self.datetime)
+            if market_open:
+                is_market_closed = False
 
         if minutes_delta:
             market_open -= timedelta(seconds = 60 * minutes_delta)

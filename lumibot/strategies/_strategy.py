@@ -28,7 +28,10 @@ class CustomLoggerAdapter(logging.LoggerAdapter):
         self.prefix = f'[{self.extra["strategy_name"]}] '
 
     def process(self, msg, kwargs):
-        return self.prefix + msg, kwargs
+        try:
+            return self.prefix + msg, kwargs
+        except Exception as e:
+            return msg, kwargs
 
 class _Strategy:
     IS_BACKTESTABLE = True
@@ -662,8 +665,21 @@ class _Strategy:
 
             # If we are using any other data source, then get the benchmark returns from yahoo
             else:
+                benchmark_asset = self._benchmark_asset
+
+                # If the benchmark asset is a string, then just use the string as the symbol
+                if isinstance(benchmark_asset, str):
+                    benchmark_symbol = benchmark_asset
+                # If the benchmark asset is an Asset object, then use the symbol of the asset
+                elif isinstance(benchmark_asset, Asset):
+                    benchmark_symbol = benchmark_asset.symbol
+                # If the benchmark asset is a tuple, then use the symbols of the assets in the tuple
+                elif isinstance(benchmark_asset, tuple):
+                    benchmark_symbol = f"{benchmark_asset[0].symbol}/{benchmark_asset[1].symbol}"
+                
+
                 self._benchmark_returns_df = get_symbol_returns(
-                    self._benchmark_asset,
+                    benchmark_symbol,
                     self._backtesting_start,
                     backtesting_end_adjusted,
                 )

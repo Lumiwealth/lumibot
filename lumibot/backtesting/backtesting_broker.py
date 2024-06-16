@@ -116,6 +116,11 @@ class BacktestingBroker(Broker):
         # As the index is sorted, use searchsorted to find the relevant day
         idx = self._trading_days.index.searchsorted(now, side='right')
 
+        # Check that the index is not out of bounds
+        if idx >= len(self._trading_days):
+            logging.error("Cannot predict future")
+            return False
+
         # The index of the trading_day is used as the market close time
         market_close = self._trading_days.index[idx]
 

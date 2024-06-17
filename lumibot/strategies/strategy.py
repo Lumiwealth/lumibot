@@ -4175,11 +4175,14 @@ class Strategy(_Strategy):
         # Convert the datetime column to a datetime
         stats_df["datetime"] = pd.to_datetime(stats_df["datetime"])  # , utc=True)
 
-        # Convert the datetime column to UTC without converting the time data
-        stats_df["datetime"] = stats_df["datetime"].dt.tz_convert(None)
-
-        # Explicitly set the time zone to New York without converting the time data
-        stats_df["datetime"] = stats_df["datetime"].dt.tz_localize("America/New_York", ambiguous="infer")
+        # Check if the datetime column is timezone-aware
+        if stats_df['datetime'].dt.tz is None:
+            # If the datetime is timezone-naive, directly localize it to "America/New_York"
+            stats_df["datetime"] = stats_df["datetime"].dt.tz_localize("America/New_York", ambiguous='infer')
+        else:
+            # If the datetime is already timezone-aware, first remove timezone and then localize
+            stats_df["datetime"] = stats_df["datetime"].dt.tz_localize(None)
+            stats_df["datetime"] = stats_df["datetime"].dt.tz_localize("America/New_York", ambiguous='infer')
 
         # Get the stats
         stats_new = pd.DataFrame(

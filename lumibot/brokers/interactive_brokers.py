@@ -24,7 +24,7 @@ class InteractiveBrokers(Broker):
     """Inherit InteractiveBrokerData first and all the price market
     methods than inherits broker"""
 
-    def __init__(self, config, max_workers=20, chunk_size=100, data_source=None, **kwargs):
+    def __init__(self, config, max_workers=20, chunk_size=100, data_source=None, max_connection_retries=0, **kwargs):
         if data_source is None:
             data_source = InteractiveBrokersData(config, max_workers=max_workers, chunk_size=chunk_size)
 
@@ -49,12 +49,12 @@ class InteractiveBrokers(Broker):
             socket_port = config.SOCKET_PORT
             client_id = config.CLIENT_ID
 
-        self.start_ib(ip, socket_port, client_id)
+        self.start_ib(ip, socket_port, client_id, max_connection_retries)
 
-    def start_ib(self, ip, socket_port, client_id):
+    def start_ib(self, ip, socket_port, client_id, max_connection_retries):
         # Connect to interactive brokers.
         if not self.ib:
-            self.ib = IBApp(ip, socket_port, client_id, ib_broker=self)
+            self.ib = IBApp(ip, socket_port, client_id, ib_broker=self, max_connection_retries=max_connection_retries)
 
         if isinstance(self.data_source, InteractiveBrokersData):
             if not self.data_source.ib:
@@ -1188,11 +1188,21 @@ class IBApp(IBWrapper, IBClient):
         trailing_stop="TRAIL",
     )
 
-    def __init__(self, ipaddress, portid, clientid, ib_broker=None):
+    def __init__(self, ipaddress, portid, clientid, ib_broker=None, max_connection_retries=0):
         IBWrapper.__init__(self)
         IBClient.__init__(self, wrapper=self)
         self.ib_broker = ib_broker
-        self.connect(ipaddress, portid, clientid)
+
+        # Ensure a connection before running
+        connected = False
+        retries = 0
+
+        while (not connected) and (retries<=max_connection_retries):
+            self.connect(ipaddress, portid, clientid)
+            connected = self.isConnected()
+            if not connected:
+                time.sleep(2)
+            retries+=1
 
         thread = Thread(target=self.run)
         thread.start()

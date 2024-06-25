@@ -921,6 +921,17 @@ class Strategy(_Strategy):
 
         self.broker.market = market
 
+    def is_market_day(self):
+        """
+        Determine if the current day is a market day.
+
+        Returns
+        -------
+        bool
+            True if today is a market day, otherwise False.
+        """
+        return self.broker.is_market_day()
+
     def await_market_to_open(self, timedelta=None):
         """Executes infinite loop until market opens
 
@@ -2988,7 +2999,7 @@ class Strategy(_Strategy):
         self,
         asset: Union[Asset, str],
         length: int,
-        timestep: str = "",
+        timestep: str = None,
         timeshift: datetime.timedelta = None,
         quote: Asset = None,
         exchange: str = None,
@@ -3085,8 +3096,7 @@ class Strategy(_Strategy):
         asset = self._sanitize_user_asset(asset)
 
         asset = self.crypto_assets_to_tuple(asset, quote)
-        if not timestep:
-            timestep = self.broker.data_source.MIN_TIMESTEP
+        
         return self.broker.data_source.get_historical_prices(
             asset,
             length,

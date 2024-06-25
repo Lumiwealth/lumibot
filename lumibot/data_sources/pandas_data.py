@@ -19,7 +19,7 @@ class PandasData(DataSourceBacktesting):
         {"timestep": "minute", "representations": ["1M", "minute"]},
     ]
 
-    def __init__(self, *args, pandas_data=None, auto_adjust=True, **kwargs):
+    def __init__(self, *args, pandas_data=None, auto_adjust=True, timestep="minute", **kwargs):
         super().__init__(*args, **kwargs)
         self.name = "pandas"
         self.pandas_data = self._set_pandas_data_keys(pandas_data)
@@ -27,7 +27,7 @@ class PandasData(DataSourceBacktesting):
         self._data_store = self.pandas_data
         self._date_index = None
         self._date_supply = None
-        self._timestep = "minute"
+        self._timestep = timestep
 
     @staticmethod
     def _set_pandas_data_keys(pandas_data):
@@ -158,9 +158,16 @@ class PandasData(DataSourceBacktesting):
                 dt_index = dt_index.join(data.df.index, how="outer")
 
         if dt_index is None:
-            # Build a dummy index
-            freq = "1min" if self._timestep == "minute" else "1D"
-            dt_index = pd.date_range(start=self.datetime_start, end=self.datetime_end, freq=freq)
+            # Determine the frequency and adjust the end date accordingly
+            if self._timestep == "minute":
+                freq = "1min"
+                adjusted_end = self.datetime_end
+            else:  # Assumes the only other option is daily
+                freq = "1D"
+                adjusted_end = self.datetime_end + pd.Timedelta(days=1)
+
+            # Generate date range with the determined frequency and adjusted end date
+            dt_index = pd.date_range(start=self.datetime_start, end=adjusted_end, freq=freq)
 
         else:
             if self.datetime_end < dt_index[0]:

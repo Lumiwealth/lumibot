@@ -115,8 +115,8 @@ def get_price_data_from_polygon(
     force_cache_update = validate_cache(force_cache_update, asset, cache_file, api_key, has_paid_subscription)
 
     df_all = None
-    # Load from the cache file if it exists.  
-    if cache_file.exists() and not force_cache_update:
+    # Load from the cache file if it exists and not a forced cache updated needed
+    if should_load_from_cache(cache_file, force_cache_update):
         logging.debug(f"Loading pricing data for {asset} / {quote_asset} with '{timespan}' timespan from cache file...")
         df_all = load_cache(cache_file)
 
@@ -144,7 +144,7 @@ def get_price_data_from_polygon(
     # Initialize tqdm progress bar
     total_days = (missing_dates[-1] - missing_dates[0]).days + 1
     total_queries = (total_days // MAX_POLYGON_DAYS) + 1
-    description = f"\nDownloading data for {asset} / {quote_asset} '{timespan}' from Polygon..."
+    description = f"\nDownloading data for {asset} / {quote_asset} '{timespan}' from Polygon [{poly_start}:{poly_end}]"
     pbar = tqdm(total=total_queries, desc=description, dynamic_ncols=True)
 
     # Polygon only returns 50k results per query (~30days of 24hr 1min-candles) so we need to break up the query into
@@ -416,7 +416,7 @@ def load_cache(cache_file):
     # Check if the index is already timezone aware
     if df_feather.index.tzinfo is None:
         # Set the timezone to UTC
-        df_feather.index = df_feather.index.tz_localize("UTC")
+        df_feather.index = df_feather.index.tz_localize('UTC')
 
     return df_feather
 
@@ -495,7 +495,7 @@ def update_polygon_data(df_all, result):
         df = df.set_index("datetime").sort_index()
 
         # Set the timezone to UTC
-        df.index = df.index.tz_localize("UTC")
+        df.index = df.index.tz_localize('UTC')
 
         if df_all is None or df_all.empty:
             df_all = df
@@ -504,6 +504,10 @@ def update_polygon_data(df_all, result):
             df_all = df_all[~df_all.index.duplicated(keep="first")]  # Remove any duplicate rows
 
     return df_all
+
+def should_load_from_cache(cache_file, force_cache_update):
+    return cache_file.exists() and not force_cache_update
+
 
 class PolygonClient(RESTClient):
     ''' Rate Limited RESTClient with factory method '''

@@ -31,10 +31,14 @@ class PolygonDataBacktesting(PandasData):
         pandas_data=None,
         api_key=None,
         has_paid_subscription=False,
+        timestep='minute',
         **kwargs,
     ):
+        # This should be better in Data class
+        timestep = self._parse_source_timestep(timestep)
+        
         super().__init__(
-            datetime_start=datetime_start, datetime_end=datetime_end, pandas_data=pandas_data, api_key=api_key, **kwargs
+            datetime_start=datetime_start, datetime_end=datetime_end, timestep=timestep, pandas_data=pandas_data, api_key=api_key, **kwargs
         )
         self.has_paid_subscription = has_paid_subscription
 
@@ -209,6 +213,7 @@ class PolygonDataBacktesting(PandasData):
         exchange: str = None,
         include_after_hours: bool = True,
     ):
+        
         # Get the current datetime and calculate the start datetime
         current_dt = self.get_datetime()
 
@@ -242,7 +247,8 @@ class PolygonDataBacktesting(PandasData):
         bars = self._parse_source_symbol_bars(response, asset, quote=quote)
         return bars
 
-    def get_last_price(self, asset, timestep="minute", quote=None, exchange=None, **kwargs):
+    def get_last_price(self, asset, timestep=None, quote=None, exchange=None, **kwargs):
+        timestep = timestep or self.get_timestep()
         try:
             dt = self.get_datetime()
             self._update_pandas_data(asset, quote, 1, timestep, dt)

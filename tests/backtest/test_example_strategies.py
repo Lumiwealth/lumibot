@@ -211,6 +211,9 @@ class TestExampleStrategies:
         assert round(results["total_return"] * 100, 1) >= 0.7
         assert round(results["max_drawdown"]["drawdown"] * 100, 1) <= 0.2
 
+        assert not strat_obj._stats.index.strftime('%Y-%m-%d').str.contains('-03-0[45]').any(), \
+        "_stats dataframe contains holidays rows on March 4th or 5th (2023), which shouldn't have been found."
+
     def test_options_hold_to_expiry(self):
         """
         Test the example strategy OptionsHoldToExpiry by running a backtest and checking that the strategy object is

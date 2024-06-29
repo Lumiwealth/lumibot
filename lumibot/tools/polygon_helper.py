@@ -165,7 +165,11 @@ def get_price_data_from_polygon(
             )
         except MaxRetryError:
             # Check if the error is due to a rate limit
-            logging.error("Polygon rate limit reached. Sleeping for 1 minute before trying again. If you want to avoid this, consider a paid subscription with Polygon at https://polygon.io/?utm_source=affiliate&utm_campaign=lumi10 (please use the full link to give us credit for the sale, it helps support this project). You can use the coupon code 'LUMI10' for 10% off.")
+            colored_message = colored(
+                "Polygon rate limit reached. Sleeping for 1 minute before trying again. If you want to avoid this, consider a paid subscription with Polygon at https://polygon.io/?utm_source=affiliate&utm_campaign=lumi10 Please use the full link to give us credit for the sale, it helps support this project. You can use the coupon code 'LUMI10' for 10% off.",
+                "red",
+            )
+            logging.error(colored_message)
             time.sleep(60)
             continue
 

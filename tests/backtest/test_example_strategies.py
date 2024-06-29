@@ -42,7 +42,6 @@ class TestExampleStrategies:
             show_tearsheet=False,
             save_tearsheet=False,
             polygon_api_key=POLYGON_API_KEY,
-            polygon_has_paid_subscription=POLYGON_IS_PAID_SUBSCRIPTION
         )
         assert results
         assert isinstance(strat_obj, StockBracket)
@@ -230,7 +229,6 @@ class TestExampleStrategies:
             show_tearsheet=False,
             save_tearsheet=False,
             polygon_api_key=POLYGON_API_KEY,
-            polygon_has_paid_subscription=True,
         )
 
         trades_df = strat_obj.broker._trade_event_log_df

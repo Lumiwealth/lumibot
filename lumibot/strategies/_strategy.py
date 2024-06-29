@@ -1,6 +1,6 @@
 import datetime
 import logging
-import warnings
+from termcolor import colored
 from asyncio.log import logger
 from decimal import Decimal
 import os
@@ -773,7 +773,7 @@ class _Strategy:
         sell_trading_fees=[],
         api_key=None,
         polygon_api_key=None,
-        polygon_has_paid_subscription=False,
+        polygon_has_paid_subscription=None, # Depricated, this is now automatic. Remove in future versions.
         indicators_file=None,
         show_indicators=True,
         save_logfile=False,
@@ -847,9 +847,6 @@ class _Strategy:
         polygon_api_key: str
             The polygon api key to use for polygon data. Only required if you are using PolygonDataBacktesting as
             the datasource_class. Deprecated, please use 'api_key' instead.
-        polygon_has_paid_subscription : bool
-            Whether you have a paid subscription to Polygon. Only required if you are using
-            PolygonDataBacktesting as the datasource_class.
         indicators_file : str
             The file to write the indicators to.
         show_indicators : bool
@@ -951,6 +948,17 @@ class _Strategy:
         if stats_file is None:
             stats_file = f"{logdir}/{basename}_stats.csv"
 
+        # Check if polygon_has_paid_subscription is set (it is deprecated and will be removed in the future)
+        if polygon_has_paid_subscription is not None:
+            colored_warning = colored("The parameter `polygon_has_paid_subscription` is deprecated and will be removed in the future. "
+                                      "This parameter is no longer needed as the PolygonDataBacktesting class will automatically check "
+                                      "if you have a paid subscription to Polygon."
+                                      "Also, we have partnered with Polygon to provide you a discount on their paid subscription. "
+                                      "You can get an API key at https://polygon.io/?utm_source=affiliate&utm_campaign=lumi10 "
+                                      "Please use the full link to give us credit for the sale, it helps support this project. "
+                                      "You can use the coupon code 'LUMI10' for 10% off your subscription. ", "yellow")
+            logging.warning(colored_warning)
+
         # #############################################
         # Check the data types of the parameters
         # #############################################
@@ -995,8 +1003,6 @@ class _Strategy:
             pandas_data=pandas_data,
             **kwargs,
         )
-        if hasattr(data_source, "has_paid_subscription"):
-            data_source.has_paid_subscription = polygon_has_paid_subscription
 
         # if hasattr(data_source, 'pandas_data'):
         #     data_source.pandas_data = pandas_data
@@ -1174,7 +1180,7 @@ class _Strategy:
         sell_trading_fees=[],
         api_key=None,
         polygon_api_key=None,
-        polygon_has_paid_subscription=False,
+        polygon_has_paid_subscription=None, # Depricated, this is now automatic. Remove in future versions.
         indicators_file=None,
         show_indicators=True,
         save_logfile=False,
@@ -1248,9 +1254,6 @@ class _Strategy:
         polygon_api_key : str
             The polygon api key to use for polygon data. Only required if you are using PolygonDataBacktesting as
             the datasource_class. Depricated, please use 'api_key' instead.
-        polygon_has_paid_subscription : bool
-            Whether you have a paid subscription to Polygon. Only required if you are using
-            PolygonDataBacktesting as the datasource_class.
         indicators_file : str
             The file to write the indicators to.
         show_indicators : bool

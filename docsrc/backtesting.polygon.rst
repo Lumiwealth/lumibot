@@ -1,9 +1,9 @@
 Polygon.io Backtesting
 ===================================
 
-**NOTE: Please ensure you have installed the latest lumibot version using ``pip install lumibot --upgrade`` before proceeding as there have been some major changes to the backtesting module in the latest version.**
-
-**You can get an API key at https://polygon.io/?utm_source=affiliate&utm_campaign=lumi10 Please use the full link to give us credit for the sale, it helps support this project. You can use the coupon code 'LUMI10' for 10% off.**
+.. important::
+   
+   **You can get an API key at** `Polygon.io <https://polygon.io/?utm_source=affiliate&utm_campaign=lumi10>`_. **Please use the full link to give us credit for the sale (https://polygon.io/?utm_source=affiliate&utm_campaign=lumi10), it helps support this project. You can use the coupon code 'LUMI10' for 10% off.**
 
 Polygon.io backtester allows for flexible and robust backtesting. It uses the polygon.io API to fetch pricing data for stocks, options, forex, and cryptocurrencies. This backtester simplifies the process of getting pricing data; simply use the PolygonDataSource and it will automatically fetch pricing data when you call `get_last_price()` or `get_historical_prices()`.
 
@@ -117,6 +117,8 @@ Here's the full code:
         trader.add_strategy(my_strat)
         trader.run_all()
 
-**You can get an API key at https://polygon.io/?utm_source=affiliate&utm_campaign=lumi10 Please use the full link to give us credit for the sale, it helps support this project. You can use the coupon code 'LUMI10' for 10% off.**
+.. important::
+   
+   **You can get an API key at** `Polygon.io <https://polygon.io/?utm_source=affiliate&utm_campaign=lumi10>`_. **Please use the full link to give us credit for the sale (https://polygon.io/?utm_source=affiliate&utm_campaign=lumi10), it helps support this project. You can use the coupon code 'LUMI10' for 10% off.**
 
 In summary, the polygon.io backtester is a powerful tool for fetching pricing data for backtesting various strategies. With its capability to cache data for faster subsequent backtesting and its easy integration with polygon.io API, it is a versatile choice for any backtesting needs.

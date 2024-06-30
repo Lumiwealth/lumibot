@@ -91,5 +91,4 @@ if __name__ == "__main__":
             backtesting_end,
             benchmark_asset="SPY",
             polygon_api_key="YOUR_POLYGON_API_KEY_HERE",  # Add your polygon API key here
-            polygon_has_paid_subscription=False,
         )

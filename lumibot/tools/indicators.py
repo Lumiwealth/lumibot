@@ -335,6 +335,12 @@ def plot_indicators(
         # Create graph
         fig.write_html(plot_file_html, auto_open=show_indicators)
 
+        # Get the file name for the CSV file by removing the .html extension and adding .csv
+        csv_file = plot_file_html.replace(".html", ".csv")
+
+        # Export chart markers and lines to CSV
+        chart_markers_df.to_csv(csv_file, mode="a")
+
 
 def plot_returns(
     strategy_df,

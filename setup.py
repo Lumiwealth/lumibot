@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="lumibot",
-    version="3.4.1",
+    version="3.5.9",
     author="Robert Grzesik",
     author_email="rob@lumiwealth.com",
     description="Backtesting and Trading Library, Made by Lumiwealth",
@@ -27,6 +27,7 @@ setuptools.setup(
         "pandas_market_calendars>=4.3.1",
         "plotly>=5.18.0",
         "flask>=2.2.2",
+        "sqlalchemy",
         "flask-socketio",
         "flask-sqlalchemy",
         "flask-marshmallow",
@@ -37,9 +38,9 @@ setuptools.setup(
         "pytest",
         "scipy>=1.13.0",
         "ipython",  # required for quantstats, but not in their dependency list for some reason
-        "quantstats-lumi>=0.2.0",
+        "quantstats-lumi>=0.3.1",
         "python-dotenv",  # Secret Storage
-        "ccxt==4.2.85",
+        "ccxt>=4.2.85",
         "termcolor",
         "jsonpickle",
         "apscheduler==3.10.4",

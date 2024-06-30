@@ -59,8 +59,8 @@ class Alpaca(Broker):
     ...     "API_KEY": "YOUR_API_KEY",
     ...     # Put your own Alpaca secret here:
     ...     "API_SECRET": "YOUR_API_SECRET",
-    ...     # If you want to go live, you must change this
-    ...     "ENDPOINT": "https://paper-api.alpaca.markets",
+    ...     # Set this to False to use a live account
+    ...     "PAPER": True
     ... }
     >>> alpaca = Alpaca(ALPACA_CONFIG)
     >>> print(alpaca.get_time_to_open())
@@ -77,8 +77,8 @@ class Alpaca(Broker):
     ...     "API_KEY": "YOUR_API_KEY",
     ...     # Put your own Alpaca secret here:
     ...     "API_SECRET": "YOUR_API_SECRET",
-    ...     # If you want to go live, you must change this
-    ...     "ENDPOINT": "https://paper-api.alpaca.markets",
+    ...     # Set this to False to use a live account
+    ...     "PAPER": True
     ... }
     >>>
     >>> class AlpacaStrategy(Strategy):

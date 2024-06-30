@@ -1,5 +1,16 @@
 name: LumiBot CI/CD
 on: [pull_request]
+# permissions:
+#   # Gives the action the necessary permissions for publishing new
+#   # comments in pull requests.
+#   pull-requests: write
+#   # Gives the action the necessary permissions for editing existing
+#   # comments (to avoid publishing multiple comments in the same PR)
+#   contents: write
+#   # Gives the action the necessary permissions for looking up the
+#   # workflow that launched this workflow, and download the related
+#   # artifact that contains the comment to be published
+#   actions: read
 jobs:
   LintAndTest:
     runs-on: ubuntu-latest
@@ -8,6 +19,7 @@ jobs:
     env: 
       AIOHTTP_NO_EXTENSIONS: 1
       POLYGON_API_KEY: ${{secrets.POLYGON_API_KEY}}  # Required for Polygon API BackTests
+      POLYGON_IS_PAID_SUBSCRIPTION: $POLYGON_IS_PAID_SUBSCRIPTION
     steps:
       - uses: actions/checkout@v3
       - name: Set up Python 3.11
@@ -32,6 +44,12 @@ jobs:
           coverage run
           coverage report
           coverage html
-      - name: Python Coverage Comment
-          uses: py-cov-action/python-coverage-comment-action@v3.23
+      #     coverage xml -o coverage.xml 
+      # - name: Verify Coverage File
+      #   run: ls -l coverage.xml
+      # - name: Python Coverage Comment
+      #   uses: py-cov-action/python-coverage-comment-action@v3.23
+      #   with:
+      #     GITHUB_TOKEN: ${{ github.token }}
+      #     coverage_path: coverage.xml
             

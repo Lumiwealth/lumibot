@@ -3,6 +3,8 @@ import logging
 import time
 from datetime import date, datetime, timedelta
 from pathlib import Path
+import os
+from urllib3.exceptions import MaxRetryError
 
 import pandas as pd
 import pandas_market_calendars as mcal
@@ -17,10 +19,49 @@ from lumibot import LUMIBOT_CACHE_FOLDER
 from lumibot.entities import Asset
 from lumibot import LUMIBOT_DEFAULT_PYTZ
 
-WAIT_TIME = 60
-POLYGON_QUERY_COUNT = 0  # This is a variable that updates every time we query Polygon
 MAX_POLYGON_DAYS = 30
 
+# Define a cache dictionary to store schedules and a global dictionary for buffered schedules
+schedule_cache = {}
+buffered_schedules = {}
+
+def get_cached_schedule(cal, start_date, end_date, buffer_days=30):
+    """
+    Fetch schedule with a buffer at the end. This is done to reduce the number of calls to the calendar API (which is slow).
+    """
+    global buffered_schedules
+
+    buffer_end = end_date + timedelta(days=buffer_days)
+    cache_key = (cal.name, start_date, end_date)
+    
+    # Check if the required range is in the schedule cache
+    if cache_key in schedule_cache:
+        return schedule_cache[cache_key]
+    
+    # Convert start_date and end_date to pd.Timestamp for comparison
+    start_timestamp = pd.Timestamp(start_date)
+    end_timestamp = pd.Timestamp(end_date)
+    
+    # Check if we have the buffered schedule for this calendar
+    if cal.name in buffered_schedules:
+        buffered_schedule = buffered_schedules[cal.name]
+        # Check if the current buffered schedule covers the required range
+        if buffered_schedule.index.min() <= start_timestamp and buffered_schedule.index.max() >= end_timestamp:
+            filtered_schedule = buffered_schedule[(buffered_schedule.index >= start_timestamp) & (buffered_schedule.index <= end_timestamp)]
+            schedule_cache[cache_key] = filtered_schedule
+            return filtered_schedule
+    
+    # Fetch and cache the new buffered schedule
+    buffered_schedule = cal.schedule(start_date=start_date, end_date=buffer_end)
+    buffered_schedules[cal.name] = buffered_schedule  # Store the buffered schedule for this calendar
+    
+    # Filter the schedule to only include the requested date range
+    filtered_schedule = buffered_schedule[(buffered_schedule.index >= start_timestamp) & (buffered_schedule.index <= end_timestamp)]
+    
+    # Cache the filtered schedule for quick lookup
+    schedule_cache[cache_key] = filtered_schedule
+    
+    return filtered_schedule
 
 def get_price_data_from_polygon(
     api_key: str,
@@ -28,7 +69,6 @@ def get_price_data_from_polygon(
     start: datetime,
     end: datetime,
     timespan: str = "minute",
-    has_paid_subscription: bool = False,
     quote_asset: Asset = None,
     force_cache_update: bool = False,
 ):
@@ -56,9 +96,6 @@ def get_price_data_from_polygon(
     timespan : str
         The timespan for the data we want. Default is "minute" but can also be "second", "hour", "day", "week",
         "month", "quarter"
-    has_paid_subscription : bool
-        Set to True if you have a paid subscription to Polygon.io. This will prevent the script from waiting 1 minute
-        between requests to avoid hitting the rate limit.
     quote_asset : Asset
         The quote asset for the asset we are getting data for. This is only needed for Forex assets.
 
@@ -68,13 +105,12 @@ def get_price_data_from_polygon(
         A DataFrame with the pricing data for the asset
 
     """
-    global POLYGON_QUERY_COUNT  # Track if we need to wait between requests
 
     # Check if we already have data for this asset in the feather file
     cache_file = build_cache_filename(asset, timespan)
     # Check whether it might be stale because of splits.
     force_cache_update = validate_cache(force_cache_update, asset, cache_file, api_key)
-
+    
     df_all = None
     # Load from the cache file if it exists.  
     if cache_file.exists() and not force_cache_update:
@@ -84,7 +120,7 @@ def get_price_data_from_polygon(
     # Check if we need to get more data
     missing_dates = get_missing_dates(df_all, asset, start, end)
     if not missing_dates:
-        # TODO: Do this upstream so we don't called repeatedly for known-to-be-missing bars.
+        # TODO: Do this upstream so we don't repeatedly call for known-to-be-missing bars.
         # Drop the rows with all NaN values that were added to the feather for symbols that have missing bars.
         df_all.dropna(how="all", inplace=True)
         return df_all
@@ -93,7 +129,7 @@ def get_price_data_from_polygon(
 
     # RESTClient connection for Polygon Stock-Equity API; traded_asset is standard
     # Add "trace=True" to see the API calls printed to the console for debugging
-    polygon_client = RESTClient(api_key)
+    polygon_client = PolygonClient.create(api_key=api_key)
     symbol = get_polygon_symbol(asset, polygon_client, quote_asset)  # Will do a Polygon query for option contracts
 
     # To reduce calls to Polygon, we call on full date ranges instead of including hours/minutes
@@ -112,34 +148,30 @@ def get_price_data_from_polygon(
     # multiple queries if we are requesting more than 30 days of data
     delta = timedelta(days=MAX_POLYGON_DAYS)
     while poly_start <= missing_dates[-1]:
-        # If we don't have a paid subscription, we need to wait 1 minute between requests because of
-        # the rate limit. Wait every other query so that we don't spend too much time waiting.
-        if not has_paid_subscription and POLYGON_QUERY_COUNT % 3 == 0:
-            print(
-                f"\nSleeping {WAIT_TIME} seconds while price data for {asset} from Polygon because "
-                f"we don't want to hit the rate limit. IT IS NORMAL FOR THIS TEXT TO SHOW UP SEVERAL TIMES "
-                "and IT MAY TAKE UP TO 10 MINUTES PER ASSET while we download all the data from Polygon. The next "
-                "time you run this it should be faster because the data will be cached to your machine. \n"
-                "If you want this to go faster, you can get a paid Polygon subscription at https://polygon.io/pricing "
-                f"and set `polygon_has_paid_subscription=True` when starting the backtest.\n"
-            )
-            time.sleep(WAIT_TIME)
-
         if poly_end > poly_start + delta:
             poly_end = poly_start + delta
 
-        POLYGON_QUERY_COUNT += 1
-        result = polygon_client.get_aggs(
-            ticker=symbol,
-            from_=poly_start,  # polygon-api-client docs say 'from' but that is a reserved word in python
-            to=poly_end,
-            # In Polygon, multiplier is the number of "timespans" in each candle, so if you want 5min candles
-            # returned you would set multiplier=5 and timespan="minute". This is very different from the
-            # asset.multiplier setting for option contracts.
-            multiplier=1,
-            timespan=timespan,
-            limit=50000,  # Max limit for Polygon
-        )
+        try:
+            result = polygon_client.get_aggs(
+                ticker=symbol,
+                from_=poly_start,  # polygon-api-client docs say 'from' but that is a reserved word in python
+                to=poly_end,
+                # In Polygon, multiplier is the number of "timespans" in each candle, so if you want 5min candles
+                # returned you would set multiplier=5 and timespan="minute". This is very different from the
+                # asset.multiplier setting for option contracts.
+                multiplier=1,
+                timespan=timespan,
+                limit=50000,  # Max limit for Polygon
+            )
+        except MaxRetryError:
+            # Check if the error is due to a rate limit
+            colored_message = colored(
+                "Polygon rate limit reached. Sleeping for 1 minute before trying again. If you want to avoid this, consider a paid subscription with Polygon at https://polygon.io/?utm_source=affiliate&utm_campaign=lumi10 Please use the full link to give us credit for the sale, it helps support this project. You can use the coupon code 'LUMI10' for 10% off.",
+                "red",
+            )
+            logging.error(colored_message)
+            time.sleep(60)
+            continue
 
         # Update progress bar after each query
         pbar.update(1)
@@ -164,7 +196,6 @@ def get_price_data_from_polygon(
 
     return df_all
 
-
 def validate_cache(force_cache_update: bool, asset: Asset, cache_file: Path, api_key: str):
     """
     If the list of splits for a stock have changed then we need to invalidate its cache
@@ -183,7 +214,7 @@ def validate_cache(force_cache_update: bool, asset: Asset, cache_file: Path, api
         if splits_file_stale:
             cached_splits = pd.read_feather(splits_file_path)
     if splits_file_stale or force_cache_update:
-        polygon_client = RESTClient(api_key)
+        polygon_client = PolygonClient.create(api_key=api_key)
         # Need to get the splits in execution order to make the list comparable across invocations.
         splits = polygon_client.list_splits(ticker=asset.symbol, sort="execution_date", order="asc")
         if isinstance(splits, Iterator):
@@ -242,7 +273,7 @@ def get_trading_dates(asset: Asset, start: datetime, end: datetime):
         raise ValueError(f"Unsupported asset type for polygon: {asset.asset_type}")
 
     # Get the trading days between the start and end dates
-    df = cal.schedule(start_date=start.date(), end_date=end.date())
+    df = get_cached_schedule(cal, start.date(), end.date())
     trading_days = df.index.date.tolist()
     return trading_days
 
@@ -365,7 +396,7 @@ def get_missing_dates(df_all, asset, start, end):
     if asset.asset_type == "option":
         trading_dates = [x for x in trading_dates if x <= asset.expiration]
 
-    if df_all is None or not len(df_all):
+    if df_all is None or not len(df_all) or df_all.empty:
         return trading_dates
 
     # It is possible to have full day gap in the data if previous queries were far apart
@@ -480,3 +511,54 @@ def update_polygon_data(df_all, result):
             df_all = df_all[~df_all.index.duplicated(keep="first")]  # Remove any duplicate rows
 
     return df_all
+
+class PolygonClient(RESTClient):
+    ''' Rate Limited RESTClient with factory method '''
+
+    WAIT_SECONDS = 12
+
+    @classmethod
+    def create(cls, *args, **kwargs) -> RESTClient:
+        """
+        Factory method to create a RESTClient or PolygonClient instance.
+
+        The method uses environment variables to determine default values for the API key 
+        and subscription type. If the `api_key` is not provided in `kwargs`, it defaults 
+        to the value of the `POLYGON_API_KEY` environment variable.
+        If the environment variable is not set, it defaults to False.
+
+        Keyword Arguments:
+        api_key : str, optional
+            The API key to authenticate with the service. Defaults to the value of the 
+            `POLYGON_API_KEY` environment variable if not provided.
+
+        Returns:
+        RESTClient
+            An instance of RESTClient or PolygonClient.
+
+        Examples:
+        ---------
+        Using default environment variables:
+        
+        >>> client = PolygonClient.create()
+        
+        Providing an API key explicitly:
+        
+        >>> client = PolygonClient.create(api_key='your_api_key_here')
+        
+        """
+        if 'api_key' not in kwargs:
+            kwargs['api_key'] = os.environ.get("POLYGON_API_KEY")
+        
+
+        return RESTClient(*args, **kwargs)
+
+
+    def _get(self, *args, **kwargs):
+        logging.info(
+            f"\nSleeping {PolygonClient.WAIT_SECONDS} seconds while getting data from Polygon "
+            "to avoid hitting the rate limit; "
+            "If you want to avoid this, consider a paid subscription with Polygon at https://polygon.io/?utm_source=affiliate&utm_campaign=lumi10 (please use the full link to give us credit for the sale, it helps support this project). You can use the coupon code 'LUMI10' for 10% off.\n"
+        )
+        time.sleep(PolygonClient.WAIT_SECONDS)
+        return super()._get(*args, **kwargs)

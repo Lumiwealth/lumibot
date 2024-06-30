@@ -3,14 +3,13 @@ import traceback
 from collections import OrderedDict, defaultdict
 from datetime import date, timedelta
 
-from polygon import RESTClient
 from polygon.exceptions import BadResponse
 from termcolor import colored
-from urllib3.exceptions import MaxRetryError
 
 from lumibot.data_sources import PandasData
 from lumibot.entities import Asset, Data
 from lumibot.tools import polygon_helper
+from lumibot.tools.polygon_helper import PolygonClient
 
 START_BUFFER = timedelta(days=5)
 
@@ -30,16 +29,14 @@ class PolygonDataBacktesting(PandasData):
         datetime_end,
         pandas_data=None,
         api_key=None,
-        has_paid_subscription=False,
         **kwargs,
     ):
         super().__init__(
             datetime_start=datetime_start, datetime_end=datetime_end, pandas_data=pandas_data, api_key=api_key, **kwargs
         )
-        self.has_paid_subscription = has_paid_subscription
 
         # RESTClient API for Polygon.io polygon-api-client
-        self.polygon_client = RESTClient(self._api_key)
+        self.polygon_client = PolygonClient.create(api_key=api_key)
 
     @staticmethod
     def _enforce_storage_limit(pandas_data: OrderedDict):
@@ -135,7 +132,6 @@ class PolygonDataBacktesting(PandasData):
                 self.datetime_end,
                 timespan=ts_unit,
                 quote_asset=quote_asset,
-                has_paid_subscription=self.has_paid_subscription,
             )
         except BadResponse as e:
             # Assuming e.message or similar attribute contains the error message
@@ -143,46 +139,30 @@ class PolygonDataBacktesting(PandasData):
             formatted_end_datetime = self.datetime_end.strftime("%Y-%m-%d")
             if "Your plan doesn't include this data timeframe" in str(e):
                 error_message = colored(
-                                "Polygon Access Denied: Your current plan does not support the requested data timeframe "
+                                "Polygon Access Denied: Your subscription does not allow you to backtest that far back in time. "
+                                f"You requested data for {asset_separated} {ts_unit} bars "
                                 f"from {formatted_start_datetime} to {formatted_end_datetime}. "
                                 "Please consider either changing your backtesting timeframe to start later since your "
-                                "subscription does not allow you to backtest that far back, or upgrade your subscription "
-                                "so that you can backtest further back in time. Generally speaking, the more you pay for "
-                                "your subscription, the further back in time you can backtest and the faster you can get "
-                                "data. "
-                                "You can upgrade your Polygon subscription at https://polygon.io/pricing ", 
+                                "subscription does not allow you to backtest that far back or upgrade your Polygon "
+                                "subscription."
+                                "You can upgrade your Polygon subscription at at https://polygon.io/?utm_source=affiliate&utm_campaign=lumi10 "
+                                "Please use the full link to give us credit for the sale, it helps support this project. "
+                                "You can use the coupon code 'LUMI10' for 10% off. ",
                                 color="red")
-                logging.error(error_message)
-                # Optionally, inform the user through the application's UI or a notification system
-                # For CLI or logs, re-raise the exception with a clearer message
-                raise #Exception("Polygon Access Denied: Upgrade required for requested data timeframe.") from e
+                raise Exception(error_message) from e
+            elif "Unknown API Key" in str(e):
+                error_message = colored(
+                                "Polygon Access Denied: Your API key is invalid. "
+                                "Please check your API key and try again. "
+                                "You can get an API key at https://polygon.io/?utm_source=affiliate&utm_campaign=lumi10 "
+                                "Please use the full link to give us credit for the sale, it helps support this project. "
+                                "You can use the coupon code 'LUMI10' for 10% off. ",
+                                color="red")
+                raise Exception(error_message) from e
             else:
                 # Handle other BadResponse exceptions not related to plan limitations
                 logging.error(traceback.format_exc())
                 raise
-        except MaxRetryError as e:
-            # TODO: Make this just sleep for a bit and retry (there's no need for people to set
-            # polygon_has_paid_subscription to False)
-
-            # Handle MaxRetriesError
-            error_message = colored(
-                            "Polygon Max Retries Error: The maximum number of retries has been reached. "
-                            "This is probably because you do not have a paid subscription to Polygon. "
-                            "The free version of Polygon has a limit on the number of requests you can make "
-                            "per minute. If you are using the free version of Polygon, you should set "
-                            "polygon_has_paid_subscription to False when you run the backtest() function. eg. \n"
-                            "result = OptionsButterflyCondor.backtest( \n"
-                            "    PolygonDataBacktesting, \n"
-                            "    backtesting_start, \n"
-                            "    backtesting_end, \n"
-                            "    polygon_api_key=polygon_api_key, \n"
-                            "    polygon_has_paid_subscription=False, # Make sure this is False! \n"
-                            " ) \n"
-                            "Otherwise, you should consider upgrading your subscription to Polygon to avoid this error. "
-                            "You can upgrade your Polygon subscription at https://polygon.io/pricing",
-                            color="red")
-            logging.error(error_message)
-            raise
         except Exception as e:
             # Handle all other exceptions
             logging.error(traceback.format_exc())

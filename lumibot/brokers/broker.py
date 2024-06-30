@@ -17,14 +17,19 @@ from lumibot.data_sources import DataSource
 from lumibot.entities import Asset, Order, Position
 from lumibot.trading_builtins import SafeList
 
-
 class CustomLoggerAdapter(logging.LoggerAdapter):
     def process(self, msg, kwargs):
-        # Use an f-string for formatting
-        return f'[{self.extra["strategy_name"]}] {msg}', kwargs
+        # Check if the level is enabled to avoid formatting costs if not necessary
+        if self.logger.isEnabledFor(kwargs.get('level', logging.INFO)):
+            # Lazy formatting of the message
+            return f'[{self.extra["strategy_name"]}] {msg}', kwargs
+        else:
+            return msg, kwargs
 
     def update_strategy_name(self, new_strategy_name):
         self.extra['strategy_name'] = new_strategy_name
+        # Pre-format part of the log message that's static or changes infrequently
+        self.formatted_prefix = f'[{new_strategy_name}]'
 
 class Broker(ABC):
     # Metainfo
@@ -352,6 +357,40 @@ class Broker(ABC):
                          Expiration Date Format: 2023-07-31
         """
         return chains[exchange] if exchange in chains else chains
+
+    def get_chain_full_info(self, asset: Asset, expiry: str, chains=None, underlying_price=None, risk_free_rate=None,
+                            strike_min=None, strike_max=None) -> pd.DataFrame:
+        """
+        Get the full chain information for an option asset, including: greeks, bid/ask, open_interest, etc. For
+        brokers that do not support this, greeks will be calculated locally. For brokers like Tradier this function
+        is much faster as only a single API call can be done to return the data for all options simultaneously.
+
+        Parameters
+        ----------
+        asset : Asset
+            The option asset to get the chain information for.
+        expiry
+            The expiry date of the option chain.
+        chains
+            The chains dictionary created by `get_chains` method. This is used
+            to get the list of strikes needed to calculate the greeks.
+        underlying_price
+            Price of the underlying asset.
+        risk_free_rate
+            The risk-free rate used in interest calculations.
+        strike_min
+            The minimum strike price to return in the chain. If None, will return all strikes.
+        strike_max
+            The maximum strike price to return in the chain. If None, will return all strikes.
+
+        Returns
+        -------
+        pd.DataFrame
+            A DataFrame containing the full chain information for the option asset. Greeks columns will be named as
+            'greeks.delta', 'greeks.theta', etc.
+        """
+        return self.data_source.get_chain_full_info(asset, expiry, chains, underlying_price, risk_free_rate,
+                                                    strike_min, strike_max)
 
     def get_greeks(self, asset, asset_price, underlying_price, risk_free_rate, query_greeks=False):
         """
@@ -808,7 +847,14 @@ class Broker(ABC):
         result = []
         if broker_orders is not None:
             for broker_order in broker_orders:
-                result.append(self._parse_broker_order(broker_order, strategy_name, strategy_object=strategy_object))
+                # Check if it is a multileg order
+                if isinstance(broker_order, dict) and "leg" in broker_order and isinstance(broker_order["leg"], list):
+                    for leg in broker_order["leg"]:
+                        order = self._parse_broker_order(leg, strategy_name, strategy_object=strategy_object)
+                        result.append(order)
+                else:
+                    order = self._parse_broker_order(broker_order, strategy_name, strategy_object=strategy_object)
+                    result.append(order)
         else:
             self.logger.warning("No orders found in broker._parse_broker_orders: the broker_orders object is None")
 

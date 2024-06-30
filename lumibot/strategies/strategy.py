@@ -6,6 +6,7 @@ import uuid
 from asyncio.log import logger
 from decimal import Decimal
 from typing import Union
+from sqlalchemy import create_engine, inspect
 
 import jsonpickle
 import matplotlib
@@ -363,15 +364,20 @@ class Strategy(_Strategy):
         --------
         >>> self.log_message('Sending a buy order')
         """
-        if color is not None:
-            colored_message = colored(message, color)
-            self.logger.info(colored_message)
-        else:
-            self.logger.info(message)
 
         if broadcast:
             # Send the message to Discord
             self.send_discord_message(message)
+        
+        # If we are backtesting and we don't want to save the logfile, don't log (they're not displayed in the console anyway)
+        if not self.save_logfile and self.is_backtesting:
+            return
+        
+        if color:
+            colored_message = colored(message, color)
+            self.logger.info(colored_message)
+        else:
+            self.logger.info(message)
 
         return message
 
@@ -686,15 +692,17 @@ class Strategy(_Strategy):
 
     # ======= Broker Methods ============
 
-    def sleep(self, sleeptime):
+    def sleep(self, sleeptime, process_pending_orders=True):
         """Sleep for sleeptime seconds.
 
-        Use to pause the execution of the program. This should be used instead of `time.sleep` within the strategy.
+        Use to pause the execution of the program. This should be used instead of `time.sleep` within the strategy. Also processes pending orders in the meantime.
 
         Parameters
         ----------
         sleeptime : float
             Time in seconds the program will be paused.
+        process_pending_orders : bool
+            If True, the broker will process any pending orders.
 
         Returns
         -------
@@ -705,11 +713,17 @@ class Strategy(_Strategy):
         >>> # Sleep for 5 seconds
         >>> self.sleep(5)
         """
+
         if not self.is_backtesting:
             # Sleep for the the sleeptime in seconds.
             time.sleep(sleeptime)
 
+        # Process pending orders if process_pending_orders is True and the broker has the method process_pending_orders
+        if process_pending_orders and hasattr(self.broker, "process_pending_orders"):
+            self.broker.process_pending_orders(strategy=self)
+
         return self.broker.sleep(sleeptime)
+
 
     def get_selling_order(self, position):
         """Get the selling order for a position.
@@ -1485,9 +1499,24 @@ class Strategy(_Strategy):
 
         """
 
+        # Check if order is None
         if order is None:
             self.logger.error(
                 "Cannot submit a None order, please check to make sure that you have actually created an order before submitting."
+            )
+            return
+        
+        # Check if the order is an Order object
+        if not isinstance(order, Order):
+            self.logger.error(
+                f"Order must be an Order object. You entered {order}."
+            )
+            return
+        
+        # Check if the order does not have a quantity of zero
+        if order.quantity == 0:
+            self.logger.error(
+                f"Order quantity cannot be zero. You entered {order.quantity}."
             )
             return
 
@@ -2089,6 +2118,71 @@ class Strategy(_Strategy):
         """
         return self.broker.get_chain(chains)
 
+    def get_chain_full_info(self, asset, expiry, chains=None, underlying_price=None,
+                            risk_free_rate=None, strike_min=None, strike_max=None) -> pd.DataFrame:
+        """Returns full option chain information for a given asset and expiry. This will include all known broker
+        option information for each strike price, including: greeks, bid, ask, volume, open_interest etc. Not all
+        Lumibot brokers provide all of this data and tick-style data like bid/ask/open_interest are not available
+        during BackTesting.
+
+        This method can be quite slow for brokers that do not provide this data natively, as it will need to make
+        multiple API calls (1 per strike) to get all the data.  Min/Max strike values can be provided to reduce the
+        number of queries made.
+
+        Using the `chains` dictionary obtained from `get_chains` finds
+        all the options information for a given asset and expiry.
+
+        Parameters
+        ----------
+        asset : Asset object
+            The asset for which the option chain is being fetched.
+        expiry : str | datetime.datetime | datetime.date
+            The expiry date for the option chain in the format of
+            `2023-07-31`.
+        chains : dictionary of dictionaries, optional
+            The chains dictionary created by `get_chains` method. If not
+            provided, the method will fetch the chains for the asset (if needed). This is
+            needed to discover the list of strikes. Some brokers like Tradier or
+            Polygon LiveData do not need the strike list.
+        underlying_price : float, optional
+            The price of the underlying asset. If not provided, the
+            method will fetch the price from the broker. Useful to provide to reduce the
+            number of API calls.
+        risk_free_rate : float, optional
+            The risk-free rate to use in the calculations. If not
+            provided, the method will use the default risk-free rate.
+        strike_min : float, optional
+            The minimum strike price to return. If not provided, the
+            method will return all strikes.
+        strike_max : float, optional
+            The maximum strike price to return. If not provided, the
+            method will return all strikes.
+
+        Returns
+        -------
+        pd.DataFrame
+            A DataFrame with the option chain information.
+
+        Example
+        -------
+        >>> # Will return the option chains for SPY
+        >>> asset = "SPY"
+        >>> expiry = "2023-07-31"
+        >>> df = self.get_chain_full_info(asset, expiry)
+        >>> print(f"Strike: {df.iloc[0]['strike']}, Delta: {df.iloc[0]['greeks.delta']}")
+        """
+        asset = self._sanitize_user_asset(asset)
+        risk_free_rate = risk_free_rate if risk_free_rate is not None else self.risk_free_rate
+        if underlying_price is None:
+            underlying_asset = Asset(symbol=asset.symbol, asset_type="stock")
+            und_price = self.get_last_price(underlying_asset)
+        else:
+            und_price = underlying_price
+
+        return self.broker.get_chain_full_info(asset, expiry, chains=chains, underlying_price=und_price,
+                                               risk_free_rate=risk_free_rate, strike_min=strike_min,
+                                               strike_max=strike_max)
+
     def get_expiration(self, chains):
         """Returns expiration dates for an option chain for a particular
         exchange.
@@ -2351,6 +2445,7 @@ class Strategy(_Strategy):
             asset_price=opt_price,
             underlying_price=und_price,
             risk_free_rate=risk_free_rate,
+            query_greeks=query_greeks,
         )
 
     # ======= Data Source Methods =================
@@ -3859,7 +3954,7 @@ class Strategy(_Strategy):
         def custom_date_formatter(x, pos):
             try:
                 date = mdates.num2date(x)
-                if pos == 0:  # First tick
+                if pos % 2 == 0:  # Every second tick
                     return date.strftime("%d\n%b\n%Y")
                 else:  # Other ticks
                     return date.strftime("%d")
@@ -3984,6 +4079,9 @@ class Strategy(_Strategy):
         should_send_account_summary = self.should_send_account_summary_to_discord()
         if not should_send_account_summary:
             return
+        
+        # Log that we are sending the account summary to Discord
+        self.logger.info("Sending account summary to Discord")
 
         # Get the current portfolio value
         portfolio_value = self.get_portfolio_value()
@@ -4004,8 +4102,35 @@ class Strategy(_Strategy):
         self.send_result_text_to_discord(returns_text, portfolio_value, cash)
 
     def get_stats_from_database(self, stats_table_name):
+        # Create a database connection
+        engine = create_engine(self.account_history_db_connection_str)
+        
+        # Check if the table exists
+        if not inspect(engine).has_table(stats_table_name):
+            # Log that the table does not exist and we are creating it
+            self.logger.info(f"Table {stats_table_name} does not exist. Creating it now.")
+
+            # Get the current time in New York
+            ny_tz = pytz.timezone("America/New_York")
+
+            # Get the datetime
+            now = datetime.datetime.now(ny_tz)
+
+            # Create an empty stats dataframe
+            stats_new = pd.DataFrame(
+                {
+                    "id": [str(uuid.uuid4())],
+                    "datetime": [now],
+                    "portfolio_value": [0.0],  # Default or initial value
+                    "cash": [0.0],             # Default or initial value
+                    "strategy_id": ["INITIAL VALUE"], # Default or initial value
+                }
+            )
+            # Create the table by saving this empty DataFrame to the database
+            stats_new.to_sql(stats_table_name, engine, if_exists='replace', index=False)
+        
         # Load the stats dataframe from the database
-        stats_df = pd.read_sql_table(stats_table_name, self.account_history_db_connection_str)
+        stats_df = pd.read_sql_table(stats_table_name, engine)
 
         return stats_df
 
@@ -4040,11 +4165,14 @@ class Strategy(_Strategy):
         # Convert the datetime column to a datetime
         stats_df["datetime"] = pd.to_datetime(stats_df["datetime"])  # , utc=True)
 
-        # Convert the datetime column to UTC without converting the time data
-        stats_df["datetime"] = stats_df["datetime"].dt.tz_convert(None)
-
-        # Explicitly set the time zone to New York without converting the time data
-        stats_df["datetime"] = stats_df["datetime"].dt.tz_localize("America/New_York", ambiguous="infer")
+        # Check if the datetime column is timezone-aware
+        if stats_df['datetime'].dt.tz is None:
+            # If the datetime is timezone-naive, directly localize it to "America/New_York"
+            stats_df["datetime"] = stats_df["datetime"].dt.tz_localize("America/New_York", ambiguous='infer')
+        else:
+            # If the datetime is already timezone-aware, first remove timezone and then localize
+            stats_df["datetime"] = stats_df["datetime"].dt.tz_localize(None)
+            stats_df["datetime"] = stats_df["datetime"].dt.tz_localize("America/New_York", ambiguous='infer')
 
         # Get the stats
         stats_new = pd.DataFrame(

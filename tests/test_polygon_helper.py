@@ -403,22 +403,50 @@ class TestPolygonPriceData:
         expected_cachefile = ph.build_cache_filename(asset, timespan)
         assert not expected_cachefile.exists()
 
+        # Fake some data from Polygon between start and end date
+        return_value = []
+        if timespan == "day":
+            t = start_date
+            while t <= end_date:
+                return_value.append(
+                    {"o": 1, "h": 4, "l": 1, "c": 2, "v": 100, "t": t.timestamp() * 1000}
+                )
+                t += datetime.timedelta(days=1)
+        else:
+            t = start_date
+            while t <= end_date:
+                return_value.append(
+                    {"o": 1, "h": 4, "l": 1, "c": 2, "v": 100, "t": t.timestamp() * 1000}
+                )
+                t += datetime.timedelta(minutes=1)
+
         # Polygon is only called once for the same date range even when they are all missing.
-        mock_polyclient.create().get_aggs.return_value = []
+        mock_polyclient.create().get_aggs.return_value = return_value
         df = ph.get_price_data_from_polygon(api_key, asset, start_date, end_date, timespan, force_cache_update=force_cache_update)
-        assert mock_polyclient.create().get_aggs.call_count == 1
+        
+        mock1 = mock_polyclient.create()
+        aggs = mock1.get_aggs
+        call_count = aggs.call_count
+        assert call_count == 1
+        
         assert expected_cachefile.exists()
         if df is None:
             df = pd.DataFrame()
-        assert len(df) == 0
+        assert len(df) == len(return_value)
         df = ph.get_price_data_from_polygon(api_key, asset, start_date, end_date, timespan, force_cache_update=force_cache_update)
         if df is None:
             df = pd.DataFrame()
-        assert len(df) == 0
+        assert len(df) == len(return_value)
         if force_cache_update:
-            assert mock_polyclient.create().get_aggs.call_count == 2
+            mock2 = mock_polyclient.create()
+            aggs = mock2.get_aggs
+            call_count = aggs.call_count
+            assert call_count == 2
         else:
-            assert mock_polyclient.create().get_aggs.call_count == 1
+            mock3 = mock_polyclient.create()
+            aggs = mock3.get_aggs
+            call_count = aggs.call_count
+            assert call_count == 1
         expected_cachefile.unlink()
 
         # Polygon is only called once for the same date range when some are missing.
@@ -426,7 +454,7 @@ class TestPolygonPriceData:
         start_date = tz_e.localize(datetime.datetime(2023, 8, 1, 6, 30))
         end_date = tz_e.localize(datetime.datetime(2023, 10, 31, 13, 0))  # ~90 days
         aggs_result_list = [
-            # First call for Auguest Data
+            # First call for August Data
             [
                 {"o": 5, "h": 8, "l": 3, "c": 7, "v": 100, "t": 1690876800000},  # 8/1/2023 8am UTC
                 {"o": 9, "h": 12, "l": 7, "c": 10, "v": 100, "t": 1693497600000},  # 8/31/2023 8am UTC

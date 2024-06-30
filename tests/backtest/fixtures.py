@@ -14,7 +14,6 @@ def polygon_data_backtesting():
         datetime_end=datetime_end,
         pandas_data=pandas_data,
         api_key=api_key,
-        has_paid_subscription=False
     )
     
     return polygon_data_instance

@@ -6,11 +6,11 @@
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Lifecycle Methods" href="lifecycle_methods.html" /><link rel="prev" title="Lumibot: Backtesting and Algorithmic Trading Library" href="index.html" />
 
     <!-- Generated with Sphinx 7.2.6 and Furo 2024.01.29 -->
-        <title>What is Lumibot? - Lumibot documentation</title>
+        <title>What is Lumibot? - Lumibot: Algorithmic Trading and Backtesting Library Documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=a746c00c" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=135e06be" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=36a5483c" />
-    <link rel="stylesheet" type="text/css" href="_static/custom.css?v=1c0cb5c9" />
+    <link rel="stylesheet" type="text/css" href="_static/custom.css?v=8fc1b8d9" />
     <link rel="stylesheet" type="text/css" href="_static/bootstrap/css/bootstrap.css?v=7edfbd0b" />
     
     
@@ -114,7 +114,16 @@
   <div class="visually-hidden">Hide table of contents sidebar</div>
 </label>
 
-
+<div class="announcement">
+  <aside class="announcement-content">
+     
+    <div class="footer-banner bg-warning text-dark p-3">
+        <h5>Need Extra Help?</h5>
+        <p>Visit <a href="https://www.lumiwealth.com/?utm_source=documentation&utm_medium=referral&utm_campaign=lumibot_footer_banner" target="_blank" class="text-dark"><strong>Lumiwealth</strong></a> for courses, community, and profitable pre-made trading bots.</p>
+    </div>
+     
+  </aside>
+</div>
 
 <div class="page">
   <header class="mobile-header">
@@ -125,7 +134,7 @@
       </label>
     </div>
     <div class="header-center">
-      <a href="index.html"><div class="brand">Lumibot  documentation</div></a>
+      <a href="index.html"><div class="brand">Lumibot: Algorithmic Trading and Backtesting Library Documentation</div></a>
     </div>
     <div class="header-right">
       <div class="theme-toggle-container theme-toggle-header">
@@ -147,8 +156,11 @@
       
       <div class="sidebar-sticky"><a class="sidebar-brand" href="index.html">
   
+  <div class="sidebar-logo-container">
+    <img class="sidebar-logo only-light" src="_static/logo-light-mode.png" alt="Light Logo"/>
+    <img class="sidebar-logo only-dark" src="_static/logo-light-mode.png" alt="Dark Logo"/>
+  </div>
   
-  <span class="sidebar-brand-text">Lumibot  documentation</span>
   
 </a><form class="sidebar-search-container" method="get" action="search.html" role="search">
   <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
@@ -158,9 +170,11 @@
 <div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
   <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="index.html">Home</a></li>
-<li class="toctree-l1"><a class="reference external" href="https://github.com/Lumiwealth/lumibot">GitHUb</a></li>
-<li class="toctree-l1"><a class="reference external" href="https://discord.gg/v6asVjTCvh">Community/Forum</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://github.com/Lumiwealth/lumibot">GitHub</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://discord.gg/v6asVjTCvh">Discord Community</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://lumiwealth.com/?utm_source=documentation&amp;utm_medium=referral&amp;utm_campaign=lumibot_sidebar">Get Pre-Built Profitable Strategies</a></li>
 <li class="toctree-l1 current current-page"><a class="current reference internal" href="#">What is Lumibot?</a></li>
+<li class="toctree-l1"><a class="reference internal" href="#id1">Lumiwealth</a></li>
 <li class="toctree-l1"><a class="reference internal" href="#getting-started">Getting Started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="#adding-trading-fees">Adding Trading Fees</a></li>
 <li class="toctree-l1"><a class="reference internal" href="#profiling-to-improve-performance">Profiling to Improve Performance</a></li>
@@ -210,9 +224,6 @@
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_historical_prices.html">self.get_historical_prices</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_historical_prices_for_assets.html">self.get_historical_prices_for_assets</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_quote.html">self.get_quote</a></li>
-<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.start_realtime_bars.html">self.start_realtime_bars</a></li>
-<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_realtime_bars.html">self.get_realtime_bars</a></li>
-<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.cancel_realtime_bars.html">self.cancel_realtime_bars</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_yesterday_dividend.html">self.get_yesterday_dividend</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_next_trading_day.html">self.get_next_trading_day</a></li>
 </ul>
@@ -344,45 +355,69 @@
         <article role="main">
           <section id="what-is-lumibot">
 <h1>What is Lumibot?<a class="headerlink" href="#what-is-lumibot" title="Link to this heading">#</a></h1>
-<p>Lumibot is a Python library made by Lumiwealth (<a class="reference external" href="https://www.lumiwealth.com">https://www.lumiwealth.com</a>) that allows you to create trading strategies and backtest them. It also allows you to run your strategies live on a paper trading account. You can also use Lumibot to run your strategies live on a real trading account, but we recommend you start with paper trading first.</p>
+<p>Lumibot is a Python library made by <a class="reference external" href="https://www.lumiwealth.com/?utm_source=documentation&amp;utm_medium=referral&amp;utm_campaign=lumibot_getting_started">Lumiwealth</a> that allows you to create trading strategies and backtest them. It also allows you to run your strategies live on a paper trading account. You can also use Lumibot to run your strategies live on a real trading account, but we recommend you start with paper trading first.</p>
 <p>Lumibot is designed to be easy to use, but also powerful. It is designed to be used by both beginners and advanced users. It is also designed to be flexible, so you can use it to create any kind of trading strategy you want. It is also designed to be fast, so you can backtest your strategies quickly.</p>
+</section>
+<section id="id1">
+<h1>Lumiwealth<a class="headerlink" href="#id1" title="Link to this heading">#</a></h1>
+<p>At Lumiwealth, you can join our <strong>community of traders</strong>, take comprehensive <strong>courses on algorithmic trading</strong>, and access our library of <strong>profitable trading bots</strong>. Our strategies have shown exceptional results, with some achieving over <strong>100% annual returns</strong> and others reaching up to <strong>1,000% in backtesting</strong>.</p>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p>Visit <a class="reference external" href="https://www.lumiwealth.com/?utm_source=documentation&amp;utm_medium=referral&amp;utm_campaign=lumibot_getting_started">Lumiwealth</a> to learn more, and discover how you can enhance your trading skills and potentially achieve high returns with our expert guidance and resources.</p>
+</div>
 </section>
 <section id="getting-started">
 <h1>Getting Started<a class="headerlink" href="#getting-started" title="Link to this heading">#</a></h1>
-<p>Welcome to Lumibot! This guide will help you get started with Lumibot, we hope you enjoy it!</p>
-<p>Here are the steps to get started using the Alpaca broker, if you want to use a different broker, you can see the list of supported brokers under the brokers section.</p>
-<ol class="arabic simple">
-<li><p>Install the package on your computer</p></li>
-</ol>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">pip</span> <span class="n">install</span> <span class="n">lumibot</span>
+<p>Welcome to Lumibot! This guide will help you get started with Lumibot. We hope you enjoy it!</p>
+<p>Here are the steps to get started using the Alpaca broker. If you want to use a different broker, you can see the list of supported brokers under the brokers section.</p>
+<section id="step-1-install-the-package">
+<h2>Step 1: Install the Package<a class="headerlink" href="#step-1-install-the-package" title="Link to this heading">#</a></h2>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><strong>Before proceeding, ensure you have installed the latest version of Lumibot</strong>. You can do this by running the following command:</p>
+</div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>lumibot<span class="w"> </span>--upgrade
 </pre></div>
 </div>
-<ol class="arabic simple" start="2">
-<li><p>import the following modules:</p></li>
-</ol>
+<p>Install the package on your computer:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>lumibot
+</pre></div>
+</div>
+</section>
+<section id="step-2-import-the-following-modules">
+<h2>Step 2: Import the Following Modules<a class="headerlink" href="#step-2-import-the-following-modules" title="Link to this heading">#</a></h2>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># importing the trader class</span>
 <span class="kn">from</span> <span class="nn">lumibot.traders</span> <span class="kn">import</span> <span class="n">Trader</span>
 <span class="c1"># importing the alpaca broker class</span>
 <span class="kn">from</span> <span class="nn">lumibot.brokers</span> <span class="kn">import</span> <span class="n">Alpaca</span>
 </pre></div>
 </div>
-<ol class="arabic simple" start="3">
-<li><p>Create an Alpaca paper trading account: <a class="reference external" href="https://app.alpaca.markets/paper/dashboard/overview">https://app.alpaca.markets/paper/dashboard/overview</a> (you can also use other brokers, but Alpaca is easiest to get started with)</p></li>
-<li><p>Copy your API_KEY and API_SECRET from alpaca dashboard and create a Config class like this:</p></li>
-</ol>
+</section>
+<section id="step-3-create-an-alpaca-paper-trading-account">
+<h2>Step 3: Create an Alpaca Paper Trading Account<a class="headerlink" href="#step-3-create-an-alpaca-paper-trading-account" title="Link to this heading">#</a></h2>
+<p>Create an Alpaca paper trading account: <a class="reference external" href="https://alpaca.markets/">https://alpaca.markets/</a> (you can also use other brokers, but Alpaca is easiest to get started with).</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><strong>Make sure to use a paper trading account</strong> at first to get comfortable with Lumibot without risking real money.</p>
+</div>
+</section>
+<section id="step-4-configure-your-api-keys">
+<h2>Step 4: Configure Your API Keys<a class="headerlink" href="#step-4-configure-your-api-keys" title="Link to this heading">#</a></h2>
+<p>Copy your API_KEY and API_SECRET from the Alpaca dashboard and create a Config class like this:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">ALPACA_CONFIG</span> <span class="o">=</span> <span class="p">{</span>
     <span class="c1"># Put your own Alpaca key here:</span>
     <span class="s2">&quot;API_KEY&quot;</span><span class="p">:</span> <span class="s2">&quot;YOUR_ALPACA_API_KEY&quot;</span><span class="p">,</span>
     <span class="c1"># Put your own Alpaca secret here:</span>
     <span class="s2">&quot;API_SECRET&quot;</span><span class="p">:</span> <span class="s2">&quot;YOUR_ALPACA_SECRET&quot;</span><span class="p">,</span>
-    <span class="c1"># If you want to go live, you must change this. It is currently set for paper trading</span>
-    <span class="s2">&quot;ENDPOINT&quot;</span><span class="p">:</span> <span class="s2">&quot;https://paper-api.alpaca.markets&quot;</span>
+    <span class="c1"># Set this to False to use a live account</span>
+    <span class="s2">&quot;PAPER&quot;</span><span class="p">:</span> <span class="kc">True</span>
 <span class="p">}</span>
 </pre></div>
 </div>
-<ol class="arabic simple" start="5">
-<li><p>Create a strategy class (See strategy section) e.g. class MyStrategy(Strategy) or import an example from our libraries, like this:</p></li>
-</ol>
+</section>
+<section id="step-5-create-a-strategy-class">
+<h2>Step 5: Create a Strategy Class<a class="headerlink" href="#step-5-create-a-strategy-class" title="Link to this heading">#</a></h2>
+<p>Create a strategy class (See strategy section) e.g. class MyStrategy(Strategy) or import an example from our libraries, like this:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">MyStrategy</span><span class="p">(</span><span class="n">Strategy</span><span class="p">):</span>
     <span class="c1"># Custom parameters</span>
     <span class="n">parameters</span> <span class="o">=</span> <span class="p">{</span>
@@ -404,58 +439,66 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
 </pre></div>
 </div>
-<ol class="arabic simple" start="6">
-<li><p>Instantiate the Trader, Alpaca and strategy classes like so:</p></li>
-</ol>
+</section>
+<section id="step-6-instantiate-the-trader-alpaca-and-strategy-classes">
+<h2>Step 6: Instantiate the Trader, Alpaca, and Strategy Classes<a class="headerlink" href="#step-6-instantiate-the-trader-alpaca-and-strategy-classes" title="Link to this heading">#</a></h2>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">trader</span> <span class="o">=</span> <span class="n">Trader</span><span class="p">()</span>
 <span class="n">broker</span> <span class="o">=</span> <span class="n">Alpaca</span><span class="p">(</span><span class="n">ALPACA_CONFIG</span><span class="p">)</span>
-<span class="n">strategy</span> <span class="o">=</span> <span class="n">MyStrategy</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">strategy_name</span><span class="p">,</span> <span class="n">budget</span><span class="o">=</span><span class="n">budget</span><span class="p">,</span> <span class="n">broker</span><span class="o">=</span><span class="n">broker</span><span class="p">,</span> <span class="n">symbol</span><span class="o">=</span><span class="s2">&quot;SPY&quot;</span><span class="p">)</span>
+<span class="n">strategy</span> <span class="o">=</span> <span class="n">MyStrategy</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;My Strategy&quot;</span><span class="p">,</span> <span class="n">budget</span><span class="o">=</span><span class="mi">10000</span><span class="p">,</span> <span class="n">broker</span><span class="o">=</span><span class="n">broker</span><span class="p">,</span> <span class="n">symbol</span><span class="o">=</span><span class="s2">&quot;SPY&quot;</span><span class="p">)</span>
 </pre></div>
 </div>
-<ol class="arabic simple" start="7">
-<li><p>Backtest the strategy (optional):</p></li>
-</ol>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">backtesting_start</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">2020</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+</section>
+<section id="step-7-backtest-the-strategy-optional">
+<h2>Step 7: Backtest the Strategy (Optional)<a class="headerlink" href="#step-7-backtest-the-strategy-optional" title="Link to this heading">#</a></h2>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><strong>Backtesting is a crucial step</strong> to understand how your strategy would have performed in the past. It helps in refining and improving your strategy before going live.</p>
+</div>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">datetime</span>
+<span class="kn">from</span> <span class="nn">lumibot.backtesting</span> <span class="kn">import</span> <span class="n">YahooDataBacktesting</span>
+
+<span class="n">backtesting_start</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">2020</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
 <span class="n">backtesting_end</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">2020</span><span class="p">,</span> <span class="mi">12</span><span class="p">,</span> <span class="mi">31</span><span class="p">)</span>
 <span class="n">strategy</span><span class="o">.</span><span class="n">backtest</span><span class="p">(</span>
     <span class="n">YahooDataBacktesting</span><span class="p">,</span>
     <span class="n">backtesting_start</span><span class="p">,</span>
     <span class="n">backtesting_end</span><span class="p">,</span>
-    <span class="n">parameters</span><span class="o">=</span> <span class="p">{</span>
+    <span class="n">parameters</span><span class="o">=</span><span class="p">{</span>
         <span class="s2">&quot;symbol&quot;</span><span class="p">:</span> <span class="s2">&quot;SPY&quot;</span>
     <span class="p">},</span>
 <span class="p">)</span>
 </pre></div>
 </div>
-<ol class="arabic simple" start="8">
-<li><p>Run the strategy:</p></li>
-</ol>
+</section>
+<section id="step-8-run-the-strategy">
+<h2>Step 8: Run the Strategy<a class="headerlink" href="#step-8-run-the-strategy" title="Link to this heading">#</a></h2>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><strong>Running a strategy live</strong> carries real financial risks. Start with paper trading to get familiar with the process and ensure your strategy works as expected.</p>
+</div>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">trader</span><span class="o">.</span><span class="n">add_strategy</span><span class="p">(</span><span class="n">strategy</span><span class="p">)</span>
 <span class="n">trader</span><span class="o">.</span><span class="n">run_all</span><span class="p">()</span>
 </pre></div>
 </div>
-<p>And that’s it! Now try modifying the strategy to do what you want it to do.</p>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p><strong>And that’s it!</strong> Now try modifying the strategy to do what you want it to do.</p>
+</div>
 <p>Here it is all together:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">datetime</span>
-
 <span class="kn">from</span> <span class="nn">lumibot.backtesting</span> <span class="kn">import</span> <span class="n">YahooDataBacktesting</span>
 <span class="kn">from</span> <span class="nn">lumibot.brokers</span> <span class="kn">import</span> <span class="n">Alpaca</span>
 <span class="kn">from</span> <span class="nn">lumibot.strategies.strategy</span> <span class="kn">import</span> <span class="n">Strategy</span>
 <span class="kn">from</span> <span class="nn">lumibot.traders</span> <span class="kn">import</span> <span class="n">Trader</span>
 
-
 <span class="n">ALPACA_CONFIG</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="c1"># Put your own Alpaca key here:</span>
     <span class="s2">&quot;API_KEY&quot;</span><span class="p">:</span> <span class="s2">&quot;YOUR_ALPACA_API_KEY&quot;</span><span class="p">,</span>
-    <span class="c1"># Put your own Alpaca secret here:</span>
     <span class="s2">&quot;API_SECRET&quot;</span><span class="p">:</span> <span class="s2">&quot;YOUR_ALPACA_SECRET&quot;</span><span class="p">,</span>
-    <span class="c1"># If you want to go live, you must change this. It is currently set for paper trading</span>
-    <span class="s2">&quot;ENDPOINT&quot;</span><span class="p">:</span> <span class="s2">&quot;https://paper-api.alpaca.markets&quot;</span>
+    <span class="c1"># Set this to False to use a live account</span>
+    <span class="s2">&quot;PAPER&quot;</span><span class="p">:</span> <span class="kc">True</span>
 <span class="p">}</span>
 
-
 <span class="k">class</span> <span class="nc">MyStrategy</span><span class="p">(</span><span class="n">Strategy</span><span class="p">):</span>
-    <span class="c1"># Custom parameters</span>
     <span class="n">parameters</span> <span class="o">=</span> <span class="p">{</span>
         <span class="s2">&quot;symbol&quot;</span><span class="p">:</span> <span class="s2">&quot;SPY&quot;</span><span class="p">,</span>
         <span class="s2">&quot;quantity&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
@@ -463,45 +506,34 @@
     <span class="p">}</span>
 
     <span class="k">def</span> <span class="nf">initialize</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">symbol</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">):</span>
-        <span class="c1"># Will make on_trading_iteration() run every 180 minutes</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">sleeptime</span> <span class="o">=</span> <span class="s2">&quot;180M&quot;</span>
 
     <span class="k">def</span> <span class="nf">on_trading_iteration</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="n">symbol</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">[</span><span class="s2">&quot;symbol&quot;</span><span class="p">]</span>
         <span class="n">quantity</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">[</span><span class="s2">&quot;quantity&quot;</span><span class="p">]</span>
         <span class="n">side</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">[</span><span class="s2">&quot;side&quot;</span><span class="p">]</span>
-
         <span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">symbol</span><span class="p">,</span> <span class="n">quantity</span><span class="p">,</span> <span class="n">side</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
 
-
 <span class="n">trader</span> <span class="o">=</span> <span class="n">Trader</span><span class="p">()</span>
 <span class="n">broker</span> <span class="o">=</span> <span class="n">Alpaca</span><span class="p">(</span><span class="n">ALPACA_CONFIG</span><span class="p">)</span>
-<span class="n">strategy</span> <span class="o">=</span> <span class="n">MyStrategy</span><span class="p">(</span>
-    <span class="n">broker</span><span class="o">=</span><span class="n">broker</span><span class="p">,</span>
-    <span class="n">parameters</span><span class="o">=</span> <span class="p">{</span>
-        <span class="s2">&quot;symbol&quot;</span><span class="p">:</span> <span class="s2">&quot;SPY&quot;</span>
-    <span class="p">})</span>
+<span class="n">strategy</span> <span class="o">=</span> <span class="n">MyStrategy</span><span class="p">(</span><span class="n">broker</span><span class="o">=</span><span class="n">broker</span><span class="p">,</span> <span class="n">parameters</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;symbol&quot;</span><span class="p">:</span> <span class="s2">&quot;SPY&quot;</span><span class="p">})</span>
 
-<span class="c1"># Backtest this strategy</span>
 <span class="n">backtesting_start</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">2020</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
 <span class="n">backtesting_end</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">2020</span><span class="p">,</span> <span class="mi">12</span><span class="p">,</span> <span class="mi">31</span><span class="p">)</span>
 <span class="n">strategy</span><span class="o">.</span><span class="n">backtest</span><span class="p">(</span>
     <span class="n">YahooDataBacktesting</span><span class="p">,</span>
     <span class="n">backtesting_start</span><span class="p">,</span>
     <span class="n">backtesting_end</span><span class="p">,</span>
-    <span class="c1"># You can also pass in parameters to the backtesting class, this will override the parameters in the strategy</span>
-    <span class="n">parameters</span><span class="o">=</span> <span class="p">{</span>
-        <span class="s2">&quot;symbol&quot;</span><span class="p">:</span> <span class="s2">&quot;SPY&quot;</span>
-    <span class="p">},</span>
+    <span class="n">parameters</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;symbol&quot;</span><span class="p">:</span> <span class="s2">&quot;SPY&quot;</span><span class="p">}</span>
 <span class="p">)</span>
 
-<span class="c1"># Run the strategy live</span>
 <span class="n">trader</span><span class="o">.</span><span class="n">add_strategy</span><span class="p">(</span><span class="n">strategy</span><span class="p">)</span>
 <span class="n">trader</span><span class="o">.</span><span class="n">run_all</span><span class="p">()</span>
 </pre></div>
 </div>
-<p>Or you can download the file here: <a class="reference external" href="https://github.com/Lumiwealth/lumibot/blob/dev/lumibot/example_strategies/simple_start_single_file.py">https://github.com/Lumiwealth/lumibot/blob/dev/lumibot/example_strategies/simple_start_single_file.py</a></p>
+<p>Or you can download the file here: <a class="reference external" href="https://github.com/Lumiwealth/lumibot/blob/dev/lumibot/example_strategies/simple_start_single_file.py">https://github.com/Lumiwealth/lumibot/blob/dev/lumibot/example_strategies/simple_start_single_file.py</a>.</p>
+</section>
 </section>
 <section id="adding-trading-fees">
 <h1>Adding Trading Fees<a class="headerlink" href="#adding-trading-fees" title="Link to this heading">#</a></h1>
@@ -510,20 +542,16 @@
 <span class="kn">from</span> <span class="nn">lumibot.entities</span> <span class="kn">import</span> <span class="n">TradingFee</span>
 
 <span class="c1"># Create two trading fees, one that is a percentage and one that is a flat fee</span>
-<span class="n">trading_fee_1</span> <span class="o">=</span> <span class="n">TradingFee</span><span class="p">(</span><span class="n">flat_fee</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span> <span class="c1"># $5 flat fee</span>
-<span class="n">trading_fee_2</span> <span class="o">=</span> <span class="n">TradingFee</span><span class="p">(</span><span class="n">percent_fee</span><span class="o">=</span><span class="mf">0.01</span><span class="p">)</span> <span class="c1"># 1% trading fee</span>
+<span class="n">trading_fee_1</span> <span class="o">=</span> <span class="n">TradingFee</span><span class="p">(</span><span class="n">flat_fee</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>  <span class="c1"># $5 flat fee</span>
+<span class="n">trading_fee_2</span> <span class="o">=</span> <span class="n">TradingFee</span><span class="p">(</span><span class="n">percent_fee</span><span class="o">=</span><span class="mf">0.01</span><span class="p">)</span>  <span class="c1"># 1% trading fee</span>
 
-<span class="c1"># Backtest this strategy</span>
 <span class="n">backtesting_start</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">2020</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
 <span class="n">backtesting_end</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">2020</span><span class="p">,</span> <span class="mi">12</span><span class="p">,</span> <span class="mi">31</span><span class="p">)</span>
 <span class="n">strategy</span><span class="o">.</span><span class="n">backtest</span><span class="p">(</span>
     <span class="n">YahooDataBacktesting</span><span class="p">,</span>
     <span class="n">backtesting_start</span><span class="p">,</span>
     <span class="n">backtesting_end</span><span class="p">,</span>
-    <span class="c1"># You can also pass in parameters to the backtesting class, this will override the parameters in the strategy</span>
-    <span class="n">parameters</span><span class="o">=</span> <span class="p">{</span>
-        <span class="s2">&quot;symbol&quot;</span><span class="p">:</span> <span class="s2">&quot;SPY&quot;</span>
-    <span class="p">},</span>
+    <span class="n">parameters</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;symbol&quot;</span><span class="p">:</span> <span class="s2">&quot;SPY&quot;</span><span class="p">},</span>
     <span class="n">buy_trading_fees</span><span class="o">=</span><span class="p">[</span><span class="n">trading_fee_1</span><span class="p">,</span> <span class="n">trading_fee_2</span><span class="p">],</span>
     <span class="n">sell_trading_fees</span><span class="o">=</span><span class="p">[</span><span class="n">trading_fee_1</span><span class="p">,</span> <span class="n">trading_fee_2</span><span class="p">],</span>
 <span class="p">)</span>
@@ -562,24 +590,9 @@
 <span class="k">for</span> <span class="n">thread</span> <span class="ow">in</span> <span class="n">threads</span><span class="p">:</span>
     <span class="nb">print</span><span class="p">(</span>
         <span class="s2">&quot;Function stats for (</span><span class="si">%s</span><span class="s2">) (</span><span class="si">%d</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">thread</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">thread</span><span class="o">.</span><span class="n">id</span><span class="p">)</span>
-    <span class="p">)</span>  <span class="c1"># it is the Thread.__class__.__name__</span>
-    <span class="n">yappi</span><span class="o">.</span><span class="n">get_func_stats</span><span class="p">(</span><span class="n">ctx_id</span><span class="o">=</span><span class="n">thread</span><span class="o">.</span><span class="n">id</span><span class="p">)</span><span class="o">.</span><span class="n">save</span><span class="p">(</span>
-        <span class="sa">f</span><span class="s2">&quot;profile</span><span class="si">{</span><span class="n">thread</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">.out&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;pstat&quot;</span>
     <span class="p">)</span>
 </pre></div>
 </div>
-<p>This will create a <cite>.out</cite> file for each thread that you can then analyze to see where your code is spending the most time.</p>
-<section id="viewing-the-results">
-<h2>Viewing the Results<a class="headerlink" href="#viewing-the-results" title="Link to this heading">#</a></h2>
-<p>We recommend using snakeviz to view the results. You can install it with <cite>pip install snakeviz</cite>. You can then use it to view the results like this:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>snakeviz
-</pre></div>
-</div>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>snakeviz<span class="w"> </span>profile_MainThread.out
-</pre></div>
-</div>
-<p>I personally like changing the style to sunburst, I find it to be easier to understand.</p>
-</section>
 </section>
 
         </article>

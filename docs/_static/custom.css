@@ -36,7 +36,36 @@
     margin-bottom: 60px;
 }
 
-.course-button {
-    margin: 25px;
-    box-shadow: 5px 10px 18px #9b9b9b;
+.footer-banner {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    z-index: 1000;
+    box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.15);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+.footer-banner h5 {
+    margin: 0;
+}
+
+.footer-banner p {
+    margin: 0;
+    word-wrap: break-word;
+    padding: 0 15px; /* Add padding for better text wrapping */
+}
+
+.footer-banner a {
+    text-decoration: underline;
+}
+
+@media (max-width: 768px) {
+    .footer-banner p {
+        padding: 0 10px;
+        white-space: normal; /* Ensure text wraps on small screens */
+    }
 }

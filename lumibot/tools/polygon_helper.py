@@ -151,27 +151,17 @@ def get_price_data_from_polygon(
         if poly_end > poly_start + delta:
             poly_end = poly_start + delta
 
-        try:
-            result = polygon_client.get_aggs(
-                ticker=symbol,
-                from_=poly_start,  # polygon-api-client docs say 'from' but that is a reserved word in python
-                to=poly_end,
-                # In Polygon, multiplier is the number of "timespans" in each candle, so if you want 5min candles
-                # returned you would set multiplier=5 and timespan="minute". This is very different from the
-                # asset.multiplier setting for option contracts.
-                multiplier=1,
-                timespan=timespan,
-                limit=50000,  # Max limit for Polygon
-            )
-        except MaxRetryError:
-            # Check if the error is due to a rate limit
-            colored_message = colored(
-                "Polygon rate limit reached. Sleeping for 1 minute before trying again. If you want to avoid this, consider a paid subscription with Polygon at https://polygon.io/?utm_source=affiliate&utm_campaign=lumi10 Please use the full link to give us credit for the sale, it helps support this project. You can use the coupon code 'LUMI10' for 10% off.",
-                "red",
-            )
-            logging.error(colored_message)
-            time.sleep(60)
-            continue
+        result = polygon_client.get_aggs(
+            ticker=symbol,
+            from_=poly_start,  # polygon-api-client docs say 'from' but that is a reserved word in python
+            to=poly_end,
+            # In Polygon, multiplier is the number of "timespans" in each candle, so if you want 5min candles
+            # returned you would set multiplier=5 and timespan="minute". This is very different from the
+            # asset.multiplier setting for option contracts.
+            multiplier=1,
+            timespan=timespan,
+            limit=50000,  # Max limit for Polygon
+        )
 
         # Update progress bar after each query
         pbar.update(1)
@@ -515,7 +505,8 @@ def update_polygon_data(df_all, result):
 class PolygonClient(RESTClient):
     ''' Rate Limited RESTClient with factory method '''
 
-    WAIT_SECONDS = 12
+    WAIT_SECONDS_RETRY = 60
+    WAIT_SECONDS_UNPAID = 12
 
     @classmethod
     def create(cls, *args, **kwargs) -> RESTClient:
@@ -550,15 +541,27 @@ class PolygonClient(RESTClient):
         if 'api_key' not in kwargs:
             kwargs['api_key'] = os.environ.get("POLYGON_API_KEY")
         
-
-        return RESTClient(*args, **kwargs)
-
+        return cls(*args, **kwargs)
 
     def _get(self, *args, **kwargs):
-        logging.info(
-            f"\nSleeping {PolygonClient.WAIT_SECONDS} seconds while getting data from Polygon "
-            "to avoid hitting the rate limit; "
-            "If you want to avoid this, consider a paid subscription with Polygon at https://polygon.io/?utm_source=affiliate&utm_campaign=lumi10 (please use the full link to give us credit for the sale, it helps support this project). You can use the coupon code 'LUMI10' for 10% off.\n"
-        )
-        time.sleep(PolygonClient.WAIT_SECONDS)
-        return super()._get(*args, **kwargs)
+        while True:
+            try:
+                unpaid = os.getenv("POLYGON_IS_PAID_SUBSCRIPTION")
+
+                if unpaid is not None and unpaid.lower() in {'false', '0', 'f', 'n', 'no'}:
+                    colored_message = colored(
+                        f"POLYGON_IS_PAID_SUBSCRIPTION environment variable is set to false. Sleeping for {PolygonClient.WAIT_SECONDS_RETRY} seconds before calling API. If you want to go faster remove this variable and consider a paid subscription with Polygon at https://polygon.io/?utm_source=affiliate&utm_campaign=lumi10 Please use the full link to give us credit for the sale, it helps support this project. You can use the coupon code 'LUMI10' for 10% off.",
+                        "red",
+                    )
+                    logging.error(colored_message)
+                    time.sleep(PolygonClient.WAIT_SECONDS_UNPAID)
+
+                return super()._get(*args, **kwargs)
+            
+            except MaxRetryError:
+                colored_message = colored(
+                    f"Polygon rate limit reached. Sleeping for {PolygonClient.WAIT_SECONDS_RETRY} seconds before trying again. If you want to avoid this, consider a paid subscription with Polygon at https://polygon.io/?utm_source=affiliate&utm_campaign=lumi10 Please use the full link to give us credit for the sale, it helps support this project. You can use the coupon code 'LUMI10' for 10% off.",
+                    "red",
+                )
+                logging.error(colored_message)
+                time.sleep(PolygonClient.WAIT_SECONDS_RETRY)

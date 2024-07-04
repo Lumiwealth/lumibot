@@ -132,6 +132,10 @@ def get_price_data_from_polygon(
     polygon_client = PolygonClient.create(api_key=api_key)
     symbol = get_polygon_symbol(asset, polygon_client, quote_asset)  # Will do a Polygon query for option contracts
 
+    # Check if symbol is None, which means we couldn't find the option contract
+    if symbol is None:
+        return None
+
     # To reduce calls to Polygon, we call on full date ranges instead of including hours/minutes
     # get the full range of data we need in one call and ensure that there won't be any intraday gaps in the data.
     # Option data won't have any extended hours data so the padding is extra important for those.
@@ -548,10 +552,11 @@ class PolygonClient(RESTClient):
             try:
                 return super()._get(*args, **kwargs)
             
-            except MaxRetryError:
+            except MaxRetryError as e:
                 colored_message = colored(
                     f"Polygon rate limit reached. Sleeping for {PolygonClient.WAIT_SECONDS_RETRY} seconds before trying again. If you want to avoid this, consider a paid subscription with Polygon at https://polygon.io/?utm_source=affiliate&utm_campaign=lumi10 Please use the full link to give us credit for the sale, it helps support this project. You can use the coupon code 'LUMI10' for 10% off.",
                     "red",
                 )
                 logging.error(colored_message)
+                logging.debug(f"Error: {e}")
                 time.sleep(PolygonClient.WAIT_SECONDS_RETRY)

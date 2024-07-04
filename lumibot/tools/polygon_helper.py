@@ -546,16 +546,6 @@ class PolygonClient(RESTClient):
     def _get(self, *args, **kwargs):
         while True:
             try:
-                unpaid = os.getenv("POLYGON_IS_PAID_SUBSCRIPTION")
-
-                if unpaid is not None and unpaid.lower() in {'false', '0', 'f', 'n', 'no'}:
-                    colored_message = colored(
-                        f"POLYGON_IS_PAID_SUBSCRIPTION environment variable is set to false. Sleeping for {PolygonClient.WAIT_SECONDS_RETRY} seconds before calling API. If you want to go faster remove this variable and consider a paid subscription with Polygon at https://polygon.io/?utm_source=affiliate&utm_campaign=lumi10 Please use the full link to give us credit for the sale, it helps support this project. You can use the coupon code 'LUMI10' for 10% off.",
-                        "red",
-                    )
-                    logging.error(colored_message)
-                    time.sleep(PolygonClient.WAIT_SECONDS_UNPAID)
-
                 return super()._get(*args, **kwargs)
             
             except MaxRetryError:

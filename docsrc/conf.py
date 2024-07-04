@@ -57,8 +57,8 @@ html_theme = "furo"
 
 html_theme_options = {
     "sidebar_hide_name": True,
-    "light_logo": "logo-light-mode.png",
-    "dark_logo": "logo-light-mode.png",
+    "light_logo": "Lumibot_Logo.webp",
+    "dark_logo": "Lumibot_Logo.webp",
     "sidebar_title": "Lumibot",  # Custom sidebar title
     'announcement': """
     <div class="footer-banner bg-warning text-dark p-3">

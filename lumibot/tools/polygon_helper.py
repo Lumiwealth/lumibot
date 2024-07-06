@@ -555,7 +555,6 @@ class PolygonClient(RESTClient):
             except MaxRetryError as e:
                 url = urlunparse(urlparse(kwargs['path'])._replace(query=""))
 
-
                 message = (
                     "Polygon rate limit reached.\n\n"
                     f"REST API call affected: {url}\n\n"

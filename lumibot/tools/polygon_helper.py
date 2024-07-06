@@ -5,6 +5,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 import os
 from urllib3.exceptions import MaxRetryError
+from urllib.parse import urlparse, urlunparse
 
 import pandas as pd
 import pandas_market_calendars as mcal
@@ -510,7 +511,6 @@ class PolygonClient(RESTClient):
     ''' Rate Limited RESTClient with factory method '''
 
     WAIT_SECONDS_RETRY = 60
-    WAIT_SECONDS_UNPAID = 12
 
     @classmethod
     def create(cls, *args, **kwargs) -> RESTClient:
@@ -553,10 +553,20 @@ class PolygonClient(RESTClient):
                 return super()._get(*args, **kwargs)
             
             except MaxRetryError as e:
-                colored_message = colored(
-                    f"Polygon rate limit reached. Sleeping for {PolygonClient.WAIT_SECONDS_RETRY} seconds before trying again. If you want to avoid this, consider a paid subscription with Polygon at https://polygon.io/?utm_source=affiliate&utm_campaign=lumi10 Please use the full link to give us credit for the sale, it helps support this project. You can use the coupon code 'LUMI10' for 10% off.",
-                    "red",
+                url = urlunparse(urlparse(kwargs['path'])._replace(query=""))
+
+
+                message = (
+                    "Polygon rate limit reached.\n\n"
+                    f"REST API call affected: {url}\n\n"
+                    f"Sleeping for {PolygonClient.WAIT_SECONDS_RETRY} seconds seconds before trying again.\n\n"
+                    "If you want to avoid this, consider a paid subscription with Polygon at https://polygon.io/?utm_source=affiliate&utm_campaign=lumi10\n"
+                    "Please use the full link to give us credit for the sale, it helps support this project.\n"
+                    "You can use the coupon code 'LUMI10' for 10% off."
                 )
+
+                colored_message = colored(message, "red")
+                
                 logging.error(colored_message)
                 logging.debug(f"Error: {e}")
                 time.sleep(PolygonClient.WAIT_SECONDS_RETRY)

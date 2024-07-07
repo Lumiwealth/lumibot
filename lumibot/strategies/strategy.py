@@ -3904,6 +3904,9 @@ class Strategy(_Strategy):
             # Resanple the stats dataframe to daily but keep the datetime column
             stats_df = stats_df.resample("D", on="datetime").last().reset_index()
 
+            # Drop the cash column because it's not needed
+            stats_df = stats_df.drop(columns=["cash"])
+
             # Remove nan values
             stats_df = stats_df.dropna()
 

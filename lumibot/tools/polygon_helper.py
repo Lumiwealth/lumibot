@@ -5,6 +5,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 import os
 from urllib3.exceptions import MaxRetryError
+from urllib.parse import urlparse, urlunparse
 
 import pandas as pd
 import pandas_market_calendars as mcal
@@ -131,6 +132,10 @@ def get_price_data_from_polygon(
     # Add "trace=True" to see the API calls printed to the console for debugging
     polygon_client = PolygonClient.create(api_key=api_key)
     symbol = get_polygon_symbol(asset, polygon_client, quote_asset)  # Will do a Polygon query for option contracts
+
+    # Check if symbol is None, which means we couldn't find the option contract
+    if symbol is None:
+        return None
 
     # To reduce calls to Polygon, we call on full date ranges instead of including hours/minutes
     # get the full range of data we need in one call and ensure that there won't be any intraday gaps in the data.
@@ -506,7 +511,6 @@ class PolygonClient(RESTClient):
     ''' Rate Limited RESTClient with factory method '''
 
     WAIT_SECONDS_RETRY = 60
-    WAIT_SECONDS_UNPAID = 12
 
     @classmethod
     def create(cls, *args, **kwargs) -> RESTClient:
@@ -548,10 +552,20 @@ class PolygonClient(RESTClient):
             try:
                 return super()._get(*args, **kwargs)
             
-            except MaxRetryError:
-                colored_message = colored(
-                    f"Polygon rate limit reached. Sleeping for {PolygonClient.WAIT_SECONDS_RETRY} seconds before trying again. If you want to avoid this, consider a paid subscription with Polygon at https://polygon.io/?utm_source=affiliate&utm_campaign=lumi10 Please use the full link to give us credit for the sale, it helps support this project. You can use the coupon code 'LUMI10' for 10% off.",
-                    "red",
+            except MaxRetryError as e:
+                url = urlunparse(urlparse(kwargs['path'])._replace(query=""))
+
+                message = (
+                    "Polygon rate limit reached.\n\n"
+                    f"REST API call affected: {url}\n\n"
+                    f"Sleeping for {PolygonClient.WAIT_SECONDS_RETRY} seconds seconds before trying again.\n\n"
+                    "If you want to avoid this, consider a paid subscription with Polygon at https://polygon.io/?utm_source=affiliate&utm_campaign=lumi10\n"
+                    "Please use the full link to give us credit for the sale, it helps support this project.\n"
+                    "You can use the coupon code 'LUMI10' for 10% off."
                 )
+
+                colored_message = colored(message, "red")
+                
                 logging.error(colored_message)
+                logging.debug(f"Error: {e}")
                 time.sleep(PolygonClient.WAIT_SECONDS_RETRY)

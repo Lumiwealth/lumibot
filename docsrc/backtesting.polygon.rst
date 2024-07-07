@@ -26,6 +26,7 @@ Start by importing the PolygonDataBacktesting, BacktestingBroker and other neces
 Next, create a strategy class that inherits from the Strategy class. This class will be used to define the strategy that will be backtested. In this example, we will create a simple strategy that buys a stock on the first iteration and holds it until the end of the backtest. The strategy will be initialized with a symbol parameter that will be used to determine which stock to buy. The initialize method will be used to set the sleeptime to 1 day. The on_trading_iteration method will be used to buy the stock on the first iteration. The strategy will be run from 2023-01-01 to 2023-05-01.
 
 .. code-block:: python
+    
     class MyStrategy(Strategy):
         parameters = {
             "symbol": "AAPL",

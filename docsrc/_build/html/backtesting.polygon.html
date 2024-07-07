@@ -6,11 +6,11 @@
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Brokers" href="brokers.html" /><link rel="prev" title="Pandas (CSV or other data)" href="backtesting.pandas.html" />
 
     <!-- Generated with Sphinx 7.2.6 and Furo 2024.01.29 -->
-        <title>Polygon.io Backtesting - Lumibot: Algorithmic Trading and Backtesting Library Documentation</title>
+        <title>Polygon.io Backtesting - Lumibot Documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=a746c00c" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=135e06be" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=36a5483c" />
-    <link rel="stylesheet" type="text/css" href="_static/custom.css?v=8fc1b8d9" />
+    <link rel="stylesheet" type="text/css" href="_static/custom.css?v=3791830b" />
     <link rel="stylesheet" type="text/css" href="_static/bootstrap/css/bootstrap.css?v=7edfbd0b" />
     
     
@@ -134,7 +134,7 @@
       </label>
     </div>
     <div class="header-center">
-      <a href="index.html"><div class="brand">Lumibot: Algorithmic Trading and Backtesting Library Documentation</div></a>
+      <a href="index.html"><div class="brand">Lumibot Documentation</div></a>
     </div>
     <div class="header-right">
       <div class="theme-toggle-container theme-toggle-header">
@@ -372,6 +372,23 @@
 </pre></div>
 </div>
 <p>Next, create a strategy class that inherits from the Strategy class. This class will be used to define the strategy that will be backtested. In this example, we will create a simple strategy that buys a stock on the first iteration and holds it until the end of the backtest. The strategy will be initialized with a symbol parameter that will be used to determine which stock to buy. The initialize method will be used to set the sleeptime to 1 day. The on_trading_iteration method will be used to buy the stock on the first iteration. The strategy will be run from 2023-01-01 to 2023-05-01.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">MyStrategy</span><span class="p">(</span><span class="n">Strategy</span><span class="p">):</span>
+    <span class="n">parameters</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">&quot;symbol&quot;</span><span class="p">:</span> <span class="s2">&quot;AAPL&quot;</span><span class="p">,</span>
+    <span class="p">}</span>
+
+    <span class="k">def</span> <span class="nf">initialize</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sleeptime</span> <span class="o">=</span> <span class="s2">&quot;1D&quot;</span>
+
+    <span class="k">def</span> <span class="nf">on_trading_iteration</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">first_iteration</span><span class="p">:</span>
+            <span class="n">symbol</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">[</span><span class="s2">&quot;symbol&quot;</span><span class="p">]</span>
+            <span class="n">price</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_last_price</span><span class="p">(</span><span class="n">symbol</span><span class="p">)</span>
+            <span class="n">qty</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">portfolio_value</span> <span class="o">/</span> <span class="n">price</span>
+            <span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">symbol</span><span class="p">,</span> <span class="n">quantity</span><span class="o">=</span><span class="n">qty</span><span class="p">,</span> <span class="n">side</span><span class="o">=</span><span class="s2">&quot;buy&quot;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+</pre></div>
+</div>
 <p>Set the start and end dates for the backtest:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">backtesting_start</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">(</span><span class="mi">2023</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
 <span class="n">backtesting_end</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">(</span><span class="mi">2023</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>

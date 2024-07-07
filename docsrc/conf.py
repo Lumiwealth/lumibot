@@ -23,7 +23,7 @@ project = "Lumibot"
 copyright = "2021, Lumiwealth"
 author = "Lumiwealth Inc."
 
-html_title = "Lumibot: Algorithmic Trading and Backtesting Library Documentation"
+html_title = "Lumibot Documentation"
 
 source_paths = ["lumibot.brokers", "backtesting"]
 
@@ -59,7 +59,6 @@ html_theme_options = {
     "sidebar_hide_name": True,
     "light_logo": "Lumibot_Logo.webp",
     "dark_logo": "Lumibot_Logo.webp",
-    "sidebar_title": "Lumibot",  # Custom sidebar title
     'announcement': """
     <div class="footer-banner bg-warning text-dark p-3">
         <h5>Need Extra Help?</h5>

@@ -3,7 +3,7 @@
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
-<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="All Backtesting" href="backtesting.all.html" /><link rel="prev" title="self.unspent_money" href="strategy_properties/strategies.strategy.Strategy.unspent_money.html" />
+<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Tearsheet HTML" href="backtesting.tearsheet_html.html" /><link rel="prev" title="self.unspent_money" href="strategy_properties/strategies.strategy.Strategy.unspent_money.html" />
 
     <!-- Generated with Sphinx 7.2.6 and Furo 2024.01.29 -->
         <title>Backtesting - Lumibot Documentation</title>
@@ -145,7 +145,7 @@
           <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
         </button>
       </div>
-      <label class="toc-overlay-icon toc-header-icon no-toc" for="__toc">
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
         <div class="visually-hidden">Toggle table of contents sidebar</div>
         <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
       </label>
@@ -297,7 +297,11 @@
 </ul>
 </li>
 <li class="toctree-l1 current has-children current-page"><a class="current reference internal" href="#">Backtesting</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-12" name="toctree-checkbox-12" role="switch" type="checkbox"/><label for="toctree-checkbox-12"><div class="visually-hidden">Toggle navigation of Backtesting</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
-<li class="toctree-l2"><a class="reference internal" href="backtesting.all.html">All Backtesting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.tearsheet_html.html">Tearsheet HTML</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.trades_files.html">Trades Files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.indicators_files.html">Indicators Files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.logs_csv.html">Logs CSV</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.backtesting_function.html">Backtesting Function</a></li>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.yahoo.html">Yahoo</a></li>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.pandas.html">Pandas (CSV or other data)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.polygon.html">Polygon.io Backtesting</a></li>
@@ -347,7 +351,7 @@
               <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
             </button>
           </div>
-          <label class="toc-overlay-icon toc-content-icon no-toc" for="__toc">
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
             <div class="visually-hidden">Toggle table of contents sidebar</div>
             <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
           </label>
@@ -355,18 +359,25 @@
         <article role="main">
           <section id="backtesting">
 <h1>Backtesting<a class="headerlink" href="#backtesting" title="Link to this heading">#</a></h1>
-<p>Lumibot has three modes for backtesting.</p>
+<p>Lumibot has three modes for backtesting:</p>
 <ol class="arabic simple">
-<li><p>Yahoo Backtesting: Daily stock backtesting with data from Yahoo.</p></li>
-<li><p>Pandas Backtesting: Intra-day and inter-day testing of stocks and futures using CSV data supplied by you.</p></li>
-<li><p>Polygon Backtesting: Intra-day and inter-day testing of stocks and futures using Polygon data from polygon.io</p></li>
+<li><p><strong>Yahoo Backtesting:</strong> Daily stock backtesting with data from Yahoo.</p></li>
+<li><p><strong>Pandas Backtesting:</strong> Intra-day and inter-day testing of stocks and futures using CSV data supplied by you.</p></li>
+<li><p><strong>Polygon Backtesting:</strong> Intra-day and inter-day testing of stocks and futures using Polygon data from polygon.io.</p></li>
 </ol>
-<p>It is recommended to use the Yahoo Backtesting for daily stock backtesting, or Polygon Backtesting for intra-day and inter-day testing of stocks, options, crypto and FOREX. Pandas Backtesting is an advanced feature that allows you to test any type of data you have in CSV format but requires more work to setup and is not recommended for most users.</p>
+<p>It is recommended to use Yahoo Backtesting for daily stock backtesting, or Polygon Backtesting for intra-day and inter-day testing of stocks, options, crypto, and FOREX. Pandas Backtesting is an advanced feature that allows you to test any type of data you have in CSV format but requires more work to setup and is not recommended for most users.</p>
+<section id="files-generated-from-backtesting">
+<h2>Files Generated from Backtesting<a class="headerlink" href="#files-generated-from-backtesting" title="Link to this heading">#</a></h2>
+<p>When you run a backtest, several important files are generated, each prefixed by the strategy name and the date. These files provide detailed insights into the performance and behavior of the strategy.</p>
 <div class="toctree-wrapper compound">
 <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="backtesting.all.html">All Backtesting</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="backtesting.all.html#strategies.strategy.Strategy.backtest"><code class="docutils literal notranslate"><span class="pre">backtest()</span></code></a></li>
+<li class="toctree-l1"><a class="reference internal" href="backtesting.tearsheet_html.html">Tearsheet HTML</a></li>
+<li class="toctree-l1"><a class="reference internal" href="backtesting.trades_files.html">Trades Files</a></li>
+<li class="toctree-l1"><a class="reference internal" href="backtesting.indicators_files.html">Indicators Files</a></li>
+<li class="toctree-l1"><a class="reference internal" href="backtesting.logs_csv.html">Logs CSV</a></li>
+<li class="toctree-l1"><a class="reference internal" href="backtesting.backtesting_function.html">Backtesting Function</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.backtesting_function.html#strategies.strategy.Strategy.backtest"><code class="docutils literal notranslate"><span class="pre">backtest()</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="backtesting.yahoo.html">Yahoo</a></li>
@@ -378,18 +389,19 @@
 </ul>
 </div>
 </section>
+</section>
 
         </article>
       </div>
       <footer>
         
         <div class="related-pages">
-          <a class="next-page" href="backtesting.all.html">
+          <a class="next-page" href="backtesting.tearsheet_html.html">
               <div class="page-info">
                 <div class="context">
                   <span>Next</span>
                 </div>
-                <div class="title">All Backtesting</div>
+                <div class="title">Tearsheet HTML</div>
               </div>
               <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
             </a>
@@ -422,8 +434,27 @@
         
       </footer>
     </div>
-    <aside class="toc-drawer no-toc">
+    <aside class="toc-drawer">
       
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            On this page
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">Backtesting</a><ul>
+<li><a class="reference internal" href="#files-generated-from-backtesting">Files Generated from Backtesting</a></li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
       
       
     </aside>

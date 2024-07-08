@@ -3,6 +3,7 @@ from collections import defaultdict, OrderedDict
 from datetime import date, timedelta
 
 import pandas as pd
+
 from lumibot.data_sources import DataSourceBacktesting
 from lumibot.entities import Asset, AssetsMapping, Bars
 

@@ -402,7 +402,8 @@ class Data:
         float
         """
         iter_count = self.get_iter_count(dt)
-        return self.datalines["open"].dataline[iter_count]
+        price = self.datalines["open"].dataline[iter_count]
+        return price
 
     @check_data
     def _get_bars_dict(self, dt, length=1, timestep=None, timeshift=0):

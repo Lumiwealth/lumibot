@@ -9,6 +9,8 @@ from urllib.parse import urlparse, urlunparse
 
 import pandas as pd
 import pandas_market_calendars as mcal
+from lumibot import LUMIBOT_CACHE_FOLDER
+from lumibot.entities import Asset
 
 # noinspection PyPackageRequirements
 from polygon import RESTClient
@@ -421,7 +423,6 @@ def load_cache(cache_file):
         df_feather.index = df_feather.index.tz_localize("UTC")
 
     return df_feather
-
 
 def update_cache(cache_file, df_all, missing_dates=None):
     """Update the cache file with the new data.  Missing dates are added as empty (all NaN) 

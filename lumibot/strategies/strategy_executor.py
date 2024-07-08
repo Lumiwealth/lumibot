@@ -253,7 +253,7 @@ class StrategyExecutor(Thread):
                 self.strategy._update_cash(order.side, quantity, price, multiplier)
 
             self._on_partially_filled_order(**payload)
-        
+
         else:
             self.strategy.logger.error(f"Event {event} not recognized. Payload: {payload}")
 
@@ -801,9 +801,9 @@ class StrategyExecutor(Thread):
                 self.broker.data_source._iter_count += 1
 
             dt = self.broker.data_source._date_index[self.broker.data_source._iter_count]
-
+            print(f"strategy_executor.py: _run_trading_session: before _update_datetime time: {self.broker.datetime}")
             self.broker._update_datetime(dt, cash=self.strategy.cash, portfolio_value=self.strategy.portfolio_value)
-
+            print(f"strategy_executor.py: _run_trading_session: after _update_datetime time: {self.broker.datetime}")
             self.strategy._update_cash_with_dividends()
 
             self._on_trading_iteration()
@@ -966,7 +966,7 @@ class StrategyExecutor(Thread):
 
         # Sort the trading days by market close time so that we can search them faster
         self.broker._trading_days.sort_values('market_close', inplace=True)  # Ensure sorted order
-        
+
         # Set DataFrame index to market_close for fast lookups
         self.broker._trading_days.set_index('market_close', inplace=True)
 

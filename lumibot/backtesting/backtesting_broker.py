@@ -16,11 +16,13 @@ class BacktestingBroker(Broker):
     # Metainfo
     IS_BACKTESTING_BROKER = True
 
-    def __init__(self, data_source, connect_stream=True, max_workers=20, config=None, **kwargs):
-        super().__init__(name="backtesting", data_source=data_source, connect_stream=connect_stream, **kwargs)
+    def __init__(self, data_source, option_source=None, connect_stream=True, max_workers=20, config=None, **kwargs):
+        super().__init__(name="backtesting", data_source=data_source,
+                         option_source=option_source, connect_stream=connect_stream, **kwargs)
         # Calling init methods
         self.max_workers = max_workers
         self.market = "NASDAQ"
+        self.option_source = option_source
 
         # Legacy strategy.backtest code will always pass in a config even for Brokers that don't need it, so
         # catch it here and ignore it in this class. Child classes that need it should error check it themselves.
@@ -91,8 +93,9 @@ class BacktestingBroker(Broker):
             new_datetime = self.datetime + timedelta(seconds=update_dt)
         else:
             new_datetime = update_dt
-
         self.data_source._update_datetime(new_datetime, cash=cash, portfolio_value=portfolio_value)
+        if self.option_source:
+            self.option_source._update_datetime(new_datetime, cash=cash, portfolio_value=portfolio_value)
         logging.info(f"Current backtesting datetime {self.datetime}")
 
     # =========Clock functions=====================
@@ -166,10 +169,10 @@ class BacktestingBroker(Broker):
     def get_time_to_close(self):
         """Return the remaining time for the market to close in seconds"""
         now = self.datetime
-        
+
         # Use searchsorted for efficient searching and reduce unnecessary DataFrame access
         idx = self._trading_days.index.searchsorted(now, side='left')
-        
+
         if idx >= len(self._trading_days):
             logging.error("Cannot predict future")
             return 0
@@ -493,14 +496,14 @@ class BacktestingBroker(Broker):
         """
         if self.data_source.SOURCE != "PANDAS":
             return
-        
+
         # If it's the same day as the expiration, we need to check the time to see if it's after market close
         time_to_close = self.get_time_to_close()
 
         # If the time to close is None, then the market is not open so we should not sell the contracts
         if time_to_close is None:
             return
-        
+
         # Calculate the number of seconds before market close
         seconds_before_closing = strategy.minutes_before_closing * 60
 
@@ -634,6 +637,8 @@ class BacktestingBroker(Broker):
                 low = df["low"].iloc[0]
                 close = df["close"].iloc[0]
                 volume = df["volume"].iloc[0]
+                print(f"in BacktestingBroker, asset: {asset}")
+                print(f"in BacktestingBroker, OHLCV: {open}, {high}, {low}, {close}, {volume}")
 
             #############################
             # Determine transaction price.

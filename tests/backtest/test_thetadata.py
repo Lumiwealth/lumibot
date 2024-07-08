@@ -1,18 +1,90 @@
 import datetime
 import os
 from collections import defaultdict
-
+from dotenv import load_dotenv
 import pandas_market_calendars as mcal
-
+import subprocess
 from lumibot.backtesting import BacktestingBroker, ThetaDataBacktesting
 from lumibot.entities import Asset
 from lumibot.strategies import Strategy
 from lumibot.traders import Trader
+import psutil
+import pytest
+
+# Define the keyword globally
+keyword = 'ThetaTerminal.jar'
+
+
+def find_git_root(path):
+    # Traverse the directories upwards until a .git directory is found
+    original_path = path
+    while not os.path.isdir(os.path.join(path, '.git')):
+        parent_path = os.path.dirname(path)
+        if parent_path == path:
+            # Reached the root of the filesystem, .git directory not found
+            raise Exception(f"No .git directory found starting from {original_path}")
+        path = parent_path
+    return path
+
+
+def kill_processes_by_name(keyword):
+    try:
+        # Find all processes related to the keyword
+        result = subprocess.run(['pgrep', '-f', keyword], capture_output=True, text=True)
+        pids = result.stdout.strip().split('\n')
+
+        if pids:
+            for pid in pids:
+                if pid:  # Ensure the PID is not empty
+                    print(f"Killing process with PID: {pid}")
+                    subprocess.run(['kill', '-9', pid])
+            print(f"All processes related to '{keyword}' have been killed.")
+        else:
+            print(f"No processes found related to '{keyword}'.")
+
+    except Exception as e:
+        print(f"An error occurred during kill process: {e}")
+
+
+@pytest.fixture(scope="module", autouse=True)
+def run_before_and_after_tests():
+    # Code to execute before running any tests
+    kill_processes_by_name(keyword)
+    print("Setup before any test")
+
+    yield  # This is where the testing happens
+
+    # Code to execute after all tests
+    kill_processes_by_name(keyword)
+    print("Teardown after all tests")
+
+
+try:
+    # Find the root of the git repository
+    current_dir = os.getcwd()
+    git_root = find_git_root(current_dir)
+    print(f"The root directory of the Git repository is: {git_root}")
+except Exception as e:
+    print("ERROR: cannot find the root directory", str(e))
 
 # Global parameters
 # Username and Password for ThetaData API
+############################################################################################################
+# If you are running this test locally, make sure you save the THETADATA_USERNAME and THETADATA_PASSWORD in
+# the repo parent directory: lumibot/.secrets/.env file.
 THETADATA_USERNAME = os.environ.get("THETADATA_USERNAME")
 THETADATA_PASSWORD = os.environ.get("THETADATA_PASSWORD")
+############################################################################################################
+secrets_not_found = False
+if not THETADATA_USERNAME:
+    print("CHECK: Unable to get THETADATA_USERNAME in the environemnt variables.")
+    secrets_not_found = True
+if not THETADATA_PASSWORD:
+    print("CHECK: Unable to get THETADATA_PASSWORD in the environemnt variables.")
+    secrets_not_found = True
+
+if secrets_not_found:
+    raise "ERROR: Unable to get ThetaData API credentials from the environment variables."
 
 
 class ThetadataBacktestStrat(Strategy):
@@ -53,11 +125,11 @@ class ThetadataBacktestStrat(Strategy):
         trading_days_df = market_cal.schedule(
             start_date=today, end_date=today + datetime.timedelta(days=days_to_expiration + extra_days_padding)
         )
-
         # Look for the next trading day that is in the list of expiration dates. Skip the first trading day because
         # that is today and we want to find the next expiration date.
         #   Date Format: 2023-07-31
         trading_datestrs = [x.to_pydatetime().date() for x in trading_days_df.index.to_list()]
+
         for trading_day in trading_datestrs[days_to_expiration:]:
             day_str = trading_day.strftime("%Y-%m-%d")
             if day_str in chain["Expirations"]:
@@ -157,7 +229,7 @@ class ThetadataBacktestStrat(Strategy):
             self.cancel_open_orders()
 
 
-class TestPolygonBacktestFull:
+class TestThetaDataBacktestFull:
     def verify_backtest_results(self, poly_strat_obj):
         assert isinstance(poly_strat_obj, ThetadataBacktestStrat)
 
@@ -231,9 +303,14 @@ class TestPolygonBacktestFull:
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
         )
-        trader = Trader(logfile="", backtest=True)
+        trader = Trader(logfile="test_theta.log", backtest=True, debug=True)
         trader.add_strategy(strat_obj)
         results = trader.run_all(show_plot=False, show_tearsheet=False, save_tearsheet=False)
 
         assert results
         self.verify_backtest_results(strat_obj)
+
+
+# This will ensure the function runs before any test in this file.
+if __name__ == "__main__":
+    pytest.main()

@@ -6,13 +6,14 @@ from datetime import date, timedelta
 from lumibot.data_sources import PandasData
 from lumibot.entities import Asset, Data
 from lumibot.tools import thetadata_helper
+import subprocess
 
 START_BUFFER = timedelta(days=5)
 
 
 class ThetaDataBacktesting(PandasData):
     """
-    Backtesting implementation of Polygon
+    Backtesting implementation of ThetaData
     """
 
     def __init__(
@@ -28,6 +29,25 @@ class ThetaDataBacktesting(PandasData):
 
         self._username = username
         self._password = password
+        self.kill_processes_by_name("ThetaTerminal.jar")
+
+    def kill_processes_by_name(self, keyword):
+        try:
+            # Find all processes related to the keyword
+            result = subprocess.run(['pgrep', '-f', keyword], capture_output=True, text=True)
+            pids = result.stdout.strip().split('\n')
+
+            if pids:
+                for pid in pids:
+                    if pid:  # Ensure the PID is not empty
+                        logging.info(f"Killing process with PID: {pid}")
+                        subprocess.run(['kill', '-9', pid])
+                logging.info(f"All processes related to '{keyword}' have been killed.")
+            else:
+                logging.info(f"No processes found related to '{keyword}'.")
+
+        except Exception as e:
+            print(f"An error occurred during kill process: {e}")
 
     def update_pandas_data(self, asset, quote, length, timestep, start_dt=None):
         """
@@ -106,9 +126,10 @@ class ThetaDataBacktesting(PandasData):
                         # We don't have enough data, so we need to get more (but in minutes)
                         ts_unit = "minute"
 
-        # Download data from Polygon
+        # Download data from ThetaData
         try:
-            # Get data from Polygon
+            # Get data from ThetaData
+            date_time_now = self.get_datetime()
             df = thetadata_helper.get_price_data(
                 self._username,
                 self._password,
@@ -117,9 +138,12 @@ class ThetaDataBacktesting(PandasData):
                 self.datetime_end,
                 timespan=ts_unit,
                 quote_asset=quote_asset,
+                dt=self.get_datetime()
             )
+            # save df to csv file
+            # df.to_csv(f"theta_csv/wrong{date_time_now}_{asset.strike}_{asset.expiration}_{asset.right}.csv")
         except Exception as e:
-            logging.error(traceback.format_exc())
+            logging.info(traceback.format_exc())
             raise Exception("Error getting data from ThetaData") from e
 
         if df is None:
@@ -187,13 +211,13 @@ class ThetaDataBacktesting(PandasData):
                 self.pandas_data.update(pandas_data_update)
                 self._data_store.update(pandas_data_update)
         except Exception as e:
-            print(f"Error get_last_price from Polygon: {e}")
+            print(f"Error get_last_price from ThetaData: {e}")
 
         return super().get_last_price(asset=asset, quote=quote, exchange=exchange)
 
     def get_chains(self, asset):
         """
-        Integrates the Polygon client library into the LumiBot backtest for Options Data in the same
+        Integrates the ThetaData client library into the LumiBot backtest for Options Data in the same
         structure as Interactive Brokers options chain data
 
         Parameters

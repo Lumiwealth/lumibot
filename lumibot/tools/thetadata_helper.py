@@ -11,11 +11,28 @@ import requests
 from lumibot import LUMIBOT_CACHE_FOLDER
 from lumibot.entities import Asset
 from thetadata import ThetaClient
+import holidays
 
 WAIT_TIME = 60
 MAX_DAYS = 30
+THETA_SUMMER_TIME_SHIFT = 4
+THETA_WINTER_TIME_SHIFT = 5
 CACHE_SUBFOLDER = "thetadata"
 BASE_URL = "http://127.0.0.1:25510"
+
+
+def is_summer_time(date_time):
+    month = int(date_time.month)
+    if month >= 4 and month <= 10:
+        return True
+    elif month in [12, 1, 2]:
+        return False
+    else:
+        # Convert the datetime object to a struct_time in the local timezone
+        time_tuple = date_time.timetuple()
+
+        # Use the tm_isdst attribute to determine DST status
+        return time.localtime(time.mktime(time_tuple)).tm_isdst > 0
 
 
 def get_price_data(
@@ -26,6 +43,7 @@ def get_price_data(
     end: datetime,
     timespan: str = "minute",
     quote_asset: Asset = None,
+    dt=None
 ):
     """
     Queries ThetaData for pricing data for the given asset and returns a DataFrame with the data. Data will be
@@ -56,22 +74,30 @@ def get_price_data(
         A DataFrame with the pricing data for the asset
 
     """
-
+    if start.date() < dt.date():
+        start = dt
     # Check if we already have data for this asset in the feather file
     df_all = None
     df_feather = None
     cache_file = build_cache_filename(asset, timespan)
     if cache_file.exists():
-        print(f"\nLoading pricing data for {asset} / {quote_asset} with '{timespan}' timespan from cache file...")
+        logging.info(
+            f"\nLoading pricing data for {asset} / {quote_asset} with '{timespan}' timespan from cache file...")
         df_feather = load_cache(cache_file)
         df_all = df_feather.copy()  # Make a copy so we can check the original later for differences
 
     # Check if we need to get more data
     missing_dates = get_missing_dates(df_all, asset, start, end)
     if not missing_dates:
+        # df_all.index = df_all.index + pd.Timedelta(hours=THETA_SUMMER_TIME_SHIFT) - pd.Timedelta(minutes=1)
+        if is_summer_time(start):
+            df_all.index = df_all.index + pd.Timedelta(hours=THETA_SUMMER_TIME_SHIFT) - pd.Timedelta(minutes=1)
+        else:
+            df_all.index = df_all.index + pd.Timedelta(hours=THETA_WINTER_TIME_SHIFT) - pd.Timedelta(minutes=1)
         return df_all
 
-    print(f"\nGetting pricing data for {asset} / {quote_asset} with '{timespan}' timespan from ThetaData...")
+    logging.info(
+        f"\nGetting pricing data for {asset} / {quote_asset} with '{timespan}' timespan directly from ThetaData datastream...")
 
     start = missing_dates[0]  # Data will start at 8am UTC (4am EST)
     end = missing_dates[-1]  # Data will end at 23:59 UTC (7:59pm EST)
@@ -107,11 +133,23 @@ def get_price_data(
 
         else:
             df_all = update_df(df_all, result_df)
+            print(f"\ndf_all tail: \n{df_all.tail()}")
 
         start = end + timedelta(days=1)
         end = start + delta
 
+        if asset.expiration and start > asset.expiration:
+            break
+
     update_cache(cache_file, df_all, df_feather)
+    # df_all.index = df_all.index + pd.Timedelta(hours=THETA_SUMMER_TIME_SHIFT) - pd.Timedelta(minutes=1)
+
+    if is_summer_time(start):
+        print(f"Today's date is in Daylight Saving Time (Summer Time)")
+        df_all.index = df_all.index + pd.Timedelta(hours=THETA_SUMMER_TIME_SHIFT) - pd.Timedelta(minutes=1)
+    else:
+        print(f"Today's date is in Standard Time (Winter Time)")
+        df_all.index = df_all.index + pd.Timedelta(hours=THETA_WINTER_TIME_SHIFT) - pd.Timedelta(minutes=1)
     return df_all
 
 
@@ -268,12 +306,26 @@ def update_df(df_all, result):
     df = pd.DataFrame(result)
     if not df.empty:
         df = df.set_index("datetime").sort_index()
-
+        if df_all is not None:
+            print(f"\n new loop df_all head: \n{df_all.head()}")
+            # set "datetime" column as index of df_all
+            df_all = df_all.set_index("datetime").sort_index()
+            print(f"\n after setting index df_all head: \n{df_all.head()}")
+        print(f"\nbefore utc: df head: \n{df.head()}")
+        df.index = df.index.tz_localize("UTC")
+        print(f"\nafter utc: df head: \n{df.head()}")
         if df_all is None or df_all.empty:
             df_all = df
+            print(f"\nNo df_all, assign df_all=df")
         else:
+            print(f"\nInside update_df, df_all head: \n{df_all.head()}")
+            print(f"\nInside update_df, df head: \n{df.head()}")
             df_all = pd.concat([df_all, df]).sort_index()
             df_all = df_all[~df_all.index.duplicated(keep="first")]  # Remove any duplicate rows
+
+            print(f"\nafter concat df_all head: \n{df_all.head()}")
+        # df_all = df_all.reset_index()
+        print(f"\nafter concat reset index df_all head: \n{df_all.head()}")
 
     return df_all
 
@@ -324,8 +376,46 @@ def check_connection(username: str, password: str):
     return client
 
 
+def get_all_holidays(year, country='US'):
+    """
+    Get a list of all holidays for a given year and country.
+
+    :param year: Integer, the year for which to get the holidays
+    :param country: String, the country for which to get the holidays
+    :return: List of tuples (date, name) representing holidays
+    """
+    country_holidays = holidays.country_holidays(country, years=year)
+    all_holidays = [date for date, name in country_holidays.items()]
+    return all_holidays
+
+
+def is_weekend(date):
+    """
+    Check if the given date is a weekend.
+
+    :param date: datetime.date object
+    :return: Boolean, True if weekend, False otherwise
+    """
+    return date.weekday() >= 5  # 5 = Saturday, 6 = Sunday
+
+
 def get_request(url: str, headers: dict, querystring: dict, username: str, password: str):
     counter = 0
+    print(f"querystring: {querystring}")
+    expiry = querystring['exp'] if 'exp' in querystring else None
+
+    # Check if expiry date is a holiday or weekend, this part of the logic is currently
+    # only for options mode
+    if expiry:
+        expiry = datetime.strptime(expiry, "%Y%m%d")
+        holidays = get_all_holidays(expiry.year)
+        if expiry in holidays:
+            logging.info(f"\nSKIP: Expiry {expiry} date is a holiday!")
+            return None
+        if is_weekend(expiry):
+            logging.info(f"\nSKIP: Expiry {expiry} date is a weekend!")
+            return None
+
     while True:
         try:
             response = requests.get(url, headers=headers, params=querystring)
@@ -337,16 +427,18 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
 
                 # Check if json_resp has error_type inside of header
                 if "error_type" in json_resp["header"] and json_resp["header"]["error_type"] != "null":
-                    logging.error(f"Error getting data from Theta Data: {json_resp['header']['error_type']}")
+                    logging.error(
+                        f"Error getting data from Theta Data: {json_resp['header']['error_type']},\nquerystring: {querystring}")
                     check_connection(username=username, password=password)
                 else:
+                    # print(f"\nthe_helper: Found valid querystring: {querystring}")
                     break
 
         except Exception as e:
             check_connection(username=username, password=password)
 
         counter += 1
-        if counter > 3:
+        if counter > 1:
             raise ValueError("Cannot connect to Theta Data!")
 
     return json_resp
@@ -407,7 +499,11 @@ def get_historical_data(asset: Asset, start_dt: datetime, end_dt: datetime, ivl:
     headers = {"Accept": "application/json"}
 
     # Send the request
-    json_resp = get_request(url=url, headers=headers, querystring=querystring, username=username, password=password)
+
+    json_resp = get_request(url=url, headers=headers, querystring=querystring,
+                            username=username, password=password)
+    if json_resp is None:
+        return None
 
     # Convert to pandas dataframe
     df = pd.DataFrame(json_resp["response"], columns=json_resp["header"]["format"])

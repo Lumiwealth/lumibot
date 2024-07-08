@@ -78,7 +78,6 @@ class PolygonDataBacktesting(PandasData):
         start_datetime, ts_unit = self.get_start_datetime_and_ts_unit(
             length, timestep, start_dt, start_buffer=START_BUFFER
         )
-
         # Check if we have data for this asset
         if search_asset in self.pandas_data:
             asset_data = self.pandas_data[search_asset]
@@ -170,10 +169,8 @@ class PolygonDataBacktesting(PandasData):
 
         if (df is None) or df.empty:
             return
-
         data = Data(asset_separated, df, timestep=ts_unit, quote=quote_asset)
         pandas_data_update = self._set_pandas_data_keys([data])
-
         # Add the keys to the self.pandas_data dictionary
         self.pandas_data.update(pandas_data_update)
         if PolygonDataBacktesting.MAX_STORAGE_BYTES:
@@ -191,10 +188,8 @@ class PolygonDataBacktesting(PandasData):
     ):
         # Get the current datetime and calculate the start datetime
         current_dt = self.get_datetime()
-
         # Get data from Polygon
         self._update_pandas_data(asset, quote, length, timestep, current_dt)
-
         return super()._pull_source_symbol_bars(
             asset, length, timestep, timeshift, quote, exchange, include_after_hours
         )

@@ -17,4 +17,4 @@ Options methods are meant for managing options, including getting option chains,
     get_expiration
     get_multiplier
     options_expiry_to_datetime_date
-    get_option_expiration_after_date
+    get_next_trading_day

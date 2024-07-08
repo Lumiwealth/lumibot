@@ -8,9 +8,6 @@ class TestOrderBasics:
         assert Order(asset=Asset("SPY"), quantity=10, side="buy", strategy='abc').side == 'buy'
         assert Order(asset=Asset("SPY"), quantity=10, side="sell", strategy='abc').side == 'sell'
 
-        with pytest.raises(ValueError):
-            Order(asset=Asset("SPY"), quantity=10, side="unknown", strategy='abc')
-
     def test_is_option(self):
         # Standard stock order
         asset = Asset("SPY")
@@ -80,3 +77,42 @@ class TestOrderBasics:
         assert not order.is_active()
         order.status = 'submitted'
         assert order.is_active()
+
+    def test_status(self):
+        asset = Asset("SPY")
+        order = Order(strategy='abc', asset=asset, side="buy", quantity=100)
+        assert order.status == "unprocessed"
+        order.status = "filled"
+        assert order.status == "fill"
+        order.status = "canceled"
+        assert order.status == "canceled"
+        order.status = "submit"
+        assert order.status == "submitted"
+        order.status = "cancel"
+        assert order.status == "canceled"
+
+    def test_equivalent_status(self):
+        asset = Asset("SPY")
+        order1 = Order(strategy='abc', asset=asset, side="buy", quantity=100)
+        order2 = Order(strategy='abc', asset=asset, side="buy", quantity=100)
+        assert order1.equivalent_status(order2)
+        order2.status = "filled"
+        assert not order1.equivalent_status(order2)
+        order1.status = "filled"
+        assert order1.equivalent_status(order2)
+
+        order1.status = "canceled"
+        order2.status = "cancelled"
+        assert order1.equivalent_status(order2)
+
+        order1.status = "submit"
+        order2.status = "submitted"
+        assert order1.equivalent_status(order2)
+
+        order1.status = "open"
+        order2.status = "new"
+        assert order1.equivalent_status(order2)
+
+        order1.status = "open"
+        order2.status = ""
+        assert not order1.equivalent_status("")

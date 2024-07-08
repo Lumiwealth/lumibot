@@ -6,12 +6,6 @@ from .data_source_backtesting import DataSourceBacktesting
 from .exceptions import NoDataFound, UnavailabeTimestep
 from .interactive_brokers_data import InteractiveBrokersData
 from .pandas_data import PandasData
-from .tradier_data import (
-    TRADIER_LIVE_API_URL,
-    TRADIER_PAPER_API_URL,
-    TRADIER_STREAM_API_URL,
-    TradierAPIError,
-    TradierData,
-)
-from .tradovate_data import TradovateData
+from .tradier_data import TradierData
 from .yahoo_data import YahooData
+from .ccxt_backtesting_data import CcxtBacktestingData

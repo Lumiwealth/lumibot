@@ -1,19 +1,18 @@
+import contextlib
 import logging
 import math
 import os
 import webbrowser
-from datetime import datetime, timedelta
+from datetime import datetime
 from decimal import Decimal
 
-import numpy as np
 import pandas as pd
-import plotly.express as px
 import plotly.graph_objects as go
-import quantstats as qs
+import pytz
+import quantstats_lumi as qs
+from plotly.subplots import make_subplots
 
-# import lumibot.data_sources.alpha_vantage as av
-from lumibot import LUMIBOT_DEFAULT_PYTZ
-from lumibot.entities.asset import Asset
+from lumibot import LUMIBOT_DEFAULT_TIMEZONE
 from lumibot.tools import to_datetime_aware
 from plotly.subplots import make_subplots
 
@@ -50,8 +49,8 @@ def cagr(_df):
     df = df.sort_index(ascending=True)
     df["cum_return"] = (1 + df["return"]).cumprod()
     total_ret = df["cum_return"].iloc[-1]
-    start = datetime.utcfromtimestamp(df.index.values[0].astype("O") / 1e9)
-    end = datetime.utcfromtimestamp(df.index.values[-1].astype("O") / 1e9)
+    start = datetime.fromtimestamp(df.index.values[0].astype("O") / 1e9, pytz.UTC)
+    end = datetime.fromtimestamp(df.index.values[-1].astype("O") / 1e9, pytz.UTC)
     period_years = (end - start).days / 365.25
     if period_years == 0:
         return 0
@@ -65,8 +64,8 @@ def volatility(_df):
     has the return for that time period (eg. daily)
     """
     df = _df.copy()
-    start = datetime.utcfromtimestamp(df.index.values[0].astype("O") / 1e9)
-    end = datetime.utcfromtimestamp(df.index.values[-1].astype("O") / 1e9)
+    start = datetime.fromtimestamp(df.index.values[0].astype("O") / 1e9, pytz.UTC)
+    end = datetime.fromtimestamp(df.index.values[-1].astype("O") / 1e9, pytz.UTC)
     period_years = (end - start).days / 365.25
     if period_years == 0:
         return 0
@@ -206,8 +205,13 @@ def plot_indicators(
     chart_markers_df=None,
     chart_lines_df=None,
     strategy_name=None,
-    show_plot=True,
+    show_indicators=True,
 ):
+    # If show plot is False, then we don't want to open the plot in the browser
+    if not show_indicators:
+        print("show_indicators is False, not creating the plot file.")
+        return
+
     print("\nCreating indicators plot...")
 
     fig = make_subplots(specs=[[{"secondary_y": True}]])
@@ -330,7 +334,13 @@ def plot_indicators(
         )
 
         # Create graph
-        fig.write_html(plot_file_html, auto_open=show_plot)
+        fig.write_html(plot_file_html, auto_open=show_indicators)
+
+        # Get the file name for the CSV file by removing the .html extension and adding .csv
+        csv_file = plot_file_html.replace(".html", ".csv")
+
+        # Export chart markers and lines to CSV
+        chart_markers_df.to_csv(csv_file, mode="a")
 
 
 def plot_returns(
@@ -345,6 +355,11 @@ def plot_returns(
     # chart_markers_df=None,
     # chart_lines_df=None,
 ):
+    # If show plot is False, then we don't want to open the plot in the browser
+    if not show_plot:
+        print("show_plot is False, not creating the plot file.")
+        return
+
     print("\nCreating trades plot...")
 
     dfs_concat = []
@@ -353,11 +368,7 @@ def plot_returns(
     _df1 = _df1.sort_index(ascending=True)
     _df1.index.name = "datetime"
     _df1[strategy_name] = (1 + _df1["return"]).cumprod()
-
-    # Setting the first value using .loc
-    first_index = _df1.index[0]  # Get the first index of _df1
-    _df1.loc[first_index, strategy_name] = 1
-
+    _df1.loc[_df1.index[0], strategy_name] = 1
     _df1[strategy_name] = _df1[strategy_name] * initial_budget
     dfs_concat.append(_df1)
 
@@ -392,6 +403,11 @@ def plot_returns(
     else:
         trades_df = trades_df.set_index("time")
         df_final = df_final.merge(trades_df, how="outer", left_index=True, right_index=True)
+
+    # Fix for minute timeframe backtests plotting
+    # Converted to DatetimeIndex because index becomes Index type and UTC timezone in pd.concat
+    # The x-axis is not displayed correctly in plotly when not converted to DatetimeIndex type
+    df_final.index = pd.to_datetime(df_final.index,utc=True).tz_convert(LUMIBOT_DEFAULT_TIMEZONE)
 
     # fig = go.Figure()
     fig = make_subplots(specs=[[{"secondary_y": True}]])
@@ -470,7 +486,7 @@ def plot_returns(
                 return (
                     row["status"]
                     + "<br>"
-                    + str(row["filled_quantity"].quantize(Decimal("0.01")).__format__(",f"))
+                    + str(Decimal(row["filled_quantity"]).quantize(Decimal("0.01")).__format__(",f"))
                     + " "
                     + row["symbol"]
                     + " "
@@ -509,7 +525,7 @@ def plot_returns(
                 return (
                     row["status"]
                     + "<br>"
-                    + str(row["filled_quantity"].quantize(Decimal("0.01")).__format__(",f"))
+                    + str(Decimal(row["filled_quantity"]).quantize(Decimal("0.01")).__format__(",f"))
                     + " "
                     + row["symbol"]
                     + "<br>"
@@ -649,10 +665,18 @@ def create_tearsheet(
     strat_name: str,
     tearsheet_file: str,
     benchmark_df: pd.DataFrame,
-    benchmark_asset: Asset,
+    benchmark_asset,  # This is causing a circular import: Asset,
     show_tearsheet: bool,
+    save_tearsheet: bool,
     risk_free_rate: float,
+    strategy_parameters: dict = None,
 ):
+    # If show tearsheet is False, then we don't want to open the tearsheet in the browser
+    # IMS create the tearsheet even if we are not showinbg it
+    if not save_tearsheet:
+        print("save_tearsheet is False, not creating the tearsheet file.")
+        return
+
     print("\nCreating tearsheet...")
 
     # Check if df1 or df2 are empty and return if they are
@@ -663,7 +687,12 @@ def create_tearsheet(
     _strategy_df = strategy_df.copy()
     _benchmark_df = benchmark_df.copy()
 
-    df = pd.concat([_strategy_df, _benchmark_df], join="outer", axis=1)
+    # Convert _strategy_df and _benchmark_df indexes to a date object instead of datetime
+    _strategy_df.index = pd.to_datetime(_strategy_df.index)
+
+    # Merge the strategy and benchmark dataframes on the index column
+    df = pd.merge(_strategy_df, _benchmark_df, left_index=True, right_index=True, how="outer")
+
     df.index = pd.to_datetime(df.index)
     df["portfolio_value"] = df["portfolio_value"].ffill()
 
@@ -673,11 +702,14 @@ def create_tearsheet(
     df["symbol_cumprod"] = df["symbol_cumprod"].ffill()
     df.loc[df.index[0], "symbol_cumprod"] = 1
 
-    df = df.groupby(df.index.date).last()
-    df["strategy"] = df["portfolio_value"].pct_change().fillna(0)
-    df["benchmark"] = df["symbol_cumprod"].pct_change().fillna(0)
+    df = df.resample("D").last()
+    df["strategy"] = df["portfolio_value"].bfill().pct_change(fill_method=None).fillna(0)
+    df["benchmark"] = df["symbol_cumprod"].bfill().pct_change(fill_method=None).fillna(0)
 
+    # Merge the strategy and benchmark columns into a new dataframe called df_final
     df_final = df.loc[:, ["strategy", "benchmark"]]
+
+    # df_final = df.loc[:, ["strategy", "benchmark"]]
     df_final.index = pd.to_datetime(df_final.index)
     df_final.index = df_final.index.tz_localize(None)
 
@@ -708,23 +740,26 @@ def create_tearsheet(
     # Set the name of the benchmark column so that quantstats can use it in the report
     df_final["benchmark"].name = str(benchmark_asset)
 
-    # TODO: Add the risk free rate, it's currently 0% which is wrong
-    qs.reports.html(
-        df_final["strategy"],
-        df_final["benchmark"],
-        title=title,
-        output=tearsheet_file,
-        download_filename=tearsheet_file,  # TODO: Should we name this slightly different than output?
-        rf=risk_free_rate,
-    )
+    # Run quantstats reports surpressing any logs because it can be noisy for no reason
+    with open(os.devnull, "w") as f, contextlib.redirect_stdout(f), contextlib.redirect_stderr(f):
+        qs.reports.html(
+            df_final["strategy"],
+            df_final["benchmark"],
+            title=title,
+            output=tearsheet_file,
+            download_filename=tearsheet_file,  # Consider if you need a different name for clarity
+            rf=risk_free_rate,
+            parameters=strategy_parameters,
+        )
+
     if show_tearsheet:
         url = "file://" + os.path.abspath(str(tearsheet_file))
         webbrowser.open(url)
 
 
-def get_risk_free_rate():
+def get_risk_free_rate(dt: datetime = None):
     try:
-        result = yh.get_risk_free_rate()
+        result = yh.get_risk_free_rate(dt=dt)
     except Exception as e:
         logging.error(f"Error getting the risk free rate: {e}")
         result = 0

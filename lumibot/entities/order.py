@@ -10,9 +10,63 @@ from lumibot.tools.types import check_positive, check_price, check_quantity
 SELL = "sell"
 BUY = "buy"
 
+VALID_STATUS = ["unprocessed", "new", "open", "submitted", "fill", "partial_fill", "canceled", "error", "cash_settled"]
+STATUS_ALIAS_MAP = {
+    "cancelled": "canceled",
+    "cancel": "canceled",
+    "cash": "cash_settled",
+    "expired": "canceled",  # Alpaca/Tradier status
+    "filled": "fill",  # Alpaca/Tradier status
+    "partially_filled": "partial_filled",  # Alpaca/Tradier status
+    "pending": "open",  # Tradier status
+    "presubmitted": "new",  # IBKR status
+    "rejected": "error",  # Tradier status
+    "submit": "submitted",
+    "done_for_day": "canceled",  # Alpaca status
+    "replaced": "canceled",  # Alpaca status
+    "stopped": "canceled",  # Alpaca status
+    "suspended": "canceled",  # Alpaca status
+    "pending_cancel": "canceled",  # Alpaca status
+    "pending_new": "new",  # Alpaca status
+    "pending_replace": "canceled",  # Alpaca status
+    "pending_review": "open",  # Alpaca status
+    "accepted": "open",  # Alpaca status
+    "calculated": "open",  # Alpaca status
+    "accepted_for_bidding": "open",  # Alpaca status
+    "held": "open",  # Alpaca status
+}
+
 
 class Order:
     Transaction = namedtuple("Transaction", ["quantity", "price"])
+
+    class OrderType:
+        MARKET = "market"
+        LIMIT = "limit"
+        STOP = "stop"
+        STOP_LIMIT = "stop_limit"
+        TRAIL = "trailing_stop"
+        BRACKET = "bracket"
+        OCO = "oco"
+        OTO = "oto"
+
+    class OrderSide:
+        BUY = "buy"
+        SELL = "sell"
+        BUY_TO_COVER = "buy_to_cover"
+        SELL_SHORT = "sell_short"
+        BUY_TO_OPEN = "buy_to_open"
+        BUY_TO_CLOSE = "buy_to_close"
+        SELL_TO_OPEN = "sell_to_open"
+        SELL_TO_CLOSE = "sell_to_close"
+
+    class OrderStatus:
+        NEW = "new"
+        CANCELED = "canceled"
+        FILLED = "fill"
+        PARTIALLY_FILLED = "partial_fill"
+        CASH_SETTLED = "cash_settled"
+        ERROR = "error"
 
     def __init__(
         self,
@@ -38,6 +92,8 @@ class Order:
         trade_cost: float = None,
         custom_params={},
         identifier=None,
+        avg_fill_price=None,
+        tag="",
     ):
         """Order class for managing individual orders.
 
@@ -130,6 +186,11 @@ class Order:
         custom_params : dict
             A dictionary of custom parameters that can be used to pass additional information to the broker. This is useful for passing custom parameters to the broker that are not supported by Lumibot.
             Eg. `custom_params={"leverage": 3}` for Kraken margin trading.
+        avg_fill_price: float
+            The average price that the order was fileld at.
+        tag: str
+            A tag that can be used to identify the order. This is useful for tracking orders in the broker. Not all
+            brokers support this feature and lumibot will simply ignore it for those that don't.
         Examples
         --------
         >>> from lumibot.entities import Asset
@@ -186,6 +247,10 @@ class Order:
         # Initialization default values
         self.strategy = strategy
 
+        # Check that quantity is a number
+        if not isinstance(quantity, (int, float, Decimal)):
+            raise ValueError("Order quantity must be a number")
+
         # It is possible for crypto currencies to arrive as a tuple of
         # two assets.
         if isinstance(asset, tuple) and asset[0].asset_type == "crypto":
@@ -219,6 +284,10 @@ class Order:
         self.trade_cost = trade_cost
         self.custom_params = custom_params
         self._trail_stop_price = None
+        self.tag = tag
+        self.avg_fill_price = avg_fill_price # The weighted average filled price for this order. Calculated if not given by broker
+        self.broker_create_date = None  # The datetime the order was created by the broker
+        self.broker_update_date = None  # The datetime the order was last updated by the broker
 
         # Options:
         self.exchange = exchange
@@ -237,13 +306,10 @@ class Order:
         self._raw = None
         self._transmitted = False
         self._error = None
-        self._error_message = None
+        self.error_message = None
 
         self.quantity = quantity
 
-        # setting the side
-        if side not in [BUY, SELL]:
-            raise ValueError("Side must be either sell or buy, got %r instead" % side)
         self.side = side
 
         self._set_type(
@@ -453,13 +519,28 @@ class Order:
             self.stop_price = check_price(stop_price, "stop_price must be positive float.")
 
     @property
+    def avg_fill_price(self):
+        return self._avg_fill_price
+
+    @avg_fill_price.setter
+    def avg_fill_price(self, value):
+        self._avg_fill_price = round(float(value), 2) if value else 0.0
+
+    @property
     def status(self):
         return self._status
 
     @status.setter
     def status(self, value):
         if value and isinstance(value, str):
-            self._status = value
+            if value.lower() in VALID_STATUS:
+                self._status = value.lower()
+            elif value.lower() in STATUS_ALIAS_MAP:
+                self._status = STATUS_ALIAS_MAP[value.lower()]
+            else:
+                self._status = value.lower()
+                # Log an error
+                logging.error(f"Invalid order status: {value}")
 
     @property
     def quantity(self):
@@ -473,7 +554,7 @@ class Order:
                 value = Decimal(str(value))
 
         quantity = Decimal(value)
-        self._quantity = check_quantity(quantity, "Order quantity must be a positive Decimal")
+        self._quantity = quantity
 
     def __hash__(self):
         return hash(self.identifier)
@@ -576,7 +657,7 @@ class Order:
         bool
             True if the order has been cancelled, False otherwise.
         """
-        return self.status.lower() in ["cancelled", "canceled", "cancel"]
+        return self.status.lower() in ["cancelled", "canceled", "cancel", "error"]
 
     def is_filled(self):
         """
@@ -594,14 +675,28 @@ class Order:
         else:
             return False
 
+    def equivalent_status(self, status) -> bool:
+        """Returns if the status is equivalent to the order status."""
+        status = status.status if isinstance(status, Order) else status
+
+        if not status:
+            return False
+        elif self.status.lower() in [status.lower(), STATUS_ALIAS_MAP.get(status.lower(), "")]:
+            return True
+        # open/new status is equivalent
+        elif {self.status.lower(), status.lower()}.issubset({"open", "new"}):
+            return True
+        else:
+            return False
+
     def set_error(self, error):
         self.status = "error"
         self._error = error
-        self._error_message = str(error)
+        self.error_message = str(error)
         self._closed_event.set()
 
     def was_transmitted(self):
-        return self._transmitted is True
+        return self._transmitted
 
     def update_raw(self, raw):
         if raw is not None:

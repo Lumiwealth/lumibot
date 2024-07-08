@@ -4,8 +4,9 @@ import re
 
 import pandas as pd
 from lumibot import LUMIBOT_DEFAULT_PYTZ as DEFAULT_PYTZ
-from lumibot.tools.helpers import to_datetime_aware
+from lumibot.tools.helpers import parse_timestep_qty_and_unit, to_datetime_aware
 
+from .asset import Asset
 from .dataline import Dataline
 
 
@@ -21,6 +22,8 @@ class Data:
         from csv.
         Index is date and must be pandas datetime64.
         Columns are strictly ["open", "high", "low", "close", "volume"]
+    quote : Asset Object
+        The quote asset for this data. If not provided, then the quote asset will default to USD.
     date_start : Datetime or None
         Starting date for this data, if not provided then first date in
         the dataframe.
@@ -127,6 +130,12 @@ class Data:
             )
         else:
             self.quote = quote
+
+        # Throw an error if the quote is not an asset object
+        if self.quote is not None and not isinstance(self.quote, Asset):
+            raise ValueError(
+                f"The quote asset for Data must be an Asset object. You provided a {type(self.quote)} object."
+            )
 
         if timestep not in ["minute", "day"]:
             raise ValueError(
@@ -259,12 +268,17 @@ class Data:
             )
         return df
 
+    # ./lumibot/build/__editable__.lumibot-3.1.14-py3-none-any/lumibot/entities/data.py:280: 
+    # FutureWarning: Downcasting object dtype arrays on .fillna, .ffill, .bfill is deprecated and will change in a future version. 
+    # Call result.infer_objects(copy=False) instead.
+    # To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)`
+
     def repair_times_and_fill(self, idx):
         # Trim the global index so that it is within the local data.
         idx = idx[(idx >= self.datetime_start) & (idx <= self.datetime_end)]
 
         # After all time series merged, adjust the local dataframe to reindex and fill nan's.
-        df = self.df.reindex(idx)
+        df = self.df.reindex(idx, method="ffill")
         df.loc[df["volume"].isna(), "volume"] = 0
         df.loc[:, ~df.columns.isin(["open", "high", "low"])] = df.loc[
             :, ~df.columns.isin(["open", "high", "low"])
@@ -481,12 +495,9 @@ class Data:
         pandas.DataFrame
 
         """
-        # Interactive Brokers can use a timespan of something like: '10 minutes'
-        quantity = 1
-        m = re.search(r"(\d+)\s*(\w+)", timestep)
-        if m:
-            quantity = int(m.group(1))
-            timestep = m.group(2).rstrip("s")  # remove trailing 's' if any
+        # Parse the timestep
+        quantity, timestep = parse_timestep_qty_and_unit(timestep)
+        num_periods = length
 
         if timestep == "minute" and self.timestep == "day":
             raise ValueError("You are requesting minute data from a daily data source. This is not supported.")
@@ -508,18 +519,26 @@ class Data:
             data = self._get_bars_dict(dt, length=length, timestep="minute", timeshift=timeshift)
 
         else:
-            unit = "T"  # Guarenteed to be minute timestep at this point
+            unit = "min"  # Guaranteed to be minute timestep at this point
             length = length * quantity
             data = self._get_bars_dict(dt, length=length, timestep=timestep, timeshift=timeshift)
 
         if data is None:
             return None
 
-        df = pd.DataFrame(data).set_index("datetime")
+        df = pd.DataFrame(data).assign(datetime=lambda df: pd.to_datetime(df['datetime'])).set_index('datetime')
         df_result = df.resample(f"{quantity}{unit}").agg(agg_column_map)
 
         # Drop any rows that have NaN values (this can happen if the data is not complete, eg. weekends)
         df_result = df_result.dropna()
+
+        # Remove partial day data from the current day, which can happen if the data is in minute timestep.
+        if timestep == "day":
+            df_result = df_result[df_result.index < dt.replace(hour=0, minute=0, second=0, microsecond=0)]
+
+        # The original df_result may include more rows when timestep is day and self.timestep is minute.
+        # In this case, we only want to return the last n rows.
+        df_result = df_result.tail(n=num_periods)
 
         return df_result
 

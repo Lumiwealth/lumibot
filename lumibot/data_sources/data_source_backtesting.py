@@ -13,10 +13,11 @@ class DataSourceBacktesting(DataSource, ABC):
     instantiated directly because it does not define all necessary methods. Instead, instantiate one of the
     child classes like PandasData.
     """
+
     IS_BACKTESTING_DATA_SOURCE = True
 
     def __init__(
-        self, datetime_start, datetime_end, backtesting_started=None, config=None, api_key=None
+        self, datetime_start, datetime_end, backtesting_started=None, config=None, api_key=None, pandas_data=None
     ):
         super().__init__(api_key=api_key)
 
@@ -38,7 +39,20 @@ class DataSourceBacktesting(DataSource, ABC):
         # catch it here and ignore it in this class. Child classes that need it should error check it themselves.
         self._config = config
 
-    def get_datetime(self):
+    def get_datetime(self, adjust_for_delay=False):
+        """
+        Get the current datetime of the backtest.
+
+        Parameters
+        ----------
+        adjust_for_delay: bool
+            Not used for backtesting data sources.  This parameter is only used for live data sources.
+
+        Returns
+        -------
+        datetime
+            The current datetime of the backtest.
+        """
         return self._datetime
 
     def get_datetime_range(self, length, timestep="minute", timeshift=None):

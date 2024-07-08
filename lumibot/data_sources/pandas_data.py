@@ -1,4 +1,5 @@
 import logging
+from collections import defaultdict, OrderedDict
 from datetime import date, timedelta
 
 import pandas as pd
@@ -24,15 +25,15 @@ class PandasData(DataSourceBacktesting):
         self.name = "pandas"
         self.pandas_data = self._set_pandas_data_keys(pandas_data)
         self.auto_adjust = auto_adjust
-        self._data_store = {}
+        self._data_store = self.pandas_data
         self._date_index = None
         self._date_supply = None
         self._timestep = "minute"
-        self._expiries_exist = False
 
     @staticmethod
     def _set_pandas_data_keys(pandas_data):
-        new_pandas_data = {}
+        # OrderedDict tracks the LRU dataframes for when it comes time to do evictions.
+        new_pandas_data = OrderedDict()
 
         def _get_new_pandas_data_key(data):
             # Always save the asset as a tuple of Asset and quote
@@ -61,12 +62,9 @@ class PandasData(DataSourceBacktesting):
                 new_pandas_data[key] = data
 
         return new_pandas_data
-
+    
     def load_data(self):
         self._data_store = self.pandas_data
-        self._expiries_exist = (
-            len([v.asset.expiration for v in self._data_store.values() if v.asset.expiration is not None]) > 0
-        )
         self._date_index = self.update_date_index()
 
         if len(self._data_store.values()) > 0:
@@ -74,7 +72,7 @@ class PandasData(DataSourceBacktesting):
 
         pcal = self.get_trading_days_pandas()
         self._date_index = self.clean_trading_times(self._date_index, pcal)
-        for asset, data in self._data_store.items():
+        for _, data in self._data_store.items():
             data.repair_times_and_fill(self._date_index)
         return pcal
 
@@ -85,7 +83,7 @@ class PandasData(DataSourceBacktesting):
         df["dates"] = df.index.date
         df = df.merge(pcal[["market_open", "market_close"]], left_on="dates", right_index=True)
         if self._timestep == "minute":
-            df = df.asfreq("1T", method="pad")
+            df = df.asfreq("1min", method="pad")
             result_index = df.loc[(df.index >= df["market_open"]) & (df.index <= df["market_close"]), :].index
         else:
             result_index = df.index
@@ -146,7 +144,7 @@ class PandasData(DataSourceBacktesting):
         list of Asset
         """
         store_assets = self.get_assets()
-        if type is None:
+        if asset_type is None:
             return [asset for asset in store_assets if asset.symbol == symbol]
         else:
             return [asset for asset in store_assets if (asset.symbol == symbol and asset.asset_type == asset_type)]
@@ -162,7 +160,7 @@ class PandasData(DataSourceBacktesting):
 
         if dt_index is None:
             # Build a dummy index
-            freq = "1T" if self._timestep == "minute" else "1D"
+            freq = "1min" if self._timestep == "minute" else "1D"
             dt_index = pd.date_range(start=self.datetime_start, end=self.datetime_end, freq=freq)
 
         else:
@@ -189,7 +187,14 @@ class PandasData(DataSourceBacktesting):
             data = self._data_store[tuple_to_find]
             try:
                 dt = self.get_datetime()
-                return data.get_last_price(dt)
+                price = data.get_last_price(dt)
+
+                # Check if price is NaN
+                if pd.isna(price):
+                    logging.info(f"Error getting last price for {tuple_to_find}: price is NaN")
+                    return None
+
+                return price
             except Exception as e:
                 logging.info(f"Error getting last price for {tuple_to_find}: {e}")
                 return None
@@ -209,7 +214,7 @@ class PandasData(DataSourceBacktesting):
             asset = (asset, quote)
             if asset in self._data_store:
                 return asset
-        elif isinstance(asset, Asset) and asset.asset_type in ["option", "future", "stock"]:
+        elif isinstance(asset, Asset) and asset.asset_type in ["option", "future", "stock", "index"]:
             asset = (asset, Asset("USD", "forex"))
             if asset in self._data_store:
                 return asset
@@ -320,7 +325,7 @@ class PandasData(DataSourceBacktesting):
         pass
 
     # =======Options methods.=================
-    def get_chains(self, asset):
+    def get_chains(self, asset: Asset, quote: Asset = None, exchange: str = None):
         """Returns option chains.
 
         Obtains option chain information for the asset (stock) from each
@@ -332,80 +337,37 @@ class PandasData(DataSourceBacktesting):
         asset : Asset object
             The stock whose option chain is being fetched. Represented
             as an asset object.
+        quote : Asset object, optional
+            The quote asset. Default is None.
+        exchange : str, optional
+            The exchange to fetch the option chains from. For PandasData, will only use "SMART".
 
         Returns
         -------
-        dictionary of dictionary for 'SMART' exchange only in
-        backtesting. Each exchange has:
-            - `Underlying conId` (int)
-            - `TradingClass` (str) eg: `FB`
+        dictionary of dictionary
+            Format:
             - `Multiplier` (str) eg: `100`
-            - `Expirations` (set of str) eg: {`20230616`, ...}
-            - `Strikes` (set of floats)
+            - 'Chains' - paired Expiration/Strke info to guarentee that the stikes are valid for the specific
+                         expiration date.
+                         Format:
+                           chains['Chains']['CALL'][exp_date] = [strike1, strike2, ...]
+                         Expiration Date Format: 2023-07-31
         """
-        smart = dict(
-            TradingClass=asset.symbol,
+        chains = dict(
             Multiplier=100,
+            Exchange="SMART",
+            Chains={"CALL": defaultdict(list), "PUT": defaultdict(list)},
         )
 
-        expirations = []
-        strikes = []
         for store_item, data in self._data_store.items():
             store_asset = store_item[0]
             if store_asset.asset_type != "option":
                 continue
             if store_asset.symbol != asset.symbol:
                 continue
-            expirations.append(store_asset.expiration)
-            strikes.append(store_asset.strike)
+            chains["Chains"][store_asset.right][store_asset.expiration].append(store_asset.strike)
 
-        smart["Expirations"] = sorted(list(set(expirations)))
-        smart["Strikes"] = sorted(list(set(strikes)))
-
-        return {"SMART": smart}
-
-    def get_strikes(self, asset):
-        """Returns a list of strikes for a give underlying asset.
-
-        Using the `chains` dictionary obtained from `get_chains` finds
-        all the Strikes for the option chains on a given
-        exchange.
-
-        Parameters
-        ----------
-        asset : Asset
-            Asset object as normally used for an option but without
-            the strike information.
-
-            Example:
-            asset = self.create_asset(
-                "FB",
-                asset_type="option",
-                expiration=self.options_expiry_to_datetime_date("20210924"),
-                right="CALL",
-                multiplier=100,
-            )
-
-            `expiration` can also be expressed as
-            `datetime.datetime.date()`
-
-        Returns
-        -------
-        list of floats
-            Sorted list of strikes as floats.
-        """
-        strikes = []
-        for store_item, data in self._data_store.items():
-            store_asset = store_item[0]
-            if (
-                store_asset.asset_type == "option"
-                and store_asset.symbol == asset.symbol
-                and store_asset.expiration == asset.expiration
-                and store_asset.right == asset.right
-            ):
-                strikes.append(float(store_asset.strike))
-
-        return sorted(list(set(strikes)))
+        return chains
 
     def get_start_datetime_and_ts_unit(self, length, timestep, start_dt=None, start_buffer=timedelta(days=5)):
         """
@@ -442,3 +404,30 @@ class PandasData(DataSourceBacktesting):
         start_datetime = start_datetime - start_buffer
 
         return start_datetime, ts_unit
+
+    def get_historical_prices(
+        self, asset, length, timestep="", timeshift=None, quote=None, exchange=None, include_after_hours=True
+    ):
+        """Get bars for a given asset"""
+        if isinstance(asset, str):
+            asset = Asset(symbol=asset)
+
+        if not timestep:
+            timestep = self.get_timestep()
+
+        response = self._pull_source_symbol_bars(
+            asset,
+            length,
+            timestep=timestep,
+            timeshift=timeshift,
+            quote=quote,
+            exchange=exchange,
+            include_after_hours=include_after_hours,
+        )
+        if isinstance(response, float):
+            return response
+        elif response is None:
+            return None
+
+        bars = self._parse_source_symbol_bars(response, asset, quote=quote, length=length)
+        return bars

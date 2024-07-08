@@ -1,24 +1,30 @@
 import datetime
 import os
 from collections import defaultdict
+import pandas as pd
 
 import pandas_market_calendars as mcal
+
+from tests.backtest.fixtures import polygon_data_backtesting
+import pytz
 from lumibot.backtesting import BacktestingBroker, PolygonDataBacktesting
 from lumibot.entities import Asset
 from lumibot.strategies import Strategy
 from lumibot.traders import Trader
 
+from unittest.mock import MagicMock, patch
+from datetime import timedelta
+
 # Global parameters
 # API Key for testing Polygon.io
 POLYGON_API_KEY = os.environ.get("POLYGON_API_KEY")
-
 
 class PolygonBacktestStrat(Strategy):
     parameters = {"symbol": "AMZN"}
 
     # Set the initial values for the strategy
-    def initialize(self, parameters=None):
-        self.sleeptime = "1D"
+    def initialize(self, custom_sleeptime="1D"):
+        self.sleeptime = custom_sleeptime
         self.first_price = None
         self.first_option_price = None
         self.orders = []
@@ -56,9 +62,10 @@ class PolygonBacktestStrat(Strategy):
         # that is today and we want to find the next expiration date.
         #   Date Format: 2023-07-31
         trading_datestrs = [x.to_pydatetime().date() for x in trading_days_df.index.to_list()]
+        expirations = self.get_expiration(chain)
         for trading_day in trading_datestrs[days_to_expiration:]:
             day_str = trading_day.strftime("%Y-%m-%d")
-            if day_str in chain["Expirations"]:
+            if day_str in expirations:
                 return trading_day
 
         raise ValueError(
@@ -101,7 +108,7 @@ class PolygonBacktestStrat(Strategy):
             assert current_asset_price == 133.55
 
             # Option Chain: Get Full Option Chain Information
-            chain = self.get_chain(self.chains, exchange="SMART")
+            chain = self.get_chain(self.chains)
             expiration = self.select_option_expiration(chain, days_to_expiration=1)
             # expiration = datetime.date(2023, 8, 4)
 
@@ -174,7 +181,7 @@ class TestPolygonBacktestFull:
         assert asset_order_id in poly_strat_obj.prices
         assert option_order_id in poly_strat_obj.prices
         assert 130.0 < poly_strat_obj.prices[asset_order_id] < 140.0, "Valid asset price between 130 and 140"
-        assert 130.0 < stock_order.get_fill_price() < 140.0, "Valid asset price between 130 and 140"
+        assert 130.0 < stock_order.get_fill_price() < 140.0, "Valid Fill price between 130 and 140"
         assert poly_strat_obj.prices[option_order_id] == 4.10, "Opening Price is $4.10 on 08/01/2023"
         assert option_order.get_fill_price() == 4.10, "Fills at 1st candle open price of $4.10 on 08/01/2023"
 
@@ -221,20 +228,40 @@ class TestPolygonBacktestFull:
             datetime_start=backtesting_start,
             datetime_end=backtesting_end,
             api_key=POLYGON_API_KEY,
-            has_paid_subscription=True,
         )
         broker = BacktestingBroker(data_source=data_source)
         poly_strat_obj = PolygonBacktestStrat(
             broker=broker,
-            backtesting_start=backtesting_start,
-            backtesting_end=backtesting_end,
         )
         trader = Trader(logfile="", backtest=True)
         trader.add_strategy(poly_strat_obj)
-        results = trader.run_all(show_plot=False, show_tearsheet=False, save_tearsheet=False)
+        results = trader.run_all(show_plot=False, show_tearsheet=False, save_tearsheet=True)
 
         assert results
         self.verify_backtest_results(poly_strat_obj)
+
+    def test_intraday_daterange(self):
+        tzinfo = pytz.timezone("America/New_York")
+        backtesting_start = datetime.datetime(2024, 2, 7).astimezone(tzinfo)
+        backtesting_end = datetime.datetime(2024, 2, 10).astimezone(tzinfo)
+
+        data_source = PolygonDataBacktesting(
+            datetime_start=backtesting_start,
+            datetime_end=backtesting_end,
+            api_key=POLYGON_API_KEY,
+        )
+        broker = BacktestingBroker(data_source=data_source)
+        poly_strat_obj = PolygonBacktestStrat(
+            broker=broker,
+            custom_sleeptime="30m",  # Sleep time for intra-day trading.
+        )
+        trader = Trader(logfile="", backtest=True)
+        trader.add_strategy(poly_strat_obj)
+        results = trader.run_all(show_plot=False, show_tearsheet=False, save_tearsheet=False, tearsheet_file="")
+        # Assert the results are not empty
+        assert results
+        # Assert the end datetime is before the market open of the next trading day.
+        assert broker.datetime == datetime.datetime.fromisoformat("2024-02-12 08:30:00-05:00")
 
     def test_polygon_legacy_backtest(self):
         """
@@ -259,9 +286,6 @@ class TestPolygonBacktestFull:
             show_tearsheet=False,
             save_tearsheet=False,
             api_key=POLYGON_API_KEY,
-            # Painfully slow with free subscription setting b/c lumibot is over querying and imposing a very
-            # strict rate limit
-            polygon_has_paid_subscription=True,
         )
         assert results
         self.verify_backtest_results(poly_strat_obj)
@@ -283,8 +307,88 @@ class TestPolygonBacktestFull:
             show_tearsheet=False,
             save_tearsheet=False,
             polygon_api_key=POLYGON_API_KEY,  # Testing the legacy parameter name while DeprecationWarning is active
-            # Painfully slow with free subscription setting b/c lumibot is over querying and imposing a very
-            # strict rate limit
-            polygon_has_paid_subscription=True,
         )
         assert results
+
+    def test_pull_source_symbol_bars_with_api_call(self, polygon_data_backtesting, mocker):
+        """Test that polygon_helper.get_price_data_from_polygon() is called with the right parameters"""
+        
+        # Only simulate first date
+        mocker.patch.object(
+            polygon_data_backtesting,
+            'get_datetime',
+            return_value=polygon_data_backtesting.datetime_start
+        )
+
+        mocked_get_price_data = mocker.patch(
+            'lumibot.tools.polygon_helper.get_price_data_from_polygon',
+            return_value=MagicMock()
+        )
+        
+        asset = Asset(symbol="AAPL", asset_type="stock")
+        quote = Asset(symbol="USD", asset_type="forex")
+        length = 10
+        timestep = "day"
+        START_BUFFER = timedelta(days=5)
+
+        with patch('lumibot.backtesting.polygon_backtesting.START_BUFFER', new=START_BUFFER):
+            polygon_data_backtesting._pull_source_symbol_bars(
+                asset=asset,
+                length=length,
+                timestep=timestep,
+                quote=quote
+            )
+
+            mocked_get_price_data.assert_called_once()
+            call_args = mocked_get_price_data.call_args
+            
+            expected_start_date = polygon_data_backtesting.datetime_start - datetime.timedelta(days=length) - START_BUFFER
+            
+            assert call_args[0][0] == polygon_data_backtesting._api_key
+            assert call_args[0][1] == asset
+            assert call_args[0][2] == expected_start_date
+            assert call_args[0][3] == polygon_data_backtesting.datetime_end
+            assert call_args[1]["timespan"] == timestep
+            assert call_args[1]["quote_asset"] == quote
+
+
+class TestPolygonDataSource:
+
+    def test_get_historical_prices(self):
+        tzinfo = pytz.timezone("America/New_York")
+        start = datetime.datetime(2024, 2, 5).astimezone(tzinfo)
+        end = datetime.datetime(2024, 2, 10).astimezone(tzinfo)
+
+        data_source = PolygonDataBacktesting(
+            start, end, api_key=POLYGON_API_KEY
+        )
+        data_source._datetime = datetime.datetime(2024, 2, 7, 10).astimezone(tzinfo)
+        # This call will set make the data source use minute bars.
+        prices = data_source.get_historical_prices("SPY", 2, "minute")
+        # The data source will aggregate day bars from the minute bars.
+        prices = data_source.get_historical_prices("SPY", 2, "day")
+
+        # The expected df contains 2 days of data. And it is most recent from the
+        # past of the requested date.
+        expected_df = pd.DataFrame.from_records([
+            {
+                "datetime": "2024-02-05 00:00:00-05:00",
+                "open": 493.65,
+                "high": 494.3778,
+                "low": 490.23,
+                "close": 492.57,
+                "volume": 74655145.0
+            },
+            {
+                "datetime": "2024-02-06 00:00:00-05:00",
+                "open": 492.99,
+                "high": 494.3200,
+                "low": 492.03,
+                "close": 493.82,
+                "volume": 54775803.0
+            },
+        ], index="datetime")
+        expected_df.index = pd.to_datetime(expected_df.index).tz_convert(tzinfo)
+
+        assert prices is not None
+        assert prices.df.equals(expected_df)

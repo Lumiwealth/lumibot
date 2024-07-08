@@ -5,7 +5,7 @@ import time
 import ccxt
 import pandas as pd
 
-from lumibot.entities import Bars
+from lumibot.entities import Asset, Bars
 
 from .data_source import DataSource
 
@@ -53,14 +53,7 @@ class CcxtData(DataSource):
         self.api.enableRateLimit = True
 
     def _pull_source_symbol_bars(
-        self,
-        asset,
-        length,
-        timestep=MIN_TIMESTEP,
-        timeshift=None,
-        quote=None,
-        exchange=None,
-        include_after_hours=True
+        self, asset, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None, exchange=None, include_after_hours=True
     ):
         if exchange is not None:
             logging.warning(
@@ -68,13 +61,11 @@ class CcxtData(DataSource):
             )
 
         """pull broker bars for a given asset"""
-        response = self._pull_source_bars(
-            [asset], length, timestep=timestep, timeshift=timeshift, quote=quote
-        )
+        response = self._pull_source_bars([asset], length, timestep=timestep, timeshift=timeshift, quote=quote)
         return response[asset]
 
     def _pull_source_bars(
-        self, assets, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None,  include_after_hours=True
+        self, assets, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None, include_after_hours=True
     ):
         """pull broker bars for a list assets"""
         parsed_timestep = self._parse_source_timestep(timestep, reverse=True)
@@ -96,6 +87,39 @@ class CcxtData(DataSource):
 
         return result
 
+    def get_chains(self, asset: Asset, quote: Asset = None, exchange: str = None):
+        raise NotImplementedError(
+            "Lumibot CcxtData does not support historical options data. If you need this "
+            "feature, please use a different data source."
+        )
+
+    def get_historical_prices(
+        self, asset, length, timestep="", timeshift=None, quote=None, exchange=None, include_after_hours=True
+    ):
+        """Get bars for a given asset"""
+        if isinstance(asset, str):
+            asset = Asset(symbol=asset)
+
+        if not timestep:
+            timestep = self.get_timestep()
+
+        response = self._pull_source_symbol_bars(
+            asset,
+            length,
+            timestep=timestep,
+            timeshift=timeshift,
+            quote=quote,
+            exchange=exchange,
+            include_after_hours=include_after_hours,
+        )
+        if isinstance(response, float):
+            return response
+        elif response is None:
+            return None
+
+        bars = self._parse_source_symbol_bars(response, asset, quote=quote, length=length)
+        return bars
+
     def get_barset_from_api(self, api, symbol, freq, limit=None, end=None):
         """
         gets historical bar data for the given stock symbol
@@ -110,8 +134,7 @@ class CcxtData(DataSource):
         market = self.api.markets.get(symbol, None)
         if market is None:
             logging.error(
-                f"A request for market data for {symbol} was submitted. "
-                f"The market for that pair does not exist"
+                f"A request for market data for {symbol} was submitted. " f"The market for that pair does not exist"
             )
             return None
 
@@ -137,13 +160,9 @@ class CcxtData(DataSource):
 
         while True:
             cnt += 1
-            candles = self.api.fetch_ohlcv(
-                symbol, freq, since=curr_start, limit=loop_limit, params={}
-            )
+            candles = self.api.fetch_ohlcv(symbol, freq, since=curr_start, limit=loop_limit, params={})
 
-            df = pd.DataFrame(
-                candles, columns=["datetime", "open", "high", "low", "close", "volume"]
-            )
+            df = pd.DataFrame(candles, columns=["datetime", "open", "high", "low", "close", "volume"])
             df["datetime"] = pd.to_datetime(df["datetime"], unit="ms")
             df = df.set_index("datetime")
 
@@ -155,9 +174,7 @@ class CcxtData(DataSource):
             df_ret = df_ret.sort_index()
 
             if len(df) > 0:
-                last_curr_end = self.api.parse8601(
-                    df.index[-1].strftime("%Y-%m-%d %H:%M:%S")
-                )
+                last_curr_end = self.api.parse8601(df.index[-1].strftime("%Y-%m-%d %H:%M:%S"))
             else:
                 last_curr_end = None
 

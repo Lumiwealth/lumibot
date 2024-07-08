@@ -1,6 +1,8 @@
-# Lumibot - Algorithmic Trading Library
+# Lumibot - A Backtesting and Trading Library for Stocks, Options, Crypto, Futures and More!
 
-Backtesting and trading for stocks, options, crypto, futures and more!
+Lumibot is a backtesting and trading library for stocks, options, crypto, futures and more. It is made so that the same code you use for backtesting can be used for live trading, making it easy to transition from backtesting to live trading. Lumibot is a highly flexible library that allows you to create your own strategies and indicators, and backtest them on historical data. It is also highly optimized for speed, so you can backtest your strategies quickly and efficiently.
+
+**IMPORTANT: This library requires data for backtesting. The recommended data source is [Polygon.io](https://polygon.io/?utm_source=affiliate&utm_campaign=lumi10) (a free tier is available too). Please click the link to give us credit for the sale, it helps support this project. You can use the coupon code 'LUMI10' for 10% off.**
 
 ## Documentation - 👇 Start Here 👇
 

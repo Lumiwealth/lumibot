@@ -1,11 +1,10 @@
 import datetime
 import logging
 import time
-from collections import deque
+from collections import defaultdict, deque
 from decimal import Decimal
 from threading import Thread
 
-import pandas as pd
 from dateutil import tz
 from ibapi.client import *
 from ibapi.contract import *
@@ -25,7 +24,7 @@ class InteractiveBrokers(Broker):
     """Inherit InteractiveBrokerData first and all the price market
     methods than inherits broker"""
 
-    def __init__(self, config, max_workers=20, chunk_size=100, data_source=None, **kwargs):
+    def __init__(self, config, max_workers=20, chunk_size=100, data_source=None, max_connection_retries=0, **kwargs):
         if data_source is None:
             data_source = InteractiveBrokersData(config, max_workers=max_workers, chunk_size=chunk_size)
 
@@ -50,12 +49,12 @@ class InteractiveBrokers(Broker):
             socket_port = config.SOCKET_PORT
             client_id = config.CLIENT_ID
 
-        self.start_ib(ip, socket_port, client_id)
+        self.start_ib(ip, socket_port, client_id, max_connection_retries)
 
-    def start_ib(self, ip, socket_port, client_id):
+    def start_ib(self, ip, socket_port, client_id, max_connection_retries):
         # Connect to interactive brokers.
         if not self.ib:
-            self.ib = IBApp(ip, socket_port, client_id, ib_broker=self)
+            self.ib = IBApp(ip, socket_port, client_id, ib_broker=self, max_connection_retries=max_connection_retries)
 
         if isinstance(self.data_source, InteractiveBrokersData):
             if not self.data_source.ib:
@@ -129,6 +128,43 @@ class InteractiveBrokers(Broker):
 
         return positions
 
+    def _parse_broker_positions(self, broker_positions, strategy):
+        """parse a list of broker positions into a
+        list of position objects"""
+        result = []
+        for broker_position in broker_positions:
+            result.append(self._parse_broker_position(broker_position, strategy))
+
+        return result
+
+    def _pull_positions(self, strategy):
+        """Get the account positions. return a list of
+        position objects"""
+        response = self._pull_broker_positions(strategy)
+        result = self._parse_broker_positions(response, strategy.name)
+        return result
+
+    def _pull_position(self, strategy, asset):
+        """
+        Pull a single position from the broker that matches the asset and strategy. If no position is found, None is
+        returned.
+
+        Parameters
+        ----------
+        strategy: Strategy
+            The strategy object that placed the order to pull
+        asset: Asset
+            The asset to pull the position for
+
+        Returns
+        -------
+        Position
+            The position object for the asset and strategy if found, otherwise None
+        """
+        response = self._pull_broker_position(asset)
+        result = self._parse_broker_position(response, strategy)
+        return result
+
     # =======Orders and assets functions=========
 
     def _parse_broker_order(self, response, strategy_name, strategy_object=None):
@@ -180,7 +216,7 @@ class InteractiveBrokers(Broker):
         response = pull_order[0] if len(pull_order) > 0 else None
         return response
 
-    def _pull_broker_open_orders(self):
+    def _pull_broker_all_orders(self):
         """Get the broker open orders"""
         orders = self.ib.get_open_orders()
         return orders
@@ -253,11 +289,11 @@ class InteractiveBrokers(Broker):
         finally:
             if summary is None:
                 return None
-        total_cash_value = [float(c["Value"]) for c in summary if c["Tag"] == "TotalCashValue"][0]
+        total_cash_value = [float(c["Value"]) for c in summary if c["Tag"] == "TotalCashBalance" and c["Currency"] == 'BASE'][0]
 
-        gross_position_value = [float(c["Value"]) for c in summary if c["Tag"] == "GrossPositionValue"][0]
+        gross_position_value = [float(c["Value"]) for c in summary if c["Tag"] == "NetLiquidationByCurrency" and c["Currency"] == 'BASE'][0]
 
-        net_liquidation_value = [float(c["Value"]) for c in summary if c["Tag"] == "NetLiquidation"][0]
+        net_liquidation_value = [float(c["Value"]) for c in summary if c["Tag"] == "NetLiquidationByCurrency" and c["Currency"] == 'BASE'][0]
 
         return (total_cash_value, gross_position_value, net_liquidation_value)
 
@@ -269,27 +305,35 @@ class InteractiveBrokers(Broker):
         # Returns option chain data, list of strikes and list of expiry dates.
         return self.ib.option_params(asset=asset, exchange=exchange, underlyingConId=underlyingConId)
 
-    def get_chains(self, asset):
-        """Returns option chain."""
+    def get_chains(self, asset: Asset):
+        """
+        Returns option chain. IBKR chain data is weird because it returns a list of expirations and a separate list of
+        strikes, but no way of coorelating the two. This method returns a dictionary with the expirations and strikes
+        listed separately as well as attempting to combine them together under:
+            [Chains][right][expiration_date] = [strike1, strike2, ...]
+
+        """
         contract_details = self.get_contract_details(asset=asset)
         contract_id = contract_details[0].contract.conId
         chains = self.option_params(asset, underlyingConId=contract_id)
         if len(chains) == 0:
             raise AssertionError(f"No option chain for {asset}")
-        return chains
 
-    def get_chain(self, chains, exchange="SMART"):
-        """Returns option chain for a particular exchange."""
-        for x, p in chains.items():
-            if x == exchange:
-                return p
+        for exchange in chains:
+            all_expr = sorted(set(chains[exchange]["Expirations"]))
+            # IB format is "20230818", Lumibot/Polygon/Tradier is "2023-08-18"
+            formatted_expr = [x if "-" in x else x[:4] + "-" + x[4:6] + "-" + x[6:] for x in all_expr]
+            all_strikes = sorted(set(chains[exchange]["Strikes"]))
+            chains[exchange]["Chains"] = {"CALL": {}, "PUT": {}}
+            for expiration in formatted_expr:
+                chains[exchange]["Chains"]["CALL"][expiration] = all_strikes.copy()
+                chains[exchange]["Chains"]["PUT"][expiration] = all_strikes.copy()
 
-    def get_expiration(self, chains, exchange="SMART"):
-        """Returns expirations and strikes high/low of target price.
-        Return type datetime.date()
-        """
-        expirations = sorted(list(self.get_chain(chains, exchange=exchange)["Expirations"]))
-        return [datetime.datetime.strptime(expiration, "%Y%m%d").date() for expiration in expirations]
+        if "SMART" in chains:
+            return chains["SMART"]
+        else:
+            # Return the 1st exchange if SMART is not available.
+            return chains[list(chains.keys())[0]]
 
     # =======Stream functions=========
     def on_status_event(
@@ -1038,11 +1082,9 @@ class IBClient(EClient):
 
     def get_account_summary(self):
         accounts_storage = self.wrapper.init_accounts()
-
-        tags = "AccountType, TotalCashValue, AccruedCash, " "NetLiquidation, BuyingPower, GrossPositionValue"
-
+        
         as_reqid = self.get_reqid()
-        self.reqAccountSummary(as_reqid, "All", tags)
+        self.reqAccountSummary(as_reqid, "All", "$LEDGER")
 
         try:
             requested_accounts = accounts_storage.get(timeout=self.max_wait_time)
@@ -1146,15 +1188,25 @@ class IBApp(IBWrapper, IBClient):
         trailing_stop="TRAIL",
     )
 
-    def __init__(self, ipaddress, portid, clientid, ib_broker=None):
+    def __init__(self, ipaddress, portid, clientid, ib_broker=None, max_connection_retries=0):
         IBWrapper.__init__(self)
         IBClient.__init__(self, wrapper=self)
         self.ib_broker = ib_broker
-        self.connect(ipaddress, portid, clientid)
+
+        # Ensure a connection before running
+        connected = False
+        retries = 0
+
+        while (not connected) and (retries<=max_connection_retries):
+            self.connect(ipaddress, portid, clientid)
+            connected = self.isConnected()
+            if not connected:
+                time.sleep(2)
+            retries+=1
 
         thread = Thread(target=self.run)
         thread.start()
-        setattr(self, "_thread", thread)
+        self._thread = thread
 
         self.init_error()
         self.map_reqid_asset = dict()

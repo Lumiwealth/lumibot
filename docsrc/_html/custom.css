@@ -36,7 +36,81 @@
     margin-bottom: 60px;
 }
 
-.course-button {
-    margin: 25px;
-    box-shadow: 5px 10px 18px #9b9b9b;
+/* Ensure the sidebar and other elements have padding/margin to avoid overlap */
+.sidebar-scroll {
+    padding-bottom: 150px; /* Adjust according to footer height */
+}
+.content {
+    margin-bottom: 150px; /* Adjust according to footer height */
+}
+
+.announcement {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    z-index: 1000;
+    box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.15);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    height: 90px; /* Default height for larger devices */
+    overflow-x: hidden; /* Prevent horizontal overflow */
+    box-sizing: border-box; /* Ensure padding is included in width */
+}
+
+/* Media query for very small devices */
+@media (max-width: 480px) {
+    .announcement {
+        height: 120px; /* Override height for very small devices */
+    }
+}
+
+.announcement-content {
+    padding: 0;
+    height: 90px;
+    width: 100%;
+    box-sizing: border-box; /* Ensure padding is included in width */
+}
+
+/* Media query for very small devices */
+@media (max-width: 480px) {
+    .announcement-content {
+        height: 120px; /* Override height for very small devices */
+    }
+}
+
+.footer-banner {
+    height: 100%;
+    width: 100%;
+    box-sizing: border-box; /* Ensure padding is included in width */
+}
+
+.footer-banner h5 {
+    margin: 0;
+    width: 100%;
+    box-sizing: border-box; /* Ensure padding is included in width */
+}
+
+.footer-banner p {
+    margin: 0;
+    word-wrap: break-word;
+    word-break: break-word; /* Add this for better word breaking */
+    padding: 0 15px; /* Add padding for better text wrapping */
+    width: 100%;
+    box-sizing: border-box; /* Ensure padding is included in width */
+}
+
+.footer-banner a {
+    text-decoration: underline;
+    width: 100%;
+    box-sizing: border-box; /* Ensure padding is included in width */
+}
+
+@media (max-width: 480px) {
+    .footer-banner p {
+        padding: 0 10px; /* Adjust padding for smaller screens */
+        white-space: normal; /* Ensure text wraps on small screens */
+    }
 }

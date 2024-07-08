@@ -1,12 +1,15 @@
 import logging
 import traceback
+from collections import OrderedDict, defaultdict
 from datetime import date, timedelta
 
-from polygon import RESTClient
+from polygon.exceptions import BadResponse
+from termcolor import colored
 
 from lumibot.data_sources import PandasData
 from lumibot.entities import Asset, Data
 from lumibot.tools import polygon_helper
+from lumibot.tools.polygon_helper import PolygonClient
 
 START_BUFFER = timedelta(days=5)
 
@@ -16,24 +19,36 @@ class PolygonDataBacktesting(PandasData):
     Backtesting implementation of Polygon
     """
 
+    # Size limit for the pandas_data and _data_store (dicts of Pandas DataFrames) in bytes.
+    # Set to None to disable the limit.
+    MAX_STORAGE_BYTES = None
+
     def __init__(
         self,
         datetime_start,
         datetime_end,
         pandas_data=None,
         api_key=None,
-        has_paid_subscription=True,  # TODO: Set to False after new backtest is released
         **kwargs,
     ):
         super().__init__(
             datetime_start=datetime_start, datetime_end=datetime_end, pandas_data=pandas_data, api_key=api_key, **kwargs
         )
-        self.has_paid_subscription = has_paid_subscription
 
         # RESTClient API for Polygon.io polygon-api-client
-        self.polygon_client = RESTClient(self._api_key)
+        self.polygon_client = PolygonClient.create(api_key=api_key)
 
-    def update_pandas_data(self, asset, quote, length, timestep, start_dt=None):
+    @staticmethod
+    def _enforce_storage_limit(pandas_data: OrderedDict):
+        storage_used = sum(data.df.memory_usage().sum() for data in pandas_data.values())
+        logging.info(f"{storage_used = :,} bytes for {len(pandas_data)} items")
+        while storage_used > PolygonDataBacktesting.MAX_STORAGE_BYTES:
+            k, d = pandas_data.popitem(last=False)
+            mu = d.df.memory_usage().sum()
+            storage_used -= mu
+            logging.info(f"Storage limit exceeded. Evicted LRU data: {k} used {mu:,} bytes")
+
+    def _update_pandas_data(self, asset, quote, length, timestep, start_dt=None):
         """
         Get asset data and update the self.pandas_data dictionary.
 
@@ -47,11 +62,8 @@ class PolygonDataBacktesting(PandasData):
             The number of data points to get.
         timestep : str
             The timestep to use. For example, "1minute" or "1hour" or "1day".
-
-        Returns
-        -------
-        dict
-            A dictionary with the keys being the asset and the values being the PandasData objects.
+        start_dt : datetime
+            The start datetime to use. If None, the current self.start_datetime will be used.
         """
         search_asset = asset
         asset_separated = asset
@@ -80,7 +92,7 @@ class PolygonDataBacktesting(PandasData):
             if data_timestep == ts_unit:
                 # Check if we have enough data (5 days is the buffer we subtracted from the start datetime)
                 if (data_start_datetime - start_datetime) < START_BUFFER:
-                    return None
+                    return
 
             # Always try to get the lowest timestep possible because we can always resample
             # If day is requested then make sure we at least have data that's less than a day
@@ -88,14 +100,14 @@ class PolygonDataBacktesting(PandasData):
                 if data_timestep == "minute":
                     # Check if we have enough data (5 days is the buffer we subtracted from the start datetime)
                     if (data_start_datetime - start_datetime) < START_BUFFER:
-                        return None
+                        return
                     else:
                         # We don't have enough data, so we need to get more (but in minutes)
                         ts_unit = "minute"
                 elif data_timestep == "hour":
                     # Check if we have enough data (5 days is the buffer we subtracted from the start datetime)
                     if (data_start_datetime - start_datetime) < START_BUFFER:
-                        return None
+                        return
                     else:
                         # We don't have enough data, so we need to get more (but in hours)
                         ts_unit = "hour"
@@ -105,7 +117,7 @@ class PolygonDataBacktesting(PandasData):
                 if data_timestep == "minute":
                     # Check if we have enough data (5 days is the buffer we subtracted from the start datetime)
                     if (data_start_datetime - start_datetime) < START_BUFFER:
-                        return None
+                        return
                     else:
                         # We don't have enough data, so we need to get more (but in minutes)
                         ts_unit = "minute"
@@ -120,21 +132,52 @@ class PolygonDataBacktesting(PandasData):
                 self.datetime_end,
                 timespan=ts_unit,
                 quote_asset=quote_asset,
-                has_paid_subscription=self.has_paid_subscription,
             )
+        except BadResponse as e:
+            # Assuming e.message or similar attribute contains the error message
+            formatted_start_datetime = start_datetime.strftime("%Y-%m-%d")
+            formatted_end_datetime = self.datetime_end.strftime("%Y-%m-%d")
+            if "Your plan doesn't include this data timeframe" in str(e):
+                error_message = colored(
+                                "Polygon Access Denied: Your subscription does not allow you to backtest that far back in time. "
+                                f"You requested data for {asset_separated} {ts_unit} bars "
+                                f"from {formatted_start_datetime} to {formatted_end_datetime}. "
+                                "Please consider either changing your backtesting timeframe to start later since your "
+                                "subscription does not allow you to backtest that far back or upgrade your Polygon "
+                                "subscription."
+                                "You can upgrade your Polygon subscription at at https://polygon.io/?utm_source=affiliate&utm_campaign=lumi10 "
+                                "Please use the full link to give us credit for the sale, it helps support this project. "
+                                "You can use the coupon code 'LUMI10' for 10% off. ",
+                                color="red")
+                raise Exception(error_message) from e
+            elif "Unknown API Key" in str(e):
+                error_message = colored(
+                                "Polygon Access Denied: Your API key is invalid. "
+                                "Please check your API key and try again. "
+                                "You can get an API key at https://polygon.io/?utm_source=affiliate&utm_campaign=lumi10 "
+                                "Please use the full link to give us credit for the sale, it helps support this project. "
+                                "You can use the coupon code 'LUMI10' for 10% off. ",
+                                color="red")
+                raise Exception(error_message) from e
+            else:
+                # Handle other BadResponse exceptions not related to plan limitations
+                logging.error(traceback.format_exc())
+                raise
         except Exception as e:
+            # Handle all other exceptions
             logging.error(traceback.format_exc())
             raise Exception("Error getting data from Polygon") from e
 
-        if df is None:
-            return None
+        if (df is None) or df.empty:
+            return
 
-        pandas_data = []
         data = Data(asset_separated, df, timestep=ts_unit, quote=quote_asset)
-        pandas_data.append(data)
-        pandas_data_updated = self._set_pandas_data_keys(pandas_data)
+        pandas_data_update = self._set_pandas_data_keys([data])
 
-        return pandas_data_updated
+        # Add the keys to the self.pandas_data dictionary
+        self.pandas_data.update(pandas_data_update)
+        if PolygonDataBacktesting.MAX_STORAGE_BYTES:
+            self._enforce_storage_limit(self.pandas_data)
 
     def _pull_source_symbol_bars(
         self,
@@ -146,28 +189,11 @@ class PolygonDataBacktesting(PandasData):
         exchange: str = None,
         include_after_hours: bool = True,
     ):
-        # Get the current datetime
-        dt = self.get_datetime()
-
-        # Calculate the start datetime
-        if timestep == "minute":
-            start_dt = dt - timedelta(minutes=length)
-            start_dt = (start_dt - timedelta(minutes=timeshift)) if timeshift is not None else start_dt
-        elif timestep == "hour":
-            start_dt = dt - timedelta(hours=length)
-            start_dt = (start_dt - timedelta(hours=timeshift)) if timeshift is not None else start_dt
-        elif timestep == "day":
-            start_dt = dt - timedelta(days=length)
-            start_dt = (start_dt - timedelta(days=timeshift)) if timeshift is not None else start_dt
-        else:
-            raise Exception(f"Invalid timestep: {timestep}")
+        # Get the current datetime and calculate the start datetime
+        current_dt = self.get_datetime()
 
         # Get data from Polygon
-        pandas_data_update = self.update_pandas_data(asset, quote, length, timestep, start_dt)
-
-        if pandas_data_update is not None:
-            # Add the keys to the self.pandas_data dictionary
-            self.pandas_data.update(pandas_data_update)
+        self._update_pandas_data(asset, quote, length, timestep, current_dt)
 
         return super()._pull_source_symbol_bars(
             asset, length, timestep, timeshift, quote, exchange, include_after_hours
@@ -184,10 +210,7 @@ class PolygonDataBacktesting(PandasData):
         start_date=None,
         end_date=None,
     ):
-        pandas_data_update = self.update_pandas_data(asset, quote, 1, timestep)
-        if pandas_data_update is not None:
-            # Add the keys to the self.pandas_data dictionary
-            self.pandas_data.update(pandas_data_update)
+        self._update_pandas_data(asset, quote, 1, timestep)
 
         response = super()._pull_source_symbol_bars_between_dates(
             asset, timestep, quote, exchange, include_after_hours, start_date, end_date
@@ -202,17 +225,14 @@ class PolygonDataBacktesting(PandasData):
     def get_last_price(self, asset, timestep="minute", quote=None, exchange=None, **kwargs):
         try:
             dt = self.get_datetime()
-            pandas_data_update = self.update_pandas_data(asset, quote, 1, timestep, dt)
-            if pandas_data_update is not None:
-                # Add the keys to the self.pandas_data dictionary
-                self.pandas_data.update(pandas_data_update)
-                self._data_store.update(pandas_data_update)
+            self._update_pandas_data(asset, quote, 1, timestep, dt)
         except Exception as e:
             print(f"Error get_last_price from Polygon: {e}")
+            print(f"Error get_last_price from Polygon: {asset=} {quote=} {timestep=} {dt=} {e}")
 
         return super().get_last_price(asset=asset, quote=quote, exchange=exchange)
 
-    def get_chains(self, asset):
+    def get_chains(self, asset: Asset, quote: Asset = None, exchange: str = None):
         """
         Integrates the Polygon client library into the LumiBot backtest for Options Data in the same
         structure as Interactive Brokers options chain data
@@ -220,25 +240,32 @@ class PolygonDataBacktesting(PandasData):
         Parameters
         ----------
         asset : Asset
-            The asset to get data for.
+            The underlying asset to get data for.
+        quote : Asset
+            The quote asset to use. For example, if asset is "SPY" and quote is "USD", the data will be for "SPY/USD".
+        exchange : str
+            The exchange to get the data from. Example: "SMART"
 
         Returns
         -------
-        dictionary:
-            A dictionary nested with a dictionarty of Polygon Option Contracts information broken out by Exchange,
-            with embedded lists for Expirations and Strikes.
-            {'SMART': {'TradingClass': 'SPY', 'Multiplier': 100, 'Expirations': [], 'Strikes': []}}
-
-            - `TradingClass` (str) eg: `FB`
+        dictionary of dictionary
+            Format:
             - `Multiplier` (str) eg: `100`
-            - `Expirations` (list of str) eg: [`20230616`, ...]
-            - `Strikes` (list of floats) eg: [`100.0`, ...]
+            - 'Chains' - paired Expiration/Strke info to guarentee that the stikes are valid for the specific
+                         expiration date.
+                         Format:
+                           chains['Chains']['CALL'][exp_date] = [strike1, strike2, ...]
+                         Expiration Date Format: 2023-07-31
         """
 
         # All Option Contracts | get_chains matching IBKR |
-        # {'SMART': {'TradingClass': 'SPY', 'Multiplier': 100, 'Expirations': [], 'Strikes': []}}
-        option_contracts = {"SMART": {"TradingClass": None, "Multiplier": None, "Expirations": [], "Strikes": []}}
-        contracts = option_contracts["SMART"]  # initialize contracts
+        # {'Multiplier': 100, 'Exchange': "NYSE",
+        #      'Chains': {'CALL': {<date1>: [100.00, 101.00]}}, 'PUT': defaultdict(list)}}
+        option_contracts = {
+            "Multiplier": None,
+            "Exchange": None,
+            "Chains": {"CALL": defaultdict(list), "PUT": defaultdict(list)},
+        }
         today = self.get_datetime().date()
         real_today = date.today()
 
@@ -265,12 +292,11 @@ class PolygonDataBacktesting(PandasData):
 
             # Contract Data | Attributes
             exchange = polygon_contract.primary_exchange
-            contracts["TradingClass"] = polygon_contract.underlying_ticker
-            contracts["Multiplier"] = polygon_contract.shares_per_contract
-            contracts["Expirations"].append(polygon_contract.expiration_date)
-            contracts["Strikes"].append(polygon_contract.strike_price)
-
-            option_contracts["SMART"] = contracts
-            option_contracts[exchange] = contracts
+            right = polygon_contract.contract_type.upper()
+            exp_date = polygon_contract.expiration_date  # Format: '2023-08-04'
+            strike = polygon_contract.strike_price
+            option_contracts["Multiplier"] = polygon_contract.shares_per_contract
+            option_contracts["Exchange"] = exchange
+            option_contracts["Chains"][right][exp_date].append(strike)
 
         return option_contracts

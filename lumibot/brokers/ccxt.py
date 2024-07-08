@@ -1,6 +1,6 @@
 import datetime
 import logging
-from decimal import ROUND_DOWN, Decimal
+from decimal import ROUND_DOWN, Decimal, getcontext
 
 from lumibot.data_sources import CcxtData
 from lumibot.entities import Asset, Order, Position
@@ -95,23 +95,15 @@ class Ccxt(Broker):
         balances = self._fetch_balance()
 
         currency_key = "currency"
-        if self.api.exchangeId in ["coinbasepro", "kucoin", "kraken", "coinbase"]:
+        if self.api.exchangeId in ["coinbasepro", "kucoin", "kraken", "coinbase", "binance", "bitmex"]:
             balances_info = []
-            reserved_keys = ["total", "free", "used", "info", "timestamp", "datetime"]
+            reserved_keys = ["total", "free", "used", "info", "timestamp", "datetime", "debt"]
             for key in balances:
                 if key in reserved_keys:
                     continue
                 bal = balances[key]["total"]
                 if Decimal(bal) != Decimal("0"):
                     balances_info.append({"currency": key, "balance": bal})
-
-        # TODO: Test binance and switch it to the way we do it for coinbasepro and others if possible
-        elif self.api.exchangeId == "binance":
-            balances_info = []
-            for bal in balances["info"]["balances"]:
-                if (Decimal(bal["free"]) + Decimal(bal["locked"])) != Decimal("0"):
-                    balances_info.append(bal)
-            currency_key = "asset"
         else:
             raise NotImplementedError(f"{self.api.exchangeId} not implemented yet.")
 
@@ -140,11 +132,7 @@ class Ccxt(Broker):
                 precision_amount = 10**-precision_amount
                 precision_price = 10**-precision_price
 
-            # Binance only has `free` and `locked`.
-            if self.api.exchangeId == "binance":
-                total_balance = Decimal(currency_info["free"]) + Decimal(currency_info["locked"])
-            else:
-                total_balance = currency_info["balance"]
+            total_balance = currency_info["balance"]
 
             units = Decimal(total_balance)
 
@@ -172,8 +160,9 @@ class Ccxt(Broker):
                 f"the total value of the holdings."
             )
 
-        gross_positions_value = float(positions_value) + float(total_cash_value)
-        net_liquidation_value = float(positions_value) + float(total_cash_value)
+        total_cash_value = float(total_cash_value)
+        gross_positions_value = float(positions_value) + total_cash_value
+        net_liquidation_value = float(positions_value) + total_cash_value
 
         return (total_cash_value, gross_positions_value, net_liquidation_value)
 
@@ -181,18 +170,24 @@ class Ccxt(Broker):
         """parse a broker position representation
         into a position object"""
 
-        if self.api.exchangeId == "binance":
-            symbol = position["asset"]
+        symbol = position["currency"]
+        hold = position["used"]
+        available = position["free"]
+        quantity = Decimal(position["total"])
+
+        # Check if symbol is in the currencies list
+        if symbol not in self.api.currencies:
+            logging.error(
+                f"The symbol {symbol} is not in the currencies list. "
+                f"Please check the symbol and the exchange currencies list."
+            )
+            precision = None
+        
+        elif self.api.exchangeId == "binance":
             precision = str(10 ** -self.api.currencies[symbol]["precision"])
-            quantity = Decimal(position["free"]) + Decimal(position["locked"])
-            hold = position["locked"]
-            available = position["free"]
+            
         else:
-            symbol = position["currency"]
             precision = str(self.api.currencies[symbol]["precision"])
-            quantity = Decimal(position["total"])
-            hold = position["used"]
-            available = position["free"]
 
         asset = Asset(
             symbol=symbol,
@@ -206,16 +201,21 @@ class Ccxt(Broker):
     def _pull_broker_position(self, asset):
         """Given a asset, get the broker representation
         of the corresponding asset"""
-        response = self._pull_broker_positions()["info"][asset.symbol]
-        return response
+
+        position = None
+        if self.api.exchangeId == "binance":
+            for position in self._pull_broker_positions():
+                if position["currency"] == asset.symbol:
+                    return position
+        else:
+            position = self._pull_broker_positions()["info"][asset.symbol]
+        return position
 
     def _pull_broker_positions(self, strategy=None):
         """Get the broker representation of all positions"""
         response = self._fetch_balance()
 
-        if self.api.exchangeId == "binance":
-            return response["info"]["balances"]
-        elif self.api.exchangeId in ["kraken", "kucoin", "coinbasepro", "coinbase"]:
+        if self.api.exchangeId in ["kraken", "kucoin", "coinbasepro", "coinbase", "binance", "bitmex"]:
             balances_info = []
             reserved_keys = [
                 "total",
@@ -224,7 +224,8 @@ class Ccxt(Broker):
                 "info",
                 "timestamp",
                 "datetime",
-                strategy.quote_asset.symbol,
+                "debt",
+                strategy.quote_asset.symbol if strategy else None,
             ]
             for key in response:
                 if key in reserved_keys:
@@ -241,6 +242,47 @@ class Ccxt(Broker):
                                       If you think this is incorrect, then please check \
                                       the exact spelling of the exchangeId."
             )
+
+    def _parse_broker_positions(self, broker_positions, strategy):
+        """parse a list of broker positions into a
+        list of position objects"""
+        result = []
+        for broker_position in broker_positions:
+            new_pos = self._parse_broker_position(broker_position, strategy)
+
+            # Check if the position is not None
+            if new_pos is not None:
+                result.append(new_pos)
+                
+        return result
+
+    def _pull_positions(self, strategy):
+        """Get the account positions. return a list of
+        position objects"""
+        response = self._pull_broker_positions(strategy)
+        result = self._parse_broker_positions(response, strategy.name)
+        return result
+
+    def _pull_position(self, strategy, asset):
+        """
+        Pull a single position from the broker that matches the asset and strategy. If no position is found, None is
+        returned.
+
+        Parameters
+        ----------
+        strategy: Strategy
+            The strategy object that placed the order to pull
+        asset: Asset
+            The asset to pull the position for
+
+        Returns
+        -------
+        Position
+            The position object for the asset and strategy if found, otherwise None
+        """
+        response = self._pull_broker_position(asset)
+        result = self._parse_broker_position(response, strategy)
+        return result
 
     # =======Orders and assets functions=========
     def _parse_broker_order(self, response, strategy_name, strategy_object=None):
@@ -271,7 +313,7 @@ class Ccxt(Broker):
 
     def _pull_broker_order(self, identifier):
         """Get a broker order representation by its id"""
-        open_orders = self._pull_broker_open_orders()
+        open_orders = self._pull_broker_all_orders()
         closed_orders = self._pull_broker_closed_orders()
         all_orders = open_orders + closed_orders
 
@@ -281,6 +323,7 @@ class Ccxt(Broker):
 
     def _pull_broker_closed_orders(self):
         params = {}
+
         if self.is_margin_enabled():
             params["tradeType"] = "MARGIN_TRADE"
 
@@ -288,7 +331,7 @@ class Ccxt(Broker):
 
         return closed_orders
 
-    def _pull_broker_open_orders(self):
+    def _pull_broker_all_orders(self):
         """Get the broker open orders"""
         # For binance api rate limit on calling all orders at once.
         if self.api.exchangeId == "binance":
@@ -307,7 +350,8 @@ class Ccxt(Broker):
             self.fetch_open_orders_last_request_time = datetime.datetime.now()
 
         params = {}
-        if self.is_margin_enabled():
+
+        if self.is_margin_enabled() and self.api.exchangeId != "binance":
             params["tradeType"] = "MARGIN_TRADE"
 
         orders = self.api.fetch_open_orders(params=params)
@@ -318,6 +362,10 @@ class Ccxt(Broker):
         _flatten_order returns a list containing the main order
         and all the derived ones"""
         orders = [order]
+
+        if self.api.exchangeId == "binance":
+            return orders
+
         if "legs" in order._raw and order._raw.legs:
             strategy_name = order.strategy
             for json_sub_order in order._raw.legs:
@@ -329,11 +377,24 @@ class Ccxt(Broker):
     def _submit_order(self, order):
         """Submit an order for an asset"""
 
+        # Check if order has a quantity
+        if not hasattr(order, "quantity") or order.quantity is None:
+            raise ValueError(f"Order {order} does not have a quantity.")
+
+        # Check that order quantity is a numeric type
+        if not isinstance(order.quantity, (int, float, Decimal)):
+            raise ValueError(f"Order quantity must be a numeric type, not {type(order.quantity)}")
+
+        # Check if order quantity is greater than 0.
+        if order.quantity <= 0:
+            logging.warning(f"The order {order} was rejected as the order quantity is 0 or less.")
+            return
+
         # Orders limited.
-        order_class = ""
+        order_class = None
         order_types = ["market", "limit", "stop_limit"]
         # TODO: Is this actually true?? Try testing this with a bunch of different exchanges.
-        markets_error_message = f"Only `market`, `limit`, or `stop_limit` orders work " f"with crypto currency markets."
+        markets_error_message = "Only `market`, `limit`, or `stop_limit` orders work with crypto currency markets."
 
         if order.order_class != order_class:
             logging.error(f"A compound order of {order.order_class} was entered. " f"{markets_error_message}")
@@ -353,7 +414,7 @@ class Ccxt(Broker):
         limits = market["limits"]
         precision = market["precision"]
         if self.api.exchangeId in ["binance", "kucoin"]:
-            precision_amount = str(10 ** -precision["amount"])
+            precision_amount = Decimal(str(10 ** -precision["amount"]))
         elif self.api.exchangeId == "kraken":
             initial_precision_amount = Decimal(str(precision["amount"]))
 
@@ -364,12 +425,20 @@ class Ccxt(Broker):
             factor = 10**new_precision_exp
             precision_amount = Decimal(1) / Decimal(factor)
         else:
-            precision_amount = str(precision["amount"])
+            # Set the precision for the Decimal context
+            getcontext().prec = 8
+            getcontext().rounding = ROUND_DOWN
+            decimal_value = Decimal(precision["amount"])
+            precision_amount = decimal_value.quantize(Decimal("1e-{0}".format(8)), rounding=ROUND_DOWN)
 
         # Convert the amount to Decimal.
         if hasattr(order, "quantity") and getattr(order, "quantity") is not None:
             qty = Decimal(getattr(order, "quantity"))
-            new_qty = qty.quantize(precision_amount, rounding=ROUND_DOWN)
+
+            # Calculate the precision factor as the reciprocal of precision_amount
+            precision_factor = Decimal("1") / precision_amount
+
+            new_qty = (qty * precision_factor).to_integral_value(rounding="ROUND_DOWN") / precision_factor
 
             if new_qty <= Decimal(0):
                 logging.warning(
@@ -413,10 +482,11 @@ class Ccxt(Broker):
             "stop_price",
         ]:
             if hasattr(order, price_type) and getattr(order, price_type) is not None:
+                precision_price = Decimal(str(10 ** -precision["price"])) if self.api.exchangeId == "binance" else precision["price"]
                 setattr(
                     order,
                     price_type,
-                    Decimal(getattr(order, price_type)).quantize(Decimal(str(precision["price"]))),
+                    Decimal(getattr(order, price_type)).quantize(Decimal(str(precision_price))),
                 )
             else:
                 continue
@@ -474,7 +544,8 @@ class Ccxt(Broker):
         args = self.create_order_args(order)
 
         params = {}
-        if self.is_margin_enabled():
+
+        if self.is_margin_enabled() and self.api.exchangeId != "binance":
             params["tradeType"] = "MARGIN_TRADE"
 
         # if self.api.exchangeId == "coinbase" and order.type == "market":
@@ -660,6 +731,11 @@ class Ccxt(Broker):
             if order_type_map[order.type] == "limit":
                 args.append(str(order.limit_price))
 
+            # If coinbase, you need to pass the price even with a market order
+            if broker == "coinbase" and order_type_map[order.type] == "market":
+                price = self.data_source.get_last_price(order.asset, quote=order.quote)
+                args.append(str(price))
+
             if len(params) > 0:
                 args.append(params)
 
@@ -674,13 +750,18 @@ class Ccxt(Broker):
 
     def cancel_order(self, order):
         """Cancel an order"""
-        response = self.api.cancel_order(order.identifier, order.symbol)
-        if order.identifier == response:
-            order.set_canceled()
+        if self.api.exchangeId == "binance":
+            response = self.api.cancel_order(order.identifier, order.pair)
+            if order.identifier == response["id"]:
+                order.set_canceled()
+        else:
+            response = self.api.cancel_order(order.identifier, order.symbol)
+            if order.identifier == response:
+                order.set_canceled()
 
     def cancel_open_orders(self, strategy):
         """Cancel all open orders at the broker."""
-        for order in self._pull_broker_open_orders():
+        for order in self._pull_broker_all_orders():
             self.api.cancel_order(order["id"], symbol=order["symbol"])
 
     def get_historical_account_value(self):

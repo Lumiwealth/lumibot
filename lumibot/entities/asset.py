@@ -1,5 +1,8 @@
+import logging
 from collections import UserDict
 from datetime import date, datetime
+
+from lumibot.tools import parse_symbol
 
 
 class Asset:
@@ -26,6 +29,8 @@ class Asset:
     multiplier : int
         Price multiplier.
         default : 1
+    underlying_asset : Asset
+        Underlying asset for options.
 
     Attributes
     ----------
@@ -96,6 +101,18 @@ class Asset:
     >>> self.submit_order(order)
     """
 
+    class OptionRight:
+        CALL = "CALL"
+        PUT = "PUT"
+
+    class AssetType:
+        STOCK = "stock"
+        OPTION = "option"
+        FUTURE = "future"
+        FOREX = "forex"
+        CRYPTO = "crypto"
+        INDEX = "index"
+
     symbol: str
     asset_type: str = "stock"
     expiration: date = None
@@ -103,9 +120,13 @@ class Asset:
     right: str = None
     multiplier: int = 1
     precision: str = None
+    underlying_asset: "Asset" = None
 
-    _asset_types: list = ["stock", "option", "future", "forex", "crypto", "index"]
-    _right: list = ["CALL", "PUT"]
+    # Pull the asset types from the AssetType class
+    _asset_types: list = [v for k, v in AssetType.__dict__.items() if not k.startswith("__")]
+
+    # Pull the rights from the OptionRight class
+    _right: list = [v for k, v in OptionRight.__dict__.items() if not k.startswith("__")]
 
     def __init__(
         self,
@@ -116,12 +137,18 @@ class Asset:
         right: str = None,
         multiplier: int = 1,
         precision: str = None,
+        underlying_asset: "Asset" = None,
     ):
         self.symbol = symbol
         self.asset_type = asset_type
         self.strike = strike
         self.multiplier = multiplier
         self.precision = precision
+        self.underlying_asset = underlying_asset
+
+        # If the underlying asset is set but the symbol is not, set the symbol to the underlying asset symbol
+        if self.underlying_asset is not None and self.symbol is None:
+            self.symbol = self.underlying_asset.symbol
 
         # If the expiration is a datetime object, convert it to date
         if isinstance(expiration, datetime):
@@ -139,6 +166,40 @@ class Asset:
 
         self.asset_type_must_be_one_of(self.asset_type)
         self.right_must_be_one_of(self.right)
+
+    @classmethod
+    def symbol2asset(cls, symbol: str):
+        """
+        Convert a symbol string to an Asset object. This is particularly useful for converting option symbols.
+
+        Parameters
+        ----------
+        symbol : str
+            The symbol string to convert.
+
+        Returns
+        -------
+        Asset
+            The Asset object.
+        """
+        if not symbol:
+            raise ValueError("Cannot convert an empty symbol to an Asset object.")
+
+        symbol_info = parse_symbol(symbol)
+        if symbol_info["type"] == "option":
+            return Asset(
+                symbol=symbol_info["stock_symbol"],
+                asset_type="option",
+                expiration=symbol_info["expiration_date"],
+                strike=symbol_info["strike_price"],
+                right=symbol_info["option_type"],
+            )
+        elif symbol_info["type"] == "stock":
+            return Asset(symbol=symbol, asset_type="stock")
+        else:
+            # TODO: Handle Crypto and Forex Symbols
+            logging.info(f"Unknown symbol asset type {symbol_info['type']}, defaulting to stock.")
+            return Asset(symbol=symbol)
 
     def __hash__(self):
         return hash((self.symbol, self.asset_type, self.expiration, self.strike, self.right))
@@ -160,7 +221,12 @@ class Asset:
             return f"{self.symbol}"
 
     def __eq__(self, other):
+        # Check if other is None
         if other is None:
+            return False
+
+        # Check if other is an Asset object
+        if not isinstance(other, Asset):
             return False
 
         return (
@@ -204,11 +270,6 @@ class Asset:
             if self.strike is None:
                 return False
             if self.right is None:
-                return False
-
-        # If it's a future it should have an expiration date
-        if self.asset_type == "future":
-            if self.expiration is None:
                 return False
 
         return True

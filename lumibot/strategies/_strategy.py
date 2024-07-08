@@ -1,18 +1,16 @@
 import datetime
 import logging
-import os
-import warnings
+from termcolor import colored
 from asyncio.log import logger
 from decimal import Decimal
+import os
 
-import jsonpickle
 import pandas as pd
 from lumibot.backtesting import BacktestingBroker, PolygonDataBacktesting
 from lumibot.entities import Asset, Position
 from lumibot.tools import (
     create_tearsheet,
     day_deduplicate,
-    get_risk_free_rate,
     get_symbol_returns,
     plot_indicators,
     plot_returns,
@@ -22,7 +20,17 @@ from lumibot.tools import (
 from lumibot.traders import Trader
 
 from .strategy_executor import StrategyExecutor
+    
+class CustomLoggerAdapter(logging.LoggerAdapter):
+    def __init__(self, logger, extra):
+        super().__init__(logger, extra)
+        self.prefix = f'[{self.extra["strategy_name"]}] '
 
+    def process(self, msg, kwargs):
+        try:
+            return self.prefix + msg, kwargs
+        except Exception as e:
+            return msg, kwargs
 
 class _Strategy:
     IS_BACKTESTABLE = True
@@ -48,6 +56,11 @@ class _Strategy:
         buy_trading_fees=[],
         sell_trading_fees=[],
         force_start_immediately=False,
+        discord_webhook_url=None,
+        account_history_db_connection_str=None,
+        strategy_id=None,
+        discord_account_summary_footer=None,
+        save_logfile=False,
         **kwargs,
     ):
         """Initializes a Strategy object.
@@ -103,6 +116,27 @@ class _Strategy:
         force_start_immidiately : bool
             If True, the strategy will start immediately. If False, the strategy will wait until the market opens
             to start. Defaults to True.
+        discord_webhook_url : str
+            The discord webhook url to use for sending alerts from the strategy. You can send alerts to a discord
+            channel by setting broadcast=True in the log_message method. The strategy will also by default send
+            and account summary to the discord channel at the end of each day (account_history_db_connection_str
+            must be set for this to work). Defaults to None (no discord alerts).
+            For instructions on how to create a discord webhook url, see this link:
+            https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks
+        discord_account_summary_footer : str
+            The footer to use for the account summary sent to the discord channel if discord_webhook_url is set and the
+            account_history_db_connection_str is set.
+            Defaults to None (no footer).
+        account_history_db_connection_str : str
+            The connection string to use for the account history database. This is used to store the account history
+            for the strategy. The account history is sent to the discord channel at the end of each day. The connection
+            string should be in the format: "sqlite:///path/to/database.db". The database should have a table named
+            "strategy_tracker". If that table does not exist, it will be created. Defaults to None (no account history).
+        strategy_id : str
+            The id of the strategy that will be used to identify the strategy in the account history database.
+            Defaults to None (lumibot will use the name of the strategy as the id).
+        save_logfile : bool
+            Whether to save the logfile. Defaults to False. If True, the logfile will be saved to the logs directory.
         """
         # Handling positional arguments.
         # If there is one positional argument, it is assumed to be `broker`.
@@ -115,6 +149,7 @@ class _Strategy:
 
         self.buy_trading_fees = buy_trading_fees
         self.sell_trading_fees = sell_trading_fees
+        self.save_logfile = save_logfile
 
         if len(args) == 1:
             if isinstance(args[0], str):
@@ -146,13 +181,30 @@ class _Strategy:
         if self._name is None:
             self._name = self.__class__.__name__
 
+        # Create an adapter with 'strategy_name' set to the instance's name
+        self.logger = CustomLoggerAdapter(logger, {'strategy_name': self._name})
+
+        self.discord_webhook_url = discord_webhook_url
+        self.account_history_db_connection_str = account_history_db_connection_str
+        self.discord_account_summary_footer = discord_account_summary_footer
+
+        if strategy_id is None:
+            self.strategy_id = self._name
+        else:
+            self.strategy_id = strategy_id
+
         self._quote_asset = quote_asset
+        self.broker.quote_assets.add(self._quote_asset)
 
         # Setting the broker object
         self._is_backtesting = self.broker.IS_BACKTESTING_BROKER
         self._benchmark_asset = benchmark_asset
-        self._backtesting_start = to_datetime_aware(backtesting_start)
-        self._backtesting_end = to_datetime_aware(backtesting_end)
+
+        # Get the backtesting start and end dates from the broker data source if we are backtesting
+        if self._is_backtesting:
+            if self.broker.data_source.datetime_start is not None and self.broker.data_source.datetime_end is not None:
+                self._backtesting_start = self.broker.data_source.datetime_start
+                self._backtesting_end = self.broker.data_source.datetime_end
 
         # Force start immediately if we are backtesting
         self.force_start_immediately = force_start_immediately
@@ -185,14 +237,10 @@ class _Strategy:
                     )
                     self.broker._filled_positions.append(position)
 
-        if risk_free_rate is None:
-            # Get risk-free rate from US Treasuries by default
-            self._risk_free_rate = get_risk_free_rate()
-        else:
-            self._risk_free_rate = risk_free_rate
+        # Set the the state of first iteration to True. This will later be updated to False by the strategy executor
+        self._first_iteration = True
 
         # Setting execution parameters
-        self._first_iteration = True
         self._last_on_trading_iteration_datetime = None
         if not self._is_backtesting:
             self.update_broker_balances()
@@ -208,11 +256,6 @@ class _Strategy:
                 else:
                     budget = self.cash
             else:
-                logger.warning(
-                    "You have set both a starting budget and a starting position for the quote asset. "
-                    "The starting position for the quote asset will be replaced with the budget, and the "
-                    "budget will be used as the cash value instead."
-                )
                 self._set_cash_position(budget)
 
             # #############################################
@@ -245,6 +288,7 @@ class _Strategy:
         self._minutes_before_closing = minutes_before_closing
         self._minutes_before_opening = minutes_before_opening
         self._sleeptime = sleeptime
+        self._risk_free_rate = risk_free_rate
         self._executor = StrategyExecutor(self)
         self.broker._add_subscriber(self._executor)
 
@@ -276,7 +320,7 @@ class _Strategy:
                     result[key] = self.__dict__[key]
                 except KeyError:
                     pass
-                    # logging.warning(
+                    # self.logger.warning(
                     #     "Cannot perform deepcopy on %r" % self.__dict__[key]
                     # )
             elif key in [
@@ -297,7 +341,7 @@ class _Strategy:
         # Check if cash is in the list of positions yet
         for x in range(len(self.broker._filled_positions.get_list())):
             position = self.broker._filled_positions[x]
-            if position.asset == self.quote_asset:
+            if position is not None and position.asset == self.quote_asset:
                 position.quantity = cash
                 self.broker._filled_positions[x] = position
                 return
@@ -529,60 +573,116 @@ class _Strategy:
         if len(self._stats_list) > 0:
             self._format_stats()
             if self._stats_file:
+                # Get the directory name from the stats file path
+                stats_directory = os.path.dirname(self._stats_file)
+
+                # Check if the directory exists
+                if not os.path.exists(stats_directory):
+                    os.makedirs(stats_directory)
+
                 self._stats.to_csv(self._stats_file)
 
             self._strategy_returns_df = day_deduplicate(self._stats)
 
-            self._analysis = stats_summary(self._strategy_returns_df, self._risk_free_rate)
+            self._analysis = stats_summary(self._strategy_returns_df, self.risk_free_rate)
 
-            # Getting performance for the benchmark asset
-            if self._backtesting_start is not None and self._backtesting_end is not None:
-                # Need to adjust the backtesting end date because the data from Yahoo
-                # is at the start of the day, so the graph cuts short. This may be needed
-                # for other timeframes as well
-                backtesting_end_adjusted = self._backtesting_end
-
-                # If we are using the polgon data source, then get the benchmark returns from polygon
-                if type(self.broker.data_source) == PolygonDataBacktesting:
-                    benchmark_asset = self._benchmark_asset
-                    # If the benchmark asset is a string, then convert it to an Asset object
-                    if isinstance(benchmark_asset, str):
-                        benchmark_asset = Asset(benchmark_asset)
-
-                    timestep = "minute"
-                    # If the strategy sleeptime is in days then use daily data, eg. "1D"
-                    if "D" in str(self._sleeptime):
-                        timestep = "day"
-
-                    bars = self.broker.data_source.get_historical_prices_between_dates(
-                        benchmark_asset,
-                        timestep,
-                        start_date=self._backtesting_start,
-                        end_date=backtesting_end_adjusted,
-                        quote=self._quote_asset,
-                    )
-                    df = bars.df
-
-                    # Add returns column
-                    df["return"] = df["close"].pct_change()
-
-                    # Add the symbol_cumprod column
-                    df["symbol_cumprod"] = (1 + df["return"]).cumprod()
-
-                    self._benchmark_returns_df = df
-
-                # If we are using any other data source, then get the benchmark returns from yahoo
-                else:
-                    self._benchmark_returns_df = get_symbol_returns(
-                        self._benchmark_asset,
-                        self._backtesting_start,
-                        backtesting_end_adjusted,
-                    )
+            # Get performance for the benchmark asset
+            self._dump_benchmark_stats()
 
         for handler in logger.handlers:
             if handler.__class__.__name__ == "StreamHandler":
                 handler.setLevel(current_stream_handler_level)
         logger.setLevel(current_level)
+
+    def _dump_benchmark_stats(self):
+        if not self._is_backtesting:
+            return
+        if self._backtesting_start is not None and self._backtesting_end is not None:
+            # Need to adjust the backtesting end date because the data from Yahoo
+            # is at the start of the day, so the graph cuts short. This may be needed
+            # for other timeframes as well
+            backtesting_end_adjusted = self._backtesting_end
+
+            # If we are using the polgon data source, then get the benchmark returns from polygon
+            if type(self.broker.data_source) == PolygonDataBacktesting:
+                benchmark_asset = self._benchmark_asset
+                # If the benchmark asset is a string, then convert it to an Asset object
+                if isinstance(benchmark_asset, str):
+                    benchmark_asset = Asset(benchmark_asset)
+
+                timestep = "minute"
+                # If the strategy sleeptime is in days then use daily data, eg. "1D"
+                if "D" in str(self._sleeptime):
+                    timestep = "day"
+
+                bars = self.broker.data_source.get_historical_prices_between_dates(
+                    benchmark_asset,
+                    timestep,
+                    start_date=self._backtesting_start,
+                    end_date=backtesting_end_adjusted,
+                    quote=self._quote_asset,
+                )
+                df = bars.df
+
+                # Add returns column
+                df["return"] = df["close"].pct_change()
+
+                # Add the symbol_cumprod column
+                df["symbol_cumprod"] = (1 + df["return"]).cumprod()
+
+                self._benchmark_returns_df = df
+
+            # For data sources of type CCXT, benchmark_asset gets bechmark_asset from the CCXT backtest data source.
+            elif self.broker.data_source.SOURCE.upper() == "CCXT":
+                benchmark_asset = self._benchmark_asset
+                # If the benchmark asset is a string, then convert it to an Asset object
+                if isinstance(benchmark_asset, str):
+                    asset_quote = benchmark_asset.split("/")
+                    if len(asset_quote) == 2:
+                        benchmark_asset = (Asset(symbol=asset_quote[0], asset_type="crypto"),
+                                           Asset(symbol=asset_quote[1], asset_type="crypto"))
+                    else:
+                        benchmark_asset = Asset(symbol=benchmark_asset,asset_type="crypto")
+
+                timestep = "minute"
+                # If the strategy sleeptime is in days then use daily data, eg. "1D"
+                if "D" in str(self._sleeptime):
+                    timestep = "day"
+
+                bars = self.broker.data_source.get_historical_prices_between_dates(
+                    benchmark_asset,
+                    timestep,
+                    start_date=self._backtesting_start,
+                    end_date=backtesting_end_adjusted,
+                    quote=self._quote_asset,
+                )
+                df = bars.df
+
+                # Add the symbol_cumprod column
+                df["symbol_cumprod"] = (1 + df["return"]).cumprod()
+
+                self._benchmark_returns_df = df
+
+            # If we are using any other data source, then get the benchmark returns from yahoo
+            else:
+                benchmark_asset = self._benchmark_asset
+
+                # If the benchmark asset is a string, then just use the string as the symbol
+                if isinstance(benchmark_asset, str):
+                    benchmark_symbol = benchmark_asset
+                # If the benchmark asset is an Asset object, then use the symbol of the asset
+                elif isinstance(benchmark_asset, Asset):
+                    benchmark_symbol = benchmark_asset.symbol
+                # If the benchmark asset is a tuple, then use the symbols of the assets in the tuple
+                elif isinstance(benchmark_asset, tuple):
+                    benchmark_symbol = f"{benchmark_asset[0].symbol}/{benchmark_asset[1].symbol}"
+                
+
+                self._benchmark_returns_df = get_symbol_returns(
+                    benchmark_symbol,
+                    self._backtesting_start,
+                    backtesting_end_adjusted,
+                )
 
     def plot_returns_vs_benchmark(
         self,
@@ -593,9 +693,9 @@ class _Strategy:
         if not show_plot:
             return
         elif self._strategy_returns_df is None:
-            logging.warning("Cannot plot returns because the strategy returns are missing")
+            self.logger.warning("Cannot plot returns because the strategy returns are missing")
         elif self._benchmark_returns_df is None:
-            logging.warning("Cannot plot returns because the benchmark returns are missing")
+            self.logger.warning("Cannot plot returns because the benchmark returns are missing")
         else:
             plot_returns(
                 self._strategy_returns_df,
@@ -607,24 +707,6 @@ class _Strategy:
                 show_plot,
                 initial_budget=self._initial_budget,
             )
-
-    def plot_indicators(
-        self,
-        plot_file_html="indicators.html",
-        chart_markers_df=None,
-        chart_lines_df=None,
-    ):
-        # Check if we have at least one indicator to plot
-        if chart_markers_df is None and chart_lines_df is None:
-            return None
-
-        # Plot the indicators
-        plot_indicators(
-            plot_file_html,
-            chart_markers_df,
-            chart_lines_df,
-            f"{self._log_strat_name()}Strategy Indicators",
-        )
 
     def tearsheet(
         self,
@@ -639,8 +721,15 @@ class _Strategy:
             save_tearsheet = True
 
         if self._strategy_returns_df is None:
-            logging.warning("Cannot create a tearsheet because the strategy returns are missing")
+            self.logger.warning("Cannot create a tearsheet because the strategy returns are missing")
         else:
+            # Get the strategy parameters
+            strategy_parameters = self.parameters
+
+            # Remove pandas_data from the strategy parameters if it exists
+            if "pandas_data" in strategy_parameters:
+                del strategy_parameters["pandas_data"]
+
             strat_name = self._name if self._name is not None else "Strategy"
             create_tearsheet(
                 self._strategy_returns_df,
@@ -649,7 +738,9 @@ class _Strategy:
                 self._benchmark_returns_df,
                 self._benchmark_asset,
                 show_tearsheet,
-                risk_free_rate=self._risk_free_rate,
+                save_tearsheet,
+                risk_free_rate=self.risk_free_rate,
+                strategy_parameters=strategy_parameters,
             )
 
     @classmethod
@@ -682,8 +773,10 @@ class _Strategy:
         sell_trading_fees=[],
         api_key=None,
         polygon_api_key=None,
-        polygon_has_paid_subscription=False,
+        polygon_has_paid_subscription=None, # Depricated, this is now automatic. Remove in future versions.
         indicators_file=None,
+        show_indicators=True,
+        save_logfile=False,
         **kwargs,
     ):
         """Backtest a strategy.
@@ -754,11 +847,12 @@ class _Strategy:
         polygon_api_key: str
             The polygon api key to use for polygon data. Only required if you are using PolygonDataBacktesting as
             the datasource_class. Deprecated, please use 'api_key' instead.
-        polygon_has_paid_subscription : bool
-            Whether you have a paid subscription to Polygon. Only required if you are using
-            PolygonDataBacktesting as the datasource_class.
         indicators_file : str
             The file to write the indicators to.
+        show_indicators : bool
+            Whether to show the indicators plot.
+        save_logfile : bool
+            Whether to save the logfile. Defaults to False. If True, the logfile will be saved to the logs directory. Turning on this option will slow down the backtest.
 
         Returns
         -------
@@ -793,14 +887,6 @@ class _Strategy:
         >>>     benchmark_asset=benchmark_asset,
         >>> )
         """
-
-        warnings.warn(
-            "The backtest() method will be depricated in future versions of Lumibot. Instead "
-            "please use 'trader.run_all(backtest=True)' as this more closely models how your strategy "
-            "will behave in Live Trading sessions.  <web link>",
-            DeprecationWarning,
-            stacklevel=2,
-        )
 
         positional_args_error_message = (
             "Please do not use `name' or 'budget' as positional arguments. \n"
@@ -856,11 +942,22 @@ class _Strategy:
 
         datestring = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         basename = f"{name + '_' if name is not None else ''}{datestring}"
-        if logfile is None:
-            logfile = f"logs/{basename}_logs.csv"
+        logdir = "logs"
+        if logfile is None and save_logfile:
+            logfile = f"{logdir}/{basename}_logs.csv"
         if stats_file is None:
-            logdir = os.path.dirname(logfile)
             stats_file = f"{logdir}/{basename}_stats.csv"
+
+        # Check if polygon_has_paid_subscription is set (it is deprecated and will be removed in the future)
+        if polygon_has_paid_subscription is not None:
+            colored_warning = colored("The parameter `polygon_has_paid_subscription` is deprecated and will be removed in the future. "
+                                      "This parameter is no longer needed as the PolygonDataBacktesting class will automatically check "
+                                      "if you have a paid subscription to Polygon."
+                                      "Also, we have partnered with Polygon to provide you a discount on their paid subscription. "
+                                      "You can get an API key at https://polygon.io/?utm_source=affiliate&utm_campaign=lumi10 "
+                                      "Please use the full link to give us credit for the sale, it helps support this project. "
+                                      "You can use the coupon code 'LUMI10' for 10% off your subscription. ", "yellow")
+            logging.warning(colored_warning)
 
         # #############################################
         # Check the data types of the parameters
@@ -903,10 +1000,9 @@ class _Strategy:
             config=config,
             auto_adjust=auto_adjust,
             api_key=api_key,
+            pandas_data=pandas_data,
             **kwargs,
         )
-        if hasattr(data_source, "has_paid_subscription"):
-            data_source.has_paid_subscription = polygon_has_paid_subscription
 
         # if hasattr(data_source, 'pandas_data'):
         #     data_source.pandas_data = pandas_data
@@ -930,6 +1026,7 @@ class _Strategy:
             parameters=parameters,
             buy_trading_fees=buy_trading_fees,
             sell_trading_fees=sell_trading_fees,
+            save_logfile=save_logfile,
             **kwargs,
         )
         trader.add_strategy(strategy)
@@ -939,7 +1036,13 @@ class _Strategy:
         logger.info("Starting backtest...")
         start = datetime.datetime.now()
 
-        result = trader.run_all(show_plot=show_plot, show_tearsheet=show_tearsheet, save_tearsheet=save_tearsheet)
+        result = trader.run_all(
+            show_plot=show_plot,
+            show_tearsheet=show_tearsheet,
+            save_tearsheet=save_tearsheet,
+            show_indicators=show_indicators,
+            tearsheet_file=tearsheet_file,
+        )
 
         end = datetime.datetime.now()
         backtesting_length = backtesting_end - backtesting_start
@@ -958,9 +1061,10 @@ class _Strategy:
 
     def backtest_analysis(
         self,
-        logfile=None,
+        logdir=None,
         show_plot=True,
         show_tearsheet=True,
+        show_indicators=True,
         save_tearsheet=True,
         plot_file_html=None,
         tearsheet_file=None,
@@ -971,18 +1075,20 @@ class _Strategy:
         name = self._name
 
         # Filename defaults
-        logdir = os.path.dirname(logfile)
+        if not logdir:
+            logdir = "logs"
+
         datestring = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         basename = f"{name + '_' if name is not None else ''}{datestring}"
-        if plot_file_html is None:
+        if not plot_file_html:
             plot_file_html = f"{logdir}/{basename}_trades.html"
-        if trades_file is None:
+        if not trades_file:
             trades_file = f"{logdir}/{basename}_trades.csv"
-        if tearsheet_file is None:
+        if not tearsheet_file:
             tearsheet_file = f"{logdir}/{basename}_tearsheet.html"
-        if settings_file is None:
+        if not settings_file:
             settings_file = f"{logdir}/{basename}_settings.json"
-        if indicators_file is None:
+        if not indicators_file:
             indicators_file = f"{logdir}/{basename}_indicators.html"
 
         self.write_backtest_settings(settings_file)
@@ -998,11 +1104,16 @@ class _Strategy:
         chart_lines_df = pd.DataFrame(self._chart_lines_list)
         # Create chart markers dataframe
         chart_markers_df = pd.DataFrame(self._chart_markers_list)
-        self.plot_indicators(
-            indicators_file,
-            chart_markers_df,
-            chart_lines_df,
-        )
+
+        # Check if we have at least one indicator to plot
+        if chart_markers_df is not None and chart_lines_df is not None:
+            plot_indicators(
+                indicators_file,
+                chart_markers_df,
+                chart_lines_df,
+                f"{self._log_strat_name()}Strategy Indicators",
+                show_indicators=show_indicators,
+            )
         self.tearsheet(
             save_tearsheet=save_tearsheet,
             tearsheet_file=tearsheet_file,
@@ -1069,8 +1180,10 @@ class _Strategy:
         sell_trading_fees=[],
         api_key=None,
         polygon_api_key=None,
-        polygon_has_paid_subscription=False,
+        polygon_has_paid_subscription=None, # Depricated, this is now automatic. Remove in future versions.
         indicators_file=None,
+        show_indicators=True,
+        save_logfile=False,
         **kwargs,
     ):
         """Backtest a strategy.
@@ -1141,16 +1254,18 @@ class _Strategy:
         polygon_api_key : str
             The polygon api key to use for polygon data. Only required if you are using PolygonDataBacktesting as
             the datasource_class. Depricated, please use 'api_key' instead.
-        polygon_has_paid_subscription : bool
-            Whether you have a paid subscription to Polygon. Only required if you are using
-            PolygonDataBacktesting as the datasource_class.
         indicators_file : str
             The file to write the indicators to.
+        show_indicators : bool
+            Whether to show the indicators plot.
+        save_logfile : bool
+            Whether to save the logs to a file. If True, the logs will be saved to the logs directory. Defaults to False.
+            Turning on this option will slow down the backtest.
 
         Returns
         -------
-        Backtest
-            The backtest object.
+        result : dict
+            A dictionary of the backtest results. Eg.
 
         Examples
         --------
@@ -1210,6 +1325,8 @@ class _Strategy:
             polygon_api_key=polygon_api_key,
             polygon_has_paid_subscription=polygon_has_paid_subscription,
             indicators_file=indicators_file,
+            show_indicators=show_indicators,
+            save_logfile=save_logfile,
             **kwargs,
         )
         return results

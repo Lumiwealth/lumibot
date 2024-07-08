@@ -1,5 +1,4 @@
 import inspect
-import logging
 import time
 import traceback
 from datetime import datetime, timedelta
@@ -12,6 +11,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from termcolor import colored
 
+from lumibot.entities import Asset, Order
 from lumibot.tools import append_locals, get_trading_days, staticdecorator
 
 
@@ -67,7 +67,7 @@ class StrategyExecutor(Thread):
                 self.process_queue()
             except Empty:
                 pass
-            time.sleep(1)
+            time.sleep(0.5)
 
     def safe_sleep(self, sleeptime):
         # This method should only be run in back testing. If it's running during live, something has gone wrong.
@@ -78,145 +78,132 @@ class StrategyExecutor(Thread):
                 sleeptime, cash=self.strategy.cash, portfolio_value=self.strategy.portfolio_value
             )
 
-    @staticdecorator
-    @staticmethod
-    def sync_broker(func_input):
-        @wraps(func_input)
-        def func_output(self, *args, **kwargs):
-            # Only audit the broker position during live trading.
-            if self.broker.IS_BACKTESTING_BROKER:
-                return func_input(self, *args, **kwargs)
+    def sync_broker(self):
+        # Only audit the broker position during live trading.
+        if self.broker.IS_BACKTESTING_BROKER:
+            return
 
-            # Ensure that the orders are submitted to the broker before auditing.
-            orders_queue_len = 1
-            while orders_queue_len > 0:
-                orders_queue_len = len(self.broker._orders_queue.queue)
+        # Ensure that the orders are submitted to the broker before auditing.
+        orders_queue_len = 1
+        while orders_queue_len > 0:
+            orders_queue_len = len(self.broker._orders_queue.queue)
 
-            # Traps all new trade/order notifications to list broker._held_trades
-            # Trapped at the broker._process_trade_event method
-            self.broker._hold_trade_events = True
+        # Traps all new trade/order notifications to list broker._held_trades
+        # Trapped at the broker._process_trade_event method
+        self.broker._hold_trade_events = True
 
-            # Get the snapshot.
-            # If the _held_trades list is not empty, process these and then snapshot again
-            # ensuring that the lumibot broker and the real broker should match.
-            held_trades_len = 1
-            cash_broker_max_retries = 3
-            cash_broker_retries = 0
-            while held_trades_len > 0:
-                # Snapshot for the broker and lumibot:
-                cash_broker = self.broker._get_balances_at_broker(self.strategy.quote_asset)
-                if cash_broker is None and cash_broker_retries < cash_broker_max_retries:
-                    logging.info("Unable to get cash from broker, trying again.")
-                    cash_broker_retries += 1
-                    continue
-                elif cash_broker is None and cash_broker_retries >= cash_broker_max_retries:
-                    logging.info(
-                        f"Unable to get the cash balance after {cash_broker_max_retries} "
-                        f"tries, setting cash to zero."
-                    )
-                    cash_broker = 0
+        # Get the snapshot.
+        # If the _held_trades list is not empty, process these and then snapshot again
+        # ensuring that the lumibot broker and the real broker should match.
+        held_trades_len = 1
+        cash_broker_max_retries = 3
+        cash_broker_retries = 0
+        orders_broker = []
+        positions_broker = []
+        while held_trades_len > 0:
+            # Snapshot for the broker and lumibot:
+            cash_broker = self.broker._get_balances_at_broker(self.strategy.quote_asset)
+            if cash_broker is None and cash_broker_retries < cash_broker_max_retries:
+                self.strategy.logger.info("Unable to get cash from broker, trying again.")
+                cash_broker_retries += 1
+                continue
+            elif cash_broker is None and cash_broker_retries >= cash_broker_max_retries:
+                self.strategy.logger.info(
+                    f"Unable to get the cash balance after {cash_broker_max_retries} "
+                    f"tries, setting cash to zero."
+                )
+                cash_broker = 0
+            else:
+                cash_broker = cash_broker[0]
+
+            if cash_broker is not None:
+                self.strategy._set_cash_position(cash_broker)
+
+            held_trades_len = len(self.broker._held_trades)
+            if held_trades_len > 0:
+                self.broker._hold_trade_events = False
+                self.broker.process_held_trades()
+                self.broker._hold_trade_events = True
+
+        # POSITIONS
+        # Update Lumibot positions to match broker positions.
+        # Any new trade notifications will not affect the sync as they
+        # are being held pending the completion of the sync.
+        self.broker.sync_positions(self.strategy)
+
+        # ORDERS
+        orders_broker = self.broker._pull_all_orders(self.name, self.strategy)
+        if len(orders_broker) > 0:
+            orders_lumi = self.broker.get_all_orders()
+
+            # Check orders at the broker against those in lumibot.
+            for order in orders_broker:
+                # Check against existing orders.
+                order_lumi = [ord_lumi for ord_lumi in orders_lumi if ord_lumi.identifier == order.identifier]
+                order_lumi = order_lumi[0] if len(order_lumi) > 0 else None
+
+                if order_lumi:
+                    # Compare the orders.
+                    if order_lumi.quantity != order.quantity:
+                        order_lumi.quantity = order.quantity
+                    order_attrs = [
+                        # "position_filled",
+                        # "status",
+                        "limit_price"
+                    ]
+                    for order_attr in order_attrs:
+                        olumi = getattr(order_lumi, order_attr)
+                        obroker = getattr(order, order_attr)
+                        if olumi != obroker:
+                            setattr(order_lumi, order_attr, obroker)
+                            self.strategy.logger.warning(
+                                f"We are adjusting the {order_attr} of the order {order_lumi}, from {olumi} "
+                                f"to be {obroker} because what we have in memory does not match the broker."
+                            )
                 else:
-                    cash_broker = cash_broker[0]
-
-                if cash_broker is not None:
-                    self.strategy._set_cash_position(cash_broker)
-
-                positions_broker = self.broker._pull_positions(self.strategy)
-                orders_broker = self.broker._pull_open_orders(self.name, self.strategy)
-
-                held_trades_len = len(self.broker._held_trades)
-                if held_trades_len > 0:
-                    self.broker._hold_trade_events = False
-                    self.broker.process_held_trades()
-                    self.broker._hold_trade_events = True
-
-            # POSITIONS
-            # Update Lumibot positions to match broker positions.
-            # Any new trade notifications will not affect the sync as they
-            # are being held pending the completion of the sync.
-            for position in positions_broker:
-                # Check against existing position.
-                position_lumi = [
-                    pos_lumi
-                    for pos_lumi in self.broker._filled_positions.get_list()
-                    if pos_lumi.asset == position.asset
-                ]
-                position_lumi = position_lumi[0] if len(position_lumi) > 0 else None
-
-                if position_lumi:
-                    # Compare to existing lumi position.
-                    if position_lumi.quantity != position.quantity:
-                        position_lumi.quantity = position.quantity
-                else:
-                    # Add to positions in lumibot, position does not exist
-                    # in lumibot.
-                    if position.quantity != 0:
-                        self.broker._filled_positions.append(position)
-
-            # Now iterate through lumibot positions.
-            # Remove lumibot position if not at the broker.
-            for position in self.broker._filled_positions.get_list():
-                found = False
-                for position_broker in positions_broker:
-                    if position_broker.asset == position.asset:
-                        found = True
-                        break
-                if not found and position.asset != self.strategy.quote_asset:
-                    self.broker._filled_positions.remove(position)
-
-            # ORDERS
-            if len(orders_broker) > 0:
-                orders_lumi = self.broker._tracked_orders
-
-                # Check orders at the broker against those in lumibot.
-                for order in orders_broker:
-                    if self.strategy._first_iteration:
-                        self.broker._process_new_order(order)
-                    else:
-                        # Check against existing orders.
-                        order_lumi = [ord_lumi for ord_lumi in orders_lumi if ord_lumi.identifier == order.identifier]
-                        order_lumi = order_lumi[0] if len(order_lumi) > 0 else None
-
-                        if order_lumi:
-                            # Compare the orders.
-                            if order_lumi.quantity != order.quantity:
-                                order_lumi.quantity = order.quantity
-                            order_attrs = [
-                                # "position_filled",
-                                # "status",
-                                "limit_price"
-                            ]
-                            for order_attr in order_attrs:
-                                olumi = getattr(order_lumi, order_attr)
-                                obroker = getattr(order, order_attr)
-                                if olumi != obroker:
-                                    setattr(order_lumi, order_attr, obroker)
-                                    logging.warning(
-                                        f"We are adjusting the {order_attr} of the order {order_lumi}, from {olumi} "
-                                        f"to be {obroker} because what we have in memory does not match the broker."
-                                    )
-                        else:
-                            # Add to order in lumibot.
+                    # If it is the brokers first iteration then fully process the order because it is likely
+                    # that the order was filled/canceled/etc before the strategy started.
+                    if self.broker._first_iteration:
+                        if order.status == Order.OrderStatus.FILLED:
                             self.broker._process_new_order(order)
+                            self.broker._process_filled_order(order, order.avg_fill_price, order.quantity)
+                        elif order.status == Order.OrderStatus.CANCELED:
+                            self.broker._process_new_order(order)
+                            self.broker._process_canceled_order(order)
+                        elif order.status == Order.OrderStatus.PARTIALLY_FILLED:
+                            self.broker._process_new_order(order)
+                            self.broker._process_partially_filled_order(order, order.avg_fill_price, order.quantity)
+                        elif order.status == Order.OrderStatus.NEW:
+                            self.broker._process_new_order(order)
+                    else:
+                        # Add to order in lumibot.
+                        self.broker._process_new_order(order)
 
-                for order_lumi in orders_lumi:
-                    # Remove lumibot orders if not in broker.
-                    if order_lumi.identifier not in [order.identifier for order in orders_broker]:
-                        logging.info(
-                            f"Cannot find order {order_lumi} (id={order_lumi.identifier}) in broker, " f"canceling."
+            for order_lumi in orders_lumi:
+                # Remove lumibot orders if not in broker.
+                if order_lumi.identifier not in [order.identifier for order in orders_broker]:
+                    # Filled or canceled orders can be dropped by the broker as they no longer have any effect.
+                    # However, active orders should not be dropped as they are still in effect and if they can't
+                    # be found in the broker, they should be canceled because something went wrong.
+                    if order_lumi.is_active():
+                        self.strategy.logger.info(
+                            f"Cannot find order {order_lumi} (id={order_lumi.identifier}) in broker "
+                            f"(bkr cnt={len(orders_broker)}), canceling."
                         )
                         self.broker._process_trade_event(order_lumi, "canceled")
 
-            self.broker._hold_trade_events = False
-            self.broker.process_held_trades()
-            return func_input(self, *args, **kwargs)
-
-        return func_output
+        self.broker._hold_trade_events = False
+        self.broker.process_held_trades()
 
     def add_event(self, event_name, payload):
         self.queue.put((event_name, payload))
 
     def process_event(self, event, payload):
+        # If it's the first iteration, we don't want to process any events.
+        # This is because in this case we are most likely processing events that occurred before the strategy started.
+        if self.strategy._first_iteration or self.broker._first_iteration:
+            return
+
         if event == self.NEW_ORDER:
             self._on_new_order(**payload)
 
@@ -354,7 +341,6 @@ class StrategyExecutor(Thread):
 
     @lifecycle_method
     @trace_stats
-    @sync_broker
     def _on_trading_iteration(self):
         # If we are running live, we need to check if it's time to execute the trading iteration.
         if not self.strategy.is_backtesting:
@@ -368,46 +354,70 @@ class StrategyExecutor(Thread):
             else:
                 # If the cron count is not equal to the cron count target, return and do not execute the
                 # on_trading_iteration method.
-                self.strategy.log_message(
-                    f"The cron count is only {self.cron_count} but the target is {self.cron_count_target}"
-                    f", skipping this trading iteration because it's not time yet.",
-                    color="blue",
-                )
                 return
 
-        now = datetime.now()
+        # Check if self.strategy.sleeptime is a number or a string.
+        if isinstance(self.strategy.sleeptime, (int, float)):
+            sleep_units = "m"
+        else:
+            sleep_units = self.strategy.sleeptime[-1].lower()
+        start_dt = datetime.now()
+        self.sync_broker()
 
         # Check if we are in market hours.
         if not self.broker.is_market_open():
             self.strategy.log_message("The market is not currently open, skipping this trading iteration", color="blue")
             return
 
-        start_time = now.strftime("%Y-%m-%d %H:%M:%S")
+        # Send the account summary to Discord
+        self.strategy.send_account_summary_to_discord()
 
         self._strategy_context = None
-        self.strategy.log_message(f"Executing the on_trading_iteration lifecycle method at {start_time}", color="blue")
+        start_str = start_dt.strftime("%Y-%m-%d %H:%M:%S")
+        self.strategy.log_message(f"Executing the on_trading_iteration lifecycle method at {start_str}", color="blue")
         on_trading_iteration = append_locals(self.strategy.on_trading_iteration)
 
         # Time-consuming
-        on_trading_iteration()
+        try:
+            on_trading_iteration()
 
-        self.strategy._first_iteration = False
-        self._strategy_context = on_trading_iteration.locals
-        self.strategy._last_on_trading_iteration_datetime = datetime.now()
-        self.process_queue()
+            self.strategy._first_iteration = False
+            self.broker._first_iteration = False
+            self._strategy_context = on_trading_iteration.locals
+            self.strategy._last_on_trading_iteration_datetime = datetime.now()
+            self.process_queue()
 
-        end_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            end_dt = datetime.now()
+            end_str = end_dt.strftime("%Y-%m-%d %H:%M:%S")
+            runtime = (end_dt - start_dt).total_seconds()
 
-        next_run_time = self.get_next_ap_scheduler_run_time()
-        if next_run_time is not None:
-            # Format the date to be used in the log message.
-            dt_str = next_run_time.strftime("%Y-%m-%d %H:%M:%S")
+            # Update cron count to account for how long this iteration took to complete so that the next iteration will
+            # occur at the correct time.
+            self.cron_count = self._seconds_to_sleeptime_count(int(runtime), sleep_units)
+            next_run_time = self.get_next_ap_scheduler_run_time()
+            if next_run_time is not None:
+                # Format the date to be used in the log message.
+                dt_str = next_run_time.strftime("%Y-%m-%d %H:%M:%S")
+                self.strategy.log_message(
+                    f"Trading iteration ended at {end_str}, next check in time is {dt_str}. Took {runtime:.2f}s", color="blue"
+                )
+
+            else:
+                self.strategy.log_message(f"Trading iteration ended at {end_str}", color="blue")
+        except Exception as e:
+            # If backtesting, raise the exception
+            if self.broker.IS_BACKTESTING_BROKER:
+                raise e
+
+            # Log the error
             self.strategy.log_message(
-                f"Trading iteration ended at {end_time}, next check in time is {dt_str}", color="blue"
+                f"An error occurred during the on_trading_iteration lifecycle method: {e}", color="red"
             )
 
-        else:
-            self.strategy.log_message(f"Trading iteration ended at {end_time}", color="blue")
+            # Log the traceback
+            self.strategy.log_message(traceback.format_exc(), color="red")
+
+            self._on_bot_crash(e)
 
     @lifecycle_method
     def _before_market_closes(self):
@@ -460,9 +470,94 @@ class StrategyExecutor(Thread):
     def _on_filled_order(self, position, order, price, quantity, multiplier):
         self.strategy.on_filled_order(position, order, price, quantity, multiplier)
 
+        # Get the portfolio value
+        portfolio_value = self.strategy.get_portfolio_value()
+
+        # Calculate the value of the position
+        order_value = price * float(quantity)
+
+        # If option, multiply % of portfolio by 100
+        if order.asset.asset_type == Asset.AssetType.OPTION:
+            order_value = order_value * 100
+
+        # Calculate the percent of the portfolio that this position represents
+        percent_of_portfolio = order_value / portfolio_value
+
+        # Capitalize the side
+        side = order.side.capitalize()
+
+        # Check if we are buying or selling
+        if side == "Buy":
+            emoji = "🟢📈 "
+        else:
+            emoji = "🔴📉 "
+
+        # Create a message to send to Discord
+        message = f"""
+                {emoji} {side} {quantity:,.2f} {position.asset} @ ${price:,.2f} ({percent_of_portfolio:,.0%} of the account)
+                Trade Total = ${order_value:,.2f}
+                Account Value = ${portfolio_value:,.0f}
+                """
+
+        # Send the message to Discord
+        self.strategy.send_discord_message(message, silent=False)
+
         # Let our listener know that an order has been filled (set in the callback)
         if hasattr(self.strategy, "_filled_order_callback") and callable(self.strategy._filled_order_callback):
             self.strategy._filled_order_callback(self, position, order, price, quantity, multiplier)
+
+    @staticmethod
+    def _sleeptime_to_seconds(sleeptime):
+        """Convert the sleeptime to seconds"""
+        val_err_msg = ("You can set the sleep time as an integer which will be interpreted as minutes. "
+                       "eg: sleeptime = 50 would be 50 minutes. Conversely, you can enter the time as a string "
+                       "with the duration numbers first, followed by the time units: 'M' for minutes, 'S' for seconds "
+                       "eg: '300S' is 300 seconds.")
+
+        if isinstance(sleeptime, int):
+            return sleeptime * 60
+        elif isinstance(sleeptime, str):
+            unit = sleeptime[-1]
+            time_raw = int(sleeptime[:-1])
+            if unit.lower() == "s":
+                return time_raw
+            elif unit.lower() == "m":
+                return time_raw * 60
+            elif unit.lower() == "h":
+                return time_raw * 60 * 60
+            elif unit.lower() == "d":
+                return time_raw * 60 * 60 * 24
+            else:
+                raise ValueError(val_err_msg)
+        else:
+            raise ValueError(val_err_msg)
+
+    @staticmethod
+    def _seconds_to_sleeptime_count(secounds, unit="s"):
+        """
+        Convert seconds to the sleeptime count
+        Parameters
+        ----------
+        secounds : int
+            The number of seconds
+        unit : str
+            The unit of time to convert to (M, S, H, D)
+
+        Returns
+        -------
+        int
+            The number of units of time that the seconds represent
+        """
+        if unit.lower() == "s":
+            return secounds
+        elif unit.lower() == "m":
+            return secounds // 60
+        elif unit.lower() == "h":
+            return secounds // (60 * 60)
+        elif unit.lower() == "d":
+            return secounds / (60 * 60 * 24)
+        else:
+            raise ValueError("The unit must be 'S', 'M', 'H', or 'D'")
 
     # This method calculates the trigger for the strategy based on the 'sleeptime' attribute of the strategy.
     def calculate_strategy_trigger(self, force_start_immediately=False):
@@ -569,7 +664,7 @@ class StrategyExecutor(Thread):
                 # Second with 0 in front if less than 10
                 kwargs["second"] = f"0{second}" if second < 10 else str(second)
 
-                logging.warning(
+                self.strategy.logger.warning(
                     f"The strategy will run at {kwargs['hour']}:{kwargs['minute']}:{kwargs['second']} every day. "
                     f"If instead you want to start right now and run every {time_raw} days then set "
                     f"force_start_immediately=True in the strategy's initialization."
@@ -606,26 +701,15 @@ class StrategyExecutor(Thread):
         )
         if isinstance(self.strategy.sleeptime, int):
             units = "M"
-            time_raw = self.strategy.sleeptime
         elif isinstance(self.strategy.sleeptime, str):
             units = self.strategy.sleeptime[-1:]
-            time_raw = int(self.strategy.sleeptime[:-1])
         else:
             raise ValueError(sleeptime_err_msg)
 
         if units not in "SMHDsmhd":
             raise ValueError(sleeptime_err_msg)
 
-        if units == "S" or units == "s":
-            strategy_sleeptime = time_raw
-        elif units == "M" or units == "m":
-            strategy_sleeptime = 60 * time_raw
-        elif units == "H" or units == "h":
-            strategy_sleeptime = 60 * 60 * time_raw
-        elif units == "D" or units == "d":
-            strategy_sleeptime = 60 * 60 * 24 * time_raw
-        else:
-            strategy_sleeptime = time_raw
+        strategy_sleeptime = self._sleeptime_to_seconds(self.strategy.sleeptime)
 
         if not self.should_continue or strategy_sleeptime == 0 or time_to_before_closing <= 0:
             return False
@@ -645,8 +729,10 @@ class StrategyExecutor(Thread):
                     # Remove the time to close from the strategy sleep time.
                     strategy_sleeptime -= time_to_close
 
-                    # Process expired option contracts.
-                    self.broker.process_expired_option_contracts(self.strategy)
+                    # Check if the broker has a function to process expired option contracts.
+                    if hasattr(self.broker, "process_expired_option_contracts"):
+                        # Process expired option contracts.
+                        self.broker.process_expired_option_contracts(self.strategy)
 
             # TODO: next line speed implication: medium (371 microseconds)
             self.safe_sleep(strategy_sleeptime)
@@ -695,6 +781,10 @@ class StrategyExecutor(Thread):
         if not is_247:
             # Set date to the start date, but account for minutes_before_opening
             self.strategy.await_market_to_open()  # set new time and bar length. Check if hit bar max or date max.
+            # Check if we should continue to run when we are in a new day.
+            broker_continue = self.broker.should_continue()
+            if not broker_continue:
+                return
 
             if not has_data_source or (has_data_source and self.broker.data_source.SOURCE != "PANDAS"):
                 self.strategy._update_cash_with_dividends()
@@ -785,7 +875,7 @@ class StrategyExecutor(Thread):
         # TODO: speed up this loop for backtesting (it's a major bottleneck)
 
         if self.strategy.is_backtesting:
-            while is_247 or (time_to_close > self.strategy.minutes_before_closing * 60):
+            while is_247 or (time_to_close is not None and (time_to_close > self.strategy.minutes_before_closing * 60)):
                 # Stop after we pass the backtesting end date
                 if self.broker.IS_BACKTESTING_BROKER and self.broker.datetime > self.broker.data_source.datetime_end:
                     break
@@ -829,11 +919,22 @@ class StrategyExecutor(Thread):
         # Overloading the broker sleep method
         self.broker.sleep = self.safe_sleep
 
+        # Set the strategy name at the broker
+        self.broker.set_strategy_name(self.strategy._name)
+
         self._initialize()
 
         # Get the trading days based on the market that the strategy is trading on
         market = self.broker.market
+
+        # Get the trading days based on the market that the strategy is trading on
         self.broker._trading_days = get_trading_days(market)
+
+        # Sort the trading days by market close time so that we can search them faster
+        self.broker._trading_days.sort_values('market_close', inplace=True)  # Ensure sorted order
+        
+        # Set DataFrame index to market_close for fast lookups
+        self.broker._trading_days.set_index('market_close', inplace=True)
 
         #####
         # The main loop for running any strategy
@@ -843,13 +944,13 @@ class StrategyExecutor(Thread):
                 self._run_trading_session()
             except Exception as e:
                 # The bot crashed so log the error, call the on_bot_crash method, and continue
-                logging.error(e)
-                logging.error(traceback.format_exc())
+                self.strategy.logger.error(e)
+                self.strategy.logger.error(traceback.format_exc())
                 try:
                     self._on_bot_crash(e)
                 except Exception as e1:
-                    logging.error(e1)
-                    logging.error(traceback.format_exc())
+                    self.strategy.logger.error(e1)
+                    self.strategy.logger.error(traceback.format_exc())
 
                 # In BackTesting, we want to stop the bot if it crashes so there isn't an infinite loop
                 if self.strategy.is_backtesting:
@@ -863,8 +964,8 @@ class StrategyExecutor(Thread):
         try:
             self._on_strategy_end()
         except Exception as e:
-            logging.error(e)
-            logging.error(traceback.format_exc())
+            self.strategy.logger.error(e)
+            self.strategy.logger.error(traceback.format_exc())
             self._on_bot_crash(e)
             self.result = self.strategy._analysis
             return False

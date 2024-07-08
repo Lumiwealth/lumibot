@@ -10,10 +10,11 @@ Options methods are meant for managing options, including getting option chains,
     :toctree: strategy_methods.options
     :template: strategy_methods_template.rst
 
+    get_chain
     get_chains
     get_greeks
     get_strikes
     get_expiration
     get_multiplier
     options_expiry_to_datetime_date
-    get_option_expiration_after_date
+    get_next_trading_day

@@ -47,7 +47,9 @@ class BacktestingBroker(Broker):
                     # Remove the original order from the list of new orders because
                     # it's been replaced by the individual orders
                     broker._new_orders.remove(result)
-                else:
+                elif order not in broker._new_orders:
+                    # David M: This seems weird and I don't understand why we're doing this.  It seems like
+                    # we're adding the order to the new orders list twice, so checking first.
                     broker._new_orders.append(order)
                 return result
 
@@ -110,7 +112,23 @@ class BacktestingBroker(Broker):
     def is_market_open(self):
         """Return True if market is open else false"""
         now = self.datetime
-        return ((now >= self._trading_days.market_open) & (now < self._trading_days.market_close)).any()
+
+        # As the index is sorted, use searchsorted to find the relevant day
+        idx = self._trading_days.index.searchsorted(now, side='right')
+
+        # Check that the index is not out of bounds
+        if idx >= len(self._trading_days):
+            logging.error("Cannot predict future")
+            return False
+
+        # The index of the trading_day is used as the market close time
+        market_close = self._trading_days.index[idx]
+
+        # Retrieve market open time using .at since idx is a valid datetime index
+        market_open = self._trading_days.at[market_close, 'market_open']
+
+        # Check if 'now' is within the trading hours of the located day
+        return market_open <= now < market_close
 
     def _get_next_trading_day(self):
         now = self.datetime
@@ -124,7 +142,7 @@ class BacktestingBroker(Broker):
         """Return the remaining time for the market to open in seconds"""
         now = self.datetime
 
-        search = self._trading_days[now < self._trading_days.market_close]
+        search = self._trading_days[now < self._trading_days.index]
         if search.empty:
             logging.error("Cannot predict future")
             return 0
@@ -145,24 +163,26 @@ class BacktestingBroker(Broker):
         delta = open_time - now
         return delta.total_seconds()
 
-    # TODO: speed up this function, it is a major bottleneck
     def get_time_to_close(self):
         """Return the remaining time for the market to close in seconds"""
         now = self.datetime
-        # TODO: speed up the next line. next line speed implication: v high (1738 microseconds)
-        search = self._trading_days[now <= self._trading_days.market_close]
-        if search.empty:
+        
+        # Use searchsorted for efficient searching and reduce unnecessary DataFrame access
+        idx = self._trading_days.index.searchsorted(now, side='left')
+        
+        if idx >= len(self._trading_days):
             logging.error("Cannot predict future")
             return 0
 
-        # TODO: speed up the next line. next line speed implication: high (910 microseconds)
-        trading_day = search.iloc[0]
+        # Directly access the data needed using more efficient methods
+        market_close_time = self._trading_days.index[idx]
+        market_open = self._trading_days.at[market_close_time, 'market_open']
+        market_close = market_close_time  # Assuming this is a scalar value directly from the index
 
-        if now < trading_day.market_open:
+        if now < market_open:
             return None
 
-        # TODO: speed up the next line. next line speed implication: low (135 microseconds)
-        delta = trading_day.market_close - now
+        delta = market_close - now
         return delta.total_seconds()
 
     def _await_market_to_open(self, timedelta=None, strategy=None):
@@ -237,9 +257,9 @@ class BacktestingBroker(Broker):
                 return order
         return None
 
-    def _pull_broker_open_orders(self):
+    def _pull_broker_all_orders(self):
         """Get the broker open orders"""
-        orders = self._new_orders.__items
+        orders = self.get_all_orders()
         return orders
 
     def _flatten_order(self, order):
@@ -316,16 +336,67 @@ class BacktestingBroker(Broker):
 
         return orders
 
+    def _process_filled_order(self, order, price, quantity):
+        """
+        BackTesting needs to create/update positions when orders are filled becuase there is no broker to do it
+        """
+        existing_position = self.get_tracked_position(order.strategy, order.asset)
+
+        # Currently perfect fill price in backtesting!
+        order.avg_fill_price = price
+
+        position = super()._process_filled_order(order, order.avg_fill_price, quantity)
+        if existing_position:
+            position.add_order(order, quantity)  # Add will update quantity, but not double count the order
+            if position.quantity == 0:
+                logging.info("Position %r liquidated" % position)
+                self._filled_positions.remove(position)
+        else:
+            self._filled_positions.append(position)  # New position, add it to the tracker
+        return position
+
+    def _process_partially_filled_order(self, order, price, quantity):
+        """
+        BackTesting needs to create/update positions when orders are partially filled becuase there is no broker
+        to do it
+        """
+        existing_position = self.get_tracked_position(order.strategy, order.asset)
+        stored_order, position = super()._process_partially_filled_order(order, price, quantity)
+        if existing_position:
+            position.add_order(stored_order, quantity)  # Add will update quantity, but not double count the order
+        return stored_order, position
+
+    def _process_cash_settlement(self, order, price, quantity):
+        """
+        BackTesting needs to create/update positions when orders are filled becuase there is no broker to do it
+        """
+        existing_position = self.get_tracked_position(order.strategy, order.asset)
+        super()._process_cash_settlement(order, price, quantity)
+        if existing_position:
+            existing_position.add_order(order, quantity)  # Add will update quantity, but not double count the order
+            if existing_position.quantity == 0:
+                logging.info("Position %r liquidated" % existing_position)
+                self._filled_positions.remove(existing_position)
+
     def submit_order(self, order):
         """Submit an order for an asset"""
+        # NOTE: This code is to address Tradier API requirements, they want is as "to_open" or "to_close" instead of just "buy" or "sell"
+        # If the order has a "buy_to_open" or "buy_to_close" side, then we should change it to "buy"
+        if order.side in ["buy_to_open", "buy_to_close"]:
+            order.side = "buy"
+        # If the order has a "sell_to_open" or "sell_to_close" side, then we should change it to "sell"
+        if order.side in ["sell_to_open", "sell_to_close"]:
+            order.side = "sell"
+
         order.update_raw(order)
         self.stream.dispatch(
             self.NEW_ORDER,
+            wait_until_complete=True,
             order=order,
         )
         return order
 
-    def submit_orders(self, orders):
+    def submit_orders(self, orders, **kwargs):
         results = []
         for order in orders:
             results.append(self.submit_order(order))
@@ -335,6 +406,7 @@ class BacktestingBroker(Broker):
         """Cancel an order"""
         self.stream.dispatch(
             self.CANCELED_ORDER,
+            wait_until_complete=True,
             order=order,
         )
 
@@ -354,11 +426,15 @@ class BacktestingBroker(Broker):
             logging.error(f"Cannot cash settle non-option contract {position.asset}")
             return
 
-        # Create a stock asset for the underlying asset
-        underlying_asset = Asset(
-            symbol=position.asset.symbol,
-            asset_type="stock",
-        )
+        # First check if the option asset has an underlying asset
+        if position.asset.underlying_asset is None:
+            # Create a stock asset for the underlying asset
+            underlying_asset = Asset(
+                symbol=position.asset.symbol,
+                asset_type="stock",
+            )
+        else:
+            underlying_asset = position.asset.underlying_asset
 
         # Get the price of the underlying asset
         underlying_price = self.get_last_price(underlying_asset)
@@ -376,7 +452,7 @@ class BacktestingBroker(Broker):
         if position.quantity > 0 and profit_loss < 0:
             profit_loss = 0  # Long position can't lose more than the premium paid
         elif position.quantity < 0 and profit_loss > 0:
-            profit_loss = 0  # Short position can't gain more than the strike price
+            profit_loss = 0  # Short position can't gain more than the cash collected
 
         # Add the profit/loss to the cash position
         new_cash = strategy.get_cash() + profit_loss
@@ -396,6 +472,7 @@ class BacktestingBroker(Broker):
         # Send filled order event
         self.stream.dispatch(
             self.CASH_SETTLED,
+            wait_until_complete=True,
             order=order,
             price=abs(profit_loss / position.quantity / position.asset.multiplier),
             filled_quantity=abs(position.quantity),
@@ -416,24 +493,27 @@ class BacktestingBroker(Broker):
         """
         if self.data_source.SOURCE != "PANDAS":
             return
+        
+        # If it's the same day as the expiration, we need to check the time to see if it's after market close
+        time_to_close = self.get_time_to_close()
+
+        # If the time to close is None, then the market is not open so we should not sell the contracts
+        if time_to_close is None:
+            return
+        
+        # Calculate the number of seconds before market close
+        seconds_before_closing = strategy.minutes_before_closing * 60
 
         positions = self.get_tracked_positions(strategy.name)
         for position in positions:
             if position.asset.expiration is not None and position.asset.expiration <= self.datetime.date():
-                # If it's the same day as the expiration, we need to check the time to see if it's after market close
-                time_to_close = self.get_time_to_close()
-
-                # If the time to close is None, then the market is not open so we should not sell the contract
-                if time_to_close is None:
-                    continue
-
-                seconds_before_closing = strategy.minutes_before_closing * 60
+                # If the contract has expired, we should sell it
                 if position.asset.expiration == self.datetime.date() and time_to_close > seconds_before_closing:
                     continue
 
                 logging.info(f"Automatically selling expired contract for asset {position.asset}")
 
-                # TODO: Make this cash settle, not just sell the contract
+                # Cash settle the options contract
                 self.cash_settle_options_contract(position, strategy)
 
     def calculate_trade_cost(self, order: Order, strategy, price: float):
@@ -498,11 +578,17 @@ class BacktestingBroker(Broker):
             # Get OHLCV data for the asset
             #############################
 
-            # Get the OHLCV data for the asset if we're using the YAHOO data source
-            if self.data_source.SOURCE == "YAHOO":
-                timeshift = timedelta(
-                    days=-1
-                )  # Is negative so that we get today (normally would get yesterday's data to prevent lookahead bias)
+            # Get the OHLCV data for the asset if we're using the YAHOO, CCXT data source
+            data_source_name = self.data_source.SOURCE.upper()
+            if data_source_name in ["CCXT", "YAHOO"]:
+                # If we're using the CCXT data source, we don't need to timeshift the data
+                if data_source_name == "CCXT":
+                    timeshift = None
+                else:
+                    timeshift = timedelta(
+                        days=-1
+                    )  # Is negative so that we get today (normally would get yesterday's data to prevent lookahead bias)
+
                 ohlc = strategy.get_historical_prices(
                     asset,
                     1,
@@ -511,11 +597,11 @@ class BacktestingBroker(Broker):
                 )
 
                 dt = ohlc.df.index[-1]
-                open = ohlc.df.open[-1]
-                high = ohlc.df.high[-1]
-                low = ohlc.df.low[-1]
-                close = ohlc.df.close[-1]
-                volume = ohlc.df.volume[-1]
+                open = ohlc.df['open'].iloc[-1]
+                high = ohlc.df['high'].iloc[-1]
+                low = ohlc.df['low'].iloc[-1]
+                close = ohlc.df['close'].iloc[-1]
+                volume = ohlc.df['volume'].iloc[-1]
 
             # Get the OHLCV data for the asset if we're using the PANDAS data source
             elif self.data_source.SOURCE == "PANDAS":
@@ -527,6 +613,11 @@ class BacktestingBroker(Broker):
                     timeshift=-2,
                     timestep=self.data_source._timestep,
                 )
+                # Check if we got any ohlc data
+                if ohlc is None:
+                    self.cancel_order(order)
+                    continue
+
                 df_original = ohlc.df
 
                 # Make sure that we are only getting the prices for the current time exactly or in the future
@@ -537,9 +628,6 @@ class BacktestingBroker(Broker):
                 if df.empty:
                     df = df_original.iloc[-1:]
 
-                if ohlc is None:
-                    self.cancel_order(order)
-                    continue
                 dt = df.index[0]
                 open = df["open"].iloc[0]
                 high = df["high"].iloc[0]
@@ -609,6 +697,7 @@ class BacktestingBroker(Broker):
 
                 self.stream.dispatch(
                     self.FILLED_ORDER,
+                    wait_until_complete=True,
                     order=order,
                     price=price,
                     filled_quantity=filled_quantity,
@@ -654,16 +743,6 @@ class BacktestingBroker(Broker):
     def get_last_bar(self, asset):
         """Returns OHLCV dictionary for last bar of the asset."""
         return self.data_source.get_historical_prices(asset, 1)
-
-    def get_expiration(self, chains, exchange="SMART"):
-        """Returns expirations and strikes high/low of target price."""
-        if exchange != "SMART":
-            raise ValueError(
-                "When getting option expirations in backtesting, only the `SMART`"
-                "exchange may be used. It is the default value. Please delete "
-                "the `exchange` parameter or change the value to `SMART`."
-            )
-        return super().get_expiration(chains, exchange)
 
     # ==========Processing streams data=======================
 
@@ -730,3 +809,31 @@ class BacktestingBroker(Broker):
     def _run_stream(self):
         self._stream_established()
         self.stream._run()
+
+    def _pull_positions(self, strategy):
+        """Get the account positions. return a list of
+        position objects"""
+        response = self._pull_broker_positions(strategy)
+        result = self._parse_broker_positions(response, strategy.name)
+        return result
+
+    def _pull_position(self, strategy, asset):
+        """
+        Pull a single position from the broker that matches the asset and strategy. If no position is found, None is
+        returned.
+
+        Parameters
+        ----------
+        strategy: Strategy
+            The strategy object that placed the order to pull
+        asset: Asset
+            The asset to pull the position for
+
+        Returns
+        -------
+        Position
+            The position object for the asset and strategy if found, otherwise None
+        """
+        response = self._pull_broker_position(asset)
+        result = self._parse_broker_position(response, strategy)
+        return result

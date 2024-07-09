@@ -1,19 +1,78 @@
 import datetime
 import os
 from collections import defaultdict
-
+from dotenv import load_dotenv
 import pandas_market_calendars as mcal
-
+import subprocess
 from lumibot.backtesting import BacktestingBroker, ThetaDataBacktesting
 from lumibot.entities import Asset
 from lumibot.strategies import Strategy
 from lumibot.traders import Trader
+import psutil
+import pytest
+
+# Define the keyword globally
+keyword = 'ThetaTerminal.jar'
+
+def find_git_root(path):
+    # Traverse the directories upwards until a .git directory is found
+    original_path = path
+    while not os.path.isdir(os.path.join(path, '.git')):
+        parent_path = os.path.dirname(path)
+        if parent_path == path:
+            # Reached the root of the filesystem, .git directory not found
+            raise Exception(f"No .git directory found starting from {original_path}")
+        path = parent_path
+    return path
+
+def kill_processes_by_name(keyword):
+    try:
+        # Find all processes related to the keyword
+        result = subprocess.run(['pgrep', '-f', keyword], capture_output=True, text=True)
+        pids = result.stdout.strip().split('\n')
+        
+        if pids:
+            for pid in pids:
+                if pid:  # Ensure the PID is not empty
+                    print(f"Killing process with PID: {pid}")
+                    subprocess.run(['kill', '-9', pid])
+            print(f"All processes related to '{keyword}' have been killed.")
+        else:
+            print(f"No processes found related to '{keyword}'.")
+    
+    except Exception as e:
+        print(f"An error occurred during kill process: {e}")
+
+@pytest.fixture(scope="module", autouse=True)
+def run_before_and_after_tests():
+    # Code to execute before running any tests
+    kill_processes_by_name(keyword)
+    print("Setup before any test")
+
+    yield  # This is where the testing happens
+
+    # Code to execute after all tests
+    kill_processes_by_name(keyword)
+    print("Teardown after all tests")
+
+try:
+    # Find the root of the git repository
+    current_dir = os.getcwd()
+    git_root = find_git_root(current_dir)
+    print(f"The root directory of the Git repository is: {git_root}")
+except Exception as e:
+    print("ERROR: cannot find the root directory", str(e))
+
+env_path = f'{git_root}/.env'
+if not os.path.exists(env_path):
+    raise FileNotFoundError(f"Cannot find the .env file at {env_path}")
+
+load_dotenv(dotenv_path=env_path)
 
 # Global parameters
 # Username and Password for ThetaData API
 THETADATA_USERNAME = os.environ.get("THETADATA_USERNAME")
 THETADATA_PASSWORD = os.environ.get("THETADATA_PASSWORD")
-
 
 class ThetadataBacktestStrat(Strategy):
     parameters = {"symbol": "AMZN"}
@@ -156,8 +215,7 @@ class ThetadataBacktestStrat(Strategy):
         else:
             self.cancel_open_orders()
 
-
-class TestPolygonBacktestFull:
+class TestThetaDataBacktestFull:
     def verify_backtest_results(self, poly_strat_obj):
         assert isinstance(poly_strat_obj, ThetadataBacktestStrat)
 
@@ -237,3 +295,7 @@ class TestPolygonBacktestFull:
 
         assert results
         self.verify_backtest_results(strat_obj)
+
+# This will ensure the function runs before any test in this file.
+if __name__ == "__main__":
+    pytest.main()

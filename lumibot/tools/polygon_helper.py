@@ -327,7 +327,7 @@ def get_polygon_symbol(asset, polygon_client, quote_asset=None):
 
         if len(contracts) == 0:
             text = colored(f"Unable to find option contract for {asset}", "red")
-            logging.error(text)
+            logging.debug(text)
             return
 
         # Example: O:SPY230802C00457000

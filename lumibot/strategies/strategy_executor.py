@@ -79,6 +79,9 @@ class StrategyExecutor(Thread):
             )
 
     def sync_broker(self):
+        # Log that we are syncing the broker.
+        self.strategy.logger.info("Syncing the broker.")
+
         # Only audit the broker position during live trading.
         if self.broker.IS_BACKTESTING_BROKER:
             return
@@ -199,18 +202,33 @@ class StrategyExecutor(Thread):
         self.queue.put((event_name, payload))
 
     def process_event(self, event, payload):
+        # Log that we are processing an event.
+        self.strategy.logger.info(f"Processing event: {event}, payload: {payload}")
+
         # If it's the first iteration, we don't want to process any events.
         # This is because in this case we are most likely processing events that occurred before the strategy started.
         if self.strategy._first_iteration or self.broker._first_iteration:
+            # Log that we are skipping the event.
+            self.strategy.logger.info(f"Skipping event {event} because it is the first iteration. Payload: {payload}")
+
             return
 
         if event == self.NEW_ORDER:
+            # Log that we are processing a new order.
+            self.strategy.logger.info(f"Processing a new order, payload: {payload}")
+
             self._on_new_order(**payload)
 
         elif event == self.CANCELED_ORDER:
+            # Log that we are processing a canceled order.
+            self.strategy.logger.info(f"Processing a canceled order, payload: {payload}")
+
             self._on_canceled_order(**payload)
 
         elif event == self.FILLED_ORDER:
+            # Log that we are processing a filled order.
+            self.strategy.logger.info(f"Processing a filled order, payload: {payload}")
+
             order = payload["order"]
             price = payload["price"]
             quantity = payload["quantity"]
@@ -222,6 +240,9 @@ class StrategyExecutor(Thread):
             self._on_filled_order(**payload)
 
         elif event == self.PARTIALLY_FILLED_ORDER:
+            # Log that we are processing a partially filled order.
+            self.strategy.logger.info(f"Processing a partially filled order, payload: {payload}")
+
             order = payload["order"]
             price = payload["price"]
             quantity = payload["quantity"]
@@ -231,6 +252,9 @@ class StrategyExecutor(Thread):
                 self.strategy._update_cash(order.side, quantity, price, multiplier)
 
             self._on_partially_filled_order(**payload)
+        
+        else:
+            self.strategy.logger.error(f"Event {event} not recognized. Payload: {payload}")
 
     def process_queue(self):
         while not self.queue.empty():

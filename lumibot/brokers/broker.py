@@ -1013,6 +1013,8 @@ class Broker(ABC):
         subscriber = self._get_subscriber(order.strategy)
         if subscriber:
             subscriber.add_event(subscriber.PARTIALLY_FILLED_ORDER, payload)
+        else:
+            self.logger.error(f"Subscriber {order.strategy} not found", color="red")
 
     def _on_filled_order(self, position, order, price, quantity, multiplier):
         """notify relevant subscriber/strategy about
@@ -1030,6 +1032,8 @@ class Broker(ABC):
         subscriber = self._get_subscriber(order.strategy)
         if subscriber:
             subscriber.add_event(subscriber.FILLED_ORDER, payload)
+        else:
+            self.logger.error(f"Subscriber {order.strategy} not found", color="red")
 
     # ==========Processing streams data=======================
 
@@ -1040,18 +1044,43 @@ class Broker(ABC):
         """Processes any held trade notifications."""
         while len(self._held_trades) > 0:
             th = self._held_trades.pop(0)
+
+            # Unpack the held trade event
+            stored_order = th[0]
+            type_event = th[1]
+            price = th[2]
+            filled_quantity = th[3]
+            multiplier = th[4]
+
+            # Log that the trade event was received
+            self.logger.info(
+                f"Processing held trade event. Trade event received for stored_order: {stored_order}, type_event: {type_event}, price: {price}, filled_quantity: {filled_quantity}, multiplier: {multiplier}"
+            )
+
+            # Process the trade event
             self._process_trade_event(
-                th[0],
-                th[1],
-                price=th[2],
-                filled_quantity=th[3],
-                multiplier=th[4],
+                stored_order,
+                type_event,
+                price=price,
+                filled_quantity=filled_quantity,
+                multiplier=multiplier,
             )
 
     def _process_trade_event(self, stored_order, type_event, price=None, filled_quantity=None, multiplier=1):
         """process an occurred trading event and update the
         corresponding order"""
+        # Log that the trade event was received
+        self.logger.info(
+            f"Processing trade event. Trade event received for {stored_order.strategy} strategy: {type_event} {stored_order.symbol}, processed by broker {self.name}"
+        )
+
         if self._hold_trade_events and not self.IS_BACKTESTING_BROKER:
+            # Log that the trade event was held
+            self.logger.info(
+                f"Trade event held for {stored_order.strategy} strategy: {type_event} {stored_order.symbol}, processed by broker {self.name}. self._hold_trade_events is {self._hold_trade_events}"
+            )
+
+            # Hold the trade event
             self._held_trades.append(
                 (
                     stored_order,

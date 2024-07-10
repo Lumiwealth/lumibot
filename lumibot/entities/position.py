@@ -20,13 +20,20 @@ class Position:
         The quantity of the asset owned.
     orders : list of Order
         The orders that have been executed for this position.
+    hold : float
+        The assets that are not free in the portfolio. (Crypto: only)
+    available : float
+        The assets that are free in the portfolio. (Crypto: only)
+    avg_fill_price : float
+        The average fill price of the position.
     """
 
-    def __init__(self, strategy, asset, quantity, orders=None, hold=0, available=0):
+    def __init__(self, strategy, asset, quantity, orders=None, hold=0, available=0, avg_fill_price=None):
         self.strategy = strategy
         self.asset = asset
         self.symbol = self.asset.symbol
         self.orders = None
+        self.avg_fill_price = avg_fill_price
 
         # Quantity is the total number of shares/units owned in the position.
         # setting the quantity

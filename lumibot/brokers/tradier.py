@@ -625,6 +625,9 @@ class Tradier(Broker):
 
         @broker.stream.add_action(broker.NEW_ORDER)
         def on_trade_event_new(order):
+            # Log that the order was submitted
+            logging.info(f"Processing action for new order {order}")
+
             try:
                 broker._process_trade_event(
                     order,
@@ -636,6 +639,9 @@ class Tradier(Broker):
 
         @broker.stream.add_action(broker.FILLED_ORDER)
         def on_trade_event_fill(order, price, filled_quantity):
+            # Log that the order was filled
+            logging.info(f"Processing action for filled order {order} | {price} | {filled_quantity}")
+
             try:
                 broker._process_trade_event(
                     order,
@@ -650,6 +656,9 @@ class Tradier(Broker):
 
         @broker.stream.add_action(broker.CANCELED_ORDER)
         def on_trade_event_cancel(order):
+            # Log that the order was cancelled
+            logging.info(f"Processing action for cancelled order {order}")
+
             try:
                 broker._process_trade_event(
                     order,
@@ -660,6 +669,9 @@ class Tradier(Broker):
 
         @broker.stream.add_action(broker.CASH_SETTLED)
         def on_trade_event_cash(order, price, filled_quantity):
+            # Log that the order was cash settled
+            logging.info(f"Processing action for cash settled order {order} | {price} | {filled_quantity}")
+
             try:
                 broker._process_trade_event(
                     order,
@@ -673,6 +685,9 @@ class Tradier(Broker):
 
         @broker.stream.add_action(broker.ERROR_ORDER)
         def on_trade_event_error(order, error_msg):
+            # Log that the order had an error
+            logging.error(f"Processing action for error order {order} | {error_msg}")
+                                                                         
             try:
                 if order.is_active():
                     broker._process_trade_event(

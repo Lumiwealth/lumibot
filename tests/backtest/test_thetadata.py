@@ -63,7 +63,7 @@ try:
 except Exception as e:
     print("ERROR: cannot find the root directory", str(e))
 
-env_path = f'{git_root}/.env'
+env_path = f'{git_root}/lumibot/.env'
 if not os.path.exists(env_path):
     raise FileNotFoundError(f"Cannot find the .env file at {env_path}")
 

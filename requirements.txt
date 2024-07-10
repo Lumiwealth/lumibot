@@ -35,3 +35,4 @@ tabulate
 duckdb
 uuid
 numpy
+thetadata

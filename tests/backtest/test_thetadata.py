@@ -63,16 +63,21 @@ try:
 except Exception as e:
     print("ERROR: cannot find the root directory", str(e))
 
-env_path = f'{git_root}/lumibot/.env'
-if not os.path.exists(env_path):
-    raise FileNotFoundError(f"Cannot find the .env file at {env_path}")
-
-load_dotenv(dotenv_path=env_path)
-
-# Global parameters
-# Username and Password for ThetaData API
 THETADATA_USERNAME = os.environ.get("THETADATA_USERNAME")
 THETADATA_PASSWORD = os.environ.get("THETADATA_PASSWORD")
+
+if not THETADATA_USERNAME or not THETADATA_PASSWORD:
+    print(f"CHECK: either THETADATA_USERNAME or THETADATA_PASSWORD not found from environemnt. \
+          Will try to load from local '.env' file")
+    env_path = f'{git_root}/.env'
+    if not os.path.exists(env_path):
+        raise FileNotFoundError(f"Cannot find the .env file at {env_path}")
+    load_dotenv(dotenv_path=env_path)
+
+    # Global parameters
+    # Username and Password for ThetaData API
+    THETADATA_USERNAME = os.environ.get("THETADATA_USERNAME")
+    THETADATA_PASSWORD = os.environ.get("THETADATA_PASSWORD")
 
 class ThetadataBacktestStrat(Strategy):
     parameters = {"symbol": "AMZN"}

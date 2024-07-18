@@ -6,6 +6,7 @@ from datetime import date, timedelta
 from lumibot.data_sources import PandasData
 from lumibot.entities import Asset, Data
 from lumibot.tools import thetadata_helper
+import subprocess
 
 START_BUFFER = timedelta(days=5)
 
@@ -28,6 +29,25 @@ class ThetaDataBacktesting(PandasData):
 
         self._username = username
         self._password = password
+        self.kill_processes_by_name("ThetaTerminal.jar")
+
+    def kill_processes_by_name(self, keyword):
+        try:
+            # Find all processes related to the keyword
+            result = subprocess.run(['pgrep', '-f', keyword], capture_output=True, text=True)
+            pids = result.stdout.strip().split('\n')
+
+            if pids:
+                for pid in pids:
+                    if pid:  # Ensure the PID is not empty
+                        print(f"Killing process with PID: {pid}")
+                        subprocess.run(['kill', '-9', pid])
+                print(f"All processes related to '{keyword}' have been killed.")
+            else:
+                print(f"No processes found related to '{keyword}'.")
+
+        except Exception as e:
+            print(f"An error occurred during kill process: {e}")
 
     def update_pandas_data(self, asset, quote, length, timestep, start_dt=None):
         """
@@ -187,7 +207,7 @@ class ThetaDataBacktesting(PandasData):
                 self.pandas_data.update(pandas_data_update)
                 self._data_store.update(pandas_data_update)
         except Exception as e:
-            print(f"Error get_last_price from Polygon: {e}")
+            print(f"Error get_last_price from ThetaData: {e}")
 
         return super().get_last_price(asset=asset, quote=quote, exchange=exchange)
 

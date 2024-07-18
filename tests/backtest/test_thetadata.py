@@ -303,7 +303,7 @@ class TestThetaDataBacktestFull:
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
         )
-        trader = Trader(logfile="", backtest=True)
+        trader = Trader(logfile="test_theta.log", backtest=True, debug=True)
         trader.add_strategy(strat_obj)
         results = trader.run_all(show_plot=False, show_tearsheet=False, save_tearsheet=False)
 

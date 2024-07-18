@@ -111,6 +111,9 @@ def get_price_data(
         start = end + timedelta(days=1)
         end = start + delta
 
+        if start > asset.expiration:
+            break
+
     update_cache(cache_file, df_all, df_feather)
     return df_all
 

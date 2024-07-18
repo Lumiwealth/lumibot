@@ -1,5 +1,6 @@
 import datetime
 import logging
+import random
 import time
 from collections import defaultdict, deque
 from decimal import Decimal
@@ -10,12 +11,12 @@ from ibapi.client import *
 from ibapi.contract import *
 from ibapi.order import *
 from ibapi.wrapper import *
+
 from lumibot.data_sources import InteractiveBrokersData
 
 # Naming conflict on Order between IB and Lumibot.
-from lumibot.entities import Asset
+from lumibot.entities import Asset, Position
 from lumibot.entities import Order as OrderLum
-from lumibot.entities import Position
 
 from .broker import Broker
 
@@ -48,6 +49,10 @@ class InteractiveBrokers(Broker):
             ip = config.IP
             socket_port = config.SOCKET_PORT
             client_id = config.CLIENT_ID
+
+        self.ip = ip
+        self.socket_port = socket_port
+        self.client_id = client_id
 
         self.start_ib(ip, socket_port, client_id, max_connection_retries)
 
@@ -263,6 +268,19 @@ class InteractiveBrokers(Broker):
     def _close_connection(self):
         self.ib.disconnect()
 
+    def _reconnect_if_not_connected(self):
+        # Check if ib is connected
+        is_connected = self.ib.isConnected()
+        if not is_connected:
+            # Delete the ib object and create a new one
+            del self.ib
+            self.ib = None
+            self.start_ib(self.ip, self.socket_port, self.client_id, max_connection_retries=0)
+
+            return True
+
+        return False
+
     def _get_balances_at_broker(self, quote_asset):
         """Gets the current actual cash, positions value, and total
         liquidation value from interactive Brokers.
@@ -275,20 +293,38 @@ class InteractiveBrokers(Broker):
         tuple of float
             (cash, positions_value, total_liquidation_value)
         """
+
         try:
+            # First make sure that we are connected to the broker.
+            needed_reconnect = self._reconnect_if_not_connected()
+
+            # If we needed a reconnect, then sleep for a bit to make sure that the connection is established.
+            if needed_reconnect:
+                # Log that we needed to reconnect to the broker and sleep to make sure the connection is established.
+                sleeplen = 5
+                logging.warning(
+                    f"Had to reconnect to the broker. Sleeping for {sleeplen} seconds to make sure the connection is established."
+                )
+                # Sleep to make sure the connection is established.
+                time.sleep(sleeplen)
+
+            # Get the account summary from the broker.
             summary = self.ib.get_account_summary()
-        except:
+
+        except Exception as e:
             logger.error(
                 "Could not get broker balances. Please check your broker "
                 "configuration and make sure that TWS is running with the "
                 "correct configuration. For more information, please "
                 "see the documentation here: https://lumibot.lumiwealth.com/brokers.interactive_brokers.html"
+                f"Error: {e}"
             )
 
             return None
-        finally:
-            if summary is None:
-                return None
+
+        if summary is None:
+            return None
+
         total_cash_value = [float(c["Value"]) for c in summary if c["Tag"] == "TotalCashBalance" and c["Currency"] == 'BASE'][0]
 
         gross_position_value = [float(c["Value"]) for c in summary if c["Tag"] == "NetLiquidationByCurrency" and c["Currency"] == 'BASE'][0]
@@ -1082,7 +1118,7 @@ class IBClient(EClient):
 
     def get_account_summary(self):
         accounts_storage = self.wrapper.init_accounts()
-        
+
         as_reqid = self.get_reqid()
         self.reqAccountSummary(as_reqid, "All", "$LEDGER")
 
@@ -1188,21 +1224,18 @@ class IBApp(IBWrapper, IBClient):
         trailing_stop="TRAIL",
     )
 
-    def __init__(self, ipaddress, portid, clientid, ib_broker=None, max_connection_retries=0):
+    def __init__(self, ip_address, socket_port, client_id, ib_broker=None, max_connection_retries=0):
         IBWrapper.__init__(self)
         IBClient.__init__(self, wrapper=self)
+
+        self.ip_address = ip_address
+        self.socket_port = socket_port
+        self.client_id = client_id
         self.ib_broker = ib_broker
+        self.max_connection_retries = max_connection_retries
 
         # Ensure a connection before running
-        connected = False
-        retries = 0
-
-        while (not connected) and (retries<=max_connection_retries):
-            self.connect(ipaddress, portid, clientid)
-            connected = self.isConnected()
-            if not connected:
-                time.sleep(2)
-            retries+=1
+        self.connect_if_not_connected()
 
         thread = Thread(target=self.run)
         thread.start()
@@ -1211,6 +1244,49 @@ class IBApp(IBWrapper, IBClient):
         self.init_error()
         self.map_reqid_asset = dict()
         self.realtime_bars = dict()
+
+    def connect_if_not_connected(self):
+        """
+        Connect to the IB API if not already connected.
+
+        Returns
+        -------
+        bool
+            True if a new connection was made, False if already connected or could not connect.
+        """
+
+        # Check if already connected.
+        connected = self.isConnected()
+
+        # If already connected, then return False.
+        if connected:
+            return False
+
+        retries = 0
+        client_id = self.client_id
+
+        # Try to connect to the IB API.
+        while (not connected) and (retries<=self.max_connection_retries):
+            # If client_id is not set, then set it to a 4 digit random number. Do this every time we try to connect
+            # because there could be a chance that the client_id is already in use.
+            if not client_id:
+                # Set the client_id to a random  number up to 4 digits.
+                client_id = random.randint(1, 9999)
+
+                # Log that a random client_id was generated.
+                logging.info(f"No client_id was set. A random client_id of {client_id} was generated.")
+
+            self.connect(self.ip_address, self.socket_port, client_id)
+            connected = self.isConnected()
+            if not connected:
+                time.sleep(2)
+            retries+=1
+
+        # If not connected, then log an error.
+        if not connected:
+            logging.error("Could not connect to the IB API. Please check your connection settings.")
+
+        return connected
 
     def create_contract(
         self,

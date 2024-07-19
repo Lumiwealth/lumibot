@@ -295,16 +295,19 @@ class InteractiveBrokers(Broker):
             (cash, positions_value, total_liquidation_value)
         """
 
-        try:
+try:
             # First make sure that we are connected to the broker.
             needed_reconnect = self._reconnect_if_not_connected()
 
             # If we needed a reconnect, then sleep for a bit to make sure that the connection is established.
             if needed_reconnect:
-                # Log that we needed to reconnect to the broker.
+                # Log that we needed to reconnect to the broker and sleep to make sure the connection is established.
+                sleeplen = 5
                 logging.warning(
-                    f"Had to reconnect to the broker."
+                    f"Had to reconnect to the broker. Sleeping for {sleeplen} seconds to make sure the connection is established."
                 )
+                # Sleep to make sure the connection is established.
+                time.sleep(sleeplen)
 
             # Get the account summary from the broker.
             summary = self.ib.get_account_summary()

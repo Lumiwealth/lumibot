@@ -275,7 +275,7 @@ class InteractiveBrokers(Broker):
             # Delete the ib object and create a new one
             del self.ib
             self.ib = None
-            self.start_ib(self.ip, self.socket_port, self.client_id, max_connection_retries=0)
+            self.start_ib(self.ip, self.socket_port, self.client_id, max_connection_retries=1000)
 
             return True
 
@@ -300,13 +300,10 @@ class InteractiveBrokers(Broker):
 
             # If we needed a reconnect, then sleep for a bit to make sure that the connection is established.
             if needed_reconnect:
-                # Log that we needed to reconnect to the broker and sleep to make sure the connection is established.
-                sleeplen = 5
+                # Log that we needed to reconnect to the broker.
                 logging.warning(
-                    f"Had to reconnect to the broker. Sleeping for {sleeplen} seconds to make sure the connection is established."
+                    f"Had to reconnect to the broker."
                 )
-                # Sleep to make sure the connection is established.
-                time.sleep(sleeplen)
 
             # Get the account summary from the broker.
             summary = self.ib.get_account_summary()

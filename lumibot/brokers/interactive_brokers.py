@@ -295,7 +295,7 @@ class InteractiveBrokers(Broker):
             (cash, positions_value, total_liquidation_value)
         """
 
-try:
+        try:
             # First make sure that we are connected to the broker.
             needed_reconnect = self._reconnect_if_not_connected()
 

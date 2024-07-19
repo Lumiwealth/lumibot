@@ -11,6 +11,7 @@ import requests
 from lumibot import LUMIBOT_CACHE_FOLDER
 from lumibot.entities import Asset
 from thetadata import ThetaClient
+import holidays
 
 WAIT_TIME = 60
 MAX_DAYS = 30
@@ -62,7 +63,8 @@ def get_price_data(
     df_feather = None
     cache_file = build_cache_filename(asset, timespan)
     if cache_file.exists():
-        print(f"\nLoading pricing data for {asset} / {quote_asset} with '{timespan}' timespan from cache file...")
+        logging.info(
+            f"\nLoading pricing data for {asset} / {quote_asset} with '{timespan}' timespan from cache file...")
         df_feather = load_cache(cache_file)
         df_all = df_feather.copy()  # Make a copy so we can check the original later for differences
 
@@ -71,7 +73,8 @@ def get_price_data(
     if not missing_dates:
         return df_all
 
-    print(f"\nGetting pricing data for {asset} / {quote_asset} with '{timespan}' timespan from ThetaData...")
+    logging.info(
+        f"\nGetting pricing data for {asset} / {quote_asset} with '{timespan}' timespan directly from ThetaData datastream...")
 
     start = missing_dates[0]  # Data will start at 8am UTC (4am EST)
     end = missing_dates[-1]  # Data will end at 23:59 UTC (7:59pm EST)
@@ -111,7 +114,7 @@ def get_price_data(
         start = end + timedelta(days=1)
         end = start + delta
 
-        if start > asset.expiration:
+        if asset.expiration and start > asset.expiration:
             break
 
     update_cache(cache_file, df_all, df_feather)
@@ -327,8 +330,46 @@ def check_connection(username: str, password: str):
     return client
 
 
+def get_all_holidays(year, country='US'):
+    """
+    Get a list of all holidays for a given year and country.
+
+    :param year: Integer, the year for which to get the holidays
+    :param country: String, the country for which to get the holidays
+    :return: List of tuples (date, name) representing holidays
+    """
+    country_holidays = holidays.country_holidays(country, years=year)
+    all_holidays = [date for date, name in country_holidays.items()]
+    return all_holidays
+
+
+def is_weekend(date):
+    """
+    Check if the given date is a weekend.
+
+    :param date: datetime.date object
+    :return: Boolean, True if weekend, False otherwise
+    """
+    return date.weekday() >= 5  # 5 = Saturday, 6 = Sunday
+
+
 def get_request(url: str, headers: dict, querystring: dict, username: str, password: str):
     counter = 0
+
+    expiry = querystring['exp'] if 'exp' in querystring else None
+
+    # Check if expiry date is a holiday or weekend, this part of the logic is currently
+    # only for options mode
+    if expiry:
+        expiry = datetime.strptime(expiry, "%Y%m%d")
+        holidays = get_all_holidays(expiry.year)
+        if expiry in holidays:
+            logging.info(f"\nSKIP: Expiry {expiry} date is a holiday!")
+            return None
+        if is_weekend(expiry):
+            logging.info(f"\nSKIP: Expiry {expiry} date is a weekend!")
+            return None
+
     while True:
         try:
             response = requests.get(url, headers=headers, params=querystring)
@@ -410,7 +451,11 @@ def get_historical_data(asset: Asset, start_dt: datetime, end_dt: datetime, ivl:
     headers = {"Accept": "application/json"}
 
     # Send the request
-    json_resp = get_request(url=url, headers=headers, querystring=querystring, username=username, password=password)
+
+    json_resp = get_request(url=url, headers=headers, querystring=querystring,
+                            username=username, password=password)
+    if json_resp is None:
+        return None
 
     # Convert to pandas dataframe
     df = pd.DataFrame(json_resp["response"], columns=json_resp["header"]["format"])

@@ -40,11 +40,11 @@ class ThetaDataBacktesting(PandasData):
             if pids:
                 for pid in pids:
                     if pid:  # Ensure the PID is not empty
-                        print(f"Killing process with PID: {pid}")
+                        logging.info(f"Killing process with PID: {pid}")
                         subprocess.run(['kill', '-9', pid])
-                print(f"All processes related to '{keyword}' have been killed.")
+                logging.info(f"All processes related to '{keyword}' have been killed.")
             else:
-                print(f"No processes found related to '{keyword}'.")
+                logging.info(f"No processes found related to '{keyword}'.")
 
         except Exception as e:
             print(f"An error occurred during kill process: {e}")

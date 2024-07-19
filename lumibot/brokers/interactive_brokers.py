@@ -25,7 +25,7 @@ class InteractiveBrokers(Broker):
     """Inherit InteractiveBrokerData first and all the price market
     methods than inherits broker"""
 
-    def __init__(self, config, max_workers=20, chunk_size=100, data_source=None, max_connection_retries=0, **kwargs):
+    def __init__(self, config, max_workers=20, chunk_size=100, data_source=None, max_connection_retries=1000, **kwargs):
         if data_source is None:
             data_source = InteractiveBrokersData(config, max_workers=max_workers, chunk_size=chunk_size)
 
@@ -53,8 +53,9 @@ class InteractiveBrokers(Broker):
         self.ip = ip
         self.socket_port = socket_port
         self.client_id = client_id
+        self.max_connection_retries = max_connection_retries
 
-        self.start_ib(ip, socket_port, client_id, max_connection_retries)
+        self.start_ib(ip, socket_port, client_id, self.max_connection_retries)
 
     def start_ib(self, ip, socket_port, client_id, max_connection_retries):
         # Connect to interactive brokers.
@@ -275,7 +276,7 @@ class InteractiveBrokers(Broker):
             # Delete the ib object and create a new one
             del self.ib
             self.ib = None
-            self.start_ib(self.ip, self.socket_port, self.client_id, max_connection_retries=1000)
+            self.start_ib(self.ip, self.socket_port, self.client_id, max_connection_retries=self.max_connection_retries)
 
             return True
 

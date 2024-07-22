@@ -177,13 +177,24 @@ def get_symbol_returns(symbol, start=datetime(1900, 1, 1), end=datetime.now()):
         - symbol_cumprod: The cumulative product of (1 + return)
 
     """
-    # Making start and end datetime aware
+    # Fetch the symbol data
     returns_df = yh.get_symbol_data(symbol)
+
+    # Make sure we are working with a copy to avoid SettingWithCopyWarning
+    returns_df = returns_df.copy()
+
+    # Filter the DataFrame based on date range
     returns_df = returns_df.loc[(returns_df.index.date >= start.date()) & (returns_df.index.date <= end.date())]
+
+    # Calculate percentage change and dividend yield
     returns_df.loc[:, "pct_change"] = returns_df["Close"].pct_change()
     returns_df.loc[:, "div_yield"] = returns_df["Dividends"] / returns_df["Close"]
+
+    # Calculate total return and cumulative product
     returns_df.loc[:, "return"] = returns_df["pct_change"] + returns_df["div_yield"]
     returns_df.loc[:, "symbol_cumprod"] = (1 + returns_df["return"]).cumprod()
+
+    # Set the initial cumulative product value to 1
     returns_df.loc[returns_df.index[0], "symbol_cumprod"] = 1
 
     return returns_df
@@ -720,7 +731,7 @@ def create_tearsheet(
 
     # Run quantstats reports surpressing any logs because it can be noisy for no reason
     with open(os.devnull, "w") as f, contextlib.redirect_stdout(f), contextlib.redirect_stderr(f):
-        qs.reports.html(
+        result = qs.reports.html(
             df_final["strategy"],
             df_final["benchmark"],
             title=title,
@@ -733,6 +744,8 @@ def create_tearsheet(
     if show_tearsheet:
         url = "file://" + os.path.abspath(str(tearsheet_file))
         webbrowser.open(url)
+
+    return result
 
 
 def get_risk_free_rate(dt: datetime = None):

@@ -2966,10 +2966,10 @@ class Strategy(_Strategy):
         auto_adjust = datasource.auto_adjust if hasattr(datasource, "auto_adjust") else False
         settings = {
             "name": self.name,
-            "backtesting_start": self.backtesting_start,
-            "backtesting_end": self.backtesting_end,
+            "backtesting_start": str(self.backtesting_start),
+            "backtesting_end": str(self.backtesting_end),
             "budget": self.initial_budget,
-            "risk_free_rate": self.risk_free_rate,
+            "risk_free_rate": float(self.risk_free_rate),
             "minutes_before_closing": self.minutes_before_closing,
             "minutes_before_opening": self.minutes_before_opening,
             "sleeptime": self.sleeptime,

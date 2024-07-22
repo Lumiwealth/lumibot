@@ -731,7 +731,8 @@ class _Strategy:
                 del strategy_parameters["pandas_data"]
 
             strat_name = self._name if self._name is not None else "Strategy"
-            create_tearsheet(
+
+            result = create_tearsheet(
                 self._strategy_returns_df,
                 strat_name,
                 tearsheet_file,
@@ -742,6 +743,8 @@ class _Strategy:
                 risk_free_rate=self.risk_free_rate,
                 strategy_parameters=strategy_parameters,
             )
+
+            return result
 
     @classmethod
     def run_backtest(
@@ -1114,11 +1117,18 @@ class _Strategy:
                 f"{self._log_strat_name()}Strategy Indicators",
                 show_indicators=show_indicators,
             )
-        self.tearsheet(
+
+        tearsheet_result = self.tearsheet(
             save_tearsheet=save_tearsheet,
             tearsheet_file=tearsheet_file,
             show_tearsheet=show_tearsheet,
         )
+
+        # Save the result to a csv file
+        if tearsheet_result is not None:
+            tearsheet_result.to_csv(tearsheet_file.replace(".html", ".csv"))
+
+        return tearsheet_result
 
     @classmethod
     def verify_backtest_inputs(cls, backtesting_start, backtesting_end):

@@ -277,7 +277,8 @@ class Broker(ABC):
         """
         if self.option_source and asset.asset_type == "option":
             return self.option_source.get_last_price(asset, quote=quote, exchange=exchange)
-        return self.data_source.get_last_price(asset, quote=quote, exchange=exchange)
+        else:
+            return self.data_source.get_last_price(asset, quote=quote, exchange=exchange)
 
     def get_last_prices(self, assets, quote=None, exchange=None):
         """

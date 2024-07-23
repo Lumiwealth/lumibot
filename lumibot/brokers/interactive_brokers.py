@@ -25,7 +25,7 @@ class InteractiveBrokers(Broker):
     """Inherit InteractiveBrokerData first and all the price market
     methods than inherits broker"""
 
-    def __init__(self, config, max_workers=20, chunk_size=100, data_source=None, max_connection_retries=1000, **kwargs):
+    def __init__(self, config, max_workers=20, chunk_size=100, data_source=None, **kwargs):
         if data_source is None:
             data_source = InteractiveBrokersData(config, max_workers=max_workers, chunk_size=chunk_size)
 
@@ -53,14 +53,13 @@ class InteractiveBrokers(Broker):
         self.ip = ip
         self.socket_port = socket_port
         self.client_id = client_id
-        self.max_connection_retries = max_connection_retries
 
-        self.start_ib(ip, socket_port, client_id, self.max_connection_retries)
+        self.start_ib(ip, socket_port, client_id)
 
-    def start_ib(self, ip, socket_port, client_id, max_connection_retries):
+    def start_ib(self, ip, socket_port, client_id):
         # Connect to interactive brokers.
         if not self.ib:
-            self.ib = IBApp(ip, socket_port, client_id, ib_broker=self, max_connection_retries=max_connection_retries)
+            self.ib = IBApp(ip, socket_port, client_id, ib_broker=self)
 
         if isinstance(self.data_source, InteractiveBrokersData):
             if not self.data_source.ib:
@@ -276,7 +275,9 @@ class InteractiveBrokers(Broker):
             # Delete the ib object and create a new one
             del self.ib
             self.ib = None
-            self.start_ib(self.ip, self.socket_port, self.client_id, max_connection_retries=self.max_connection_retries)
+            del self.data_source.ib 
+            self.data_source.ib = None
+            self.start_ib(self.ip, self.socket_port, self.client_id)
 
             return True
 
@@ -1225,7 +1226,7 @@ class IBApp(IBWrapper, IBClient):
         trailing_stop="TRAIL",
     )
 
-    def __init__(self, ip_address, socket_port, client_id, ib_broker=None, max_connection_retries=0):
+    def __init__(self, ip_address, socket_port, client_id, ib_broker=None):
         IBWrapper.__init__(self)
         IBClient.__init__(self, wrapper=self)
 
@@ -1233,11 +1234,17 @@ class IBApp(IBWrapper, IBClient):
         self.socket_port = socket_port
         self.client_id = client_id
         self.ib_broker = ib_broker
-        self.max_connection_retries = max_connection_retries
 
         # Ensure a connection before running
-        self.connect_if_not_connected()
+        if not client_id:
+            # Set the client_id to a random  number up to 4 digits.
+            client_id = random.randint(1, 9999)
 
+            # Log that a random client_id was generated.
+            logging.info(f"No client_id was set. A random client_id of {client_id} was generated.")
+
+        self.connect(self.ip_address, self.socket_port, client_id)
+        
         thread = Thread(target=self.run)
         thread.start()
         self._thread = thread
@@ -1245,49 +1252,6 @@ class IBApp(IBWrapper, IBClient):
         self.init_error()
         self.map_reqid_asset = dict()
         self.realtime_bars = dict()
-
-    def connect_if_not_connected(self):
-        """
-        Connect to the IB API if not already connected.
-
-        Returns
-        -------
-        bool
-            True if a new connection was made, False if already connected or could not connect.
-        """
-
-        # Check if already connected.
-        connected = self.isConnected()
-
-        # If already connected, then return False.
-        if connected:
-            return False
-
-        retries = 0
-        client_id = self.client_id
-
-        # Try to connect to the IB API.
-        while (not connected) and (retries<=self.max_connection_retries):
-            # If client_id is not set, then set it to a 4 digit random number. Do this every time we try to connect
-            # because there could be a chance that the client_id is already in use.
-            if not client_id:
-                # Set the client_id to a random  number up to 4 digits.
-                client_id = random.randint(1, 9999)
-
-                # Log that a random client_id was generated.
-                logging.info(f"No client_id was set. A random client_id of {client_id} was generated.")
-
-            self.connect(self.ip_address, self.socket_port, client_id)
-            connected = self.isConnected()
-            if not connected:
-                time.sleep(2)
-            retries+=1
-
-        # If not connected, then log an error.
-        if not connected:
-            logging.error("Could not connect to the IB API. Please check your connection settings.")
-
-        return connected
 
     def create_contract(
         self,

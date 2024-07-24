@@ -4,6 +4,8 @@ from termcolor import colored
 from asyncio.log import logger
 from decimal import Decimal
 import os
+import string
+import random
 
 import pandas as pd
 
@@ -943,13 +945,17 @@ class _Strategy:
         if not api_key and polygon_api_key:
             api_key = polygon_api_key
 
-        datestring = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        basename = f"{name + '_' if name is not None else ''}{datestring}"
+        # Make a string with 6 random numbers/letters (upper and lowercase) to avoid overwriting
+        random_string = "".join(random.choices(string.ascii_letters + string.digits, k=6))
+
+        datestring = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M")
+        base_filename = f"{name + '_' if name is not None else ''}{datestring}_{random_string}"
+
         logdir = "logs"
         if logfile is None and save_logfile:
-            logfile = f"{logdir}/{basename}_logs.csv"
+            logfile = f"{logdir}/{base_filename}_logs.csv"
         if stats_file is None:
-            stats_file = f"{logdir}/{basename}_stats.csv"
+            stats_file = f"{logdir}/{base_filename}_stats.csv"
 
         # Check if polygon_has_paid_subscription is set (it is deprecated and will be removed in the future)
         if polygon_has_paid_subscription is not None:
@@ -1045,6 +1051,7 @@ class _Strategy:
             save_tearsheet=save_tearsheet,
             show_indicators=show_indicators,
             tearsheet_file=tearsheet_file,
+            base_filename=base_filename,
         )
 
         end = datetime.datetime.now()
@@ -1074,6 +1081,8 @@ class _Strategy:
         trades_file=None,
         settings_file=None,
         indicators_file=None,
+        tearsheet_csv_file=None,
+        base_filename="",  # This is the base filename for the backtest
     ):
         name = self._name
 
@@ -1081,18 +1090,18 @@ class _Strategy:
         if not logdir:
             logdir = "logs"
 
-        datestring = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        basename = f"{name + '_' if name is not None else ''}{datestring}"
         if not plot_file_html:
-            plot_file_html = f"{logdir}/{basename}_trades.html"
+            plot_file_html = f"{logdir}/{base_filename}_trades.html"
         if not trades_file:
-            trades_file = f"{logdir}/{basename}_trades.csv"
+            trades_file = f"{logdir}/{base_filename}_trades.csv"
         if not tearsheet_file:
-            tearsheet_file = f"{logdir}/{basename}_tearsheet.html"
+            tearsheet_file = f"{logdir}/{base_filename}_tearsheet.html"
         if not settings_file:
-            settings_file = f"{logdir}/{basename}_settings.json"
+            settings_file = f"{logdir}/{base_filename}_settings.json"
         if not indicators_file:
-            indicators_file = f"{logdir}/{basename}_indicators.html"
+            indicators_file = f"{logdir}/{base_filename}_indicators.html"
+        if not tearsheet_csv_file:
+            tearsheet_csv_file = f"{logdir}/{base_filename}_tearsheet.csv"
 
         self.write_backtest_settings(settings_file)
 
@@ -1126,7 +1135,7 @@ class _Strategy:
 
         # Save the result to a csv file
         if tearsheet_result is not None:
-            tearsheet_result.to_csv(tearsheet_file.replace(".html", ".csv"))
+            tearsheet_result.to_csv(tearsheet_csv_file)
 
         return tearsheet_result
 

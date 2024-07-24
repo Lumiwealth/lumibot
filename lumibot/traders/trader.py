@@ -54,7 +54,16 @@ class Trader:
         """Adds a strategy to the trader"""
         self._strategies.append(strategy)
 
-    def run_all(self, async_=False, show_plot=True, show_tearsheet=True, save_tearsheet=True, show_indicators=True, tearsheet_file=None):
+    def run_all(
+            self, 
+            async_=False, 
+            show_plot=True, 
+            show_tearsheet=True, 
+            save_tearsheet=True, 
+            show_indicators=True, 
+            tearsheet_file=None,
+            base_filename=None,
+            ):
         """
         run all strategies
 
@@ -74,6 +83,12 @@ class Trader:
 
         show_indicators: bool
             Whether to display the indicators (markers and lines) in the user's web browser. This is only used for backtesting.
+
+        tearsheet_file: str
+            The path to save the tearsheet. This is only used for backtesting.
+
+        base_filename: str
+            The base filename to save the tearsheet, plot, indicators, etc. This is only used for backtesting.
 
         Returns
         -------
@@ -126,6 +141,7 @@ class Trader:
                 save_tearsheet=save_tearsheet,
                 show_indicators=show_indicators,
                 tearsheet_file=tearsheet_file,
+                base_filename=base_filename,
             )
 
         return result

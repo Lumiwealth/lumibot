@@ -366,6 +366,8 @@ class _Strategy:
         elif isinstance(asset, tuple):
             return asset
         elif isinstance(asset, str):
+            # Make sure the asset is uppercase for consistency (and because some brokers require it)
+            asset = asset.upper()
             return Asset(symbol=asset)
         else:
             if self.broker.data_source.SOURCE != "CCXT":

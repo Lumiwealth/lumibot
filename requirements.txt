@@ -35,3 +35,5 @@ tabulate
 duckdb
 uuid
 numpy
+thetadata
+holidays==0.53

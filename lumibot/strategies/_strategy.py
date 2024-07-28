@@ -4,6 +4,7 @@ from termcolor import colored
 from asyncio.log import logger
 from decimal import Decimal
 import os
+import pickle
 import string
 import random
 
@@ -313,7 +314,36 @@ class _Strategy:
 
         self._filled_order_callback = filled_order_callback
 
+        self.pickle_file = ".stored.pkl"
+
+        # Check if the .stored file exists
+        if os.path.exists(self.pickle_file):
+            self.load_variables_to_instance()
+            return
+
     # =============Internal functions===================
+    def store_variables(self, **kwargs):
+        """
+        Save variables to a pickle file.
+
+        :param kwargs: The variables to save (as keyword arguments).
+        """
+        with open(self.pickle_file, 'wb') as file:
+            pickle.dump(kwargs, file)
+        logger.debug(f"Variables saved to {self.pickle_file}")
+
+    def load_variables_to_instance(self):
+        """
+        Load variables stored in a pickle file and set them as instance variables.
+        """
+        with open(self.pickle_file, 'rb') as file:
+            data = pickle.load(file)
+        
+        for key, value in data.items():
+            setattr(self, key, value)
+        
+        logger.info(f"Variables loaded from {self.pickle_file}.")
+    
     def _copy_dict(self):
         result = {}
         ignored_fields = ["broker", "data_source", "trading_pairs", "asset_gen"]

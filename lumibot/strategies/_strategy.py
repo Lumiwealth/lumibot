@@ -336,9 +336,16 @@ class _Strategy:
         """
         Load variables stored in a JSON file and set them as instance variables.
         """
-        with open(self.pickle_file, 'r') as file:
-            data = json.load(file)
-        
+        try:
+            with open(self.pickle_file, 'r') as file:
+                data = json.load(file)
+        except json.JSONDecodeError:
+            logger.error(f"Error decoding JSON from file {self.pickle_file}.")
+            data = {}
+        except Exception as e:
+            logger.error(f"An unexpected error occurred: {e}")
+            data = {}
+            
         for key, value in data.items():
             setattr(self, key, value)
     

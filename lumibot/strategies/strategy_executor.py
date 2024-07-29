@@ -1,6 +1,7 @@
 import inspect
 import time
 import traceback
+import json
 from datetime import datetime, timedelta
 from functools import wraps
 from queue import Empty, Queue
@@ -350,6 +351,9 @@ class StrategyExecutor(Thread):
         self.strategy.log_message("Executing the before_starting_trading lifecycle method")
         self.strategy.before_starting_trading()
 
+        # Variable Restore
+        self.strategy.load_variables_from_db()
+
     @lifecycle_method
     @trace_stats
     def _on_trading_iteration(self):
@@ -402,6 +406,9 @@ class StrategyExecutor(Thread):
             end_str = end_dt.strftime("%Y-%m-%d %H:%M:%S")
             runtime = (end_dt - start_dt).total_seconds()
 
+            # Variable Backup
+            self.strategy.backup_variables_to_db()
+            
             # Update cron count to account for how long this iteration took to complete so that the next iteration will
             # occur at the correct time.
             self.cron_count = self._seconds_to_sleeptime_count(int(runtime), sleep_units)
@@ -456,6 +463,8 @@ class StrategyExecutor(Thread):
         self.strategy.on_bot_crash(error)
         if self.broker.IS_BACKTESTING_BROKER:
             self.strategy._dump_stats()
+        self.strategy.backup_variables_to_db()
+
 
     def _on_abrupt_closing(self, error):
         """Use this lifecycle event to execute code
@@ -464,6 +473,8 @@ class StrategyExecutor(Thread):
         self.strategy.log_message("Executing the on_abrupt_closing event method")
         self.strategy.on_abrupt_closing()
         self.strategy._dump_stats()
+        self.strategy.backup_variables_to_db()
+
 
     @event_method
     def _on_new_order(self, order):

@@ -39,6 +39,7 @@ class CustomLoggerAdapter(logging.LoggerAdapter):
 class _Strategy:
     IS_BACKTESTABLE = True
 
+
     def __init__(
         self,
         *args,
@@ -64,6 +65,8 @@ class _Strategy:
         account_history_db_connection_str=None,
         strategy_id=None,
         discord_account_summary_footer=None,
+        should_backup_variables_to_database=False,
+        should_send_summary_to_discord=False,
         save_logfile=False,
         **kwargs,
     ):
@@ -191,6 +194,7 @@ class _Strategy:
         self.discord_webhook_url = discord_webhook_url
         self.account_history_db_connection_str = account_history_db_connection_str
         self.discord_account_summary_footer = discord_account_summary_footer
+        self.should_send_summary_to_discord=should_send_summary_to_discord
 
         if strategy_id is None:
             self.strategy_id = self._name
@@ -302,6 +306,11 @@ class _Strategy:
         self._stats_list = []
         self._analysis = {}
 
+        # Variable backup related variables
+        self.should_backup_variables_to_database=should_backup_variables_to_database
+        self._last_backup_state = None
+        self.vars = {}
+
         # Storing parameters for the initialize method
         if not hasattr(self, "parameters") or not isinstance(self.parameters, dict) or self.parameters is None:
             self.parameters = {}
@@ -314,41 +323,7 @@ class _Strategy:
 
         self._filled_order_callback = filled_order_callback
 
-        self.pickle_file = ".stored.json"
-
-        # Check if the .stored file exists
-        if os.path.exists(self.pickle_file):
-            self.load_variables_to_instance()
-            return
-
     # =============Internal functions===================
-    def store_variables(self, **kwargs):
-        """
-        Save variables to a JSON file.
-
-        :param kwargs: The variables to save (as keyword arguments).
-        """
-        with open(self.pickle_file, 'w') as file:
-            json.dump(kwargs, file)
-        logger.debug(f"Variables saved to {self.pickle_file}")
-
-    def load_variables_to_instance(self):
-        """
-        Load variables stored in a JSON file and set them as instance variables.
-        """
-        try:
-            with open(self.pickle_file, 'r') as file:
-                data = json.load(file)
-        except json.JSONDecodeError:
-            logger.error(f"Error decoding JSON from file {self.pickle_file}.")
-            data = {}
-        except Exception as e:
-            logger.error(f"An unexpected error occurred: {e}")
-            data = {}
-            
-        for key, value in data.items():
-            setattr(self, key, value)
-    
     def _copy_dict(self):
         result = {}
         ignored_fields = ["broker", "data_source", "trading_pairs", "asset_gen"]

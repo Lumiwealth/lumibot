@@ -25,6 +25,11 @@ class Trader:
         strategies: list
             A list of strategies to run. If not specified, you must add strategies using trader.add_strategy(strategy)
         """
+        # Check if the logfile is a valid path
+        if logfile:
+            if not isinstance(logfile, str):
+                raise ValueError("logfile must be a string")
+
         # Setting debug and _logfile parameters and setting global log format
         self.debug = debug
         self.backtest = backtest

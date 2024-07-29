@@ -120,6 +120,9 @@ class Tradier(Broker):
         if is_multileg:
             tag = orders[0].tag if orders[0].tag else orders[0].strategy
 
+            # Remove anything that's not a letter, number or "-" because Tradier doesn't accept other characters
+            tag = "".join([c if c.isalnum() or c == "-" else "" for c in tag])
+
             # Submit the multi-leg order
             return self._submit_multileg_order(orders, order_type, duration, price, tag)
 
@@ -216,9 +219,12 @@ class Tradier(Broker):
 
         try:
             if order.asset.asset_type == "stock":
+                # Make sure the symol is upper case
+                symbol = order.asset.symbol.upper() 
+
                 # Place the order
                 order_response = self.tradier.orders.order(
-                    order.asset.symbol,
+                    symbol,
                     order.side,
                     order.quantity,
                     order_type=order.type,

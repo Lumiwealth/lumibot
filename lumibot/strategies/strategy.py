@@ -3,6 +3,7 @@ import io
 import os
 import time
 import uuid
+import json
 from asyncio.log import logger
 from decimal import Decimal
 from typing import Union
@@ -27,7 +28,7 @@ from ._strategy import _Strategy
 
 matplotlib.use("Agg")
 
-# Set the stats table name for when storing stats in a database, defined by account_history_db_connection_str
+# Set the stats table name for when storing stats in a database, defined by db_connection_str
 STATS_TABLE_NAME = "strategy_tracker"
 
 class Strategy(_Strategy):
@@ -4106,10 +4107,11 @@ class Strategy(_Strategy):
 
     def get_stats_from_database(self, stats_table_name):
         # Create a database connection
-        engine = create_engine(self.account_history_db_connection_str)
+        if not hasattr(self, 'db_engine') or not self.db_engine:
+            self.db_engine = create_engine(self.db_connection_str)
         
         # Check if the table exists
-        if not inspect(engine).has_table(stats_table_name):
+        if not inspect(self.db_engine).has_table(stats_table_name):
             # Log that the table does not exist and we are creating it
             self.logger.info(f"Table {stats_table_name} does not exist. Creating it now.")
 
@@ -4130,10 +4132,10 @@ class Strategy(_Strategy):
                 }
             )
             # Create the table by saving this empty DataFrame to the database
-            stats_new.to_sql(stats_table_name, engine, if_exists='replace', index=False)
+            stats_new.to_sql(stats_table_name, self.db_engine, if_exists='replace', index=False)
         
         # Load the stats dataframe from the database
-        stats_df = pd.read_sql_table(stats_table_name, engine)
+        stats_df = pd.read_sql_table(stats_table_name, self.db_engine)
 
         return stats_df
 
@@ -4145,6 +4147,78 @@ class Strategy(_Strategy):
             if_exists=if_exists,
             index=index,
         )
+    
+    def backup_variables_to_db(self):
+        if not hasattr(self, "db_connection_str") or self.db_connection_str is None or not self.should_backup_variables_to_database:
+            return
+    
+        current_state = json.dumps(self.vars, sort_keys=True)
+        if current_state == self._last_backup_state:
+            self.logger.info("No variables changed. Not backing up.")
+            return
+
+        try:
+            data_to_save = self.vars
+            if data_to_save:
+                json_data_to_save = json.dumps(data_to_save)
+
+                ny_tz = pytz.timezone("America/New_York")
+                now = datetime.datetime.now(ny_tz)
+
+                df = pd.DataFrame(
+                    {
+                        "id": [str(uuid.uuid4())],
+                        "last_updated": [now],
+                        "variables": [json_data_to_save]
+                    }
+                )
+
+                self.to_sql(df, self.name, self.db_connection_str, 'replace', False)
+                self._last_backup_state = current_state
+
+                logger.info("Variables backed up successfully")
+            else:
+                logger.info("No variables to back up")
+
+        except Exception as e:
+            logger.error(f"Error backing up variables to DB: {e}", exc_info=True)
+
+    def load_variables_from_db(self):
+        if not self.should_backup_variables_to_database:
+            return
+        
+        try:
+            # Query the latest entry from the backup table
+            query = f'SELECT * FROM "{self.name}" ORDER BY last_updated DESC LIMIT 1'
+            if not hasattr(self, 'db_engine') or not self.db_engine:
+                self.db_engine = create_engine(self.db_connection_str)
+
+            # Check if backup table exists
+            inspector = inspect(self.db_engine)
+            if not inspector.has_table(self.name):
+                logger.info(f"Backup for {self.name} does not exist in the database. Not restoring")
+                return
+            
+            df = pd.read_sql_query(query, self.db_engine)
+        
+            if df.empty:
+                logger.warning("No data found in the backup")
+            else:
+                # Parse the JSON data
+                json_data = df['variables'].iloc[0]
+                data = json.loads(json_data)
+
+                # Update self.vars dictionary
+                for key, value in data.items():
+                    self.vars[key] = value
+                
+                current_state = json.dumps(self.vars, sort_keys=True)
+                self._last_backup_state = current_state
+
+                logger.info("Variables loaded successfully from database")
+
+        except Exception as e:
+            logger.error(f"Error loading variables from database: {e}", exc_info=True)
 
     def calculate_returns(self):
         # Check if we are in backtesting mode, if so, don't send the message
@@ -4211,7 +4285,7 @@ class Strategy(_Strategy):
         # Check that the stats dataframe has at least 1 row and contains the portfolio_value column
         if stats_df.shape[0] > 0 and "portfolio_value" in stats_df.columns:
             # Save the stats to the database
-            self.to_sql(stats_new, STATS_TABLE_NAME, self.account_history_db_connection_str, "append", False)
+            self.to_sql(stats_new, STATS_TABLE_NAME, self.db_connection_str, "append", False)
 
             # Get the current portfolio value
             portfolio_value = self.get_portfolio_value()
@@ -4300,8 +4374,8 @@ class Strategy(_Strategy):
             return "Not enough data to calculate returns", stats_df
 
     def should_send_account_summary_to_discord(self):
-        # Check if account_history_db_connection_str has been set, if not, return False
-        if not hasattr(self, "account_history_db_connection_str") or self.account_history_db_connection_str is None:
+        # Check if db_connection_str has been set, if not, return False
+        if not hasattr(self, "db_connection_str") or self.db_connection_str is None or not self.should_send_summary_to_discord:
             return False
 
         # Check if it has been at least 24 hours since the last account summary

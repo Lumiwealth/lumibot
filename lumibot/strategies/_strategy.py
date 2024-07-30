@@ -39,7 +39,6 @@ class CustomLoggerAdapter(logging.LoggerAdapter):
 class _Strategy:
     IS_BACKTESTABLE = True
 
-
     def __init__(
         self,
         *args,
@@ -63,6 +62,7 @@ class _Strategy:
         force_start_immediately=False,
         discord_webhook_url=None,
         account_history_db_connection_str=None,
+        db_connection_str=None,
         strategy_id=None,
         discord_account_summary_footer=None,
         should_backup_variables_to_database=False,
@@ -126,15 +126,15 @@ class _Strategy:
         discord_webhook_url : str
             The discord webhook url to use for sending alerts from the strategy. You can send alerts to a discord
             channel by setting broadcast=True in the log_message method. The strategy will also by default send
-            and account summary to the discord channel at the end of each day (account_history_db_connection_str
+            and account summary to the discord channel at the end of each day (db_connection_str
             must be set for this to work). Defaults to None (no discord alerts).
             For instructions on how to create a discord webhook url, see this link:
             https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks
         discord_account_summary_footer : str
             The footer to use for the account summary sent to the discord channel if discord_webhook_url is set and the
-            account_history_db_connection_str is set.
+            db_connection_str is set.
             Defaults to None (no footer).
-        account_history_db_connection_str : str
+        db_connection_str : str
             The connection string to use for the account history database. This is used to store the account history
             for the strategy. The account history is sent to the discord channel at the end of each day. The connection
             string should be in the format: "sqlite:///path/to/database.db". The database should have a table named
@@ -192,7 +192,10 @@ class _Strategy:
         self.logger = CustomLoggerAdapter(logger, {'strategy_name': self._name})
 
         self.discord_webhook_url = discord_webhook_url
-        self.account_history_db_connection_str = account_history_db_connection_str
+        if account_history_db_connection_str: 
+            self.db_connection_str = account_history_db_connection_str  
+            logging.warning("account_history_db_connection_str is deprecated and will be removed in future versions, please use db_connection_str instead") 
+
         self.discord_account_summary_footer = discord_account_summary_footer
         self.should_send_summary_to_discord=should_send_summary_to_discord
 

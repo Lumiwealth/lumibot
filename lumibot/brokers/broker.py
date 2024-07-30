@@ -1033,7 +1033,7 @@ class Broker(ABC):
         if subscriber:
             subscriber.add_event(subscriber.FILLED_ORDER, payload)
         else:
-            self.logger.error(f"Subscriber {order.strategy} not found", color="red")
+            self.logger.error(colored(f"Subscriber {order.strategy} not found", color="red"))
 
     # ==========Processing streams data=======================
 

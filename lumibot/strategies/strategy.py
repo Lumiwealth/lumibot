@@ -1821,7 +1821,7 @@ class Strategy(_Strategy):
         """
         return self.broker.cancel_open_orders(self.name)
 
-    def sell_all(self, cancel_open_orders=True):
+    def sell_all(self, cancel_open_orders=True, is_multileg=False):
         """Sell all strategy positions.
 
         The system will generate closing market orders for each open
@@ -1835,6 +1835,8 @@ class Strategy(_Strategy):
         cancel_open_orders : boolean
             Cancel all order if True, leave all orders in place if
             False. Default is True.
+        is_multileg : boolean
+            When True, will use multileg orders to close positions.
 
         Returns
         -------
@@ -1845,7 +1847,7 @@ class Strategy(_Strategy):
         >>> # Will close all positions for the strategy
         >>> self.sell_all()
         """
-        self.broker.sell_all(self.name, cancel_open_orders=cancel_open_orders, strategy=self)
+        self.broker.sell_all(self.name, cancel_open_orders=cancel_open_orders, strategy=self, is_multileg=is_multileg)
 
     def get_last_price(self, asset, quote=None, exchange=None, should_use_last_close=True):
         """Takes an asset and returns the last known price

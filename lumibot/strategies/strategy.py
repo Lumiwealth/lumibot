@@ -4152,13 +4152,13 @@ class Strategy(_Strategy):
         if not hasattr(self, "db_connection_str") or self.db_connection_str is None or not self.should_backup_variables_to_database:
             return
     
-        current_state = json.dumps(self.vars.__dict__, sort_keys=True)
+        current_state = json.dumps(self.vars._vars_dict, sort_keys=True)
         if current_state == self._last_backup_state:
             self.logger.info("No variables changed. Not backing up.")
             return
 
         try:
-            data_to_save = self.vars.__dict__
+            data_to_save = self.vars._vars_dict
             if data_to_save:
                 json_data_to_save = json.dumps(data_to_save)
 
@@ -4210,9 +4210,9 @@ class Strategy(_Strategy):
 
                 # Update self.vars dictionary
                 for key, value in data.items():
-                    self.vars.__dict__[key] = value
+                    self.vars._vars_dict[key] = value
                 
-                current_state = json.dumps(self.vars.__dict__, sort_keys=True)
+                current_state = json.dumps(self.vars._vars_dict, sort_keys=True)
                 self._last_backup_state = current_state
 
                 logger.info("Variables loaded successfully from database")

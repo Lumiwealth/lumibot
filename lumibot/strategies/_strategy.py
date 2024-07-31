@@ -38,16 +38,20 @@ class CustomLoggerAdapter(logging.LoggerAdapter):
 
 class Vars:
     def __init__(self):
-        self.__dict__ = {}
+        self._vars_dict = {}
 
     def __getattr__(self, name):
         try:
-            return self.__dict__[name]
+            return self._vars_dict[name]
         except KeyError:
             raise AttributeError(f"'Vars' object has no attribute '{name}'")
 
     def __setattr__(self, name, value):
-        self.__dict__[name] = value
+        self._vars_dict[name] = value
+
+    def get_all_attributes(self):
+        return self._vars_dict.copy()
+
 
 class _Strategy:
     IS_BACKTESTABLE = True

@@ -36,6 +36,19 @@ class CustomLoggerAdapter(logging.LoggerAdapter):
         except Exception as e:
             return msg, kwargs
 
+class Vars:
+    def __init__(self):
+        self.__dict__ = {}
+
+    def __getattr__(self, name):
+        try:
+            return self.__dict__[name]
+        except KeyError:
+            raise AttributeError(f"'Vars' object has no attribute '{name}'")
+
+    def __setattr__(self, name, value):
+        self.__dict__[name] = value
+
 class _Strategy:
     IS_BACKTESTABLE = True
 
@@ -312,7 +325,7 @@ class _Strategy:
         # Variable backup related variables
         self.should_backup_variables_to_database=should_backup_variables_to_database
         self._last_backup_state = None
-        self.vars = {}
+        self.vars = Vars()
 
         # Storing parameters for the initialize method
         if not hasattr(self, "parameters") or not isinstance(self.parameters, dict) or self.parameters is None:

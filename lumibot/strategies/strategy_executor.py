@@ -204,7 +204,7 @@ class StrategyExecutor(Thread):
 
     def process_event(self, event, payload):
         # Log that we are processing an event.
-        self.strategy.logger.info(f"Processing event: {event}, payload: {payload}")
+        self.strategy.logger.debug(f"Processing event: {event}, payload: {payload}")
 
         # If it's the first iteration, we don't want to process any events.
         # This is because in this case we are most likely processing events that occurred before the strategy started.

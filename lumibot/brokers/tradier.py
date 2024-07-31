@@ -518,7 +518,7 @@ class Tradier(Broker):
         raw_orders = self._pull_broker_all_orders()
         stored_orders = {x.identifier: x for x in self.get_all_orders()}
         for order_row in raw_orders:
-            orders = self._parse_broker_order_dict(order_row, strategy_name=order_row.get("tag"))
+            orders = self._parse_broker_order_dict(order_row, strategy_name=self._strategy_name)
 
             for order in orders:
                 # First time seeing this order, something weird has happened

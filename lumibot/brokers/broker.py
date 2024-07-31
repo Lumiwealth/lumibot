@@ -935,7 +935,7 @@ class Broker(ABC):
                 return 1
         return 0
 
-    def sell_all(self, strategy_name, cancel_open_orders=True, strategy=None):
+    def sell_all(self, strategy_name, cancel_open_orders=True, strategy=None, is_multileg=False):
         """sell all positions"""
         self.logger.warning(f"Selling all positions for {strategy_name} strategy")
         if cancel_open_orders:
@@ -959,7 +959,8 @@ class Broker(ABC):
             else:
                 order = position.get_selling_order()
                 orders.append(order)
-        self.submit_orders(orders)
+
+        self.submit_orders(orders, is_multileg=is_multileg)
 
     # =========Subscribers/Strategies functions==============
 

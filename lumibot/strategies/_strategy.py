@@ -83,7 +83,6 @@ class _Strategy:
         strategy_id=None,
         discord_account_summary_footer=None,
         should_backup_variables_to_database=False,
-        should_send_summary_to_discord=False,
         save_logfile=False,
         **kwargs,
     ):
@@ -214,7 +213,6 @@ class _Strategy:
             logging.warning("account_history_db_connection_str is deprecated and will be removed in future versions, please use db_connection_str instead") 
 
         self.discord_account_summary_footer = discord_account_summary_footer
-        self.should_send_summary_to_discord=should_send_summary_to_discord
 
         if strategy_id is None:
             self.strategy_id = self._name

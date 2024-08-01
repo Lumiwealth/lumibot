@@ -4375,7 +4375,7 @@ class Strategy(_Strategy):
 
     def should_send_account_summary_to_discord(self):
         # Check if db_connection_str has been set, if not, return False
-        if not hasattr(self, "db_connection_str") or self.db_connection_str is None or not self.should_send_summary_to_discord:
+        if not hasattr(self, "db_connection_str") or self.db_connection_str is None or not self.discord_webhook_url:
             return False
 
         # Check if it has been at least 24 hours since the last account summary

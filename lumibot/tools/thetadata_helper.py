@@ -15,6 +15,7 @@ import holidays
 
 WAIT_TIME = 60
 MAX_DAYS = 30
+THETA_TIME_SHIFT = 4
 CACHE_SUBFOLDER = "thetadata"
 BASE_URL = "http://127.0.0.1:25510"
 
@@ -27,6 +28,7 @@ def get_price_data(
     end: datetime,
     timespan: str = "minute",
     quote_asset: Asset = None,
+    dt=None
 ):
     """
     Queries ThetaData for pricing data for the given asset and returns a DataFrame with the data. Data will be
@@ -57,7 +59,8 @@ def get_price_data(
         A DataFrame with the pricing data for the asset
 
     """
-
+    if start.date() < dt.date():
+        start = dt
     # Check if we already have data for this asset in the feather file
     df_all = None
     df_feather = None
@@ -71,6 +74,7 @@ def get_price_data(
     # Check if we need to get more data
     missing_dates = get_missing_dates(df_all, asset, start, end)
     if not missing_dates:
+        df_all.index = df_all.index + pd.Timedelta(hours=THETA_TIME_SHIFT)
         return df_all
 
     logging.info(
@@ -119,6 +123,7 @@ def get_price_data(
             break
 
     update_cache(cache_file, df_all, df_feather)
+    df_all.index = df_all.index + pd.Timedelta(hours=THETA_TIME_SHIFT)
     return df_all
 
 
@@ -277,20 +282,25 @@ def update_df(df_all, result):
         df = df.set_index("datetime").sort_index()
         if df_all is not None:
             print(f"\n new loop df_all head: \n{df_all.head()}")
+            # set "datetime" column as index of df_all
+            df_all = df_all.set_index("datetime").sort_index()
+            print(f"\n after setting index df_all head: \n{df_all.head()}")
         print(f"\nbefore utc: df head: \n{df.head()}")
         df.index = df.index.tz_localize("UTC")
         print(f"\nafter utc: df head: \n{df.head()}")
         if df_all is None or df_all.empty:
             df_all = df
+            print(f"\nNo df_all, assign df_all=df")
         else:
             print(f"\nInside update_df, df_all head: \n{df_all.head()}")
             print(f"\nInside update_df, df head: \n{df.head()}")
             df_all = pd.concat([df_all, df]).sort_index()
             df_all = df_all[~df_all.index.duplicated(keep="first")]  # Remove any duplicate rows
 
-        print(f"\nafter concat df_all head: \n{df_all.head()}")
-        df_all = df_all.reset_index()
+            print(f"\nafter concat df_all head: \n{df_all.head()}")
+        # df_all = df_all.reset_index()
         print(f"\nafter concat reset index df_all head: \n{df_all.head()}")
+
     return df_all
 
 
@@ -391,9 +401,9 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
 
                 # Check if json_resp has error_type inside of header
                 if "error_type" in json_resp["header"] and json_resp["header"]["error_type"] != "null":
-                    logging.error(f"Error getting data from Theta Data: {json_resp['header']['error_type']}")
+                    logging.error(
+                        f"Error getting data from Theta Data: {json_resp['header']['error_type']},\nquerystring: {querystring}")
                     check_connection(username=username, password=password)
-                    print(f"\nthe_helper: Cannot find valid querystring: {querystring}")
                 else:
                     print(f"\nthe_helper: Found valid querystring: {querystring}")
                     break
@@ -402,7 +412,7 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
             check_connection(username=username, password=password)
 
         counter += 1
-        if counter > 3:
+        if counter > 1:
             raise ValueError("Cannot connect to Theta Data!")
 
     return json_resp

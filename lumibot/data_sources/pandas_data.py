@@ -248,6 +248,7 @@ class PandasData(DataSourceBacktesting):
 
         now = self.get_datetime()
         try:
+            print(f"\npandas_data.py:_pull_source_symbol_bars calls data.get_bars, will select 2 bars from the whole data table\n")
             res = data.get_bars(now, length=length, timestep=timestep, timeshift=timeshift)
         # Return None if data.get_bars returns a ValueError
         except ValueError as e:
@@ -413,7 +414,7 @@ class PandasData(DataSourceBacktesting):
 
         if not timestep:
             timestep = self.get_timestep()
-
+        print(f"\npandas_data.py:get_historial prices calls self._pull_source_symbol_bars\n")
         response = self._pull_source_symbol_bars(
             asset,
             length,

@@ -129,6 +129,7 @@ class ThetaDataBacktesting(PandasData):
         # Download data from Polygon
         try:
             # Get data from Polygon
+            date_time_now = self.get_datetime()
             df = thetadata_helper.get_price_data(
                 self._username,
                 self._password,
@@ -137,9 +138,12 @@ class ThetaDataBacktesting(PandasData):
                 self.datetime_end,
                 timespan=ts_unit,
                 quote_asset=quote_asset,
+                dt=self.get_datetime()
             )
+            # save df to csv file
+            df.to_csv(f"{date_time_now}_{asset.strike}_{asset.expiration}_{asset.right}.csv")
         except Exception as e:
-            logging.error(traceback.format_exc())
+            logging.info(traceback.format_exc())
             raise Exception("Error getting data from ThetaData") from e
 
         if df is None:

@@ -78,7 +78,6 @@ class PolygonDataBacktesting(PandasData):
         start_datetime, ts_unit = self.get_start_datetime_and_ts_unit(
             length, timestep, start_dt, start_buffer=START_BUFFER
         )
-
         # Check if we have data for this asset
         if search_asset in self.pandas_data:
             asset_data = self.pandas_data[search_asset]
@@ -125,6 +124,7 @@ class PolygonDataBacktesting(PandasData):
         # Download data from Polygon
         try:
             # Get data from Polygon
+            date_time_now = self.get_datetime()
             df = polygon_helper.get_price_data_from_polygon(
                 self._api_key,
                 asset_separated,
@@ -133,6 +133,7 @@ class PolygonDataBacktesting(PandasData):
                 timespan=ts_unit,
                 quote_asset=quote_asset,
             )
+            # df.to_csv(f"{date_time_now}_{asset.strike}_{asset.expiration}_{asset.right}_polygon.csv")
         except BadResponse as e:
             # Assuming e.message or similar attribute contains the error message
             formatted_start_datetime = start_datetime.strftime("%Y-%m-%d")
@@ -191,10 +192,11 @@ class PolygonDataBacktesting(PandasData):
     ):
         # Get the current datetime and calculate the start datetime
         current_dt = self.get_datetime()
-
+        print(f"\npolygon_backtesting.py:_pull_source_symbol_bars current_dt:{current_dt}\n")
         # Get data from Polygon
+        print(f"\npolygon_backtesting.py:_pull_source_symbol_bars calls self._update_pandas_data\n")
         self._update_pandas_data(asset, quote, length, timestep, current_dt)
-
+        print(f"\npolygon_backtesting.py:_pull_source_symbol_bars calls super()._pull_source_symbol_bars\n")
         return super()._pull_source_symbol_bars(
             asset, length, timestep, timeshift, quote, exchange, include_after_hours
         )

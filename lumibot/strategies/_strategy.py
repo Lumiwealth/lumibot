@@ -38,7 +38,7 @@ class CustomLoggerAdapter(logging.LoggerAdapter):
 
 class Vars:
     def __init__(self):
-        self._vars_dict = {}
+        super().__setattr__('_vars_dict', {})
 
     def __getattr__(self, name):
         try:

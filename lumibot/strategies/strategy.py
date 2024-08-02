@@ -4154,13 +4154,13 @@ class Strategy(_Strategy):
         if not hasattr(self, "db_connection_str") or self.db_connection_str is None or not self.should_backup_variables_to_database:
             return
     
-        current_state = json.dumps(self.vars, sort_keys=True)
+        current_state = json.dumps(self.vars._vars_dict, sort_keys=True)
         if current_state == self._last_backup_state:
             self.logger.info("No variables changed. Not backing up.")
             return
 
         try:
-            data_to_save = self.vars
+            data_to_save = self.vars._vars_dict
             if data_to_save:
                 json_data_to_save = json.dumps(data_to_save)
 
@@ -4212,9 +4212,9 @@ class Strategy(_Strategy):
 
                 # Update self.vars dictionary
                 for key, value in data.items():
-                    self.vars[key] = value
+                    self.vars._vars_dict[key] = value
                 
-                current_state = json.dumps(self.vars, sort_keys=True)
+                current_state = json.dumps(self.vars._vars_dict, sort_keys=True)
                 self._last_backup_state = current_state
 
                 logger.info("Variables loaded successfully from database")
@@ -4377,7 +4377,7 @@ class Strategy(_Strategy):
 
     def should_send_account_summary_to_discord(self):
         # Check if db_connection_str has been set, if not, return False
-        if not hasattr(self, "db_connection_str") or self.db_connection_str is None or not self.should_send_summary_to_discord:
+        if not hasattr(self, "db_connection_str") or self.db_connection_str is None or not self.discord_webhook_url:
             return False
 
         # Check if it has been at least 24 hours since the last account summary

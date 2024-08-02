@@ -82,7 +82,7 @@ class _Strategy:
         db_connection_str=None,
         strategy_id=None,
         discord_account_summary_footer=None,
-        should_backup_variables_to_database=True,
+        should_backup_variables_to_database=False,
         should_send_summary_to_discord=True,
         save_logfile=False,
         **kwargs,

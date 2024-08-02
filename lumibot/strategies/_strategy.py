@@ -49,7 +49,7 @@ class Vars:
     def __setattr__(self, name, value):
         self._vars_dict[name] = value
 
-    def get_all_attributes(self):
+    def all(self):
         return self._vars_dict.copy()
 
 
@@ -224,6 +224,7 @@ class _Strategy:
             logging.warning("account_history_db_connection_str is deprecated and will be removed in future versions, please use db_connection_str instead") 
 
         self.discord_account_summary_footer = discord_account_summary_footer
+        self.backup_table_name="vars_backup"
 
         if strategy_id is None:
             self.strategy_id = self._name

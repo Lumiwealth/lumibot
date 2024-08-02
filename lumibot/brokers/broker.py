@@ -53,6 +53,7 @@ class Broker(ABC):
         self._canceled_orders = SafeList(self._lock)
         self._partially_filled_orders = SafeList(self._lock)
         self._filled_orders = SafeList(self._lock)
+        self._error_orders = SafeList(self._lock)
         self._filled_positions = SafeList(self._lock)
         self._subscribers = SafeList(self._lock)
         self._is_stream_subscribed = False
@@ -299,7 +300,8 @@ class Broker(ABC):
     @property
     def _tracked_orders(self):
         return (self._unprocessed_orders.get_list() + self._new_orders.get_list() +
-                self._partially_filled_orders.get_list())
+                self._partially_filled_orders.get_list() + self._filled_orders.get_list() + 
+                self._error_orders.get_list() + self._canceled_orders.get_list())
 
     def is_backtesting_broker(self):
         return self.IS_BACKTESTING_BROKER
@@ -600,6 +602,16 @@ class Broker(ABC):
             self._process_crypto_quote(order, quantity, price)
 
         return position
+    
+    def _process_error_order(self, order, error):
+        self._new_orders.remove(order.identifier, key="identifier")
+        self._unprocessed_orders.remove(order.identifier, key="identifier")
+        self._partially_filled_orders.remove(order.identifier, key="identifier")
+        self._filled_orders.remove(order.identifier, key="identifier")
+        order.status = self.ERROR_ORDER
+        order.set_error(error)
+        self._error_orders.append(order)
+        return order
 
     def _process_cash_settlement(self, order, price, quantity):
         self.logger.info(

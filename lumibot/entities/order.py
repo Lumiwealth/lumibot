@@ -34,6 +34,7 @@ STATUS_ALIAS_MAP = {
     "calculated": "open",  # Alpaca status
     "accepted_for_bidding": "open",  # Alpaca status
     "held": "open",  # Alpaca status
+    "expired": "canceled",  # Tradier status
 }
 
 
@@ -67,6 +68,7 @@ class Order:
         PARTIALLY_FILLED = "partial_fill"
         CASH_SETTLED = "cash_settled"
         ERROR = "error"
+        EXPIRED = "expired"
 
     def __init__(
         self,
@@ -93,6 +95,7 @@ class Order:
         custom_params={},
         identifier=None,
         avg_fill_price=None,
+        error_message=None,
         tag="",
     ):
         """Order class for managing individual orders.
@@ -306,7 +309,7 @@ class Order:
         self._raw = None
         self._transmitted = False
         self._error = None
-        self.error_message = None
+        self.error_message = error_message
 
         self.quantity = quantity
 

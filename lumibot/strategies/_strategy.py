@@ -36,6 +36,23 @@ class CustomLoggerAdapter(logging.LoggerAdapter):
         except Exception as e:
             return msg, kwargs
 
+class Vars:
+    def __init__(self):
+        self._vars_dict = {}
+
+    def __getattr__(self, name):
+        try:
+            return self._vars_dict[name]
+        except KeyError:
+            raise AttributeError(f"'Vars' object has no attribute '{name}'")
+
+    def __setattr__(self, name, value):
+        self._vars_dict[name] = value
+
+    def get_all_attributes(self):
+        return self._vars_dict.copy()
+
+
 class _Strategy:
     IS_BACKTESTABLE = True
 
@@ -66,7 +83,6 @@ class _Strategy:
         strategy_id=None,
         discord_account_summary_footer=None,
         should_backup_variables_to_database=False,
-        should_send_summary_to_discord=False,
         save_logfile=False,
         **kwargs,
     ):
@@ -197,7 +213,6 @@ class _Strategy:
             logging.warning("account_history_db_connection_str is deprecated and will be removed in future versions, please use db_connection_str instead") 
 
         self.discord_account_summary_footer = discord_account_summary_footer
-        self.should_send_summary_to_discord=should_send_summary_to_discord
 
         if strategy_id is None:
             self.strategy_id = self._name
@@ -312,7 +327,7 @@ class _Strategy:
         # Variable backup related variables
         self.should_backup_variables_to_database=should_backup_variables_to_database
         self._last_backup_state = None
-        self.vars = {}
+        self.vars = Vars()
 
         # Storing parameters for the initialize method
         if not hasattr(self, "parameters") or not isinstance(self.parameters, dict) or self.parameters is None:

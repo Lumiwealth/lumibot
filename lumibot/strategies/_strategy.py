@@ -38,7 +38,7 @@ class CustomLoggerAdapter(logging.LoggerAdapter):
 
 class Vars:
     def __init__(self):
-        self._vars_dict = {}
+        super().__setattr__('_vars_dict', {})
 
     def __getattr__(self, name):
         try:
@@ -83,6 +83,7 @@ class _Strategy:
         strategy_id=None,
         discord_account_summary_footer=None,
         should_backup_variables_to_database=False,
+        should_send_summary_to_discord=True,
         save_logfile=False,
         **kwargs,
     ):
@@ -158,8 +159,18 @@ class _Strategy:
         strategy_id : str
             The id of the strategy that will be used to identify the strategy in the account history database.
             Defaults to None (lumibot will use the name of the strategy as the id).
+        should_backup_variables_to_database : bool
+            If True, the strategy will backup its variables to the account history database at the end of each day.
+            Defaults to True.
+        should_send_summary_to_discord : bool
+            If True, the strategy will send an account summary to the discord channel at the end of each day.
+            Defaults to True.
         save_logfile : bool
             Whether to save the logfile. Defaults to False. If True, the logfile will be saved to the logs directory.
+            Turning on this option will slow down the backtest.
+        kwargs : dict
+            A dictionary of additional keyword arguments to pass to the strategy.
+        
         """
         # Handling positional arguments.
         # If there is one positional argument, it is assumed to be `broker`.
@@ -325,7 +336,8 @@ class _Strategy:
         self._analysis = {}
 
         # Variable backup related variables
-        self.should_backup_variables_to_database=should_backup_variables_to_database
+        self.should_backup_variables_to_database = should_backup_variables_to_database
+        self.should_send_summary_to_discord = should_send_summary_to_discord
         self._last_backup_state = None
         self.vars = Vars()
 

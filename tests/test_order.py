@@ -33,7 +33,7 @@ class TestOrderBasics:
         # Assert that the child order does not have any child orders of its own
         assert child_order.child_orders == []
 
-        # Add another child order to the OCO order
+        # Add a child order to the OCO order
         order.child_orders.append(child_order)
 
         # Assert that the child order still does not have any child orders of its own

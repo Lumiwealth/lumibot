@@ -15,9 +15,24 @@ import holidays
 
 WAIT_TIME = 60
 MAX_DAYS = 30
-THETA_TIME_SHIFT = 4
+THETA_SUMMER_TIME_SHIFT = 4
+THETA_WINTER_TIME_SHIFT = 5
 CACHE_SUBFOLDER = "thetadata"
 BASE_URL = "http://127.0.0.1:25510"
+
+
+def is_summer_time(date_time):
+    month = int(date_time.month)
+    if month >= 4 and month <= 10:
+        return True
+    elif month in [12, 1, 2]:
+        return False
+    else:
+        # Convert the datetime object to a struct_time in the local timezone
+        time_tuple = date_time.timetuple()
+
+        # Use the tm_isdst attribute to determine DST status
+        return time.localtime(time.mktime(time_tuple)).tm_isdst > 0
 
 
 def get_price_data(
@@ -74,7 +89,13 @@ def get_price_data(
     # Check if we need to get more data
     missing_dates = get_missing_dates(df_all, asset, start, end)
     if not missing_dates:
-        df_all.index = df_all.index + pd.Timedelta(hours=THETA_TIME_SHIFT)
+        # df_all.index = df_all.index + pd.Timedelta(hours=THETA_SUMMER_TIME_SHIFT) - pd.Timedelta(minutes=1)
+        if is_summer_time(start):
+            print(f"Today's date is in Daylight Saving Time (Summer Time)")
+            df_all.index = df_all.index + pd.Timedelta(hours=THETA_SUMMER_TIME_SHIFT) - pd.Timedelta(minutes=1)
+        else:
+            print(f"Today's date is in Standard Time (Winter Time)")
+            df_all.index = df_all.index + pd.Timedelta(hours=THETA_WINTER_TIME_SHIFT) - pd.Timedelta(minutes=1)
         return df_all
 
     logging.info(
@@ -114,7 +135,7 @@ def get_price_data(
 
         else:
             df_all = update_df(df_all, result_df)
-            print(f"\ndf_all head: \n{df_all.head()}")
+            print(f"\ndf_all tail: \n{df_all.tail()}")
 
         start = end + timedelta(days=1)
         end = start + delta
@@ -123,7 +144,14 @@ def get_price_data(
             break
 
     update_cache(cache_file, df_all, df_feather)
-    df_all.index = df_all.index + pd.Timedelta(hours=THETA_TIME_SHIFT)
+    # df_all.index = df_all.index + pd.Timedelta(hours=THETA_SUMMER_TIME_SHIFT) - pd.Timedelta(minutes=1)
+
+    if is_summer_time(start):
+        print(f"Today's date is in Daylight Saving Time (Summer Time)")
+        df_all.index = df_all.index + pd.Timedelta(hours=THETA_SUMMER_TIME_SHIFT) - pd.Timedelta(minutes=1)
+    else:
+        print(f"Today's date is in Standard Time (Winter Time)")
+        df_all.index = df_all.index + pd.Timedelta(hours=THETA_WINTER_TIME_SHIFT) - pd.Timedelta(minutes=1)
     return df_all
 
 
@@ -405,7 +433,7 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
                         f"Error getting data from Theta Data: {json_resp['header']['error_type']},\nquerystring: {querystring}")
                     check_connection(username=username, password=password)
                 else:
-                    print(f"\nthe_helper: Found valid querystring: {querystring}")
+                    # print(f"\nthe_helper: Found valid querystring: {querystring}")
                     break
 
         except Exception as e:

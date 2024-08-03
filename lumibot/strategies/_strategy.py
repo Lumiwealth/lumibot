@@ -459,7 +459,7 @@ class _Strategy:
                     elif asset.asset_type == "option":
                         asset_is_option = True
                     assets.append(asset)
-
+            print(f"\n_strategy.py before using broker to get_last_prices, broker time: {self.broker.datetime}\n")
             if self.broker.option_source and asset_is_option:
                 print(
                     f"\n_strategy.py Found option source in broker, and asset type is 'option', time: {self.broker.datetime}\n")

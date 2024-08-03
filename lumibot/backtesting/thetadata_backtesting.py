@@ -13,7 +13,7 @@ START_BUFFER = timedelta(days=5)
 
 class ThetaDataBacktesting(PandasData):
     """
-    Backtesting implementation of Polygon
+    Backtesting implementation of ThetaData
     """
 
     def __init__(
@@ -126,9 +126,9 @@ class ThetaDataBacktesting(PandasData):
                         # We don't have enough data, so we need to get more (but in minutes)
                         ts_unit = "minute"
 
-        # Download data from Polygon
+        # Download data from ThetaData
         try:
-            # Get data from Polygon
+            # Get data from ThetaData
             date_time_now = self.get_datetime()
             df = thetadata_helper.get_price_data(
                 self._username,
@@ -141,7 +141,7 @@ class ThetaDataBacktesting(PandasData):
                 dt=self.get_datetime()
             )
             # save df to csv file
-            df.to_csv(f"{date_time_now}_{asset.strike}_{asset.expiration}_{asset.right}.csv")
+            # df.to_csv(f"theta_csv/wrong{date_time_now}_{asset.strike}_{asset.expiration}_{asset.right}.csv")
         except Exception as e:
             logging.info(traceback.format_exc())
             raise Exception("Error getting data from ThetaData") from e
@@ -217,7 +217,7 @@ class ThetaDataBacktesting(PandasData):
 
     def get_chains(self, asset):
         """
-        Integrates the Polygon client library into the LumiBot backtest for Options Data in the same
+        Integrates the ThetaData client library into the LumiBot backtest for Options Data in the same
         structure as Interactive Brokers options chain data
 
         Parameters

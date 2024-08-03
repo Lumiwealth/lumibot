@@ -125,6 +125,7 @@ class PolygonDataBacktesting(PandasData):
         try:
             # Get data from Polygon
             date_time_now = self.get_datetime()
+            # print(f"\npolygon_backtesting.py:before extracting data from helper: time:{date_time_now}\n")
             df = polygon_helper.get_price_data_from_polygon(
                 self._api_key,
                 asset_separated,
@@ -133,7 +134,7 @@ class PolygonDataBacktesting(PandasData):
                 timespan=ts_unit,
                 quote_asset=quote_asset,
             )
-            # df.to_csv(f"{date_time_now}_{asset.strike}_{asset.expiration}_{asset.right}_polygon.csv")
+            # df.to_csv(f"polygon_csv/{date_time_now}_{asset.strike}_{asset.expiration}_{asset.right}_polygon.csv")
         except BadResponse as e:
             # Assuming e.message or similar attribute contains the error message
             formatted_start_datetime = start_datetime.strftime("%Y-%m-%d")
@@ -171,12 +172,14 @@ class PolygonDataBacktesting(PandasData):
 
         if (df is None) or df.empty:
             return
-
+        # print(f"\npolygon_backtesting.py:after extracting data from helper: time:{self.get_datetime()}\n")
         data = Data(asset_separated, df, timestep=ts_unit, quote=quote_asset)
+        # print(f"\npolygon_backtesting.py:after data packing: time:{self.get_datetime()}\n")
         pandas_data_update = self._set_pandas_data_keys([data])
-
+        # print(f"\npolygon_backtesting.py:after update keys: time:{self.get_datetime()}\n")
         # Add the keys to the self.pandas_data dictionary
         self.pandas_data.update(pandas_data_update)
+        # print(f"\npolygon_backtesting.py:after update data: time:{self.get_datetime()}\n")
         if PolygonDataBacktesting.MAX_STORAGE_BYTES:
             self._enforce_storage_limit(self.pandas_data)
 
@@ -192,11 +195,11 @@ class PolygonDataBacktesting(PandasData):
     ):
         # Get the current datetime and calculate the start datetime
         current_dt = self.get_datetime()
-        print(f"\npolygon_backtesting.py:_pull_source_symbol_bars current_dt:{current_dt}\n")
+        # print(f"\npolygon_backtesting.py:_pull_source_symbol_bars current_dt:{current_dt}\n")
         # Get data from Polygon
-        print(f"\npolygon_backtesting.py:_pull_source_symbol_bars calls self._update_pandas_data\n")
         self._update_pandas_data(asset, quote, length, timestep, current_dt)
-        print(f"\npolygon_backtesting.py:_pull_source_symbol_bars calls super()._pull_source_symbol_bars\n")
+        # print(
+        #     f"\npolygon_backtesting.py:_pull_source_symbol_bars calls super()._pull_source_symbol_bars,current_dt:{current_dt}\n")
         return super()._pull_source_symbol_bars(
             asset, length, timestep, timeshift, quote, exchange, include_after_hours
         )

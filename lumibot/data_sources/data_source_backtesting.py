@@ -71,6 +71,7 @@ class DataSourceBacktesting(DataSource, ABC):
         return start_date, end_date
 
     def _update_datetime(self, new_datetime, cash=None, portfolio_value=None):
+        print("Updating datetime to", new_datetime)
         self._datetime = new_datetime
         print_progress_bar(
             new_datetime,

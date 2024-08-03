@@ -27,9 +27,17 @@ class TestOrderBasics:
             asset=Asset("SPY"),
             quantity=10,
             limit_price=100,
+            identifier="child_order_1"
         )
 
-        order.add_child_order(child_order)
+        # Assert that the child order does not have any child orders of its own
+        assert child_order.child_orders == []
+
+        # Add another child order to the OCO order
+        order.child_orders.append(child_order)
+
+        # Assert that the child order still does not have any child orders of its own
+        assert child_order.child_orders == []
 
         # Check that the original order did not change as a result of adding a child order
         assert order.avg_fill_price == None
@@ -38,6 +46,41 @@ class TestOrderBasics:
         assert order.side == None
         assert order.asset == None
         assert order.child_orders == [child_order]
+
+        # Add another child order to the OCO order
+        child_order_2 = Order(
+            strategy="",
+            type=Order.OrderType.MARKET,
+            side="sell",
+            asset=Asset("SPY"),
+            quantity=55,
+            limit_price=200,
+        )
+
+        order.add_child_order(child_order_2)
+
+        # Print the order and child order 
+        order_text = str(order).lower()
+        first_child_order = order.child_orders[0]
+        first_child_order_text = str(first_child_order).lower()
+
+        # Assert the order text contains the order type
+        assert Order.OrderType.OCO in order_text
+
+        # Check that both child orders are present in the parent order text
+        assert "buy" in order_text
+        assert "sell" in order_text
+        assert "10" in order_text
+        assert "55" in order_text
+        assert Order.OrderType.LIMIT in order_text
+        assert Order.OrderType.MARKET in order_text
+
+        # Assert the first child order text contains the order type
+        assert Order.OrderType.LIMIT in first_child_order_text
+
+        # Assert the first child order does not contain information about the second child order
+        assert "sell" not in first_child_order_text
+        assert "55" not in first_child_order_text
 
     def test_price_doesnt_exist(self):
         # Test that the price does not exist for any orders, we should be more specific such as limit_price, stop_price, fill_price, etc.

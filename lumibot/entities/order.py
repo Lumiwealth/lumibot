@@ -3,6 +3,7 @@ import uuid
 from collections import namedtuple
 from decimal import Decimal
 from threading import Event
+import copy
 
 import lumibot.entities as entities
 from lumibot.tools.types import check_positive, check_price, check_quantity
@@ -248,6 +249,11 @@ class Order:
         'test'
 
         """
+        # Ensure child_orders is properly initialized
+        if child_orders is None:
+            child_orders = []
+        self.child_orders = copy.deepcopy(child_orders)  # Ensure deep copy
+
         if asset == quote and asset is not None:
             logging.error(
                 f"When creating an Order, asset and quote must be different. Got asset = {asset} and quote = {quote}"
@@ -297,7 +303,6 @@ class Order:
         self._avg_fill_price = avg_fill_price # The weighted average filled price for this order. Calculated if not given by broker
         self.broker_create_date = None  # The datetime the order was created by the broker
         self.broker_update_date = None  # The datetime the order was last updated by the broker
-        self.child_orders = child_orders
         self.status = status
 
         # Options:
@@ -337,8 +342,16 @@ class Order:
             position_filled,
         )
 
-    def add_child_order(self, order):
-        self.child_orders.append(order)
+    def add_child_order(self, o):
+        """
+        Add a child order to the parent order.
+
+        Parameters
+        ----------
+        o : Order
+            The child order to add to the parent order.
+        """
+        self.child_orders.append(o)
 
     def update_trail_stop_price(self, price):
         """Update the trail stop price.
@@ -619,13 +632,17 @@ class Order:
         )
 
     def __repr__(self):
-        self.rep_asset = self.symbol
-        if self.asset.asset_type == "crypto":
-            self.rep_asset = f"{self.pair}"
-        elif self.asset.asset_type == "future":
-            self.rep_asset = f"{self.symbol} {self.asset.expiration}"
-        elif self.asset.asset_type == "option":
-            self.rep_asset = f"{self.symbol} {self.asset.expiration} " f"{self.asset.right} {self.asset.strike}"
+        if self.asset is None:
+            self.rep_asset = self.symbol
+        else:
+            if self.asset.asset_type == "crypto":
+                self.rep_asset = f"{self.pair}"
+            elif self.asset.asset_type == "future":
+                self.rep_asset = f"{self.symbol} {self.asset.expiration}"
+            elif self.asset.asset_type == "option":
+                self.rep_asset = f"{self.symbol} {self.asset.expiration} " f"{self.asset.right} {self.asset.strike}"
+            else:
+                self.rep_asset = self.symbol
 
         price = None
         for attribute in ["limit_price", "stop_price", "take_profit_price"]:
@@ -635,12 +652,17 @@ class Order:
         if self.is_filled():
             price = self.get_fill_price()
 
-        repr_str = f"{self.type} order of | {self.quantity} {self.rep_asset} {self.side} |"
+        # If there are child orders, list them in the repr
+        if self.child_orders:
+            repr_str = f"{self.type} order |"
+            for child_order in self.child_orders:
+                repr_str = f"{repr_str} {child_order.type} {child_order.side} {child_order.quantity} {child_order.asset} |"
+        else:
+            repr_str = f"{self.type} order of | {self.quantity} {self.rep_asset} {self.side} |"
         if price:
-            repr_str = f"{repr_str} at price ${price}"
-        if self.order_class:
-            repr_str = f"{repr_str} of class {self.order_class}"
-        repr_str = f"{repr_str} with status {self.status}"
+            repr_str = f"{repr_str} @ ${price}"
+
+        repr_str = f"{repr_str} {self.status}"
         return repr_str
 
     def set_identifier(self, identifier):

@@ -418,23 +418,23 @@ class Order:
         if self.type is None:
             # Check if this is a trailing stop order
             if trail_price is not None or trail_percent is not None:
-                self.type = "trailing_stop"
+                self.type = self.OrderType.TRAIL
 
             # Check if this is a market order
             elif limit_price is None and stop_price is None:
-                self.type = "market"
+                self.type = self.OrderType.MARKET
 
             # Check if this is a stop order
             elif limit_price is None and stop_price is not None:
-                self.type = "stop"
+                self.type = self.OrderType.STOP
 
             # Check if this is a limit order
             elif limit_price is not None and stop_price is None:
-                self.type = "limit"
+                self.type = self.OrderType.LIMIT
 
             # Check if this is a stop limit order
             elif limit_price is not None and stop_price is not None:
-                self.type = "stop_limit"
+                self.type = self.OrderType.STOP_LIMIT
 
             else:
                 raise ValueError(
@@ -444,8 +444,8 @@ class Order:
 
         if self.type == "oco":
             # This is a "One-Cancel-Other" advanced order
-            self.order_class = "oco"
-            self.type = "limit"  # Needs to be set as limit order for Alpaca
+            self.order_class = self.OrderType.OCO
+            self.type = self.OrderType.OCO
             self.position_filled = True
             if stop_loss_price is not None and take_profit_price is not None:
                 self.take_profit_price = check_price(take_profit_price, "take_profit_price must be positive float.")
@@ -635,7 +635,7 @@ class Order:
         if self.is_filled():
             price = self.get_fill_price()
 
-        repr_str = f"{self.order_class} {self.type} order of | {self.quantity} {self.rep_asset} {self.side} |"
+        repr_str = f"{self.type} order of | {self.quantity} {self.rep_asset} {self.side} |"
         if price:
             repr_str = f"{repr_str} at price ${price}"
         if self.order_class:

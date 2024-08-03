@@ -8,6 +8,48 @@ class TestOrderBasics:
         assert Order(asset=Asset("SPY"), quantity=10, side="buy", strategy='abc').side == 'buy'
         assert Order(asset=Asset("SPY"), quantity=10, side="sell", strategy='abc').side == 'sell'
 
+    def test_blank_oco(self):
+        # Create an OCO order without any child 
+        order = Order(
+            strategy="",
+            type=Order.OrderType.OCO,
+        )
+
+        assert order.avg_fill_price == None
+        assert order.quantity == None
+        assert order.status == "unprocessed"
+
+        # Add a child order
+        child_order = Order(
+            strategy="",
+            type=Order.OrderType.LIMIT,
+            side="buy",
+            asset=Asset("SPY"),
+            quantity=10,
+            limit_price=100,
+        )
+
+        order.add_child_order(child_order)
+
+        # Check that the original order did not change as a result of adding a child order
+        assert order.avg_fill_price == None
+        assert order.quantity == None
+        assert order.status == "unprocessed"
+        assert order.side == None
+        assert order.asset == None
+        assert order.child_orders == [child_order]
+
+    def test_price_doesnt_exist(self):
+        # Test that the price does not exist for any orders, we should be more specific such as limit_price, stop_price, fill_price, etc.
+        with pytest.raises(TypeError):
+            Order(
+                strategy="",
+                asset=Asset("SPY"),
+                quantity=10,
+                side="buy",
+                price=100,
+            )
+
     def test_is_option(self):
         # Standard stock order
         asset = Asset("SPY")

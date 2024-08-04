@@ -202,10 +202,8 @@ class PandasData(DataSourceBacktesting):
 
     def get_last_prices(self, assets, quote=None, exchange=None, **kwargs):
         result = {}
-        print(f"\nPandasData get_last_prices, before results, time: {self.get_datetime()}")
         for asset in assets:
             result[asset] = self.get_last_price(asset, quote=quote, exchange=exchange)
-            print(f"\nPandasData get_last_prices after results, time: {self.get_datetime()}")
         return result
 
     def find_asset_in_data_store(self, asset, quote=None):
@@ -250,7 +248,6 @@ class PandasData(DataSourceBacktesting):
 
         now = self.get_datetime()
         try:
-            print(f"\npandas_data.py:_pull_source_symbol_bars calls data.get_bars, will select 2 bars, time:{now}")
             res = data.get_bars(now, length=length, timestep=timestep, timeshift=timeshift)
             print(f"\npandas_data.py:_pull_source_symbol_bars after data.get_bars, time:{now}")
         # Return None if data.get_bars returns a ValueError
@@ -417,7 +414,6 @@ class PandasData(DataSourceBacktesting):
 
         if not timestep:
             timestep = self.get_timestep()
-        print(f"\npandas_data.py:get_historial prices calls self._pull_source_symbol_bars\n")
         response = self._pull_source_symbol_bars(
             asset,
             length,

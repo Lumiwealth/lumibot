@@ -91,10 +91,8 @@ def get_price_data(
     if not missing_dates:
         # df_all.index = df_all.index + pd.Timedelta(hours=THETA_SUMMER_TIME_SHIFT) - pd.Timedelta(minutes=1)
         if is_summer_time(start):
-            print(f"Today's date is in Daylight Saving Time (Summer Time)")
             df_all.index = df_all.index + pd.Timedelta(hours=THETA_SUMMER_TIME_SHIFT) - pd.Timedelta(minutes=1)
         else:
-            print(f"Today's date is in Standard Time (Winter Time)")
             df_all.index = df_all.index + pd.Timedelta(hours=THETA_WINTER_TIME_SHIFT) - pd.Timedelta(minutes=1)
         return df_all
 

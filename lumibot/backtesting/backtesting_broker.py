@@ -93,14 +93,9 @@ class BacktestingBroker(Broker):
             new_datetime = self.datetime + timedelta(seconds=update_dt)
         else:
             new_datetime = update_dt
-        print(f"\n backtesting_broker.py _update_datetime, new_datetime {new_datetime}")
         self.data_source._update_datetime(new_datetime, cash=cash, portfolio_value=portfolio_value)
-        print(
-            f"\n backtesting_broker.py _update_datetime, self.data_source.get_datetime() {self.data_source.get_datetime()}")
         if self.option_source:
             self.option_source._update_datetime(new_datetime, cash=cash, portfolio_value=portfolio_value)
-            print(
-                f"\n backtesting_broker.py _update_datetime, self.option_source.get_datetime() {self.option_source.get_datetime()}")
         logging.info(f"Current backtesting datetime {self.datetime}")
 
     # =========Clock functions=====================

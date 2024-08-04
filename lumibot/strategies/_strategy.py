@@ -459,10 +459,7 @@ class _Strategy:
                     elif asset.asset_type == "option":
                         asset_is_option = True
                     assets.append(asset)
-            print(f"\n_strategy.py before using broker to get_last_prices, broker time: {self.broker.datetime}\n")
             if self.broker.option_source and asset_is_option:
-                print(
-                    f"\n_strategy.py Found option source in broker, and asset type is 'option', time: {self.broker.datetime}\n")
                 prices = self.broker.option_source.get_last_prices(assets)
             else:
                 prices = self.broker.data_source.get_last_prices(assets)
@@ -515,11 +512,8 @@ class _Strategy:
                 else:
                     multiplier = asset.multiplier if asset.asset_type in ["option", "future"] else 1
                 portfolio_value += float(quantity) * price * multiplier
-                print(f"quantity: {quantity}, price: {price}, multiplier: {multiplier}")
-                print(f"portfolio_value += {float(quantity)} * {price} * {multiplier}")
             print(f"portfolio_value: {portfolio_value}")
             self._portfolio_value = portfolio_value
-
         return portfolio_value
 
     def _update_cash(self, side, quantity, price, multiplier):

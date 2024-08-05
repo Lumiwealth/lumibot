@@ -801,9 +801,7 @@ class StrategyExecutor(Thread):
                 self.broker.data_source._iter_count += 1
 
             dt = self.broker.data_source._date_index[self.broker.data_source._iter_count]
-            print(f"strategy_executor.py: _run_trading_session: before _update_datetime time: {self.broker.datetime}")
             self.broker._update_datetime(dt, cash=self.strategy.cash, portfolio_value=self.strategy.portfolio_value)
-            print(f"strategy_executor.py: _run_trading_session: after _update_datetime time: {self.broker.datetime}")
             self.strategy._update_cash_with_dividends()
 
             self._on_trading_iteration()

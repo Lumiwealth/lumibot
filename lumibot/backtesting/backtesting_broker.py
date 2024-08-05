@@ -348,7 +348,7 @@ class BacktestingBroker(Broker):
         # Currently perfect fill price in backtesting!
         order.avg_fill_price = price
 
-        position = super()._process_filled_order(order, order.avg_fill_price, quantity)
+        position = super()._process_filled_order(order, price, quantity)
         if existing_position:
             position.add_order(order, quantity)  # Add will update quantity, but not double count the order
             if position.quantity == 0:

@@ -475,6 +475,7 @@ def get_historical_data(asset: Asset, start_dt: datetime, end_dt: datetime, ivl:
             "strike": strike,  # "140000",
             "exp": expiration_str,  # "20220930",
             "right": "C" if asset.right == "CALL" else "P",
+            "rth": "false"
         }
 
     headers = {"Accept": "application/json"}

@@ -141,7 +141,7 @@ class ThetaDataBacktesting(PandasData):
                 dt=self.get_datetime()
             )
             # save df to csv file
-            # df.to_csv(f"theta_csv/wrong{date_time_now}_{asset.strike}_{asset.expiration}_{asset.right}.csv")
+            # df.to_csv(f"theta_csv/{date_time_now}_{asset.strike}_{asset.expiration}_{asset.right}.csv")
         except Exception as e:
             logging.info(traceback.format_exc())
             raise Exception("Error getting data from ThetaData") from e

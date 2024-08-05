@@ -512,7 +512,6 @@ class _Strategy:
                 prices = self.broker.option_source.get_last_prices(assets)
             else:
                 prices = self.broker.data_source.get_last_prices(assets)
-            print(f"\n_strategy.py datetime:{self.broker.datetime} prices: {prices}\n")
             for position in positions:
                 # Turn the asset into a tuple if it's a crypto asset
                 asset = (
@@ -561,7 +560,6 @@ class _Strategy:
                 else:
                     multiplier = asset.multiplier if asset.asset_type in ["option", "future"] else 1
                 portfolio_value += float(quantity) * price * multiplier
-            print(f"portfolio_value: {portfolio_value}")
             self._portfolio_value = portfolio_value
         return portfolio_value
 

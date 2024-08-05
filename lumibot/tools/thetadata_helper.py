@@ -133,7 +133,6 @@ def get_price_data(
 
         else:
             df_all = update_df(df_all, result_df)
-            print(f"\ndf_all tail: \n{df_all.tail()}")
 
         start = end + timedelta(days=1)
         end = start + delta
@@ -142,13 +141,9 @@ def get_price_data(
             break
 
     update_cache(cache_file, df_all, df_feather)
-    # df_all.index = df_all.index + pd.Timedelta(hours=THETA_SUMMER_TIME_SHIFT) - pd.Timedelta(minutes=1)
-
     if is_summer_time(start):
-        print(f"Today's date is in Daylight Saving Time (Summer Time)")
         df_all.index = df_all.index + pd.Timedelta(hours=THETA_SUMMER_TIME_SHIFT) - pd.Timedelta(minutes=1)
     else:
-        print(f"Today's date is in Standard Time (Winter Time)")
         df_all.index = df_all.index + pd.Timedelta(hours=THETA_WINTER_TIME_SHIFT) - pd.Timedelta(minutes=1)
     return df_all
 
@@ -307,26 +302,14 @@ def update_df(df_all, result):
     if not df.empty:
         df = df.set_index("datetime").sort_index()
         if df_all is not None:
-            print(f"\n new loop df_all head: \n{df_all.head()}")
             # set "datetime" column as index of df_all
             df_all = df_all.set_index("datetime").sort_index()
-            print(f"\n after setting index df_all head: \n{df_all.head()}")
-        print(f"\nbefore utc: df head: \n{df.head()}")
         df.index = df.index.tz_localize("UTC")
-        print(f"\nafter utc: df head: \n{df.head()}")
         if df_all is None or df_all.empty:
             df_all = df
-            print(f"\nNo df_all, assign df_all=df")
         else:
-            print(f"\nInside update_df, df_all head: \n{df_all.head()}")
-            print(f"\nInside update_df, df head: \n{df.head()}")
             df_all = pd.concat([df_all, df]).sort_index()
             df_all = df_all[~df_all.index.duplicated(keep="first")]  # Remove any duplicate rows
-
-            print(f"\nafter concat df_all head: \n{df_all.head()}")
-        # df_all = df_all.reset_index()
-        print(f"\nafter concat reset index df_all head: \n{df_all.head()}")
-
     return df_all
 
 
@@ -401,7 +384,6 @@ def is_weekend(date):
 
 def get_request(url: str, headers: dict, querystring: dict, username: str, password: str):
     counter = 0
-    print(f"querystring: {querystring}")
     expiry = querystring['exp'] if 'exp' in querystring else None
 
     # Check if expiry date is a holiday or weekend, this part of the logic is currently
@@ -431,7 +413,6 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
                         f"Error getting data from Theta Data: {json_resp['header']['error_type']},\nquerystring: {querystring}")
                     check_connection(username=username, password=password)
                 else:
-                    # print(f"\nthe_helper: Found valid querystring: {querystring}")
                     break
 
         except Exception as e:

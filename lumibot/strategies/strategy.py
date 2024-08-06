@@ -4188,48 +4188,41 @@ class Strategy(_Strategy):
             data_to_save = self.vars.all()
             if data_to_save:
                 json_data_to_save = json.dumps(data_to_save)
-
-            # Create a connection to the database
                 with self.db_engine.connect() as connection:
-                    # Check if the row exists
-                    check_query = text(f"""
-                        SELECT 1 FROM {self.backup_table_name} WHERE strategy_id = :strategy_id
-                    """)
+                    with connection.begin():
+                        # Check if the row exists
+                        check_query = text(f"""
+                            SELECT 1 FROM {self.backup_table_name} WHERE strategy_id = :strategy_id
+                        """)
+                        result = connection.execute(check_query, {'strategy_id': self.name}).fetchone()
 
-                    result = connection.execute(check_query, {'strategy_id': self.name}).fetchone()
-                    query=None
-                    if result:
-                        # Row exists, perform an UPDATE
-                        query = text(f"""
-                            UPDATE {self.backup_table_name}
-                            SET last_updated = :last_updated, variables = :variables
-                            WHERE strategy_id = :strategy_id
-                        """)
-                    
-                    else:
-                        # Row does not exist, perform an INSERT
-                        query = text(f"""
-                            INSERT INTO {self.backup_table_name} (id, last_updated, variables, strategy_id)
-                            VALUES (:id, :last_updated, :variables, :strategy_id)
-                        """)
-                                            
-                    connection.execute(
-                            query.bindparams(
-                                bindparam('id'),
-                                bindparam('last_updated'),
-                                bindparam('variables'),
-                                bindparam('strategy_id')
-                            ),
-                            {
+                        if result:
+                            # Update the existing row
+                            update_query = text(f"""
+                                UPDATE {self.backup_table_name}
+                                SET last_updated = :last_updated, variables = :variables
+                                WHERE strategy_id = :strategy_id
+                            """)
+                            connection.execute(update_query, {
+                                'last_updated': now,
+                                'variables': json_data_to_save,
+                                'strategy_id': self.name
+                            })
+                        else:
+                            # Insert a new row
+                            insert_query = text(f"""
+                                INSERT INTO {self.backup_table_name} (id, last_updated, variables, strategy_id)
+                                VALUES (:id, :last_updated, :variables, :strategy_id)
+                            """)
+                            connection.execute(insert_query, {
                                 'id': str(uuid.uuid4()),
                                 'last_updated': now,
                                 'variables': json_data_to_save,
                                 'strategy_id': self.name
-                            }
-                        )
-                
-                    self._last_backup_state = current_state
-                    logger.info("Variables backed up successfully")
+                            })
+                            
+                self._last_backup_state = current_state
+                logger.info("Variables backed up successfully")
             else:
                 logger.info("No variables to back up")
 
@@ -4241,8 +4234,6 @@ class Strategy(_Strategy):
             return
         
         try:
-            # Query the latest entry from the backup table
-            query = f'SELECT * FROM "{self.backup_table_name}" WHERE strategy_id = :strategy_id ORDER BY last_updated DESC LIMIT 1'            
             if not hasattr(self, 'db_engine') or not self.db_engine:
                 self.db_engine = create_engine(self.db_connection_str)
 
@@ -4251,6 +4242,9 @@ class Strategy(_Strategy):
             if not inspector.has_table(self.backup_table_name):
                 logger.info(f"Backup for {self.name} does not exist in the database. Not restoring")
                 return
+            
+             # Query the latest entry from the backup table
+            query = text(f'SELECT * FROM {self.backup_table_name} WHERE strategy_id = :strategy_id ORDER BY last_updated DESC LIMIT 1')    
             
             params = {'strategy_id': self.name}
             df = pd.read_sql_query(query, self.db_engine, params=params)
@@ -4264,9 +4258,9 @@ class Strategy(_Strategy):
 
                 # Update self.vars dictionary
                 for key, value in data.items():
-                    self.vars._vars_dict[key] = value
+                    self.vars.set(key, value)
                 
-                current_state = json.dumps(self.vars._vars_dict, sort_keys=True)
+                current_state = json.dumps(self.vars.all(), sort_keys=True)
                 self._last_backup_state = current_state
 
                 logger.info("Variables loaded successfully from database")

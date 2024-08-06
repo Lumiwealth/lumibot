@@ -49,6 +49,9 @@ class Vars:
     def __setattr__(self, name, value):
         self._vars_dict[name] = value
 
+    def set(self, name, value):
+        self._vars_dict[name] = value
+
     def all(self):
         return self._vars_dict.copy()
 

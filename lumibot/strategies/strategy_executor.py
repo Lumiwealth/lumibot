@@ -351,9 +351,6 @@ class StrategyExecutor(Thread):
         self.strategy.log_message("Executing the before_starting_trading lifecycle method")
         self.strategy.before_starting_trading()
 
-        # Variable Restore
-        self.strategy.load_variables_from_db()
-
     @lifecycle_method
     @trace_stats
     def _on_trading_iteration(self):
@@ -394,6 +391,8 @@ class StrategyExecutor(Thread):
 
         # Time-consuming
         try:
+            # Variable Restore
+            self.strategy.load_variables_from_db()
             on_trading_iteration()
 
             self.strategy._first_iteration = False

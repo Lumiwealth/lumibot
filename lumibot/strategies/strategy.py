@@ -4073,8 +4073,13 @@ class Strategy(_Strategy):
         self.send_discord_message(message, None)
 
     def send_account_summary_to_discord(self):
+        # Log that we are sending the account summary to Discord
+        self.logger.info("Considering to send account summary to Discord")
+
         # Check if we are in backtesting mode, if so, don't send the message
         if self.is_backtesting:
+            # Log that we are not sending the account summary to Discord
+            self.logger.info("Not sending account summary to Discord because we are in backtesting mode")
             return
 
         # Check if last_account_summary_dt has been set, if not, set it to None
@@ -4084,6 +4089,7 @@ class Strategy(_Strategy):
         # Check if we should send an account summary to Discord
         should_send_account_summary = self.should_send_account_summary_to_discord()
         if not should_send_account_summary:
+            # Log that we are not sending the account summary to Discord
             return
         
         # Log that we are sending the account summary to Discord
@@ -4423,7 +4429,26 @@ class Strategy(_Strategy):
 
     def should_send_account_summary_to_discord(self):
         # Check if db_connection_str has been set, if not, return False
-        if not hasattr(self, "db_connection_str") or self.db_connection_str is None or not self.discord_webhook_url or not self.should_send_summary_to_discord:
+        if not hasattr(self, "db_connection_str"):
+            # Log that we are not sending the account summary to Discord
+            self.logger.info("Not sending account summary to Discord because self does not have db_connection_str attribute")
+            return False
+        
+        if self.db_connection_str is None:
+            # Log that we are not sending the account summary to Discord
+            self.logger.info("Not sending account summary to Discord because db_connection_str is not set")
+            return False
+    
+        # Check if discord_webhook_url has been set, if not, return False
+        if not self.discord_webhook_url:
+            # Log that we are not sending the account summary to Discord
+            self.logger.info("Not sending account summary to Discord because discord_webhook_url is not set")
+            return False
+        
+        # Check if should_send_summary_to_discord has been set, if not, return False
+        if not self.should_send_summary_to_discord:
+            # Log that we are not sending the account summary to Discord
+            self.logger.info(f"Not sending account summary to Discord because should_send_summary_to_discord is False or not set. The value is: {self.should_send_summary_to_discord}")
             return False
 
         # Check if it has been at least 24 hours since the last account summary
@@ -4440,6 +4465,10 @@ class Strategy(_Strategy):
 
             # Return True because we should send the account summary to Discord
             return True
+        
+        else:
+            # Log that we are not sending the account summary to Discord
+            self.logger.info(f"Not sending account summary to Discord because it has not been at least 24 hours since the last account summary. Last account summary was at: {self.last_account_summary_dt}")
 
-        # Return False because we should not send the account summary to Discord
-        return False
+            # Return False because we should not send the account summary to Discord
+            return False

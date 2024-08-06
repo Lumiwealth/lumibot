@@ -389,7 +389,7 @@ class Tradier(Broker):
         :param strategy_object: The strategy object that placed the order
         """
         strategy_name = (
-            strategy_name if strategy_name else strategy_object.name if strategy_object else response.get("tag")
+            strategy_name if strategy_name else strategy_object.name if strategy_object else None
         )
 
         # Parse the symbol
@@ -401,6 +401,9 @@ class Tradier(Broker):
             if option_symbol and not pd.isna(option_symbol)
             else Asset.symbol2asset(symbol)
         )
+
+        # Get the reason_description if it exists
+        reason_description = response.get("reason_description", None)
 
         # Create the order object
         order = Order(
@@ -416,6 +419,7 @@ class Tradier(Broker):
             tag=response["tag"] if "tag" in response and response["tag"] else None,
             date_created=response["create_date"],
             avg_fill_price=response["avg_fill_price"] if "avg_fill_price" in response else None,
+            error_message=reason_description,
         )
         order.status = response["status"]
         order.avg_fill_price = response.get("avg_fill_price", order.avg_fill_price)
@@ -537,6 +541,9 @@ class Tradier(Broker):
                             self._process_partially_filled_order(order, order.avg_fill_price, order.quantity)
                         elif order.status == Order.OrderStatus.NEW:
                             self._process_new_order(order)
+                        elif order.status == Order.OrderStatus.ERROR:
+                            self._process_new_order(order)
+                            self._process_error_order(order, order.error_message)
                     else:
                         # Add to order in lumibot.
                         self._process_new_order(order)

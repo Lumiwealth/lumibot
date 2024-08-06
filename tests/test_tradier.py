@@ -186,6 +186,7 @@ class TestTradierBroker:
     def test_parse_broker_order(self):
         broker = Tradier(account_number="1234", access_token="a1b2c3", paper=True)
         strategy = "strat_unittest"
+        tag = "my_tag"
         stock_symbol = "SPY"
         option_symbol = "SPY200101C00150000"
 
@@ -196,11 +197,11 @@ class TestTradierBroker:
             "symbol": stock_symbol,
             "quantity": 1,
             "status": "submitted",
-            "tag": strategy,
+            "tag": tag,
             "duration": "day",
             "create_date": dt.datetime.today(),
         }
-        stock_order = broker._parse_broker_order(response, "")
+        stock_order = broker._parse_broker_order(response, strategy)
         assert stock_order.identifier == 123
         assert stock_order.strategy == strategy
         assert stock_order.asset.symbol == stock_symbol
@@ -208,6 +209,7 @@ class TestTradierBroker:
         assert stock_order.side == "buy"
         assert stock_order.status == "submitted"
         assert stock_order.type == "market"
+        assert stock_order.tag == tag
 
         # Test with an option and stop order
         response = {
@@ -217,7 +219,7 @@ class TestTradierBroker:
             "symbol": option_symbol,
             "quantity": 1,
             "status": "submitted",
-            "tag": strategy,
+            "tag": tag,
             "duration": "gtc",
             "create_date": dt.datetime.today(),
             "stop_price": 1.0,
@@ -235,10 +237,12 @@ class TestTradierBroker:
         assert option_order.status == "submitted"
         assert option_order.type == "stop"
         assert option_order.stop_price == 1.0
+        assert option_order.tag == tag
 
     def test_do_polling(self, mocker):
         broker = Tradier(account_number="1234", access_token="a1b2c3", paper=True, polling_interval=None)
         strategy = "strat_unittest"
+        broker._strategy_name = strategy
         mock_get_orders = mocker.patch.object(broker, '_pull_broker_all_orders', return_value=[])
         submit_response = {'id': 123, 'status': 'ok'}
         mock_submit_order = mocker.patch.object(broker.tradier.orders, 'order', return_value=submit_response)
@@ -350,7 +354,7 @@ class TestTradierBroker:
         sleep(0.25)  # Sleep gives a chance for order processing thread to finish
         known_orders = broker.get_tracked_orders(strategy=strategy)
         filled_orders = broker._filled_orders
-        assert len(known_orders) == 1, "Tracked does not include filled orders."
+        assert len(known_orders) == 2, "Tracked should include filled orders."
         assert len(filled_orders) == 1
         order1 = filled_orders[0]
         assert order1.identifier == 123
@@ -359,7 +363,8 @@ class TestTradierBroker:
         assert order1.get_fill_price() == 101.0
         assert len(broker._new_orders) == 1
         assert not len(broker._unprocessed_orders)
-        assert len(broker.get_all_orders()) == 2, "Includes Filled orders"
+        all_orders = broker.get_all_orders()
+        assert len(all_orders) == 2, "Includes Filled orders"
 
         # Cancel the 2nd order (stoploss)
         second_response["status"] = "canceled"
@@ -367,7 +372,7 @@ class TestTradierBroker:
         broker.do_polling()
         sleep(0.25)  # Sleep gives a chance for order processing thread to finish
         known_orders = broker.get_tracked_orders(strategy=strategy)
-        assert len(known_orders) == 0, "Canceled orders no longer tracked."
+        assert len(known_orders) == 2, "Canceled orders stay tracked."
         assert len(broker._new_orders) == 0
         assert not len(broker._unprocessed_orders)
         assert len(broker.get_all_orders()) == 2, "Includes Filled/Cancelled orders"
@@ -382,7 +387,7 @@ class TestTradierBroker:
         broker.do_polling()
         sleep(0.25)  # Sleep gives a chance for order processing thread to finish
         known_orders = broker.get_tracked_orders(strategy=strategy)
-        assert len(known_orders) == 0, "Canceled orders no longer tracked."
+        assert len(known_orders) == 2, "Canceled orders stay tracked."
         assert len(broker._new_orders) == 0
         assert not len(broker._unprocessed_orders)
         assert len(broker.get_all_orders()) == 2, "Includes Filled/Cancelled orders"
@@ -398,7 +403,7 @@ class TestTradierBroker:
         assert len(broker._unprocessed_orders) == 1
         assert len(broker._new_orders) == 0
         assert len(broker.get_all_orders()) == 3, "Includes Filled/Cancelled orders"
-        assert len(broker.get_tracked_orders()) == 1
+        assert len(broker.get_tracked_orders()) == 3
 
         third_response = {
             "id": 125,
@@ -418,7 +423,7 @@ class TestTradierBroker:
         broker.do_polling()
         sleep(0.25)  # Sleep gives a chance for order processing thread to finish
         known_orders = broker.get_tracked_orders(strategy=strategy)
-        assert len(known_orders) == 0, "Rejected orders no longer tracked. They get canceled and set with error msg."
+        assert len(known_orders) == 3, "Rejected orders still stay tracked."
         assert len(broker._new_orders) == 0
         assert not len(broker._unprocessed_orders)
         assert len(broker._canceled_orders) == 2
@@ -443,7 +448,7 @@ class TestTradierBroker:
         broker.do_polling()
         sleep(0.25)  # Sleep gives a chance for order processing thread to finish
         known_orders = broker.get_tracked_orders(strategy=strategy)
-        assert len(known_orders) == 0
+        assert len(known_orders) == 4
         assert len(broker._new_orders) == 0
         assert not len(broker._unprocessed_orders)
         assert len(broker._canceled_orders) == 3
@@ -469,10 +474,11 @@ class TestTradierBroker:
         broker.do_polling()
         sleep(0.25)  # Sleep gives a chance for order processing thread to finish
         known_orders = broker.get_tracked_orders(strategy=strategy)
-        assert len(known_orders) == 1, "New orders are tracked."
+        assert len(known_orders) == 5, "New orders are tracked."
         assert len(broker._new_orders) == 1
         assert not len(broker._unprocessed_orders)
-        order = known_orders[0]
+        # # Find the new order in the list of known orders
+        order = next((order for order in known_orders if order.status == "new"), None)
         assert order.identifier == 127
         assert order.status == "new"
         assert not order.get_fill_price()
@@ -482,8 +488,8 @@ class TestTradierBroker:
         broker.do_polling()
         sleep(0.25)  # Sleep gives a chance for order processing thread to finish
         known_orders = broker.get_tracked_orders(strategy=strategy)
-        assert not len(known_orders), "Filled orders no longer tracked."
-        assert len(broker._new_orders) == 0
+        assert len(known_orders) == 5, "Filled orders are still being tracked."
+        assert len(broker._new_orders) == 0 # New order is no longer new
         assert not len(broker._unprocessed_orders)
         assert len(broker.get_all_orders()) == 5, "Includes Filled/Cancelled orders and order not in Broker info"
         order = broker.get_order(127)

@@ -397,6 +397,10 @@ class Alpaca(Broker):
         else:
             trade_symbol = order.asset.symbol
 
+        # If order type is OCO, set to limit (Alpaca wants this for OCO)
+        if order.type == Order.OrderType.OCO:
+            order.type = Order.OrderType.LIMIT
+
         kwargs = {
             "symbol": trade_symbol,
             "qty": qty,

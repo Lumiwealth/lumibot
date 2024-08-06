@@ -3,6 +3,7 @@ import uuid
 from collections import namedtuple
 from decimal import Decimal
 from threading import Event
+import copy
 
 import lumibot.entities as entities
 from lumibot.tools.types import check_positive, check_price, check_quantity
@@ -34,6 +35,7 @@ STATUS_ALIAS_MAP = {
     "calculated": "open",  # Alpaca status
     "accepted_for_bidding": "open",  # Alpaca status
     "held": "open",  # Alpaca status
+    "expired": "canceled",  # Tradier status
 }
 
 
@@ -67,33 +69,37 @@ class Order:
         PARTIALLY_FILLED = "partial_fill"
         CASH_SETTLED = "cash_settled"
         ERROR = "error"
+        EXPIRED = "expired"
 
     def __init__(
         self,
         strategy,
-        asset,
-        quantity,
-        side,
-        limit_price=None,
-        stop_price=None,
-        take_profit_price=None,
-        stop_loss_price=None,
-        stop_loss_limit_price=None,
-        trail_price=None,
-        trail_percent=None,
-        time_in_force="day",
-        good_till_date=None,
-        exchange=None,
-        position_filled=False,
-        quote=None,
-        pair=None,
-        date_created=None,
-        type=None,
+        asset = None,
+        quantity = None,
+        side = None,
+        limit_price = None,
+        stop_price = None,
+        take_profit_price = None,
+        stop_loss_price = None,
+        stop_loss_limit_price = None,
+        trail_price = None,
+        trail_percent = None,
+        time_in_force = "day",
+        good_till_date = None,
+        exchange = None,
+        position_filled = False,
+        quote = None,
+        pair = None,
+        date_created = None,
+        type = None,
         trade_cost: float = None,
-        custom_params={},
-        identifier=None,
-        avg_fill_price=None,
-        tag="",
+        custom_params = {},
+        identifier = None,
+        avg_fill_price = None,
+        error_message = None,
+        child_orders = [],
+        tag = "",
+        status = "unprocessed",
     ):
         """Order class for managing individual orders.
 
@@ -191,6 +197,14 @@ class Order:
         tag: str
             A tag that can be used to identify the order. This is useful for tracking orders in the broker. Not all
             brokers support this feature and lumibot will simply ignore it for those that don't.
+        identifier : str
+            A unique identifier for the order. If not provided, a random UUID will be generated.
+        error_message : str
+            The error message if the order was not processed successfully.
+        child_orders : list
+            A list of child orders that are associated with this order. This is useful for bracket orders where the
+            take profit and stop loss orders are associated with the parent order, or for OCO orders where the two orders
+            are associated with each other.
         Examples
         --------
         >>> from lumibot.entities import Asset
@@ -235,7 +249,12 @@ class Order:
         'test'
 
         """
-        if asset == quote:
+        # Ensure child_orders is properly initialized
+        if child_orders is None:
+            child_orders = []
+        self.child_orders = copy.deepcopy(child_orders)  # Ensure deep copy
+
+        if asset == quote and asset is not None:
             logging.error(
                 f"When creating an Order, asset and quote must be different. Got asset = {asset} and quote = {quote}"
             )
@@ -247,10 +266,6 @@ class Order:
         # Initialization default values
         self.strategy = strategy
 
-        # Check that quantity is a number
-        if not isinstance(quantity, (int, float, Decimal)):
-            raise ValueError("Order quantity must be a number")
-
         # It is possible for crypto currencies to arrive as a tuple of
         # two assets.
         if isinstance(asset, tuple) and asset[0].asset_type == "crypto":
@@ -260,7 +275,7 @@ class Order:
             self.asset = asset
             self.quote = quote
 
-        self.symbol = self.asset.symbol
+        self.symbol = self.asset.symbol if self.asset else None
         self.identifier = identifier if identifier else uuid.uuid4().hex
         self._status = "unprocessed"
         self._date_created = date_created
@@ -273,8 +288,8 @@ class Order:
         self.trail_price = None
         self.trail_percent = None
         self.price_triggered = False
-        self.take_profit_price = None
-        self.stop_loss_price = None
+        self.take_profit_price = None # Used for bracket, OTO, and OCO orders TODO: Remove this because it is confusing (use child orders instead)
+        self.stop_loss_price = None # Used for bracket, OTO, and OCO orders TODO: Remove this because it is confusing (use child orders instead)
         self.stop_loss_limit_price = None
         self.transactions = []
         self.order_class = None
@@ -285,15 +300,19 @@ class Order:
         self.custom_params = custom_params
         self._trail_stop_price = None
         self.tag = tag
-        self.avg_fill_price = avg_fill_price # The weighted average filled price for this order. Calculated if not given by broker
+        self._avg_fill_price = avg_fill_price # The weighted average filled price for this order. Calculated if not given by broker
         self.broker_create_date = None  # The datetime the order was created by the broker
         self.broker_update_date = None  # The datetime the order was last updated by the broker
+        self.status = status
 
         # Options:
         self.exchange = exchange
 
         # Cryptocurrency market.
-        self.pair = f"{self.asset.symbol}/{self.quote.symbol}" if self.asset.asset_type == "crypto" else pair
+        if self.asset and self.asset.asset_type == "crypto":
+            self.pair = f"{self.asset.symbol}/{self.quote.symbol}"
+        else: 
+            self.pair = pair
 
         # setting events
         self._new_event = Event()
@@ -306,9 +325,9 @@ class Order:
         self._raw = None
         self._transmitted = False
         self._error = None
-        self.error_message = None
+        self.error_message = error_message
 
-        self.quantity = quantity
+        self._quantity = quantity
 
         self.side = side
 
@@ -322,6 +341,17 @@ class Order:
             trail_percent,
             position_filled,
         )
+
+    def add_child_order(self, o):
+        """
+        Add a child order to the parent order.
+
+        Parameters
+        ----------
+        o : Order
+            The child order to add to the parent order.
+        """
+        self.child_orders.append(o)
 
     def update_trail_stop_price(self, price):
         """Update the trail stop price.
@@ -401,23 +431,23 @@ class Order:
         if self.type is None:
             # Check if this is a trailing stop order
             if trail_price is not None or trail_percent is not None:
-                self.type = "trailing_stop"
+                self.type = self.OrderType.TRAIL
 
             # Check if this is a market order
             elif limit_price is None and stop_price is None:
-                self.type = "market"
+                self.type = self.OrderType.MARKET
 
             # Check if this is a stop order
             elif limit_price is None and stop_price is not None:
-                self.type = "stop"
+                self.type = self.OrderType.STOP
 
             # Check if this is a limit order
             elif limit_price is not None and stop_price is None:
-                self.type = "limit"
+                self.type = self.OrderType.LIMIT
 
             # Check if this is a stop limit order
             elif limit_price is not None and stop_price is not None:
-                self.type = "stop_limit"
+                self.type = self.OrderType.STOP_LIMIT
 
             else:
                 raise ValueError(
@@ -427,12 +457,10 @@ class Order:
 
         if self.type == "oco":
             # This is a "One-Cancel-Other" advanced order
-            self.order_class = "oco"
-            self.type = "limit"  # Needs to be set as limit order for Alpaca
+            self.order_class = self.OrderType.OCO
+            self.type = self.OrderType.OCO
             self.position_filled = True
-            if stop_loss_price is None or take_profit_price is None:
-                raise ValueError("stop_loss_price and take_profit_loss must be defined for oco class orders")
-            else:
+            if stop_loss_price is not None and take_profit_price is not None:
                 self.take_profit_price = check_price(take_profit_price, "take_profit_price must be positive float.")
                 self.stop_loss_price = check_price(stop_loss_price, "stop_loss_price must be positive float.")
                 self.stop_loss_limit_price = check_price(
@@ -440,6 +468,35 @@ class Order:
                     "stop_loss_limit_price must be positive float.",
                     nullable=True,
                 )
+
+                # Create the child orders
+                self.child_orders = [
+                    Order(
+                        strategy=self.strategy,
+                        asset=self.asset,
+                        quantity=self.quantity,
+                        side=self.side,
+                        limit_price=self.take_profit_price,
+                        type="limit",
+                        position_filled=True,
+                    ),
+                    Order(
+                        strategy=self.strategy,
+                        asset=self.asset,
+                        quantity=self.quantity,
+                        side=self.side,
+                        limit_price=self.stop_loss_limit_price,
+                        stop_price=self.stop_loss_price,
+                        type="stop_limit",
+                        position_filled=True,
+                    ),
+                ]
+
+            elif len(self.child_orders) == 2:
+                # Verify that the child orders are valid order objects
+                for child_order in self.child_orders:
+                    if not isinstance(child_order, Order):
+                        raise ValueError("Child orders must be of type Order")
 
         elif self.type == "bracket":
             # This is a "One-Cancel-Other" advanced order
@@ -524,7 +581,8 @@ class Order:
 
     @avg_fill_price.setter
     def avg_fill_price(self, value):
-        self._avg_fill_price = round(float(value), 2) if value else 0.0
+        if self._avg_fill_price is not None:
+            self._avg_fill_price = round(float(value), 2) if value else 0.0
 
     @property
     def status(self):
@@ -574,13 +632,17 @@ class Order:
         )
 
     def __repr__(self):
-        self.rep_asset = self.symbol
-        if self.asset.asset_type == "crypto":
-            self.rep_asset = f"{self.pair}"
-        elif self.asset.asset_type == "future":
-            self.rep_asset = f"{self.symbol} {self.asset.expiration}"
-        elif self.asset.asset_type == "option":
-            self.rep_asset = f"{self.symbol} {self.asset.expiration} " f"{self.asset.right} {self.asset.strike}"
+        if self.asset is None:
+            self.rep_asset = self.symbol
+        else:
+            if self.asset.asset_type == "crypto":
+                self.rep_asset = f"{self.pair}"
+            elif self.asset.asset_type == "future":
+                self.rep_asset = f"{self.symbol} {self.asset.expiration}"
+            elif self.asset.asset_type == "option":
+                self.rep_asset = f"{self.symbol} {self.asset.expiration} " f"{self.asset.right} {self.asset.strike}"
+            else:
+                self.rep_asset = self.symbol
 
         price = None
         for attribute in ["limit_price", "stop_price", "take_profit_price"]:
@@ -590,12 +652,17 @@ class Order:
         if self.is_filled():
             price = self.get_fill_price()
 
-        repr_str = f"{self.type} order of | {self.quantity} {self.rep_asset} {self.side} |"
+        # If there are child orders, list them in the repr
+        if self.child_orders:
+            repr_str = f"{self.type} order |"
+            for child_order in self.child_orders:
+                repr_str = f"{repr_str} {child_order.type} {child_order.side} {child_order.quantity} {child_order.asset} |"
+        else:
+            repr_str = f"{self.type} order of | {self.quantity} {self.rep_asset} {self.side} |"
         if price:
-            repr_str = f"{repr_str} at price ${price}"
-        if self.order_class:
-            repr_str = f"{repr_str} of class {self.order_class}"
-        repr_str = f"{repr_str} with status {self.status}"
+            repr_str = f"{repr_str} @ ${price}"
+
+        repr_str = f"{repr_str} {self.status}"
         return repr_str
 
     def set_identifier(self, identifier):

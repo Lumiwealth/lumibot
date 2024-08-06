@@ -7,7 +7,7 @@ import json
 from asyncio.log import logger
 from decimal import Decimal
 from typing import Union
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import create_engine, inspect, text, bindparam
 
 import jsonpickle
 import matplotlib
@@ -4159,31 +4159,75 @@ class Strategy(_Strategy):
     def backup_variables_to_db(self):
         if not hasattr(self, "db_connection_str") or self.db_connection_str is None or not self.should_backup_variables_to_database:
             return
-    
-        current_state = json.dumps(self.vars._vars_dict, sort_keys=True)
+
+        # Ensure we have a self.db_engine
+        if not hasattr(self, 'db_engine') or not self.db_engine:
+            self.db_engine = create_engine(self.db_connection_str)
+        
+        # Get the current time in New York
+        ny_tz = pytz.timezone("America/New_York")
+        now = datetime.datetime.now(ny_tz)
+        
+        if not inspect(self.db_engine).has_table(self.backup_table_name):
+            # Log that the table does not exist and we are creating it
+            self.logger.info(f"Table {self.backup_table_name} does not exist. Creating it now.")
+
+            # Create an empty stats dataframe
+            stats_new = pd.DataFrame(
+                {
+                    "id": [str(uuid.uuid4())],
+                    "last_updated": [now],
+                    "variables": ["INITIAL VALUE"],
+                    "strategy_id": ["INITIAL VALUE"]
+                }
+            )
+
+            # Create the table by saving this empty DataFrame to the database
+            stats_new.to_sql(self.backup_table_name, self.db_engine, if_exists='replace', index=False)
+
+        current_state = json.dumps(self.vars.all(), sort_keys=True)
         if current_state == self._last_backup_state:
             self.logger.info("No variables changed. Not backing up.")
             return
 
         try:
-            data_to_save = self.vars._vars_dict
+            data_to_save = self.vars.all()
             if data_to_save:
                 json_data_to_save = json.dumps(data_to_save)
+                with self.db_engine.connect() as connection:
+                    with connection.begin():
+                        # Check if the row exists
+                        check_query = text(f"""
+                            SELECT 1 FROM {self.backup_table_name} WHERE strategy_id = :strategy_id
+                        """)
+                        result = connection.execute(check_query, {'strategy_id': self.name}).fetchone()
 
-                ny_tz = pytz.timezone("America/New_York")
-                now = datetime.datetime.now(ny_tz)
-
-                df = pd.DataFrame(
-                    {
-                        "id": [str(uuid.uuid4())],
-                        "last_updated": [now],
-                        "variables": [json_data_to_save]
-                    }
-                )
-
-                self.to_sql(df, self.name, self.db_connection_str, 'replace', False)
+                        if result:
+                            # Update the existing row
+                            update_query = text(f"""
+                                UPDATE {self.backup_table_name}
+                                SET last_updated = :last_updated, variables = :variables
+                                WHERE strategy_id = :strategy_id
+                            """)
+                            connection.execute(update_query, {
+                                'last_updated': now,
+                                'variables': json_data_to_save,
+                                'strategy_id': self.name
+                            })
+                        else:
+                            # Insert a new row
+                            insert_query = text(f"""
+                                INSERT INTO {self.backup_table_name} (id, last_updated, variables, strategy_id)
+                                VALUES (:id, :last_updated, :variables, :strategy_id)
+                            """)
+                            connection.execute(insert_query, {
+                                'id': str(uuid.uuid4()),
+                                'last_updated': now,
+                                'variables': json_data_to_save,
+                                'strategy_id': self.name
+                            })
+                            
                 self._last_backup_state = current_state
-
                 logger.info("Variables backed up successfully")
             else:
                 logger.info("No variables to back up")
@@ -4192,23 +4236,25 @@ class Strategy(_Strategy):
             logger.error(f"Error backing up variables to DB: {e}", exc_info=True)
 
     def load_variables_from_db(self):
-        if not self.should_backup_variables_to_database:
+        if not hasattr(self, "db_connection_str") or self.db_connection_str is None or not self.should_backup_variables_to_database:
             return
         
         try:
-            # Query the latest entry from the backup table
-            query = f'SELECT * FROM "{self.name}" ORDER BY last_updated DESC LIMIT 1'
             if not hasattr(self, 'db_engine') or not self.db_engine:
                 self.db_engine = create_engine(self.db_connection_str)
 
             # Check if backup table exists
             inspector = inspect(self.db_engine)
-            if not inspector.has_table(self.name):
+            if not inspector.has_table(self.backup_table_name):
                 logger.info(f"Backup for {self.name} does not exist in the database. Not restoring")
                 return
             
-            df = pd.read_sql_query(query, self.db_engine)
-        
+             # Query the latest entry from the backup table
+            query = text(f'SELECT * FROM {self.backup_table_name} WHERE strategy_id = :strategy_id ORDER BY last_updated DESC LIMIT 1')    
+            
+            params = {'strategy_id': self.name}
+            df = pd.read_sql_query(query, self.db_engine, params=params)
+
             if df.empty:
                 logger.warning("No data found in the backup")
             else:
@@ -4218,9 +4264,9 @@ class Strategy(_Strategy):
 
                 # Update self.vars dictionary
                 for key, value in data.items():
-                    self.vars._vars_dict[key] = value
+                    self.vars.set(key, value)
                 
-                current_state = json.dumps(self.vars._vars_dict, sort_keys=True)
+                current_state = json.dumps(self.vars.all(), sort_keys=True)
                 self._last_backup_state = current_state
 
                 logger.info("Variables loaded successfully from database")

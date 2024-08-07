@@ -36,7 +36,7 @@ credentials['DB_CONNECTION_STR'] = os.environ.get("DB_CONNECTION_STR")
 credentials['STRATEGY_NAME'] = os.environ.get("STRATEGY_NAME")
 
 # Polygon API Key
-credentials['POLYGON_CONFIG'] = {"API_KEY": os.environ.get("POLYGON_API_KEY")}
+credentials['POLYGON_API_KEY'] = os.environ.get("POLYGON_API_KEY")
 
 ALPACA_CONFIG = {  # Paper trading!
     # Add ALPACA_API_KEY, ALPACA_API_SECRET, and ALPACA_IS_PAPER to your .env file or set them as secrets

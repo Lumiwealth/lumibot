@@ -249,7 +249,6 @@ class PandasData(DataSourceBacktesting):
         now = self.get_datetime()
         try:
             res = data.get_bars(now, length=length, timestep=timestep, timeshift=timeshift)
-            # print(f"\npandas_data.py:_pull_source_symbol_bars after data.get_bars, time:{now}")
         # Return None if data.get_bars returns a ValueError
         except ValueError as e:
             logging.info(f"Error getting bars for {asset}: {e}")

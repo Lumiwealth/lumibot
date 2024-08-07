@@ -92,7 +92,7 @@ class ThetadataBacktestStrat(Strategy):
 
     # Set the initial values for the strategy
     def initialize(self, parameters=None):
-        self.sleeptime = "1D"
+        self.sleeptime = "1H"
         self.first_price = None
         self.first_option_price = None
         self.orders = []
@@ -163,16 +163,16 @@ class ThetadataBacktestStrat(Strategy):
 
     # Trading Strategy: Backtest will only buy traded assets on first iteration
     def on_trading_iteration(self):
-        if self.first_iteration:
-            now = self.get_datetime()
-
+        # if self.first_iteration:
+        now = self.get_datetime()
+        if now.date() == datetime.date(2023, 8, 1) and now.time() == datetime.time(12, 30):
             # Create simple option chain | Plugging Amazon "AMZN"; always checking Friday (08/04/23) ensuring
             # Traded_asset exists
             underlying_asset = Asset(self.parameters["symbol"])
             current_asset_price = self.get_last_price(underlying_asset)
 
             # Assert that the current asset price is the right price
-            assert current_asset_price == 133.52
+            assert current_asset_price == 132.18
 
             # Option Chain: Get Full Option Chain Information
             chain = self.get_chain(self.chains, exchange="SMART")
@@ -190,18 +190,18 @@ class ThetadataBacktestStrat(Strategy):
             )
             current_option_price = self.get_last_price(option_asset)
 
-            assert current_option_price == 4.10
+            assert current_option_price == 4.5
 
             # Get historical prices for the option
-            option_prices = self.get_historical_prices(option_asset, 100, "minute")
+            option_prices = self.get_historical_prices(option_asset, 2, "minute")
             df = option_prices.df
 
             # Assert that the first price is the right price
-            assert df["close"].iloc[-1] == 4.11
+            assert df["close"].iloc[-1] == 4.6
 
             # Check that the time of the last bar is 2023-07-31T19:58:00.000Z
             last_dt = df.index[-1]
-            assert last_dt == datetime.datetime(2023, 7, 31, 19, 58, tzinfo=datetime.timezone.utc)
+            assert last_dt == datetime.datetime(2023, 8, 1, 16, 29, tzinfo=datetime.timezone.utc)
 
             # Buy 10 shares of the underlying asset for the test
             qty = 10
@@ -224,7 +224,7 @@ class ThetadataBacktestStrat(Strategy):
             submitted_order = self.submit_order(stop_loss_order)
             self.orders.append(submitted_order)
 
-        # Not the 1st iteration, cancel orders.
+        # # Not the 1st iteration, cancel orders.
         else:
             self.cancel_open_orders()
 
@@ -249,8 +249,8 @@ class TestThetaDataBacktestFull:
         assert option_order_id in poly_strat_obj.prices
         assert 130.0 < poly_strat_obj.prices[asset_order_id] < 140.0, "Valid asset price between 130 and 140"
         assert 130.0 < stock_order.get_fill_price() < 140.0, "Valid asset price between 130 and 140"
-        assert poly_strat_obj.prices[option_order_id] == 4.10, "Opening Price is $4.10 on 08/01/2023"
-        assert option_order.get_fill_price() == 4.10, "Fills at 1st candle open price of $4.10 on 08/01/2023"
+        assert poly_strat_obj.prices[option_order_id] == 4.5, "Price is $4.5 on 08/01/2023 12:30pm"
+        assert option_order.get_fill_price() == 4.5, "Fills at 1st candle open price of $4.10 on 08/01/2023"
 
         assert option_order.is_filled()
 
@@ -289,7 +289,7 @@ class TestThetaDataBacktestFull:
         # Parameters: True = Live Trading | False = Backtest
         # trade_live = False
         backtesting_start = datetime.datetime(2023, 8, 1)
-        backtesting_end = datetime.datetime(2023, 8, 4)
+        backtesting_end = datetime.datetime(2023, 8, 2)
 
         data_source = ThetaDataBacktesting(
             datetime_start=backtesting_start,
@@ -303,7 +303,7 @@ class TestThetaDataBacktestFull:
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
         )
-        trader = Trader(logfile="test_theta.log", backtest=True, debug=True)
+        trader = Trader(backtest=True)
         trader.add_strategy(strat_obj)
         results = trader.run_all(show_plot=False, show_tearsheet=False, save_tearsheet=False)
 

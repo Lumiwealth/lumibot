@@ -103,8 +103,4 @@ else:
     elif INTERACTIVE_BROKERS_CONFIG["SOCKET_PORT"]:
         broker = InteractiveBrokers(INTERACTIVE_BROKERS_CONFIG)
 
-    # If no broker is set, raise an error
-    else:
-        raise ValueError("No broker set! Please set a broker in a .env file or as a secret.")
-
 credentials['BROKER'] = broker

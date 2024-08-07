@@ -829,7 +829,7 @@ class _Strategy:
         api_key=None,
         polygon_api_key=None,
         polygon_has_paid_subscription=None,  # Depricated, this is now automatic. Remove in future versions.
-        use_thetadata_for_options=False,
+        use_other_option_source=False,
         thetadata_username=None,
         thetadata_password=None,
         indicators_file=None,
@@ -975,12 +975,6 @@ class _Strategy:
             backtesting_end = args[2]
             name = kwargs.get("name", name)
             budget = kwargs.get("budget", budget)
-        elif len(args) == 4:
-            use_thetadata_for_options = True
-            datasource_class = args[0]
-            optionsource_class = args[1]
-            backtesting_start = args[2]
-            backtesting_end = args[3]
         elif len(args) == 5:
             name = args[0]
             budget = args[1]
@@ -1003,6 +997,15 @@ class _Strategy:
 
         if not api_key and polygon_api_key:
             api_key = polygon_api_key
+
+        # check if datasource_class is a class or a dictionary
+        if isinstance(datasource_class, dict):
+            optionsource_class = datasource_class["OPTION"]
+            datasource_class = datasource_class["STOCK"]
+            use_other_option_source = True
+        else:
+            optionsource_class = None
+            use_other_option_source = False
 
         # Make a string with 6 random numbers/letters (upper and lowercase) to avoid overwriting
         random_string = "".join(random.choices(string.ascii_letters + string.digits, k=6))
@@ -1036,7 +1039,7 @@ class _Strategy:
             raise ValueError(f"`datasource_class` must be a class. You passed in {datasource_class}")
 
         # Check optionsource_class
-        if use_thetadata_for_options and not isinstance(optionsource_class, type):
+        if use_other_option_source and not isinstance(optionsource_class, type):
             raise ValueError(f"`optionsource_class` must be a class. You passed in {optionsource_class}")
 
         cls.verify_backtest_inputs(backtesting_start, backtesting_end)
@@ -1050,7 +1053,7 @@ class _Strategy:
             )
 
         # Make sure thetadata_username and thetadata_password are set if using ThetaDataBacktesting
-        if use_thetadata_for_options and optionsource_class == ThetaDataBacktesting and (thetadata_username is None or thetadata_password is None):
+        if use_other_option_source and optionsource_class == ThetaDataBacktesting and (thetadata_username is None or thetadata_password is None):
             raise ValueError(
                 "Please set `thetadata_username` and `thetadata_password` in the backtest() function if "
                 "you are using ThetaDataBacktesting. If you don't have one, you can do registeration "
@@ -1085,7 +1088,7 @@ class _Strategy:
             **kwargs,
         )
 
-        if not use_thetadata_for_options:
+        if not use_other_option_source:
             backtesting_broker = BacktestingBroker(data_source)
         else:
             options_source = optionsource_class(

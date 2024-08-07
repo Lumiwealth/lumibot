@@ -637,8 +637,6 @@ class BacktestingBroker(Broker):
                 low = df["low"].iloc[0]
                 close = df["close"].iloc[0]
                 volume = df["volume"].iloc[0]
-                print(f"\nin BacktestingBroker, asset: {asset}, dt: {dt}")
-                print(f"in BacktestingBroker, OHLCV: {open}, {high}, {low}, {close}, {volume}")
 
             #############################
             # Determine transaction price.

@@ -24,6 +24,7 @@ from lumibot.tools import (
 from lumibot.traders import Trader
 
 from .strategy_executor import StrategyExecutor
+from .credentials import credentials
     
 class CustomLoggerAdapter(logging.LoggerAdapter):
     def __init__(self, logger, extra):
@@ -62,7 +63,7 @@ class _Strategy:
     def __init__(
         self,
         *args,
-        broker=None,
+        broker=credentials['BROKER'],
         minutes_before_closing=1,
         minutes_before_opening=60,
         sleeptime="1M",
@@ -74,15 +75,15 @@ class _Strategy:
         quote_asset=Asset(symbol="USD", asset_type="forex"),
         starting_positions=None,
         filled_order_callback=None,
-        name=None,
+        name=credentials['STRATEGY_NAME'],
         budget=None,
         parameters={},
         buy_trading_fees=[],
         sell_trading_fees=[],
         force_start_immediately=False,
-        discord_webhook_url=None,
+        discord_webhook_url=credentials['DISCORD_WEBHOOK_URL'],
         account_history_db_connection_str=None,
-        db_connection_str=None,
+        db_connection_str=credentials['DB_CONNECTION_STR'],
         strategy_id=None,
         discord_account_summary_footer=None,
         should_backup_variables_to_database=False,
@@ -188,6 +189,7 @@ class _Strategy:
         self.sell_trading_fees = sell_trading_fees
         self.save_logfile = save_logfile
 
+        # ---
         if len(args) == 1:
             if isinstance(args[0], str):
                 self._name = args[0]
@@ -211,6 +213,7 @@ class _Strategy:
                 "the broker class as the first positional argument and the rest as keyword arguments. \n"
                 "For example `MyStrategy(broker, name=strategy_name, budget=budget)`\n"
             )
+            # ---
         else:
             self.broker = broker
             self._name = name
@@ -238,11 +241,15 @@ class _Strategy:
         self.broker.quote_assets.add(self._quote_asset)
 
         # Setting the broker object
-        self._is_backtesting = self.broker.IS_BACKTESTING_BROKER
+        if self.broker == None:
+            self.is_backtesting = True
+        else:
+            self.is_backtesting = self.broker.IS_BACKTESTING_BROKER
+
         self._benchmark_asset = benchmark_asset
 
         # Get the backtesting start and end dates from the broker data source if we are backtesting
-        if self._is_backtesting:
+        if self.is_backtesting:
             if self.broker.data_source.datetime_start is not None and self.broker.data_source.datetime_end is not None:
                 self._backtesting_start = self.broker.data_source.datetime_start
                 self._backtesting_end = self.broker.data_source.datetime_end
@@ -260,7 +267,7 @@ class _Strategy:
         self._asset_mapping = dict()
 
         # Setting the data provider
-        if self._is_backtesting:
+        if self.is_backtesting:
             if self.broker.data_source.SOURCE == "PANDAS":
                 self.broker.data_source.load_data()
 
@@ -283,7 +290,7 @@ class _Strategy:
 
         # Setting execution parameters
         self._last_on_trading_iteration_datetime = None
-        if not self._is_backtesting:
+        if not self.is_backtesting:
             self.update_broker_balances()
 
             # Set initial positions if live trading.
@@ -378,7 +385,7 @@ class _Strategy:
                 "_minutes_before_closing",
                 "_minutes_before_opening",
                 "_sleeptime",
-                "_is_backtesting",
+                "is_backtesting",
             ]:
                 result[key[1:]] = self.__dict__[key]
 
@@ -442,7 +449,7 @@ class _Strategy:
         bool
             True if the broker's balances were updated, False otherwise
         """
-        if self._is_backtesting:
+        if self.is_backtesting:
             return True
 
         if "last_broker_balances_update" not in self.__dict__:
@@ -481,7 +488,7 @@ class _Strategy:
 
     def _update_portfolio_value(self):
         """updates self.portfolio_value"""
-        if not self._is_backtesting:
+        if not self.is_backtesting:
             broker_balances = self.broker._get_balances_at_broker(self.quote_asset)
 
             if broker_balances is not None:
@@ -527,7 +534,7 @@ class _Strategy:
                     elif isinstance(asset, Asset) and asset == self.quote_asset:
                         price = 0
 
-                if self._is_backtesting and price is None:
+                if self.is_backtesting and price is None:
                     if isinstance(asset, Asset):
                         raise ValueError(
                             f"A security has returned a price of None while trying "
@@ -643,7 +650,7 @@ class _Strategy:
         logger.setLevel(current_level)
 
     def _dump_benchmark_stats(self):
-        if not self._is_backtesting:
+        if not self.is_backtesting:
             return
         if self._backtesting_start is not None and self._backtesting_end is not None:
             # Need to adjust the backtesting end date because the data from Yahoo

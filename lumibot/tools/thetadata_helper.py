@@ -12,6 +12,7 @@ from lumibot import LUMIBOT_CACHE_FOLDER
 from lumibot.entities import Asset
 from thetadata import ThetaClient
 import holidays
+from tqdm import tqdm
 
 WAIT_TIME = 60
 MAX_DAYS = 30
@@ -96,11 +97,16 @@ def get_price_data(
             df_all.index = df_all.index + pd.Timedelta(hours=THETA_WINTER_TIME_SHIFT) - pd.Timedelta(minutes=1)
         return df_all
 
-    logging.info(
-        f"\nGetting pricing data for {asset} / {quote_asset} with '{timespan}' timespan directly from ThetaData datastream...")
-
     start = missing_dates[0]  # Data will start at 8am UTC (4am EST)
     end = missing_dates[-1]  # Data will end at 23:59 UTC (7:59pm EST)
+
+    # Initialize tqdm progress bar
+    total_days = (end - start).days + 1
+    total_queries = (total_days // MAX_DAYS) + 1
+    description = f"\nDownloading data for {asset} / {quote_asset} with '{timespan}' from ThetaData..."
+    logging.info(description)
+    pbar = tqdm(total=total_queries, desc=description, dynamic_ncols=True)
+
     delta = timedelta(days=MAX_DAYS)
 
     interval_ms = None
@@ -126,6 +132,9 @@ def get_price_data(
 
         result_df = get_historical_data(asset, start, end, interval_ms, username, password)
 
+        # Update progress bar after each query
+        pbar.update(1)
+
         if result_df is None or len(result_df) == 0:
             logging.warning(
                 f"No data returned for {asset} / {quote_asset} with '{timespan}' timespan between {start} and {end}"
@@ -139,6 +148,9 @@ def get_price_data(
 
         if asset.expiration and start > asset.expiration:
             break
+
+    # Close the progress bar when done
+    pbar.close()
 
     update_cache(cache_file, df_all, df_feather)
     if is_summer_time(start):

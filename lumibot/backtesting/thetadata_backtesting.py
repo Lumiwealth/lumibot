@@ -138,7 +138,7 @@ class ThetaDataBacktesting(PandasData):
                 self.datetime_end,
                 timespan=ts_unit,
                 quote_asset=quote_asset,
-                dt=self.get_datetime()
+                dt=date_time_now
             )
             # save df to csv file
             # df.to_csv(f"theta_csv/{date_time_now}_{asset.strike}_{asset.expiration}_{asset.right}.csv")
@@ -211,7 +211,7 @@ class ThetaDataBacktesting(PandasData):
                 self.pandas_data.update(pandas_data_update)
                 self._data_store.update(pandas_data_update)
         except Exception as e:
-            print(f"Error get_last_price from ThetaData: {e}")
+            logging.info(f"\nError get_last_price from ThetaData: {e}, {dt}, asset:{asset}")
 
         return super().get_last_price(asset=asset, quote=quote, exchange=exchange)
 

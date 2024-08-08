@@ -61,7 +61,7 @@ class PandasData(DataSourceBacktesting):
                 new_pandas_data[key] = data
 
         return new_pandas_data
-    
+
     def load_data(self):
         self._data_store = self.pandas_data
         self._date_index = self.update_date_index()
@@ -413,7 +413,6 @@ class PandasData(DataSourceBacktesting):
 
         if not timestep:
             timestep = self.get_timestep()
-
         response = self._pull_source_symbol_bars(
             asset,
             length,

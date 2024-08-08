@@ -31,6 +31,7 @@ matplotlib.use("Agg")
 # Set the stats table name for when storing stats in a database, defined by db_connection_str
 STATS_TABLE_NAME = "strategy_tracker"
 
+
 class Strategy(_Strategy):
     @property
     def name(self):
@@ -369,11 +370,11 @@ class Strategy(_Strategy):
         if broadcast:
             # Send the message to Discord
             self.send_discord_message(message)
-        
+
         # If we are backtesting and we don't want to save the logfile, don't log (they're not displayed in the console anyway)
         if not self.save_logfile and self.is_backtesting:
             return
-        
+
         if color:
             colored_message = colored(message, color)
             self.logger.info(colored_message)
@@ -724,7 +725,6 @@ class Strategy(_Strategy):
             self.broker.process_pending_orders(strategy=self)
 
         return self.broker.sleep(sleeptime)
-
 
     def get_selling_order(self, position):
         """Get the selling order for a position.
@@ -1506,14 +1506,14 @@ class Strategy(_Strategy):
                 "Cannot submit a None order, please check to make sure that you have actually created an order before submitting."
             )
             return
-        
+
         # Check if the order is an Order object
         if not isinstance(order, Order):
             self.logger.error(
                 f"Order must be an Order object. You entered {order}."
             )
             return
-        
+
         # Check if the order does not have a quantity of zero
         if order.quantity == 0:
             self.logger.error(
@@ -1551,7 +1551,7 @@ class Strategy(_Strategy):
         tag : str
             Tradier only.
             A tag for the multileg order.
-        
+
         Returns
         -------
         list of Order objects
@@ -1936,17 +1936,17 @@ class Strategy(_Strategy):
             self.log_message(f"Could not get last price for {asset}", color="red")
             self.log_message(f"{e}")
             return None
-        
+
     def get_quote(self, asset):
         """Get a quote for the asset.
 
         NOTE: This currently only works with Tradier. It does not work with backtetsing or other brokers.
-        
+
         Parameters
         ----------
         asset : Asset object
             The asset for which the quote is needed.
-            
+
         Returns
         -------
         dict
@@ -2059,32 +2059,33 @@ class Strategy(_Strategy):
         """
         asset = self._sanitize_user_asset(asset)
         return self.broker.get_chains(asset)
-    
+
     def get_next_trading_day(self, date, exchange='NYSE'):
         """
         Finds the next trading day for the given date and exchange.
-        
+
         Parameters:
             date (str): The date from which to find the next trading day, in 'YYYY-MM-DD' format.
             exchange (str): The exchange calendar to use, default is 'NYSE'.
-            
+
         Returns:
             next_trading_day (datetime.date): The next trading day after the given date.
         """
-        
+
         # Load the specified market calendar
         calendar = mcal.get_calendar(exchange)
-        
+
         # Convert the input string date to pandas Timestamp
         date_timestamp = pd.Timestamp(date)
-        
+
         # Get the next trading day. The schedule is inclusive of the start_date when the market is open on this day.
         # Hence, we add 1 day to the start_date to ensure we start checking from the day after.
-        schedule = calendar.schedule(start_date=date_timestamp + pd.Timedelta(days=1), end_date=date_timestamp + pd.Timedelta(days=10))
-        
+        schedule = calendar.schedule(start_date=date_timestamp + pd.Timedelta(days=1),
+                                     end_date=date_timestamp + pd.Timedelta(days=10))
+
         # The next trading day is the first entry in the schedule
         next_trading_day = schedule.index[0].date()
-        
+
         return next_trading_day
 
     def get_chain(self, chains, exchange="SMART"):
@@ -3090,15 +3091,26 @@ class Strategy(_Strategy):
         asset = self.crypto_assets_to_tuple(asset, quote)
         if not timestep:
             timestep = self.broker.data_source.MIN_TIMESTEP
-        return self.broker.data_source.get_historical_prices(
-            asset,
-            length,
-            timestep=timestep,
-            timeshift=timeshift,
-            exchange=exchange,
-            include_after_hours=include_after_hours,
-            quote=quote,
-        )
+        if self.broker.option_source and asset.asset_type == "option":
+            return self.broker.option_source.get_historical_prices(
+                asset,
+                length,
+                timestep=timestep,
+                timeshift=timeshift,
+                exchange=exchange,
+                include_after_hours=include_after_hours,
+                quote=quote,
+            )
+        else:
+            return self.broker.data_source.get_historical_prices(
+                asset,
+                length,
+                timestep=timestep,
+                timeshift=timeshift,
+                exchange=exchange,
+                include_after_hours=include_after_hours,
+                quote=quote,
+            )
 
     def get_symbol_bars(
         self,
@@ -4091,7 +4103,7 @@ class Strategy(_Strategy):
         if not should_send_account_summary:
             # Log that we are not sending the account summary to Discord
             return
-        
+
         # Log that we are sending the account summary to Discord
         self.logger.info("Sending account summary to Discord")
 
@@ -4117,7 +4129,7 @@ class Strategy(_Strategy):
         # Create a database connection
         if not hasattr(self, 'db_engine') or not self.db_engine:
             self.db_engine = create_engine(self.db_connection_str)
-        
+
         # Check if the table exists
         if not inspect(self.db_engine).has_table(stats_table_name):
             # Log that the table does not exist and we are creating it
@@ -4136,12 +4148,12 @@ class Strategy(_Strategy):
                     "datetime": [now],
                     "portfolio_value": [0.0],  # Default or initial value
                     "cash": [0.0],             # Default or initial value
-                    "strategy_id": ["INITIAL VALUE"], # Default or initial value
+                    "strategy_id": ["INITIAL VALUE"],  # Default or initial value
                 }
             )
             # Create the table by saving this empty DataFrame to the database
             stats_new.to_sql(stats_table_name, self.db_engine, if_exists='replace', index=False)
-        
+
         # Load the stats dataframe from the database
         stats_df = pd.read_sql_table(stats_table_name, self.db_engine)
 
@@ -4155,7 +4167,7 @@ class Strategy(_Strategy):
             if_exists=if_exists,
             index=index,
         )
-    
+
     def backup_variables_to_db(self):
         if not hasattr(self, "db_connection_str") or self.db_connection_str is None or not self.should_backup_variables_to_database:
             return
@@ -4163,11 +4175,11 @@ class Strategy(_Strategy):
         # Ensure we have a self.db_engine
         if not hasattr(self, 'db_engine') or not self.db_engine:
             self.db_engine = create_engine(self.db_connection_str)
-        
+
         # Get the current time in New York
         ny_tz = pytz.timezone("America/New_York")
         now = datetime.datetime.now(ny_tz)
-        
+
         if not inspect(self.db_engine).has_table(self.backup_table_name):
             # Log that the table does not exist and we are creating it
             self.logger.info(f"Table {self.backup_table_name} does not exist. Creating it now.")
@@ -4226,7 +4238,7 @@ class Strategy(_Strategy):
                                 'variables': json_data_to_save,
                                 'strategy_id': self.name
                             })
-                            
+
                 self._last_backup_state = current_state
                 logger.info("Variables backed up successfully")
             else:
@@ -4238,7 +4250,7 @@ class Strategy(_Strategy):
     def load_variables_from_db(self):
         if not hasattr(self, "db_connection_str") or self.db_connection_str is None or not self.should_backup_variables_to_database:
             return
-        
+
         try:
             if not hasattr(self, 'db_engine') or not self.db_engine:
                 self.db_engine = create_engine(self.db_connection_str)
@@ -4248,10 +4260,11 @@ class Strategy(_Strategy):
             if not inspector.has_table(self.backup_table_name):
                 logger.info(f"Backup for {self.name} does not exist in the database. Not restoring")
                 return
-            
+
              # Query the latest entry from the backup table
-            query = text(f'SELECT * FROM {self.backup_table_name} WHERE strategy_id = :strategy_id ORDER BY last_updated DESC LIMIT 1')    
-            
+            query = text(
+                f'SELECT * FROM {self.backup_table_name} WHERE strategy_id = :strategy_id ORDER BY last_updated DESC LIMIT 1')
+
             params = {'strategy_id': self.name}
             df = pd.read_sql_query(query, self.db_engine, params=params)
 
@@ -4265,7 +4278,7 @@ class Strategy(_Strategy):
                 # Update self.vars dictionary
                 for key, value in data.items():
                     self.vars.set(key, value)
-                
+
                 current_state = json.dumps(self.vars.all(), sort_keys=True)
                 self._last_backup_state = current_state
 
@@ -4377,7 +4390,7 @@ class Strategy(_Strategy):
                     # Add the return to the results
                     results_text += f"**7 day Return:** {return_7_days:,.2f}% (${(portfolio_value - portfolio_value_7_days_ago):,.2f} change)\n"
 
-                    ## If we are up more than pct_up_threshold over the past 7 days, send a message to Discord
+                    # If we are up more than pct_up_threshold over the past 7 days, send a message to Discord
                     PERCENT_UP_THRESHOLD = 3
                     if return_7_days > PERCENT_UP_THRESHOLD:
                         # Create a message to send to Discord
@@ -4431,24 +4444,26 @@ class Strategy(_Strategy):
         # Check if db_connection_str has been set, if not, return False
         if not hasattr(self, "db_connection_str"):
             # Log that we are not sending the account summary to Discord
-            self.logger.info("Not sending account summary to Discord because self does not have db_connection_str attribute")
+            self.logger.info(
+                "Not sending account summary to Discord because self does not have db_connection_str attribute")
             return False
-        
+
         if self.db_connection_str is None:
             # Log that we are not sending the account summary to Discord
             self.logger.info("Not sending account summary to Discord because db_connection_str is not set")
             return False
-    
+
         # Check if discord_webhook_url has been set, if not, return False
         if not self.discord_webhook_url:
             # Log that we are not sending the account summary to Discord
             self.logger.info("Not sending account summary to Discord because discord_webhook_url is not set")
             return False
-        
+
         # Check if should_send_summary_to_discord has been set, if not, return False
         if not self.should_send_summary_to_discord:
             # Log that we are not sending the account summary to Discord
-            self.logger.info(f"Not sending account summary to Discord because should_send_summary_to_discord is False or not set. The value is: {self.should_send_summary_to_discord}")
+            self.logger.info(
+                f"Not sending account summary to Discord because should_send_summary_to_discord is False or not set. The value is: {self.should_send_summary_to_discord}")
             return False
 
         # Check if it has been at least 24 hours since the last account summary
@@ -4465,10 +4480,11 @@ class Strategy(_Strategy):
 
             # Return True because we should send the account summary to Discord
             return True
-        
+
         else:
             # Log that we are not sending the account summary to Discord
-            self.logger.info(f"Not sending account summary to Discord because it has not been at least 24 hours since the last account summary. Last account summary was at: {self.last_account_summary_dt}")
+            self.logger.info(
+                f"Not sending account summary to Discord because it has not been at least 24 hours since the last account summary. Last account summary was at: {self.last_account_summary_dt}")
 
             # Return False because we should not send the account summary to Discord
             return False

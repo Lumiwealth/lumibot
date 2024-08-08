@@ -17,6 +17,7 @@ from lumibot.data_sources import DataSource
 from lumibot.entities import Asset, Order, Position
 from lumibot.trading_builtins import SafeList
 
+
 class CustomLoggerAdapter(logging.LoggerAdapter):
     def process(self, msg, kwargs):
         # Check if the level is enabled to avoid formatting costs if not necessary
@@ -31,6 +32,7 @@ class CustomLoggerAdapter(logging.LoggerAdapter):
         # Pre-format part of the log message that's static or changes infrequently
         self.formatted_prefix = f'[{new_strategy_name}]'
 
+
 class Broker(ABC):
     # Metainfo
     IS_BACKTESTING_BROKER = False
@@ -43,7 +45,7 @@ class Broker(ABC):
     CASH_SETTLED = "cash_settled"
     ERROR_ORDER = "error"
 
-    def __init__(self, name="", connect_stream=True, data_source: DataSource = None, config=None, max_workers=20):
+    def __init__(self, name="", connect_stream=True, data_source: DataSource = None, option_source: DataSource = None, config=None, max_workers=20):
         """Broker constructor"""
         # Shared Variables between threads
         self.name = name
@@ -63,6 +65,7 @@ class Broker(ABC):
         self._config = config
         self._strategy_name = ""
         self.data_source = data_source
+        self.option_source = option_source
         self.max_workers = min(max_workers, 200)
         self.quote_assets = set()  # Quote positions will never be removed from tracking during sync operations
 
@@ -273,7 +276,10 @@ class Broker(ABC):
         float
             The last known price of the asset.
         """
-        return self.data_source.get_last_price(asset, quote=quote, exchange=exchange)
+        if self.option_source and asset.asset_type == "option":
+            return self.option_source.get_last_price(asset, quote=quote, exchange=exchange)
+        else:
+            return self.data_source.get_last_price(asset, quote=quote, exchange=exchange)
 
     def get_last_prices(self, assets, quote=None, exchange=None):
         """
@@ -560,7 +566,6 @@ class Broker(ABC):
 
     def _process_partially_filled_order(self, order, price, quantity):
         self._new_orders.remove(order.identifier, key="identifier")
-
         order.add_transaction(price, quantity)
         order.status = self.PARTIALLY_FILLED_ORDER
         order.set_partially_filled()
@@ -584,7 +589,6 @@ class Broker(ABC):
         self._new_orders.remove(order.identifier, key="identifier")
         self._unprocessed_orders.remove(order.identifier, key="identifier")
         self._partially_filled_orders.remove(order.identifier, key="identifier")
-
         order.add_transaction(price, quantity)
         order.status = self.FILLED_ORDER
         order.set_filled()
@@ -624,7 +628,6 @@ class Broker(ABC):
         self._new_orders.remove(order.identifier, key="identifier")
         self._unprocessed_orders.remove(order.identifier, key="identifier")
         self._partially_filled_orders.remove(order.identifier, key="identifier")
-
         order.add_transaction(price, quantity)
         order.status = self.CASH_SETTLED
         order.set_filled()
@@ -1116,7 +1119,8 @@ class Broker(ABC):
             )
 
         if filled_quantity is not None:
-            error = ValueError(f"filled_quantity must be a positive integer or float, received {filled_quantity} instead")
+            error = ValueError(
+                f"filled_quantity must be a positive integer or float, received {filled_quantity} instead")
             try:
                 if not isinstance(filled_quantity, float):
                     filled_quantity = float(filled_quantity)

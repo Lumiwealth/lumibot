@@ -1013,7 +1013,7 @@ class _Strategy:
         # Make sure polygon_api_key is set if using PolygonDataBacktesting
         if datasource_class == PolygonDataBacktesting and api_key is None:
             raise ValueError(
-                "Please set `api_key` to your API key from polygon.io in the backtest() function if "
+                "Please set `api_key` to your API key from polygon.io as an environment variable if "
                 "you are using PolygonDataBacktesting. If you don't have one, you can get a free API key "
                 "from https://polygon.io/."
             )

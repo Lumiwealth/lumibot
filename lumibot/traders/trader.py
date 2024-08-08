@@ -3,6 +3,7 @@ import os
 import signal
 import sys
 from pathlib import Path
+from tools.server import LumibotServer
 
 import appdirs
 
@@ -155,6 +156,13 @@ class Trader:
     def run_all_async(self, backtest=False):
         """run all strategies"""
         return self.run_all(backtest=backtest, async_=True)
+    
+    def run_as_server(self):
+        """run all strategies"""
+        bot = self.run_all_async()
+
+        server = LumibotServer(bot)
+        server.start_server()
 
     def stop_all(self):
         logging.info("Stopping all strategies for this trader")

@@ -63,7 +63,7 @@ class _Strategy:
     def __init__(
         self,
         *args,
-        broker=credentials['BROKER'],
+        broker=None,
         minutes_before_closing=1,
         minutes_before_opening=60,
         sleeptime="1M",
@@ -75,15 +75,15 @@ class _Strategy:
         quote_asset=Asset(symbol="USD", asset_type="forex"),
         starting_positions=None,
         filled_order_callback=None,
-        name=credentials['STRATEGY_NAME'],
+        name=None,
         budget=None,
         parameters={},
         buy_trading_fees=[],
         sell_trading_fees=[],
         force_start_immediately=False,
-        discord_webhook_url=credentials['DISCORD_WEBHOOK_URL'],
+        discord_webhook_url=None,
         account_history_db_connection_str=None,
-        db_connection_str=credentials['DB_CONNECTION_STR'],
+        db_connection_str=None,
         strategy_id=None,
         discord_account_summary_footer=None,
         should_backup_variables_to_database=False,
@@ -215,6 +215,12 @@ class _Strategy:
         else:
             self.broker = broker
             self._name = name
+        
+        if self.broker == None:
+            self.broker=credentials['BROKER']
+        
+        if self._name == None:
+            self._name = credentials['STRATEGY_NAME']
 
         if self._name is None:
             self._name = self.__class__.__name__
@@ -222,11 +228,16 @@ class _Strategy:
         # Create an adapter with 'strategy_name' set to the instance's name
         self.logger = CustomLoggerAdapter(logger, {'strategy_name': self._name})
 
-        self.discord_webhook_url = discord_webhook_url
+        self.discord_webhook_url = discord_webhook_url if discord_webhook_url is not None else credentials['DISCORD_WEBHOOK_URL']
+        
         if account_history_db_connection_str: 
             self.db_connection_str = account_history_db_connection_str  
             logging.warning("account_history_db_connection_str is deprecated and will be removed in future versions, please use db_connection_str instead") 
-
+        elif db_connection_str:
+            self.db_connection_str = db_connection_str
+        else:
+            self.db_connection_str = credentials['DB_CONNECTION_STR']
+            
         self.discord_account_summary_footer = discord_account_summary_footer
         self.backup_table_name="vars_backup"
 
@@ -827,7 +838,7 @@ class _Strategy:
         parameters={},
         buy_trading_fees=[],
         sell_trading_fees=[],
-        api_key=credentials['POLYGON_API_KEY'],
+        api_key=None,
         indicators_file=None,
         show_indicators=True,
         save_logfile=False,
@@ -1011,7 +1022,8 @@ class _Strategy:
         cls.verify_backtest_inputs(backtesting_start, backtesting_end)
 
         # Make sure polygon_api_key is set if using PolygonDataBacktesting
-        if datasource_class == PolygonDataBacktesting and api_key is None:
+        self.api_key = api_key if api_key is not None else credentials['POLYGON_API_KEY']
+        if datasource_class == PolygonDataBacktesting and self.api_key is None:
             raise ValueError(
                 "Please set `api_key` to your API key from polygon.io in the backtest() function if "
                 "you are using PolygonDataBacktesting. If you don't have one, you can get a free API key "

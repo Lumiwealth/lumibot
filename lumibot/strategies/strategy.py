@@ -8,6 +8,7 @@ from asyncio.log import logger
 from decimal import Decimal
 from typing import Union
 from sqlalchemy import create_engine, inspect, text, bindparam
+from sqlalchemy.exc import OperationalError
 
 import jsonpickle
 import matplotlib
@@ -4113,48 +4114,71 @@ class Strategy(_Strategy):
         # Send the results text to Discord
         self.send_result_text_to_discord(returns_text, portfolio_value, cash)
 
-    def get_stats_from_database(self, stats_table_name):
-        # Create a database connection
-        if not hasattr(self, 'db_engine') or not self.db_engine:
-            self.db_engine = create_engine(self.db_connection_str)
-        
-        # Check if the table exists
-        if not inspect(self.db_engine).has_table(stats_table_name):
-            # Log that the table does not exist and we are creating it
-            self.logger.info(f"Table {stats_table_name} does not exist. Creating it now.")
+    def get_stats_from_database(self, stats_table_name, retries=5, delay=5):
+        attempt = 0
+        while attempt < retries:
+            try:
+                # Create or verify the database connection
+                if not hasattr(self, 'db_engine') or not self.db_engine:
+                    self.db_engine = create_engine(self.db_connection_str)
+                else:
+                    # Verify the connection
+                    with self.db_engine.connect() as conn:
+                        conn.execute("SELECT 1")
 
-            # Get the current time in New York
-            ny_tz = pytz.timezone("America/New_York")
+                # Check if the table exists
+                if not inspect(self.db_engine).has_table(stats_table_name):
+                    # Log that the table does not exist and we are creating it
+                    self.logger.info(f"Table {stats_table_name} does not exist. Creating it now.")
 
-            # Get the datetime
-            now = datetime.datetime.now(ny_tz)
+                    # Get the current time in New York
+                    ny_tz = pytz.timezone("America/New_York")
+                    now = datetime.datetime.now(ny_tz)
 
-            # Create an empty stats dataframe
-            stats_new = pd.DataFrame(
-                {
-                    "id": [str(uuid.uuid4())],
-                    "datetime": [now],
-                    "portfolio_value": [0.0],  # Default or initial value
-                    "cash": [0.0],             # Default or initial value
-                    "strategy_id": ["INITIAL VALUE"], # Default or initial value
-                }
-            )
-            # Create the table by saving this empty DataFrame to the database
-            stats_new.to_sql(stats_table_name, self.db_engine, if_exists='replace', index=False)
-        
-        # Load the stats dataframe from the database
-        stats_df = pd.read_sql_table(stats_table_name, self.db_engine)
+                    # Create an empty stats dataframe
+                    stats_new = pd.DataFrame(
+                        {
+                            "id": [str(uuid.uuid4())],
+                            "datetime": [now],
+                            "portfolio_value": [0.0],  # Default or initial value
+                            "cash": [0.0],             # Default or initial value
+                            "strategy_id": ["INITIAL VALUE"], # Default or initial value
+                        }
+                    )
+                    # Create the table by saving this empty DataFrame to the database
+                    self.to_sql_with_retry(stats_new, stats_table_name, if_exists='replace', index=False)
+                
+                # Load the stats dataframe from the database
+                stats_df = pd.read_sql_table(stats_table_name, self.db_engine)
+                return stats_df
 
-        return stats_df
+            except OperationalError as e:
+                self.logger.error(f"OperationalError: {e}")
+                attempt += 1
+                if attempt < retries:
+                    self.logger.info(f"Retrying in {delay} seconds and recreating db_engine...")
+                    time.sleep(delay)
+                    self.db_engine = create_engine(self.db_connection_str)  # Recreate the db_engine
+                else:
+                    self.logger.error("Max retries reached for get_stats_from_database. Failing operation.")
+                    raise
 
-    def to_sql(self, stats_df, stats_table_name, connection_string, if_exists, index):
-        # Save the stats to the database
-        stats_df.to_sql(
-            stats_table_name,
-            connection_string,
-            if_exists=if_exists,
-            index=index,
-        )
+    def to_sql(self, stats_df, stats_table_name, if_exists='replace', index=False, retries=5, delay=5):
+        attempt = 0
+        while attempt < retries:
+            try:
+                stats_df.to_sql(stats_table_name, self.db_engine, if_exists=if_exists, index=index)
+                return
+            except OperationalError as e:
+                self.logger.error(f"OperationalError during to_sql: {e}")
+                attempt += 1
+                if attempt < retries:
+                    self.logger.info(f"Retrying in {delay} seconds and recreating db_engine...")
+                    time.sleep(delay)
+                    self.db_engine = create_engine(self.db_connection_str)  # Recreate the db_engine
+                else:
+                    self.logger.error("Max retries reached for to_sql. Failing operation.")
+                    raise
     
     def backup_variables_to_db(self):
         if not hasattr(self, "db_connection_str") or self.db_connection_str is None or not self.should_backup_variables_to_database:
@@ -4451,14 +4475,23 @@ class Strategy(_Strategy):
             self.logger.info(f"Not sending account summary to Discord because should_send_summary_to_discord is False or not set. The value is: {self.should_send_summary_to_discord}")
             return False
 
+        # Check if last_account_summary_dt has been set, if not, set it to None
+        if not hasattr(self, "last_account_summary_dt"):
+            self.last_account_summary_dt = None
+
+        # Get the current datetime
+        now = datetime.datetime.now()
+
+        # Calculate the time since the last account summary if it has been set
+        if self.last_account_summary_dt is not None:
+            time_since_last_account_summary = now - self.last_account_summary_dt
+        else:
+            time_since_last_account_summary = None
+
         # Check if it has been at least 24 hours since the last account summary
-        if (
-            self.last_account_summary_dt is None
-            or (datetime.datetime.now() - self.last_account_summary_dt).total_seconds()
-            > 60 * 60 * 24  # 60 seconds * 60 minutes * 24 hours
-        ):
+        if self.last_account_summary_dt is None or time_since_last_account_summary.total_seconds() >= 86400: # 24 hours
             # Set the last account summary datetime to now
-            self.last_account_summary_dt = datetime.datetime.now()
+            self.last_account_summary_dt = now
 
             # Sleep for 5 seconds to make sure all the orders go through first
             time.sleep(5)
@@ -4468,7 +4501,7 @@ class Strategy(_Strategy):
         
         else:
             # Log that we are not sending the account summary to Discord
-            self.logger.info(f"Not sending account summary to Discord because it has not been at least 24 hours since the last account summary. Last account summary was at: {self.last_account_summary_dt}")
+            self.logger.info(f"Not sending account summary to Discord because it has not been at least 24 hours since the last account summary. It is currently {now} and the last account summary was at: {self.last_account_summary_dt}, which was {time_since_last_account_summary} ago.")
 
             # Return False because we should not send the account summary to Discord
             return False

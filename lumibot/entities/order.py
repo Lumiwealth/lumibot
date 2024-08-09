@@ -42,6 +42,12 @@ STATUS_ALIAS_MAP = {
 class Order:
     Transaction = namedtuple("Transaction", ["quantity", "price"])
 
+    class OrderClass:
+        BRACKET = "bracket"
+        OCO = "oco"
+        OTO = "oto"
+        MULTILEG = "multileg"
+
     class OrderType:
         MARKET = "market"
         LIMIT = "limit"
@@ -92,12 +98,13 @@ class Order:
         pair = None,
         date_created = None,
         type = None,
+        order_class = None,
         trade_cost: float = None,
         custom_params = {},
         identifier = None,
         avg_fill_price = None,
         error_message = None,
-        child_orders = [],
+        child_orders = None,
         tag = "",
         status = "unprocessed",
     ):
@@ -187,6 +194,8 @@ class Order:
             The date the order was created.
         type : str
             The type of order. Possible values are: `market`, `limit`, `stop`, `stop_limit`, `trail`, `trail_limit`, `bracket`, `bracket_limit`, `bracket_stop`, `bracket_stop_limit`.
+        order_class : str
+            The order class. Possible values are: `bracket`, `oco`, `oto`, `multileg`.
         trade_cost : float
             The cost of this order in the quote currency.
         custom_params : dict
@@ -250,9 +259,7 @@ class Order:
 
         """
         # Ensure child_orders is properly initialized
-        if child_orders is None:
-            child_orders = []
-        self.child_orders = copy.deepcopy(child_orders)  # Ensure deep copy
+        self.child_orders = child_orders if child_orders is not None else []
 
         if asset == quote and asset is not None:
             logging.error(

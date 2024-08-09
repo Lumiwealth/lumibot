@@ -209,23 +209,6 @@ class Strategy(_Strategy):
         self._sleeptime = value
 
     @property
-    def is_backtesting(self):
-        """Returns True if the strategy is running in backtesting mode.
-
-        Returns
-        -------
-        is_backtesting : bool
-            True if the strategy is running in backtesting mode.
-
-        Example
-        -------
-        >>> # Check if the strategy is running in backtesting mode
-        >>> if self.is_backtesting:
-        >>>     self.log_message("Running in backtesting mode")
-        """
-        return self._is_backtesting
-
-    @property
     def backtesting_start(self):
         return self._backtesting_start
 

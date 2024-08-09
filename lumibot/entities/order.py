@@ -706,7 +706,11 @@ class Order:
         """
         # Only calculate on filled orders
         if not self.transactions or not self.quantity:
-            return 0.0
+            return None
+        
+        # Check if x.price is None
+        if any(x.price is None for x in self.transactions):
+            return None
 
         # calculate the weighted average filled price since options often encounter partial fills
         # Some Backtest runs are using a Decimal for the Transaction quantity, so we need to convert to float

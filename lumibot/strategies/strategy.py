@@ -3892,7 +3892,7 @@ class Strategy(_Strategy):
                 f"Failed to send message to Discord. Status code: {response.status_code}, message: {response.text}"
             )
 
-    def send_spark_chart_to_discord(self, stats_df, portfolio_value, now, days=180):
+    def send_spark_chart_to_discord(self, stats_df, portfolio_value, now, days=1095):
         # Check if we are in backtesting mode, if so, don't send the message
         if self.is_backtesting:
             return

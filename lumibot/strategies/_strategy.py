@@ -1022,8 +1022,8 @@ class _Strategy:
         cls.verify_backtest_inputs(backtesting_start, backtesting_end)
 
         # Make sure polygon_api_key is set if using PolygonDataBacktesting
-        self.api_key = api_key if api_key is not None else credentials['POLYGON_API_KEY']
-        if datasource_class == PolygonDataBacktesting and self.api_key is None:
+        cls.api_key = api_key if api_key is not None else credentials['POLYGON_API_KEY']
+        if datasource_class == PolygonDataBacktesting and cls.api_key is None:
             raise ValueError(
                 "Please set `api_key` to your API key from polygon.io in the backtest() function if "
                 "you are using PolygonDataBacktesting. If you don't have one, you can get a free API key "

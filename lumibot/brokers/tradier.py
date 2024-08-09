@@ -107,7 +107,7 @@ class Tradier(Broker):
         # Cancel the order
         self.tradier.orders.cancel(order.identifier)
 
-    def submit_orders(self, orders, is_multileg=False, order_type="market", duration="day", price=None):
+    def submit_orders(self, orders, is_multileg=False, duration="day", price=None):
         """
         Submit multiple orders to the broker. This function will submit the orders in the order they are provided.
         If any order fails to submit, the function will stop submitting orders and return the last successful order.

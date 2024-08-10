@@ -22,6 +22,28 @@ from lumibot.entities import Order as OrderLum
 
 from .broker import Broker
 
+TYPE_MAP = dict(
+    stock="STK",
+    option="OPT",
+    future="FUT",
+    forex="CASH",
+    index="IND",
+    multileg="BAG",
+)
+
+DATE_MAP = dict(
+    future="%Y%m%d",
+    option="%Y%m%d",
+)
+
+ORDERTYPE_MAPPING = dict(
+    market="MKT",
+    limit="LMT",
+    stop="STP",
+    stop_limit="STP LMT",
+    trailing_stop="TRAIL",
+)
+
 
 class InteractiveBrokers(Broker):
     """Inherit InteractiveBrokerData first and all the price market
@@ -557,27 +579,6 @@ class InteractiveBrokers(Broker):
 
 
 # ===================INTERACTIVE BROKERS CLASSES===================
-TYPE_MAP = dict(
-    stock="STK",
-    option="OPT",
-    future="FUT",
-    forex="CASH",
-    index="IND",
-    multileg="BAG",
-)
-
-DATE_MAP = dict(
-    future="%Y%m%d",
-    option="%Y%m%d",
-)
-
-ORDERTYPE_MAPPING = dict(
-    market="MKT",
-    limit="LMT",
-    stop="STP",
-    stop_limit="STP LMT",
-    trailing_stop="TRAIL",
-)
 
 class IBWrapper(EWrapper):
     """Listens and collects data from IB."""
@@ -639,22 +640,41 @@ class IBWrapper(EWrapper):
             self.init_tick()
             self.tick_request_id = reqId
 
+        if tickType == 1:  # Bid price
+            self.bid = price
+
+        elif tickType == 2:  # Ask price
+            self.ask = price
+
         # tickType == 4 is last price, tickType == 9 is last close (from previous day)
         # See details here: https://interactivebrokers.github.io/tws-api/tick_types.html
         if tickType == 4:
-            self.tick = price
+            self.price = price
             self.tick_type_used = tickType
 
         # If the last price is not available, then use yesterday's closing price
         # This can happen if the market is closed
         if tickType == 9 and self.tick is None and self.should_use_last_close:
-            self.tick = price
+            self.price = price
             self.tick_type_used = tickType
+
+    def tickSize(self, reqId, tickType, size):
+        if tickType == 0:  # Bid size
+            self.bid_size = size
+
+        elif tickType == 3:  # Ask size
+            self.ask_size = size
 
     def tickSnapshotEnd(self, reqId):
         super().tickSnapshotEnd(reqId)
         if hasattr(self, "my_tick_queue"):
-            self.my_tick_queue.put([self.tick])
+            self.my_tick_queue.put({
+                "price": self.price,
+                "bid": self.bid,
+                "ask": self.ask,
+                "bid_size": self.bid_size,
+                "ask_size": self.ask_size,
+            })
             if self.tick_type_used == 9:
                 logging.warning(
                     f"Last price for {self.tick_asset} not found. Using yesterday's closing price of {self.tick} instead. reqId = {reqId}"
@@ -1036,7 +1056,28 @@ class IBClient(EClient):
 
         return requested_time
 
-    def get_tick(self, asset="", greek=False, exchange="SMART", should_use_last_close=True):
+    def get_tick(self, asset="", greek=False, exchange="SMART", should_use_last_close=True, only_price=True):
+        """
+        Get the current price and other information for a given asset.
+
+        Parameters
+        ----------
+        asset: Asset
+            The asset to get the current price for.
+        greek: bool
+            If True, then get the greeks for the option.
+        exchange: str
+            The exchange to get the data from.
+        should_use_last_close: bool
+            If True, then use the last close price if the current price is not available.
+        only_price: bool
+            If True, then only return the price, otherwise return the full tick data.
+
+        Returns
+        -------
+        dict or float
+            The current price and other information for the asset.
+        """
         self.should_use_last_close = should_use_last_close
 
         if not greek:
@@ -1075,9 +1116,7 @@ class IBClient(EClient):
         while self.wrapper.is_error():
             logging.error(f"Error: {self.get_error(timeout=5)}")
 
-        if not greek:
-            return requested_tick
-        else:
+        if greek:
             keys = [
                 "implied_volatility",
                 "delta",
@@ -1090,6 +1129,10 @@ class IBClient(EClient):
             ]
             greeks = dict(zip(keys, requested_greek[0]))
             return greeks
+        elif only_price:
+            return requested_tick["price"]
+        else:
+            return requested_tick       
 
     def get_historical_data(
         self,

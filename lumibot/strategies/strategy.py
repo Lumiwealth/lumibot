@@ -4129,7 +4129,7 @@ class Strategy(_Strategy):
                         }
                     )
                     # Create the table by saving this empty DataFrame to the database
-                    self.to_sql_with_retry(stats_new, stats_table_name, if_exists='replace', index=False)
+                    self.to_sql(stats_new, stats_table_name, if_exists='replace', index=False)
                 
                 # Load the stats dataframe from the database
                 stats_df = pd.read_sql_table(stats_table_name, self.db_engine)

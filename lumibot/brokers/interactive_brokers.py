@@ -69,21 +69,25 @@ class InteractiveBrokers(Broker):
             ip = config["IP"]
             socket_port = config["SOCKET_PORT"]
             client_id = config["CLIENT_ID"]
+            subaccount = config["IB_SUBACCOUNT"]
+
         else:
             ip = config.IP
             socket_port = config.SOCKET_PORT
             client_id = config.CLIENT_ID
+            subaccount = config.IB_SUBACCOUNT
 
+        self.subaccount = subaccount
         self.ip = ip
         self.socket_port = socket_port
         self.client_id = client_id
 
-        self.start_ib(ip, socket_port, client_id)
+        self.start_ib(ip, socket_port, client_id, subaccount)
 
-    def start_ib(self, ip, socket_port, client_id):
+    def start_ib(self, ip, socket_port, client_id, subaccount):
         # Connect to interactive brokers.
         if not self.ib:
-            self.ib = IBApp(ip, socket_port, client_id, ib_broker=self)
+            self.ib = IBApp(ip, socket_port, client_id, subaccount, ib_broker=self)
 
         if isinstance(self.data_source, InteractiveBrokersData):
             if not self.data_source.ib:
@@ -1206,10 +1210,10 @@ class IBClient(EClient):
         logging.info(f"No longer streaming data for {asset.symbol}.")
 
     def get_positions(self):
-        positions_storage = self.wrapper.init_positions()
+        positions_storage = self.wrapper.init_positions() ###
 
         # Call the positions data.
-        self.reqPositions()
+        self.reqPositionsMulti()
 
         try:
             requested_positions = positions_storage.get(timeout=self.max_wait_time)

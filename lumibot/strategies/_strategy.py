@@ -841,8 +841,6 @@ class _Strategy:
         buy_trading_fees=[],
         sell_trading_fees=[],
         api_key=None,
-        polygon_api_key=None,
-        polygon_has_paid_subscription=None,  # Depricated, this is now automatic. Remove in future versions.
         use_other_option_source=False,
         thetadata_username=None,
         thetadata_password=None,
@@ -1006,9 +1004,6 @@ class _Strategy:
         if name is None:
             name = cls.__name__
 
-        if not api_key and polygon_api_key:
-            api_key = polygon_api_key
-
         # check if datasource_class is a class or a dictionary
         if isinstance(datasource_class, dict):
             optionsource_class = datasource_class["OPTION"]
@@ -1044,11 +1039,11 @@ class _Strategy:
 
         cls.verify_backtest_inputs(backtesting_start, backtesting_end)
 
-        # Make sure polygon_api_key is set if using PolygonDataBacktesting
+        # Make sure api_key is set if using PolygonDataBacktesting
         cls.api_key = api_key if api_key is not None else credentials['POLYGON_API_KEY']
         if datasource_class == PolygonDataBacktesting and cls.api_key is None:
             raise ValueError(
-                "Please set `api_key` to your API key from polygon.io as an environment variable if "
+                "Please set `POLYGON_API_KEY` to your API key from polygon.io as an environment variable if "
                 "you are using PolygonDataBacktesting. If you don't have one, you can get a free API key "
                 "from https://polygon.io/."
             )
@@ -1285,8 +1280,6 @@ class _Strategy:
         buy_trading_fees=[],
         sell_trading_fees=[],
         api_key=None,
-        polygon_api_key=None,
-        polygon_has_paid_subscription=None,  # Depricated, this is now automatic. Remove in future versions.
         indicators_file=None,
         show_indicators=True,
         save_logfile=False,
@@ -1357,9 +1350,6 @@ class _Strategy:
         api_key : str
             The polygon api key to use for polygon data. Only required if you are using PolygonDataBacktesting as
             the datasource_class.
-        polygon_api_key : str
-            The polygon api key to use for polygon data. Only required if you are using PolygonDataBacktesting as
-            the datasource_class. Depricated, please use 'api_key' instead.
         indicators_file : str
             The file to write the indicators to.
         show_indicators : bool
@@ -1428,8 +1418,6 @@ class _Strategy:
             buy_trading_fees=buy_trading_fees,
             sell_trading_fees=sell_trading_fees,
             api_key=api_key,
-            polygon_api_key=polygon_api_key,
-            polygon_has_paid_subscription=polygon_has_paid_subscription,
             indicators_file=indicators_file,
             show_indicators=show_indicators,
             save_logfile=save_logfile,

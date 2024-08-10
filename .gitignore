@@ -15,7 +15,6 @@ lumibot/cache
 venv
 .venv
 logs
-credentials.py
 *debug.py
 todos.txt
 *.pem

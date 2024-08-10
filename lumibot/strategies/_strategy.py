@@ -23,8 +23,8 @@ from lumibot.tools import (
 from lumibot.traders import Trader
 
 from .strategy_executor import StrategyExecutor
-
-
+from .credentials import credentials
+    
 class CustomLoggerAdapter(logging.LoggerAdapter):
     def __init__(self, logger, extra):
         super().__init__(logger, extra)
@@ -215,6 +215,12 @@ class _Strategy:
         else:
             self.broker = broker
             self._name = name
+        
+        if self.broker == None:
+            self.broker=credentials['BROKER']
+        
+        if self._name == None:
+            self._name = credentials['STRATEGY_NAME']
 
         if self._name is None:
             self._name = self.__class__.__name__
@@ -222,12 +228,16 @@ class _Strategy:
         # Create an adapter with 'strategy_name' set to the instance's name
         self.logger = CustomLoggerAdapter(logger, {'strategy_name': self._name})
 
-        self.discord_webhook_url = discord_webhook_url
-        if account_history_db_connection_str:
-            self.db_connection_str = account_history_db_connection_str
-            logging.warning(
-                "account_history_db_connection_str is deprecated and will be removed in future versions, please use db_connection_str instead")
-
+        self.discord_webhook_url = discord_webhook_url if discord_webhook_url is not None else credentials['DISCORD_WEBHOOK_URL']
+        
+        if account_history_db_connection_str: 
+            self.db_connection_str = account_history_db_connection_str  
+            logging.warning("account_history_db_connection_str is deprecated and will be removed in future versions, please use db_connection_str instead") 
+        elif db_connection_str:
+            self.db_connection_str = db_connection_str
+        else:
+            self.db_connection_str = credentials['DB_CONNECTION_STR']
+            
         self.discord_account_summary_footer = discord_account_summary_footer
         self.backup_table_name="vars_backup"
 
@@ -240,11 +250,15 @@ class _Strategy:
         self.broker.quote_assets.add(self._quote_asset)
 
         # Setting the broker object
-        self._is_backtesting = self.broker.IS_BACKTESTING_BROKER
+        if self.broker == None:
+            self.is_backtesting = True
+        else:
+            self.is_backtesting = self.broker.IS_BACKTESTING_BROKER
+
         self._benchmark_asset = benchmark_asset
 
         # Get the backtesting start and end dates from the broker data source if we are backtesting
-        if self._is_backtesting:
+        if self.is_backtesting:
             if self.broker.data_source.datetime_start is not None and self.broker.data_source.datetime_end is not None:
                 self._backtesting_start = self.broker.data_source.datetime_start
                 self._backtesting_end = self.broker.data_source.datetime_end
@@ -262,7 +276,7 @@ class _Strategy:
         self._asset_mapping = dict()
 
         # Setting the data provider
-        if self._is_backtesting:
+        if self.is_backtesting:
             if self.broker.data_source.SOURCE == "PANDAS":
                 self.broker.data_source.load_data()
 
@@ -285,7 +299,7 @@ class _Strategy:
 
         # Setting execution parameters
         self._last_on_trading_iteration_datetime = None
-        if not self._is_backtesting:
+        if not self.is_backtesting:
             self.update_broker_balances()
 
             # Set initial positions if live trading.
@@ -380,7 +394,7 @@ class _Strategy:
                 "_minutes_before_closing",
                 "_minutes_before_opening",
                 "_sleeptime",
-                "_is_backtesting",
+                "is_backtesting",
             ]:
                 result[key[1:]] = self.__dict__[key]
 
@@ -444,7 +458,7 @@ class _Strategy:
         bool
             True if the broker's balances were updated, False otherwise
         """
-        if self._is_backtesting:
+        if self.is_backtesting:
             return True
 
         if "last_broker_balances_update" not in self.__dict__:
@@ -483,7 +497,7 @@ class _Strategy:
 
     def _update_portfolio_value(self):
         """updates self.portfolio_value"""
-        if not self._is_backtesting:
+        if not self.is_backtesting:
             broker_balances = self.broker._get_balances_at_broker(self.quote_asset)
 
             if broker_balances is not None:
@@ -533,7 +547,7 @@ class _Strategy:
                     elif isinstance(asset, Asset) and asset == self.quote_asset:
                         price = 0
 
-                if self._is_backtesting and price is None:
+                if self.is_backtesting and price is None:
                     if isinstance(asset, Asset):
                         raise ValueError(
                             f"A security has returned a price of None while trying "
@@ -648,7 +662,7 @@ class _Strategy:
         logger.setLevel(current_level)
 
     def _dump_benchmark_stats(self):
-        if not self._is_backtesting:
+        if not self.is_backtesting:
             return
         if self._backtesting_start is not None and self._backtesting_end is not None:
             # Need to adjust the backtesting end date because the data from Yahoo
@@ -902,9 +916,6 @@ class _Strategy:
         api_key : str
             The polygon api key to use for polygon data. Only required if you are using PolygonDataBacktesting as
             the datasource_class.
-        polygon_api_key: str
-            The polygon api key to use for polygon data. Only required if you are using PolygonDataBacktesting as
-            the datasource_class. Deprecated, please use 'api_key' instead.
         indicators_file : str
             The file to write the indicators to.
         show_indicators : bool
@@ -1019,17 +1030,6 @@ class _Strategy:
         if stats_file is None:
             stats_file = f"{logdir}/{base_filename}_stats.csv"
 
-        # Check if polygon_has_paid_subscription is set (it is deprecated and will be removed in the future)
-        if polygon_has_paid_subscription is not None:
-            colored_warning = colored("The parameter `polygon_has_paid_subscription` is deprecated and will be removed in the future. "
-                                      "This parameter is no longer needed as the PolygonDataBacktesting class will automatically check "
-                                      "if you have a paid subscription to Polygon."
-                                      "Also, we have partnered with Polygon to provide you a discount on their paid subscription. "
-                                      "You can get an API key at https://polygon.io/?utm_source=affiliate&utm_campaign=lumi10 "
-                                      "Please use the full link to give us credit for the sale, it helps support this project. "
-                                      "You can use the coupon code 'LUMI10' for 10% off your subscription. ", "yellow")
-            logging.warning(colored_warning)
-
         # #############################################
         # Check the data types of the parameters
         # #############################################
@@ -1045,7 +1045,8 @@ class _Strategy:
         cls.verify_backtest_inputs(backtesting_start, backtesting_end)
 
         # Make sure polygon_api_key is set if using PolygonDataBacktesting
-        if datasource_class == PolygonDataBacktesting and api_key is None:
+        cls.api_key = api_key if api_key is not None else credentials['POLYGON_API_KEY']
+        if datasource_class == PolygonDataBacktesting and cls.api_key is None:
             raise ValueError(
                 "Please set `api_key` to your API key from polygon.io in the backtest() function if "
                 "you are using PolygonDataBacktesting. If you don't have one, you can get a free API key "

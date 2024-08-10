@@ -9,6 +9,8 @@ from urllib.parse import urlparse, urlunparse
 
 import pandas as pd
 import pandas_market_calendars as mcal
+from lumibot import LUMIBOT_CACHE_FOLDER
+from lumibot.entities import Asset
 
 # noinspection PyPackageRequirements
 from polygon import RESTClient
@@ -26,6 +28,7 @@ MAX_POLYGON_DAYS = 30
 schedule_cache = {}
 buffered_schedules = {}
 
+
 def get_cached_schedule(cal, start_date, end_date, buffer_days=30):
     """
     Fetch schedule with a buffer at the end. This is done to reduce the number of calls to the calendar API (which is slow).
@@ -34,35 +37,38 @@ def get_cached_schedule(cal, start_date, end_date, buffer_days=30):
 
     buffer_end = end_date + timedelta(days=buffer_days)
     cache_key = (cal.name, start_date, end_date)
-    
+
     # Check if the required range is in the schedule cache
     if cache_key in schedule_cache:
         return schedule_cache[cache_key]
-    
+
     # Convert start_date and end_date to pd.Timestamp for comparison
     start_timestamp = pd.Timestamp(start_date)
     end_timestamp = pd.Timestamp(end_date)
-    
+
     # Check if we have the buffered schedule for this calendar
     if cal.name in buffered_schedules:
         buffered_schedule = buffered_schedules[cal.name]
         # Check if the current buffered schedule covers the required range
         if buffered_schedule.index.min() <= start_timestamp and buffered_schedule.index.max() >= end_timestamp:
-            filtered_schedule = buffered_schedule[(buffered_schedule.index >= start_timestamp) & (buffered_schedule.index <= end_timestamp)]
+            filtered_schedule = buffered_schedule[(buffered_schedule.index >= start_timestamp) & (
+                buffered_schedule.index <= end_timestamp)]
             schedule_cache[cache_key] = filtered_schedule
             return filtered_schedule
-    
+
     # Fetch and cache the new buffered schedule
     buffered_schedule = cal.schedule(start_date=start_date, end_date=buffer_end)
     buffered_schedules[cal.name] = buffered_schedule  # Store the buffered schedule for this calendar
-    
+
     # Filter the schedule to only include the requested date range
-    filtered_schedule = buffered_schedule[(buffered_schedule.index >= start_timestamp) & (buffered_schedule.index <= end_timestamp)]
-    
+    filtered_schedule = buffered_schedule[(buffered_schedule.index >= start_timestamp)
+                                          & (buffered_schedule.index <= end_timestamp)]
+
     # Cache the filtered schedule for quick lookup
     schedule_cache[cache_key] = filtered_schedule
-    
+
     return filtered_schedule
+
 
 def get_price_data_from_polygon(
     api_key: str,
@@ -111,9 +117,9 @@ def get_price_data_from_polygon(
     cache_file = build_cache_filename(asset, timespan)
     # Check whether it might be stale because of splits.
     force_cache_update = validate_cache(force_cache_update, asset, cache_file, api_key)
-    
+
     df_all = None
-    # Load from the cache file if it exists.  
+    # Load from the cache file if it exists.
     if cache_file.exists() and not force_cache_update:
         logging.debug(f"Loading pricing data for {asset} / {quote_asset} with '{timespan}' timespan from cache file...")
         df_all = load_cache(cache_file)
@@ -190,6 +196,7 @@ def get_price_data_from_polygon(
         df_all.dropna(how="all", inplace=True)
 
     return df_all
+
 
 def validate_cache(force_cache_update: bool, asset: Asset, cache_file: Path, api_key: str):
     """
@@ -507,6 +514,7 @@ def update_polygon_data(df_all, result):
 
     return df_all
 
+
 class PolygonClient(RESTClient):
     ''' Rate Limited RESTClient with factory method '''
 
@@ -534,24 +542,24 @@ class PolygonClient(RESTClient):
         Examples:
         ---------
         Using default environment variables:
-        
+
         >>> client = PolygonClient.create()
-        
+
         Providing an API key explicitly:
-        
+
         >>> client = PolygonClient.create(api_key='your_api_key_here')
-        
+
         """
         if 'api_key' not in kwargs:
             kwargs['api_key'] = os.environ.get("POLYGON_API_KEY")
-        
+
         return cls(*args, **kwargs)
 
     def _get(self, *args, **kwargs):
         while True:
             try:
                 return super()._get(*args, **kwargs)
-            
+
             except MaxRetryError as e:
                 url = urlunparse(urlparse(kwargs['path'])._replace(query=""))
 
@@ -565,7 +573,7 @@ class PolygonClient(RESTClient):
                 )
 
                 colored_message = colored(message, "red")
-                
+
                 logging.error(colored_message)
                 logging.debug(f"Error: {e}")
                 time.sleep(PolygonClient.WAIT_SECONDS_RETRY)

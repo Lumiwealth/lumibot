@@ -5,6 +5,8 @@ import time
 from collections import defaultdict, deque
 from decimal import Decimal
 from threading import Thread
+import math
+from functools import reduce
 
 from dateutil import tz
 from ibapi.client import *
@@ -19,6 +21,28 @@ from lumibot.entities import Asset, Position
 from lumibot.entities import Order as OrderLum
 
 from .broker import Broker
+
+TYPE_MAP = dict(
+    stock="STK",
+    option="OPT",
+    future="FUT",
+    forex="CASH",
+    index="IND",
+    multileg="BAG",
+)
+
+DATE_MAP = dict(
+    future="%Y%m%d",
+    option="%Y%m%d",
+)
+
+ORDERTYPE_MAPPING = dict(
+    market="MKT",
+    limit="LMT",
+    stop="STP",
+    stop_limit="STP LMT",
+    trailing_stop="TRAIL",
+)
 
 
 class InteractiveBrokers(Broker):
@@ -176,43 +200,80 @@ class InteractiveBrokers(Broker):
         """Parse a broker order representation
         to an order object"""
 
+        asset_type = [k for k, v in TYPE_MAP.items() if v == response.contract.secType][0]
+        totalQuantity = response.totalQuantity
+        limit_price = response.lmtPrice
+        stop_price = response.auxPrice
+        time_in_force = response.tif
+        good_till_date = response.goodTillDate
+
+        if asset_type == "multileg":
+            # Create a multileg order.
+            order = OrderLum(strategy_name)
+            order.order_class = OrderLum.OrderClass.MULTILEG
+            order.child_orders = []
+
+            # details = self.ib.get_contract_details_for_contract(response.contract)
+
+            # Parse the legs of the combo order.
+            for leg in response.contract.comboLegs:
+                # Create the contract object with just the conId
+                contract = Contract()
+                contract.conId = leg.conId
+
+                # Get the contract details for the leg.
+                res = self.ib.get_contract_details_for_contract(contract)
+                contract = res[0].contract
+
+                action = leg.action
+                child_order = self._parse_order_object(strategy_name, contract, leg.ratio * totalQuantity, action, limit_price, stop_price, time_in_force, good_till_date)
+                order.child_orders.append(child_order)
+
+        else:
+            action = response.action
+            order = self._parse_order_object(strategy_name, response.contract, totalQuantity, action, limit_price, stop_price, time_in_force, good_till_date)
+        
+        order._transmitted = True
+        order.set_identifier(response.orderId)
+        order.status = response.orderState.status
+        order.update_raw(response)
+        return order
+    
+    def _parse_order_object(self, strategy_name, contract, quantity, action, limit_price = None, stop_price = None, time_in_force = None, good_till_date = None):
         expiration = None
         multiplier = 1
-        if response.contract.secType in ["OPT", "FUT"]:
+        if contract.secType in ["OPT", "FUT"]:
             expiration = datetime.datetime.strptime(
-                response.contract.lastTradeDateOrContractMonth,
-                DATE_MAP[[d for d, v in TYPE_MAP.items() if v == response.contract.secType][0]],
+                contract.lastTradeDateOrContractMonth,
+                DATE_MAP[[d for d, v in TYPE_MAP.items() if v == contract.secType][0]],
             )
-            multiplier = response.contract.multiplier
+            multiplier = contract.multiplier
 
         right = None
         strike = None
-        if response.contract.secType == "OPT":
-            right = "CALL" if response.contract.right == "C" else "PUT"
-            strike = response.contract.strike
+        if contract.secType == "OPT":
+            right = "CALL" if contract.right == "C" else "PUT"
+            strike = contract.strike
 
         order = OrderLum(
             strategy_name,
             Asset(
-                symbol=response.contract.localSymbol,
-                asset_type=[k for k, v in TYPE_MAP.items() if v == response.contract.secType][0],
+                symbol=contract.localSymbol,
+                asset_type=[k for k, v in TYPE_MAP.items() if v == contract.secType][0],
                 expiration=expiration,
                 strike=strike,
                 right=right,
                 multiplier=multiplier,
             ),
-            Decimal(response.totalQuantity),
-            response.action.lower(),
-            limit_price=response.lmtPrice if response.lmtPrice != 0 else None,
-            stop_price=response.auxPrice if response.auxPrice != 0 else None,
-            time_in_force=response.tif,
-            good_till_date=response.goodTillDate,
-            quote=Asset(symbol=response.contract.currency, asset_type="forex"),
-        )
-        order._transmitted = True
-        order.set_identifier(response.orderId)
-        order.status = response.orderState.status
-        order.update_raw(response)
+            quantity = Decimal(quantity),
+            side = action.lower(),
+            limit_price = limit_price if limit_price != 0 else None,
+            stop_price = stop_price if stop_price != 0 else None,
+            time_in_force = time_in_force,
+            good_till_date = good_till_date,
+            quote = Asset(symbol=contract.currency, asset_type="forex"),
+        )   
+
         return order
 
     def _pull_broker_order(self, order_id):
@@ -229,6 +290,24 @@ class InteractiveBrokers(Broker):
     def _flatten_order(self, orders):  # implement for stop loss.
         """Not used for Interactive Brokers. Just returns the orders."""
         return orders
+    
+    def submit_orders(self, orders, is_multileg=False, duration="day", price=None, **kwargs):
+        if is_multileg:
+            multileg_order = OrderLum(orders[0].strategy)
+            multileg_order.order_class = OrderLum.OrderClass.MULTILEG
+            multileg_order.child_orders = orders
+
+            # If price is not None, then set the limit price for for the parent order and set the type to limit.
+            if price is not None:
+                multileg_order.limit_price = price
+                multileg_order.type = OrderLum.OrderType.LIMIT
+            else:
+                multileg_order.type = OrderLum.OrderType.MARKET
+
+            # Submit the multileg order.
+            self._orders_queue.put(multileg_order)
+        else:
+            self._orders_queue.put(orders)
 
     def _submit_order(self, order):
         """Submit an order for an asset"""
@@ -500,19 +579,6 @@ class InteractiveBrokers(Broker):
 
 
 # ===================INTERACTIVE BROKERS CLASSES===================
-TYPE_MAP = dict(
-    stock="STK",
-    option="OPT",
-    future="FUT",
-    forex="CASH",
-    index="IND",
-)
-
-DATE_MAP = dict(
-    future="%Y%m%d",
-    option="%Y%m%d",
-)
-
 
 class IBWrapper(EWrapper):
     """Listens and collects data from IB."""
@@ -574,22 +640,41 @@ class IBWrapper(EWrapper):
             self.init_tick()
             self.tick_request_id = reqId
 
+        if tickType == 1:  # Bid price
+            self.bid = price
+
+        elif tickType == 2:  # Ask price
+            self.ask = price
+
         # tickType == 4 is last price, tickType == 9 is last close (from previous day)
         # See details here: https://interactivebrokers.github.io/tws-api/tick_types.html
         if tickType == 4:
-            self.tick = price
+            self.price = price
             self.tick_type_used = tickType
 
         # If the last price is not available, then use yesterday's closing price
         # This can happen if the market is closed
         if tickType == 9 and self.tick is None and self.should_use_last_close:
-            self.tick = price
+            self.price = price
             self.tick_type_used = tickType
+
+    def tickSize(self, reqId, tickType, size):
+        if tickType == 0:  # Bid size
+            self.bid_size = size
+
+        elif tickType == 3:  # Ask size
+            self.ask_size = size
 
     def tickSnapshotEnd(self, reqId):
         super().tickSnapshotEnd(reqId)
         if hasattr(self, "my_tick_queue"):
-            self.my_tick_queue.put([self.tick])
+            self.my_tick_queue.put({
+                "price": self.price,
+                "bid": self.bid,
+                "ask": self.ask,
+                "bid_size": self.bid_size,
+                "ask_size": self.ask_size,
+            })
             if self.tick_type_used == 9:
                 logging.warning(
                     f"Last price for {self.tick_asset} not found. Using yesterday's closing price of {self.tick} instead. reqId = {reqId}"
@@ -971,7 +1056,28 @@ class IBClient(EClient):
 
         return requested_time
 
-    def get_tick(self, asset="", greek=False, exchange="SMART", should_use_last_close=True):
+    def get_tick(self, asset="", greek=False, exchange="SMART", should_use_last_close=True, only_price=True):
+        """
+        Get the current price and other information for a given asset.
+
+        Parameters
+        ----------
+        asset: Asset
+            The asset to get the current price for.
+        greek: bool
+            If True, then get the greeks for the option.
+        exchange: str
+            The exchange to get the data from.
+        should_use_last_close: bool
+            If True, then use the last close price if the current price is not available.
+        only_price: bool
+            If True, then only return the price, otherwise return the full tick data.
+
+        Returns
+        -------
+        dict or float
+            The current price and other information for the asset.
+        """
         self.should_use_last_close = should_use_last_close
 
         if not greek:
@@ -1010,9 +1116,7 @@ class IBClient(EClient):
         while self.wrapper.is_error():
             logging.error(f"Error: {self.get_error(timeout=5)}")
 
-        if not greek:
-            return requested_tick
-        else:
+        if greek:
             keys = [
                 "implied_volatility",
                 "delta",
@@ -1025,6 +1129,10 @@ class IBClient(EClient):
             ]
             greeks = dict(zip(keys, requested_greek[0]))
             return greeks
+        elif only_price:
+            return requested_tick["price"]
+        else:
+            return requested_tick       
 
     def get_historical_data(
         self,
@@ -1173,6 +1281,23 @@ class IBClient(EClient):
             print(f"Error: {self.get_error(timeout=5)}")
 
         return 0
+    
+    def get_contract_details_for_contract(self, contract):
+        contract_details_storage = self.wrapper.init_contract_details()
+
+        # Call the contract details.
+        self.reqContractDetails(self.get_reqid(), contract)
+
+        try:
+            requested_contract_details = contract_details_storage.get(timeout=self.max_wait_time)
+        except queue.Empty:
+            print("The queue was empty or max time reached for contract details")
+            requested_contract_details = None
+
+        while self.wrapper.is_error():
+            print(f"Error: {self.get_error(timeout=5)}")
+
+        return requested_contract_details
 
     def get_contract_details(self, asset=None):
         contract_details_storage = self.wrapper.init_contract_details()
@@ -1218,13 +1343,6 @@ class IBClient(EClient):
 
 
 class IBApp(IBWrapper, IBClient):
-    ORDERTYPE_MAPPING = dict(
-        market="MKT",
-        limit="LMT",
-        stop="STP",
-        stop_limit="STP LMT",
-        trailing_stop="TRAIL",
-    )
 
     def __init__(self, ip_address, socket_port, client_id, ib_broker=None):
         IBWrapper.__init__(self)
@@ -1252,6 +1370,24 @@ class IBApp(IBWrapper, IBClient):
         self.init_error()
         self.map_reqid_asset = dict()
         self.realtime_bars = dict()
+
+    def get_safe_action(self, action):
+        """Convert complex action types to simple buy/sell actions"""
+        if action.lower() in [
+            OrderLum.OrderSide.BUY, 
+            OrderLum.OrderSide.BUY_TO_OPEN, 
+            OrderLum.OrderSide.BUY_TO_CLOSE
+            ]:
+            return OrderLum.OrderSide.BUY.upper()
+        elif action.lower() in [
+            OrderLum.OrderSide.SELL, 
+            OrderLum.OrderSide.SELL_SHORT, 
+            OrderLum.OrderSide.SELL_TO_OPEN, 
+            OrderLum.OrderSide.SELL_TO_CLOSE
+            ]:
+            return OrderLum.OrderSide.SELL.upper()
+        else:
+            raise ValueError(f"Unknown order action: {action}")
 
     def create_contract(
         self,
@@ -1306,7 +1442,7 @@ class IBApp(IBWrapper, IBClient):
                 return []
             parent = Order()
             parent.orderId = order.identifier if order.identifier else self.nextOrderId()
-            parent.action = order.side.upper()
+            parent.action = self.get_safe_action(order.side)
             parent.orderType = "LMT"
             parent.totalQuantity = order.quantity
             parent.lmtPrice = order.limit_price
@@ -1314,7 +1450,7 @@ class IBApp(IBWrapper, IBClient):
 
             takeProfit = Order()
             takeProfit.orderId = self.nextOrderId()
-            takeProfit.action = "SELL" if parent.action == "BUY" else "BUY"
+            takeProfit.action = "SELL" if self.get_safe_action(parent.action) == "BUY" else "BUY"
             takeProfit.orderType = "LMT"
             takeProfit.totalQuantity = order.quantity
             takeProfit.lmtPrice = order.take_profit_price
@@ -1323,7 +1459,7 @@ class IBApp(IBWrapper, IBClient):
 
             stopLoss = Order()
             stopLoss.orderId = self.nextOrderId()
-            stopLoss.action = "SELL" if parent.action == "BUY" else "BUY"
+            stopLoss.action = "SELL" if self.get_safe_action(parent.action) == "BUY" else "BUY"
             stopLoss.orderType = "STP"
             stopLoss.auxPrice = order.stop_loss_price
             stopLoss.totalQuantity = order.quantity
@@ -1344,7 +1480,7 @@ class IBApp(IBWrapper, IBClient):
 
             parent = Order()
             parent.orderId = order.identifier if order.identifier else self.nextOrderId()
-            parent.action = order.side.upper()
+            parent.action = self.get_safe_action(order.side)
             parent.orderType = "LMT"
             parent.totalQuantity = order.quantity
             parent.lmtPrice = order.limit_price
@@ -1353,7 +1489,7 @@ class IBApp(IBWrapper, IBClient):
             if order.take_profit_price:
                 takeProfit = Order()
                 takeProfit.orderId = self.nextOrderId()
-                takeProfit.action = "SELL" if parent.action == "BUY" else "BUY"
+                takeProfit.action = "SELL" if self.get_safe_action(parent.action) == "BUY" else "BUY"
                 takeProfit.orderType = "LMT"
                 takeProfit.totalQuantity = order.quantity
                 takeProfit.lmtPrice = order.take_profit_price
@@ -1364,7 +1500,7 @@ class IBApp(IBWrapper, IBClient):
             elif order.stop_loss_price:
                 stopLoss = Order()
                 stopLoss.orderId = self.nextOrderId()
-                stopLoss.action = "SELL" if parent.action == "BUY" else "BUY"
+                stopLoss.action = "SELL" if self.get_safe_action(parent.action) == "BUY" else "BUY"
                 stopLoss.orderType = "STP"
                 stopLoss.auxPrice = order.stop_loss_price
                 stopLoss.totalQuantity = order.quantity
@@ -1375,7 +1511,7 @@ class IBApp(IBWrapper, IBClient):
         elif order.order_class == "oco":
             takeProfit = Order()
             takeProfit.orderId = order.identifier if order.identifier else self.nextOrderId()
-            takeProfit.action = order.side.upper()
+            takeProfit.action = self.get_safe_action(order.side)
             takeProfit.orderType = "LMT"
             takeProfit.totalQuantity = order.quantity
             takeProfit.lmtPrice = order.take_profit_price
@@ -1387,7 +1523,7 @@ class IBApp(IBWrapper, IBClient):
 
             stopLoss = Order()
             stopLoss.orderId = self.nextOrderId()
-            stopLoss.action = order.side.upper()
+            stopLoss.action = self.get_safe_action(order.side)
             stopLoss.orderType = "STP"
             stopLoss.totalQuantity = order.quantity
             stopLoss.auxPrice = order.stop_loss_price
@@ -1398,8 +1534,8 @@ class IBApp(IBWrapper, IBClient):
 
             return [takeProfit, stopLoss]
         else:
-            ib_order.action = order.side.upper()
-            ib_order.orderType = self.ORDERTYPE_MAPPING[order.type]
+            ib_order.action = self.get_safe_action(order.side)
+            ib_order.orderType = ORDERTYPE_MAPPING[order.type]
             ib_order.totalQuantity = order.quantity
             ib_order.lmtPrice = order.limit_price if order.limit_price else 0
             ib_order.auxPrice = order.stop_price if order.stop_price else ""
@@ -1410,23 +1546,92 @@ class IBApp(IBWrapper, IBClient):
             ib_order.tif = order.time_in_force.upper()
             ib_order.goodTillDate = order.good_till_date.strftime("%Y%m%d %H:%M:%S") if order.good_till_date else ""
             return [ib_order]
+        
+    def _create_multileg_order(self, order, exchange=None, **kwargs):
+        """Submit a list of orders as a single multileg order"""
+        # Initialize the combo contract
+        combo_contract = Contract()
+        # Construct the symbol with commas if the symbols are different
+        if len(set([child_order.asset.symbol for child_order in order.child_orders])) > 1:
+            combo_contract.symbol = ",".join([child_order.asset.symbol for child_order in order.child_orders])
+        else:
+            combo_contract.symbol = order.child_orders[0].asset.symbol
+        combo_contract.secType = "BAG"
+        combo_contract.exchange = exchange if exchange else "SMART"
+        combo_contract.currency = order.child_orders[0].quote.symbol  # Assuming all child orders have the same currency
+
+        # Create a new order ID for the combo order
+        combo_order_id = self.nextOrderId()
+
+        # Initialize the combo legs
+        combo_contract.comboLegs = []
+
+        # Prepare the legs for the combo order
+        for child_order in order.child_orders:
+            # Initialize the combo leg
+            leg = ComboLeg()
+
+            # Get the conid from the contract details
+            contract_details = self.get_contract_details(child_order.asset)
+            leg.conId = contract_details[0].contract.conId
+
+            # Set the leg details
+            leg.ratio = child_order.quantity
+            leg.action = self.get_safe_action(child_order.side)
+            leg.exchange = exchange if exchange else "SMART"
+
+            # Append the leg to the combo contract
+            combo_contract.comboLegs.append(leg)
+
+        # Reeduce the leg ratios to the smallest integer for each leg
+        ratios = [leg.ratio for leg in combo_contract.comboLegs]
+        gcd = reduce(math.gcd, ratios)
+        for leg in combo_contract.comboLegs:
+            leg.ratio = leg.ratio // gcd
+
+        # Initialize the combo order
+        combo_order = Order()
+        combo_order.action = "BUY" # TODO: This is a placeholder. This should be set based on the order side
+        combo_order.orderId = combo_order_id
+        combo_order.orderType = ORDERTYPE_MAPPING[order.type]
+        combo_order.tif = order.time_in_force.upper()
+        combo_order.goodTillDate = order.good_till_date if order.good_till_date else ""
+        combo_order.totalQuantity = min([child_order.quantity for child_order in order.child_orders])
+
+        # Set the limit price if this is a limit order and a price is provided
+        if order.type == OrderLum.OrderType.LIMIT and order.limit_price:
+            combo_order.lmtPrice = order.limit_price
+
+        # Return the combo contract and order        
+        return combo_contract, combo_order
 
     def execute_order(self, orders):
         # Create a queue to store the new order.
-        new_order_storage = self.wrapper.init_new_orders()
+        self.wrapper.init_new_orders()
 
         if not isinstance(orders, list):
             orders = [orders]
 
         ib_orders = []
         for order in orders:
-            # Places the order with the returned contract and order objects
-            contract_object = self.create_contract(
-                order.asset,
-                exchange=order.exchange,
-                currency=order.quote.symbol,
-            )
-            order_objects = self.create_order(order)
+            # Check if the order is a multileg order
+            if order.order_class == OrderLum.OrderClass.MULTILEG:
+                contract_object, order_object = self._create_multileg_order(order)
+
+                order_objects = [order_object]
+
+                # nextID = order_object.orderId if order_object.orderId else self.nextOrderId()
+                # ib_orders.append((nextID, contract_object, order_object))
+                # continue
+            else:
+                # Places the order with the returned contract and order objects
+                contract_object = self.create_contract(
+                    order.asset,
+                    exchange=order.exchange,
+                    currency=order.quote.symbol,
+                )
+                order_objects = self.create_order(order)
+
             if len(order_objects) == 0:
                 continue
 
@@ -1443,4 +1648,5 @@ class IBApp(IBWrapper, IBClient):
         for ib_order in ib_orders:
             if len(ib_order) == 0:
                 continue
+
             self.placeOrder(*ib_order)

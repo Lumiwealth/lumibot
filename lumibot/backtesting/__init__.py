@@ -3,5 +3,6 @@ from .alpha_vantage_backtesting import AlphaVantageBacktesting
 from .backtesting_broker import BacktestingBroker
 from .pandas_backtesting import PandasDataBacktesting
 from .polygon_backtesting import PolygonDataBacktesting
+from .thetadata_backtesting import ThetaDataBacktesting
 from .yahoo_backtesting import YahooDataBacktesting
 from .ccxt_backtesting import CcxtBacktesting

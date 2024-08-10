@@ -9,8 +9,7 @@ import string
 import random
 
 import pandas as pd
-
-from lumibot.backtesting import BacktestingBroker, PolygonDataBacktesting
+from lumibot.backtesting import BacktestingBroker, PolygonDataBacktesting, ThetaDataBacktesting
 from lumibot.entities import Asset, Position
 from lumibot.tools import (
     create_tearsheet,
@@ -36,6 +35,7 @@ class CustomLoggerAdapter(logging.LoggerAdapter):
             return self.prefix + msg, kwargs
         except Exception as e:
             return msg, kwargs
+
 
 class Vars:
     def __init__(self):
@@ -63,7 +63,7 @@ class _Strategy:
     def __init__(
         self,
         *args,
-        broker=credentials['BROKER'],
+        broker=None,
         minutes_before_closing=1,
         minutes_before_opening=60,
         sleeptime="1M",
@@ -75,15 +75,15 @@ class _Strategy:
         quote_asset=Asset(symbol="USD", asset_type="forex"),
         starting_positions=None,
         filled_order_callback=None,
-        name=credentials['STRATEGY_NAME'],
+        name=None,
         budget=None,
         parameters={},
         buy_trading_fees=[],
         sell_trading_fees=[],
         force_start_immediately=False,
-        discord_webhook_url=credentials['DISCORD_WEBHOOK_URL'],
+        discord_webhook_url=None,
         account_history_db_connection_str=None,
-        db_connection_str=credentials['DB_CONNECTION_STR'],
+        db_connection_str=None,
         strategy_id=None,
         discord_account_summary_footer=None,
         should_backup_variables_to_database=False,
@@ -174,7 +174,7 @@ class _Strategy:
             Turning on this option will slow down the backtest.
         kwargs : dict
             A dictionary of additional keyword arguments to pass to the strategy.
-        
+
         """
         # Handling positional arguments.
         # If there is one positional argument, it is assumed to be `broker`.
@@ -215,6 +215,12 @@ class _Strategy:
         else:
             self.broker = broker
             self._name = name
+        
+        if self.broker == None:
+            self.broker=credentials['BROKER']
+        
+        if self._name == None:
+            self._name = credentials['STRATEGY_NAME']
 
         if self._name is None:
             self._name = self.__class__.__name__
@@ -222,11 +228,16 @@ class _Strategy:
         # Create an adapter with 'strategy_name' set to the instance's name
         self.logger = CustomLoggerAdapter(logger, {'strategy_name': self._name})
 
-        self.discord_webhook_url = discord_webhook_url
+        self.discord_webhook_url = discord_webhook_url if discord_webhook_url is not None else credentials['DISCORD_WEBHOOK_URL']
+        
         if account_history_db_connection_str: 
             self.db_connection_str = account_history_db_connection_str  
             logging.warning("account_history_db_connection_str is deprecated and will be removed in future versions, please use db_connection_str instead") 
-
+        elif db_connection_str:
+            self.db_connection_str = db_connection_str
+        else:
+            self.db_connection_str = credentials['DB_CONNECTION_STR']
+            
         self.discord_account_summary_footer = discord_account_summary_footer
         self.backup_table_name="vars_backup"
 
@@ -327,7 +338,7 @@ class _Strategy:
             else:
                 self._position_value = 0
 
-            ### END
+            # END
             ##############################################
 
         self._initial_budget = budget
@@ -503,14 +514,18 @@ class _Strategy:
             # Set the base currency for crypto valuations.
 
             assets = []
+            asset_is_option = False
             for asset in assets_original:
                 if asset != self.quote_asset:
                     if asset.asset_type == "crypto" or asset.asset_type == "forex":
                         asset = (asset, self.quote_asset)
+                    elif asset.asset_type == "option":
+                        asset_is_option = True
                     assets.append(asset)
-
-            prices = self.broker.data_source.get_last_prices(assets)
-
+            if self.broker.option_source and asset_is_option:
+                prices = self.broker.option_source.get_last_prices(assets)
+            else:
+                prices = self.broker.data_source.get_last_prices(assets)
             for position in positions:
                 # Turn the asset into a tuple if it's a crypto asset
                 asset = (
@@ -559,9 +574,7 @@ class _Strategy:
                 else:
                     multiplier = asset.multiplier if asset.asset_type in ["option", "future"] else 1
                 portfolio_value += float(quantity) * price * multiplier
-
             self._portfolio_value = portfolio_value
-
         return portfolio_value
 
     def _update_cash(self, side, quantity, price, multiplier):
@@ -613,6 +626,7 @@ class _Strategy:
         if "datetime" in self._stats.columns:
             self._stats = self._stats.set_index("datetime")
         self._stats["return"] = self._stats["portfolio_value"].pct_change()
+
         return self._stats
 
     def _dump_stats(self):
@@ -695,7 +709,7 @@ class _Strategy:
                         benchmark_asset = (Asset(symbol=asset_quote[0], asset_type="crypto"),
                                            Asset(symbol=asset_quote[1], asset_type="crypto"))
                     else:
-                        benchmark_asset = Asset(symbol=benchmark_asset,asset_type="crypto")
+                        benchmark_asset = Asset(symbol=benchmark_asset, asset_type="crypto")
 
                 timestep = "minute"
                 # If the strategy sleeptime is in days then use daily data, eg. "1D"
@@ -729,7 +743,6 @@ class _Strategy:
                 # If the benchmark asset is a tuple, then use the symbols of the assets in the tuple
                 elif isinstance(benchmark_asset, tuple):
                     benchmark_symbol = f"{benchmark_asset[0].symbol}/{benchmark_asset[1].symbol}"
-                
 
                 self._benchmark_returns_df = get_symbol_returns(
                     benchmark_symbol,
@@ -827,7 +840,12 @@ class _Strategy:
         parameters={},
         buy_trading_fees=[],
         sell_trading_fees=[],
-        api_key=credentials['POLYGON_API_KEY'],
+        api_key=None,
+        polygon_api_key=None,
+        polygon_has_paid_subscription=None,  # Depricated, this is now automatic. Remove in future versions.
+        use_other_option_source=False,
+        thetadata_username=None,
+        thetadata_password=None,
         indicators_file=None,
         show_indicators=True,
         save_logfile=False,
@@ -988,6 +1006,18 @@ class _Strategy:
         if name is None:
             name = cls.__name__
 
+        if not api_key and polygon_api_key:
+            api_key = polygon_api_key
+
+        # check if datasource_class is a class or a dictionary
+        if isinstance(datasource_class, dict):
+            optionsource_class = datasource_class["OPTION"]
+            datasource_class = datasource_class["STOCK"]
+            use_other_option_source = True
+        else:
+            optionsource_class = None
+            use_other_option_source = False
+
         # Make a string with 6 random numbers/letters (upper and lowercase) to avoid overwriting
         random_string = "".join(random.choices(string.ascii_letters + string.digits, k=6))
 
@@ -1008,14 +1038,27 @@ class _Strategy:
         if not isinstance(datasource_class, type):
             raise ValueError(f"`datasource_class` must be a class. You passed in {datasource_class}")
 
+        # Check optionsource_class
+        if use_other_option_source and not isinstance(optionsource_class, type):
+            raise ValueError(f"`optionsource_class` must be a class. You passed in {optionsource_class}")
+
         cls.verify_backtest_inputs(backtesting_start, backtesting_end)
 
         # Make sure polygon_api_key is set if using PolygonDataBacktesting
-        if datasource_class == PolygonDataBacktesting and api_key is None:
+        cls.api_key = api_key if api_key is not None else credentials['POLYGON_API_KEY']
+        if datasource_class == PolygonDataBacktesting and cls.api_key is None:
             raise ValueError(
                 "Please set `api_key` to your API key from polygon.io as an environment variable if "
                 "you are using PolygonDataBacktesting. If you don't have one, you can get a free API key "
                 "from https://polygon.io/."
+            )
+
+        # Make sure thetadata_username and thetadata_password are set if using ThetaDataBacktesting
+        if use_other_option_source and optionsource_class == ThetaDataBacktesting and (thetadata_username is None or thetadata_password is None):
+            raise ValueError(
+                "Please set `thetadata_username` and `thetadata_password` in the backtest() function if "
+                "you are using ThetaDataBacktesting. If you don't have one, you can do registeration "
+                "from https://www.thetadata.net/."
             )
 
         if not cls.IS_BACKTESTABLE:
@@ -1035,6 +1078,7 @@ class _Strategy:
             return None
 
         trader = Trader(logfile=logfile, backtest=True)
+
         data_source = datasource_class(
             backtesting_start,
             backtesting_end,
@@ -1045,10 +1089,21 @@ class _Strategy:
             **kwargs,
         )
 
-        # if hasattr(data_source, 'pandas_data'):
-        #     data_source.pandas_data = pandas_data
+        if not use_other_option_source:
+            backtesting_broker = BacktestingBroker(data_source)
+        else:
+            options_source = optionsource_class(
+                backtesting_start,
+                backtesting_end,
+                config=config,
+                auto_adjust=auto_adjust,
+                username=thetadata_username,
+                password=thetadata_password,
+                pandas_data=pandas_data,
+                **kwargs,
+            )
+            backtesting_broker = BacktestingBroker(data_source, options_source)
 
-        backtesting_broker = BacktestingBroker(data_source)
         strategy = cls(
             backtesting_broker,
             minutes_before_closing=minutes_before_closing,
@@ -1231,7 +1286,7 @@ class _Strategy:
         sell_trading_fees=[],
         api_key=None,
         polygon_api_key=None,
-        polygon_has_paid_subscription=None, # Depricated, this is now automatic. Remove in future versions.
+        polygon_has_paid_subscription=None,  # Depricated, this is now automatic. Remove in future versions.
         indicators_file=None,
         show_indicators=True,
         save_logfile=False,

@@ -268,8 +268,8 @@ class Data:
             )
         return df
 
-    # ./lumibot/build/__editable__.lumibot-3.1.14-py3-none-any/lumibot/entities/data.py:280: 
-    # FutureWarning: Downcasting object dtype arrays on .fillna, .ffill, .bfill is deprecated and will change in a future version. 
+    # ./lumibot/build/__editable__.lumibot-3.1.14-py3-none-any/lumibot/entities/data.py:280:
+    # FutureWarning: Downcasting object dtype arrays on .fillna, .ffill, .bfill is deprecated and will change in a future version.
     # Call result.infer_objects(copy=False) instead.
     # To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)`
 
@@ -402,7 +402,8 @@ class Data:
         float
         """
         iter_count = self.get_iter_count(dt)
-        return self.datalines["open"].dataline[iter_count]
+        price = self.datalines["open"].dataline[iter_count]
+        return price
 
     @check_data
     def _get_bars_dict(self, dt, length=1, timestep=None, timeshift=0):

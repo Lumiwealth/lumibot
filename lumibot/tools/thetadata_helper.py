@@ -4,14 +4,12 @@ import time
 from datetime import date, datetime, timedelta
 from enum import Enum
 from pathlib import Path
-
 import pandas as pd
 import pandas_market_calendars as mcal
 import requests
 from lumibot import LUMIBOT_CACHE_FOLDER
 from lumibot.entities import Asset
 from thetadata import ThetaClient
-import holidays
 from tqdm import tqdm
 
 WAIT_TIME = 60
@@ -44,7 +42,8 @@ def get_price_data(
     end: datetime,
     timespan: str = "minute",
     quote_asset: Asset = None,
-    dt=None
+    dt=None,
+    datastyle: str = "ohlc"
 ):
     """
     Queries ThetaData for pricing data for the given asset and returns a DataFrame with the data. Data will be
@@ -80,10 +79,10 @@ def get_price_data(
     # Check if we already have data for this asset in the feather file
     df_all = None
     df_feather = None
-    cache_file = build_cache_filename(asset, timespan)
+    cache_file = build_cache_filename(asset, timespan, datastyle)
     if cache_file.exists():
         logging.info(
-            f"\nLoading pricing data for {asset} / {quote_asset} with '{timespan}' timespan from cache file...")
+            f"\nLoading '{datastyle}' pricing data for {asset} / {quote_asset} with '{timespan}' timespan from cache file...")
         df_feather = load_cache(cache_file)
         df_all = df_feather.copy()  # Make a copy so we can check the original later for differences
 
@@ -103,7 +102,7 @@ def get_price_data(
     # Initialize tqdm progress bar
     total_days = (end - start).days + 1
     total_queries = (total_days // MAX_DAYS) + 1
-    description = f"\nDownloading data for {asset} / {quote_asset} with '{timespan}' from ThetaData..."
+    description = f"\nDownloading '{datastyle}' data for {asset} / {quote_asset} with '{timespan}' from ThetaData..."
     logging.info(description)
     pbar = tqdm(total=total_queries, desc=description, dynamic_ncols=True)
 
@@ -130,10 +129,7 @@ def get_price_data(
         if end > start + delta:
             end = start + delta
 
-        result_df = get_historical_data(asset, start, end, interval_ms, username, password)
-
-        # Update progress bar after each query
-        pbar.update(1)
+        result_df = get_historical_data(asset, start, end, interval_ms, username, password, datastyle=datastyle)
 
         if result_df is None or len(result_df) == 0:
             logging.warning(
@@ -142,6 +138,7 @@ def get_price_data(
 
         else:
             df_all = update_df(df_all, result_df)
+            pbar.update(1)
 
         start = end + timedelta(days=1)
         end = start + delta
@@ -149,11 +146,10 @@ def get_price_data(
         if asset.expiration and start > asset.expiration:
             break
 
+    update_cache(cache_file, df_all, df_feather)
     # Close the progress bar when done
     pbar.close()
-
-    update_cache(cache_file, df_all, df_feather)
-    if is_summer_time(start):
+    if is_summer_time(missing_dates[0]):
         df_all.index = df_all.index + pd.Timedelta(hours=THETA_SUMMER_TIME_SHIFT) - pd.Timedelta(minutes=1)
     else:
         df_all.index = df_all.index + pd.Timedelta(hours=THETA_WINTER_TIME_SHIFT) - pd.Timedelta(minutes=1)
@@ -199,7 +195,7 @@ def get_trading_dates(asset: Asset, start: datetime, end: datetime):
     return trading_days
 
 
-def build_cache_filename(asset: Asset, timespan: str):
+def build_cache_filename(asset: Asset, timespan: str, datastyle: str = "ohlc"):
     """Helper function to create the cache filename for a given asset and timespan"""
 
     lumibot_cache_folder = Path(LUMIBOT_CACHE_FOLDER) / CACHE_SUBFOLDER
@@ -215,7 +211,7 @@ def build_cache_filename(asset: Asset, timespan: str):
     else:
         uniq_str = asset.symbol
 
-    cache_filename = f"{asset.asset_type}_{uniq_str}_{timespan}.feather"
+    cache_filename = f"{asset.asset_type}_{uniq_str}_{timespan}_{datastyle}.feather"
     cache_file = lumibot_cache_folder / cache_filename
     return cache_file
 
@@ -315,7 +311,10 @@ def update_df(df_all, result):
         df = df.set_index("datetime").sort_index()
         if df_all is not None:
             # set "datetime" column as index of df_all
-            df_all = df_all.set_index("datetime").sort_index()
+            if isinstance(df.index, pd.DatetimeIndex) and df.index.name == 'datetime':
+                df_all = df_all.sort_index()
+            else:
+                df_all = df_all.set_index("datetime").sort_index()
         df.index = df.index.tz_localize("UTC")
         if df_all is None or df_all.empty:
             df_all = df
@@ -371,45 +370,8 @@ def check_connection(username: str, password: str):
     return client
 
 
-def get_all_holidays(year, country='US'):
-    """
-    Get a list of all holidays for a given year and country.
-
-    :param year: Integer, the year for which to get the holidays
-    :param country: String, the country for which to get the holidays
-    :return: List of tuples (date, name) representing holidays
-    """
-    country_holidays = holidays.country_holidays(country, years=year)
-    all_holidays = [date for date, name in country_holidays.items()]
-    return all_holidays
-
-
-def is_weekend(date):
-    """
-    Check if the given date is a weekend.
-
-    :param date: datetime.date object
-    :return: Boolean, True if weekend, False otherwise
-    """
-    return date.weekday() >= 5  # 5 = Saturday, 6 = Sunday
-
-
 def get_request(url: str, headers: dict, querystring: dict, username: str, password: str):
     counter = 0
-    expiry = querystring['exp'] if 'exp' in querystring else None
-
-    # Check if expiry date is a holiday or weekend, this part of the logic is currently
-    # only for options mode
-    if expiry:
-        expiry = datetime.strptime(expiry, "%Y%m%d")
-        holidays = get_all_holidays(expiry.year)
-        if expiry in holidays:
-            logging.info(f"\nSKIP: Expiry {expiry} date is a holiday!")
-            return None
-        if is_weekend(expiry):
-            logging.info(f"\nSKIP: Expiry {expiry} date is a weekend!")
-            return None
-
     while True:
         try:
             response = requests.get(url, headers=headers, params=querystring)
@@ -437,7 +399,7 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
     return json_resp
 
 
-def get_historical_data(asset: Asset, start_dt: datetime, end_dt: datetime, ivl: int, username: str, password: str):
+def get_historical_data(asset: Asset, start_dt: datetime, end_dt: datetime, ivl: int, username: str, password: str, datastyle:str = "ohlc"):
     """
     Get data from ThetaData
 
@@ -467,12 +429,10 @@ def get_historical_data(asset: Asset, start_dt: datetime, end_dt: datetime, ivl:
     end_date = end_dt.strftime("%Y%m%d")
 
     # Create the url based on the asset type
+    url = f"{BASE_URL}/hist/{asset.asset_type}/{datastyle}"
     if asset.asset_type == "stock":
-        url = f"{BASE_URL}/hist/stock/ohlc"
         querystring = {"root": asset.symbol, "start_date": start_date, "end_date": end_date, "ivl": ivl}
     elif asset.asset_type == "option":
-        url = f"{BASE_URL}/hist/option/ohlc"
-
         # Convert the expiration date to a string
         expiration_str = asset.expiration.strftime("%Y%m%d")
 
@@ -503,7 +463,10 @@ def get_historical_data(asset: Asset, start_dt: datetime, end_dt: datetime, ivl:
     df = pd.DataFrame(json_resp["response"], columns=json_resp["header"]["format"])
 
     # Remove any rows where count is 0 (no data - the prices will be 0 at these times too)
-    df = df[df["count"] != 0]
+    if "quote" in datastyle.lower():
+        df = df[(df["bid_size"] != 0) | (df["ask_size"] != 0)]
+    else:
+        df = df[df["count"] != 0]
 
     # Function to combine ms_of_day and date into datetime
     def combine_datetime(row):
@@ -515,7 +478,12 @@ def get_historical_data(asset: Asset, start_dt: datetime, end_dt: datetime, ivl:
         return datetime_value
 
     # Apply the function to each row to create a new datetime column
-    df["datetime"] = df.apply(combine_datetime, axis=1)
+
+    # Create a new datetime column using the combine_datetime function
+    datetime_combined = df.apply(combine_datetime, axis=1)
+
+    # Assign the newly created datetime column
+    df = df.assign(datetime=datetime_combined)
 
     # Convert the datetime column to a datetime
     df["datetime"] = pd.to_datetime(df["datetime"])

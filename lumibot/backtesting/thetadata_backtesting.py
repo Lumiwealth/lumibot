@@ -1,12 +1,15 @@
 import logging
 import re
 import traceback
-from datetime import date, timedelta
+import pandas as pd
+import subprocess
+from datetime import date, datetime, timedelta
+import holidays
 
 from lumibot.data_sources import PandasData
 from lumibot.entities import Asset, Data
 from lumibot.tools import thetadata_helper
-import subprocess
+
 
 START_BUFFER = timedelta(days=5)
 
@@ -30,6 +33,27 @@ class ThetaDataBacktesting(PandasData):
         self._username = username
         self._password = password
         self.kill_processes_by_name("ThetaTerminal.jar")
+
+    def get_all_holidays(self, year, country='US'):
+        """
+        Get a list of all holidays for a given year and country.
+
+        :param year: Integer, the year for which to get the holidays
+        :param country: String, the country for which to get the holidays
+        :return: List of tuples (date, name) representing holidays
+        """
+        country_holidays = holidays.country_holidays(country, years=year)
+        all_holidays = [date for date, name in country_holidays.items()]
+        return all_holidays
+
+    def is_weekend(self, date):
+        """
+        Check if the given date is a weekend.
+
+        :param date: datetime.date object
+        :return: Boolean, True if weekend, False otherwise
+        """
+        return date.weekday() >= 5  # 5 = Saturday, 6 = Sunday
 
     def kill_processes_by_name(self, keyword):
         try:
@@ -77,6 +101,16 @@ class ThetaDataBacktesting(PandasData):
             asset_separated, quote_asset = search_asset
         else:
             search_asset = (search_asset, quote_asset)
+
+        if asset_separated.asset_type == "option":
+            expiry = asset_separated.expiration
+            holidays = self.get_all_holidays(expiry.year)
+            if expiry in holidays:
+                logging.info(f"\nSKIP: Expiry {expiry} date is a holiday, no contract exists: {asset_separated}")
+                return None
+            if self.is_weekend(expiry):
+                logging.info(f"\nSKIP: Expiry {expiry} date is a weekend, no contract exists: {asset_separated}")
+                return None
 
         # Get the start datetime and timestep unit
         start_datetime, ts_unit = self.get_start_datetime_and_ts_unit(
@@ -128,9 +162,9 @@ class ThetaDataBacktesting(PandasData):
 
         # Download data from ThetaData
         try:
-            # Get data from ThetaData
+            # Get ohlc data from ThetaData
             date_time_now = self.get_datetime()
-            df = thetadata_helper.get_price_data(
+            df_ohlc = thetadata_helper.get_price_data(
                 self._username,
                 self._password,
                 asset_separated,
@@ -138,8 +172,22 @@ class ThetaDataBacktesting(PandasData):
                 self.datetime_end,
                 timespan=ts_unit,
                 quote_asset=quote_asset,
-                dt=date_time_now
+                dt=date_time_now,
+                datastyle="ohlc"
             )
+            # Get quote data from ThetaData
+            df_quote = thetadata_helper.get_price_data(
+                self._username,
+                self._password,
+                asset_separated,
+                start_datetime,
+                self.datetime_end,
+                timespan=ts_unit,
+                quote_asset=quote_asset,
+                dt=date_time_now,
+                datastyle="quote"
+            )
+            df = pd.concat([df_ohlc, df_quote], axis=1, join='inner')
             # save df to csv file
             # df.to_csv(f"theta_csv/{date_time_now}_{asset.strike}_{asset.expiration}_{asset.right}.csv")
         except Exception as e:

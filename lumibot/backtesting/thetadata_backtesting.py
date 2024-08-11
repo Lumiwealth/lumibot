@@ -4,7 +4,6 @@ import traceback
 import pandas as pd
 import subprocess
 from datetime import date, datetime, timedelta
-import holidays
 
 from lumibot.data_sources import PandasData
 from lumibot.entities import Asset, Data
@@ -104,10 +103,6 @@ class ThetaDataBacktesting(PandasData):
 
         if asset_separated.asset_type == "option":
             expiry = asset_separated.expiration
-            holidays = self.get_all_holidays(expiry.year)
-            if expiry in holidays:
-                logging.info(f"\nSKIP: Expiry {expiry} date is a holiday, no contract exists: {asset_separated}")
-                return None
             if self.is_weekend(expiry):
                 logging.info(f"\nSKIP: Expiry {expiry} date is a weekend, no contract exists: {asset_separated}")
                 return None

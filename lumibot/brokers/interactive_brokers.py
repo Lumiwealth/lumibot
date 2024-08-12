@@ -1255,11 +1255,11 @@ class IBClient(EClient):
         accounts_storage = self.wrapper.init_accounts()
 
         as_reqid = self.get_reqid()
-
         if self.subaccount is None:
             self.reqAccountSummary(as_reqid, "All", "$LEDGER")
         else:
-            self.reqAccountSummary(as_reqid, self.subaccount, "$LEDGER")
+            self.reqAccountSummary(as_reqid, "self.subaccount", "$LEDGER")
+            #self.reqAccountUpdates(False, self.subaccount)
 
         try:
             requested_accounts = accounts_storage.get(timeout=self.max_wait_time)

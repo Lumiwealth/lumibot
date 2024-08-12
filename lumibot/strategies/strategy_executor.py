@@ -107,21 +107,22 @@ class StrategyExecutor(Thread):
         while held_trades_len > 0:
             # Snapshot for the broker and lumibot:
             cash_broker = self.broker._get_balances_at_broker(self.strategy.quote_asset)
-            if cash_broker is None and cash_broker_retries < cash_broker_max_retries:
-                self.strategy.logger.info("Unable to get cash from broker, trying again.")
-                cash_broker_retries += 1
-                continue
-            elif cash_broker is None and cash_broker_retries >= cash_broker_max_retries:
-                self.strategy.logger.info(
-                    f"Unable to get the cash balance after {cash_broker_max_retries} "
-                    f"tries, setting cash to zero."
-                )
-                cash_broker = 0
+            if cash_broker is None:
+                if cash_broker_retries < cash_broker_max_retries:
+                    self.strategy.logger.info("Unable to get cash from broker, trying again.")
+                    cash_broker_retries += 1
+                    continue
+                else:
+                    self.strategy.logger.info(
+                        f"Unable to get the cash balance after {cash_broker_max_retries} "
+                        f"tries, setting cash to zero."
+                    )
+                    cash_broker = 0
             else:
                 cash_broker = cash_broker[0]
-
-            if cash_broker is not None:
                 self.strategy._set_cash_position(cash_broker)
+                self.strategy.logger.info(f"Got Cash Balance: {cash_broker}")
+
 
             held_trades_len = len(self.broker._held_trades)
             if held_trades_len > 0:
@@ -476,7 +477,7 @@ class StrategyExecutor(Thread):
         if self.broker.IS_BACKTESTING_BROKER:
             self.strategy._dump_stats()
         self.strategy.backup_variables_to_db()
-
+        self.strategy.broker._close_connection()
 
     def _on_abrupt_closing(self, error):
         """Use this lifecycle event to execute code
@@ -486,7 +487,8 @@ class StrategyExecutor(Thread):
         self.strategy.on_abrupt_closing()
         self.strategy._dump_stats()
         self.strategy.backup_variables_to_db()
-
+        if self.strategy.broker is not None and hasattr(self.strategy.broker, '_close_connection'):
+            self.strategy.broker._close_connection()
 
     @event_method
     def _on_new_order(self, order):

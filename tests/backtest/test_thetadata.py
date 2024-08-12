@@ -174,6 +174,22 @@ class ThetadataBacktestStrat(Strategy):
             # Assert that the current asset price is the right price
             assert current_asset_price == 132.18
 
+            # Assert that the current stock quote prices are all correct
+            current_ohlcv_bid_ask_quote = self.get_quote(underlying_asset)
+            assert current_ohlcv_bid_ask_quote["open"] == 132.18
+            assert current_ohlcv_bid_ask_quote["high"] == 132.24
+            assert current_ohlcv_bid_ask_quote["low"] == 132.10
+            assert current_ohlcv_bid_ask_quote["close"] == 132.10
+            assert current_ohlcv_bid_ask_quote["bid"] == 132.10
+            assert current_ohlcv_bid_ask_quote["ask"] == 132.12
+            assert current_ohlcv_bid_ask_quote["volume"] == 58609
+            assert current_ohlcv_bid_ask_quote["bid_size"] == 12
+            assert current_ohlcv_bid_ask_quote["bid_condition"] == 1
+            assert current_ohlcv_bid_ask_quote["bid_exchange"] == 0
+            assert current_ohlcv_bid_ask_quote["ask_size"] == 7
+            assert current_ohlcv_bid_ask_quote["ask_condition"] == 60
+            assert current_ohlcv_bid_ask_quote["ask_exchange"] == 0
+
             # Option Chain: Get Full Option Chain Information
             chain = self.get_chain(self.chains, exchange="SMART")
             expiration = self.select_option_expiration(chain, days_to_expiration=1)
@@ -188,9 +204,27 @@ class ThetadataBacktestStrat(Strategy):
                 strike=strike_price,
                 multiplier=100,
             )
-            current_option_price = self.get_last_price(option_asset)
 
+            # Get the option price
+            current_option_price = self.get_last_price(option_asset)
+            # Assert that the current option price is the right price
             assert current_option_price == 4.5
+
+            # Assert that the current option quote prices are all correct
+            option_ohlcv_bid_ask_quote = self.get_quote(option_asset)
+            assert option_ohlcv_bid_ask_quote["open"] == 4.5
+            assert option_ohlcv_bid_ask_quote["high"] == 4.5
+            assert option_ohlcv_bid_ask_quote["low"] == 4.5
+            assert option_ohlcv_bid_ask_quote["close"] == 4.5
+            assert option_ohlcv_bid_ask_quote["bid"] == 4.5
+            assert option_ohlcv_bid_ask_quote["ask"] == 4.55
+            assert option_ohlcv_bid_ask_quote["volume"] == 5
+            assert option_ohlcv_bid_ask_quote["bid_size"] == 5
+            assert option_ohlcv_bid_ask_quote["bid_condition"] == 46
+            assert option_ohlcv_bid_ask_quote["bid_exchange"] == 50
+            assert option_ohlcv_bid_ask_quote["ask_size"] == 1035
+            assert option_ohlcv_bid_ask_quote["ask_condition"] == 9
+            assert option_ohlcv_bid_ask_quote["ask_exchange"] == 50
 
             # Get historical prices for the option
             option_prices = self.get_historical_prices(option_asset, 2, "minute")
@@ -230,55 +264,55 @@ class ThetadataBacktestStrat(Strategy):
 
 
 class TestThetaDataBacktestFull:
-    def verify_backtest_results(self, poly_strat_obj):
-        assert isinstance(poly_strat_obj, ThetadataBacktestStrat)
+    def verify_backtest_results(self, theta_strat_obj):
+        assert isinstance(theta_strat_obj, ThetadataBacktestStrat)
 
         # Checks bug where LifeCycle methods not being called during PANDAS backtesting
-        assert poly_strat_obj.market_opens_called
-        assert poly_strat_obj.market_closes_called
+        assert theta_strat_obj.market_opens_called
+        assert theta_strat_obj.market_closes_called
 
-        assert len(poly_strat_obj.orders) == 3  # Stock, option, stoploss all submitted
-        assert len(poly_strat_obj.prices) == 2
-        stock_order = poly_strat_obj.orders[0]
-        option_order = poly_strat_obj.orders[1]
-        stoploss_order = poly_strat_obj.orders[2]
+        assert len(theta_strat_obj.orders) == 3  # Stock, option, stoploss all submitted
+        assert len(theta_strat_obj.prices) == 2
+        stock_order = theta_strat_obj.orders[0]
+        option_order = theta_strat_obj.orders[1]
+        stoploss_order = theta_strat_obj.orders[2]
         asset_order_id = stock_order.identifier
         option_order_id = option_order.identifier
         stoploss_order_id = stoploss_order.identifier
-        assert asset_order_id in poly_strat_obj.prices
-        assert option_order_id in poly_strat_obj.prices
-        assert 130.0 < poly_strat_obj.prices[asset_order_id] < 140.0, "Valid asset price between 130 and 140"
+        assert asset_order_id in theta_strat_obj.prices
+        assert option_order_id in theta_strat_obj.prices
+        assert 130.0 < theta_strat_obj.prices[asset_order_id] < 140.0, "Valid asset price between 130 and 140"
         assert 130.0 < stock_order.get_fill_price() < 140.0, "Valid asset price between 130 and 140"
-        assert poly_strat_obj.prices[option_order_id] == 4.5, "Price is $4.5 on 08/01/2023 12:30pm"
+        assert theta_strat_obj.prices[option_order_id] == 4.5, "Price is $4.5 on 08/01/2023 12:30pm"
         assert option_order.get_fill_price() == 4.5, "Fills at 1st candle open price of $4.10 on 08/01/2023"
 
         assert option_order.is_filled()
 
         # Check that the on_*_order methods were called
         # Lumibot is autosubmitting 'sell_position' order on cancel to make it 4 total orders
-        assert len(poly_strat_obj.order_time_tracker) >= 3
+        assert len(theta_strat_obj.order_time_tracker) >= 3
         # Stock order should have been submitted and filled
-        assert asset_order_id in poly_strat_obj.order_time_tracker
-        assert poly_strat_obj.order_time_tracker[asset_order_id]["submit"]
+        assert asset_order_id in theta_strat_obj.order_time_tracker
+        assert theta_strat_obj.order_time_tracker[asset_order_id]["submit"]
         assert (
-            poly_strat_obj.order_time_tracker[asset_order_id]["fill"]
-            >= poly_strat_obj.order_time_tracker[asset_order_id]["submit"]
+            theta_strat_obj.order_time_tracker[asset_order_id]["fill"]
+            >= theta_strat_obj.order_time_tracker[asset_order_id]["submit"]
         )
         # Option order should have been submitted and filled
-        assert option_order_id in poly_strat_obj.order_time_tracker
-        assert poly_strat_obj.order_time_tracker[option_order_id]["submit"]
+        assert option_order_id in theta_strat_obj.order_time_tracker
+        assert theta_strat_obj.order_time_tracker[option_order_id]["submit"]
         assert (
-            poly_strat_obj.order_time_tracker[option_order_id]["fill"]
-            >= poly_strat_obj.order_time_tracker[option_order_id]["submit"]
+            theta_strat_obj.order_time_tracker[option_order_id]["fill"]
+            >= theta_strat_obj.order_time_tracker[option_order_id]["submit"]
         )
         # Stoploss order should have been submitted and canceled
-        assert stoploss_order_id in poly_strat_obj.order_time_tracker
-        assert poly_strat_obj.order_time_tracker[stoploss_order_id]["submit"]
+        assert stoploss_order_id in theta_strat_obj.order_time_tracker
+        assert theta_strat_obj.order_time_tracker[stoploss_order_id]["submit"]
         assert (
-            poly_strat_obj.order_time_tracker[stoploss_order_id]["cancel"]
-            > poly_strat_obj.order_time_tracker[stoploss_order_id]["submit"]
+            theta_strat_obj.order_time_tracker[stoploss_order_id]["cancel"]
+            > theta_strat_obj.order_time_tracker[stoploss_order_id]["submit"]
         )
-        assert "fill" not in poly_strat_obj.order_time_tracker[stoploss_order_id]
+        assert "fill" not in theta_strat_obj.order_time_tracker[stoploss_order_id]
 
     def test_thetadata_restclient(self):
         """

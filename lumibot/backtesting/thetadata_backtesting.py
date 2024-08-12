@@ -184,7 +184,8 @@ class ThetaDataBacktesting(PandasData):
             )
             df = pd.concat([df_ohlc, df_quote], axis=1, join='inner')
             # save df to csv file
-            # df.to_csv(f"theta_csv/{date_time_now}_{asset.strike}_{asset.expiration}_{asset.right}.csv")
+            # if asset.asset_type == "option":
+            #     df.to_csv(f"theta_csv/{date_time_now}_{asset.strike}_{asset.expiration}_{asset.right}.csv")
         except Exception as e:
             logging.info(traceback.format_exc())
             raise Exception("Error getting data from ThetaData") from e
@@ -255,8 +256,19 @@ class ThetaDataBacktesting(PandasData):
                 self._data_store.update(pandas_data_update)
         except Exception as e:
             logging.info(f"\nError get_last_price from ThetaData: {e}, {dt}, asset:{asset}")
-
         return super().get_last_price(asset=asset, quote=quote, exchange=exchange)
+    
+    def get_quote(self, asset, timestep="minute", quote=None, exchange=None, **kwargs):
+        try:
+            dt = self.get_datetime()
+            pandas_data_update = self.update_pandas_data(asset, quote, 1, timestep, dt)
+            if pandas_data_update is not None:
+                # Add the keys to the self.pandas_data dictionary
+                self.pandas_data.update(pandas_data_update)
+                self._data_store.update(pandas_data_update)
+        except Exception as e:
+            logging.info(f"\nError get_quote from ThetaData: {e}, {dt}, asset:{asset}")
+        return super().get_quote(asset=asset, quote=quote, exchange=exchange)
 
     def get_chains(self, asset):
         """

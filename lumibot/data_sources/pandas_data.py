@@ -200,6 +200,28 @@ class PandasData(DataSourceBacktesting):
         else:
             return None
 
+    def get_quote(self, asset, quote=None, exchange=None):
+        # Takes an asset and returns the last known price
+        tuple_to_find = self.find_asset_in_data_store(asset, quote)
+
+        if tuple_to_find in self._data_store:
+            data = self._data_store[tuple_to_find]
+            try:
+                dt = self.get_datetime()
+                ohlcv_bid_ask_dict = data.get_quote(dt)
+
+                # Check if ohlcv_bid_ask_dict is NaN
+                if pd.isna(ohlcv_bid_ask_dict):
+                    logging.info(f"Error getting ohlcv_bid_ask for {tuple_to_find}: ohlcv_bid_ask_dict is NaN")
+                    return None
+
+                return ohlcv_bid_ask_dict
+            except Exception as e:
+                logging.info(f"Error getting ohlcv_bid_ask for {tuple_to_find}: {e}")
+                return None
+        else:
+            return None
+
     def get_last_prices(self, assets, quote=None, exchange=None, **kwargs):
         result = {}
         for asset in assets:

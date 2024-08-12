@@ -425,12 +425,15 @@ class InteractiveBrokers(Broker):
 
         if summary is None:
             return None
-
-        total_cash_value = [float(c["Value"]) for c in summary if c["Tag"] == "TotalCashBalance" and c["Currency"] == 'BASE'][0]
-
-        gross_position_value = [float(c["Value"]) for c in summary if c["Tag"] == "NetLiquidationByCurrency" and c["Currency"] == 'BASE'][0]
-
-        net_liquidation_value = [float(c["Value"]) for c in summary if c["Tag"] == "NetLiquidationByCurrency" and c["Currency"] == 'BASE'][0]
+        
+        if self.subaccount:
+            total_cash_value = [float(c["Value"]) for c in summary if c["Tag"] == "TotalCashBalance" and c["Currency"] == 'BASE' and c["Account"] == self.subaccount][0]
+            gross_position_value = [float(c["Value"]) for c in summary if c["Tag"] == "NetLiquidationByCurrency" and c["Currency"] == 'BASE' and c["Account"] == self.subaccount][0]
+            net_liquidation_value = [float(c["Value"]) for c in summary if c["Tag"] == "NetLiquidationByCurrency" and c["Currency"] == 'BASE' and c["Account"] == self.subaccount][0]
+        else:
+            total_cash_value = [float(c["Value"]) for c in summary if c["Tag"] == "TotalCashBalance" and c["Currency"] == 'BASE'][0]
+            gross_position_value = [float(c["Value"]) for c in summary if c["Tag"] == "NetLiquidationByCurrency" and c["Currency"] == 'BASE'][0]
+            net_liquidation_value = [float(c["Value"]) for c in summary if c["Tag"] == "NetLiquidationByCurrency" and c["Currency"] == 'BASE'][0]
 
         return (total_cash_value, gross_position_value, net_liquidation_value)
 
@@ -1227,12 +1230,11 @@ class IBClient(EClient):
 
     def get_positions(self):
         positions_storage = self.wrapper.init_positions()
-        subaccount = self.subaccount
 
         # Call the positions data.
         reqid = self.get_reqid()
-        if subaccount != None:
-            self.reqPositionsMulti(reqid, subaccount, "")
+        if self.subaccount is not None:
+            self.reqPositionsMulti(reqid, self.subaccount, "")
         else:
             self.reqPositions()
 
@@ -1241,9 +1243,15 @@ class IBClient(EClient):
         except queue.Empty:
             logging.error("The queue was empty or max time reached for positions")
             requested_positions = None
+        
+        if self.subaccount is not None:
+            self.cancelPositionsMulti(reqid)
+        else:
+            self.cancelPositions()
 
         while self.wrapper.is_error():
             logging.error(f"Error: {self.get_error(timeout=5)}")
+
 
         return requested_positions
 
@@ -1255,12 +1263,8 @@ class IBClient(EClient):
         accounts_storage = self.wrapper.init_accounts()
 
         as_reqid = self.get_reqid()
-        if self.subaccount is None:
-            self.reqAccountSummary(as_reqid, "All", "$LEDGER")
-        else:
-            self.reqAccountSummary(as_reqid, "self.subaccount", "$LEDGER")
-            #self.reqAccountUpdates(False, self.subaccount)
 
+        self.reqAccountSummary(as_reqid, "All", "$LEDGER") # There is probably a better way to do subaccounts
         try:
             requested_accounts = accounts_storage.get(timeout=self.max_wait_time)
         except queue.Empty:

@@ -841,6 +841,7 @@ class _Strategy:
         buy_trading_fees=[],
         sell_trading_fees=[],
         polygon_api_key=None,
+        polygon_has_paid_subscription=False, # Deprecated, will be removed in future versions
         use_other_option_source=False,
         thetadata_username=None,
         thetadata_password=None,
@@ -954,6 +955,12 @@ class _Strategy:
         >>>     benchmark_asset=benchmark_asset,
         >>> )
         """
+        # Log a warning for polygon_has_paid_subscription as it is deprecated
+        if polygon_has_paid_subscription:
+            logging.warning(
+                "polygon_has_paid_subscription is deprecated and will be removed in future versions. "
+                "Please remove it from your code."
+            )
 
         positional_args_error_message = (
             "Please do not use `name' or 'budget' as positional arguments. \n"

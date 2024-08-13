@@ -217,7 +217,7 @@ class _Strategy:
             self._name = name
         
         if self.broker == None:
-            self.broker=credentials['BROKER']
+            self.broker = credentials['BROKER']
         
         if self._name == None:
             self._name = credentials['STRATEGY_NAME']
@@ -247,6 +247,11 @@ class _Strategy:
             self.strategy_id = strategy_id
 
         self._quote_asset = quote_asset
+
+        # Check if the quote_assets exists on the broker
+        if not hasattr(self.broker, "quote_assets"):
+            self.broker.quote_assets = set()
+
         self.broker.quote_assets.add(self._quote_asset)
 
         # Setting the broker object

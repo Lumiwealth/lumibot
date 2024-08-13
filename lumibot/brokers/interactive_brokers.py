@@ -631,6 +631,11 @@ class IBWrapper(EWrapper):
         self.tick_type_used = None
         self.tick_request_id = None
         self.tick_asset = None
+        self.price = None
+        self.bid = None
+        self.ask = None
+        self.bid_size = None
+        self.ask_size = None
         tick_queue = queue.Queue()
         self.my_tick_queue = tick_queue
         return tick_queue

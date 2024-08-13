@@ -359,9 +359,10 @@ class InteractiveBrokersData(DataSource):
                     asset,
                     exchange=exchange,
                     should_use_last_close=should_use_last_close,
+                    only_price=False,
                 )
                 if result:
-                    response[asset] = result[0]
+                    response[asset] = result["price"]
                     break
                 get_data_attempt += 1
             except:

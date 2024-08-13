@@ -4115,7 +4115,7 @@ class Strategy(_Strategy):
                 else:
                     # Verify the connection
                     with self.db_engine.connect() as conn:
-                        conn.execute("SELECT 1")
+                        conn.execute(text("SELECT 1"))
 
                 # Check if the table exists
                 if not inspect(self.db_engine).has_table(stats_table_name):

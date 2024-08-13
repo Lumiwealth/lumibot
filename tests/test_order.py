@@ -109,7 +109,7 @@ class TestOrderBasics:
         buy_order = Order(strategy='abc', asset=asset, side="buy", quantity=100)
 
         # No transactions
-        assert buy_order.get_fill_price() == 0
+        assert buy_order.get_fill_price() == None
 
         buy_order.transactions = [
             Order.Transaction(quantity=50, price=20.0),
@@ -120,7 +120,9 @@ class TestOrderBasics:
 
         # Error case where quantity is not set
         buy_order._quantity = 0
-        assert buy_order.get_fill_price() == 0
+
+        # Fill price should be None because quantity is 0, this is an error case
+        assert buy_order.get_fill_price() == None
 
         # Ensure Weighted Average used
         sell_order = Order(strategy='abc', asset=asset, side="sell", quantity=100)

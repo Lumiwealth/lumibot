@@ -4,6 +4,7 @@ import time
 from datetime import date, datetime, timedelta
 from enum import Enum
 from pathlib import Path
+import pytz
 import pandas as pd
 import pandas_market_calendars as mcal
 import requests
@@ -14,24 +15,8 @@ from tqdm import tqdm
 
 WAIT_TIME = 60
 MAX_DAYS = 30
-THETA_SUMMER_TIME_SHIFT = 4
-THETA_WINTER_TIME_SHIFT = 5
 CACHE_SUBFOLDER = "thetadata"
 BASE_URL = "http://127.0.0.1:25510"
-
-
-def is_summer_time(date_time):
-    month = int(date_time.month)
-    if month >= 4 and month <= 10:
-        return True
-    elif month in [12, 1, 2]:
-        return False
-    else:
-        # Convert the datetime object to a struct_time in the local timezone
-        time_tuple = date_time.timetuple()
-
-        # Use the tm_isdst attribute to determine DST status
-        return time.localtime(time.mktime(time_tuple)).tm_isdst > 0
 
 
 def get_price_data(
@@ -89,11 +74,6 @@ def get_price_data(
     # Check if we need to get more data
     missing_dates = get_missing_dates(df_all, asset, start, end)
     if not missing_dates:
-        # df_all.index = df_all.index + pd.Timedelta(hours=THETA_SUMMER_TIME_SHIFT) - pd.Timedelta(minutes=1)
-        if is_summer_time(start):
-            df_all.index = df_all.index + pd.Timedelta(hours=THETA_SUMMER_TIME_SHIFT) - pd.Timedelta(minutes=1)
-        else:
-            df_all.index = df_all.index + pd.Timedelta(hours=THETA_WINTER_TIME_SHIFT) - pd.Timedelta(minutes=1)
         return df_all
 
     start = missing_dates[0]  # Data will start at 8am UTC (4am EST)
@@ -149,10 +129,6 @@ def get_price_data(
     update_cache(cache_file, df_all, df_feather)
     # Close the progress bar when done
     pbar.close()
-    if is_summer_time(missing_dates[0]):
-        df_all.index = df_all.index + pd.Timedelta(hours=THETA_SUMMER_TIME_SHIFT) - pd.Timedelta(minutes=1)
-    else:
-        df_all.index = df_all.index + pd.Timedelta(hours=THETA_WINTER_TIME_SHIFT) - pd.Timedelta(minutes=1)
     return df_all
 
 
@@ -266,12 +242,6 @@ def load_cache(cache_file):
         df_feather.index
     )  # TODO: Is there some way to speed this up? It takes several times longer than just reading the feather file
     df_feather = df_feather.sort_index()
-
-    # Check if the index is already timezone aware
-    if df_feather.index.tzinfo is None:
-        # Set the timezone to New York
-        df_feather.index = df_feather.index.tz_localize("America/New_York")
-
     return df_feather
 
 
@@ -301,26 +271,56 @@ def update_df(df_all, result):
     ----------
     df_all : pd.DataFrame
         A DataFrame with the data we already have
-    result : list
+    result : pandas DataFrame
         A List of dictionaries with the new data from Polygon
-        Format: [{'o': 1.0, 'h': 2.0, 'l': 3.0, 'c': 4.0, 'v': 5.0, 't': 116120000000}]
+        Format:
+        {
+                "close": [2, 3, 4, 5, 6],
+                "open": [1, 2, 3, 4, 5],
+                "high": [3, 4, 5, 6, 7],
+                "low": [1, 2, 3, 4, 5],
+                "datetime": [
+                    "2023-07-01 09:30:00",
+                    "2023-07-01 09:31:00",
+                    "2023-07-01 09:32:00",
+                    "2023-07-01 09:33:00",
+                    "2023-07-01 09:34:00",
+                ],
+            }
     """
-
+    ny_tz = pytz.timezone('America/New_York')
     df = pd.DataFrame(result)
     if not df.empty:
+        # check if df has a column named "datetime", if not raise key error
+        if "datetime" not in df.columns:
+            raise KeyError("KeyError: update_df function requires 'result' input with 'datetime' column, but not found")
+
         df = df.set_index("datetime").sort_index()
+        if not df.index.tzinfo:
+            df.index = df.index.tz_localize(ny_tz).tz_convert(pytz.utc)
+        else:
+            df.index = df.index.tz_convert(pytz.utc)
+
         if df_all is not None:
             # set "datetime" column as index of df_all
             if isinstance(df.index, pd.DatetimeIndex) and df.index.name == 'datetime':
                 df_all = df_all.sort_index()
             else:
                 df_all = df_all.set_index("datetime").sort_index()
-        df.index = df.index.tz_localize("UTC")
+
+            # convert df_all index to UTC if not already
+            if not df.index.tzinfo:
+                df_all.index = df_all.index.tz_localize(ny_tz).tz_convert(pytz.utc)
+            else:
+                df_all.index = df_all.index.tz_convert(pytz.utc)
+
+        # df.index = df.index.tz_localize("UTC") if df.index.tzinfo is None else df.index
         if df_all is None or df_all.empty:
             df_all = df
         else:
             df_all = pd.concat([df_all, df]).sort_index()
             df_all = df_all[~df_all.index.duplicated(keep="first")]  # Remove any duplicate rows
+        df_all.index = df_all.index - pd.Timedelta(minutes=1)
     return df_all
 
 

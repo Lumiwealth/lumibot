@@ -52,6 +52,9 @@ class StrategyExecutor(Thread):
         # Create an Event object for the check queue stop event.
         self.check_queue_stop_event = Event()
 
+        # Keep track of Abrupt Closing method execution
+        self.abrupt_closing = False
+
     @property
     def name(self):
         return self.strategy._name
@@ -483,7 +486,13 @@ class StrategyExecutor(Thread):
         """Use this lifecycle event to execute code
         when the main trader was shut down (Keyboard Interuption, ...)
         Example: self.sell_all()"""
+
+        # Ensure this doesn't run every time you do ctrl+c
+        if self.abrupt_closing:
+            return
+        
         self.strategy.log_message("Executing the on_abrupt_closing event method")
+        self.abrupt_closing = True
         self.strategy.on_abrupt_closing()
         self.strategy._dump_stats()
         self.strategy.backup_variables_to_db()

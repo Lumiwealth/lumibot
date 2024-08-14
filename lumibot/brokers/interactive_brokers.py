@@ -352,7 +352,7 @@ class InteractiveBrokers(Broker):
                 kwargs["stop_loss"]["limit_price"] = order.stop_loss_limit_price
 
         if self.subaccount is not None:
-            order.account = self.subaccount
+            order.account = self.subaccount # to be tested
         
         self._unprocessed_orders.append(order)
         self.ib.execute_order(order)
@@ -426,14 +426,9 @@ class InteractiveBrokers(Broker):
         if summary is None:
             return None
         
-        if self.subaccount:
-            total_cash_value = [float(c["Value"]) for c in summary if c["Tag"] == "TotalCashBalance" and c["Currency"] == 'BASE' and c["Account"] == self.subaccount][0]
-            gross_position_value = [float(c["Value"]) for c in summary if c["Tag"] == "NetLiquidationByCurrency" and c["Currency"] == 'BASE' and c["Account"] == self.subaccount][0]
-            net_liquidation_value = [float(c["Value"]) for c in summary if c["Tag"] == "NetLiquidationByCurrency" and c["Currency"] == 'BASE' and c["Account"] == self.subaccount][0]
-        else:
-            total_cash_value = [float(c["Value"]) for c in summary if c["Tag"] == "TotalCashBalance" and c["Currency"] == 'BASE'][0]
-            gross_position_value = [float(c["Value"]) for c in summary if c["Tag"] == "NetLiquidationByCurrency" and c["Currency"] == 'BASE'][0]
-            net_liquidation_value = [float(c["Value"]) for c in summary if c["Tag"] == "NetLiquidationByCurrency" and c["Currency"] == 'BASE'][0]
+        total_cash_value = [float(c["Value"]) for c in summary if c["Tag"] == "TotalCashBalance" and c["Currency"] == 'BASE'][0]
+        gross_position_value = [float(c["Value"]) for c in summary if c["Tag"] == "NetLiquidationByCurrency" and c["Currency"] == 'BASE'][0]
+        net_liquidation_value = [float(c["Value"]) for c in summary if c["Tag"] == "NetLiquidationByCurrency" and c["Currency"] == 'BASE'][0]
 
         return (total_cash_value, gross_position_value, net_liquidation_value)
 
@@ -1232,9 +1227,10 @@ class IBClient(EClient):
         positions_storage = self.wrapper.init_positions()
 
         # Call the positions data.
-        reqid = self.get_reqid()
         if self.subaccount is not None:
-            self.reqPositionsMulti(reqid, self.subaccount, "")
+            # reqid = self.get_reqid()
+            # self.reqPositionsMulti(reqid, self.subaccount, "") # not working idk why
+            self.reqPositions()
         else:
             self.reqPositions()
 
@@ -1243,28 +1239,21 @@ class IBClient(EClient):
         except queue.Empty:
             logging.error("The queue was empty or max time reached for positions")
             requested_positions = None
-        
-        if self.subaccount is not None:
-            self.cancelPositionsMulti(reqid)
-        else:
-            self.cancelPositions()
 
         while self.wrapper.is_error():
             logging.error(f"Error: {self.get_error(timeout=5)}")
 
+        if requested_positions is not None and self.subaccount is not None:
+            requested_positions = [pos for pos in requested_positions if pos.get('account') == self.subaccount]
 
         return requested_positions
-
-    def get_historical_account_value(self):
-        logging.error("The function get_historical_account_value is not implemented yet for Interactive Brokers.")
-        return {"hourly": None, "daily": None}
 
     def get_account_summary(self):
         accounts_storage = self.wrapper.init_accounts()
 
         as_reqid = self.get_reqid()
 
-        self.reqAccountSummary(as_reqid, "All", "$LEDGER") # There is probably a better way to do subaccounts
+        self.reqAccountSummary(as_reqid, "All", "$LEDGER") # You could probably just set a subaccount, couldn't get it to work
         try:
             requested_accounts = accounts_storage.get(timeout=self.max_wait_time)
         except queue.Empty:
@@ -1276,6 +1265,9 @@ class IBClient(EClient):
         while self.wrapper.is_error():
             logging.debug(f"Error: {self.get_error(timeout=5)}")
 
+        if requested_accounts is not None and self.subaccount is not None:
+            requested_accounts = [pos for pos in requested_accounts if pos.get('account') == self.subaccount]
+
         return requested_accounts
 
     def get_open_orders(self):
@@ -1285,20 +1277,16 @@ class IBClient(EClient):
         if self.subaccount is None:
             self.reqAllOpenOrders()
         else:
-            self.reqOpenOrders()
+            self.reqOpenOrders() # to be tested, gets only orders opened by your specific client id
 
-        try:
-            requested_orders = orders_storage.get(timeout=self.max_wait_time)
-        except queue.Empty:
-            print("The queue was empty or max time reached for orders.")
-            requested_orders = None
+        requested_orders = orders_storage.get(timeout=self.max_wait_time)
 
         while self.wrapper.is_error():
             print(f"Error: {self.get_error(timeout=5)}")
 
         if isinstance(requested_orders, Order):
             requested_orders = [requested_orders]
-
+        
         return requested_orders
 
     def cancel_order(self, order):
@@ -1390,8 +1378,11 @@ class IBApp(IBWrapper, IBClient):
         self.ib_broker = ib_broker
         self.subaccount = subaccount
 
+        self.reqAutoOpenOrders(True)
+
         # Ensure a connection before running
         self.connect(self.ip_address, self.socket_port, client_id)
+
         
         thread = Thread(target=self.run)
         thread.start()

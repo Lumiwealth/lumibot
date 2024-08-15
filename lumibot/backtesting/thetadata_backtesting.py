@@ -33,18 +33,6 @@ class ThetaDataBacktesting(PandasData):
         self._password = password
         self.kill_processes_by_name("ThetaTerminal.jar")
 
-    def get_all_holidays(self, year, country='US'):
-        """
-        Get a list of all holidays for a given year and country.
-
-        :param year: Integer, the year for which to get the holidays
-        :param country: String, the country for which to get the holidays
-        :return: List of tuples (date, name) representing holidays
-        """
-        country_holidays = holidays.country_holidays(country, years=year)
-        all_holidays = [date for date, name in country_holidays.items()]
-        return all_holidays
-
     def is_weekend(self, date):
         """
         Check if the given date is a weekend.

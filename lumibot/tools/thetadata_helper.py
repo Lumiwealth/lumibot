@@ -84,7 +84,7 @@ def get_price_data(
     total_queries = (total_days // MAX_DAYS) + 1
     description = f"\nDownloading '{datastyle}' data for {asset} / {quote_asset} with '{timespan}' from ThetaData..."
     logging.info(description)
-    pbar = tqdm(total=total_queries, desc=description, dynamic_ncols=True)
+    pbar = tqdm(total=1, desc=description, dynamic_ncols=True)
 
     delta = timedelta(days=MAX_DAYS)
 
@@ -291,11 +291,16 @@ def update_df(df_all, result):
     ny_tz = pytz.timezone('America/New_York')
     df = pd.DataFrame(result)
     if not df.empty:
-        # check if df has a column named "datetime", if not raise key error
-        if "datetime" not in df.columns:
-            raise KeyError("KeyError: update_df function requires 'result' input with 'datetime' column, but not found")
+        if "datetime" not in df.index.names:
+            # check if df has a column named "datetime", if not raise key error
+            if "datetime" not in df.columns:
+                raise KeyError("KeyError: update_df function requires 'result' input with 'datetime' column, but not found")
 
-        df = df.set_index("datetime").sort_index()
+            # if column "datetime" is not index set it as index
+            df = df.set_index("datetime").sort_index()
+        else:
+            df = df.sort_index()
+
         if not df.index.tzinfo:
             df.index = df.index.tz_localize(ny_tz).tz_convert(pytz.utc)
         else:
@@ -320,6 +325,8 @@ def update_df(df_all, result):
         else:
             df_all = pd.concat([df_all, df]).sort_index()
             df_all = df_all[~df_all.index.duplicated(keep="first")]  # Remove any duplicate rows
+
+        # df_all index - 1 min to match with polygon data index
         df_all.index = df_all.index - pd.Timedelta(minutes=1)
     return df_all
 
@@ -343,6 +350,7 @@ def check_connection(username: str, password: str):
     MAX_RETRIES = 15
     counter = 0
     client = None
+    connected = False
     while True:
         try:
             time.sleep(0.5)
@@ -351,6 +359,7 @@ def check_connection(username: str, password: str):
 
             if con_text == "CONNECTED":
                 logging.debug("Connected to Theta Data!")
+                connected = True
                 break
             elif con_text == "DISCONNECTED":
                 logging.debug("Disconnected from Theta Data!")
@@ -367,7 +376,7 @@ def check_connection(username: str, password: str):
             logging.error("Cannot connect to Theta Data!")
             break
 
-    return client
+    return client, connected
 
 
 def get_request(url: str, headers: dict, querystring: dict, username: str, password: str):
@@ -430,9 +439,8 @@ def get_historical_data(asset: Asset, start_dt: datetime, end_dt: datetime, ivl:
 
     # Create the url based on the asset type
     url = f"{BASE_URL}/hist/{asset.asset_type}/{datastyle}"
-    if asset.asset_type == "stock":
-        querystring = {"root": asset.symbol, "start_date": start_date, "end_date": end_date, "ivl": ivl}
-    elif asset.asset_type == "option":
+
+    if asset.asset_type == "option":
         # Convert the expiration date to a string
         expiration_str = asset.expiration.strftime("%Y%m%d")
 
@@ -449,6 +457,8 @@ def get_historical_data(asset: Asset, start_dt: datetime, end_dt: datetime, ivl:
             "right": "C" if asset.right == "CALL" else "P",
             "rth": "false"
         }
+    else:
+        querystring = {"root": asset.symbol, "start_date": start_date, "end_date": end_date, "ivl": ivl}
 
     headers = {"Accept": "application/json"}
 
@@ -467,6 +477,9 @@ def get_historical_data(asset: Asset, start_dt: datetime, end_dt: datetime, ivl:
         df = df[(df["bid_size"] != 0) | (df["ask_size"] != 0)]
     else:
         df = df[df["count"] != 0]
+
+    if df is None or df.empty:
+        return df
 
     # Function to combine ms_of_day and date into datetime
     def combine_datetime(row):
@@ -586,6 +599,6 @@ def get_strikes(username: str, password: str, ticker: str, expiration: datetime)
     strikes = df.iloc[:, 0].tolist()
 
     # Divide each strike by 1000 to get the actual strike price
-    strikes = [x / 1000 for x in strikes]
+    strikes = [x / 1000.0 for x in strikes]
 
     return strikes

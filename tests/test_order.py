@@ -143,6 +143,36 @@ class TestOrderBasics:
         order.status = 'filled'
         assert order.is_filled()
 
+    def test_is_buy_order(self):
+        asset = Asset("SPY")
+        order = Order(strategy='abc', asset=asset, side=Order.OrderSide.BUY, quantity=100)
+        assert order.is_buy_order()
+        order.side = Order.OrderSide.SELL
+        assert not order.is_buy_order()
+
+        # Test unique buy order types
+        order.side = Order.OrderSide.BUY_TO_COVER
+        assert order.is_buy_order()
+        order.side = Order.OrderSide.BUY_TO_OPEN
+        assert order.is_buy_order()
+        order.side = Order.OrderSide.BUY_TO_CLOSE
+        assert order.is_buy_order()
+
+    def test_is_sell_order(self):
+        asset = Asset("SPY")
+        order = Order(strategy='abc', asset=asset, side=Order.OrderSide.SELL, quantity=100)
+        assert order.is_sell_order()
+        order.side = Order.OrderSide.BUY
+        assert not order.is_sell_order()
+
+        # Test unique sell order types
+        order.side = Order.OrderSide.SELL_SHORT
+        assert order.is_sell_order()
+        order.side = Order.OrderSide.SELL_TO_OPEN
+        assert order.is_sell_order()
+        order.side = Order.OrderSide.SELL_TO_CLOSE
+        assert order.is_sell_order()
+
     def test_cancelled(self):
         asset = Asset("SPY")
         order = Order(strategy='abc', asset=asset, side="buy", quantity=100)

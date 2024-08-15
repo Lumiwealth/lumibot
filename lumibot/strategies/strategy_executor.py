@@ -521,7 +521,7 @@ class StrategyExecutor(Thread):
         side = order.side.capitalize()
 
         # Check if we are buying or selling
-        if side == "Buy":
+        if order.is_buy_order():
             emoji = "🟢📈 "
         else:
             emoji = "🔴📉 "

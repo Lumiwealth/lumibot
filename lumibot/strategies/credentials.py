@@ -7,11 +7,31 @@
 # etc.
 
 import os
+import sys
 
-import dotenv
 from lumibot.brokers import Alpaca, Ccxt, InteractiveBrokers, Tradier
+import logging
+from dotenv import load_dotenv
 
-dotenv.load_dotenv()
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Get the directory of the original script being run
+base_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
+
+def load_all_dotenvs(start_dir):
+    # Walk through the directory tree
+    for root, dirs, files in os.walk(start_dir):
+        if '.env' in files:
+            dotenv_path = os.path.join(root, '.env')
+            load_dotenv(dotenv_path)
+            logger.info(f".env file loaded from: {dotenv_path}")
+
+# Load all .env files starting from the base directory
+load_all_dotenvs(base_dir)
+
+# dotenv.load_dotenv()
 credentials={}
 broker=None
 
@@ -29,14 +49,35 @@ STRATEGY_NAME = os.environ.get("STRATEGY_NAME")
 # Discord credentials
 credentials['DISCORD_WEBHOOK_URL'] = os.environ.get("DISCORD_WEBHOOK_URL")
 
+# Add a warning if ACCOUNT_HISTORY_DB_CONNECTION_STR is set because it is now replaced by DB_CONNECTION_STR
+if os.environ.get("ACCOUNT_HISTORY_DB_CONNECTION_STR"):
+    print("ACCOUNT_HISTORY_DB_CONNECTION_STR is deprecated and will be removed in a future version. Please use DB_CONNECTION_STR instead.")
+    credentials['DB_CONNECTION_STR'] = os.environ.get("ACCOUNT_HISTORY_DB_CONNECTION_STR")
+
 # Database connection string
-credentials['DB_CONNECTION_STR'] = os.environ.get("DB_CONNECTION_STR")
+if os.environ.get("DB_CONNECTION_STR"):
+    credentials['DB_CONNECTION_STR'] = os.environ.get("DB_CONNECTION_STR")
 
 # Name for the strategy to be used in the database
 credentials['STRATEGY_NAME'] = os.environ.get("STRATEGY_NAME")
 
+POLYGON_CONFIG = {
+    # Add POLYGON_API_KEY and POLYGON_IS_PAID_SUBSCRIPTION to your .env file or set them as secrets
+    "API_KEY": os.environ.get("POLYGON_API_KEY"),
+    "IS_PAID_SUBSCRIPTION": os.environ.get("POLYGON_IS_PAID_SUBSCRIPTION").lower()
+    == "true"
+    if os.environ.get("POLYGON_IS_PAID_SUBSCRIPTION")
+    else False,
+}
+
 # Polygon API Key
-credentials['POLYGON_API_KEY'] = os.environ.get("POLYGON_API_KEY")
+credentials['POLYGON_API_KEY'] = POLYGON_CONFIG['API_KEY']
+
+THETADATA_CONFIG = {
+    # Get the ThetaData API key from the .env file or secrets
+    "THETADATA_USERNAME": os.environ.get("THETADATA_USERNAME"),
+    "THETADATA_PASSWORD": os.environ.get("THETADATA_PASSWORD")
+}
 
 ALPACA_CONFIG = {  # Paper trading!
     # Add ALPACA_API_KEY, ALPACA_API_SECRET, and ALPACA_IS_PAPER to your .env file or set them as secrets

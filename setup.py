@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="lumibot",
-    version="3.6.12",
+    version="3.6.15",
     author="Robert Grzesik",
     author_email="rob@lumiwealth.com",
     description="Backtesting and Trading Library, Made by Lumiwealth",
@@ -48,7 +48,7 @@ setuptools.setup(
         "appdirs",
         "pyarrow",
         "tqdm",
-        "lumiwealth-tradier>=0.1.8",
+        "lumiwealth-tradier>=0.1.9",
         "pytz",
         "psycopg2-binary",
         "exchange_calendars>=4.5.2",

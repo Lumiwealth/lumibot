@@ -217,10 +217,10 @@ class _Strategy:
             self._name = name
         
         if self.broker == None:
-            self.broker = credentials['BROKER']
+            self.broker = credentials.get('BROKER')
         
         if self._name == None:
-            self._name = credentials['STRATEGY_NAME']
+            self._name = credentials.get('STRATEGY_NAME')
 
         if self._name is None:
             self._name = self.__class__.__name__
@@ -228,7 +228,7 @@ class _Strategy:
         # Create an adapter with 'strategy_name' set to the instance's name
         self.logger = CustomLoggerAdapter(logger, {'strategy_name': self._name})
 
-        self.discord_webhook_url = discord_webhook_url if discord_webhook_url is not None else credentials['DISCORD_WEBHOOK_URL']
+        self.discord_webhook_url = discord_webhook_url if discord_webhook_url is not None else credentials.get('DISCORD_WEBHOOK_URL')
         
         if account_history_db_connection_str: 
             self.db_connection_str = account_history_db_connection_str  
@@ -236,7 +236,7 @@ class _Strategy:
         elif db_connection_str:
             self.db_connection_str = db_connection_str
         else:
-            self.db_connection_str = credentials['DB_CONNECTION_STR']
+            self.db_connection_str = credentials.get('DB_CONNECTION_STR')
             
         self.discord_account_summary_footer = discord_account_summary_footer
         self.backup_table_name="vars_backup"
@@ -1052,7 +1052,7 @@ class _Strategy:
         cls.verify_backtest_inputs(backtesting_start, backtesting_end)
 
         # Make sure polygon_api_key is set if using PolygonDataBacktesting
-        polygon_api_key = polygon_api_key if polygon_api_key is not None else credentials['POLYGON_API_KEY']
+        polygon_api_key = polygon_api_key if polygon_api_key is not None else credentials.get('POLYGON_API_KEY')
         if datasource_class == PolygonDataBacktesting and polygon_api_key is None:
             raise ValueError(
                 "Please set `POLYGON_API_KEY` to your API key from polygon.io as an environment variable if "
@@ -1062,11 +1062,17 @@ class _Strategy:
 
         # Make sure thetadata_username and thetadata_password are set if using ThetaDataBacktesting
         if use_other_option_source and optionsource_class == ThetaDataBacktesting and (thetadata_username is None or thetadata_password is None):
-            raise ValueError(
-                "Please set `thetadata_username` and `thetadata_password` in the backtest() function if "
-                "you are using ThetaDataBacktesting. If you don't have one, you can do registeration "
-                "from https://www.thetadata.net/."
-            )
+            # Try getting the Theta Data credentials from credentials
+            thetadata_username = credentials.THETADATA_CONFIG.get('THETADATA_USERNAME')
+            thetadata_password = credentials.THETADATA_CONFIG.get('THETADATA_PASSWORD')
+            
+            # Check again if theta data username and pass are set
+            if thetadata_username is None or thetadata_password is None:
+                raise ValueError(
+                    "Please set `thetadata_username` and `thetadata_password` in the backtest() function if "
+                    "you are using ThetaDataBacktesting. If you don't have one, you can do registeration "
+                    "from https://www.thetadata.net/."
+                )
 
         if not cls.IS_BACKTESTABLE:
             logging.warning(f"Strategy {name + ' ' if name is not None else ''}cannot be " f"backtested at the moment")

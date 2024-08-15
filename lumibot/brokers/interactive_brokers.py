@@ -115,7 +115,7 @@ class InteractiveBrokers(Broker):
 
     # =========Positions functions==================
 
-    def _parse_broker_position(self, broker_position, strategy, orders=None): 
+    def _parse_broker_position(self, broker_position, strategy, orders=None):
         """Parse a broker position representation
         into a position object"""
         if broker_position["asset_type"] == "stock":
@@ -154,14 +154,14 @@ class InteractiveBrokers(Broker):
         position = Position(strategy, asset, quantity, orders=orders)
         return position
 
-    def _pull_broker_position(self, asset): 
+    def _pull_broker_position(self, asset):
         """Given an asset, get the broker representation
         of the corresponding asset"""
         result = self._pull_broker_positions()
         result = result[result["Symbol"] == asset].squeeze()
         return result
 
-    def _pull_broker_positions(self, strategy=None): 
+    def _pull_broker_positions(self, strategy=None):
         """Get the broker representation of all positions"""
         positions = []
         ib_positions = self.ib.get_positions()
@@ -174,7 +174,7 @@ class InteractiveBrokers(Broker):
 
         return positions
 
-    def _parse_broker_positions(self, broker_positions, strategy): 
+    def _parse_broker_positions(self, broker_positions, strategy):
         """parse a list of broker positions into a
         list of position objects"""
         result = []
@@ -183,14 +183,14 @@ class InteractiveBrokers(Broker):
 
         return result
 
-    def _pull_positions(self, strategy): 
+    def _pull_positions(self, strategy):
         """Get the account positions. return a list of
         position objects"""
         response = self._pull_broker_positions(strategy)
         result = self._parse_broker_positions(response, strategy.name)
         return result
 
-    def _pull_position(self, strategy, asset): 
+    def _pull_position(self, strategy, asset):
         """
         Pull a single position from the broker that matches the asset and strategy. If no position is found, None is
         returned.
@@ -213,7 +213,7 @@ class InteractiveBrokers(Broker):
 
     # =======Orders and assets functions=========
 
-    def _parse_broker_order(self, response, strategy_name, strategy_object=None): 
+    def _parse_broker_order(self, response, strategy_name, strategy_object=None):
         """Parse a broker order representation
         to an order object"""
 
@@ -256,7 +256,7 @@ class InteractiveBrokers(Broker):
         order.update_raw(response)
         return order
     
-    def _parse_order_object(self, strategy_name, contract, quantity, action, limit_price = None, stop_price = None, time_in_force = None, good_till_date = None): 
+    def _parse_order_object(self, strategy_name, contract, quantity, action, limit_price = None, stop_price = None, time_in_force = None, good_till_date = None):
         expiration = None
         multiplier = 1
         if contract.secType in ["OPT", "FUT"]:
@@ -293,22 +293,22 @@ class InteractiveBrokers(Broker):
 
         return order
 
-    def _pull_broker_order(self, order_id): 
+    def _pull_broker_order(self, order_id):
         """Get a broker order representation by its id"""
         pull_order = [order for order in self.ib.get_open_orders() if order.orderId == order_id]
         response = pull_order[0] if len(pull_order) > 0 else None
         return response
 
-    def _pull_broker_all_orders(self): 
+    def _pull_broker_all_orders(self):
         """Get the broker open orders"""
         orders = self.ib.get_open_orders()
         return orders
 
-    def _flatten_order(self, orders):  # implement for stop loss. 
+    def _flatten_order(self, orders): # implement for stop loss. 
         """Not used for Interactive Brokers. Just returns the orders."""
         return orders
     
-    def submit_orders(self, orders, is_multileg=False, duration="day", price=None, **kwargs):  
+    def submit_orders(self, orders, is_multileg=False, duration="day", price=None, **kwargs):
         if is_multileg:
             multileg_order = OrderLum(orders[0].strategy)
             multileg_order.order_class = OrderLum.OrderClass.MULTILEG
@@ -326,7 +326,7 @@ class InteractiveBrokers(Broker):
         else:
             self._orders_queue.put(orders)
 
-    def _submit_order(self, order): 
+    def _submit_order(self, order):
         """Submit an order for an asset"""
         # Initial order
         order.identifier = self.ib.nextOrderId()
@@ -359,12 +359,12 @@ class InteractiveBrokers(Broker):
         order.status = "submitted"
         return order
 
-    def cancel_order(self, order): 
+    def cancel_order(self, order):
         """Cancel an order"""
         self.ib.cancel_order(order)
 
     # =========Market functions=======================
-    def _close_connection(self): 
+    def _close_connection(self):
         self.ib.disconnect()
 
     def _reconnect_if_not_connected(self):
@@ -382,7 +382,7 @@ class InteractiveBrokers(Broker):
 
         return False
 
-    def _get_balances_at_broker(self, quote_asset): 
+    def _get_balances_at_broker(self, quote_asset):
         """Gets the current actual cash, positions value, and total
         liquidation value from interactive Brokers.
 
@@ -432,15 +432,15 @@ class InteractiveBrokers(Broker):
 
         return (total_cash_value, gross_position_value, net_liquidation_value)
 
-    def get_contract_details(self, asset): 
+    def get_contract_details(self, asset):
         # Used for Interactive Brokers. Convert an asset into a IB Contract.
         return self.ib.get_contract_details(asset=asset)
 
-    def option_params(self, asset, exchange="", underlyingConId=""): 
+    def option_params(self, asset, exchange="", underlyingConId=""):
         # Returns option chain data, list of strikes and list of expiry dates.
         return self.ib.option_params(asset=asset, exchange=exchange, underlyingConId=underlyingConId)
 
-    def get_chains(self, asset: Asset): 
+    def get_chains(self, asset: Asset):
         """
         Returns option chain. IBKR chain data is weird because it returns a list of expirations and a separate list of
         strikes, but no way of coorelating the two. This method returns a dictionary with the expirations and strikes
@@ -1248,6 +1248,10 @@ class IBClient(EClient):
 
         return requested_positions
 
+    def get_historical_account_value(self):
+        logging.error("The function get_historical_account_value is not implemented yet for Interactive Brokers.")
+        return {"hourly": None, "daily": None}
+
     def get_account_summary(self):
         accounts_storage = self.wrapper.init_accounts()
 
@@ -1266,7 +1270,7 @@ class IBClient(EClient):
             logging.debug(f"Error: {self.get_error(timeout=5)}")
 
         if requested_accounts is not None and self.subaccount is not None:
-            requested_accounts = [pos for pos in requested_accounts if pos.get('account') == self.subaccount]
+            requested_accounts = [pos for pos in requested_accounts if pos.get('Account') == self.subaccount]
 
         return requested_accounts
 

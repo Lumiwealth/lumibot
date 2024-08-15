@@ -704,10 +704,6 @@ class Strategy(_Strategy):
             # Sleep for the the sleeptime in seconds.
             time.sleep(sleeptime)
 
-        # Process pending orders if process_pending_orders is True and the broker has the method process_pending_orders
-        if process_pending_orders and hasattr(self.broker, "process_pending_orders"):
-            self.broker.process_pending_orders(strategy=self)
-
         return self.broker.sleep(sleeptime)
 
     def get_selling_order(self, position):
@@ -4119,7 +4115,7 @@ class Strategy(_Strategy):
                 else:
                     # Verify the connection
                     with self.db_engine.connect() as conn:
-                        conn.execute("SELECT 1")
+                        conn.execute(text("SELECT 1"))
 
                 # Check if the table exists
                 if not inspect(self.db_engine).has_table(stats_table_name):
@@ -4140,8 +4136,12 @@ class Strategy(_Strategy):
                             "strategy_id": ["INITIAL VALUE"], # Default or initial value
                         }
                     )
+
+                    # Set the index
+                    stats_new.set_index("id", inplace=True)
+
                     # Create the table by saving this empty DataFrame to the database
-                    self.to_sql(stats_new, stats_table_name, if_exists='replace', index=False)
+                    self.to_sql(stats_new, stats_table_name, if_exists='replace', index=True)
                 
                 # Load the stats dataframe from the database
                 stats_df = pd.read_sql_table(stats_table_name, self.db_engine)
@@ -4158,7 +4158,7 @@ class Strategy(_Strategy):
                     self.logger.error("Max retries reached for get_stats_from_database. Failing operation.")
                     raise
 
-    def to_sql(self, stats_df, stats_table_name, if_exists='replace', index=False, retries=5, delay=5):
+    def to_sql(self, stats_df, stats_table_name, if_exists='replace', index=True, retries=5, delay=5):
         attempt = 0
         while attempt < retries:
             try:
@@ -4201,8 +4201,11 @@ class Strategy(_Strategy):
                 }
             )
 
+            # Set the index
+            stats_new.set_index("id", inplace=True)
+
             # Create the table by saving this empty DataFrame to the database
-            stats_new.to_sql(self.backup_table_name, self.db_engine, if_exists='replace', index=False)
+            stats_new.to_sql(self.backup_table_name, self.db_engine, if_exists='replace', index=True)
 
         current_state = json.dumps(self.vars.all(), sort_keys=True)
         if current_state == self._last_backup_state:
@@ -4336,6 +4339,9 @@ class Strategy(_Strategy):
             }
         )
 
+        # Set the index
+        stats_new.set_index("id", inplace=True)
+
         # Add the new stats to the existing stats
         stats_df = pd.concat([stats_df, stats_new])
 
@@ -4356,10 +4362,13 @@ class Strategy(_Strategy):
             str(uuid.uuid4()) for _ in range(len(stats_df.loc[pd.isna(stats_df["id"])]))
         ]
 
+        # Set id as the index
+        stats_df = stats_df.set_index("id")
+
         # Check that the stats dataframe has at least 1 row and contains the portfolio_value column
         if stats_df.shape[0] > 0 and "portfolio_value" in stats_df.columns:
             # Save the stats to the database
-            self.to_sql(stats_new, STATS_TABLE_NAME, self.db_connection_str, "append", False)
+            self.to_sql(stats_new, STATS_TABLE_NAME, "append", index=True)
 
             # Get the current portfolio value
             portfolio_value = self.get_portfolio_value()

@@ -812,7 +812,8 @@ class Broker(ABC):
     def get_tracked_orders(self, strategy=None, asset=None) -> list[Order]:
         """get all tracked orders for a given strategy"""
         result = []
-        for order in self._tracked_orders:
+        tracked_orders = self._tracked_orders
+        for order in tracked_orders:
             if (strategy is None or order.strategy == strategy) and (asset is None or order.asset == asset):
                 result.append(order)
 

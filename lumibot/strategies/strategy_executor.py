@@ -477,10 +477,9 @@ class StrategyExecutor(Thread):
         when an exception is raised and the bot crashes"""
         self.strategy.log_message("Executing the on_bot_crash event method")
         self.strategy.on_bot_crash(error)
-        if self.broker.IS_BACKTESTING_BROKER:
-            self.strategy._dump_stats()
-        self.strategy.backup_variables_to_db()
-        self.strategy.broker._close_connection()
+
+        self.gracefully_exit()
+
 
     def _on_abrupt_closing(self, error):
         """Use this lifecycle event to execute code
@@ -494,10 +493,18 @@ class StrategyExecutor(Thread):
         self.strategy.log_message("Executing the on_abrupt_closing event method")
         self.abrupt_closing = True
         self.strategy.on_abrupt_closing()
-        self.strategy._dump_stats()
-        self.strategy.backup_variables_to_db()
+
+        self.gracefully_exit()
+
+
+    def gracefully_exit(self):
+        if self.broker.IS_BACKTESTING_BROKER:
+            self.strategy._dump_stats()
+
         if self.strategy.broker is not None and hasattr(self.strategy.broker, '_close_connection'):
             self.strategy.broker._close_connection()
+
+        self.strategy.backup_variables_to_db()
 
     @event_method
     def _on_new_order(self, order):

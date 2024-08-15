@@ -1299,8 +1299,12 @@ class IBClient(EClient):
         else:
             self.reqOpenOrders() # to be tested, gets only orders opened by your specific client id
 
-        requested_orders = orders_storage.get(timeout=self.max_wait_time)
-
+        try:
+            requested_orders = orders_storage.get(timeout=self.max_wait_time)
+        except queue.Empty:
+            print("The queue was empty or max time reached for orders.")
+            requested_orders = None
+        
         while self.wrapper.is_error():
             print(f"Error: {self.get_error(timeout=5)}")
 

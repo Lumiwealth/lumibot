@@ -8,6 +8,7 @@ from threading import Thread
 import math
 from sys import exit
 from functools import reduce
+from termcolor import colored
 
 from dateutil import tz
 from ibapi.client import *
@@ -54,7 +55,13 @@ class InteractiveBrokers(Broker):
         if data_source is None:
             data_source = InteractiveBrokersData(config, max_workers=max_workers, chunk_size=chunk_size)
 
-        super().__init__(self, config=config, data_source=data_source, max_workers=max_workers, **kwargs)
+        super().__init__(
+            name="interactive_brokers", 
+            config=config, 
+            data_source=data_source, 
+            max_workers=max_workers, 
+            **kwargs
+            )
         if not self.name:
             self.name = "interactive_brokers"
 
@@ -314,7 +321,7 @@ class InteractiveBrokers(Broker):
             multileg_order.order_class = OrderLum.OrderClass.MULTILEG
             multileg_order.child_orders = orders
 
-            # If price is not None, then set the limit price for for the parent order and set the type to limit.
+            #If price is not None, then set the limit price for for the parent order and set the type to limit.
             if price is not None:
                 multileg_order.limit_price = price
                 multileg_order.type = OrderLum.OrderType.LIMIT
@@ -627,8 +634,12 @@ class IBWrapper(EWrapper):
             error_code,
             error_string,
         )
+
+        # Color the error message red.
+        colored_error_message = colored(error_message, "red")
+
         # Make sure we don't lose the error, but we only print it if asked for
-        logging.debug(error_message)
+        logging.debug(colored_error_message)
 
         self.my_errors_queue.put(error_message)
 
@@ -649,6 +660,11 @@ class IBWrapper(EWrapper):
         self.tick_type_used = None
         self.tick_request_id = None
         self.tick_asset = None
+        self.price = None
+        self.bid = None
+        self.ask = None
+        self.bid_size = None
+        self.ask_size = None
         tick_queue = queue.Queue()
         self.my_tick_queue = tick_queue
         return tick_queue
@@ -695,7 +711,7 @@ class IBWrapper(EWrapper):
             })
             if self.tick_type_used == 9:
                 logging.warning(
-                    f"Last price for {self.tick_asset} not found. Using yesterday's closing price of {self.tick} instead. reqId = {reqId}"
+                    f"Last price for {self.tick_asset} not found. Using yesterday's closing price of {self.price} instead. reqId = {reqId}"
                 )
         if hasattr(self, "my_greek_queue"):
             self.my_greek_queue.put(self.greek)

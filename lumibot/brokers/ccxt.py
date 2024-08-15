@@ -17,7 +17,7 @@ class Ccxt(Broker):
     def __init__(self, config, data_source: CcxtData = None, max_workers=20, chunk_size=100, **kwargs):
         if data_source is None:
             data_source = CcxtData(config, max_workers=max_workers, chunk_size=chunk_size)
-        super().__init__(self, config=config, data_source=data_source, max_workers=max_workers, **kwargs)
+        super().__init__(name="ccxt", config=config, data_source=data_source, max_workers=max_workers, **kwargs)
 
         self.market = "24/7"
         self.fetch_open_orders_last_request_time = None

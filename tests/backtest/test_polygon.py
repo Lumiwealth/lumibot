@@ -271,7 +271,6 @@ class TestPolygonBacktestFull:
             show_plot=False,
             show_tearsheet=False,
             save_tearsheet=False,
-            api_key=POLYGON_API_KEY,
         )
         assert results
         self.verify_backtest_results(poly_strat_obj)

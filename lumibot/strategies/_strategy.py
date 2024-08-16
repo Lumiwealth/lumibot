@@ -23,7 +23,7 @@ from lumibot.tools import (
 from lumibot.traders import Trader
 
 from .strategy_executor import StrategyExecutor
-from .credentials import credentials
+from .credentials import credentials, THETADATA_CONFIG
     
 class CustomLoggerAdapter(logging.LoggerAdapter):
     def __init__(self, logger, extra):
@@ -1063,8 +1063,8 @@ class _Strategy:
         # Make sure thetadata_username and thetadata_password are set if using ThetaDataBacktesting
         if use_other_option_source and optionsource_class == ThetaDataBacktesting and (thetadata_username is None or thetadata_password is None):
             # Try getting the Theta Data credentials from credentials
-            thetadata_username = credentials.THETADATA_CONFIG.get('THETADATA_USERNAME')
-            thetadata_password = credentials.THETADATA_CONFIG.get('THETADATA_PASSWORD')
+            thetadata_username = THETADATA_CONFIG.get('THETADATA_USERNAME')
+            thetadata_password = THETADATA_CONFIG.get('THETADATA_PASSWORD')
             
             # Check again if theta data username and pass are set
             if thetadata_username is None or thetadata_password is None:

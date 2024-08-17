@@ -23,7 +23,7 @@ from lumibot.tools import (
 from lumibot.traders import Trader
 
 from .strategy_executor import StrategyExecutor
-from .credentials import credentials, THETADATA_CONFIG
+from ..credentials import credentials, THETADATA_CONFIG
     
 class CustomLoggerAdapter(logging.LoggerAdapter):
     def __init__(self, logger, extra):

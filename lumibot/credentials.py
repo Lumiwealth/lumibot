@@ -136,7 +136,7 @@ INTERACTIVE_BROKERS_CONFIG = {
     "IP": os.environ.get("INTERACTIVE_BROKERS_IP", "127.0.0.1"),
     "IB_SUBACCOUNT": os.environ.get("IB_SUBACCOUNT", None)
 }
-
+ 
 if IS_BACKTESTING:
     broker = None
 else:

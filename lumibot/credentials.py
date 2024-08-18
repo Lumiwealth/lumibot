@@ -12,6 +12,7 @@ import sys
 from lumibot.brokers import Alpaca, Ccxt, InteractiveBrokers, Tradier
 import logging
 from dotenv import load_dotenv
+import termcolor
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -20,13 +21,27 @@ logger = logging.getLogger(__name__)
 # Get the directory of the original script being run
 base_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
 
+found_dotenv = False
 def load_all_dotenvs(start_dir):
     # Walk through the directory tree
     for root, dirs, files in os.walk(start_dir):
         if '.env' in files:
             dotenv_path = os.path.join(root, '.env')
             load_dotenv(dotenv_path)
-            logger.info(f".env file loaded from: {dotenv_path}")
+
+            # Create a colored message for the log using termcolor
+            colored_message = termcolor.colored(f".env file loaded from: {dotenv_path}", "green")
+            logger.info(colored_message)
+
+            # Set the flag to True if a .env file was found
+            global found_dotenv
+            found_dotenv = True
+
+# If no .env file was found, print a warning message
+if not found_dotenv:
+    # Create a colored message for the log using termcolor
+    colored_message = termcolor.colored("No .env file found. This is ok if you are using environment variables or secrets (like on Replit, AWS, etc), but if you are not, please create a .env file in the root directory of the project.", "yellow")
+    logger.warning(colored_message)
 
 # Load all .env files starting from the base directory
 load_all_dotenvs(base_dir)

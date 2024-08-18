@@ -3498,7 +3498,7 @@ class Strategy(_Strategy):
         pass
 
     def before_market_opens(self):
-        """Use this lifecycle method to execude code
+        """Use this lifecycle method to execute code
         self.minutes_before_opening minutes before opening.
 
         Returns
@@ -3583,7 +3583,7 @@ class Strategy(_Strategy):
         return {}
 
     def before_market_closes(self):
-        """Use this lifecycle method to execude code before the market closes. You can use self.minutes_before_closing to set the number of minutes before closing
+        """Use this lifecycle method to execute code before the market closes. You can use self.minutes_before_closing to set the number of minutes before closing
 
         Parameters
         ----------

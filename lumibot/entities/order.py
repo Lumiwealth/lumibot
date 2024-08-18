@@ -349,6 +349,18 @@ class Order:
             position_filled,
         )
 
+    def is_buy_order(self):
+        return self.side == self.OrderSide.BUY or \
+            self.side == self.OrderSide.BUY_TO_OPEN or \
+            self.side == self.OrderSide.BUY_TO_COVER or \
+            self.side == self.OrderSide.BUY_TO_CLOSE
+    
+    def is_sell_order(self):
+        return self.side == self.OrderSide.SELL or \
+            self.side == self.OrderSide.SELL_SHORT or \
+            self.side == self.OrderSide.SELL_TO_OPEN or \
+            self.side == self.OrderSide.SELL_TO_CLOSE
+
     def add_child_order(self, o):
         """
         Add a child order to the parent order.

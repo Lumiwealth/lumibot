@@ -22,20 +22,18 @@ logger = logging.getLogger(__name__)
 base_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
 
 found_dotenv = False
-def load_all_dotenvs(start_dir):
-    # Walk through the directory tree
-    for root, dirs, files in os.walk(start_dir):
-        if '.env' in files:
-            dotenv_path = os.path.join(root, '.env')
-            load_dotenv(dotenv_path)
+# Walk through the directory tree
+for root, dirs, files in os.walk(base_dir):
+    if '.env' in files:
+        dotenv_path = os.path.join(root, '.env')
+        load_dotenv(dotenv_path)
 
-            # Create a colored message for the log using termcolor
-            colored_message = termcolor.colored(f".env file loaded from: {dotenv_path}", "green")
-            logger.info(colored_message)
+        # Create a colored message for the log using termcolor
+        colored_message = termcolor.colored(f".env file loaded from: {dotenv_path}", "green")
+        logger.info(colored_message)
 
-            # Set the flag to True if a .env file was found
-            global found_dotenv
-            found_dotenv = True
+        # Set the flag to True if a .env file was found
+        found_dotenv = True
 
 # If no .env file was found, print a warning message
 if not found_dotenv:
@@ -43,11 +41,7 @@ if not found_dotenv:
     colored_message = termcolor.colored("No .env file found. This is ok if you are using environment variables or secrets (like on Replit, AWS, etc), but if you are not, please create a .env file in the root directory of the project.", "yellow")
     logger.warning(colored_message)
 
-# Load all .env files starting from the base directory
-load_all_dotenvs(base_dir)
-
 # dotenv.load_dotenv()
-credentials={}
 broker=None
 
 # Check if we are backtesting or not
@@ -62,19 +56,22 @@ else:
 STRATEGY_NAME = os.environ.get("STRATEGY_NAME")
 
 # Discord credentials
-credentials['DISCORD_WEBHOOK_URL'] = os.environ.get("DISCORD_WEBHOOK_URL")
+DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL")
+
+# Set DB_CONNECTION_STR to None by default
+DB_CONNECTION_STR = None
 
 # Add a warning if ACCOUNT_HISTORY_DB_CONNECTION_STR is set because it is now replaced by DB_CONNECTION_STR
 if os.environ.get("ACCOUNT_HISTORY_DB_CONNECTION_STR"):
     print("ACCOUNT_HISTORY_DB_CONNECTION_STR is deprecated and will be removed in a future version. Please use DB_CONNECTION_STR instead.")
-    credentials['DB_CONNECTION_STR'] = os.environ.get("ACCOUNT_HISTORY_DB_CONNECTION_STR")
+    DB_CONNECTION_STR = os.environ.get("ACCOUNT_HISTORY_DB_CONNECTION_STR")
 
 # Database connection string
 if os.environ.get("DB_CONNECTION_STR"):
-    credentials['DB_CONNECTION_STR'] = os.environ.get("DB_CONNECTION_STR")
+    DB_CONNECTION_STR = os.environ.get("DB_CONNECTION_STR")
 
 # Name for the strategy to be used in the database
-credentials['STRATEGY_NAME'] = os.environ.get("STRATEGY_NAME")
+STRATEGY_NAME = os.environ.get("STRATEGY_NAME")
 
 POLYGON_CONFIG = {
     # Add POLYGON_API_KEY and POLYGON_IS_PAID_SUBSCRIPTION to your .env file or set them as secrets
@@ -86,7 +83,7 @@ POLYGON_CONFIG = {
 }
 
 # Polygon API Key
-credentials['POLYGON_API_KEY'] = POLYGON_CONFIG['API_KEY']
+POLYGON_API_KEY = POLYGON_CONFIG['API_KEY']
 
 THETADATA_CONFIG = {
     # Get the ThetaData API key from the .env file or secrets
@@ -159,4 +156,4 @@ else:
     elif INTERACTIVE_BROKERS_CONFIG["SOCKET_PORT"]:
         broker = InteractiveBrokers(INTERACTIVE_BROKERS_CONFIG)
 
-credentials['BROKER'] = broker
+BROKER = broker

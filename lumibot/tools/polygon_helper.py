@@ -21,6 +21,7 @@ from tqdm import tqdm
 from lumibot import LUMIBOT_CACHE_FOLDER
 from lumibot.entities import Asset
 from lumibot import LUMIBOT_DEFAULT_PYTZ
+from lumibot.credentials import POLYGON_API_KEY
 
 MAX_POLYGON_DAYS = 30
 
@@ -551,7 +552,7 @@ class PolygonClient(RESTClient):
 
         """
         if 'api_key' not in kwargs:
-            kwargs['api_key'] = os.environ.get("POLYGON_API_KEY")
+            kwargs['api_key'] = POLYGON_API_KEY
 
         return cls(*args, **kwargs)
 

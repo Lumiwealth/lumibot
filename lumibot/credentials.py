@@ -58,6 +58,9 @@ STRATEGY_NAME = os.environ.get("STRATEGY_NAME")
 # Discord credentials
 DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL")
 
+# Set DB_CONNECTION_STR to None by default
+DB_CONNECTION_STR = None
+
 # Add a warning if ACCOUNT_HISTORY_DB_CONNECTION_STR is set because it is now replaced by DB_CONNECTION_STR
 if os.environ.get("ACCOUNT_HISTORY_DB_CONNECTION_STR"):
     print("ACCOUNT_HISTORY_DB_CONNECTION_STR is deprecated and will be removed in a future version. Please use DB_CONNECTION_STR instead.")

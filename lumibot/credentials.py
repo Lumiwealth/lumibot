@@ -91,6 +91,7 @@ THETADATA_CONFIG = {
     "THETADATA_PASSWORD": os.environ.get("THETADATA_PASSWORD")
 }
 
+
 ALPACA_CONFIG = {  # Paper trading!
     # Add ALPACA_API_KEY, ALPACA_API_SECRET, and ALPACA_IS_PAPER to your .env file or set them as secrets
     "API_KEY": os.environ.get("ALPACA_API_KEY"),

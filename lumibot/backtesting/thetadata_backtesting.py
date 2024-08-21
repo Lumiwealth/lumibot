@@ -1,12 +1,14 @@
 import logging
 import re
 import traceback
-from datetime import date, timedelta
+import pandas as pd
+import subprocess
+from datetime import date, datetime, timedelta
 
 from lumibot.data_sources import PandasData
 from lumibot.entities import Asset, Data
 from lumibot.tools import thetadata_helper
-import subprocess
+
 
 START_BUFFER = timedelta(days=5)
 
@@ -30,6 +32,15 @@ class ThetaDataBacktesting(PandasData):
         self._username = username
         self._password = password
         self.kill_processes_by_name("ThetaTerminal.jar")
+
+    def is_weekend(self, date):
+        """
+        Check if the given date is a weekend.
+
+        :param date: datetime.date object
+        :return: Boolean, True if weekend, False otherwise
+        """
+        return date.weekday() >= 5  # 5 = Saturday, 6 = Sunday
 
     def kill_processes_by_name(self, keyword):
         try:
@@ -77,6 +88,12 @@ class ThetaDataBacktesting(PandasData):
             asset_separated, quote_asset = search_asset
         else:
             search_asset = (search_asset, quote_asset)
+
+        if asset_separated.asset_type == "option":
+            expiry = asset_separated.expiration
+            if self.is_weekend(expiry):
+                logging.info(f"\nSKIP: Expiry {expiry} date is a weekend, no contract exists: {asset_separated}")
+                return None
 
         # Get the start datetime and timestep unit
         start_datetime, ts_unit = self.get_start_datetime_and_ts_unit(
@@ -128,9 +145,9 @@ class ThetaDataBacktesting(PandasData):
 
         # Download data from ThetaData
         try:
-            # Get data from ThetaData
+            # Get ohlc data from ThetaData
             date_time_now = self.get_datetime()
-            df = thetadata_helper.get_price_data(
+            df_ohlc = thetadata_helper.get_price_data(
                 self._username,
                 self._password,
                 asset_separated,
@@ -138,10 +155,22 @@ class ThetaDataBacktesting(PandasData):
                 self.datetime_end,
                 timespan=ts_unit,
                 quote_asset=quote_asset,
-                dt=date_time_now
+                dt=date_time_now,
+                datastyle="ohlc"
             )
-            # save df to csv file
-            # df.to_csv(f"theta_csv/{date_time_now}_{asset.strike}_{asset.expiration}_{asset.right}.csv")
+            # Get quote data from ThetaData
+            df_quote = thetadata_helper.get_price_data(
+                self._username,
+                self._password,
+                asset_separated,
+                start_datetime,
+                self.datetime_end,
+                timespan=ts_unit,
+                quote_asset=quote_asset,
+                dt=date_time_now,
+                datastyle="quote"
+            )
+            df = pd.concat([df_ohlc, df_quote], axis=1, join='inner')
         except Exception as e:
             logging.info(traceback.format_exc())
             raise Exception("Error getting data from ThetaData") from e
@@ -212,8 +241,19 @@ class ThetaDataBacktesting(PandasData):
                 self._data_store.update(pandas_data_update)
         except Exception as e:
             logging.info(f"\nError get_last_price from ThetaData: {e}, {dt}, asset:{asset}")
-
         return super().get_last_price(asset=asset, quote=quote, exchange=exchange)
+    
+    def get_quote(self, asset, timestep="minute", quote=None, exchange=None, **kwargs):
+        try:
+            dt = self.get_datetime()
+            pandas_data_update = self.update_pandas_data(asset, quote, 1, timestep, dt)
+            if pandas_data_update is not None:
+                # Add the keys to the self.pandas_data dictionary
+                self.pandas_data.update(pandas_data_update)
+                self._data_store.update(pandas_data_update)
+        except Exception as e:
+            logging.info(f"\nError get_quote from ThetaData: {e}, {dt}, asset:{asset}")
+        return super().get_quote(asset=asset, quote=quote, exchange=exchange)
 
     def get_chains(self, asset):
         """

@@ -171,9 +171,6 @@ class ThetaDataBacktesting(PandasData):
                 datastyle="quote"
             )
             df = pd.concat([df_ohlc, df_quote], axis=1, join='inner')
-            # save df to csv file
-            # if asset.asset_type == "option":
-            #     df.to_csv(f"theta_csv/{date_time_now}_{asset.strike}_{asset.expiration}_{asset.right}.csv")
         except Exception as e:
             logging.info(traceback.format_exc())
             raise Exception("Error getting data from ThetaData") from e

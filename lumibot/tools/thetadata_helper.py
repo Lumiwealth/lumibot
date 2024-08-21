@@ -319,7 +319,6 @@ def update_df(df_all, result):
             else:
                 df_all.index = df_all.index.tz_convert(pytz.utc)
 
-        # df.index = df.index.tz_localize("UTC") if df.index.tzinfo is None else df.index
         if df_all is None or df_all.empty:
             df_all = df
         else:

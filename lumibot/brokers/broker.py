@@ -847,9 +847,14 @@ class Broker(ABC):
         position = self.get_tracked_position(strategy, asset)
         if position is not None:
             quantity = position.quantity
+
+        # Get all tracked orders for the strategy and asset
         orders = self.get_tracked_orders(strategy, asset)
+
+        # Add the quantity of the order to the total
         for order in orders:
-            quantity += order.get_increment()
+            # If the order is not filled, add the quantity of the order to the total
+            quantity += float(order.get_increment())
 
         if type(quantity) == Decimal:
             if quantity.as_tuple().exponent > -4:

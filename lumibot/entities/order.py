@@ -810,7 +810,7 @@ class Order:
         increment = self.quantity
         if self.side == SELL:
             increment = -increment
-        return increment
+        return float(increment)
 
     def is_option(self):
         """Return true if this order is an option."""

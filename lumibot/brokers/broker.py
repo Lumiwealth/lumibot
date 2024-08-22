@@ -853,8 +853,11 @@ class Broker(ABC):
 
         # Add the quantity of the order to the total
         for order in orders:
-            # If the order is not filled, add the quantity of the order to the total
-            quantity += float(order.get_increment())
+            # Check if the order status is new (only new orders are considered because they are not filled yet
+            # and the quantity does not include what will be filled)
+            if order.status == Order.OrderStatus.NEW:
+                # If the order is not filled, add the quantity of the order to the total
+                quantity += float(order.get_increment())
 
         if type(quantity) == Decimal:
             if quantity.as_tuple().exponent > -4:

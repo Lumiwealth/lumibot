@@ -1035,7 +1035,11 @@ class _Strategy:
         if isinstance(datasource_class, dict):
             optionsource_class = datasource_class["OPTION"]
             datasource_class = datasource_class["STOCK"]
-            use_other_option_source = True
+            # check if optionsource_class and datasource_class are the same type of class
+            if optionsource_class == datasource_class:
+                use_other_option_source = False
+            else:
+                use_other_option_source = True
         else:
             optionsource_class = None
             use_other_option_source = False

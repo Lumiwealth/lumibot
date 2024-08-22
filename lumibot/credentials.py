@@ -55,6 +55,12 @@ else:
 # Name for the strategy to be used in the database
 STRATEGY_NAME = os.environ.get("STRATEGY_NAME")
 
+# Market to be traded
+MARKET = os.environ.get("MARKET")
+
+# Live trading configuration (if applicable)
+LIVE_CONFIG = os.environ.get("LIVE_CONFIG")
+
 # Discord credentials
 DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL")
 

@@ -271,7 +271,22 @@ class Tradier(Broker):
         return order
 
     def _get_balances_at_broker(self, quote_asset: Asset):
-        df = self.tradier.account.get_account_balance()
+        try:
+            df = self.tradier.account.get_account_balance()
+        except TradierApiError as e:
+            # Check if the error is a 401 or 403, if so, the access token is invalid
+            error = str(e)
+            if "401" in error or "403" in error:
+                # Check if the access token or account number is invalid
+                if self._tradier_access_token is None or self._tradier_account_number is None or len(self._tradier_access_token) == 0 or len(self._tradier_account_number) == 0:
+                    colored_message = colored("Your TRADIER_ACCOUNT_NUMBER or TRADIER_ACCESS_TOKEN are blank. Please check your keys.", color="red")
+                    raise ValueError(colored_message)
+                
+                # Conceal the end of the access token
+                access_token = self._tradier_access_token[:7] + "*" * 7
+                colored_message = colored(f"Your TRADIER_ACCOUNT_NUMBER or TRADIER_ACCESS_TOKEN are invalid. Your account number is: {self._tradier_account_number} and your access token is: {access_token}", color="red")
+                raise ValueError(colored_message)
+            
 
         # Get the portfolio value (total_equity) column
         portfolio_value = float(df["total_equity"].iloc[0])
@@ -288,7 +303,25 @@ class Tradier(Broker):
         pass
 
     def _pull_positions(self, strategy):
-        positions_df = self.tradier.account.get_positions()
+        try:
+            positions_df = self.tradier.account.get_positions()
+        except TradierApiError as e:
+            # Check if the error is a 401 or 403, if so, the access token is invalid
+            error = str(e)
+            if "401" in error or "403" in error:
+                # Check if the access token or account number is invalid
+                if self._tradier_access_token is None or self._tradier_account_number is None or len(self._tradier_access_token) == 0 or len(self._tradier_account_number) == 0:
+                    colored_message = colored("Your TRADIER_ACCOUNT_NUMBER or TRADIER_ACCESS_TOKEN are blank. Please check your keys.", color="red")
+                    raise ValueError(colored_message)
+                
+                # Conceal the end of the access token
+                access_token = self._tradier_access_token[:7] + "*" * 7
+                colored_message = colored(f"Your TRADIER_ACCOUNT_NUMBER or TRADIER_ACCESS_TOKEN are invalid. Your account number is: {self._tradier_account_number} and your access token is: {access_token}", color="red")
+                raise ValueError(colored_message)
+        except Exception as e:
+            logging.error(f"Error pulling positions from Tradier: {e}")
+            return []
+            
         positions_ret = []
 
         # Loop through each row in the dataframe
@@ -714,7 +747,22 @@ class Tradier(Broker):
 
     def _run_stream(self):
         self._stream_established()
-        self.stream._run()
+        # Try to run the stream
+        try:
+            self.stream._run()
+        except TradierApiError as e:
+            # Check if the error is a 401 or 403, if so, the access token is invalid
+            error = str(e)
+            if "401" in error or "403" in error:
+                # Check if the access token or account number is invalid
+                if self._tradier_access_token is None or self._tradier_account_number is None or len(self._tradier_access_token) == 0 or len(self._tradier_account_number) == 0:
+                    colored_message = colored("Your TRADIER_ACCOUNT_NUMBER or TRADIER_ACCESS_TOKEN are blank. Please check your keys.", color="red")
+                    raise ValueError(colored_message)
+
+                # Conceal the end of the access token
+                access_token = self._tradier_access_token[:7] + "*" * 7
+                colored_message = colored(f"Your TRADIER_ACCOUNT_NUMBER or TRADIER_ACCESS_TOKEN are invalid. Your account number is: {self._tradier_account_number} and your access token is: {access_token}", color="red")
+                raise ValueError(colored_message)
 
     def _flatten_order(self, order):
         """Some submitted orders may trigger other orders.

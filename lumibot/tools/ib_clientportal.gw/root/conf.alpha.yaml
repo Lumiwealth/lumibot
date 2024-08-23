@@ -1,0 +1,29 @@
+    ip2loc: "US"
+    proxyRemoteSsl: true
+    proxyRemoteHost: "https://ndcdyn.interactivebrokers.com"
+    listenPort: 5000
+    listenSsl: true
+    svcEnvironment: "alpha"
+    sslCert: "vertx.jks"
+    sslPwd: "mywebapi"
+    authDelay: 3000
+    portalBaseURL: "/portal.proxy"
+    serverOptions:
+        blockedThreadCheckInterval: 1000000
+        eventLoopPoolSize: 20
+        workerPoolSize: 20
+        maxWorkerExecuteTime: 100
+        internalBlockingPoolSize: 20
+    cors:
+        origin.allowed: "*"
+        allowCredentials: false
+    webApps:
+        - name: "demo"
+          index: "index.html"
+    ips:
+      allow:
+        - 192.*
+        - 131.216.*
+        - 127.0.0.1
+      deny:
+        - 212.90.324.10

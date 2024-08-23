@@ -104,12 +104,12 @@ class Broker(ABC):
     # ================================ Required Implementations========================
     # =========Order Handling=======================
     @abstractmethod
-    def cancel_order(self, order: Order):
+    def cancel_order(self, order: Order) -> None:
         """Cancel an order at the broker"""
         pass
 
     @abstractmethod
-    def _submit_order(self, order: Order):
+    def _submit_order(self, order: Order) -> Order:
         """Submit an order to the broker"""
         pass
 
@@ -134,7 +134,7 @@ class Broker(ABC):
         pass
 
     @abstractmethod
-    def get_historical_account_value(self):
+    def get_historical_account_value(self) -> dict:
         """
         Get the historical account value of the account.
         TODO: Fill out the docstring with more information.
@@ -163,13 +163,24 @@ class Broker(ABC):
     # =========Broker Positions=======================
 
     @abstractmethod
-    def _pull_positions(self, strategy):
-        """Get the account positions. return a list of
-        position objects"""
+    def _pull_positions(self, strategy: 'Strategy') -> list[Position]:
+        """
+        Get the account positions. return a list of position objects
+
+        Parameters
+        ----------
+        strategy : Strategy
+            The strategy object to pull the positions for
+
+        Returns
+        -------
+        list[Position]
+            A list of position objects
+        """
         pass
 
     @abstractmethod
-    def _pull_position(self, strategy, asset):
+    def _pull_position(self, strategy: 'Strategy', asset: Asset) -> Position:
         """
         Pull a single position from the broker that matches the asset and strategy. If no position is found, None is
         returned.
@@ -191,21 +202,50 @@ class Broker(ABC):
     # =========Broker Orders=======================
 
     @abstractmethod
-    def _parse_broker_order(self, response, strategy_name, strategy_object=None):
-        """parse a broker order representation
-        to an order object"""
+    def _parse_broker_order(self, response: dict, strategy_name: str, strategy_object: 'Strategy' = None) -> Order:
+        """
+        Parse a broker order representation to an order object
+
+        Parameters
+        ----------
+        response : dict
+            The broker order representation
+        strategy_name : str
+            The name of the strategy that placed the order
+
+        Returns
+        -------
+        Order
+            The order object
+        """
         pass
 
     @abstractmethod
-    def _pull_broker_order(self, identifier):
-        """Get a broker order representation by its id"""
+    def _pull_broker_order(self, identifier: str) -> Order:
+        """
+        Get a broker order representation by its id
+
+        Parameters
+        ----------
+        identifier : str
+            The identifier of the order to pull
+
+        Returns
+        -------
+        Order
+            The order object
+        """
         pass
 
     @abstractmethod
-    def _pull_broker_all_orders(self):
+    def _pull_broker_all_orders(self) -> list[Order]:
         """
         Get the broker open orders
-        TODO: Fill in with the expected output of this function.
+        
+        Returns
+        -------
+        list[Order]
+            A list of order objects
         """
         pass
 
@@ -521,7 +561,7 @@ class Broker(ABC):
 
             self._orders_queue.task_done()
 
-    def _submit_orders(self, orders):
+    def _submit_orders(self, orders) -> list[Order]:
         with ThreadPoolExecutor(
             max_workers=self.max_workers,
             thread_name_prefix=f"{self.name}_submitting_orders",

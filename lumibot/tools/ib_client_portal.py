@@ -9,7 +9,7 @@ import warnings
 import psutil
 
 class IBClientPortal:
-    def __init__(self, script_dir=None):
+    def __init__(self, account_id=None, script_dir=None):
         self.script_dir = script_dir or os.path.dirname(os.path.abspath(__file__))
         self.client_portal_dir = os.path.join(self.script_dir, 'ib_clientportal.gw')
         self.client_portal_script_name = 'run.bat' if platform.system() == 'Windows' else 'run.sh'
@@ -17,13 +17,16 @@ class IBClientPortal:
         self.config_file = os.path.join(self.client_portal_dir, 'root', 'conf.yaml')
         self.base_url = 'https://localhost:3000'
         self.login_url = self.base_url
+
         self.status_check_endpoint = f'{self.base_url}/v1/portal/iserver/auth/status'
         self.account_list_endpoint = f'{self.base_url}/v1/portal/portfolio/accounts'
         self.account_info_endpoint = f'{self.base_url}/v1/portal/account/summary'
+        
         self.check_interval = 0.5
         self.max_checks = 3600
         self.post_ready_delay = 2
         self.process = None
+        self.account_id = account_id
 
     def validate_paths(self):
         return os.path.exists(self.client_portal_script) and os.path.exists(self.config_file)
@@ -87,14 +90,22 @@ class IBClientPortal:
         logging.error("Client Portal did not become ready and authenticated in time.")
         return False
 
+    def get_contract_details_for_contract(self, contract):
+        conid=contract.conId
+        url = f"{self.base_url}/v1/iserver/contract/{conid}/info"
+        response = self.get_json_from_endpoint(url, "getting account details")
+        return response
+    
     def get_account_info(self):
         try:
             response = requests.get(self.account_list_endpoint, verify=False)
             if response.status_code == 200:
                 accounts_data = response.json()
                 if accounts_data:
-                    account_id = accounts_data[0]['id']
-                    response = requests.get(f"{self.account_info_endpoint}?accountId={account_id}", verify=False)
+                    if not self.account_id:
+                        self.account_id = accounts_data[0]['id']
+
+                    response = requests.get(f"{self.account_info_endpoint}?accountId={self.account_id}", verify=False)
                     if response.status_code == 200:
                         return response.json()
                     elif response.status_code == 404:
@@ -111,16 +122,22 @@ class IBClientPortal:
             logging.error(f"Error getting account info: {e}")
             return None
         
-    def get_account_balances(self, account_id):
+    def get_account_balances(self):
+        """
+        Retrieves the account balances for a given account ID.
+        """
+        # Define the endpoint URL for fetching account balances
+        url = f"{self.base_url}/v1/portal/portfolio/{self.account_id}/ledger"
+        response = self.get_json_from_endpoint(url, "getting account balances")
+        return response
+        
+    def get_json_from_endpoint(self, endpoint, description):
         """
         Retrieves the account balances for a given account ID.
         """
         try:
-            # Define the endpoint URL for fetching account balances
-            url = f"{self.base_url}/v1/portal/portfolio/{account_id}/ledger"
-
             # Make the request to the endpoint
-            response = requests.get(url, verify=False)
+            response = requests.get(endpoint, verify=False)
 
             # Check if the request was successful
             if response.status_code == 200:
@@ -128,38 +145,27 @@ class IBClientPortal:
                 return response.json()
             else:
                 # Log an error message if the request failed
-                logging.error(f"Failed to get account balances. Status code: {response.status_code}")
+                logging.error(f"Failed {description}. Status code: {response.status_code}")
                 return None
 
         except requests.exceptions.RequestException as e:
             # Log an error message if there was a problem with the request
-            logging.error(f"Error retrieving account balances: {e}")
+            logging.error(f"Error {description}: {e}")
             return None
         
-    def get_positions(self, account_id):
+    def get_open_orders(self):
+        # Define the endpoint URL for fetching account balances
+        url = f'{self.base_url}/v1/iserver/account/orders?filters=accountId={self.account_id}'
+        response = self.get_json_from_endpoint(url, "getting open orders")
+        return response
+    
+    def get_positions(self):
         """
         Retrieves the current positions for a given account ID.
         """
-        try:
-            # Define the endpoint URL for fetching positions
-            url = f"{self.base_url}/v1/portal/portfolio/{account_id}/positions"
-
-            # Make the request to the endpoint
-            response = requests.get(url, verify=False)
-
-            # Check if the request was successful
-            if response.status_code == 200:
-                # Return the JSON response containing the account positions
-                return response.json()
-            else:
-                # Log an error message if the request failed
-                logging.error(f"Failed to get positions. Status code: {response.status_code}")
-                return None
-
-        except requests.exceptions.RequestException as e:
-            # Log an error message if there was a problem with the request
-            logging.error(f"Error retrieving positions: {e}")
-            return None
+        url = f"{self.base_url}/v1/portal/portfolio/{self.account_id}/positions"
+        response = self.get_json_from_endpoint(url, "getting account positions")
+        return response
 
     def run(self):
         if self.start_client_portal():

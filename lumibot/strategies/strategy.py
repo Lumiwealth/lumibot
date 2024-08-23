@@ -4019,8 +4019,11 @@ class Strategy(_Strategy):
             if position.asset.asset_type == "option":
                 position_value = position_value * 100
 
-            # Calculate the percent of the portfolio that this position represents
-            percent_of_portfolio = position_value / portfolio_value
+            if position_value > 0 and portfolio_value > 0:
+                # Calculate the percent of the portfolio that this position represents
+                percent_of_portfolio = position_value / portfolio_value
+            else:
+                percent_of_portfolio = 0
 
             # Add the position details to the list
             positions_details_list.append(

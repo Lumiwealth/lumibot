@@ -57,6 +57,7 @@ setuptools.setup(
         "tabulate",
         "thetadata",
         "holidays",
+        "psutil",
     ],
     classifiers=[
         "Programming Language :: Python :: 3",

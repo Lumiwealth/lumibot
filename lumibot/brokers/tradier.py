@@ -300,7 +300,8 @@ class Tradier(Broker):
         return cash, positions_value, portfolio_value
 
     def get_historical_account_value(self):
-        pass
+        logging.error("The function get_historical_account_value is not implemented yet for Tradier.")
+        return {"hourly": None, "daily": None}
 
     def _pull_positions(self, strategy):
         try:

@@ -15,4 +15,4 @@ This lifecycle method gets called when the strategy's parameters were updated us
 Reference
 ----------
 
-.. autofunction:: strategies.strategy.Strategy.on_parameters_updated
+.. autofunction:: lumibot.strategies.strategy.Strategy.on_parameters_updated

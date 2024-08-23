@@ -1,4 +1,4 @@
 ﻿self.portfolio\_value
 =========================================================
 
-.. autoproperty:: strategies.strategy.Strategy.portfolio_value
+.. autoproperty:: lumibot.strategies.strategy.Strategy.portfolio_value

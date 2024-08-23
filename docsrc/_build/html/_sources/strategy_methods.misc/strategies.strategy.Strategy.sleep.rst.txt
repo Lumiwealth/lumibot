@@ -1,4 +1,4 @@
 ﻿self.sleep
 =================================================================
 
-.. autofunction:: strategies.strategy.Strategy.sleep
+.. autofunction:: lumibot.strategies.strategy.Strategy.sleep

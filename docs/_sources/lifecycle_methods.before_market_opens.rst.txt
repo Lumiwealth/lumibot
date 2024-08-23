@@ -19,4 +19,4 @@ This lifecycle method is similar to before_market_opens. However, unlike before_
 Reference
 ----------
 
-.. autofunction:: strategies.strategy.Strategy.before_market_opens
+.. autofunction:: lumibot.strategies.strategy.Strategy.before_market_opens

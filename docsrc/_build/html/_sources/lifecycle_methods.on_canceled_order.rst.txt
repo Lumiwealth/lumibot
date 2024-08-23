@@ -16,4 +16,4 @@ order (Order): The corresponding order object that has been canceled
 Reference
 ----------
 
-.. autofunction:: strategies.strategy.Strategy.on_canceled_order
+.. autofunction:: lumibot.strategies.strategy.Strategy.on_canceled_order

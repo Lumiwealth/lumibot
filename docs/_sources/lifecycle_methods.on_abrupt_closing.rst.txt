@@ -12,4 +12,4 @@ This lifecycle method runs when the strategy execution gets interrupted. Use thi
 Reference
 ----------
 
-.. autofunction:: strategies.strategy.Strategy.on_abrupt_closing
+.. autofunction:: lumibot.strategies.strategy.Strategy.on_abrupt_closing

@@ -1,4 +1,4 @@
 ﻿self.get\_markers\_df
 =================================================================
 
-.. autofunction:: strategies.strategy.Strategy.get_markers_df
+.. autofunction:: lumibot.strategies.strategy.Strategy.get_markers_df

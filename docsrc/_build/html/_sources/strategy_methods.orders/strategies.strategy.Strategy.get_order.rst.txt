@@ -1,4 +1,4 @@
 ﻿self.get\_order
 =================================================================
 
-.. autofunction:: strategies.strategy.Strategy.get_order
+.. autofunction:: lumibot.strategies.strategy.Strategy.get_order

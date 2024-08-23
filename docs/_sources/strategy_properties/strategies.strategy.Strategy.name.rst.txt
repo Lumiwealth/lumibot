@@ -1,4 +1,4 @@
 ﻿self.name
 =========================================================
 
-.. autoproperty:: strategies.strategy.Strategy.name
+.. autoproperty:: lumibot.strategies.strategy.Strategy.name

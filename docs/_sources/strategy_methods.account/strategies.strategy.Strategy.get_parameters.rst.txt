@@ -1,4 +1,4 @@
 ﻿self.get\_parameters
 =================================================================
 
-.. autofunction:: strategies.strategy.Strategy.get_parameters
+.. autofunction:: lumibot.strategies.strategy.Strategy.get_parameters

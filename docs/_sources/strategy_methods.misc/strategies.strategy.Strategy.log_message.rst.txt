@@ -1,4 +1,4 @@
 ﻿self.log\_message
 =================================================================
 
-.. autofunction:: strategies.strategy.Strategy.log_message
+.. autofunction:: lumibot.strategies.strategy.Strategy.log_message

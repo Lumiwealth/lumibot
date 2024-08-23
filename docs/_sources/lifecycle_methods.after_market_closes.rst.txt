@@ -12,4 +12,4 @@ This lifecycle method is executed right after the market closes.
 Reference
 ----------
 
-.. autofunction:: strategies.strategy.Strategy.after_market_closes
+.. autofunction:: lumibot.strategies.strategy.Strategy.after_market_closes

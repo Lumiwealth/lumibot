@@ -1,4 +1,4 @@
 ﻿self.get\_datetime
 =================================================================
 
-.. autofunction:: strategies.strategy.Strategy.get_datetime
+.. autofunction:: lumibot.strategies.strategy.Strategy.get_datetime

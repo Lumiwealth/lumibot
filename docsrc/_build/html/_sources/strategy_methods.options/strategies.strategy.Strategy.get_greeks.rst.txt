@@ -1,4 +1,4 @@
 ﻿self.get\_greeks
 =================================================================
 
-.. autofunction:: strategies.strategy.Strategy.get_greeks
+.. autofunction:: lumibot.strategies.strategy.Strategy.get_greeks

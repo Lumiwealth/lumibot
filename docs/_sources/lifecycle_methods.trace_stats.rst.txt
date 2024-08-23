@@ -26,4 +26,4 @@ Use this method to dump stats
 Reference
 ----------
 
-.. autofunction:: strategies.strategy.Strategy.trace_stats
+.. autofunction:: lumibot.strategies.strategy.Strategy.trace_stats

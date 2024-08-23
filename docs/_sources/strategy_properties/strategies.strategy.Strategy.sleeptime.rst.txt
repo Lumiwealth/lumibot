@@ -1,4 +1,4 @@
 ﻿self.sleeptime
 =========================================================
 
-.. autoproperty:: strategies.strategy.Strategy.sleeptime
+.. autoproperty:: lumibot.strategies.strategy.Strategy.sleeptime

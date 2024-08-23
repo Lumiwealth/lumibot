@@ -1,4 +1,4 @@
 ﻿self.timezone
 =========================================================
 
-.. autoproperty:: strategies.strategy.Strategy.timezone
+.. autoproperty:: lumibot.strategies.strategy.Strategy.timezone

@@ -1,4 +1,4 @@
 ﻿self.pytz
 =========================================================
 
-.. autoproperty:: strategies.strategy.Strategy.pytz
+.. autoproperty:: lumibot.strategies.strategy.Strategy.pytz

@@ -1,4 +1,4 @@
 ﻿self.get\_timestamp
 =================================================================
 
-.. autofunction:: strategies.strategy.Strategy.get_timestamp
+.. autofunction:: lumibot.strategies.strategy.Strategy.get_timestamp

@@ -13,4 +13,4 @@ Use this lifecycle method to reinitialize variables for day trading like resetti
 Reference
 ----------
 
-.. autofunction:: strategies.strategy.Strategy.before_starting_trading
+.. autofunction:: lumibot.strategies.strategy.Strategy.before_starting_trading

@@ -9,7 +9,7 @@
 import os
 import sys
 
-from lumibot.brokers import Alpaca, Ccxt, InteractiveBrokers, Tradier
+from lumibot.brokers import Alpaca, Ccxt, InteractiveBrokers, InteractiveBrokersREST, Tradier
 import logging
 from dotenv import load_dotenv
 import termcolor
@@ -140,6 +140,12 @@ INTERACTIVE_BROKERS_CONFIG = {
     "IP": os.environ.get("INTERACTIVE_BROKERS_IP", "127.0.0.1"),
 }
 
+INTERACTIVE_BROKERS_REST_CONFIG = {
+    "IB_USERNAME": os.environ.get("IB_USERNAME"),
+    "IB_PASSWORD": os.environ.get("IB_PASSWORD"),
+    "ACCOUNT_ID": os.environ.get("ACCOUNT_ID")
+}
+
 if IS_BACKTESTING:
     broker = None
 else:
@@ -162,5 +168,8 @@ else:
     # If using Interactive Brokers as a broker, set that as the broker
     elif INTERACTIVE_BROKERS_CONFIG["SOCKET_PORT"]:
         broker = InteractiveBrokers(INTERACTIVE_BROKERS_CONFIG)
+    
+    elif INTERACTIVE_BROKERS_REST_CONFIG["IB_USERNAME"]:
+        broker = InteractiveBrokersREST(INTERACTIVE_BROKERS_REST_CONFIG)
 
 BROKER = broker

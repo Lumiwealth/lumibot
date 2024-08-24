@@ -1,7 +1,7 @@
 import logging
 from termcolor import colored
 from lumibot.brokers import Broker
-from lumibot.entities import Order as OrderLum, Asset, Position
+from lumibot.entities import Order, Asset, Position
 from lumibot.data_sources import InteractiveBrokersRESTData
 from lumibot.tools import IBClientPortal
 import datetime
@@ -45,12 +45,12 @@ class InteractiveBrokersREST(Broker):
 
     NAME = "InteractiveBrokersREST"
 
-    def __init__(self, config=None, data_source=None, account_id=None):
+    def __init__(self, config, data_source=None):
         if data_source is None:
             data_source = InteractiveBrokersRESTData()
         super().__init__(name=self.NAME, data_source=data_source, config=config)
 
-        self.client_portal = IBClientPortal(account_id=account_id)
+        self.client_portal = IBClientPortal(config)
         self.accounts_info = self.client_portal.run()
 
     # --------------------------------------------------------------
@@ -116,8 +116,8 @@ class InteractiveBrokersREST(Broker):
 
         if asset_type == "multileg":
             # Create a multileg order.
-            order = OrderLum(strategy_name)
-            order.order_class = OrderLum.OrderClass.MULTILEG
+            order = Order(strategy_name)
+            order.order_class = Order.OrderClass.MULTILEG
             order.child_orders = []
 
             # Parse the legs of the combo order.
@@ -160,7 +160,7 @@ class InteractiveBrokersREST(Broker):
             right = "CALL" if contract.right == "C" else "PUT"
             strike = contract.strike
 
-        order = OrderLum(
+        order = Order(
             strategy_name,
             Asset(
                 symbol=contract.localSymbol,
@@ -186,7 +186,7 @@ class InteractiveBrokersREST(Broker):
         orders = self.client_portal.get_open_orders()
         return orders
     
-    def _pull_broker_order(self, identifier: str) -> OrderLum:
+    def _pull_broker_order(self, identifier: str) -> Order:
         """Get a broker order representation by its id"""
         pull_order = [order for order in self.client_portal.get_open_orders() if order.orderId == order_id]
         response = pull_order[0] if len(pull_order) > 0 else None
@@ -326,7 +326,7 @@ class InteractiveBrokersREST(Broker):
 
         return positions_list
 
-    def _submit_order(self, order: OrderLum) -> OrderLum:
+    def _submit_order(self, order: Order) -> Order:
         logging.error(colored(f"Method '_submit_order' for order {order} is not yet implemented.", "red"))
         return None
 

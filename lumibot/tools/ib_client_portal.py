@@ -9,7 +9,7 @@ import warnings
 import psutil
 
 class IBClientPortal:
-    def __init__(self, account_id=None, script_dir=None):
+    def __init__(self, config, script_dir=None):
         self.script_dir = script_dir or os.path.dirname(os.path.abspath(__file__))
         self.client_portal_dir = os.path.join(self.script_dir, 'ib_clientportal.gw')
         self.client_portal_script_name = 'run.bat' if platform.system() == 'Windows' else 'run.sh'
@@ -26,7 +26,10 @@ class IBClientPortal:
         self.max_checks = 3600
         self.post_ready_delay = 2
         self.process = None
-        self.account_id = account_id
+        self.account_id = config["ACCOUNT_ID"]
+        self.ib_username = config["IB_USERNAME"]
+        self.ib_password = config["IB_PASSWORD"]
+
 
     def validate_paths(self):
         return os.path.exists(self.client_portal_script) and os.path.exists(self.config_file)
@@ -61,8 +64,14 @@ class IBClientPortal:
                 text=True,
                 bufsize=1
             )
-            logging.info("Interactive Brokers Client Portal process started.")
-            return True
+
+            self.process.poll()
+            if self.process.returncode is None:
+                logging.info("Interactive Brokers Client Portal process started.")
+                return True
+            else:
+                raise Exception("A problem arised with the gateway process")
+                
         except Exception as e:
             logging.error(f"Failed to start the Interactive Brokers Client Portal: {e}")
             return False
@@ -80,6 +89,8 @@ class IBClientPortal:
                     elif status_data.get('connected', False) and not status_data.get('authenticated', False):
                         webbrowser.open(self.login_url)
                         logging.info("Please log in through the opened browser window.")
+                    else:
+                        logging.info("A weird error has occurred")
                 elif response.status_code == 401:
                     webbrowser.open(self.login_url)
                     logging.info("Please log in through the opened browser window.")
@@ -98,6 +109,7 @@ class IBClientPortal:
     
     def get_account_info(self):
         try:
+            logging.info("Attempting to retrieve account information.")
             response = requests.get(self.account_list_endpoint, verify=False)
             if response.status_code == 200:
                 accounts_data = response.json()
@@ -171,6 +183,7 @@ class IBClientPortal:
         if self.start_client_portal():
             time.sleep(3)
             if self.wait_for_client_portal_and_login():
+                logging.info("hh")
                 time.sleep(self.post_ready_delay)
                 return self.get_account_info()
         return None

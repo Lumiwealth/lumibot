@@ -52,6 +52,9 @@ class StrategyExecutor(Thread):
         # Create an Event object for the check queue stop event.
         self.check_queue_stop_event = Event()
 
+        # Keep track of Abrupt Closing method execution
+        self.abrupt_closing = False
+
     @property
     def name(self):
         return self.strategy._name
@@ -107,21 +110,22 @@ class StrategyExecutor(Thread):
         while held_trades_len > 0:
             # Snapshot for the broker and lumibot:
             cash_broker = self.broker._get_balances_at_broker(self.strategy.quote_asset)
-            if cash_broker is None and cash_broker_retries < cash_broker_max_retries:
-                self.strategy.logger.info("Unable to get cash from broker, trying again.")
-                cash_broker_retries += 1
-                continue
-            elif cash_broker is None and cash_broker_retries >= cash_broker_max_retries:
-                self.strategy.logger.info(
-                    f"Unable to get the cash balance after {cash_broker_max_retries} "
-                    f"tries, setting cash to zero."
-                )
-                cash_broker = 0
+            if cash_broker is None:
+                if cash_broker_retries < cash_broker_max_retries:
+                    self.strategy.logger.info("Unable to get cash from broker, trying again.")
+                    cash_broker_retries += 1
+                    continue
+                else:
+                    self.strategy.logger.info(
+                        f"Unable to get the cash balance after {cash_broker_max_retries} "
+                        f"tries, setting cash to zero."
+                    )
+                    cash_broker = 0
             else:
                 cash_broker = cash_broker[0]
-
-            if cash_broker is not None:
                 self.strategy._set_cash_position(cash_broker)
+                self.strategy.logger.info(f"Got Cash Balance: {cash_broker}")
+
 
             held_trades_len = len(self.broker._held_trades)
             if held_trades_len > 0:
@@ -473,20 +477,34 @@ class StrategyExecutor(Thread):
         when an exception is raised and the bot crashes"""
         self.strategy.log_message("Executing the on_bot_crash event method")
         self.strategy.on_bot_crash(error)
-        if self.broker.IS_BACKTESTING_BROKER:
-            self.strategy._dump_stats()
-        self.strategy.backup_variables_to_db()
+
+        self.gracefully_exit()
 
 
     def _on_abrupt_closing(self, error):
         """Use this lifecycle event to execute code
         when the main trader was shut down (Keyboard Interuption, ...)
         Example: self.sell_all()"""
-        self.strategy.log_message("Executing the on_abrupt_closing event method")
-        self.strategy.on_abrupt_closing()
-        self.strategy._dump_stats()
-        self.strategy.backup_variables_to_db()
 
+        # Ensure this doesn't run every time you do ctrl+c
+        if self.abrupt_closing:
+            return
+        
+        self.strategy.log_message("Executing the on_abrupt_closing event method")
+        self.abrupt_closing = True
+        self.strategy.on_abrupt_closing()
+
+        self.gracefully_exit()
+
+
+    def gracefully_exit(self):
+        if self.broker.IS_BACKTESTING_BROKER:
+            self.strategy._dump_stats()
+
+        if self.strategy.broker is not None and hasattr(self.strategy.broker, '_close_connection'):
+            self.strategy.broker._close_connection()
+
+        self.strategy.backup_variables_to_db()
 
     @event_method
     def _on_new_order(self, order):

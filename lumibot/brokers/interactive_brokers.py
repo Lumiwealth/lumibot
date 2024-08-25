@@ -6,6 +6,7 @@ from collections import defaultdict, deque
 from decimal import Decimal
 from threading import Thread
 import math
+from sys import exit
 from functools import reduce
 from termcolor import colored
 
@@ -76,21 +77,37 @@ class InteractiveBrokers(Broker):
             ip = config["IP"]
             socket_port = config["SOCKET_PORT"]
             client_id = config["CLIENT_ID"]
+            subaccount = config["IB_SUBACCOUNT"]
+
         else:
             ip = config.IP
             socket_port = config.SOCKET_PORT
             client_id = config.CLIENT_ID
+            subaccount = config.IB_SUBACCOUNT
 
+        self.subaccount = subaccount
         self.ip = ip
         self.socket_port = socket_port
         self.client_id = client_id
 
-        self.start_ib(ip, socket_port, client_id)
+        # Ensure we have a unique and non-changing client_id
+        if not self.client_id:
+            if self.subaccount is None:
+                # Set the client_id to a random  number up to 4 digits.
+                self.client_id = random.randint(1, 9999)
 
-    def start_ib(self, ip, socket_port, client_id):
+                # Log that a random client_id was generated.
+                logging.info(f"No client_id was set. A random client_id of {client_id} was generated.")
+            else:
+                logging.error("No client_id was set. A unique and non-changing client_id is necessary when a subaccount is used. Consider setting one as an environment variable.")
+                exit()
+
+        self.start_ib()
+
+    def start_ib(self):
         # Connect to interactive brokers.
         if not self.ib:
-            self.ib = IBApp(ip, socket_port, client_id, ib_broker=self)
+            self.ib = IBApp(ip_address=self.ip, socket_port=self.socket_port, client_id=self.client_id, subaccount=self.subaccount, ib_broker=self)
 
         if isinstance(self.data_source, InteractiveBrokersData):
             if not self.data_source.ib:
@@ -294,7 +311,7 @@ class InteractiveBrokers(Broker):
         orders = self.ib.get_open_orders()
         return orders
 
-    def _flatten_order(self, orders):  # implement for stop loss.
+    def _flatten_order(self, orders): # implement for stop loss. 
         """Not used for Interactive Brokers. Just returns the orders."""
         return orders
     
@@ -341,6 +358,9 @@ class InteractiveBrokers(Broker):
             if order.stop_loss_limit_price:
                 kwargs["stop_loss"]["limit_price"] = order.stop_loss_limit_price
 
+        if self.subaccount is not None:
+            order.account = self.subaccount # to be tested
+        
         self._unprocessed_orders.append(order)
         self.ib.execute_order(order)
         order.status = "submitted"
@@ -363,7 +383,7 @@ class InteractiveBrokers(Broker):
             self.ib = None
             del self.data_source.ib 
             self.data_source.ib = None
-            self.start_ib(self.ip, self.socket_port, self.client_id)
+            self.start_ib()
 
             return True
 
@@ -412,11 +432,9 @@ class InteractiveBrokers(Broker):
 
         if summary is None:
             return None
-
+        
         total_cash_value = [float(c["Value"]) for c in summary if c["Tag"] == "TotalCashBalance" and c["Currency"] == 'BASE'][0]
-
         gross_position_value = [float(c["Value"]) for c in summary if c["Tag"] == "NetLiquidationByCurrency" and c["Currency"] == 'BASE'][0]
-
         net_liquidation_value = [float(c["Value"]) for c in summary if c["Tag"] == "NetLiquidationByCurrency" and c["Currency"] == 'BASE'][0]
 
         return (total_cash_value, gross_position_value, net_liquidation_value)
@@ -1225,7 +1243,12 @@ class IBClient(EClient):
         positions_storage = self.wrapper.init_positions()
 
         # Call the positions data.
-        self.reqPositions()
+        if self.subaccount is not None:
+            # reqid = self.get_reqid()
+            # self.reqPositionsMulti(reqid, self.subaccount, "") # not working idk why
+            self.reqPositions()
+        else:
+            self.reqPositions()
 
         try:
             requested_positions = positions_storage.get(timeout=self.max_wait_time)
@@ -1235,6 +1258,9 @@ class IBClient(EClient):
 
         while self.wrapper.is_error():
             logging.error(f"Error: {self.get_error(timeout=5)}")
+
+        if requested_positions is not None and self.subaccount is not None:
+            requested_positions = [pos for pos in requested_positions if pos.get('account') == self.subaccount]
 
         return requested_positions
 
@@ -1246,8 +1272,8 @@ class IBClient(EClient):
         accounts_storage = self.wrapper.init_accounts()
 
         as_reqid = self.get_reqid()
-        self.reqAccountSummary(as_reqid, "All", "$LEDGER")
 
+        self.reqAccountSummary(as_reqid, "All", "$LEDGER") # You could probably just set a subaccount, couldn't get it to work
         try:
             requested_accounts = accounts_storage.get(timeout=self.max_wait_time)
         except queue.Empty:
@@ -1259,26 +1285,32 @@ class IBClient(EClient):
         while self.wrapper.is_error():
             logging.debug(f"Error: {self.get_error(timeout=5)}")
 
+        if requested_accounts is not None and self.subaccount is not None:
+            requested_accounts = [pos for pos in requested_accounts if pos.get('Account') == self.subaccount]
+
         return requested_accounts
 
     def get_open_orders(self):
         orders_storage = self.wrapper.init_orders()
 
         # Call the orders data.
-        self.reqAllOpenOrders()
+        if self.subaccount is None:
+            self.reqAllOpenOrders()
+        else:
+            self.reqOpenOrders() # to be tested, gets only orders opened by your specific client id
 
         try:
             requested_orders = orders_storage.get(timeout=self.max_wait_time)
         except queue.Empty:
             print("The queue was empty or max time reached for orders.")
             requested_orders = None
-
+        
         while self.wrapper.is_error():
             print(f"Error: {self.get_error(timeout=5)}")
 
         if isinstance(requested_orders, Order):
             requested_orders = [requested_orders]
-
+        
         return requested_orders
 
     def cancel_order(self, order):
@@ -1360,7 +1392,7 @@ class IBClient(EClient):
 
 class IBApp(IBWrapper, IBClient):
 
-    def __init__(self, ip_address, socket_port, client_id, ib_broker=None):
+    def __init__(self, ip_address, socket_port, client_id, subaccount=None, ib_broker=None):
         IBWrapper.__init__(self)
         IBClient.__init__(self, wrapper=self)
 
@@ -1368,16 +1400,13 @@ class IBApp(IBWrapper, IBClient):
         self.socket_port = socket_port
         self.client_id = client_id
         self.ib_broker = ib_broker
+        self.subaccount = subaccount
+
+        self.reqAutoOpenOrders(True)
 
         # Ensure a connection before running
-        if not client_id:
-            # Set the client_id to a random  number up to 4 digits.
-            client_id = random.randint(1, 9999)
-
-            # Log that a random client_id was generated.
-            logging.info(f"No client_id was set. A random client_id of {client_id} was generated.")
-
         self.connect(self.ip_address, self.socket_port, client_id)
+
         
         thread = Thread(target=self.run)
         thread.start()

@@ -138,6 +138,7 @@ INTERACTIVE_BROKERS_CONFIG = {
     "SOCKET_PORT": int(os.environ.get("INTERACTIVE_BROKERS_PORT")) if os.environ.get("INTERACTIVE_BROKERS_PORT") else None,
     "CLIENT_ID": int(os.environ.get("INTERACTIVE_BROKERS_CLIENT_ID")) if os.environ.get("INTERACTIVE_BROKERS_CLIENT_ID") else None,
     "IP": os.environ.get("INTERACTIVE_BROKERS_IP", "127.0.0.1"),
+    "IB_SUBACCOUNT": os.environ.get("IB_SUBACCOUNT", None)
 }
 
 INTERACTIVE_BROKERS_REST_CONFIG = {

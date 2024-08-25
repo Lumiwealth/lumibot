@@ -223,11 +223,13 @@ class Trader:
         lifecycle method. python signal handlers
         needs two positional arguments, the signal
         and the frame"""
+
         logging.debug(f"Received signal number {sig}.")
         logging.debug(f"Closing Trader in {frame} frame.")
         for strategy_thread in self._pool:
-            strategy_thread.stop()
-        logging.info("Trading finished")
+            if not strategy_thread.abrupt_closing:
+                strategy_thread.stop()
+                logging.info(f"Trading finished for {strategy_thread.strategy._name}")
 
     def _collect_analysis(self):
         result = {}

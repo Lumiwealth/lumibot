@@ -5,9 +5,13 @@ import requests
 import os
 
 class IBClientPortal:
-    def __init__(self, config):
-        self.port = "3000"
-        self.base_url = f'https://localhost:{self.port}'
+    def __init__(self, config, api_url):
+        if api_url is None:
+            self.port = "3000"
+            self.base_url = f'https://localhost:{self.port}'
+        else:
+            self.api_url = api_url
+            self.base_url = api_url
 
         self.status_check_endpoint = f'{self.base_url}/v1/portal/iserver/auth/status'
         self.account_list_endpoint = f'{self.base_url}/v1/api/portfolio/accounts'
@@ -19,25 +23,26 @@ class IBClientPortal:
         self.ib_password = config["IB_PASSWORD"]
 
     def start_ibeam(self):
-        # Run the Docker image with the specified environment variables and port mapping        
-        logging.info("Starting IBeam...")
-        existing_container = subprocess.run(['docker', 'ps', '-q', '-f', f'expose={self.port}'], capture_output=True, text=True)
-        if existing_container.stdout:
-            # Kill the existing container
-            subprocess.run(['docker', 'kill', existing_container.stdout.strip()], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        
-        inputs_dir = '/srv/clientportal.gw/root/conf.yaml'
-        env_variables = {
-            'IBEAM_ACCOUNT': self.ib_username,
-            'IBEAM_PASSWORD': self.ib_password,
-            'IBEAM_GATEWAY_BASE_URL': self.base_url,
-            'IBEAM_INPUTS_DIR': inputs_dir
-        }
-        env_args = [f'--env={key}={value}' for key, value in env_variables.items()]
-        conf_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "conf.yaml"))
-        volume_mount = f'{conf_path}:{inputs_dir}'
+        if self.api_url is not None:
+            # Run the Docker image with the specified environment variables and port mapping        
+            logging.info("Starting IBeam...")
+            existing_container = subprocess.run(['docker', 'ps', '-q', '-f', f'expose={self.port}'], capture_output=True, text=True)
+            if existing_container.stdout:
+                # Kill the existing container
+                subprocess.run(['docker', 'kill', existing_container.stdout.strip()], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            
+            inputs_dir = '/srv/clientportal.gw/root/conf.yaml'
+            env_variables = {
+                'IBEAM_ACCOUNT': self.ib_username,
+                'IBEAM_PASSWORD': self.ib_password,
+                'IBEAM_GATEWAY_BASE_URL': self.base_url,
+                'IBEAM_INPUTS_DIR': inputs_dir
+            }
+            env_args = [f'--env={key}={value}' for key, value in env_variables.items()]
+            conf_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "conf.yaml"))
+            volume_mount = f'{conf_path}:{inputs_dir}'
 
-        subprocess.run(['docker', 'run', '-d', *env_args, '-p', f'{self.port}:{self.port}', '-v', volume_mount, 'voyz/ibeam'], stdout=subprocess.DEVNULL, text=True)
+            subprocess.run(['docker', 'run', '-d', *env_args, '-p', f'{self.port}:{self.port}', '-v', volume_mount, 'voyz/ibeam'], stdout=subprocess.DEVNULL, text=True)
 
         while not self.is_client_portal_running():
             time.sleep(10)
@@ -144,6 +149,9 @@ class IBClientPortal:
 
     def stop(self):        
         # Check if the Docker image is already running
+        if self.api_url:
+            return
+        
         existing_container = subprocess.run(['docker', 'ps', '-q', '-f', f'expose={self.port}'], capture_output=True, text=True)
         if existing_container.stdout:
             # Kill the existing container

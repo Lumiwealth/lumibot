@@ -349,3 +349,7 @@ class InteractiveBrokersREST(Broker):
     def _get_stream_object(self):
         logging.error(colored("Method '_get_stream_object' is not yet implemented.", "red"))
         return None
+
+    def _close_connection(self):
+        logging.info("Closing connection to the Client Portal...")
+        self.client_portal.stop()

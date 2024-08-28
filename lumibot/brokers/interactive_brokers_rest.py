@@ -51,7 +51,6 @@ class InteractiveBrokersREST(Broker):
         super().__init__(name=self.NAME, data_source=data_source, config=config)
 
         self.client_portal = IBClientPortal(config, api_url=api_url)
-        self.accounts_info = self.client_portal.run()
 
     # --------------------------------------------------------------
     # Broker methods

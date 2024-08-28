@@ -3,6 +3,9 @@ import subprocess
 import time
 import requests
 import os
+import urllib3
+
+urllib3.disable_warnings()
 
 class IBClientPortal:
     def __init__(self, config, api_url):
@@ -13,17 +16,26 @@ class IBClientPortal:
             self.api_url = api_url
             self.base_url = api_url
 
-        self.status_check_endpoint = f'{self.base_url}/v1/portal/iserver/auth/status'
-        self.account_list_endpoint = f'{self.base_url}/v1/api/portfolio/accounts'
         self.account_info_endpoint = f'{self.base_url}/v1/portal/account/summary'
-        self.post_ready_delay = 2
-
-        self.account_id = config["ACCOUNT_ID"]
+        
         self.ib_username = config["IB_USERNAME"]
         self.ib_password = config["IB_PASSWORD"]
 
+        self.start_ibeam()
+
+        # Set self.account_id
+        if config["ACCOUNT_ID"]:
+            self.account_id = config["ACCOUNT_ID"]
+        else:
+            url = f'{self.base_url}/v1/api/portfolio/accounts'
+            response = self.get_json_from_endpoint(url, "Fetching Account ID")
+            if response is not None:
+                self.account_id = response[0]['id']
+            else:
+                logging.error(f"Failed to get account id.")
+        
     def start_ibeam(self):
-        if self.api_url is not None:
+        if not hasattr(self, "api_url"):
             # Run the Docker image with the specified environment variables and port mapping        
             logging.info("Starting IBeam...")
             existing_container = subprocess.run(['docker', 'ps', '-q', '-f', f'expose={self.port}'], capture_output=True, text=True)
@@ -36,6 +48,8 @@ class IBClientPortal:
                 'IBEAM_ACCOUNT': self.ib_username,
                 'IBEAM_PASSWORD': self.ib_password,
                 'IBEAM_GATEWAY_BASE_URL': self.base_url,
+                'IBEAM_LOG_TO_FILE': False,
+                'IBEAM_REQUEST_RETRIES': 3,
                 'IBEAM_INPUTS_DIR': inputs_dir
             }
             env_args = [f'--env={key}={value}' for key, value in env_variables.items()]
@@ -50,49 +64,23 @@ class IBClientPortal:
         logging.info("Started IBeam")
 
     def is_client_portal_running(self):
-        try:
-            response = requests.get(self.account_list_endpoint, verify=False)
-            if response.status_code == 200:
-                return True
-            else:
-                logging.debug(f"Failed to get account list. Status code: {response.status_code}")
-                return False
-        except Exception:
+        url = f'{self.base_url}/v1/portal/iserver/auth/status'
+        response = self.get_json_from_endpoint(url, "Status Check", silent=True)
+        if response is None:
             return False
-
+        else:
+            return True
 
     def get_contract_details_for_contract(self, contract):
         conid=contract.conId
         url = f"{self.base_url}/v1/iserver/contract/{conid}/info"
-        response = self.get_json_from_endpoint(url, "getting account details")
+        response = self.get_json_from_endpoint(url, "Getting account details")
         return response
     
     def get_account_info(self):
-        try:
-            logging.info("Attempting to retrieve account information.")
-            response = requests.get(self.account_list_endpoint, verify=False)
-            if response.status_code == 200:
-                accounts_data = response.json()
-                if accounts_data:
-                    if not self.account_id:
-                        self.account_id = accounts_data[0]['id']
-
-                    response = requests.get(f"{self.account_info_endpoint}?accountId={self.account_id}", verify=False)
-                    if response.status_code == 200:
-                        return response.json()
-                    elif response.status_code == 404:
-                        logging.warning("Account information endpoint not found. Returning list of accounts.")
-                        return {'accounts': accounts_data}
-                    else:
-                        logging.error(f"Failed to get detailed account info. Status code: {response.status_code}")
-                else:
-                    logging.warning("No accounts found in the response.")
-            else:
-                logging.error(f"Failed to list accounts. Status code: {response.status_code}")
-            return None
-        except requests.exceptions.RequestException as e:
-            logging.error(f"Error getting account info: {e}")
-            return None
+        url = f"{self.account_info_endpoint}?accountId={self.account_id}"
+        response = self.get_json_from_endpoint(url, "Getting account info")
+        return response
         
     def get_account_balances(self):
         """
@@ -100,13 +88,10 @@ class IBClientPortal:
         """
         # Define the endpoint URL for fetching account balances
         url = f"{self.base_url}/v1/portal/portfolio/{self.account_id}/ledger"
-        response = self.get_json_from_endpoint(url, "getting account balances")
+        response = self.get_json_from_endpoint(url, "Getting account balances")
         return response
         
-    def get_json_from_endpoint(self, endpoint, description):
-        """
-        Retrieves the account balances for a given account ID.
-        """
+    def get_json_from_endpoint(self, endpoint, description, silent=False):
         try:
             # Make the request to the endpoint
             response = requests.get(endpoint, verify=False)
@@ -115,20 +100,26 @@ class IBClientPortal:
             if response.status_code == 200:
                 # Return the JSON response containing the account balances
                 return response.json()
+            elif response.status_code == 404:
+                if not silent:
+                    logging.warning(f"{description} endpoint not found.")
+                return None
             else:
                 # Log an error message if the request failed
-                logging.error(f"Failed {description}. Status code: {response.status_code}")
+                if not silent:
+                    logging.error(f"Task '{description}' Failed. Status code: {response.status_code}")
                 return None
 
-        except requests.exceptions.RequestException as e:
+        except Exception as e:
             # Log an error message if there was a problem with the request
-            logging.error(f"Error {description}: {e}")
+            if not silent:
+                logging.error(f"Error {description}: {e}")
             return None
         
     def get_open_orders(self):
         # Define the endpoint URL for fetching account balances
         url = f'{self.base_url}/v1/iserver/account/orders?filters=accountId={self.account_id}'
-        response = self.get_json_from_endpoint(url, "getting open orders")
+        response = self.get_json_from_endpoint(url, "Getting open orders")
         return response
     
     def get_positions(self):
@@ -136,22 +127,14 @@ class IBClientPortal:
         Retrieves the current positions for a given account ID.
         """
         url = f"{self.base_url}/v1/portal/portfolio/{self.account_id}/positions"
-        response = self.get_json_from_endpoint(url, "getting account positions")
+        response = self.get_json_from_endpoint(url, "Getting account positions")
         return response
-
-    def run(self):
-        if self.start_ibeam():
-            time.sleep(3)
-            if self.is_client_portal_running():
-                time.sleep(self.post_ready_delay)
-                return self.get_account_info()
-        return None
 
     def stop(self):        
         # Check if the Docker image is already running
-        if self.api_url:
+        if hasattr(self, "api_url"):
             return
-        
+
         existing_container = subprocess.run(['docker', 'ps', '-q', '-f', f'expose={self.port}'], capture_output=True, text=True)
         if existing_container.stdout:
             # Kill the existing container

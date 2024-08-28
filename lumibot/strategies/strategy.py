@@ -1940,7 +1940,10 @@ class Strategy(_Strategy):
             self.log_message("Broker does not have a get_quote method.")
             return None
 
-        return self.broker.data_source.get_quote(asset)
+        if self.broker.option_source and asset.asset_type == "option":
+            return self.broker.option_source.get_quote(asset)
+        else:
+            return self.broker.data_source.get_quote(asset)
 
     def get_tick(self, asset):
         """Takes an Asset and returns the last known price"""
@@ -4182,6 +4185,9 @@ class Strategy(_Strategy):
                     raise
     
     def backup_variables_to_db(self):
+        if self.is_backtesting:
+            return
+
         if not hasattr(self, "db_connection_str") or self.db_connection_str is None or not self.should_backup_variables_to_database:
             return
 
@@ -4264,6 +4270,9 @@ class Strategy(_Strategy):
             logger.error(f"Error backing up variables to DB: {e}", exc_info=True)
 
     def load_variables_from_db(self):
+        if self.is_backtesting:
+            return
+
         if not hasattr(self, "db_connection_str") or self.db_connection_str is None or not self.should_backup_variables_to_database:
             return
 

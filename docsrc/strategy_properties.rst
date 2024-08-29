@@ -3,7 +3,7 @@ Strategy Properties
 
 Inside your strategy you can also get a lot of information about the state of the strategy and set specific variables to determine how the strategy works. Here is a list of those properties that you can use:
 
-.. currentmodule:: strategies.strategy.Strategy
+.. currentmodule:: lumibot.strategies.strategy.Strategy
 
 .. autosummary::
     :toctree: strategy_properties

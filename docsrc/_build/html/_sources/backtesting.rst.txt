@@ -26,3 +26,4 @@ When you run a backtest, several important files are generated, each prefixed by
    backtesting.yahoo
    backtesting.pandas
    backtesting.polygon
+   backtesting.thetadata

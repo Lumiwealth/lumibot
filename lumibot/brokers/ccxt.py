@@ -17,7 +17,7 @@ class Ccxt(Broker):
     def __init__(self, config, data_source: CcxtData = None, max_workers=20, chunk_size=100, **kwargs):
         if data_source is None:
             data_source = CcxtData(config, max_workers=max_workers, chunk_size=chunk_size)
-        super().__init__(self, config=config, data_source=data_source, max_workers=max_workers, **kwargs)
+        super().__init__(name="ccxt", config=config, data_source=data_source, max_workers=max_workers, **kwargs)
 
         self.market = "24/7"
         self.fetch_open_orders_last_request_time = None
@@ -182,10 +182,10 @@ class Ccxt(Broker):
                 f"Please check the symbol and the exchange currencies list."
             )
             precision = None
-        
+
         elif self.api.exchangeId == "binance":
             precision = str(10 ** -self.api.currencies[symbol]["precision"])
-            
+
         else:
             precision = str(self.api.currencies[symbol]["precision"])
 
@@ -253,7 +253,7 @@ class Ccxt(Broker):
             # Check if the position is not None
             if new_pos is not None:
                 result.append(new_pos)
-                
+
         return result
 
     def _pull_positions(self, strategy):
@@ -482,7 +482,8 @@ class Ccxt(Broker):
             "stop_price",
         ]:
             if hasattr(order, price_type) and getattr(order, price_type) is not None:
-                precision_price = Decimal(str(10 ** -precision["price"])) if self.api.exchangeId == "binance" else precision["price"]
+                precision_price = Decimal(str(10 ** -precision["price"])
+                                          ) if self.api.exchangeId == "binance" else precision["price"]
                 setattr(
                     order,
                     price_type,

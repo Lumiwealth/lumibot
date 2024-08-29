@@ -3,7 +3,7 @@ DateTime
 
 DataTime functions are made so that you can get the current date and time that your strategy thinks it is, regardless of whether you are backtesting or trading live. These can be especially useful when you're backtesting so that you can see what date/time it is according to the backtest (eg. if you're backtesting in the 1990s it can tell you that the strategy thinks it is Jan 10, 1991 rather than today's date). You can see a list of them below:
 
-.. currentmodule:: strategies.strategy.Strategy
+.. currentmodule:: lumibot.strategies.strategy.Strategy
 
 
 .. autosummary::

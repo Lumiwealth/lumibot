@@ -1,4 +1,4 @@
 ﻿self.get\_round\_minute
 =================================================================
 
-.. autofunction:: strategies.strategy.Strategy.get_round_minute
+.. autofunction:: lumibot.strategies.strategy.Strategy.get_round_minute

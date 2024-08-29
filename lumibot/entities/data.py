@@ -268,8 +268,8 @@ class Data:
             )
         return df
 
-    # ./lumibot/build/__editable__.lumibot-3.1.14-py3-none-any/lumibot/entities/data.py:280: 
-    # FutureWarning: Downcasting object dtype arrays on .fillna, .ffill, .bfill is deprecated and will change in a future version. 
+    # ./lumibot/build/__editable__.lumibot-3.1.14-py3-none-any/lumibot/entities/data.py:280:
+    # FutureWarning: Downcasting object dtype arrays on .fillna, .ffill, .bfill is deprecated and will change in a future version.
     # Call result.infer_objects(copy=False) instead.
     # To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)`
 
@@ -402,7 +402,58 @@ class Data:
         float
         """
         iter_count = self.get_iter_count(dt)
-        return self.datalines["open"].dataline[iter_count]
+        price = self.datalines["open"].dataline[iter_count]
+        return price
+
+    @check_data
+    def get_quote(self, dt, length=1, timeshift=0):
+        """Returns the last known price of the data.
+
+        Parameters
+        ----------
+        dt : datetime.datetime
+            The datetime to get the last price.
+        length : int
+            The number of periods to get the last price.
+        timestep : str
+            The frequency of the data to get the last price.
+        timeshift : int
+            The number of periods to shift the data.
+
+        Returns
+        -------
+        dict
+        """
+        iter_count = self.get_iter_count(dt)
+        open = round(self.datalines["open"].dataline[iter_count], 2)
+        high = round(self.datalines["high"].dataline[iter_count], 2)
+        low = round(self.datalines["low"].dataline[iter_count], 2)
+        close = round(self.datalines["close"].dataline[iter_count], 2)
+        bid = round(self.datalines["bid"].dataline[iter_count], 2)
+        ask = round(self.datalines["ask"].dataline[iter_count], 2)
+        volume = round(self.datalines["volume"].dataline[iter_count], 0)
+        bid_size = round(self.datalines["bid_size"].dataline[iter_count], 0)
+        bid_condition = round(self.datalines["bid_condition"].dataline[iter_count], 0)
+        bid_exchange = round(self.datalines["bid_exchange"].dataline[iter_count], 0)
+        ask_size = round(self.datalines["ask_size"].dataline[iter_count], 0)
+        ask_condition = round(self.datalines["ask_condition"].dataline[iter_count], 0)
+        ask_exchange = round(self.datalines["ask_exchange"].dataline[iter_count], 0)
+
+        return {
+            "open": open,
+            "high": high,
+            "low": low,
+            "close": close,
+            "volume": volume,
+            "bid": bid,
+            "ask": ask,
+            "bid_size": bid_size,
+            "bid_condition": bid_condition,
+            "bid_exchange": bid_exchange,
+            "ask_size": ask_size,
+            "ask_condition": ask_condition,
+            "ask_exchange": ask_exchange
+        }
 
     @check_data
     def _get_bars_dict(self, dt, length=1, timestep=None, timeshift=0):

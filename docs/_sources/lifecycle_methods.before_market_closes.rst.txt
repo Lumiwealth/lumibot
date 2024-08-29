@@ -13,4 +13,4 @@ This lifecycle method is executed self.minutes_before_closing minutes before the
 Reference
 ----------
 
-.. autofunction:: strategies.strategy.Strategy.before_market_closes
+.. autofunction:: lumibot.strategies.strategy.Strategy.before_market_closes

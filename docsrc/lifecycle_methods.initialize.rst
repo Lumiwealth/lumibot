@@ -77,4 +77,4 @@ Possible calendars include:
 Reference
 ----------
 
-.. autofunction:: strategies.strategy.Strategy.initialize
+.. autofunction:: lumibot.strategies.strategy.Strategy.initialize

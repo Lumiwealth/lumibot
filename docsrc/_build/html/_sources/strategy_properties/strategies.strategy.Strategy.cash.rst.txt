@@ -1,4 +1,4 @@
 ﻿self.cash
 =========================================================
 
-.. autoproperty:: strategies.strategy.Strategy.cash
+.. autoproperty:: lumibot.strategies.strategy.Strategy.cash

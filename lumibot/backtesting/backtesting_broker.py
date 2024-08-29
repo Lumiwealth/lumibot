@@ -16,11 +16,13 @@ class BacktestingBroker(Broker):
     # Metainfo
     IS_BACKTESTING_BROKER = True
 
-    def __init__(self, data_source, connect_stream=True, max_workers=20, config=None, **kwargs):
-        super().__init__(name="backtesting", data_source=data_source, connect_stream=connect_stream, **kwargs)
+    def __init__(self, data_source, option_source=None, connect_stream=True, max_workers=20, config=None, **kwargs):
+        super().__init__(name="backtesting", data_source=data_source,
+                         option_source=option_source, connect_stream=connect_stream, **kwargs)
         # Calling init methods
         self.max_workers = max_workers
         self.market = "NASDAQ"
+        self.option_source = option_source
 
         # Legacy strategy.backtest code will always pass in a config even for Brokers that don't need it, so
         # catch it here and ignore it in this class. Child classes that need it should error check it themselves.
@@ -91,8 +93,9 @@ class BacktestingBroker(Broker):
             new_datetime = self.datetime + timedelta(seconds=update_dt)
         else:
             new_datetime = update_dt
-
         self.data_source._update_datetime(new_datetime, cash=cash, portfolio_value=portfolio_value)
+        if self.option_source:
+            self.option_source._update_datetime(new_datetime, cash=cash, portfolio_value=portfolio_value)
         logging.info(f"Current backtesting datetime {self.datetime}")
 
     # =========Clock functions=====================
@@ -166,10 +169,10 @@ class BacktestingBroker(Broker):
     def get_time_to_close(self):
         """Return the remaining time for the market to close in seconds"""
         now = self.datetime
-        
+
         # Use searchsorted for efficient searching and reduce unnecessary DataFrame access
         idx = self._trading_days.index.searchsorted(now, side='left')
-        
+
         if idx >= len(self._trading_days):
             logging.error("Cannot predict future")
             return 0
@@ -345,7 +348,7 @@ class BacktestingBroker(Broker):
         # Currently perfect fill price in backtesting!
         order.avg_fill_price = price
 
-        position = super()._process_filled_order(order, order.avg_fill_price, quantity)
+        position = super()._process_filled_order(order, price, quantity)
         if existing_position:
             position.add_order(order, quantity)  # Add will update quantity, but not double count the order
             if position.quantity == 0:
@@ -382,10 +385,10 @@ class BacktestingBroker(Broker):
         """Submit an order for an asset"""
         # NOTE: This code is to address Tradier API requirements, they want is as "to_open" or "to_close" instead of just "buy" or "sell"
         # If the order has a "buy_to_open" or "buy_to_close" side, then we should change it to "buy"
-        if order.side in ["buy_to_open", "buy_to_close"]:
+        if order.is_buy_order():
             order.side = "buy"
         # If the order has a "sell_to_open" or "sell_to_close" side, then we should change it to "sell"
-        if order.side in ["sell_to_open", "sell_to_close"]:
+        if order.is_sell_order():
             order.side = "sell"
 
         order.update_raw(order)
@@ -493,14 +496,14 @@ class BacktestingBroker(Broker):
         """
         if self.data_source.SOURCE != "PANDAS":
             return
-        
+
         # If it's the same day as the expiration, we need to check the time to see if it's after market close
         time_to_close = self.get_time_to_close()
 
         # If the time to close is None, then the market is not open so we should not sell the contracts
         if time_to_close is None:
             return
-        
+
         # Calculate the number of seconds before market close
         seconds_before_closing = strategy.minutes_before_closing * 60
 

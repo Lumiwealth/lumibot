@@ -1,4 +1,4 @@
 ﻿self.get\_chain
 =================================================================
 
-.. autofunction:: strategies.strategy.Strategy.get_chain
+.. autofunction:: lumibot.strategies.strategy.Strategy.get_chain

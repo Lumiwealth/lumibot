@@ -4,12 +4,12 @@ from termcolor import colored
 from asyncio.log import logger
 from decimal import Decimal
 import os
+import json
 import string
 import random
 
 import pandas as pd
-
-from lumibot.backtesting import BacktestingBroker, PolygonDataBacktesting
+from lumibot.backtesting import BacktestingBroker, PolygonDataBacktesting, ThetaDataBacktesting
 from lumibot.entities import Asset, Position
 from lumibot.tools import (
     create_tearsheet,
@@ -23,6 +23,15 @@ from lumibot.tools import (
 from lumibot.traders import Trader
 
 from .strategy_executor import StrategyExecutor
+from ..credentials import (
+    THETADATA_CONFIG, 
+    STRATEGY_NAME, 
+    BROKER, 
+    POLYGON_API_KEY, 
+    DISCORD_WEBHOOK_URL, 
+    DB_CONNECTION_STR,
+    MARKET,
+)
     
 class CustomLoggerAdapter(logging.LoggerAdapter):
     def __init__(self, logger, extra):
@@ -34,6 +43,27 @@ class CustomLoggerAdapter(logging.LoggerAdapter):
             return self.prefix + msg, kwargs
         except Exception as e:
             return msg, kwargs
+
+
+class Vars:
+    def __init__(self):
+        super().__setattr__('_vars_dict', {})
+
+    def __getattr__(self, name):
+        try:
+            return self._vars_dict[name]
+        except KeyError:
+            raise AttributeError(f"'Vars' object has no attribute '{name}'")
+
+    def __setattr__(self, name, value):
+        self._vars_dict[name] = value
+
+    def set(self, name, value):
+        self._vars_dict[name] = value
+
+    def all(self):
+        return self._vars_dict.copy()
+
 
 class _Strategy:
     IS_BACKTESTABLE = True
@@ -61,8 +91,11 @@ class _Strategy:
         force_start_immediately=False,
         discord_webhook_url=None,
         account_history_db_connection_str=None,
+        db_connection_str=None,
         strategy_id=None,
         discord_account_summary_footer=None,
+        should_backup_variables_to_database=True,
+        should_send_summary_to_discord=True,
         save_logfile=False,
         **kwargs,
     ):
@@ -122,15 +155,15 @@ class _Strategy:
         discord_webhook_url : str
             The discord webhook url to use for sending alerts from the strategy. You can send alerts to a discord
             channel by setting broadcast=True in the log_message method. The strategy will also by default send
-            and account summary to the discord channel at the end of each day (account_history_db_connection_str
+            and account summary to the discord channel at the end of each day (db_connection_str
             must be set for this to work). Defaults to None (no discord alerts).
             For instructions on how to create a discord webhook url, see this link:
             https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks
         discord_account_summary_footer : str
             The footer to use for the account summary sent to the discord channel if discord_webhook_url is set and the
-            account_history_db_connection_str is set.
+            db_connection_str is set.
             Defaults to None (no footer).
-        account_history_db_connection_str : str
+        db_connection_str : str
             The connection string to use for the account history database. This is used to store the account history
             for the strategy. The account history is sent to the discord channel at the end of each day. The connection
             string should be in the format: "sqlite:///path/to/database.db". The database should have a table named
@@ -138,8 +171,18 @@ class _Strategy:
         strategy_id : str
             The id of the strategy that will be used to identify the strategy in the account history database.
             Defaults to None (lumibot will use the name of the strategy as the id).
+        should_backup_variables_to_database : bool
+            If True, the strategy will backup its variables to the account history database at the end of each day.
+            Defaults to True.
+        should_send_summary_to_discord : bool
+            If True, the strategy will send an account summary to the discord channel at the end of each day.
+            Defaults to True.
         save_logfile : bool
             Whether to save the logfile. Defaults to False. If True, the logfile will be saved to the logs directory.
+            Turning on this option will slow down the backtest.
+        kwargs : dict
+            A dictionary of additional keyword arguments to pass to the strategy.
+
         """
         # Handling positional arguments.
         # If there is one positional argument, it is assumed to be `broker`.
@@ -180,16 +223,38 @@ class _Strategy:
         else:
             self.broker = broker
             self._name = name
+        
+        if self.broker == None:
+            self.broker = BROKER
+        
+        if self._name == None:
+            self._name = STRATEGY_NAME
 
         if self._name is None:
             self._name = self.__class__.__name__
 
+        # If the MARKET env variable is set, use it as the market
+        if MARKET:
+            # Log the market being used
+            colored_message = colored(f"Using market from environment variables: {MARKET}", "green")
+            logger.info(colored_message)
+            self.set_market(MARKET)
+
         # Create an adapter with 'strategy_name' set to the instance's name
         self.logger = CustomLoggerAdapter(logger, {'strategy_name': self._name})
 
-        self.discord_webhook_url = discord_webhook_url
-        self.account_history_db_connection_str = account_history_db_connection_str
+        self.discord_webhook_url = discord_webhook_url if discord_webhook_url is not None else DISCORD_WEBHOOK_URL
+        
+        if account_history_db_connection_str: 
+            self.db_connection_str = account_history_db_connection_str  
+            logging.warning("account_history_db_connection_str is deprecated and will be removed in future versions, please use db_connection_str instead") 
+        elif db_connection_str:
+            self.db_connection_str = db_connection_str
+        else:
+            self.db_connection_str = DB_CONNECTION_STR
+            
         self.discord_account_summary_footer = discord_account_summary_footer
+        self.backup_table_name="vars_backup"
 
         if strategy_id is None:
             self.strategy_id = self._name
@@ -197,14 +262,23 @@ class _Strategy:
             self.strategy_id = strategy_id
 
         self._quote_asset = quote_asset
+
+        # Check if the quote_assets exists on the broker
+        if not hasattr(self.broker, "quote_assets"):
+            self.broker.quote_assets = set()
+
         self.broker.quote_assets.add(self._quote_asset)
 
         # Setting the broker object
-        self._is_backtesting = self.broker.IS_BACKTESTING_BROKER
+        if self.broker == None:
+            self.is_backtesting = True
+        else:
+            self.is_backtesting = self.broker.IS_BACKTESTING_BROKER
+
         self._benchmark_asset = benchmark_asset
 
         # Get the backtesting start and end dates from the broker data source if we are backtesting
-        if self._is_backtesting:
+        if self.is_backtesting:
             if self.broker.data_source.datetime_start is not None and self.broker.data_source.datetime_end is not None:
                 self._backtesting_start = self.broker.data_source.datetime_start
                 self._backtesting_end = self.broker.data_source.datetime_end
@@ -222,7 +296,7 @@ class _Strategy:
         self._asset_mapping = dict()
 
         # Setting the data provider
-        if self._is_backtesting:
+        if self.is_backtesting:
             if self.broker.data_source.SOURCE == "PANDAS":
                 self.broker.data_source.load_data()
 
@@ -245,7 +319,7 @@ class _Strategy:
 
         # Setting execution parameters
         self._last_on_trading_iteration_datetime = None
-        if not self._is_backtesting:
+        if not self.is_backtesting:
             self.update_broker_balances()
 
             # Set initial positions if live trading.
@@ -284,7 +358,7 @@ class _Strategy:
             else:
                 self._position_value = 0
 
-            ### END
+            # END
             ##############################################
 
         self._initial_budget = budget
@@ -300,6 +374,12 @@ class _Strategy:
         self._stats = None
         self._stats_list = []
         self._analysis = {}
+
+        # Variable backup related variables
+        self.should_backup_variables_to_database = should_backup_variables_to_database
+        self.should_send_summary_to_discord = should_send_summary_to_discord
+        self._last_backup_state = None
+        self.vars = Vars()
 
         # Storing parameters for the initialize method
         if not hasattr(self, "parameters") or not isinstance(self.parameters, dict) or self.parameters is None:
@@ -334,7 +414,7 @@ class _Strategy:
                 "_minutes_before_closing",
                 "_minutes_before_opening",
                 "_sleeptime",
-                "_is_backtesting",
+                "is_backtesting",
             ]:
                 result[key[1:]] = self.__dict__[key]
 
@@ -398,7 +478,7 @@ class _Strategy:
         bool
             True if the broker's balances were updated, False otherwise
         """
-        if self._is_backtesting:
+        if self.is_backtesting:
             return True
 
         if "last_broker_balances_update" not in self.__dict__:
@@ -437,7 +517,7 @@ class _Strategy:
 
     def _update_portfolio_value(self):
         """updates self.portfolio_value"""
-        if not self._is_backtesting:
+        if not self.is_backtesting:
             broker_balances = self.broker._get_balances_at_broker(self.quote_asset)
 
             if broker_balances is not None:
@@ -454,14 +534,18 @@ class _Strategy:
             # Set the base currency for crypto valuations.
 
             assets = []
+            asset_is_option = False
             for asset in assets_original:
                 if asset != self.quote_asset:
                     if asset.asset_type == "crypto" or asset.asset_type == "forex":
                         asset = (asset, self.quote_asset)
+                    elif asset.asset_type == "option":
+                        asset_is_option = True
                     assets.append(asset)
-
-            prices = self.broker.data_source.get_last_prices(assets)
-
+            if self.broker.option_source and asset_is_option:
+                prices = self.broker.option_source.get_last_prices(assets)
+            else:
+                prices = self.broker.data_source.get_last_prices(assets)
             for position in positions:
                 # Turn the asset into a tuple if it's a crypto asset
                 asset = (
@@ -483,7 +567,7 @@ class _Strategy:
                     elif isinstance(asset, Asset) and asset == self.quote_asset:
                         price = 0
 
-                if self._is_backtesting and price is None:
+                if self.is_backtesting and price is None:
                     if isinstance(asset, Asset):
                         raise ValueError(
                             f"A security has returned a price of None while trying "
@@ -510,9 +594,7 @@ class _Strategy:
                 else:
                     multiplier = asset.multiplier if asset.asset_type in ["option", "future"] else 1
                 portfolio_value += float(quantity) * price * multiplier
-
             self._portfolio_value = portfolio_value
-
         return portfolio_value
 
     def _update_cash(self, side, quantity, price, multiplier):
@@ -564,6 +646,7 @@ class _Strategy:
         if "datetime" in self._stats.columns:
             self._stats = self._stats.set_index("datetime")
         self._stats["return"] = self._stats["portfolio_value"].pct_change()
+
         return self._stats
 
     def _dump_stats(self):
@@ -599,7 +682,7 @@ class _Strategy:
         logger.setLevel(current_level)
 
     def _dump_benchmark_stats(self):
-        if not self._is_backtesting:
+        if not self.is_backtesting:
             return
         if self._backtesting_start is not None and self._backtesting_end is not None:
             # Need to adjust the backtesting end date because the data from Yahoo
@@ -646,7 +729,7 @@ class _Strategy:
                         benchmark_asset = (Asset(symbol=asset_quote[0], asset_type="crypto"),
                                            Asset(symbol=asset_quote[1], asset_type="crypto"))
                     else:
-                        benchmark_asset = Asset(symbol=benchmark_asset,asset_type="crypto")
+                        benchmark_asset = Asset(symbol=benchmark_asset, asset_type="crypto")
 
                 timestep = "minute"
                 # If the strategy sleeptime is in days then use daily data, eg. "1D"
@@ -680,7 +763,6 @@ class _Strategy:
                 # If the benchmark asset is a tuple, then use the symbols of the assets in the tuple
                 elif isinstance(benchmark_asset, tuple):
                     benchmark_symbol = f"{benchmark_asset[0].symbol}/{benchmark_asset[1].symbol}"
-                
 
                 self._benchmark_returns_df = get_symbol_returns(
                     benchmark_symbol,
@@ -778,9 +860,11 @@ class _Strategy:
         parameters={},
         buy_trading_fees=[],
         sell_trading_fees=[],
-        api_key=None,
         polygon_api_key=None,
-        polygon_has_paid_subscription=None, # Depricated, this is now automatic. Remove in future versions.
+        polygon_has_paid_subscription=False, # Deprecated, will be removed in future versions
+        use_other_option_source=False,
+        thetadata_username=None,
+        thetadata_password=None,
         indicators_file=None,
         show_indicators=True,
         save_logfile=False,
@@ -848,12 +932,9 @@ class _Strategy:
             A list of TradingFee objects to apply to the buy orders during backtests.
         sell_trading_fees : list of TradingFee objects
             A list of TradingFee objects to apply to the sell orders during backtests.
-        api_key : str
+        polygon_api_key : str
             The polygon api key to use for polygon data. Only required if you are using PolygonDataBacktesting as
             the datasource_class.
-        polygon_api_key: str
-            The polygon api key to use for polygon data. Only required if you are using PolygonDataBacktesting as
-            the datasource_class. Deprecated, please use 'api_key' instead.
         indicators_file : str
             The file to write the indicators to.
         show_indicators : bool
@@ -894,6 +975,12 @@ class _Strategy:
         >>>     benchmark_asset=benchmark_asset,
         >>> )
         """
+        # Log a warning for polygon_has_paid_subscription as it is deprecated
+        if polygon_has_paid_subscription:
+            logging.warning(
+                "polygon_has_paid_subscription is deprecated and will be removed in future versions. "
+                "Please remove it from your code."
+            )
 
         positional_args_error_message = (
             "Please do not use `name' or 'budget' as positional arguments. \n"
@@ -944,8 +1031,18 @@ class _Strategy:
         if name is None:
             name = cls.__name__
 
-        if not api_key and polygon_api_key:
-            api_key = polygon_api_key
+        # check if datasource_class is a class or a dictionary
+        if isinstance(datasource_class, dict):
+            optionsource_class = datasource_class["OPTION"]
+            datasource_class = datasource_class["STOCK"]
+            # check if optionsource_class and datasource_class are the same type of class
+            if optionsource_class == datasource_class:
+                use_other_option_source = False
+            else:
+                use_other_option_source = True
+        else:
+            optionsource_class = None
+            use_other_option_source = False
 
         # Make a string with 6 random numbers/letters (upper and lowercase) to avoid overwriting
         random_string = "".join(random.choices(string.ascii_letters + string.digits, k=6))
@@ -959,17 +1056,6 @@ class _Strategy:
         if stats_file is None:
             stats_file = f"{logdir}/{base_filename}_stats.csv"
 
-        # Check if polygon_has_paid_subscription is set (it is deprecated and will be removed in the future)
-        if polygon_has_paid_subscription is not None:
-            colored_warning = colored("The parameter `polygon_has_paid_subscription` is deprecated and will be removed in the future. "
-                                      "This parameter is no longer needed as the PolygonDataBacktesting class will automatically check "
-                                      "if you have a paid subscription to Polygon."
-                                      "Also, we have partnered with Polygon to provide you a discount on their paid subscription. "
-                                      "You can get an API key at https://polygon.io/?utm_source=affiliate&utm_campaign=lumi10 "
-                                      "Please use the full link to give us credit for the sale, it helps support this project. "
-                                      "You can use the coupon code 'LUMI10' for 10% off your subscription. ", "yellow")
-            logging.warning(colored_warning)
-
         # #############################################
         # Check the data types of the parameters
         # #############################################
@@ -978,15 +1064,34 @@ class _Strategy:
         if not isinstance(datasource_class, type):
             raise ValueError(f"`datasource_class` must be a class. You passed in {datasource_class}")
 
+        # Check optionsource_class
+        if use_other_option_source and not isinstance(optionsource_class, type):
+            raise ValueError(f"`optionsource_class` must be a class. You passed in {optionsource_class}")
+
         cls.verify_backtest_inputs(backtesting_start, backtesting_end)
 
         # Make sure polygon_api_key is set if using PolygonDataBacktesting
-        if datasource_class == PolygonDataBacktesting and api_key is None:
+        polygon_api_key = polygon_api_key if polygon_api_key is not None else POLYGON_API_KEY
+        if datasource_class == PolygonDataBacktesting and polygon_api_key is None:
             raise ValueError(
-                "Please set `api_key` to your API key from polygon.io in the backtest() function if "
+                "Please set `POLYGON_API_KEY` to your API key from polygon.io as an environment variable if "
                 "you are using PolygonDataBacktesting. If you don't have one, you can get a free API key "
                 "from https://polygon.io/."
             )
+
+        # Make sure thetadata_username and thetadata_password are set if using ThetaDataBacktesting
+        if use_other_option_source and optionsource_class == ThetaDataBacktesting and (thetadata_username is None or thetadata_password is None):
+            # Try getting the Theta Data credentials from credentials
+            thetadata_username = THETADATA_CONFIG.get('THETADATA_USERNAME')
+            thetadata_password = THETADATA_CONFIG.get('THETADATA_PASSWORD')
+            
+            # Check again if theta data username and pass are set
+            if thetadata_username is None or thetadata_password is None:
+                raise ValueError(
+                    "Please set `thetadata_username` and `thetadata_password` in the backtest() function if "
+                    "you are using ThetaDataBacktesting. If you don't have one, you can do registeration "
+                    "from https://www.thetadata.net/."
+                )
 
         if not cls.IS_BACKTESTABLE:
             logging.warning(f"Strategy {name + ' ' if name is not None else ''}cannot be " f"backtested at the moment")
@@ -1005,20 +1110,32 @@ class _Strategy:
             return None
 
         trader = Trader(logfile=logfile, backtest=True)
+
         data_source = datasource_class(
             backtesting_start,
             backtesting_end,
             config=config,
             auto_adjust=auto_adjust,
-            api_key=api_key,
+            api_key=polygon_api_key,
             pandas_data=pandas_data,
             **kwargs,
         )
 
-        # if hasattr(data_source, 'pandas_data'):
-        #     data_source.pandas_data = pandas_data
+        if not use_other_option_source:
+            backtesting_broker = BacktestingBroker(data_source)
+        else:
+            options_source = optionsource_class(
+                backtesting_start,
+                backtesting_end,
+                config=config,
+                auto_adjust=auto_adjust,
+                username=thetadata_username,
+                password=thetadata_password,
+                pandas_data=pandas_data,
+                **kwargs,
+            )
+            backtesting_broker = BacktestingBroker(data_source, options_source)
 
-        backtesting_broker = BacktestingBroker(data_source)
         strategy = cls(
             backtesting_broker,
             minutes_before_closing=minutes_before_closing,
@@ -1199,9 +1316,7 @@ class _Strategy:
         parameters={},
         buy_trading_fees=[],
         sell_trading_fees=[],
-        api_key=None,
         polygon_api_key=None,
-        polygon_has_paid_subscription=None, # Depricated, this is now automatic. Remove in future versions.
         indicators_file=None,
         show_indicators=True,
         save_logfile=False,
@@ -1269,12 +1384,9 @@ class _Strategy:
             A list of TradingFee objects to apply to the buy orders during backtests.
         sell_trading_fees : list of TradingFee objects
             A list of TradingFee objects to apply to the sell orders during backtests.
-        api_key : str
-            The polygon api key to use for polygon data. Only required if you are using PolygonDataBacktesting as
-            the datasource_class.
         polygon_api_key : str
             The polygon api key to use for polygon data. Only required if you are using PolygonDataBacktesting as
-            the datasource_class. Depricated, please use 'api_key' instead.
+            the datasource_class.
         indicators_file : str
             The file to write the indicators to.
         show_indicators : bool
@@ -1342,9 +1454,7 @@ class _Strategy:
             parameters=parameters,
             buy_trading_fees=buy_trading_fees,
             sell_trading_fees=sell_trading_fees,
-            api_key=api_key,
             polygon_api_key=polygon_api_key,
-            polygon_has_paid_subscription=polygon_has_paid_subscription,
             indicators_file=indicators_file,
             show_indicators=show_indicators,
             save_logfile=save_logfile,

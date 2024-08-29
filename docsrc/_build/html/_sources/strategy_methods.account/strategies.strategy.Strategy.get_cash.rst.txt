@@ -1,4 +1,4 @@
 ﻿self.get\_cash
 =================================================================
 
-.. autofunction:: strategies.strategy.Strategy.get_cash
+.. autofunction:: lumibot.strategies.strategy.Strategy.get_cash

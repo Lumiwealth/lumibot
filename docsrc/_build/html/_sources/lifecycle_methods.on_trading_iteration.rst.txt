@@ -16,4 +16,4 @@ This lifecycle method contains the main trading logic. When the market opens, it
 Reference
 ----------
 
-.. autofunction:: strategies.strategy.Strategy.on_trading_iteration
+.. autofunction:: lumibot.strategies.strategy.Strategy.on_trading_iteration

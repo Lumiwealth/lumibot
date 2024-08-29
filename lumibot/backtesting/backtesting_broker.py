@@ -580,6 +580,8 @@ class BacktestingBroker(Broker):
             #############################
             # Get OHLCV data for the asset
             #############################
+            bid = None
+            ask = None
 
             # Get the OHLCV data for the asset if we're using the YAHOO, CCXT data source
             data_source_name = self.data_source.SOURCE.upper()
@@ -637,13 +639,21 @@ class BacktestingBroker(Broker):
                 low = df["low"].iloc[0]
                 close = df["close"].iloc[0]
                 volume = df["volume"].iloc[0]
+                if 'bid' in df.columns and 'ask' in df.columns:
+                    bid = df["bid"].iloc[0]
+                    ask = df["ask"].iloc[0]
 
             #############################
             # Determine transaction price.
             #############################
 
             if order.type == "market":
-                price = open
+                if order.side == "buy" and ask is not None:
+                    price = ask
+                elif order.side == "sell" and bid is not None:
+                    price = bid
+                else:
+                    price = open
 
             elif order.type == "limit":
                 price = self.limit_order(order.limit_price, order.side, open, high, low)

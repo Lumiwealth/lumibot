@@ -555,13 +555,6 @@ class Data:
         if timestep != "minute" and timestep != "day":
             raise ValueError(f"Only minute and day are supported for timestep. You provided: {timestep}")
 
-        agg_column_map = {
-            "open": "first",
-            "high": "max",
-            "low": "min",
-            "close": "last",
-            "volume": "sum",
-        }
         if timestep == "day" and self.timestep == "minute":
             # If the data is minute data and we are requesting daily data then multiply the length by 1440
             length = length * 1440
@@ -575,6 +568,20 @@ class Data:
 
         if data is None:
             return None
+
+        agg_column_map = {
+            "open": "first",
+            "high": "max",
+            "low": "min",
+            "close": "last",
+            "volume": "sum",
+        }
+        # check if 'bid' and 'ask' are in the data and add them to the agg_column_map
+        if 'bid' in data and 'ask' in data:
+            agg_column_map['bid'] = "max"
+            agg_column_map['ask'] = "min"
+            agg_column_map['bid_size'] = "sum"
+            agg_column_map['ask_size'] = "sum"
 
         df = pd.DataFrame(data).assign(datetime=lambda df: pd.to_datetime(df['datetime'])).set_index('datetime')
         df_result = df.resample(f"{quantity}{unit}").agg(agg_column_map)

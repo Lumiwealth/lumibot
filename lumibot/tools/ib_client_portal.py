@@ -11,12 +11,12 @@ class IBClientPortal:
     def __init__(self, config, api_url):
         if api_url is None:
             self.port = "3000"
-            self.base_url = f'https://localhost:{self.port}'
+            self.base_url = f'https://localhost:{self.port}/v1'
         else:
             self.api_url = api_url
             self.base_url = api_url
 
-        self.account_info_endpoint = f'{self.base_url}/v1/portal/account/summary'
+        self.account_info_endpoint = f'{self.base_url}/portal/account/summary'
         
         self.ib_username = config["IB_USERNAME"]
         self.ib_password = config["IB_PASSWORD"]
@@ -27,7 +27,7 @@ class IBClientPortal:
         if config["ACCOUNT_ID"]:
             self.account_id = config["ACCOUNT_ID"]
         else:
-            url = f'{self.base_url}/v1/api/portfolio/accounts'
+            url = f'{self.base_url}/api/portfolio/accounts'
             response = self.get_json_from_endpoint(url, "Fetching Account ID")
             if response is not None:
                 self.account_id = response[0]['id']
@@ -53,7 +53,7 @@ class IBClientPortal:
                 'IBEAM_INPUTS_DIR': inputs_dir
             }
             env_args = [f'--env={key}={value}' for key, value in env_variables.items()]
-            conf_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "conf.yaml"))
+            conf_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "ib-rest-conf.yaml"))
             volume_mount = f'{conf_path}:{inputs_dir}'
 
             subprocess.run(['docker', 'run', '-d', *env_args, '-p', f'{self.port}:{self.port}', '-v', volume_mount, 'voyz/ibeam'], stdout=subprocess.DEVNULL, text=True)
@@ -63,8 +63,24 @@ class IBClientPortal:
             
         logging.info("Started IBeam")
 
+    def getConID(self, symbol, asset_type):
+        url = f"{self.base_url}/iserver/secdef/search"
+
+        body = {
+            "symbol": symbol,
+            "name": True,
+            "sectype": asset_type
+        }
+
+        response = self.post_to_endpoint(url, body)
+
+        if response is not None and len(response) > 0:
+            return response[0]["conid"]
+        else:
+            return None
+    
     def is_client_portal_running(self):
-        url = f'{self.base_url}/v1/portal/iserver/auth/status'
+        url = f'{self.base_url}/portal/iserver/auth/status'
         response = self.get_json_from_endpoint(url, "Status Check", silent=True)
         if response is None:
             return False
@@ -73,8 +89,8 @@ class IBClientPortal:
 
     def get_contract_details_for_contract(self, contract):
         conid=contract.conId
-        url = f"{self.base_url}/v1/iserver/contract/{conid}/info"
-        response = self.get_json_from_endpoint(url, "Getting account details")
+        url = f"{self.base_url}/iserver/contract/{conid}/info"
+        response = self.get_json_from_endpoint(url, "Getting contract details")
         return response
     
     def get_account_info(self):
@@ -87,13 +103,14 @@ class IBClientPortal:
         Retrieves the account balances for a given account ID.
         """
         # Define the endpoint URL for fetching account balances
-        url = f"{self.base_url}/v1/portal/portfolio/{self.account_id}/ledger"
+        url = f"{self.base_url}/portal/portfolio/{self.account_id}/ledger"
         response = self.get_json_from_endpoint(url, "Getting account balances")
         return response
         
     def get_json_from_endpoint(self, endpoint, description, silent=False):
         try:
             # Make the request to the endpoint
+            logging.info(endpoint)
             response = requests.get(endpoint, verify=False)
 
             # Check if the request was successful
@@ -115,18 +132,32 @@ class IBClientPortal:
             if not silent:
                 logging.error(f"Error {description}: {e}")
             return None
-        
+    
+    def post_to_endpoint(self, url, json):
+        try:
+            response = requests.post(url, json=json, verify=False)
+            response.raise_for_status()
+            return response.json()  # Or process the response as needed
+        except requests.exceptions.RequestException as e:
+            logging.error(f"POST Request failed: {e}")
+            return None
+    
     def get_open_orders(self):
         # Define the endpoint URL for fetching account balances
-        url = f'{self.base_url}/v1/iserver/account/orders?filters=accountId={self.account_id}'
+        url = f'{self.base_url}/iserver/account/orders'
         response = self.get_json_from_endpoint(url, "Getting open orders")
         return response
     
+    def execute_order(self, order_data):
+        url = f'{self.base_url}/iserver/account/{self.account_id}/orders'
+        response = self.post_to_endpoint(url, order_data)
+        return response["id"]
+            
     def get_positions(self):
         """
         Retrieves the current positions for a given account ID.
         """
-        url = f"{self.base_url}/v1/portal/portfolio/{self.account_id}/positions"
+        url = f"{self.base_url}/portal/portfolio/{self.account_id}/positions"
         response = self.get_json_from_endpoint(url, "Getting account positions")
         return response
 

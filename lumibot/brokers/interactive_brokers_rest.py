@@ -326,16 +326,68 @@ class InteractiveBrokersREST(Broker):
         return positions_list
 
     def _submit_order(self, order: Order) -> Order:
-        logging.error(colored(f"Method '_submit_order' for order {order} is not yet implemented.", "red"))
-        return None
+        try:
+            asset_type = TYPE_MAP[order.asset.asset_type]
+            conid = self.client_portal.getConID(order.symbol, asset_type)
+            order_data = {
+                "conid": conid,
+                "quantity": order.quantity,
+                "orderType": order.type,
+                "side": order.side,
+                "tif": order.time_in_force,
+                "price": order.limit_price,
+                "auxPrice": order.stop_price
+                ### Add other necessary fields based on the Order object
+            }
+
+            if order.trail_percent:
+                order_data["trailingType"] = "pct"
+                order_data["trailingAmt"] = order.trail_percent
+            
+            if order.trail_price:
+                order_data["trailingType"] = "amt"
+                order_data["trailingAmt"] = order.trail_price
+            
+            ### I think this does nothing?
+            kwargs = {
+                "type": order.type,
+                "order_class": order.order_class,
+                "time_in_force": order.time_in_force,
+                "good_till_date": order.good_till_date,
+                "limit_price": order.limit_price,
+                "stop_price": order.stop_price,
+                "trail_price": order.trail_price,
+                "trail_percent": order.trail_percent,
+            }
+    
+            # Remove items with None values
+            kwargs = {k: v for k, v in kwargs.items() if v}
+
+            if order.take_profit_price:
+                kwargs["take_profit"] = {"limit_price": order.take_profit_price}
+    
+            if order.stop_loss_price:
+                kwargs["stop_loss"] = {"stop_price": order.stop_loss_price}
+                if order.stop_loss_limit_price:
+                    kwargs["stop_loss"]["limit_price"] = order.stop_loss_limit_price
+            ###
+
+            self._unprocessed_orders.append(order)
+            order.identifier = self.client_portal.execute_order(order_data)
+            order.status = "submitted"
+            return order
+        
+        except Exception as e:
+            logging.error(colored(f"An error occurred while submitting the order: {str(e)}", "red"))
+            return None
 
     def cancel_order(self, order_id) -> None:
         logging.error(colored(f"Method 'cancel_order' for order_id {order_id} is not yet implemented.", "red"))
         return None
 
     def get_historical_account_value(self) -> dict:
-        logging.error(colored("Method 'get_historical_account_value' is not yet implemented.", "red"))
-        return {}
+        logging.error("The function get_historical_account_value is not implemented yet for Interactive Brokers.")
+        return {"hourly": None, "daily": None}
     
     def _register_stream_events(self):
         logging.error(colored("Method '_register_stream_events' is not yet implemented.", "red"))

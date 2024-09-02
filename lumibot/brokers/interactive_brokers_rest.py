@@ -113,6 +113,7 @@ class InteractiveBrokersREST(Broker):
         time_in_force = response.tif
         good_till_date = response.goodTillDate
 
+        ###{'orders': [{'acct': 'DU8961257', 'conidex': '346218218', 'conid': 346218218, 'account': 'DU8961257', 'orderId': 2143445060, 'cashCcy': 'USD', 'sizeAndFills': '0/100', 'orderDesc': 'Buy 100 Limit 0.10, Day', 'description1': 'DELL', 'ticker': 'DELL', 'secType': 'STK', 'listingExchange': 'NYSE', 'remainingQuantity': 100.0, 'filledQuantity': 0.0, 'totalSize': 100.0, 'companyName': 'DELL TECHNOLOGIES -C', 'status': 'PreSubmitted', 'order_ccp_status': 'Replaced', 'outsideRTH': False, 'origOrderType': 'LIMIT', 'supportsTaxOpt': '1', 'lastExecutionTime': '240831112804', 'orderType': 'Limit', 'bgColor': '#FFFFFF', 'fgColor': '#0000CC', 'isEventTrading': '0', 'price': '0.10', 'timeInForce': 'CLOSE', 'lastExecutionTime_r': 1725103684000, 'side': 'BUY'}], 'snapshot': True}
         if asset_type == "multileg":
             # Create a multileg order.
             order = Order(strategy_name)

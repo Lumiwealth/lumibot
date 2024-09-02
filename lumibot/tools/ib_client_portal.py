@@ -11,15 +11,17 @@ class IBClientPortal:
     def __init__(self, config, api_url):
         if api_url is None:
             self.port = "3000"
-            self.base_url = f'https://localhost:{self.port}/v1'
+            self.base_url = f'https://localhost:{self.port}'
         else:
             self.api_url = api_url
             self.base_url = api_url
 
-        self.account_info_endpoint = f'{self.base_url}/portal/account/summary'
+        self.account_info_endpoint = f'{self.base_url}/v1/portal/account/summary'
         
         self.ib_username = config["IB_USERNAME"]
         self.ib_password = config["IB_PASSWORD"]
+
+        self.last_tickled = time.time()
 
         self.start_ibeam()
 
@@ -27,7 +29,7 @@ class IBClientPortal:
         if config["ACCOUNT_ID"]:
             self.account_id = config["ACCOUNT_ID"]
         else:
-            url = f'{self.base_url}/api/portfolio/accounts'
+            url = f'{self.base_url}/v1/api/portfolio/accounts'
             response = self.get_json_from_endpoint(url, "Fetching Account ID")
             if response is not None:
                 self.account_id = response[0]['id']
@@ -64,7 +66,7 @@ class IBClientPortal:
         logging.info("Started IBeam")
 
     def getConID(self, symbol, asset_type):
-        url = f"{self.base_url}/iserver/secdef/search"
+        url = f"{self.base_url}/v1/api/iserver/secdef/search"
 
         body = {
             "symbol": symbol,
@@ -80,16 +82,19 @@ class IBClientPortal:
             return None
     
     def is_client_portal_running(self):
-        url = f'{self.base_url}/portal/iserver/auth/status'
+        url = f'{self.base_url}/v1/api/iserver/auth/status'
         response = self.get_json_from_endpoint(url, "Status Check", silent=True)
-        if response is None:
+        try:
+            if response["authenticated"] is True:
+                return True
+            else:
+                return False
+        except:
             return False
-        else:
-            return True
 
     def get_contract_details_for_contract(self, contract):
         conid=contract.conId
-        url = f"{self.base_url}/iserver/contract/{conid}/info"
+        url = f"{self.base_url}/v1/api/iserver/contract/{conid}/info"
         response = self.get_json_from_endpoint(url, "Getting contract details")
         return response
     
@@ -103,14 +108,26 @@ class IBClientPortal:
         Retrieves the account balances for a given account ID.
         """
         # Define the endpoint URL for fetching account balances
-        url = f"{self.base_url}/portal/portfolio/{self.account_id}/ledger"
+        url = f"{self.base_url}/v1/portal/portfolio/{self.account_id}/ledger"
         response = self.get_json_from_endpoint(url, "Getting account balances")
         return response
         
+    def tryTickle(self):
+        if time.time() - self.last_tickled <= 50:
+            return
+        
+        try:
+            url = f'{self.base_url}/v1/api/tickle'
+            r = self.get_json_from_endpoint(url, "Tickle", silent=True)
+        except:
+            pass
+        
+        self.last_tickled = time.time()
+    
     def get_json_from_endpoint(self, endpoint, description, silent=False):
+        self.tryTickle()
         try:
             # Make the request to the endpoint
-            logging.info(endpoint)
             response = requests.get(endpoint, verify=False)
 
             # Check if the request was successful
@@ -134,6 +151,7 @@ class IBClientPortal:
             return None
     
     def post_to_endpoint(self, url, json):
+        self.tryTickle()
         try:
             response = requests.post(url, json=json, verify=False)
             response.raise_for_status()
@@ -144,12 +162,12 @@ class IBClientPortal:
     
     def get_open_orders(self):
         # Define the endpoint URL for fetching account balances
-        url = f'{self.base_url}/iserver/account/orders'
+        url = f'{self.base_url}/v1/api/iserver/account/orders'
         response = self.get_json_from_endpoint(url, "Getting open orders")
         return response
     
     def execute_order(self, order_data):
-        url = f'{self.base_url}/iserver/account/{self.account_id}/orders'
+        url = f'{self.base_url}/v1/iserver/account/{self.account_id}/orders'
         response = self.post_to_endpoint(url, order_data)
         return response["id"]
             
@@ -157,7 +175,7 @@ class IBClientPortal:
         """
         Retrieves the current positions for a given account ID.
         """
-        url = f"{self.base_url}/portal/portfolio/{self.account_id}/positions"
+        url = f"{self.base_url}/v1/portal/portfolio/{self.account_id}/positions"
         response = self.get_json_from_endpoint(url, "Getting account positions")
         return response
 

@@ -1080,13 +1080,13 @@ class _Strategy:
             )
 
         # Make sure thetadata_username and thetadata_password are set if using ThetaDataBacktesting
-        if use_other_option_source and optionsource_class == ThetaDataBacktesting and (thetadata_username is None or thetadata_password is None):
+        if thetadata_username is None or thetadata_password is None:
             # Try getting the Theta Data credentials from credentials
             thetadata_username = THETADATA_CONFIG.get('THETADATA_USERNAME')
             thetadata_password = THETADATA_CONFIG.get('THETADATA_PASSWORD')
             
             # Check again if theta data username and pass are set
-            if thetadata_username is None or thetadata_password is None:
+            if thetadata_username is None or thetadata_password is None and (datasource_class == ThetaDataBacktesting or optionsource_class == ThetaDataBacktesting):
                 raise ValueError(
                     "Please set `thetadata_username` and `thetadata_password` in the backtest() function if "
                     "you are using ThetaDataBacktesting. If you don't have one, you can do registeration "
@@ -1111,15 +1111,36 @@ class _Strategy:
 
         trader = Trader(logfile=logfile, backtest=True)
 
-        data_source = datasource_class(
-            backtesting_start,
-            backtesting_end,
-            config=config,
-            auto_adjust=auto_adjust,
-            api_key=polygon_api_key,
-            pandas_data=pandas_data,
-            **kwargs,
-        )
+        if datasource_class == PolygonDataBacktesting:
+            data_source = datasource_class(
+                backtesting_start,
+                backtesting_end,
+                config=config,
+                auto_adjust=auto_adjust,
+                api_key=polygon_api_key,
+                pandas_data=pandas_data,
+                **kwargs,
+            )
+        elif datasource_class == ThetaDataBacktesting or optionsource_class == ThetaDataBacktesting:
+            data_source = datasource_class(
+                backtesting_start,
+                backtesting_end,
+                config=config,
+                auto_adjust=auto_adjust,
+                username=thetadata_username,
+                password=thetadata_password,
+                pandas_data=pandas_data,
+                **kwargs,
+            )
+        else:
+            data_source = datasource_class(
+                backtesting_start,
+                backtesting_end,
+                config=config,
+                auto_adjust=auto_adjust,
+                pandas_data=pandas_data,
+                **kwargs,
+            )
 
         if not use_other_option_source:
             backtesting_broker = BacktestingBroker(data_source)
@@ -1320,6 +1341,8 @@ class _Strategy:
         indicators_file=None,
         show_indicators=True,
         save_logfile=False,
+        thetadata_username=None,
+        thetadata_password=None,
         **kwargs,
     ):
         """Backtest a strategy.
@@ -1394,6 +1417,10 @@ class _Strategy:
         save_logfile : bool
             Whether to save the logs to a file. If True, the logs will be saved to the logs directory. Defaults to False.
             Turning on this option will slow down the backtest.
+        thetadata_username : str
+            The username to use for the ThetaDataBacktesting datasource. Only required if you are using ThetaDataBacktesting as the datasource_class.
+        thetadata_password : str
+            The password to use for the ThetaDataBacktesting datasource. Only required if you are using ThetaDataBacktesting as the datasource_class.
 
         Returns
         -------
@@ -1458,6 +1485,8 @@ class _Strategy:
             indicators_file=indicators_file,
             show_indicators=show_indicators,
             save_logfile=save_logfile,
+            thetadata_username=thetadata_username,
+            thetadata_password=thetadata_password,
             **kwargs,
         )
         return results

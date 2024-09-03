@@ -1341,8 +1341,8 @@ class _Strategy:
         indicators_file=None,
         show_indicators=True,
         save_logfile=False,
-        theta_data_username=None,
-        theta_data_password=None,
+        thetadata_username=None,
+        thetadata_password=None,
         **kwargs,
     ):
         """Backtest a strategy.
@@ -1417,9 +1417,9 @@ class _Strategy:
         save_logfile : bool
             Whether to save the logs to a file. If True, the logs will be saved to the logs directory. Defaults to False.
             Turning on this option will slow down the backtest.
-        theta_data_username : str
+        thetadata_username : str
             The username to use for the ThetaDataBacktesting datasource. Only required if you are using ThetaDataBacktesting as the datasource_class.
-        theta_data_password : str
+        thetadata_password : str
             The password to use for the ThetaDataBacktesting datasource. Only required if you are using ThetaDataBacktesting as the datasource_class.
 
         Returns
@@ -1485,8 +1485,8 @@ class _Strategy:
             indicators_file=indicators_file,
             show_indicators=show_indicators,
             save_logfile=save_logfile,
-            theta_data_username=theta_data_username,
-            theta_data_password=theta_data_password,
+            thetadata_username=thetadata_username,
+            thetadata_password=thetadata_password,
             **kwargs,
         )
         return results

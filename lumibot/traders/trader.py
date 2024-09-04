@@ -3,7 +3,7 @@ import os
 import signal
 import sys
 from pathlib import Path
-from tools.server import LumibotServer
+from lumibot.traders.server import LumibotServer
 
 import appdirs
 

@@ -1,14 +1,11 @@
 import json
 import os
-import sys
-import logging
 import uvicorn
 from fastapi import Depends, FastAPI, HTTPException, Security
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security.api_key import APIKey, APIKeyHeader
 from starlette.status import HTTP_403_FORBIDDEN
 
-# TODO: Clean this up
 ENV = os.environ.get("ENV")
 PORT = os.environ.get("PORT")
 OWNER_ID = os.environ.get("OWNER_ID")
@@ -54,8 +51,12 @@ class LumibotServer:
 
         @app.get("/")
         def read_root():
-            return {"Hello": "World"}
+            return {"message": "This is a Trading Bot Server!"}
 
+        # TODO: Check the bot status
+        # @app.get("/status")
+        # async def get_status(api_key: APIKey = Depends(get_api_key)):
+        #     return bot.status
 
         @app.get("/return_history")
         def return_history(api_key: APIKey = Depends(get_api_key)):

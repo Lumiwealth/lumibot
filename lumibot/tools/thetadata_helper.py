@@ -59,8 +59,7 @@ def get_price_data(
         A DataFrame with the pricing data for the asset
 
     """
-    if start.date() < dt.date():
-        start = dt
+
     # Check if we already have data for this asset in the feather file
     df_all = None
     df_feather = None
@@ -391,9 +390,15 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
 
                 # Check if json_resp has error_type inside of header
                 if "error_type" in json_resp["header"] and json_resp["header"]["error_type"] != "null":
-                    logging.error(
-                        f"Error getting data from Theta Data: {json_resp['header']['error_type']},\nquerystring: {querystring}")
-                    check_connection(username=username, password=password)
+                    # Handle "NO_DATA" error
+                    if json_resp["header"]["error_type"] == "NO_DATA":
+                        logging.warning(
+                            f"No data returned for querystring: {querystring}")
+                        return None
+                    else:
+                        logging.error(
+                            f"Error getting data from Theta Data: {json_resp['header']['error_type']},\nquerystring: {querystring}")
+                        check_connection(username=username, password=password)
                 else:
                     break
 

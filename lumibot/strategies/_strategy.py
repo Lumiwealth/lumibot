@@ -533,19 +533,22 @@ class _Strategy:
             assets_original = [position.asset for position in positions]
             # Set the base currency for crypto valuations.
 
-            assets = []
-            asset_is_option = False
+            prices = {}
             for asset in assets_original:
                 if asset != self.quote_asset:
+                    asset_is_option = False
                     if asset.asset_type == "crypto" or asset.asset_type == "forex":
                         asset = (asset, self.quote_asset)
                     elif asset.asset_type == "option":
                         asset_is_option = True
-                    assets.append(asset)
-            if self.broker.option_source and asset_is_option:
-                prices = self.broker.option_source.get_last_prices(assets)
-            else:
-                prices = self.broker.data_source.get_last_prices(assets)
+
+                    if self.broker.option_source is not None and asset_is_option:
+                        price = self.broker.option_source.get_last_price(asset)
+                        prices[asset] = price
+                    else:
+                        price = self.broker.data_source.get_last_price(asset)
+                        prices[asset] = price
+                        
             for position in positions:
                 # Turn the asset into a tuple if it's a crypto asset
                 asset = (

@@ -157,11 +157,11 @@ class Trader:
         """run all strategies"""
         return self.run_all(backtest=backtest, async_=True)
     
-    def run_as_server(self):
+    def run_as_server(self, config):
         """run all strategies"""
         bot = self.run_all_async()
 
-        server = LumibotServer(bot)
+        server = LumibotServer(bot, config)
         server.start_server()
 
     def stop_all(self):

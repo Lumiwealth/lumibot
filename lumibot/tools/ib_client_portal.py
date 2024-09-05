@@ -43,20 +43,20 @@ class IBClientPortal:
             if existing_container.stdout:
                 # Kill the existing container
                 subprocess.run(['docker', 'kill', existing_container.stdout.strip()], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                subprocess.run(['docker', 'rm', existing_container.stdout.strip()], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             
             inputs_dir = '/srv/clientportal.gw/root/conf.yaml'
             env_variables = {
                 'IBEAM_ACCOUNT': self.ib_username,
                 'IBEAM_PASSWORD': self.ib_password,
-                'IBEAM_GATEWAY_BASE_URL': self.base_url,
+                'IBEAM_GATEWAY_BASE_URL': f'https://localhost:{self.port}',
                 'IBEAM_LOG_TO_FILE': False,
                 'IBEAM_REQUEST_RETRIES': 10,
                 'IBEAM_PAGE_LOAD_TIMEOUT': 30,
                 'IBEAM_INPUTS_DIR': inputs_dir
             }
-            
+
             env_args = [f'--env={key}={value}' for key, value in env_variables.items()]
-            
             conf_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "conf.yaml"))
             volume_mount = f'{conf_path}:{inputs_dir}'
 
@@ -66,13 +66,14 @@ class IBClientPortal:
         time.sleep(10)
 
         while not self.is_authenticated():
+            logging.info("Not connected to API server yet. Waiting for another 10 seconds before checking again...")
             time.sleep(10)
         
         logging.info("Started IBeam")
 
     def is_authenticated(self):
         url = f'{self.base_url}/portfolio/accounts'
-        response = self.get_from_endpoint(url, "Auth Check")
+        response = self.get_from_endpoint(url, "Auth Check", silent=True)
         if response is not None:
             return True
         else:
@@ -118,7 +119,7 @@ class IBClientPortal:
         Retrieves the account balances for a given account ID.
         """
         # Define the endpoint URL for fetching account balances
-        url = f"{self.base_url}/portal/portfolio/{self.account_id}/ledger"
+        url = f"{self.base_url}/portfolio/{self.account_id}/ledger"
         response = self.get_from_endpoint(url, "Getting account balances")
         return response
         
@@ -171,9 +172,9 @@ class IBClientPortal:
     
     def get_open_orders(self):
         # Define the endpoint URL for fetching account balances
-        url = f'{self.base_url}/iserver/account/orders'
+        url = f'{self.base_url}/iserver/account/orders?status=Submitted&accountId={self.account_id}'
         response = self.get_from_endpoint(url, "Getting open orders")
-        return response
+        return response["orders"]
     
     def execute_order(self, order_data):
         url = f'{self.base_url}/iserver/account/{self.account_id}/orders'
@@ -184,7 +185,7 @@ class IBClientPortal:
         """
         Retrieves the current positions for a given account ID.
         """
-        url = f"{self.base_url}/portal/portfolio/{self.account_id}/positions"
+        url = f"{self.base_url}/portfolio/{self.account_id}/positions"
         response = self.get_from_endpoint(url, "Getting account positions")
         return response
 

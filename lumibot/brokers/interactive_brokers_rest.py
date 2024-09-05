@@ -105,13 +105,12 @@ class InteractiveBrokersREST(Broker):
     def _parse_broker_order(self, response: dict, strategy_name: str, strategy_object: 'Strategy' = None) -> Order: ## Prone to Bugs
         """Parse a broker order representation
         to an order object"""
-
-        asset_type = [k for k, v in TYPE_MAP.items() if v == response.contract.secType][0]
-        totalQuantity = response.totalQuantity
-        limit_price = response.lmtPrice
-        stop_price = response.auxPrice
-        time_in_force = response.tif
-        good_till_date = response.goodTillDate
+        asset_type = [k for k, v in TYPE_MAP.items() if v == response['secType']]
+        totalQuantity = response['totalSize']
+        limit_price = response['price']
+        stop_price = response['stop_price'] if 'stop_price' in response else None
+        time_in_force = response['timeInForce']
+        good_till_date = response['goodTillDate']
 
         ###{'orders': [{'acct': 'DU8961257', 'conidex': '346218218', 'conid': 346218218, 'account': 'DU8961257', 'orderId': 2143445060, 'cashCcy': 'USD', 'sizeAndFills': '0/100', 'orderDesc': 'Buy 100 Limit 0.10, Day', 'description1': 'DELL', 'ticker': 'DELL', 'secType': 'STK', 'listingExchange': 'NYSE', 'remainingQuantity': 100.0, 'filledQuantity': 0.0, 'totalSize': 100.0, 'companyName': 'DELL TECHNOLOGIES -C', 'status': 'PreSubmitted', 'order_ccp_status': 'Replaced', 'outsideRTH': False, 'origOrderType': 'LIMIT', 'supportsTaxOpt': '1', 'lastExecutionTime': '240831112804', 'orderType': 'Limit', 'bgColor': '#FFFFFF', 'fgColor': '#0000CC', 'isEventTrading': '0', 'price': '0.10', 'timeInForce': 'CLOSE', 'lastExecutionTime_r': 1725103684000, 'side': 'BUY'}], 'snapshot': True}
         if asset_type == "multileg":
@@ -374,6 +373,7 @@ class InteractiveBrokersREST(Broker):
             ###
 
             self._unprocessed_orders.append(order)
+            logging.info(order_data)
             order.identifier = self.client_portal.execute_order(order_data)
             order.status = "submitted"
             return order

@@ -3992,62 +3992,70 @@ class Strategy(_Strategy):
         # Check if we are in backtesting mode, if so, don't send the message
         if self.is_backtesting:
             return
+        
+        # Check if we should hide positions
+        if self.hide_positions:
+            # Log that we are hiding positions in the account summary
+            self.logger.info("Hiding positions because hide_positions is set to True")
 
-        # Get the current positions
-        positions = self.get_positions()
+            # Set the positions text to hidden 
+            positions_text = "Positions are hidden"
+        else:
+            # Get the current positions
+            positions = self.get_positions()
 
-        # Log the positions
-        self.logger.info(f"Positions for send_result_text_to_discord: {positions}")
+            # Log the positions
+            self.logger.info(f"Positions for send_result_text_to_discord: {positions}")
 
-        # Create the positions text
-        positions_details_list = []
-        for position in positions:
-            # Check if the position asset is the quote asset
+            # Create the positions text
+            positions_details_list = []
+            for position in positions:
+                # Check if the position asset is the quote asset
 
-            if position.asset == self.quote_asset:
-                last_price = 1
-            else:
-                # Get the last price
-                last_price = self.get_last_price(position.asset)
+                if position.asset == self.quote_asset:
+                    last_price = 1
+                else:
+                    # Get the last price
+                    last_price = self.get_last_price(position.asset)
 
-            # Make sure last_price is a number
-            if last_price is None or not isinstance(last_price, (int, float, Decimal)):
-                self.logger.info(f"Last price for {position.asset} is not a number: {last_price}")
-                continue
+                # Make sure last_price is a number
+                if last_price is None or not isinstance(last_price, (int, float, Decimal)):
+                    self.logger.info(f"Last price for {position.asset} is not a number: {last_price}")
+                    continue
 
-            # Calculate the value of the position
-            position_value = position.quantity * last_price
+                # Calculate the value of the position
+                position_value = position.quantity * last_price
 
-            # If option, multiply % of portfolio by 100
-            if position.asset.asset_type == "option":
-                position_value = position_value * 100
+                # If option, multiply % of portfolio by 100
+                if position.asset.asset_type == "option":
+                    position_value = position_value * 100
 
-            if position_value > 0 and portfolio_value > 0:
-                # Calculate the percent of the portfolio that this position represents
-                percent_of_portfolio = position_value / portfolio_value
-            else:
-                percent_of_portfolio = 0
+                if position_value > 0 and portfolio_value > 0:
+                    # Calculate the percent of the portfolio that this position represents
+                    percent_of_portfolio = position_value / portfolio_value
+                else:
+                    percent_of_portfolio = 0
 
-            # Add the position details to the list
-            positions_details_list.append(
-                {
-                    "asset": position.asset,
-                    "quantity": position.quantity,
-                    "value": position_value,
-                    "percent_of_portfolio": percent_of_portfolio,
-                }
-            )
+                # Add the position details to the list
+                positions_details_list.append(
+                    {
+                        "asset": position.asset,
+                        "quantity": position.quantity,
+                        "value": position_value,
+                        "percent_of_portfolio": percent_of_portfolio,
+                    }
+                )
 
-        # Sort the positions by the percent of the portfolio
-        positions_details_list = sorted(positions_details_list, key=lambda x: x["percent_of_portfolio"], reverse=True)
+            # Sort the positions by the percent of the portfolio
+            positions_details_list = sorted(positions_details_list, key=lambda x: x["percent_of_portfolio"], reverse=True)
 
-        # Create the positions text
-        positions_text = ""
-        for position in positions_details_list:
-            # positions_text += f"{position.quantity:,.2f} {position.asset} (${position.value:,.0f} or {position.percent_of_portfolio:,.0%})\n"
-            positions_text += (
-                f"{position['quantity']:,.2f} {position['asset']} (${position['value']:,.0f} or {position['percent_of_portfolio']:,.0%})\n"
-            )
+            # Create the positions text
+            positions_text = ""
+            for position in positions_details_list:
+                # positions_text += f"{position.quantity:,.2f} {position.asset} (${position.value:,.0f} or {position.percent_of_portfolio:,.0%})\n"
+                positions_text += (
+                    f"{position['quantity']:,.2f} {position['asset']} (${position['value']:,.0f} or {position['percent_of_portfolio']:,.0%})\n"
+                )
 
         # Create a message to send to Discord (round the values to 2 decimal places)
         message = f"""

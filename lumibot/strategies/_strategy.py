@@ -31,6 +31,8 @@ from ..credentials import (
     DISCORD_WEBHOOK_URL, 
     DB_CONNECTION_STR,
     MARKET,
+    HIDE_POSITIONS,
+    HIDE_TRADES,
 )
     
 class CustomLoggerAdapter(logging.LoggerAdapter):
@@ -230,6 +232,9 @@ class _Strategy:
         if self._name == None:
             self._name = STRATEGY_NAME
 
+        self.hide_positions = HIDE_POSITIONS
+        self.hide_trades = HIDE_TRADES
+
         if self._name is None:
             self._name = self.__class__.__name__
 
@@ -262,6 +267,11 @@ class _Strategy:
             self.strategy_id = strategy_id
 
         self._quote_asset = quote_asset
+
+        # Check if self.broker is set
+        if self.broker is None:
+            logger.error(colored("No broker is set. Please set a broker using environment variables, secrets or by passing it as an argument.", "red"))
+            raise ValueError("No broker is set. Please set a broker using environment variables, secrets or by passing it as an argument.")
 
         # Check if the quote_assets exists on the broker
         if not hasattr(self.broker, "quote_assets"):

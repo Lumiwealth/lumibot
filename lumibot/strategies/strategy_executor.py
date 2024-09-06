@@ -551,8 +551,13 @@ class StrategyExecutor(Thread):
                 Account Value = ${portfolio_value:,.0f}
                 """
 
-        # Send the message to Discord
-        self.strategy.send_discord_message(message, silent=False)
+        # Check if we should hide trades
+        if self.strategy.hide_trades:
+            message = f"Trade executed but hidden due to hide_trades setting. Account Value = ${portfolio_value:,.0f}"
+            self.strategy.send_discord_message(message, silent=False)
+        else:
+            # Send the message to Discord
+            self.strategy.send_discord_message(message, silent=False)
 
         # Let our listener know that an order has been filled (set in the callback)
         if hasattr(self.strategy, "_filled_order_callback") and callable(self.strategy._filled_order_callback):

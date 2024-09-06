@@ -46,11 +46,39 @@ broker=None
 
 # Check if we are backtesting or not
 is_backtesting = os.environ.get("IS_BACKTESTING")
-
 if not is_backtesting or is_backtesting.lower() == "false":
     IS_BACKTESTING = False
-else:
+elif is_backtesting.lower() == "true":
     IS_BACKTESTING = True
+else:
+    # Log a warning if the value is not a boolean
+    colored_message = termcolor.colored(f"IS_BACKTESTING must be set to 'true' or 'false'. Got '{is_backtesting}'. Defaulting to False.", "yellow")
+    logger.warning(colored_message)
+    IS_BACKTESTING = False
+
+# Check if we should hide trades
+hide_trades = os.environ.get("HIDE_TRADES")
+if not hide_trades or hide_trades.lower() == "false":
+    HIDE_TRADES = False
+elif hide_trades.lower() == "true":
+    HIDE_TRADES = True
+else:
+    # Log a warning if the value is not a boolean
+    colored_message = termcolor.colored(f"HIDE_TRADES must be set to 'true' or 'false'. Got '{hide_trades}'. Defaulting to False.", "yellow")
+    logger.warning(colored_message)
+    HIDE_TRADES = False
+
+# Check if we should hide positions
+hide_positions = os.environ.get("HIDE_POSITIONS")
+if not hide_positions or hide_positions.lower() == "false":
+    HIDE_POSITIONS = False
+elif hide_positions.lower() == "true":
+    HIDE_POSITIONS = True
+else:
+    # Log a warning if the value is not a boolean
+    colored_message = termcolor.colored(f"HIDE_POSITIONS must be set to 'true' or 'false'. Got '{hide_positions}'. Defaulting to False.", "yellow")
+    logger.warning(colored_message)
+    HIDE_POSITIONS = False
 
 # Name for the strategy to be used in the database
 STRATEGY_NAME = os.environ.get("STRATEGY_NAME")

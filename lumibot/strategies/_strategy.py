@@ -31,6 +31,8 @@ from ..credentials import (
     DISCORD_WEBHOOK_URL, 
     DB_CONNECTION_STR,
     MARKET,
+    HIDE_POSITIONS,
+    HIDE_TRADES,
 )
     
 class CustomLoggerAdapter(logging.LoggerAdapter):
@@ -230,6 +232,9 @@ class _Strategy:
         if self._name == None:
             self._name = STRATEGY_NAME
 
+        self.hide_positions = HIDE_POSITIONS
+        self.hide_trades = HIDE_TRADES
+
         if self._name is None:
             self._name = self.__class__.__name__
 
@@ -262,6 +267,11 @@ class _Strategy:
             self.strategy_id = strategy_id
 
         self._quote_asset = quote_asset
+
+        # Check if self.broker is set
+        if self.broker is None:
+            logger.error(colored("No broker is set. Please set a broker using environment variables, secrets or by passing it as an argument.", "red"))
+            raise ValueError("No broker is set. Please set a broker using environment variables, secrets or by passing it as an argument.")
 
         # Check if the quote_assets exists on the broker
         if not hasattr(self.broker, "quote_assets"):
@@ -533,19 +543,22 @@ class _Strategy:
             assets_original = [position.asset for position in positions]
             # Set the base currency for crypto valuations.
 
-            assets = []
-            asset_is_option = False
+            prices = {}
             for asset in assets_original:
                 if asset != self.quote_asset:
+                    asset_is_option = False
                     if asset.asset_type == "crypto" or asset.asset_type == "forex":
                         asset = (asset, self.quote_asset)
                     elif asset.asset_type == "option":
                         asset_is_option = True
-                    assets.append(asset)
-            if self.broker.option_source and asset_is_option:
-                prices = self.broker.option_source.get_last_prices(assets)
-            else:
-                prices = self.broker.data_source.get_last_prices(assets)
+
+                    if self.broker.option_source is not None and asset_is_option:
+                        price = self.broker.option_source.get_last_price(asset)
+                        prices[asset] = price
+                    else:
+                        price = self.broker.data_source.get_last_price(asset)
+                        prices[asset] = price
+                        
             for position in positions:
                 # Turn the asset into a tuple if it's a crypto asset
                 asset = (

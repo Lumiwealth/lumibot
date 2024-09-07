@@ -7,8 +7,6 @@ from lumibot.tools import IBClientPortal
 import datetime
 from decimal import Decimal
 
-from ibapi.contract import Contract
-
 TYPE_MAP = dict(
     stock="STK",
     option="OPT",
@@ -102,17 +100,27 @@ class InteractiveBrokersREST(Broker):
 
         return cash, positions_value, total_liquidation_value
 
-    def _parse_broker_order(self, response: dict, strategy_name: str, strategy_object: 'Strategy' = None) -> Order: ## Prone to Bugs
+    def decode_conidex(self, conidex: str) -> dict:
+        # Decode this format {spread_conid};;;{leg_conid1}/{ratio},{leg_conid2}/{ratio}
+        string = conidex
+        _, ratios = string.split(';;;')
+        legs = ratios.split(',')
+
+        legs_dict = {}
+        for leg in legs:
+            leg_conid, ratio = leg.split('/')
+            legs_dict[leg_conid] = ratio
+        
+        return legs_dict
+
+    def _parse_broker_order(self, response, strategy_name, strategy_object=None):
         """Parse a broker order representation
         to an order object"""
-        asset_type = [k for k, v in TYPE_MAP.items() if v == response['secType']]
-        totalQuantity = response['totalSize']
-        limit_price = response['price']
-        stop_price = response['stop_price'] if 'stop_price' in response else None
-        time_in_force = response['timeInForce']
-        good_till_date = response['goodTillDate']
 
-        ###{'orders': [{'acct': 'DU8961257', 'conidex': '346218218', 'conid': 346218218, 'account': 'DU8961257', 'orderId': 2143445060, 'cashCcy': 'USD', 'sizeAndFills': '0/100', 'orderDesc': 'Buy 100 Limit 0.10, Day', 'description1': 'DELL', 'ticker': 'DELL', 'secType': 'STK', 'listingExchange': 'NYSE', 'remainingQuantity': 100.0, 'filledQuantity': 0.0, 'totalSize': 100.0, 'companyName': 'DELL TECHNOLOGIES -C', 'status': 'PreSubmitted', 'order_ccp_status': 'Replaced', 'outsideRTH': False, 'origOrderType': 'LIMIT', 'supportsTaxOpt': '1', 'lastExecutionTime': '240831112804', 'orderType': 'Limit', 'bgColor': '#FFFFFF', 'fgColor': '#0000CC', 'isEventTrading': '0', 'price': '0.10', 'timeInForce': 'CLOSE', 'lastExecutionTime_r': 1725103684000, 'side': 'BUY'}], 'snapshot': True}
+        asset_type = [k for k, v in TYPE_MAP.items() if v == response['secType']][0]
+        totalQuantity = response['totalSize']
+        logging.info(response)
+
         if asset_type == "multileg":
             # Create a multileg order.
             order = Order(strategy_name)
@@ -120,62 +128,89 @@ class InteractiveBrokersREST(Broker):
             order.child_orders = []
 
             # Parse the legs of the combo order.
-            for leg in response.contract.comboLegs:
+            legs = self.decode_conidex(response["conidex"])
+            for leg, ratio in legs.items():
                 # Create the contract object with just the conId
-                contract = Contract()
-                contract.conId = leg.conId
-
-                # Get the contract details for the leg.
-                res = self.client_portal.get_contract_details_for_contract(contract)
-                contract = res[0].contract
-
-                action = leg.action
-                child_order = self._parse_order_object(strategy_name, contract, leg.ratio * totalQuantity, action, limit_price, stop_price, time_in_force, good_till_date)
+                child_order = self._parse_order_object(strategy_name=strategy_name,
+                                                       response=response,
+                                                       quantity=float(ratio) * totalQuantity,
+                                                       conId=leg
+                                                       )
                 order.child_orders.append(child_order)
 
         else:
-            action = response.action
-            order = self._parse_order_object(strategy_name, response.contract, totalQuantity, action, limit_price, stop_price, time_in_force, good_till_date)
+            order = self._parse_order_object(strategy_name=strategy_name, 
+                                             response=response,
+                                             quantity=totalQuantity,
+                                             )
         
         order._transmitted = True
-        order.set_identifier(response.orderId)
-        order.status = response.orderState.status
+        order.set_identifier(response['orderId'])
+        order.status = response['status']
         order.update_raw(response)
         return order
 
-    def _parse_order_object(self, strategy_name, contract, quantity, action, limit_price = None, stop_price = None, time_in_force = None, good_till_date = None):
-        expiration = None
-        multiplier = 1
-        if contract.secType in ["OPT", "FUT"]:
-            expiration = datetime.datetime.strptime(
-                contract.lastTradeDateOrContractMonth,
-                DATE_MAP[[d for d, v in TYPE_MAP.items() if v == contract.secType][0]],
-            )
-            multiplier = contract.multiplier
+    def _parse_order_object(self, strategy_name, response, quantity, conId=None):
+        side=response['side']
+        secType=[k for k, v in TYPE_MAP.items() if v == response['secType']][0]
+        symbol=response['ticker']
+        currency=response['cashCcy']
+        time_in_force=response['timeInForce']
+        limit_price = response['price'] if 'price' in response else None
+        stop_price = response['stop_price'] if 'stop_price' in response else None
+        good_till_date = response['goodTillDate'] if 'goodTillDate' in response else None
+        last_trade_date = response['lastExecutionTime_r'] if 'lastExecutionTime_r' in response else None
 
+        if conId is None:
+            conId = response['conId']
+        
+        contract_details = self.client_portal.get_contract_details(conId) ### not sure which endpoint to use
+        if contract_details is None:
+            contract_details = {}
+
+        logging.info(contract_details)
+
+        multiplier = None
         right = None
         strike = None
-        if contract.secType == "OPT":
-            right = "CALL" if contract.right == "C" else "PUT"
-            strike = contract.strike
+        expiration = None
+
+        if secType in ["OPT", "FUT"]:
+            multiplier = contract_details['multiplier'] if 'multiplier' in contract_details else 1
+            last_trade_date = datetime.datetime.fromtimestamp(last_trade_date / 1000)
+            last_trade_date_str = last_trade_date.strftime(DATE_MAP[secType])
+
+            # Format the datetime object as a string that matches the format in DATE_MAP[secType]
+            expiration = datetime.datetime.strptime(
+                last_trade_date_str,
+                DATE_MAP[secType],
+            )
+
+            multiplier = multiplier
+
+        if secType == "OPT":
+            right = contract_details['putOrCall'] if 'right' in contract_details else None
+            logging.info(right)
+            right = "CALL" if right == "C" else "PUT"
+            strike = float(contract_details['strike']) if 'strike' in contract_details else None
 
         order = Order(
             strategy_name,
             Asset(
-                symbol=contract.localSymbol,
-                asset_type=[k for k, v in TYPE_MAP.items() if v == contract.secType][0],
+                symbol=symbol,
+                asset_type=secType,
                 expiration=expiration,
                 strike=strike,
                 right=right,
                 multiplier=multiplier,
             ),
             quantity = Decimal(quantity),
-            side = action.lower(),
+            side = side.lower(),
             limit_price = limit_price if limit_price != 0 else None,
             stop_price = stop_price if stop_price != 0 else None,
             time_in_force = time_in_force,
             good_till_date = good_till_date,
-            quote = Asset(symbol=contract.currency, asset_type="forex"),
+            quote = Asset(symbol=currency, asset_type="forex"),
         )   
 
         return order
@@ -373,7 +408,6 @@ class InteractiveBrokersREST(Broker):
             ###
 
             self._unprocessed_orders.append(order)
-            logging.info(order_data)
             order.identifier = self.client_portal.execute_order(order_data)
             order.status = "submitted"
             return order
@@ -382,9 +416,8 @@ class InteractiveBrokersREST(Broker):
             logging.error(colored(f"An error occurred while submitting the order: {str(e)}", "red"))
             return None
 
-    def cancel_order(self, order_id) -> None:
-        logging.error(colored(f"Method 'cancel_order' for order_id {order_id} is not yet implemented.", "red"))
-        return None
+    def cancel_order(self, order: Order) -> None:
+        self.client_portal.delete_order(order)
 
     def get_historical_account_value(self) -> dict:
         logging.error("The function get_historical_account_value is not implemented yet for Interactive Brokers.")

@@ -37,14 +37,12 @@ class IBClientPortal:
         
     def start_ibeam(self):
         if not hasattr(self, "api_url"):
-            # Run the Docker image with the specified environment variables and port mapping        
-            logging.info("Starting IBeam...")
-            existing_container = subprocess.run(['docker', 'ps', '-q', '-f', f'expose={self.port}'], capture_output=True, text=True)
-            if existing_container.stdout:
-                # Kill the existing container
-                subprocess.run(['docker', 'kill', existing_container.stdout.strip()], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                subprocess.run(['docker', 'rm', existing_container.stdout.strip()], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            
+            # Run the Docker image with the specified environment variables and port mapping
+            if not subprocess.run(['docker', '--version'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
+                logging.error("Docker is not installed.")
+                return
+            logging.info("Connecting to IBKR Client Portal...")
+
             inputs_dir = '/srv/clientportal.gw/root/conf.yaml'
             env_variables = {
                 'IBEAM_ACCOUNT': self.ib_username,
@@ -60,19 +58,21 @@ class IBClientPortal:
             conf_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "conf.yaml"))
             volume_mount = f'{conf_path}:{inputs_dir}'
 
-            subprocess.run(['docker', 'run', '-d', *env_args, '-p', f'{self.port}:{self.port}', '-v', volume_mount, 'voyz/ibeam'], stdout=subprocess.DEVNULL, text=True)
+            subprocess.run(['docker', 'rm', '-f', 'lumibot-client-portal'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(['docker', 'run', '-d', '--name', 'lumibot-client-portal', *env_args, '-p', f'{self.port}:{self.port}', '-v', volume_mount, 'voyz/ibeam'], stdout=subprocess.DEVNULL, text=True)
 
-        # check if authenticated
-        time.sleep(10)
+            # check if authenticated
+            time.sleep(10)
 
         while not self.is_authenticated():
-            logging.info("Not connected to API server yet. Waiting for another 10 seconds before checking again...")
+            logging.info("Not connected to API server yet.")
+            logging.info("Waiting for another 10 seconds before checking again...")
             time.sleep(10)
         
-        logging.info("Started IBeam")
+        logging.info("Connected to Client Portal")
 
     def is_authenticated(self):
-        url = f'{self.base_url}/portfolio/accounts'
+        url = f'{self.base_url}/iserver/accounts'
         response = self.get_from_endpoint(url, "Auth Check", silent=True)
         if response is not None:
             return True
@@ -103,10 +103,11 @@ class IBClientPortal:
         else:
             return False
 
-    def get_contract_details_for_contract(self, contract):
-        conid=contract.conId
-        url = f"{self.base_url}/iserver/contract/{conid}/info"
+    def get_contract_details(self, conId):
+        url = f"{self.base_url}/iserver/account/{account_id}/order/{order_id}"
         response = self.get_from_endpoint(url, "Getting contract details")
+        logging.info(response)
+
         return response
     
     def get_account_info(self):
@@ -122,15 +123,6 @@ class IBClientPortal:
         url = f"{self.base_url}/portfolio/{self.account_id}/ledger"
         response = self.get_from_endpoint(url, "Getting account balances")
         return response
-        
-    def tickle(self):        
-        try:
-            url = f'{self.base_url}/tickle'
-            self.get_from_endpoint(url, "Tickle", silent=False)
-            return True
-        except Exception as e:
-            logging.error(f"Failed to tickle: {e}")
-            return False
             
     def get_from_endpoint(self, endpoint, description, silent=False):
         try:
@@ -155,7 +147,7 @@ class IBClientPortal:
                     logging.error(f"Task '{description}' Failed. Status code: {response.status_code}")
                 return None
 
-        except Exception as e:
+        except requests.exceptions.RequestException as e:
             # Log an error message if there was a problem with the request
             if not silent:
                 logging.error(f"Error {description}: {e}")
@@ -165,22 +157,43 @@ class IBClientPortal:
         try:
             response = requests.post(url, json=json, verify=False)
             response.raise_for_status()
-            return response.json()  # Or process the response as needed
+            return response.json()
         except requests.exceptions.RequestException as e:
             logging.error(f"POST Request failed: {e}")
             return None
     
+    def delete_to_endpoint(self, url):
+        try:
+            response = requests.delete(url, verify=False)
+            response.raise_for_status()
+            return True
+        except requests.exceptions.RequestException as e:
+            logging.error(f"DELETE Request failed: {e}")
+            return False
+    
     def get_open_orders(self):
         # Define the endpoint URL for fetching account balances
-        url = f'{self.base_url}/iserver/account/orders?status=Submitted&accountId={self.account_id}'
+        url = f'{self.base_url}/iserver/account/orders?&accountId={self.account_id}&filters=Submitted,PreSubmitted' ## force=true doesn't work?
         response = self.get_from_endpoint(url, "Getting open orders")
-        return response["orders"]
+        if response is None:
+            return
+        
+        return response['orders']
     
     def execute_order(self, order_data):
         url = f'{self.base_url}/iserver/account/{self.account_id}/orders'
         response = self.post_to_endpoint(url, order_data)
         return response["id"]
-            
+    
+    def delete_order(self, order):
+        orderId = order.identifier
+        url = f'{self.base_url}/iserver/account/{self.account_id}/order/{orderId}'
+        status = self.delete_to_endpoint(url)
+        if status:
+            logging.info(f"Order with conid {orderId} canceled successfully.")
+        else:
+            logging.error(f"Failed to delete order with conid {orderId}.")
+
     def get_positions(self):
         """
         Retrieves the current positions for a given account ID.
@@ -188,16 +201,10 @@ class IBClientPortal:
         url = f"{self.base_url}/portfolio/{self.account_id}/positions"
         response = self.get_from_endpoint(url, "Getting account positions")
         return response
-
+    
     def stop(self):        
         # Check if the Docker image is already running
         if hasattr(self, "api_url"):
             return
 
-        existing_container = subprocess.run(['docker', 'ps', '-q', '-f', f'expose={self.port}'], capture_output=True, text=True)
-        if existing_container.stdout:
-            # Kill the existing container
-            subprocess.run(['docker', 'kill', existing_container.stdout.strip()])
-            logging.info("Interactive Brokers Client Portal process terminated.")
-        else:
-            logging.info("No Client Portal process to terminate.")
+        subprocess.run(['docker', 'rm', '-f', 'lumibot-client-portal'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

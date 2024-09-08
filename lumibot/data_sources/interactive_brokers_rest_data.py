@@ -3,7 +3,14 @@ from termcolor import colored
 from lumibot.entities import Asset, Bars
 
 from .data_source import DataSource
+import subprocess
+import os
+import time
+import requests
+import urllib3
+from lumibot.tools.helpers import create_options_symbol
 
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 class InteractiveBrokersRESTData(DataSource):
     """
@@ -13,8 +20,179 @@ class InteractiveBrokersRESTData(DataSource):
     MIN_TIMESTEP = "minute"
     SOURCE = "InteractiveBrokersREST"
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, config, api_url):
+        if api_url is None:
+            self.port = "4234"
+            self.base_url = f'https://localhost:{self.port}/v1/api'
+        else:
+            self.api_url = api_url
+            self.base_url = f'{api_url}/v1/api'
+        
+        self.account_id = config["ACCOUNT_ID"] if "ACCOUNT_ID" in config else None
+        self.ib_username = config["IB_USERNAME"]
+        self.ib_password = config["IB_PASSWORD"]
+
+        self.start()
+
+    def start(self):
+        if not hasattr(self, "api_url"):
+            # Run the Docker image with the specified environment variables and port mapping
+            if not subprocess.run(['docker', '--version'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
+                logging.error("Docker is not installed.")
+                return
+            logging.info("Connecting to IBKR Client Portal...")
+
+            inputs_dir = '/srv/clientportal.gw/root/conf.yaml'
+            env_variables = {
+                'IBEAM_ACCOUNT': self.ib_username,
+                'IBEAM_PASSWORD': self.ib_password,
+                'IBEAM_GATEWAY_BASE_URL': f'https://localhost:{self.port}',
+                'IBEAM_LOG_TO_FILE': False,
+                'IBEAM_REQUEST_RETRIES': 10,
+                'IBEAM_PAGE_LOAD_TIMEOUT': 30,
+                'IBEAM_INPUTS_DIR': inputs_dir
+            }
+
+            env_args = [f'--env={key}={value}' for key, value in env_variables.items()]
+            conf_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "resources", "conf.yaml")
+            volume_mount = f'{conf_path}:{inputs_dir}'
+
+            subprocess.run(['docker', 'rm', '-f', 'lumibot-client-portal'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(['docker', 'run', '-d', '--name', 'lumibot-client-portal', *env_args, '-p', f'{self.port}:{self.port}', '-v', volume_mount, 'voyz/ibeam'], stdout=subprocess.DEVNULL, text=True)
+
+            # check if authenticated
+            time.sleep(10)
+
+        while not self.is_authenticated():
+            logging.info("Not connected to API server yet.")
+            logging.info("Waiting for another 10 seconds before checking again...")
+            time.sleep(10)
+        
+        # Set self.account_id
+        if self.account_id is None:
+            url = f'{self.base_url}/portfolio/accounts'
+            response = self.get_from_endpoint(url, "Fetching Account ID")
+            if response is not None:
+                self.account_id = response[0]['id']
+            else:
+                logging.error(f"Failed to get Account ID.")
+        
+        logging.info("Connected to Client Portal")
+
+    def is_authenticated(self):
+        url = f'{self.base_url}/iserver/accounts'
+        response = self.get_from_endpoint(url, "Auth Check", silent=True)
+        if response is not None:
+            return True
+        else:
+            return False
+
+    def get_contract_details(self, conId):
+        url = f"{self.base_url}/iserver/account/{account_id}/order/{order_id}"
+        response = self.get_from_endpoint(url, "Getting contract details")
+        logging.info(response)
+
+        return response
+    
+    def get_account_info(self):
+        url = f"{self.base_url}/portal/account/summary?accountId={self.account_id}"
+        response = self.get_from_endpoint(url, "Getting account info")
+        return response
+        
+    def get_account_balances(self):
+        """
+        Retrieves the account balances for a given account ID.
+        """
+        # Define the endpoint URL for fetching account balances
+        url = f"{self.base_url}/portfolio/{self.account_id}/ledger"
+        response = self.get_from_endpoint(url, "Getting account balances")
+        return response
+            
+    def get_from_endpoint(self, endpoint, description, silent=False):
+        try:
+            # Make the request to the endpoint
+            response = requests.get(endpoint, verify=False)
+
+            # Check if the request was successful
+            if response.status_code == 200:
+                # Return the JSON response containing the account balances
+                return response.json()
+            elif response.status_code == 404:
+                if not silent:
+                    logging.warning(f"{description} endpoint not found.")
+                return None
+            elif response.status_code == 429:
+                logging.info(f"You got rate limited {description}. Waiting for 5 seconds...")
+                time.sleep(5)
+                return self.get_from_endpoint(endpoint, description, silent)
+            else:
+                # Log an error message if the request failed
+                if not silent:
+                    logging.error(f"Task '{description}' Failed. Status code: {response.status_code}")
+                return None
+
+        except requests.exceptions.RequestException as e:
+            # Log an error message if there was a problem with the request
+            if not silent:
+                logging.error(f"Error {description}: {e}")
+            return None
+    
+    def post_to_endpoint(self, url, json):
+        try:
+            response = requests.post(url, json=json, verify=False)
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            logging.error(f"POST Request failed: {e}")
+            return None
+    
+    def delete_to_endpoint(self, url):
+        try:
+            response = requests.delete(url, verify=False)
+            response.raise_for_status()
+            return True
+        except requests.exceptions.RequestException as e:
+            logging.error(f"DELETE Request failed: {e}")
+            return False
+    
+    def get_open_orders(self):
+        # Define the endpoint URL for fetching account balances
+        url = f'{self.base_url}/iserver/account/orders?&accountId={self.account_id}&filters=Submitted,PreSubmitted&force=true' ## force=true doesn't work?
+        response = self.get_from_endpoint(url, "Getting open orders")
+        if response is None:
+            return self.get_open_orders()
+        
+        logging.info(response)
+        return response['orders']
+    
+    def execute_order(self, order_data):
+        url = f'{self.base_url}/iserver/account/{self.account_id}/orders'
+        response = self.post_to_endpoint(url, order_data)
+        return response["id"]
+    
+    def delete_order(self, order):
+        orderId = order.identifier
+        url = f'{self.base_url}/iserver/account/{self.account_id}/order/{orderId}'
+        status = self.delete_to_endpoint(url)
+        if status:
+            logging.info(f"Order with conid {orderId} canceled successfully.")
+        else:
+            logging.error(f"Failed to delete order with conid {orderId}.")
+
+    def get_positions(self):
+        """
+        Retrieves the current positions for a given account ID.
+        """
+        url = f"{self.base_url}/portfolio/{self.account_id}/positions"
+        response = self.get_from_endpoint(url, "Getting account positions")
+        return response
+    
+    def stop(self):        
+        # Check if the Docker image is already running
+        if hasattr(self, "api_url"):
+            return
+
+        subprocess.run(['docker', 'rm', '-f', 'lumibot-client-portal'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     # Method stubs with logging for not yet implemented methods
     def get_chains(self, asset: Asset, quote: Asset = None) -> dict:
@@ -28,47 +206,101 @@ class InteractiveBrokersRESTData(DataSource):
         return None  # Return None as a placeholder
 
     def get_last_price(self, asset, quote=None, exchange=None) -> float:
-        logging.error(colored("Method 'get_last_price' is not yet implemented.", "red"))
-        return 0.0  # Return 0.0 as a placeholder
+        field = "last_price"
+        response = self.get_market_snapshot(asset, [field])
+        return response[field]
     
+    def get_conid_from_asset(self, asset: Asset):
+        asset.asset_type
+        
+    def get_market_snapshot(self, asset: Asset, fields: list):
+        all_fields = {
+            "84": "bid",
+            "86": "ask",
+            "31": "last_price",
+        }
+
+        conId = self.get_conid_from_asset(asset)
+
+        fields_to_get = []
+        for identifier, name in all_fields.items():
+            if name in fields:
+                fields_to_get.append(identifier)
+        
+        fields_str = ",".join(str(field) for field in fields_to_get)
+        
+        url = f'{self.base_url}/iserver/marketdata/snapshot?conids={conId}&fields={fields_str}'
+        
+        # First time will only return conid and conidEx
+        response = self.get_from_endpoint(url, "Getting Market Snapshot")
+
+        # If fields are missing, then its first time, fetch again
+        missing_fields = False
+        for field in fields_to_get:
+            if not field in response[0]:
+                missing_fields = True
+                break
+
+        if missing_fields:
+            # This should be alright
+            response = self.get_from_endpoint(url, "Getting Market Snapshot")
+
+        # return only what was requested
+        output = {}
+        for key, value in response[0].items():
+            if key in fields_to_get:
+                output[all_fields[key]] = value
+        
+        return output
+
     def get_quote(self, asset, quote=None, exchange=None):
         """
         This function returns the quote of an asset. The quote includes the bid and ask price.
 
         Parameters
         ----------
-        asset: Asset
-            The asset to get the quote for
-        quote: Asset
-            The quote asset to get the quote for (currently not used for Tradier)
-        exchange: str
-            The exchange to get the quote for (currently not used for Tradier)
-
+        asset : Asset
+            The asset to get the quote for.
+        quote : Asset, optional
+            The quote asset to get the quote for (currently not used for Tradier).
+        exchange : str, optional
+            The exchange to get the quote for (currently not used for Tradier).
+            Quote of the asset, including the bid and ask price.
+        
         Returns
         -------
         dict
            Quote of the asset, including the bid, and ask price.
         """
+        if asset.asset_type == "option":
+            symbol = create_options_symbol(
+                asset.symbol,
+                asset.expiration,
+                asset.right,
+                asset.strike,
+            )
+        else:
+            symbol = asset.symbol
+
+        quotes_df = self.tradier.market.get_quotes([symbol])
+
+        # If the dataframe is empty, return an empty dictionary
+        if quotes_df is None or quotes_df.empty:
+            return {}
         
-        if exchange is None:
-            exchange = "SMART"
+        # Get the quote from the dataframe and convert it to a dictionary
+        quote = quotes_df.iloc[0].to_dict()
 
-        get_data_attempt = 0
-        max_attempts = 2
-        while get_data_attempt < max_attempts:
-            try:
-                result = self.client_portal.get_tick(asset, exchange=exchange, only_price=False)
-                if result:
-                    # If bid or ask are -1 then they are not available.
-                    if result["bid"] == -1:
-                        result["bid"] = None
-                    if result["ask"] == -1:
-                        result["ask"] = None
+        # Return the quote
+        return quote
+        result = self.get_market_snapshot(asset, ["bid", "ask"])
+        if result is None:
+            return None
+        
+        if result["bid"] == -1:
+            result["bid"] = None
+        if result["ask"] == -1:
+            result["ask"] = None
 
-                    return result
-                get_data_attempt += 1
-            except:
-                get_data_attempt += 1
-
-        return None
+        return result
     

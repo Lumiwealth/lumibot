@@ -3,7 +3,6 @@ from termcolor import colored
 from lumibot.brokers import Broker
 from lumibot.entities import Order, Asset, Position
 from lumibot.data_sources import InteractiveBrokersRESTData
-from lumibot.tools import IBClientPortal
 import datetime
 from decimal import Decimal
 
@@ -43,12 +42,10 @@ class InteractiveBrokersREST(Broker):
 
     NAME = "InteractiveBrokersREST"
 
-    def __init__(self, config, data_source=None, api_url=None):
+    def __init__(self, config, data_source=None, api_url=None):              
         if data_source is None:
-            data_source = InteractiveBrokersRESTData()
+            data_source = InteractiveBrokersRESTData(config, api_url)
         super().__init__(name=self.NAME, data_source=data_source, config=config)
-
-        self.client_portal = IBClientPortal(config, api_url=api_url)
 
     # --------------------------------------------------------------
     # Broker methods
@@ -73,7 +70,7 @@ class InteractiveBrokersREST(Broker):
             Portfolio value = the total equity value of the account (aka. portfolio value).
         """
         # Get the account balances from the Interactive Brokers Client Portal
-        account_balances = self.client_portal.get_account_balances()
+        account_balances = self.data_source.get_account_balances()
 
         # Check that the account balances were successfully retrieved
         if account_balances is None:
@@ -162,9 +159,9 @@ class InteractiveBrokersREST(Broker):
         last_trade_date = response['lastExecutionTime_r'] if 'lastExecutionTime_r' in response else None
 
         if conId is None:
-            conId = response['conId']
+            conId = response['conid']
         
-        contract_details = self.client_portal.get_contract_details(conId) ### not sure which endpoint to use
+        contract_details = self.data_source.get_contract_details(conId) ### not sure which endpoint to use
         if contract_details is None:
             contract_details = {}
 
@@ -202,7 +199,7 @@ class InteractiveBrokersREST(Broker):
                 expiration=expiration,
                 strike=strike,
                 right=right,
-                multiplier=multiplier,
+                multiplier=multiplier
             ),
             quantity = Decimal(quantity),
             side = side.lower(),
@@ -217,12 +214,12 @@ class InteractiveBrokersREST(Broker):
 
     def _pull_broker_all_orders(self):
         """Get the broker open orders"""
-        orders = self.client_portal.get_open_orders()
+        orders = self.data_source.get_open_orders()
         return orders
     
     def _pull_broker_order(self, identifier: str) -> Order:
         """Get a broker order representation by its id"""
-        pull_order = [order for order in self.client_portal.get_open_orders() if order.orderId == order_id]
+        pull_order = [order for order in self.data_source.get_open_orders() if order.orderId == order_id]
         response = pull_order[0] if len(pull_order) > 0 else None
         return response
     
@@ -282,7 +279,7 @@ class InteractiveBrokersREST(Broker):
     def _pull_broker_positions(self, strategy=None):
         """Get the broker representation of all positions"""
         positions = []
-        ib_positions = self.client_portal.get_positions()
+        ib_positions = self.data_source.get_positions()
         if ib_positions:
             for position in ib_positions:
                 if position["position"] != 0:
@@ -308,7 +305,7 @@ class InteractiveBrokersREST(Broker):
         """
         
         # Get the positions from the Interactive Brokers Client Portal
-        positions = self.client_portal.get_positions()
+        positions = self.data_source.get_positions()
 
         # Check that the positions were successfully retrieved
         if positions is None:
@@ -362,10 +359,8 @@ class InteractiveBrokersREST(Broker):
 
     def _submit_order(self, order: Order) -> Order:
         try:
-            asset_type = TYPE_MAP[order.asset.asset_type]
-            conid = self.client_portal.getConID(order.symbol, asset_type)
             order_data = {
-                "conid": conid,
+                "conid": order.identifier,
                 "quantity": order.quantity,
                 "orderType": order.type,
                 "side": order.side,
@@ -375,6 +370,9 @@ class InteractiveBrokersREST(Broker):
                 ### Add other necessary fields based on the Order object
             }
 
+            logging.info(order_data)
+            
+            ## Not Thoroughly tested
             if order.trail_percent:
                 order_data["trailingType"] = "pct"
                 order_data["trailingAmt"] = order.trail_percent
@@ -382,33 +380,10 @@ class InteractiveBrokersREST(Broker):
             if order.trail_price:
                 order_data["trailingType"] = "amt"
                 order_data["trailingAmt"] = order.trail_price
+            ##
             
-            ### I think this does nothing?
-            kwargs = {
-                "type": order.type,
-                "order_class": order.order_class,
-                "time_in_force": order.time_in_force,
-                "good_till_date": order.good_till_date,
-                "limit_price": order.limit_price,
-                "stop_price": order.stop_price,
-                "trail_price": order.trail_price,
-                "trail_percent": order.trail_percent,
-            }
-    
-            # Remove items with None values
-            kwargs = {k: v for k, v in kwargs.items() if v}
-
-            if order.take_profit_price:
-                kwargs["take_profit"] = {"limit_price": order.take_profit_price}
-    
-            if order.stop_loss_price:
-                kwargs["stop_loss"] = {"stop_price": order.stop_loss_price}
-                if order.stop_loss_limit_price:
-                    kwargs["stop_loss"]["limit_price"] = order.stop_loss_limit_price
-            ###
-
             self._unprocessed_orders.append(order)
-            order.identifier = self.client_portal.execute_order(order_data)
+            order.identifier = self.data_source.execute_order(order_data)
             order.status = "submitted"
             return order
         
@@ -417,7 +392,7 @@ class InteractiveBrokersREST(Broker):
             return None
 
     def cancel_order(self, order: Order) -> None:
-        self.client_portal.delete_order(order)
+        self.data_source.delete_order(order)
 
     def get_historical_account_value(self) -> dict:
         logging.error("The function get_historical_account_value is not implemented yet for Interactive Brokers.")
@@ -437,4 +412,4 @@ class InteractiveBrokersREST(Broker):
 
     def _close_connection(self):
         logging.info("Closing connection to the Client Portal...")
-        self.client_portal.stop()
+        self.data_source.stop()

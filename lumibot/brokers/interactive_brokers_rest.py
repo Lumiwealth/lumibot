@@ -128,10 +128,12 @@ class InteractiveBrokersREST(Broker):
             legs = self.decode_conidex(response["conidex"])
             for leg, ratio in legs.items():
                 # Create the contract object with just the conId
+                leg_secType = self.data_source.get_sectype_from_conid(leg)
                 child_order = self._parse_order_object(strategy_name=strategy_name,
                                                        response=response,
                                                        quantity=float(ratio) * totalQuantity,
-                                                       conId=leg
+                                                       conId=leg,
+                                                       secType=leg_secType
                                                        )
                 order.child_orders.append(child_order)
 
@@ -139,6 +141,7 @@ class InteractiveBrokersREST(Broker):
             order = self._parse_order_object(strategy_name=strategy_name, 
                                              response=response,
                                              quantity=totalQuantity,
+                                             secType=asset_type
                                              )
         
         order._transmitted = True
@@ -147,50 +150,53 @@ class InteractiveBrokersREST(Broker):
         order.update_raw(response)
         return order
 
-    def _parse_order_object(self, strategy_name, response, quantity, conId=None):
+    def _parse_order_object(self, strategy_name, response, quantity, secType, conId=None):
         side=response['side']
-        secType=[k for k, v in TYPE_MAP.items() if v == response['secType']][0]
         symbol=response['ticker']
         currency=response['cashCcy']
         time_in_force=response['timeInForce']
         limit_price = response['price'] if 'price' in response else None
         stop_price = response['stop_price'] if 'stop_price' in response else None
         good_till_date = response['goodTillDate'] if 'goodTillDate' in response else None
-        last_trade_date = response['lastExecutionTime_r'] if 'lastExecutionTime_r' in response else None
 
         if conId is None:
             conId = response['conid']
         
-        contract_details = self.data_source.get_contract_details(conId) ### not sure which endpoint to use
+        contract_details = self.data_source.get_contract_details(conId)
         if contract_details is None:
             contract_details = {}
 
         logging.info(contract_details)
 
-        multiplier = None
+        multiplier = 1
         right = None
         strike = None
         expiration = None
 
+        if secType == "OPT":
+            right = contract_details['right']
+            strike = float(contract_details['strike'])
+
         if secType in ["OPT", "FUT"]:
-            multiplier = contract_details['multiplier'] if 'multiplier' in contract_details else 1
-            last_trade_date = datetime.datetime.fromtimestamp(last_trade_date / 1000)
-            last_trade_date_str = last_trade_date.strftime(DATE_MAP[secType])
+            multiplier = contract_details['multiplier']
+
+            maturity_date = datetime.datetime.fromtimestamp(int(contract_details["maturity_date"]) / 1000)
+            maturity_date_str = maturity_date.strftime(DATE_MAP[secType])
 
             # Format the datetime object as a string that matches the format in DATE_MAP[secType]
             expiration = datetime.datetime.strptime(
-                last_trade_date_str,
+                maturity_date_str,
                 DATE_MAP[secType],
             )
 
             multiplier = multiplier
 
         if secType == "OPT":
-            right = contract_details['putOrCall'] if 'right' in contract_details else None
+            right = contract_details['right']
             logging.info(right)
-            right = "CALL" if right == "C" else "PUT"
-            strike = float(contract_details['strike']) if 'strike' in contract_details else None
+            strike = float(contract_details['strike'])
 
+        logging.info(secType)
         order = Order(
             strategy_name,
             Asset(
@@ -372,15 +378,13 @@ class InteractiveBrokersREST(Broker):
 
             logging.info(order_data)
             
-            ## Not Thoroughly tested
             if order.trail_percent:
-                order_data["trailingType"] = "pct"
+                order_data["trailingType"] = "%"
                 order_data["trailingAmt"] = order.trail_percent
             
             if order.trail_price:
                 order_data["trailingType"] = "amt"
                 order_data["trailingAmt"] = order.trail_price
-            ##
             
             self._unprocessed_orders.append(order)
             order.identifier = self.data_source.execute_order(order_data)

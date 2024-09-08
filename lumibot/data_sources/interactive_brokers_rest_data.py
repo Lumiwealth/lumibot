@@ -88,7 +88,7 @@ class InteractiveBrokersRESTData(DataSource):
             return False
 
     def get_contract_details(self, conId):
-        url = f"{self.base_url}/iserver/account/{account_id}/order/{order_id}"
+        url = f"{self.base_url}/iserver/contract/{conId}/info"
         response = self.get_from_endpoint(url, "Getting contract details")
         logging.info(response)
 
@@ -156,14 +156,25 @@ class InteractiveBrokersRESTData(DataSource):
             return False
     
     def get_open_orders(self):
-        # Define the endpoint URL for fetching account balances
-        url = f'{self.base_url}/iserver/account/orders?&accountId={self.account_id}&filters=Submitted,PreSubmitted&force=true' ## force=true doesn't work?
+        # Clear cache with force=true
+        url = f'{self.base_url}/iserver/account/orders?force=true'
         response = self.get_from_endpoint(url, "Getting open orders")
-        if response is None:
-            return self.get_open_orders()
-        
-        logging.info(response)
-        return response['orders']
+
+        # Fetch
+        url = f'{self.base_url}/iserver/account/orders?&accountId={self.account_id}&filters=Submitted,PreSubmitted'
+        response = self.get_from_endpoint(url, "Getting open orders")
+
+        if response is None or response == []:
+            return None
+
+        ## Filters don't work, we'll filter on our own
+        filtered_orders = []
+        for order in response['orders']:
+            if order['status'] != "Cancelled":
+                filtered_orders.append(order)
+
+        logging.info(filtered_orders)
+        return filtered_orders
     
     def execute_order(self, order_data):
         url = f'{self.base_url}/iserver/account/{self.account_id}/orders'
@@ -211,8 +222,15 @@ class InteractiveBrokersRESTData(DataSource):
         return response[field]
     
     def get_conid_from_asset(self, asset: Asset):
-        asset.asset_type
-        
+        url = f'{self.base_url}/iserver/secdef/search?symbol={asset.symbol}'
+        response = self.get_from_endpoint(url, "Getting Asset ConId")
+        return response[0]["conid"]
+    
+    def get_sectype_from_conid(self, conId):
+        url = f'{self.base_url}/iserver/contract/{conId}/info'
+        response = self.get_from_endpoint(url, "Getting SecType")
+        return response["instrument_type"]
+
     def get_market_snapshot(self, asset: Asset, fields: list):
         all_fields = {
             "84": "bid",
@@ -233,7 +251,7 @@ class InteractiveBrokersRESTData(DataSource):
         
         # First time will only return conid and conidEx
         response = self.get_from_endpoint(url, "Getting Market Snapshot")
-
+        
         # If fields are missing, then its first time, fetch again
         missing_fields = False
         for field in fields_to_get:
@@ -250,7 +268,7 @@ class InteractiveBrokersRESTData(DataSource):
         for key, value in response[0].items():
             if key in fields_to_get:
                 output[all_fields[key]] = value
-        
+    
         return output
 
     def get_quote(self, asset, quote=None, exchange=None):
@@ -272,27 +290,7 @@ class InteractiveBrokersRESTData(DataSource):
         dict
            Quote of the asset, including the bid, and ask price.
         """
-        if asset.asset_type == "option":
-            symbol = create_options_symbol(
-                asset.symbol,
-                asset.expiration,
-                asset.right,
-                asset.strike,
-            )
-        else:
-            symbol = asset.symbol
-
-        quotes_df = self.tradier.market.get_quotes([symbol])
-
-        # If the dataframe is empty, return an empty dictionary
-        if quotes_df is None or quotes_df.empty:
-            return {}
         
-        # Get the quote from the dataframe and convert it to a dictionary
-        quote = quotes_df.iloc[0].to_dict()
-
-        # Return the quote
-        return quote
         result = self.get_market_snapshot(asset, ["bid", "ask"])
         if result is None:
             return None

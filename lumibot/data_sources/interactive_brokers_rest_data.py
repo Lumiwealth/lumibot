@@ -12,6 +12,15 @@ from lumibot.tools.helpers import create_options_symbol
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
+TYPE_MAP = dict(
+    stock="STK",
+    option="OPT",
+    future="FUT",
+    forex="CASH",
+    index="IND",
+    multileg="BAG",
+)
+
 class InteractiveBrokersRESTData(DataSource):
     """
     Data source that connects to the Interactive Brokers REST API.
@@ -90,8 +99,6 @@ class InteractiveBrokersRESTData(DataSource):
     def get_contract_details(self, conId):
         url = f"{self.base_url}/iserver/contract/{conId}/info"
         response = self.get_from_endpoint(url, "Getting contract details")
-        logging.info(response)
-
         return response
     
     def get_account_info(self):
@@ -137,23 +144,58 @@ class InteractiveBrokersRESTData(DataSource):
                 logging.error(f"Error {description}: {e}")
             return None
     
-    def post_to_endpoint(self, url, json):
+    def get_ticker_from_conid(self, conid):
+        url = f'{self.base_url}/iserver/contract/{conid}/info'
+        response = self.get_from_endpoint(url, "TESTTT")
+        logging.info(response)
+        return response['symbol']
+    
+    def post_to_endpoint(self, url, json:dict):
         try:
+            ticker = self.get_ticker_from_conid(json['conid'])
+            logging.info(ticker)
             response = requests.post(url, json=json, verify=False)
-            response.raise_for_status()
-            return response.json()
+            # Check if the request was successful
+            if response.status_code == 200:
+                # Return the JSON response containing the account balances
+                return response.json()
+            elif response.status_code == 404:
+                logging.warning(f"{url} endpoint not found.")
+                return None
+            elif response.status_code == 429:
+                logging.info(f"You got rate limited {url}. Waiting for 5 seconds...")
+                time.sleep(5)
+                return self.get_from_endpoint(url, json)
+            else:
+                logging.error(f"Task '{url}' Failed. Status code: {response.status_code}")
+                return None
+            
         except requests.exceptions.RequestException as e:
-            logging.error(f"POST Request failed: {e}")
-            return None
+            # Log an error message if there was a problem with the request
+            logging.error(f"Error {url}: {e}")
     
     def delete_to_endpoint(self, url):
         try:
             response = requests.delete(url, verify=False)
-            response.raise_for_status()
-            return True
+            # Check if the request was successful
+            if response.status_code == 200:
+                # Return the JSON response containing the account balances
+                return response.json()
+            elif response.status_code == 404:
+                logging.warning(f"{url} endpoint not found.")
+                return None
+            elif response.status_code == 429:
+                logging.info(f"You got rate limited {url}. Waiting for 5 seconds...")
+                time.sleep(5)
+                return self.delete_to_endpoint(url)
+
+            else:
+                logging.error(f"Task '{url}' Failed. Status code: {response.status_code}")
+                return None
+            
         except requests.exceptions.RequestException as e:
-            logging.error(f"DELETE Request failed: {e}")
-            return False
+            # Log an error message if there was a problem with the request
+            logging.error(f"Error {url}: {e}")
     
     def get_open_orders(self):
         # Clear cache with force=true
@@ -173,22 +215,22 @@ class InteractiveBrokersRESTData(DataSource):
             if order['status'] != "Cancelled":
                 filtered_orders.append(order)
 
-        logging.info(filtered_orders)
         return filtered_orders
-    
+
     def execute_order(self, order_data):
         url = f'{self.base_url}/iserver/account/{self.account_id}/orders'
         response = self.post_to_endpoint(url, order_data)
-        return response["id"]
+        logging.info(order_data)
+        return response[0]["order_id"]
     
     def delete_order(self, order):
         orderId = order.identifier
         url = f'{self.base_url}/iserver/account/{self.account_id}/order/{orderId}'
         status = self.delete_to_endpoint(url)
         if status:
-            logging.info(f"Order with conid {orderId} canceled successfully.")
+            logging.info(f"Order with ID {orderId} canceled successfully.")
         else:
-            logging.error(f"Failed to delete order with conid {orderId}.")
+            logging.error(f"Failed to delete order with ID {orderId}.")
 
     def get_positions(self):
         """
@@ -205,8 +247,14 @@ class InteractiveBrokersRESTData(DataSource):
 
         subprocess.run(['docker', 'rm', '-f', 'lumibot-client-portal'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-    # Method stubs with logging for not yet implemented methods
-    def get_chains(self, asset: Asset, quote: Asset = None) -> dict:
+    def get_chains(self, asset: Asset, quote: Asset = None) -> dict: ## options chains
+        url_for_dates = f'{self.base_url}/iserver/secdef/search?symbol={asset.symbol}'
+        response = self.get_from_endpoint(url_for_dates, "Getting Option Dates")
+        option_dates = response[0]['opt'] # separated by semicolons
+        option_dates_array = response[0]['opt'].split(';') # in YYYYMMDD
+
+        month="JAN24" #MMMYY
+        url_for_strikes = f'{self.base_url}/iserver/secdef/strikes?conid={conid}&sectype={TYPE_MAP[asset.asset_type]}&month={month}'
         logging.error(colored("Method 'get_chains' is not yet implemented.", "red"))
         return {}  # Return an empty dictionary as a placeholder
 
@@ -224,7 +272,7 @@ class InteractiveBrokersRESTData(DataSource):
     def get_conid_from_asset(self, asset: Asset):
         url = f'{self.base_url}/iserver/secdef/search?symbol={asset.symbol}'
         response = self.get_from_endpoint(url, "Getting Asset ConId")
-        return response[0]["conid"]
+        return int(response[0]["conid"])
     
     def get_sectype_from_conid(self, conId):
         url = f'{self.base_url}/iserver/contract/{conId}/info'
@@ -236,9 +284,11 @@ class InteractiveBrokersRESTData(DataSource):
             "84": "bid",
             "86": "ask",
             "31": "last_price",
+            ## add greeks, implied vol
+            # https://www.interactivebrokers.com/campus/ibkr-api-page/webapi-ref/#tag/Trading-Market-Data/paths/~1iserver~1marketdata~1snapshot/get
         }
 
-        conId = self.get_conid_from_asset(asset)
+        conId = self.get_conid_from_asset(asset) ## does this work for options? should this work for options?
 
         fields_to_get = []
         for identifier, name in all_fields.items():
@@ -268,7 +318,7 @@ class InteractiveBrokersRESTData(DataSource):
         for key, value in response[0].items():
             if key in fields_to_get:
                 output[all_fields[key]] = value
-    
+
         return output
 
     def get_quote(self, asset, quote=None, exchange=None):

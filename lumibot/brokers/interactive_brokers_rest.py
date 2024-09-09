@@ -116,7 +116,6 @@ class InteractiveBrokersREST(Broker):
 
         asset_type = [k for k, v in TYPE_MAP.items() if v == response['secType']][0]
         totalQuantity = response['totalSize']
-        logging.info(response)
 
         if asset_type == "multileg":
             # Create a multileg order.
@@ -141,16 +140,17 @@ class InteractiveBrokersREST(Broker):
             order = self._parse_order_object(strategy_name=strategy_name, 
                                              response=response,
                                              quantity=totalQuantity,
+                                             conId=response['conid'],
                                              secType=asset_type
                                              )
         
         order._transmitted = True
         order.set_identifier(response['orderId'])
-        order.status = response['status']
+        order.status = response['status'],
         order.update_raw(response)
         return order
 
-    def _parse_order_object(self, strategy_name, response, quantity, secType, conId=None):
+    def _parse_order_object(self, strategy_name, response, quantity, secType, conId):
         side=response['side']
         symbol=response['ticker']
         currency=response['cashCcy']
@@ -158,45 +158,34 @@ class InteractiveBrokersREST(Broker):
         limit_price = response['price'] if 'price' in response else None
         stop_price = response['stop_price'] if 'stop_price' in response else None
         good_till_date = response['goodTillDate'] if 'goodTillDate' in response else None
+        secType = self.ASSET_CLASS_MAPPING[secType]
 
-        if conId is None:
-            conId = response['conid']
+        ## rethink the fields
         
         contract_details = self.data_source.get_contract_details(conId)
         if contract_details is None:
             contract_details = {}
-
-        logging.info(contract_details)
 
         multiplier = 1
         right = None
         strike = None
         expiration = None
 
-        if secType == "OPT":
+        if secType == "option":
             right = contract_details['right']
             strike = float(contract_details['strike'])
 
-        if secType in ["OPT", "FUT"]:
+        if secType in ["option", "future"]:
             multiplier = contract_details['multiplier']
 
-            maturity_date = datetime.datetime.fromtimestamp(int(contract_details["maturity_date"]) / 1000)
-            maturity_date_str = maturity_date.strftime(DATE_MAP[secType])
+            maturity_date = contract_details["maturity_date"] # in YYYYMMDD
 
             # Format the datetime object as a string that matches the format in DATE_MAP[secType]
             expiration = datetime.datetime.strptime(
-                maturity_date_str,
-                DATE_MAP[secType],
+                maturity_date,
+                DATE_MAP[secType]
             )
 
-            multiplier = multiplier
-
-        if secType == "OPT":
-            right = contract_details['right']
-            logging.info(right)
-            strike = float(contract_details['strike'])
-
-        logging.info(secType)
         order = Order(
             strategy_name,
             Asset(
@@ -362,21 +351,32 @@ class InteractiveBrokersREST(Broker):
             positions_list.append(position_obj)
 
         return positions_list
-
-    def _submit_order(self, order: Order) -> Order:
+    
+    def _submit_order(self, order: Order) -> Order: ## smth isnt working
         try:
+            ## buy_to_open and sell_to_open not respected
+            if order.is_buy_order():
+                side = "BUY"
+            elif order.is_sell_order():
+                side = "SELL"
+            else:
+                raise Exception("Order Side Not Found")
+
+            conid = self.data_source.get_conid_from_asset(order.asset)
+            if conid is None:
+                raise Exception("Order conid Not Found")
+            
             order_data = {
-                "conid": order.identifier,
-                "quantity": order.quantity,
-                "orderType": order.type,
-                "side": order.side,
-                "tif": order.time_in_force,
+                "conid": conid, # required
+                "quantity": order.quantity, # required
+                "orderType": order.type.upper(), # required
+                "side": side, # required
+                "tif": order.time_in_force.upper(), # required
                 "price": order.limit_price,
-                "auxPrice": order.stop_price
+                "auxPrice": order.stop_price,
+                "listingExchange": order.exchange
                 ### Add other necessary fields based on the Order object
             }
-
-            logging.info(order_data)
             
             if order.trail_percent:
                 order_data["trailingType"] = "%"
@@ -386,6 +386,8 @@ class InteractiveBrokersREST(Broker):
                 order_data["trailingType"] = "amt"
                 order_data["trailingAmt"] = order.trail_price
             
+            # Remove items with value None from order_data
+            order_data = {k: v for k, v in order_data.items() if v is not None}
             self._unprocessed_orders.append(order)
             order.identifier = self.data_source.execute_order(order_data)
             order.status = "submitted"

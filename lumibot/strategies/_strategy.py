@@ -1099,7 +1099,7 @@ class _Strategy:
             thetadata_password = THETADATA_CONFIG.get('THETADATA_PASSWORD')
             
             # Check again if theta data username and pass are set
-            if thetadata_username is None or thetadata_password is None and (datasource_class == ThetaDataBacktesting or optionsource_class == ThetaDataBacktesting):
+            if (thetadata_username is None or thetadata_password is None) and (datasource_class == ThetaDataBacktesting or optionsource_class == ThetaDataBacktesting):
                 raise ValueError(
                     "Please set `thetadata_username` and `thetadata_password` in the backtest() function if "
                     "you are using ThetaDataBacktesting. If you don't have one, you can do registeration "

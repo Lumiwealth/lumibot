@@ -120,6 +120,9 @@ class Tradier(Broker):
         if is_multileg:
             tag = orders[0].tag if orders[0].tag else orders[0].strategy
 
+            # Remove anything that's not a letter, number or "-" because Tradier doesn't accept other characters
+            tag = "".join([c if c.isalnum() or c == "-" else "" for c in tag])
+
             # Submit the multi-leg order
             return self._submit_multileg_order(orders, order_type, duration, price, tag)
 
@@ -216,9 +219,12 @@ class Tradier(Broker):
 
         try:
             if order.asset.asset_type == "stock":
+                # Make sure the symol is upper case
+                symbol = order.asset.symbol.upper() 
+
                 # Place the order
                 order_response = self.tradier.orders.order(
-                    order.asset.symbol,
+                    symbol,
                     order.side,
                     order.quantity,
                     order_type=order.type,
@@ -265,7 +271,22 @@ class Tradier(Broker):
         return order
 
     def _get_balances_at_broker(self, quote_asset: Asset):
-        df = self.tradier.account.get_account_balance()
+        try:
+            df = self.tradier.account.get_account_balance()
+        except TradierApiError as e:
+            # Check if the error is a 401 or 403, if so, the access token is invalid
+            error = str(e)
+            if "401" in error or "403" in error:
+                # Check if the access token or account number is invalid
+                if self._tradier_access_token is None or self._tradier_account_number is None or len(self._tradier_access_token) == 0 or len(self._tradier_account_number) == 0:
+                    colored_message = colored("Your TRADIER_ACCOUNT_NUMBER or TRADIER_ACCESS_TOKEN are blank. Please check your keys.", color="red")
+                    raise ValueError(colored_message)
+                
+                # Conceal the end of the access token
+                access_token = self._tradier_access_token[:7] + "*" * 7
+                colored_message = colored(f"Your TRADIER_ACCOUNT_NUMBER or TRADIER_ACCESS_TOKEN are invalid. Your account number is: {self._tradier_account_number} and your access token is: {access_token}", color="red")
+                raise ValueError(colored_message)
+            
 
         # Get the portfolio value (total_equity) column
         portfolio_value = float(df["total_equity"].iloc[0])
@@ -279,10 +300,29 @@ class Tradier(Broker):
         return cash, positions_value, portfolio_value
 
     def get_historical_account_value(self):
-        pass
+        logging.error("The function get_historical_account_value is not implemented yet for Tradier.")
+        return {"hourly": None, "daily": None}
 
     def _pull_positions(self, strategy):
-        positions_df = self.tradier.account.get_positions()
+        try:
+            positions_df = self.tradier.account.get_positions()
+        except TradierApiError as e:
+            # Check if the error is a 401 or 403, if so, the access token is invalid
+            error = str(e)
+            if "401" in error or "403" in error:
+                # Check if the access token or account number is invalid
+                if self._tradier_access_token is None or self._tradier_account_number is None or len(self._tradier_access_token) == 0 or len(self._tradier_account_number) == 0:
+                    colored_message = colored("Your TRADIER_ACCOUNT_NUMBER or TRADIER_ACCESS_TOKEN are blank. Please check your keys.", color="red")
+                    raise ValueError(colored_message)
+                
+                # Conceal the end of the access token
+                access_token = self._tradier_access_token[:7] + "*" * 7
+                colored_message = colored(f"Your TRADIER_ACCOUNT_NUMBER or TRADIER_ACCESS_TOKEN are invalid. Your account number is: {self._tradier_account_number} and your access token is: {access_token}", color="red")
+                raise ValueError(colored_message)
+        except Exception as e:
+            logging.error(f"Error pulling positions from Tradier: {e}")
+            return []
+            
         positions_ret = []
 
         # Loop through each row in the dataframe
@@ -383,7 +423,7 @@ class Tradier(Broker):
         :param strategy_object: The strategy object that placed the order
         """
         strategy_name = (
-            strategy_name if strategy_name else strategy_object.name if strategy_object else response.get("tag")
+            strategy_name if strategy_name else strategy_object.name if strategy_object else None
         )
 
         # Parse the symbol
@@ -395,6 +435,9 @@ class Tradier(Broker):
             if option_symbol and not pd.isna(option_symbol)
             else Asset.symbol2asset(symbol)
         )
+
+        # Get the reason_description if it exists
+        reason_description = response.get("reason_description", None)
 
         # Create the order object
         order = Order(
@@ -410,6 +453,7 @@ class Tradier(Broker):
             tag=response["tag"] if "tag" in response and response["tag"] else None,
             date_created=response["create_date"],
             avg_fill_price=response["avg_fill_price"] if "avg_fill_price" in response else None,
+            error_message=reason_description,
         )
         order.status = response["status"]
         order.avg_fill_price = response.get("avg_fill_price", order.avg_fill_price)
@@ -512,7 +556,7 @@ class Tradier(Broker):
         raw_orders = self._pull_broker_all_orders()
         stored_orders = {x.identifier: x for x in self.get_all_orders()}
         for order_row in raw_orders:
-            orders = self._parse_broker_order_dict(order_row, strategy_name=order_row.get("tag"))
+            orders = self._parse_broker_order_dict(order_row, strategy_name=self._strategy_name)
 
             for order in orders:
                 # First time seeing this order, something weird has happened
@@ -531,6 +575,9 @@ class Tradier(Broker):
                             self._process_partially_filled_order(order, order.avg_fill_price, order.quantity)
                         elif order.status == Order.OrderStatus.NEW:
                             self._process_new_order(order)
+                        elif order.status == Order.OrderStatus.ERROR:
+                            self._process_new_order(order)
+                            self._process_error_order(order, order.error_message)
                     else:
                         # Add to order in lumibot.
                         self._process_new_order(order)
@@ -625,6 +672,9 @@ class Tradier(Broker):
 
         @broker.stream.add_action(broker.NEW_ORDER)
         def on_trade_event_new(order):
+            # Log that the order was submitted
+            logging.info(f"Processing action for new order {order}")
+
             try:
                 broker._process_trade_event(
                     order,
@@ -636,6 +686,9 @@ class Tradier(Broker):
 
         @broker.stream.add_action(broker.FILLED_ORDER)
         def on_trade_event_fill(order, price, filled_quantity):
+            # Log that the order was filled
+            logging.info(f"Processing action for filled order {order} | {price} | {filled_quantity}")
+
             try:
                 broker._process_trade_event(
                     order,
@@ -650,6 +703,9 @@ class Tradier(Broker):
 
         @broker.stream.add_action(broker.CANCELED_ORDER)
         def on_trade_event_cancel(order):
+            # Log that the order was cancelled
+            logging.info(f"Processing action for cancelled order {order}")
+
             try:
                 broker._process_trade_event(
                     order,
@@ -660,6 +716,9 @@ class Tradier(Broker):
 
         @broker.stream.add_action(broker.CASH_SETTLED)
         def on_trade_event_cash(order, price, filled_quantity):
+            # Log that the order was cash settled
+            logging.info(f"Processing action for cash settled order {order} | {price} | {filled_quantity}")
+
             try:
                 broker._process_trade_event(
                     order,
@@ -673,6 +732,9 @@ class Tradier(Broker):
 
         @broker.stream.add_action(broker.ERROR_ORDER)
         def on_trade_event_error(order, error_msg):
+            # Log that the order had an error
+            logging.error(f"Processing action for error order {order} | {error_msg}")
+                                                                         
             try:
                 if order.is_active():
                     broker._process_trade_event(
@@ -686,7 +748,22 @@ class Tradier(Broker):
 
     def _run_stream(self):
         self._stream_established()
-        self.stream._run()
+        # Try to run the stream
+        try:
+            self.stream._run()
+        except TradierApiError as e:
+            # Check if the error is a 401 or 403, if so, the access token is invalid
+            error = str(e)
+            if "401" in error or "403" in error:
+                # Check if the access token or account number is invalid
+                if self._tradier_access_token is None or self._tradier_account_number is None or len(self._tradier_access_token) == 0 or len(self._tradier_account_number) == 0:
+                    colored_message = colored("Your TRADIER_ACCOUNT_NUMBER or TRADIER_ACCESS_TOKEN are blank. Please check your keys.", color="red")
+                    raise ValueError(colored_message)
+
+                # Conceal the end of the access token
+                access_token = self._tradier_access_token[:7] + "*" * 7
+                colored_message = colored(f"Your TRADIER_ACCOUNT_NUMBER or TRADIER_ACCESS_TOKEN are invalid. Your account number is: {self._tradier_account_number} and your access token is: {access_token}", color="red")
+                raise ValueError(colored_message)
 
     def _flatten_order(self, order):
         """Some submitted orders may trigger other orders.

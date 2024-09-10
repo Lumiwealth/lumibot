@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 
 from lumibot import LUMIBOT_DEFAULT_PYTZ, LUMIBOT_DEFAULT_TIMEZONE
-from lumibot.entities import Asset, AssetsMapping
+from lumibot.entities import Asset, AssetsMapping, Bars
 from lumibot.tools import black_scholes, create_options_symbol
 
 from .exceptions import UnavailabeTimestep
@@ -67,7 +67,7 @@ class DataSource(ABC):
     @abstractmethod
     def get_historical_prices(
         self, asset, length, timestep="", timeshift=None, quote=None, exchange=None, include_after_hours=True
-    ):
+    ) -> Bars:
         """
         Get bars for a given asset
 
@@ -88,11 +88,16 @@ class DataSource(ABC):
             The exchange to get the bars for.
         include_after_hours : bool
             Whether to include after hours data.
+
+        Returns
+        -------
+        Bars
+            The bars for the asset.
         """
         pass
 
     @abstractmethod
-    def get_last_price(self, asset, quote=None, exchange=None):
+    def get_last_price(self, asset, quote=None, exchange=None) -> float:
         """
         Takes an asset and returns the last known price
 

@@ -139,7 +139,8 @@ class Asset:
         precision: str = None,
         underlying_asset: "Asset" = None,
     ):
-        self.symbol = symbol
+        # Capitalize the symbol because some brokers require it
+        self.symbol = symbol.upper()
         self.asset_type = asset_type
         self.strike = strike
         self.multiplier = multiplier

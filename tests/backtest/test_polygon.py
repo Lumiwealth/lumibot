@@ -19,6 +19,7 @@ from datetime import timedelta
 # API Key for testing Polygon.io
 POLYGON_API_KEY = os.environ.get("POLYGON_API_KEY")
 
+
 class PolygonBacktestStrat(Strategy):
     parameters = {"symbol": "AMZN"}
 
@@ -165,7 +166,8 @@ class TestPolygonBacktestFull:
         assert asset_order_id in poly_strat_obj.prices
         assert option_order_id in poly_strat_obj.prices
         assert 130.0 < poly_strat_obj.prices[asset_order_id] < 140.0, "Valid asset price between 130 and 140"
-        assert 130.0 < stock_order.get_fill_price() < 140.0, "Valid Fill price between 130 and 140"
+        sfp = stock_order.get_fill_price()
+        assert 130.0 < sfp < 140.0, "Valid Fill price between 130 and 140"
         assert poly_strat_obj.prices[option_order_id] == 4.10, "Opening Price is $4.10 on 08/01/2023"
         assert option_order.get_fill_price() == 4.10, "Fills at 1st candle open price of $4.10 on 08/01/2023"
 
@@ -269,7 +271,6 @@ class TestPolygonBacktestFull:
             show_plot=False,
             show_tearsheet=False,
             save_tearsheet=False,
-            api_key=POLYGON_API_KEY,
         )
         assert results
         self.verify_backtest_results(poly_strat_obj)
@@ -296,7 +297,7 @@ class TestPolygonBacktestFull:
 
     def test_pull_source_symbol_bars_with_api_call(self, polygon_data_backtesting, mocker):
         """Test that polygon_helper.get_price_data_from_polygon() is called with the right parameters"""
-        
+
         # Only simulate first date
         mocker.patch.object(
             polygon_data_backtesting,
@@ -308,7 +309,7 @@ class TestPolygonBacktestFull:
             'lumibot.tools.polygon_helper.get_price_data_from_polygon',
             return_value=MagicMock()
         )
-        
+
         asset = Asset(symbol="AAPL", asset_type="stock")
         quote = Asset(symbol="USD", asset_type="forex")
         length = 10
@@ -325,9 +326,10 @@ class TestPolygonBacktestFull:
 
             mocked_get_price_data.assert_called_once()
             call_args = mocked_get_price_data.call_args
-            
-            expected_start_date = polygon_data_backtesting.datetime_start - datetime.timedelta(days=length) - START_BUFFER
-            
+
+            expected_start_date = polygon_data_backtesting.datetime_start - \
+                datetime.timedelta(days=length) - START_BUFFER
+
             assert call_args[0][0] == polygon_data_backtesting._api_key
             assert call_args[0][1] == asset
             assert call_args[0][2] == expected_start_date

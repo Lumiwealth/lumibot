@@ -1,4 +1,4 @@
 ﻿self.create\_order
 =================================================================
 
-.. autofunction:: strategies.strategy.Strategy.create_order
+.. autofunction:: lumibot.strategies.strategy.Strategy.create_order

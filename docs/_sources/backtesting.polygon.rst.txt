@@ -54,21 +54,11 @@ Finally, run the backtest:
 
 .. code-block:: python
 
-    trader = Trader(backtest=True)
-    data_source = PolygonDataBacktesting(
-        datetime_start=backtesting_start,
-        datetime_end=backtesting_end,
-        api_key="YOUR_POLYGON_API_KEY",
-    )
-    broker = BacktestingBroker(data_source)
-    my_strat = MyStrategy(
-        broker=broker,
-        backtesting_start=backtesting_start,
-        backtesting_end=backtesting_end,
-        benchmark_asset="SPY",
-    )
-    trader.add_strategy(my_strat)
-    trader.run_all()
+    result = MyStrategy.run_backtest(
+        PolygonDataBacktesting,
+        backtesting_start,
+        backtesting_end,
+        benchmark_asset="SPY")
 
 Here's the full code:
 
@@ -104,19 +94,11 @@ Here's the full code:
         backtesting_start = datetime(2023, 1, 1)
         backtesting_end = datetime(2023, 5, 1)
 
-        trader = Trader(backtest=True)
-        data_source = PolygonDataBacktesting(
-            datetime_start=backtesting_start,
-            datetime_end=backtesting_end,
-            api_key="YOUR_API_KEY_HERE",
-        )
-        broker = BacktestingBroker(data_source)
-        my_strat = MyStrategy(
-            broker=broker,
-            benchmark_asset="SPY",
-        )
-        trader.add_strategy(my_strat)
-        trader.run_all()
+        result = MyStrategy.run_backtest(
+            PolygonDataBacktesting,
+            backtesting_start,
+            backtesting_end,
+            benchmark_asset="SPY")
 
 .. important::
    

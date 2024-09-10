@@ -1,9 +1,9 @@
 Account Management
 ===================================
 
-Account management functions are used to get your accoutn value, cash, etc. You can see a list of them below:
+Account management functions are used to get your account value, cash, etc. You can see a list of them below:
 
-.. currentmodule:: strategies.strategy.Strategy
+.. currentmodule:: lumibot.strategies.strategy.Strategy
 
 .. autosummary::
     :toctree: strategy_methods.account

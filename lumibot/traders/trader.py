@@ -25,6 +25,11 @@ class Trader:
         strategies: list
             A list of strategies to run. If not specified, you must add strategies using trader.add_strategy(strategy)
         """
+        # Check if the logfile is a valid path
+        if logfile:
+            if not isinstance(logfile, str):
+                raise ValueError("logfile must be a string")
+
         # Setting debug and _logfile parameters and setting global log format
         self.debug = debug
         self.backtest = backtest
@@ -54,7 +59,16 @@ class Trader:
         """Adds a strategy to the trader"""
         self._strategies.append(strategy)
 
-    def run_all(self, async_=False, show_plot=True, show_tearsheet=True, save_tearsheet=True, show_indicators=True, tearsheet_file=None):
+    def run_all(
+            self, 
+            async_=False, 
+            show_plot=True, 
+            show_tearsheet=True, 
+            save_tearsheet=True, 
+            show_indicators=True, 
+            tearsheet_file=None,
+            base_filename=None,
+            ):
         """
         run all strategies
 
@@ -74,6 +88,12 @@ class Trader:
 
         show_indicators: bool
             Whether to display the indicators (markers and lines) in the user's web browser. This is only used for backtesting.
+
+        tearsheet_file: str
+            The path to save the tearsheet. This is only used for backtesting.
+
+        base_filename: str
+            The base filename to save the tearsheet, plot, indicators, etc. This is only used for backtesting.
 
         Returns
         -------
@@ -126,6 +146,7 @@ class Trader:
                 save_tearsheet=save_tearsheet,
                 show_indicators=show_indicators,
                 tearsheet_file=tearsheet_file,
+                base_filename=base_filename,
             )
 
         return result
@@ -202,11 +223,13 @@ class Trader:
         lifecycle method. python signal handlers
         needs two positional arguments, the signal
         and the frame"""
+
         logging.debug(f"Received signal number {sig}.")
         logging.debug(f"Closing Trader in {frame} frame.")
         for strategy_thread in self._pool:
-            strategy_thread.stop()
-        logging.info("Trading finished")
+            if not strategy_thread.abrupt_closing:
+                strategy_thread.stop()
+                logging.info(f"Trading finished for {strategy_thread.strategy._name}")
 
     def _collect_analysis(self):
         result = {}

@@ -12,7 +12,7 @@ Backtesting Broker
 Data Source Backtesting
 ----------------------------------------------------
 
-.. automodule:: lumibot.backtesting.data_source_backtesting
+.. automodule:: lumibot.data_sources.data_source_backtesting
    :members:
    :undoc-members:
    :show-inheritance:

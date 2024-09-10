@@ -27,7 +27,7 @@ All the methods in each of these categories are described below.
 Documentation
 """""""""""""""""""
 
-.. automodule:: lumibot.strategies.strategy
+.. automodule:: lumibot.strategies.strategy.Strategy
    :members:
    :undoc-members:
    :show-inheritance:

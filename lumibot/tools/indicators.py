@@ -14,6 +14,7 @@ from plotly.subplots import make_subplots
 
 from lumibot import LUMIBOT_DEFAULT_TIMEZONE
 from lumibot.tools import to_datetime_aware
+from plotly.subplots import make_subplots
 
 from .yahoo_helper import YahooHelper as yh
 
@@ -177,13 +178,24 @@ def get_symbol_returns(symbol, start=datetime(1900, 1, 1), end=datetime.now()):
         - symbol_cumprod: The cumulative product of (1 + return)
 
     """
-    # Making start and end datetime aware
+    # Fetch the symbol data
     returns_df = yh.get_symbol_data(symbol)
+
+    # Make sure we are working with a copy to avoid SettingWithCopyWarning
+    returns_df = returns_df.copy()
+
+    # Filter the DataFrame based on date range
     returns_df = returns_df.loc[(returns_df.index.date >= start.date()) & (returns_df.index.date <= end.date())]
+
+    # Calculate percentage change and dividend yield
     returns_df.loc[:, "pct_change"] = returns_df["Close"].pct_change()
     returns_df.loc[:, "div_yield"] = returns_df["Dividends"] / returns_df["Close"]
+
+    # Calculate total return and cumulative product
     returns_df.loc[:, "return"] = returns_df["pct_change"] + returns_df["div_yield"]
     returns_df.loc[:, "symbol_cumprod"] = (1 + returns_df["return"]).cumprod()
+
+    # Set the initial cumulative product value to 1
     returns_df.loc[returns_df.index[0], "symbol_cumprod"] = 1
 
     return returns_df
@@ -406,12 +418,26 @@ def plot_returns(
     # Fix for minute timeframe backtests plotting
     # Converted to DatetimeIndex because index becomes Index type and UTC timezone in pd.concat
     # The x-axis is not displayed correctly in plotly when not converted to DatetimeIndex type
-    df_final.index = pd.to_datetime(df_final.index,utc=True).tz_convert(LUMIBOT_DEFAULT_TIMEZONE)
+    df_final.index = pd.to_datetime(df_final.index, utc=True).tz_convert(LUMIBOT_DEFAULT_TIMEZONE)
 
     # fig = go.Figure()
     fig = make_subplots(specs=[[{"secondary_y": True}]])
 
-    # Strategy line
+    # Updated format_positions function to handle lists and dicts
+    def format_positions(positions):
+        if isinstance(positions, list):
+            formatted_positions = [
+                f"{pos.get('asset', 'Unknown asset')}: {pos.get('quantity', 0):,.2f}" for pos in positions
+            ]
+            return "<br>".join(formatted_positions)
+        elif isinstance(positions, dict):
+            return f"{positions.get('asset', 'Unknown asset')}: {positions.get('quantity', 0):,.2f}"
+        return "No positions"
+
+    # Manually create a list of formatted positions
+    formatted_positions_list = [format_positions(pos) for pos in df_final["positions"]]
+
+    # Modify the strategy line to include positions
     fig.add_trace(
         go.Scatter(
             x=df_final.index,
@@ -419,7 +445,14 @@ def plot_returns(
             mode="lines",
             name=strategy_name,
             connectgaps=True,
-            hovertemplate=f"{strategy_name}<br>Portfolio Value: %{{y:$,.2f}}<br>%{{x|%b %d %Y %I:%M:%S %p}}<extra></extra>",
+            hovertemplate=(
+                f"{strategy_name}<br>"
+                "Portfolio Value: %{y:$,.2f}<br>"
+                "%{x|%b %d %Y %I:%M:%S %p}<br>"
+                "Positions:<br>"
+                "%{text}<extra></extra>"
+            ),
+            text=formatted_positions_list,  # Apply the formatting function to positions
         )
     )
 
@@ -720,7 +753,7 @@ def create_tearsheet(
 
     # Run quantstats reports surpressing any logs because it can be noisy for no reason
     with open(os.devnull, "w") as f, contextlib.redirect_stdout(f), contextlib.redirect_stderr(f):
-        qs.reports.html(
+        result = qs.reports.html(
             df_final["strategy"],
             df_final["benchmark"],
             title=title,
@@ -733,6 +766,8 @@ def create_tearsheet(
     if show_tearsheet:
         url = "file://" + os.path.abspath(str(tearsheet_file))
         webbrowser.open(url)
+
+    return result
 
 
 def get_risk_free_rate(dt: datetime = None):

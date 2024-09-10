@@ -8,6 +8,91 @@ class TestOrderBasics:
         assert Order(asset=Asset("SPY"), quantity=10, side="buy", strategy='abc').side == 'buy'
         assert Order(asset=Asset("SPY"), quantity=10, side="sell", strategy='abc').side == 'sell'
 
+    def test_blank_oco(self):
+        # Create an OCO order without any child 
+        order = Order(
+            strategy="",
+            type=Order.OrderType.OCO,
+        )
+
+        assert order.avg_fill_price == None
+        assert order.quantity == None
+        assert order.status == "unprocessed"
+
+        # Add a child order
+        child_order = Order(
+            strategy="",
+            type=Order.OrderType.LIMIT,
+            side="buy",
+            asset=Asset("SPY"),
+            quantity=10,
+            limit_price=100,
+            identifier="child_order_1"
+        )
+
+        # Assert that the child order does not have any child orders of its own
+        assert child_order.child_orders == []
+
+        # Add a child order to the OCO order
+        order.child_orders.append(child_order)
+
+        # Assert that the child order still does not have any child orders of its own
+        assert child_order.child_orders == []
+
+        # Check that the original order did not change as a result of adding a child order
+        assert order.avg_fill_price == None
+        assert order.quantity == None
+        assert order.status == "unprocessed"
+        assert order.side == None
+        assert order.asset == None
+        assert order.child_orders == [child_order]
+
+        # Add another child order to the OCO order
+        child_order_2 = Order(
+            strategy="",
+            type=Order.OrderType.MARKET,
+            side="sell",
+            asset=Asset("SPY"),
+            quantity=55,
+            limit_price=200,
+        )
+
+        order.add_child_order(child_order_2)
+
+        # Print the order and child order 
+        order_text = str(order).lower()
+        first_child_order = order.child_orders[0]
+        first_child_order_text = str(first_child_order).lower()
+
+        # Assert the order text contains the order type
+        assert Order.OrderType.OCO in order_text
+
+        # Check that both child orders are present in the parent order text
+        assert "buy" in order_text
+        assert "sell" in order_text
+        assert "10" in order_text
+        assert "55" in order_text
+        assert Order.OrderType.LIMIT in order_text
+        assert Order.OrderType.MARKET in order_text
+
+        # Assert the first child order text contains the order type
+        assert Order.OrderType.LIMIT in first_child_order_text
+
+        # Assert the first child order does not contain information about the second child order
+        assert "sell" not in first_child_order_text
+        assert "55" not in first_child_order_text
+
+    def test_price_doesnt_exist(self):
+        # Test that the price does not exist for any orders, we should be more specific such as limit_price, stop_price, fill_price, etc.
+        with pytest.raises(TypeError):
+            Order(
+                strategy="",
+                asset=Asset("SPY"),
+                quantity=10,
+                side="buy",
+                price=100,
+            )
+
     def test_is_option(self):
         # Standard stock order
         asset = Asset("SPY")
@@ -24,7 +109,7 @@ class TestOrderBasics:
         buy_order = Order(strategy='abc', asset=asset, side="buy", quantity=100)
 
         # No transactions
-        assert buy_order.get_fill_price() == 0
+        assert buy_order.get_fill_price() == None
 
         buy_order.transactions = [
             Order.Transaction(quantity=50, price=20.0),
@@ -35,7 +120,9 @@ class TestOrderBasics:
 
         # Error case where quantity is not set
         buy_order._quantity = 0
-        assert buy_order.get_fill_price() == 0
+
+        # Fill price should be None because quantity is 0, this is an error case
+        assert buy_order.get_fill_price() == None
 
         # Ensure Weighted Average used
         sell_order = Order(strategy='abc', asset=asset, side="sell", quantity=100)
@@ -55,6 +142,36 @@ class TestOrderBasics:
         order.position_filled = False
         order.status = 'filled'
         assert order.is_filled()
+
+    def test_is_buy_order(self):
+        asset = Asset("SPY")
+        order = Order(strategy='abc', asset=asset, side=Order.OrderSide.BUY, quantity=100)
+        assert order.is_buy_order()
+        order.side = Order.OrderSide.SELL
+        assert not order.is_buy_order()
+
+        # Test unique buy order types
+        order.side = Order.OrderSide.BUY_TO_COVER
+        assert order.is_buy_order()
+        order.side = Order.OrderSide.BUY_TO_OPEN
+        assert order.is_buy_order()
+        order.side = Order.OrderSide.BUY_TO_CLOSE
+        assert order.is_buy_order()
+
+    def test_is_sell_order(self):
+        asset = Asset("SPY")
+        order = Order(strategy='abc', asset=asset, side=Order.OrderSide.SELL, quantity=100)
+        assert order.is_sell_order()
+        order.side = Order.OrderSide.BUY
+        assert not order.is_sell_order()
+
+        # Test unique sell order types
+        order.side = Order.OrderSide.SELL_SHORT
+        assert order.is_sell_order()
+        order.side = Order.OrderSide.SELL_TO_OPEN
+        assert order.is_sell_order()
+        order.side = Order.OrderSide.SELL_TO_CLOSE
+        assert order.is_sell_order()
 
     def test_cancelled(self):
         asset = Asset("SPY")

@@ -16,4 +16,4 @@ order (Order): The corresponding order object processed
 Reference
 ----------
 
-.. autofunction:: strategies.strategy.Strategy.on_new_order
+.. autofunction:: lumibot.strategies.strategy.Strategy.on_new_order

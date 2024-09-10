@@ -12,4 +12,4 @@ This lifecycle method runs when the strategy crashes. By default, if not overloa
 Reference
 ----------
 
-.. autofunction:: strategies.strategy.Strategy.on_bot_crash
+.. autofunction:: lumibot.strategies.strategy.Strategy.on_bot_crash

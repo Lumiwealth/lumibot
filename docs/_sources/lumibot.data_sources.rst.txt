@@ -13,7 +13,7 @@ Data Source
 Pandas
 -----------------------------------
 
-.. automodule:: lumibot.data_sources.pandas
+.. automodule:: lumibot.data_sources.pandas_data
    :members:
    :undoc-members:
    :show-inheritance:
@@ -21,7 +21,7 @@ Pandas
 Yahoo
 ----------------------------------
 
-.. automodule:: lumibot.data_sources.yahoo
+.. automodule:: lumibot.data_sources.yahoo_data
    :members:
    :undoc-members:
    :show-inheritance:

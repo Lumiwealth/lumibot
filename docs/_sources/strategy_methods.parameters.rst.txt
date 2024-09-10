@@ -38,7 +38,7 @@ Parameters are an important part of any lumibot program and allow you to customi
 
 
 
-.. currentmodule:: strategies.strategy.Strategy
+.. currentmodule:: lumibot.strategies.strategy.Strategy
 
 .. autosummary::
     :toctree: strategy_methods.account

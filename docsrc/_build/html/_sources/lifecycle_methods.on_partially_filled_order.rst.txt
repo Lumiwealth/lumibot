@@ -21,4 +21,4 @@ multiplier (int): Options multiplier
 Reference
 ----------
 
-.. autofunction:: strategies.strategy.Strategy.on_partially_filled_order
+.. autofunction:: lumibot.strategies.strategy.Strategy.on_partially_filled_order

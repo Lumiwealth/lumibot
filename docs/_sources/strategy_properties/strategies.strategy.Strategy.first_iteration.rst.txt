@@ -1,4 +1,4 @@
 ﻿self.first\_iteration
 =========================================================
 
-.. autoproperty:: strategies.strategy.Strategy.first_iteration
+.. autoproperty:: lumibot.strategies.strategy.Strategy.first_iteration

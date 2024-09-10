@@ -123,7 +123,7 @@ Step 7: Backtest the Strategy (Optional)
 
     backtesting_start = datetime(2020, 1, 1)
     backtesting_end = datetime(2020, 12, 31)
-    strategy.backtest(
+    strategy.run_backtest(
         YahooDataBacktesting,
         backtesting_start,
         backtesting_end,
@@ -188,7 +188,7 @@ Here it is all together:
 
     backtesting_start = datetime(2020, 1, 1)
     backtesting_end = datetime(2020, 12, 31)
-    strategy.backtest(
+    strategy.run_backtest(
         YahooDataBacktesting,
         backtesting_start,
         backtesting_end,
@@ -216,7 +216,7 @@ If you want to add trading fees to your backtesting, you can do so by setting up
 
     backtesting_start = datetime(2020, 1, 1)
     backtesting_end = datetime(2020, 12, 31)
-    strategy.backtest(
+    strategy.run_backtest(
         YahooDataBacktesting,
         backtesting_start,
         backtesting_end,
@@ -248,7 +248,7 @@ Once installed, you can use `yappi` to profile your code like this:
     #######
     # Run your code here, eg. a backtest
     #######
-    MachineLearningLongShort.backtest(
+    MachineLearningLongShort.run_backtest(
         PandasDataBacktesting,
         backtesting_start,
         backtesting_end,

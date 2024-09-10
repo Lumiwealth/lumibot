@@ -957,8 +957,10 @@ class _Strategy:
 
         Returns
         -------
-        Backtest
-            The backtest object.
+        tuple of (dict, Strategy)
+            A tuple of the analysis dictionary and the strategy object. The analysis dictionary contains the
+            analysis of the strategy returns. The strategy object is the strategy object that was backtested, where 
+            you can access the strategy returns and other attributes.
 
         Examples
         --------

@@ -307,6 +307,9 @@ def get_polygon_symbol(asset, polygon_client, quote_asset=None):
     elif asset.asset_type == Asset.AssetType.STOCK:
         symbol = asset.symbol
 
+    elif asset.asset_type == Asset.AssetType.INDEX:
+        symbol = f"I:{asset.symbol}"
+
     # Forex Asset for Backtesting
     elif asset.asset_type == Asset.AssetType.FOREX:
         # If quote_asset is None, throw an error

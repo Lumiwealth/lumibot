@@ -418,4 +418,4 @@ class InteractiveBrokersREST(Broker):
 
     def _close_connection(self):
         logging.info("Closing connection to the Client Portal...")
-        self.data_source.stop()
+        #self.data_source.stop()

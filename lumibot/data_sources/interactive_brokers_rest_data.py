@@ -9,6 +9,7 @@ import time
 import requests
 import urllib3
 from lumibot.tools.helpers import create_options_symbol
+from datetime import datetime
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -76,6 +77,15 @@ class InteractiveBrokersRESTData(DataSource):
             logging.info("Not connected to API server yet.")
             logging.info("Waiting for another 10 seconds before checking again...")
             time.sleep(10)
+        
+        # Ensure the Docker process is running
+        docker_ps = subprocess.run(['docker', 'ps', '--filter', 'name=lumibot-client-portal', '--format', '{{.Names}}'], capture_output=True, text=True)
+        if 'lumibot-client-portal' not in docker_ps.stdout:
+            logging.error("Docker container 'lumibot-client-portal' is not running.")
+            logging.error("Waiting for 5 seconds and retrying...")
+            time.sleep(5)
+            self.start()
+            return
         
         # Set self.account_id
         if self.account_id is None:
@@ -247,16 +257,65 @@ class InteractiveBrokersRESTData(DataSource):
 
         subprocess.run(['docker', 'rm', '-f', 'lumibot-client-portal'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-    def get_chains(self, asset: Asset, quote: Asset = None) -> dict: ## options chains
+    def get_chains(self, asset: Asset, quote: Asset = None) -> dict:
+        '''
+            - `Multiplier` (str) eg: `100`
+            - 'Chains' - paired Expiration/Strike info to guarentee that the strikes are valid for the specific
+                         expiration date.
+                         Format:
+                           chains['Chains']['CALL'][exp_date] = [strike1, strike2, ...]
+                         Expiration Date Format: 2023-07-31
+        '''
+        
+        chains = {
+            "Multiplier": asset.multiplier,
+            "Exchange": "unknown",
+            "Chains": {
+            "CALL": {},
+            "PUT": {}
+            }
+        }
+        logging.info("This task is extremely slow. If you still wish to use it, prepare yourself for a long wait.")
+
         url_for_dates = f'{self.base_url}/iserver/secdef/search?symbol={asset.symbol}'
         response = self.get_from_endpoint(url_for_dates, "Getting Option Dates")
-        option_dates = response[0]['opt'] # separated by semicolons
-        option_dates_array = response[0]['opt'].split(';') # in YYYYMMDD
+        
+        conid = response[0]['conid']
 
-        month="JAN24" #MMMYY
-        url_for_strikes = f'{self.base_url}/iserver/secdef/strikes?conid={conid}&sectype={TYPE_MAP[asset.asset_type]}&month={month}'
-        logging.error(colored("Method 'get_chains' is not yet implemented.", "red"))
-        return {}  # Return an empty dictionary as a placeholder
+        option_dates = None 
+        for section in response[0]['sections']:
+            if section['secType'] == "OPT":
+                option_dates = section['months'] 
+                break
+
+        # Array of options dates for asset
+        months = option_dates.split(';') # in MMMYY
+
+        for month in months:
+            url_for_strikes = f'{self.base_url}/iserver/secdef/strikes?sectype=OPT&conid={conid}&month={month}' ## &exchange could be added
+            strikes = self.get_from_endpoint(url_for_strikes, "Getting Strikes")
+
+            for strike in strikes['call']:
+                url_for_expiry = f'{self.base_url}/iserver/secdef/info?conid={conid}&sectype=OPT&month={month}&right=C&strike={strike}'
+                contract_info = self.get_from_endpoint(url_for_expiry, "Getting expiration Date")
+                if contract_info is not None:
+                    expiry_date = contract_info[0]['maturityDate']
+                    expiry_date = datetime.strptime(expiry_date, "%Y%m%d").strftime("%Y-%m-%d") # convert to yyyy-mm-dd
+                    if expiry_date not in chains['Chains']['CALL']:
+                        chains['Chains']['CALL'][expiry_date] = []
+                    chains['Chains']['CALL'][expiry_date].append(strike)
+            
+            for strike in strikes['put']:
+                url_for_expiry = f'{self.base_url}/iserver/secdef/info?conid={conid}&sectype=OPT&month={month}&right=P&strike={strike}'
+                contract_info = self.get_from_endpoint(url_for_expiry, "Getting expiration Date")
+                if contract_info is not None:
+                    expiry_date = contract_info[0]['maturityDate']
+                    expiry_date = datetime.strptime(expiry_date, "%Y%m%d").strftime("%Y-%m-%d") # convert to yyyy-mm-dd
+                    if expiry_date not in chains['Chains']['CALL']:
+                        chains['Chains']['PUT'][expiry_date] = []
+                    chains['Chains']['PUT'][expiry_date].append(strike)
+
+        return chains
 
     def get_historical_prices(
         self, asset, length, timestep="", timeshift=None, quote=None, exchange=None, include_after_hours=True
@@ -279,12 +338,20 @@ class InteractiveBrokersRESTData(DataSource):
         response = self.get_from_endpoint(url, "Getting SecType")
         return response["instrument_type"]
 
+    def query_greeks(self, asset: Asset):
+        greeks = self.get_market_snapshot(asset, ["vega", "theta", "gamma", "delta"])
+        return greeks
+
     def get_market_snapshot(self, asset: Asset, fields: list):
         all_fields = {
             "84": "bid",
             "86": "ask",
             "31": "last_price",
-            ## add greeks, implied vol
+            "7283": "implied_volatility", ## could be the wrong iv, there are a lot
+            "7311": "vega",
+            "7310": "theta",
+            "7308": "delta",
+            "7309": "gamma"
             # https://www.interactivebrokers.com/campus/ibkr-api-page/webapi-ref/#tag/Trading-Market-Data/paths/~1iserver~1marketdata~1snapshot/get
         }
 
@@ -340,6 +407,7 @@ class InteractiveBrokersRESTData(DataSource):
         dict
            Quote of the asset, including the bid, and ask price.
         """
+        ## add greeks and similar
         
         result = self.get_market_snapshot(asset, ["bid", "ask"])
         if result is None:

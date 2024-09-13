@@ -145,7 +145,7 @@ class InteractiveBrokersRESTData(DataSource):
             else:
                 # Log an error message if the request failed
                 if not silent:
-                    logging.error(f"Task '{description}' Failed. Status code: {response.status_code}")
+                    logging.error(f"Task '{description}' Failed. Status code: {response.status_code}, Response: {response.text}")
                 return None
 
         except requests.exceptions.RequestException as e:
@@ -154,16 +154,8 @@ class InteractiveBrokersRESTData(DataSource):
                 logging.error(f"Error {description}: {e}")
             return None
     
-    def get_ticker_from_conid(self, conid):
-        url = f'{self.base_url}/iserver/contract/{conid}/info'
-        response = self.get_from_endpoint(url, "TESTTT")
-        logging.info(response)
-        return response['symbol']
-    
-    def post_to_endpoint(self, url, json:dict):
+    def post_to_endpoint(self, url, json: dict):
         try:
-            ticker = self.get_ticker_from_conid(json['conid'])
-            logging.info(ticker)
             response = requests.post(url, json=json, verify=False)
             # Check if the request was successful
             if response.status_code == 200:
@@ -177,7 +169,7 @@ class InteractiveBrokersRESTData(DataSource):
                 time.sleep(5)
                 return self.get_from_endpoint(url, json)
             else:
-                logging.error(f"Task '{url}' Failed. Status code: {response.status_code}")
+                logging.error(f"Task '{url}' Failed. Status code: {response.status_code}, Response: {response.text}")
                 return None
             
         except requests.exceptions.RequestException as e:
@@ -198,10 +190,12 @@ class InteractiveBrokersRESTData(DataSource):
                 logging.info(f"You got rate limited {url}. Waiting for 5 seconds...")
                 time.sleep(5)
                 return self.delete_to_endpoint(url)
-
             else:
-                logging.error(f"Task '{url}' Failed. Status code: {response.status_code}")
+                logging.error(f"Task '{url}' Failed. Status code: {response.status_code}, Response: {response.text}")
                 return None
+        except requests.exceptions.RequestException as e:
+            # Log an error message if there was a problem with the request
+            logging.error(f"Error {url}: {e}")
             
         except requests.exceptions.RequestException as e:
             # Log an error message if there was a problem with the request
@@ -227,11 +221,15 @@ class InteractiveBrokersRESTData(DataSource):
 
         return filtered_orders
 
-    def execute_order(self, order_data):
+    def execute_order(self, order_data): ## cooldown?
         url = f'{self.base_url}/iserver/account/{self.account_id}/orders'
         response = self.post_to_endpoint(url, order_data)
-        logging.info(order_data)
-        return response[0]["order_id"]
+        if response and isinstance(response, list) and "order_id" in response[0]:
+            return response[0]["order_id"]
+        else:
+            error_message = response.get('error', 'Unknown error occurred')
+            logging.error(f"Failed to execute order: {error_message}")
+            return None
     
     def delete_order(self, order):
         orderId = order.identifier
@@ -330,9 +328,29 @@ class InteractiveBrokersRESTData(DataSource):
     
     def get_conid_from_asset(self, asset: Asset):
         url = f'{self.base_url}/iserver/secdef/search?symbol={asset.symbol}'
-        response = self.get_from_endpoint(url, "Getting Asset ConId")
-        return int(response[0]["conid"])
-    
+        response = self.get_from_endpoint(url, "Getting Asset conid")
+
+        conid = int(response[0]["conid"])
+
+        expiration_date = asset.expiration.strftime("%Y%m%d")
+        expiration_month = asset.expiration.strftime("%b%y").upper()  # in MMMYY
+        strike = asset.strike
+
+        if asset.asset_type == "option":
+            url_for_expiry = f'{self.base_url}/iserver/secdef/info?conid={conid}&sectype=OPT&month={expiration_month}&right=C&strike={strike}'
+            contract_info = self.get_from_endpoint(url_for_expiry, "Getting expiration Date")
+
+            matching_contract = next((contract for contract in contract_info if contract["maturityDate"] == expiration_date), None)
+
+            if matching_contract:
+                return matching_contract['conid']
+            else:
+                logging.error(f"No matching contract found for expiration date {expiration_date}")
+            return None
+
+        elif asset.asset_type == "stock":
+            return conid
+
     def get_sectype_from_conid(self, conId):
         url = f'{self.base_url}/iserver/contract/{conId}/info'
         response = self.get_from_endpoint(url, "Getting SecType")
@@ -355,7 +373,7 @@ class InteractiveBrokersRESTData(DataSource):
             # https://www.interactivebrokers.com/campus/ibkr-api-page/webapi-ref/#tag/Trading-Market-Data/paths/~1iserver~1marketdata~1snapshot/get
         }
 
-        conId = self.get_conid_from_asset(asset) ## does this work for options? should this work for options?
+        conId = self.get_conid_from_asset(asset)
 
         fields_to_get = []
         for identifier, name in all_fields.items():
@@ -407,10 +425,9 @@ class InteractiveBrokersRESTData(DataSource):
         dict
            Quote of the asset, including the bid, and ask price.
         """
-        ## add greeks and similar
         
         result = self.get_market_snapshot(asset, ["bid", "ask"])
-        if result is None:
+        if not result:
             return None
         
         if result["bid"] == -1:

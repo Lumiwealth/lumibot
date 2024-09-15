@@ -98,6 +98,12 @@ class InteractiveBrokersRESTData(DataSource):
         
         logging.info("Connected to Client Portal")
 
+        # Suppress weird server warnings
+        url = f'{self.base_url}/iserver/questions/suppress'
+        json = {'messageIds': ['o451']}
+
+        self.post_to_endpoint(url, json=json)
+
     def is_authenticated(self):
         url = f'{self.base_url}/iserver/accounts'
         response = self.get_from_endpoint(url, "Auth Check", silent=True)
@@ -182,6 +188,10 @@ class InteractiveBrokersRESTData(DataSource):
             # Check if the request was successful
             if response.status_code == 200:
                 # Return the JSON response containing the account balances
+                if "error" in response.json() and "doesn't exist" in response.json()["error"]:
+                    logging.warning(f"Order ID doesn't exist: {response.json()['error']}")
+                    return None
+            
                 return response.json()
             elif response.status_code == 404:
                 logging.warning(f"{url} endpoint not found.")
@@ -225,9 +235,12 @@ class InteractiveBrokersRESTData(DataSource):
         url = f'{self.base_url}/iserver/account/{self.account_id}/orders'
         response = self.post_to_endpoint(url, order_data)
         if response and isinstance(response, list) and "order_id" in response[0]:
-            return response[0]["order_id"]
+            return response
         else:
-            error_message = response.get('error', 'Unknown error occurred')
+            try:
+                error_message = response[0].get('error', 'Unknown error occurred', 'message')
+            except Exception as e:
+                error_message = f"An error occurred while retrieving the error message: {str(e)}"
             logging.error(f"Failed to execute order: {error_message}")
             return None
     
@@ -326,6 +339,11 @@ class InteractiveBrokersRESTData(DataSource):
         response = self.get_market_snapshot(asset, [field])
         return response[field]
     
+    def get_spread_conid(self, conid):
+        url = f'{self.base_url}/iserver/secdef/info?conid={conid}'
+        response = self.get_from_endpoint(url, "Getting Asset Currency")
+        return SPREAD_CONID_MAP.get(response['currency'], None)
+
     def get_conid_from_asset(self, asset: Asset):
         url = f'{self.base_url}/iserver/secdef/search?symbol={asset.symbol}'
         response = self.get_from_endpoint(url, "Getting Asset conid")
@@ -349,8 +367,8 @@ class InteractiveBrokersRESTData(DataSource):
             return None
 
         elif asset.asset_type == "stock":
-            return conid
-
+            return (conid, currency)
+    
     def get_sectype_from_conid(self, conId):
         url = f'{self.base_url}/iserver/contract/{conId}/info'
         response = self.get_from_endpoint(url, "Getting SecType")

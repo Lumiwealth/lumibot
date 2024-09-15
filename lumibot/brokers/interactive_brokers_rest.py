@@ -28,6 +28,22 @@ ORDERTYPE_MAPPING = dict(
     trailing_stop="TRAIL",
 )
 
+SPREAD_CONID_MAP = {
+    "AUD": 61227077,
+    "CAD": 61227082,
+    "CHF": 61227087,
+    "CNH": 136000441,
+    "GBP": 58666491,
+    "HKD": 61227072,
+    "INR": 136000444,
+    "JPY": 61227069,
+    "KRW": 136000424,
+    "MXN": 136000449,
+    "SEK": 136000429,
+    "SGD": 426116555,
+    "USD": 28812380
+}
+
 class InteractiveBrokersREST(Broker):
     """
     Broker that connects to the Interactive Brokers REST API.
@@ -341,8 +357,7 @@ class InteractiveBrokersREST(Broker):
         
     def _submit_order(self, order: Order) -> Order:
         try:
-            order_data = self.get_order_data_from_orders(order)
-
+            order_data = self.get_order_data_from_orders([order])
             self._unprocessed_orders.append(order)
             order.identifier = self.data_source.execute_order(order_data)
             order.status = "submitted"
@@ -354,19 +369,35 @@ class InteractiveBrokersREST(Broker):
             return order
 
     def submit_orders(self, orders: list[Order], is_multileg=False, order_type="market", duration="day", price=None): ## add multileg
-        submitted_orders = []
-        for order in orders:
-            try:
-                order_data = self.get_order_data_from_orders(order)
+        ## cant place order if there is open order
+        try:
+            if is_multileg:
+                order_data = self.get_order_data_multileg(orders, order_type=order_type, duration=duration, price=price)
+                response = self.data_source.execute_order(order_data)
 
-                self._unprocessed_orders.append(order)
-                order.identifier = self.data_source.execute_order(order_data)
-                order.status = "submitted"
-                submitted_orders.append(order)
-            except Exception as e:
-                logging.error(colored(f"An error occurred while submitting the order: {str(e)}", "red"))
-                logging.error(colored(f"Error details:", "red"), exc_info=True)
-        return submitted_orders
+                ## may need a orders.child_orders[] implementation?
+                ## merge all orders into one?
+
+                ## temp solution
+                for order in orders:
+                    order.status = "submitted"
+                    order.identifier = response[0]['order_id']
+                    logging.info(order.identifier)
+                    self._unprocessed_orders.append(order)
+            else:
+                order_data = self.get_order_data_from_orders([order])
+                response = self.data_source.execute_order(order_data)
+            
+                order_id = 0
+                for order in orders:
+                    order.status = "submitted"
+                    order.identifier = response[order_id]['order_id']
+                    self._unprocessed_orders.append(order)
+                    order_id+=1
+
+        except Exception as e:
+            logging.error(colored(f"An error occurred while submitting the order: {str(e)}", "red"))
+            logging.error(colored(f"Error details:", "red"), exc_info=True)
 
     def cancel_order(self, order: Order) -> None:
         self.data_source.delete_order(order)
@@ -384,7 +415,7 @@ class InteractiveBrokersREST(Broker):
         
         return legs_dict
     
-    def get_order_data_from_orders(self, *orders):
+    def get_order_data_from_orders(self, orders: list[Order]):
         ## buy_to_open and sell_to_open not respected
         order_data = {
                 'orders': []
@@ -433,8 +464,78 @@ class InteractiveBrokersREST(Broker):
                 # Remove items with value None from order_data
                 data = {k: v for k, v in data.items() if v is not None}
                 order_data['orders'].append(data)
+        
             except Exception as e:
-                logging.error(colored(f"An error occurred while processing the order: {str(e)}", "red"))
+                logging.error(colored(f"An error occurred while processing the order: {str(e)}", "red"))            
+
+        return order_data
+
+    def get_order_data_multileg(self, orders: list[Order], order_type=None, duration=None, price=None):
+        ## buy_to_open and sell_to_open not respected
+        order_data = {
+                'orders': []
+            }
+
+        conid = self.data_source.get_conid_from_asset(orders[0].asset)
+        spread_conid = SPREAD_CONID_MAP[orders[0].quote.symbol]
+
+        # Build Conidex {spread_conid};;;{leg_conid1}/{ratio},{leg_conid2}/{ratio}
+        conidex = f'{spread_conid};;;'
+
+        first_order = True
+        for order in orders:
+            side = None
+            conid = None
+            
+            if order.is_buy_order():
+                side = "BUY"
+            elif order.is_sell_order():
+                side = "SELL"
+            else:
+                raise Exception("Order Side Not Found")
+                
+            conid = self.data_source.get_conid_from_asset(order.asset)
+            quantity = order.quantity
+            if first_order:
+                first_order = False
+            else:
+                conidex += ","
+
+            if side == "SELL":
+                quantity = -quantity
+
+            conidex += f'{conid}/{quantity}'
+
+            side = "BUY"
+                
+            if conid is None:
+                raise Exception("Order conid Not Found")
+
+            data = {
+                "conidex": conidex, # required
+                "quantity": 1, # required
+                "orderType": ORDERTYPE_MAPPING[order_type if order_type is not None else order.type], # required
+                "side": side, # required
+                "tif": duration.upper() if duration is not None else order.time_in_force.upper(), # required
+                "price": float(price) if price is not None else 0,
+                "auxPrice": order.stop_price,
+                "listingExchange": order.exchange
+                ### Add other necessary fields based on the Order object
+            }
+
+            '''
+            if order.trail_percent:
+                data["trailingType"] = "%"
+                data["trailingAmt"] = order.trail_percent
+
+            if order.trail_price:
+                data["trailingType"] = "amt"
+                data["trailingAmt"] = order.trail_price
+            ''' ## for later consideration
+
+        # Remove items with value None from order_data
+        data = {k: v for k, v in data.items() if v is not None}
+        order_data['orders'].append(data)   
 
         return order_data
         

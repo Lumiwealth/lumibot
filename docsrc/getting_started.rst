@@ -123,7 +123,7 @@ Step 7: Backtest the Strategy (Optional)
 
     backtesting_start = datetime(2020, 1, 1)
     backtesting_end = datetime(2020, 12, 31)
-    strategy.backtest(
+    strategy.run_backtest(
         YahooDataBacktesting,
         backtesting_start,
         backtesting_end,
@@ -188,7 +188,7 @@ Here it is all together:
 
     backtesting_start = datetime(2020, 1, 1)
     backtesting_end = datetime(2020, 12, 31)
-    strategy.backtest(
+    strategy.run_backtest(
         YahooDataBacktesting,
         backtesting_start,
         backtesting_end,
@@ -216,7 +216,7 @@ If you want to add trading fees to your backtesting, you can do so by setting up
 
     backtesting_start = datetime(2020, 1, 1)
     backtesting_end = datetime(2020, 12, 31)
-    strategy.backtest(
+    strategy.run_backtest(
         YahooDataBacktesting,
         backtesting_start,
         backtesting_end,
@@ -248,7 +248,7 @@ Once installed, you can use `yappi` to profile your code like this:
     #######
     # Run your code here, eg. a backtest
     #######
-    MachineLearningLongShort.backtest(
+    MachineLearningLongShort.run_backtest(
         PandasDataBacktesting,
         backtesting_start,
         backtesting_end,
@@ -259,9 +259,33 @@ Once installed, you can use `yappi` to profile your code like this:
     # Stop the profiler
     yappi.stop()
 
-    # Save the results
-    threads = yappi.get_thread_stats()
-    for thread in threads:
-        print(
-            "Function stats for (%s) (%d)" % (thread.name, thread.id)
-        )
+    # Save the results to files
+    yappi.get_func_stats().print_all()
+    yappi.get_thread_stats().print_all()
+
+    # Save the results to a file
+    yappi.get_func_stats().save("yappi.prof", type="pstat")
+
+To get the results of the profiling, you can use snakeviz to visualize the results. You can install snakeviz with the following command in your terminal:
+
+.. code-block:: bash
+
+    pip install snakeviz
+
+Once installed, you can use snakeviz to visualize the results like this:
+
+.. code-block:: bash
+
+    snakeviz yappi.prof
+
+This will open a web browser with a visualization of the profiling results.
+
+.. note::
+
+   **Profiling can slow down your code**, so it is recommended to only use it when you need to.
+
+.. note::
+
+    **Profiling can be complex**, so it is recommended to read the `yappi documentation <
+
+

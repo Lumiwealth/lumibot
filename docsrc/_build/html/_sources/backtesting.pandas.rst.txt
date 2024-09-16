@@ -159,8 +159,6 @@ Then, the startegy and backtesting code would look something like this:
     from lumibot.backtesting import BacktestingBroker, PandasDataBacktesting
     from lumibot.entities import Asset, Data
     from lumibot.strategies import Strategy
-    from lumibot.traders import Trader
-
 
     # A simple strategy that buys SPY on the first day
     class MyStrategy(Strategy):
@@ -188,18 +186,11 @@ Then, the startegy and backtesting code would look something like this:
     backtesting_start = pandas_data[asset].datetime_start
     backtesting_end = pandas_data[asset].datetime_end
 
-    # Run the backtesting
-    trader = Trader(backtest=True)
-    data_source = PandasDataBacktesting(
+    # Run the backtest
+    result = MyStrategy.run_backtest(
+        PandasDataBacktesting,
+        backtesting_start,
+        backtesting_end,
         pandas_data=pandas_data,
-        datetime_start=backtesting_start,
-        datetime_end=backtesting_end,
     )
-    broker = BacktestingBroker(data_source)
-    strat = MyStrategy(
-        broker=broker,
-        budget=100000,
-    )
-    trader.add_strategy(strat)
-    trader.run_all()
 

@@ -170,9 +170,15 @@ class ThetaDataBacktesting(PandasData):
                 dt=date_time_now,
                 datastyle="quote"
             )
+
+            # Check if we have data
+            if df_ohlc is None or df_quote is None:
+                return None
+
+            # Combine the ohlc and quote data
             df = pd.concat([df_ohlc, df_quote], axis=1, join='inner')
         except Exception as e:
-            logging.info(traceback.format_exc())
+            logging.error(traceback.format_exc())
             raise Exception("Error getting data from ThetaData") from e
 
         if df is None:

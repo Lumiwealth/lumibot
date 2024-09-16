@@ -31,6 +31,8 @@ from ..credentials import (
     DISCORD_WEBHOOK_URL, 
     DB_CONNECTION_STR,
     MARKET,
+    HIDE_POSITIONS,
+    HIDE_TRADES,
 )
     
 class CustomLoggerAdapter(logging.LoggerAdapter):
@@ -230,6 +232,9 @@ class _Strategy:
         if self._name == None:
             self._name = STRATEGY_NAME
 
+        self.hide_positions = HIDE_POSITIONS
+        self.hide_trades = HIDE_TRADES
+
         if self._name is None:
             self._name = self.__class__.__name__
 
@@ -262,6 +267,11 @@ class _Strategy:
             self.strategy_id = strategy_id
 
         self._quote_asset = quote_asset
+
+        # Check if self.broker is set
+        if self.broker is None:
+            logger.error(colored("No broker is set. Please set a broker using environment variables, secrets or by passing it as an argument.", "red"))
+            raise ValueError("No broker is set. Please set a broker using environment variables, secrets or by passing it as an argument.")
 
         # Check if the quote_assets exists on the broker
         if not hasattr(self.broker, "quote_assets"):
@@ -533,19 +543,22 @@ class _Strategy:
             assets_original = [position.asset for position in positions]
             # Set the base currency for crypto valuations.
 
-            assets = []
-            asset_is_option = False
+            prices = {}
             for asset in assets_original:
                 if asset != self.quote_asset:
+                    asset_is_option = False
                     if asset.asset_type == "crypto" or asset.asset_type == "forex":
                         asset = (asset, self.quote_asset)
                     elif asset.asset_type == "option":
                         asset_is_option = True
-                    assets.append(asset)
-            if self.broker.option_source and asset_is_option:
-                prices = self.broker.option_source.get_last_prices(assets)
-            else:
-                prices = self.broker.data_source.get_last_prices(assets)
+
+                    if self.broker.option_source is not None and asset_is_option:
+                        price = self.broker.option_source.get_last_price(asset)
+                        prices[asset] = price
+                    else:
+                        price = self.broker.data_source.get_last_price(asset)
+                        prices[asset] = price
+                        
             for position in positions:
                 # Turn the asset into a tuple if it's a crypto asset
                 asset = (
@@ -944,8 +957,10 @@ class _Strategy:
 
         Returns
         -------
-        Backtest
-            The backtest object.
+        tuple of (dict, Strategy)
+            A tuple of the analysis dictionary and the strategy object. The analysis dictionary contains the
+            analysis of the strategy returns. The strategy object is the strategy object that was backtested, where 
+            you can access the strategy returns and other attributes.
 
         Examples
         --------
@@ -1080,13 +1095,13 @@ class _Strategy:
             )
 
         # Make sure thetadata_username and thetadata_password are set if using ThetaDataBacktesting
-        if use_other_option_source and optionsource_class == ThetaDataBacktesting and (thetadata_username is None or thetadata_password is None):
+        if thetadata_username is None or thetadata_password is None:
             # Try getting the Theta Data credentials from credentials
             thetadata_username = THETADATA_CONFIG.get('THETADATA_USERNAME')
             thetadata_password = THETADATA_CONFIG.get('THETADATA_PASSWORD')
             
             # Check again if theta data username and pass are set
-            if thetadata_username is None or thetadata_password is None:
+            if (thetadata_username is None or thetadata_password is None) and (datasource_class == ThetaDataBacktesting or optionsource_class == ThetaDataBacktesting):
                 raise ValueError(
                     "Please set `thetadata_username` and `thetadata_password` in the backtest() function if "
                     "you are using ThetaDataBacktesting. If you don't have one, you can do registeration "
@@ -1111,15 +1126,36 @@ class _Strategy:
 
         trader = Trader(logfile=logfile, backtest=True)
 
-        data_source = datasource_class(
-            backtesting_start,
-            backtesting_end,
-            config=config,
-            auto_adjust=auto_adjust,
-            api_key=polygon_api_key,
-            pandas_data=pandas_data,
-            **kwargs,
-        )
+        if datasource_class == PolygonDataBacktesting:
+            data_source = datasource_class(
+                backtesting_start,
+                backtesting_end,
+                config=config,
+                auto_adjust=auto_adjust,
+                api_key=polygon_api_key,
+                pandas_data=pandas_data,
+                **kwargs,
+            )
+        elif datasource_class == ThetaDataBacktesting or optionsource_class == ThetaDataBacktesting:
+            data_source = datasource_class(
+                backtesting_start,
+                backtesting_end,
+                config=config,
+                auto_adjust=auto_adjust,
+                username=thetadata_username,
+                password=thetadata_password,
+                pandas_data=pandas_data,
+                **kwargs,
+            )
+        else:
+            data_source = datasource_class(
+                backtesting_start,
+                backtesting_end,
+                config=config,
+                auto_adjust=auto_adjust,
+                pandas_data=pandas_data,
+                **kwargs,
+            )
 
         if not use_other_option_source:
             backtesting_broker = BacktestingBroker(data_source)
@@ -1320,6 +1356,8 @@ class _Strategy:
         indicators_file=None,
         show_indicators=True,
         save_logfile=False,
+        thetadata_username=None,
+        thetadata_password=None,
         **kwargs,
     ):
         """Backtest a strategy.
@@ -1394,6 +1432,10 @@ class _Strategy:
         save_logfile : bool
             Whether to save the logs to a file. If True, the logs will be saved to the logs directory. Defaults to False.
             Turning on this option will slow down the backtest.
+        thetadata_username : str
+            The username to use for the ThetaDataBacktesting datasource. Only required if you are using ThetaDataBacktesting as the datasource_class.
+        thetadata_password : str
+            The password to use for the ThetaDataBacktesting datasource. Only required if you are using ThetaDataBacktesting as the datasource_class.
 
         Returns
         -------
@@ -1458,6 +1500,8 @@ class _Strategy:
             indicators_file=indicators_file,
             show_indicators=show_indicators,
             save_logfile=save_logfile,
+            thetadata_username=thetadata_username,
+            thetadata_password=thetadata_password,
             **kwargs,
         )
         return results

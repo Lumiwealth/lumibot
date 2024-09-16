@@ -77,7 +77,7 @@ class InteractiveBrokers(Broker):
             ip = config["IP"]
             socket_port = config["SOCKET_PORT"]
             client_id = config["CLIENT_ID"]
-            subaccount = config["IB_SUBACCOUNT"]
+            subaccount = config.get("IB_SUBACCOUNT")
 
         else:
             ip = config.IP

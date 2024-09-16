@@ -359,11 +359,13 @@ class StrategyExecutor(Thread):
         self.strategy.initialize(**safe_params_to_pass)
 
     @lifecycle_method
+    @trace_stats
     def _before_market_opens(self):
         self.strategy.log_message("Executing the before_market_opens lifecycle method")
         self.strategy.before_market_opens()
 
     @lifecycle_method
+    @trace_stats
     def _before_starting_trading(self):
         self.strategy.log_message("Executing the before_starting_trading lifecycle method")
         self.strategy.before_starting_trading()
@@ -454,16 +456,19 @@ class StrategyExecutor(Thread):
             self._on_bot_crash(e)
 
     @lifecycle_method
+    @trace_stats
     def _before_market_closes(self):
         self.strategy.log_message("Executing the before_market_closes lifecycle method")
         self.strategy.before_market_closes()
 
     @lifecycle_method
+    @trace_stats
     def _after_market_closes(self):
         self.strategy.log_message("Executing the after_market_closes lifecycle method")
         self.strategy.after_market_closes()
 
     @lifecycle_method
+    @trace_stats
     def _on_strategy_end(self):
         self.strategy.log_message("Executing the on_strategy_end lifecycle method")
         self.strategy.on_strategy_end()
@@ -551,8 +556,13 @@ class StrategyExecutor(Thread):
                 Account Value = ${portfolio_value:,.0f}
                 """
 
-        # Send the message to Discord
-        self.strategy.send_discord_message(message, silent=False)
+        # Check if we should hide trades
+        if self.strategy.hide_trades:
+            message = f"Trade executed but hidden due to hide_trades setting. Account Value = ${portfolio_value:,.0f}"
+            self.strategy.send_discord_message(message, silent=False)
+        else:
+            # Send the message to Discord
+            self.strategy.send_discord_message(message, silent=False)
 
         # Let our listener know that an order has been filled (set in the callback)
         if hasattr(self.strategy, "_filled_order_callback") and callable(self.strategy._filled_order_callback):

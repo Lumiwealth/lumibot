@@ -54,22 +54,23 @@ Finally, run the backtest:
 
 .. code-block:: python
 
-    trader = Trader(backtest=True)
-    data_source = ThetaDataBacktesting(
-            datetime_start=backtesting_start,
-            datetime_end=backtesting_end,
-            username=THETADATA_USERNAME,
-            password=THETADATA_PASSWORD,
-    )
-    broker = BacktestingBroker(data_source)
-    my_strat = MyStrategy(
-        broker=broker,
-        backtesting_start=backtesting_start,
-        backtesting_end=backtesting_end,
-        benchmark_asset="SPY",
-    )
-    trader.add_strategy(my_strat)
-    trader.run_all()
+    result = MyStrategy.run_backtest(
+        ThetaDataBacktesting,
+        backtesting_start,
+        backtesting_end,
+        benchmark_asset="SPY")
+
+Alternatively, if you want to use polygon for stock data, and thetadata for option data, 
+you can pass a dictionary with both data sources as the first argument to `run_backtest`. 
+In this example, we are using thetadata for both stock and option data.
+
+.. code-block:: python
+
+    result = MyStrategy.run_backtest(
+        {"STOCK":PolygonDataBacktesting,"OPTION":ThetaDataBacktesting},
+        backtesting_start,
+        backtesting_end,
+        benchmark_asset="SPY")
 
 Here's the full code:
 
@@ -104,21 +105,11 @@ Here's the full code:
     if __name__ == "__main__":
         backtesting_start = datetime(2023, 1, 1)
         backtesting_end = datetime(2023, 5, 1)
-
-        trader = Trader(backtest=True)
-        data_source = ThetaDataBacktesting(
-            datetime_start=backtesting_start,
-            datetime_end=backtesting_end,
-            username=THETADATA_USERNAME,
-            password=THETADATA_PASSWORD,
-        )
-        broker = BacktestingBroker(data_source)
-        my_strat = MyStrategy(
-            broker=broker,
-            benchmark_asset="SPY",
-        )
-        trader.add_strategy(my_strat)
-        trader.run_all()
+        result = MyStrategy.run_backtest(
+            ThetaDataBacktesting,
+            backtesting_start,
+            backtesting_end,
+            benchmark_asset="SPY")
 
 .. important::
    

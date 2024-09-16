@@ -44,17 +44,17 @@ SPREAD_CONID_MAP = {
     "USD": 28812380
 }
 
+ASSET_CLASS_MAPPING = {
+    "STK": Asset.AssetType.STOCK,
+    "OPT": Asset.AssetType.OPTION,
+    "FUT": Asset.AssetType.FUTURE,
+    "CASH": Asset.AssetType.FOREX,
+}
+
 class InteractiveBrokersREST(Broker):
     """
     Broker that connects to the Interactive Brokers REST API.
     """
-
-    ASSET_CLASS_MAPPING = {
-        "STK": Asset.AssetType.STOCK,
-        "OPT": Asset.AssetType.OPTION,
-        "FUT": Asset.AssetType.FUTURE,
-        "CASH": Asset.AssetType.FOREX,
-    }
 
     NAME = "InteractiveBrokersREST"
 
@@ -103,7 +103,7 @@ class InteractiveBrokersREST(Broker):
         # {'commoditymarketvalue': 0.0, 'futuremarketvalue': 677.49, 'settledcash': 202142.17, 'exchangerate': 1, 'sessionid': 1, 'cashbalance': 202142.17, 'corporatebondsmarketvalue': 0.0, 'warrantsmarketvalue': 0.0, 'netliquidationvalue': 202464.67, 'interest': 452.9, 'unrealizedpnl': 12841.38, 'stockmarketvalue': -130.4, 'moneyfunds': 0.0, 'currency': 'USD', 'realizedpnl': 0.0, 'funds': 0.0, 'acctcode': 'DU4299039', 'issueroptionsmarketvalue': 0.0, 'key': 'LedgerList', 'timestamp': 1724382002, 'severity': 0, 'stockoptionmarketvalue': 0.0, 'futuresonlypnl': 677.49, 'tbondsmarketvalue': 0.0, 'futureoptionmarketvalue': 0.0, 'cashbalancefxsegment': 0.0, 'secondkey': 'USD', 'tbillsmarketvalue': 0.0, 'endofbundle': 1, 'dividends': 0.0, 'cryptocurrencyvalue': 0.0}
 
         # Get the cash balance for the quote asset
-        cash = balances_for_quote_asset['cashbalance']
+        cash = balances_for_quote_asset['settledcash']
 
         # Get the net liquidation value for the quote asset
         total_liquidation_value = balances_for_quote_asset['netliquidationvalue']
@@ -133,7 +133,7 @@ class InteractiveBrokersREST(Broker):
                 leg_secType = self.data_source.get_sectype_from_conid(leg)
                 child_order = self._parse_order_object(strategy_name=strategy_name,
                                                        response=response,
-                                                       quantity=float(ratio) * totalQuantity,
+                                                       quantity=float(ratio) * totalQuantity, ## maybe not how ratios work
                                                        conId=leg,
                                                        secType=leg_secType
                                                        )
@@ -158,11 +158,10 @@ class InteractiveBrokersREST(Broker):
         symbol=response['ticker']
         currency=response['cashCcy']
         time_in_force=response['timeInForce']
-        limit_price = response['price'] if 'price' in response else None
-        stop_price = response['stop_price'] if 'stop_price' in response else None
-        good_till_date = response['goodTillDate'] if 'goodTillDate' in response else None
-        secType = self.ASSET_CLASS_MAPPING[secType]
-
+        limit_price = response['price'] if 'price' in response and response['price'] != '' else None
+        stop_price = response['stop_price'] if 'stop_price' in response and response['stop_price'] != '' else None
+        good_till_date = response['goodTillDate'] if 'goodTillDate' in response and response['goodTillDate'] != '' else None
+        #secType = ASSET_CLASS_MAPPING[secType]
         ## rethink the fields
         
         contract_details = self.data_source.get_contract_details(conId)
@@ -201,12 +200,12 @@ class InteractiveBrokersREST(Broker):
             ),
             quantity = Decimal(quantity),
             side = side.lower(),
-            limit_price = limit_price if limit_price != 0 else None,
-            stop_price = stop_price if stop_price != 0 else None,
+            limit_price = limit_price,
+            stop_price = stop_price,
             time_in_force = time_in_force,
             good_till_date = good_till_date,
             quote = Asset(symbol=currency, asset_type="forex"),
-        )   
+        )
 
         return order
 
@@ -320,7 +319,7 @@ class InteractiveBrokersREST(Broker):
         for position in positions:
             # Create the Asset object for the position
             symbol = position['contractDesc']
-            asset_class = self.ASSET_CLASS_MAPPING[position['assetClass']]
+            asset_class = ASSET_CLASS_MAPPING[position['assetClass']]
 
             # If asset class is stock, create a stock asset
             if asset_class == Asset.AssetType.STOCK:
@@ -358,9 +357,10 @@ class InteractiveBrokersREST(Broker):
     def _submit_order(self, order: Order) -> Order:
         try:
             order_data = self.get_order_data_from_orders([order])
-            self._unprocessed_orders.append(order)
             order.identifier = self.data_source.execute_order(order_data)
             order.status = "submitted"
+            self._unprocessed_orders.append(order)
+
             return order
         
         except Exception as e:
@@ -382,7 +382,6 @@ class InteractiveBrokersREST(Broker):
                 for order in orders:
                     order.status = "submitted"
                     order.identifier = response[0]['order_id']
-                    logging.info(order.identifier)
                     self._unprocessed_orders.append(order)
             else:
                 order_data = self.get_order_data_from_orders([order])
@@ -506,32 +505,32 @@ class InteractiveBrokersREST(Broker):
 
             conidex += f'{conid}/{quantity}'
 
-            side = "BUY"
-                
             if conid is None:
                 raise Exception("Order conid Not Found")
+            
+        side = "BUY"
+                
+        data = {
+            "conidex": conidex, # required
+            "quantity": 1, # required
+            "orderType": ORDERTYPE_MAPPING[order_type if order_type is not None else order.type], # required
+            "side": side, # required
+            "tif": duration.upper() if duration is not None else order.time_in_force.upper(), # required
+            "price": float(price),
+            "auxPrice": order.stop_price,
+            "listingExchange": order.exchange
+            ### Add other necessary fields based on the Order object
+        }
 
-            data = {
-                "conidex": conidex, # required
-                "quantity": 1, # required
-                "orderType": ORDERTYPE_MAPPING[order_type if order_type is not None else order.type], # required
-                "side": side, # required
-                "tif": duration.upper() if duration is not None else order.time_in_force.upper(), # required
-                "price": float(price) if price is not None else 0,
-                "auxPrice": order.stop_price,
-                "listingExchange": order.exchange
-                ### Add other necessary fields based on the Order object
-            }
+        '''
+        if order.trail_percent:
+            data["trailingType"] = "%"
+            data["trailingAmt"] = order.trail_percent
 
-            '''
-            if order.trail_percent:
-                data["trailingType"] = "%"
-                data["trailingAmt"] = order.trail_percent
-
-            if order.trail_price:
-                data["trailingType"] = "amt"
-                data["trailingAmt"] = order.trail_price
-            ''' ## for later consideration
+        if order.trail_price:
+            data["trailingType"] = "amt"
+            data["trailingAmt"] = order.trail_price
+        ''' ## for later consideration
 
         # Remove items with value None from order_data
         data = {k: v for k, v in data.items() if v is not None}

@@ -226,7 +226,7 @@ class InteractiveBrokersRESTData(DataSource):
         ## Filters don't work, we'll filter on our own
         filtered_orders = []
         for order in response['orders']:
-            if order['status'] != "Cancelled":
+            if order['status'] not in ["Cancelled", "Filled"]:
                 filtered_orders.append(order)
 
         return filtered_orders
@@ -238,7 +238,10 @@ class InteractiveBrokersRESTData(DataSource):
             return response
         else:
             try:
-                error_message = response[0].get('error', 'Unknown error occurred', 'message')
+                if isinstance(response, dict):
+                    error_message = response.get('error', 'Unknown error occurred')
+                else:
+                    error_message = 'Unknown error occurred'
             except Exception as e:
                 error_message = f"An error occurred while retrieving the error message: {str(e)}"
             logging.error(f"Failed to execute order: {error_message}")
@@ -257,8 +260,13 @@ class InteractiveBrokersRESTData(DataSource):
         """
         Retrieves the current positions for a given account ID.
         """
+        ## invalidate cache
+        url = f'{self.base_url}/portfolio/{self.account_id}/positions/invalidate'
+        response = self.post_to_endpoint(url, {})
+
         url = f"{self.base_url}/portfolio/{self.account_id}/positions"
         response = self.get_from_endpoint(url, "Getting account positions")
+
         return response
     
     def stop(self):        

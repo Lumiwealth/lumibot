@@ -5,6 +5,7 @@ from lumibot.entities import Order, Asset, Position
 from lumibot.data_sources import InteractiveBrokersRESTData
 import datetime
 from decimal import Decimal
+from math import gcd
 
 TYPE_MAP = dict(
     stock="STK",
@@ -130,10 +131,11 @@ class InteractiveBrokersREST(Broker):
             legs = self.decode_conidex(response["conidex"])
             for leg, ratio in legs.items():
                 # Create the contract object with just the conId
+                ## all legs using the same response could be an issue i think
                 leg_secType = self.data_source.get_sectype_from_conid(leg)
                 child_order = self._parse_order_object(strategy_name=strategy_name,
                                                        response=response,
-                                                       quantity=float(ratio) * totalQuantity, ## maybe not how ratios work
+                                                       quantity=float(ratio), ## maybe not how ratios work
                                                        conId=leg,
                                                        secType=leg_secType
                                                        )
@@ -141,10 +143,10 @@ class InteractiveBrokersREST(Broker):
 
         else:
             order = self._parse_order_object(strategy_name=strategy_name, 
-                                             response=response,
                                              quantity=totalQuantity,
                                              conId=response['conid'],
-                                             secType=asset_type
+                                             secType=asset_type,
+                                             response=response
                                              )
         
         order._transmitted = True
@@ -154,14 +156,14 @@ class InteractiveBrokersREST(Broker):
         return order
 
     def _parse_order_object(self, strategy_name, response, quantity, secType, conId):
-        side=response['side']
-        symbol=response['ticker']
+        side=response['side'] #oi
+        symbol=response['ticker'] #oi
         currency=response['cashCcy']
         time_in_force=response['timeInForce']
         limit_price = response['price'] if 'price' in response and response['price'] != '' else None
         stop_price = response['stop_price'] if 'stop_price' in response and response['stop_price'] != '' else None
         good_till_date = response['goodTillDate'] if 'goodTillDate' in response and response['goodTillDate'] != '' else None
-        #secType = ASSET_CLASS_MAPPING[secType]
+        secType = ASSET_CLASS_MAPPING[secType]
         ## rethink the fields
         
         contract_details = self.data_source.get_contract_details(conId)
@@ -357,7 +359,8 @@ class InteractiveBrokersREST(Broker):
     def _submit_order(self, order: Order) -> Order:
         try:
             order_data = self.get_order_data_from_orders([order])
-            order.identifier = self.data_source.execute_order(order_data)
+            order_id = self.data_source.execute_order(order_data)[0]["order_id"]
+            order.identifier = order_id
             order.status = "submitted"
             self._unprocessed_orders.append(order)
 
@@ -369,24 +372,26 @@ class InteractiveBrokersREST(Broker):
             return order
 
     def submit_orders(self, orders: list[Order], is_multileg=False, order_type="market", duration="day", price=None): ## add multileg
-        ## cant place order if there is open order
         try:
             if is_multileg:
                 order_data = self.get_order_data_multileg(orders, order_type=order_type, duration=duration, price=price)
                 response = self.data_source.execute_order(order_data)
+                logging.info("WEIRD RESPONSE") ## this returns different stuff every time
+                logging.info(response)
+                order_id = response[0]["order_id"]
 
-                ## may need a orders.child_orders[] implementation?
-                ## merge all orders into one?
+                order = Order(orders[0].strategy)
+                order.order_class = Order.OrderClass.MULTILEG
+                order.child_orders = orders
 
-                ## temp solution
-                for order in orders:
-                    order.status = "submitted"
-                    order.identifier = response[0]['order_id']
-                    self._unprocessed_orders.append(order)
+                order.status = "submitted"
+                order.identifier = order_id
+                self._unprocessed_orders.append(order)
             else:
                 order_data = self.get_order_data_from_orders([order])
                 response = self.data_source.execute_order(order_data)
-            
+
+                ## Could be a problematic system
                 order_id = 0
                 for order in orders:
                     order.status = "submitted"
@@ -481,7 +486,9 @@ class InteractiveBrokersREST(Broker):
         # Build Conidex {spread_conid};;;{leg_conid1}/{ratio},{leg_conid2}/{ratio}
         conidex = f'{spread_conid};;;'
 
-        first_order = True
+        # conid:quantity
+        ratios = []
+
         for order in orders:
             side = None
             conid = None
@@ -495,24 +502,33 @@ class InteractiveBrokersREST(Broker):
                 
             conid = self.data_source.get_conid_from_asset(order.asset)
             quantity = order.quantity
+
+            if side == "SELL":
+                quantity = -quantity
+            
+            ##
+            ratios.append((conid, quantity))
+
+        # Fixing order_quantity
+        quantities = []
+        for _, quant in ratios:
+            quantities.append(quant)
+
+        order_quantity = gcd(*quantities)
+
+        first_order = True
+        for conid, quantity in ratios:
             if first_order:
                 first_order = False
             else:
                 conidex += ","
+            conidex += f'{conid}/{quantity // order_quantity}'
 
-            if side == "SELL":
-                quantity = -quantity
-
-            conidex += f'{conid}/{quantity}'
-
-            if conid is None:
-                raise Exception("Order conid Not Found")
-            
         side = "BUY"
                 
         data = {
             "conidex": conidex, # required
-            "quantity": 1, # required
+            "quantity": order_quantity, # required
             "orderType": ORDERTYPE_MAPPING[order_type if order_type is not None else order.type], # required
             "side": side, # required
             "tif": duration.upper() if duration is not None else order.time_in_force.upper(), # required

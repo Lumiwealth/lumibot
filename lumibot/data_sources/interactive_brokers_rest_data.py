@@ -100,7 +100,7 @@ class InteractiveBrokersRESTData(DataSource):
 
         # Suppress weird server warnings
         url = f'{self.base_url}/iserver/questions/suppress'
-        json = {'messageIds': ['o451']}
+        json = {'messageIds': ['o451', 'o383']}
 
         self.post_to_endpoint(url, json=json)
 
@@ -121,7 +121,7 @@ class InteractiveBrokersRESTData(DataSource):
         url = f"{self.base_url}/portal/account/summary?accountId={self.account_id}"
         response = self.get_from_endpoint(url, "Getting account info")
         return response
-        
+            
     def get_account_balances(self):
         """
         Retrieves the account balances for a given account ID.
@@ -224,6 +224,7 @@ class InteractiveBrokersRESTData(DataSource):
             return None
 
         ## Filters don't work, we'll filter on our own
+
         filtered_orders = []
         for order in response['orders']:
             if order['status'] not in ["Cancelled", "Filled"]:
@@ -231,20 +232,28 @@ class InteractiveBrokersRESTData(DataSource):
 
         return filtered_orders
 
+    def get_order_info(self, orderid):
+        url = f'{self.base_url}/iserver/account/order/status/{orderid}'
+        response = self.get_from_endpoint(url, "Getting Order Info")
+        return response
+        
     def execute_order(self, order_data): ## cooldown?
         url = f'{self.base_url}/iserver/account/{self.account_id}/orders'
         response = self.post_to_endpoint(url, order_data)
-        if response and isinstance(response, list) and "order_id" in response[0]:
-            return response
-        else:
+        
+        if response is not None:
+            ## urgent fix
             try:
-                if isinstance(response, dict):
-                    error_message = response.get('error', 'Unknown error occurred')
+                if isinstance(response, list):
+                    return response
                 else:
-                    error_message = 'Unknown error occurred'
+                    return response.get('orders')
             except Exception as e:
                 error_message = f"An error occurred while retrieving the error message: {str(e)}"
-            logging.error(f"Failed to execute order: {error_message}")
+                logging.error(f"Failed to execute order: {error_message}")
+                return None
+        else:
+            logging.error("Failed to execute order: No response from endpoint.")
             return None
     
     def delete_order(self, order):
@@ -375,7 +384,7 @@ class InteractiveBrokersRESTData(DataSource):
             return None
 
         elif asset.asset_type == "stock":
-            return (conid, currency)
+            return conid
     
     def get_sectype_from_conid(self, conId):
         url = f'{self.base_url}/iserver/contract/{conId}/info'

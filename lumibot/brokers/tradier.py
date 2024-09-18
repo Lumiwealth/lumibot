@@ -218,7 +218,56 @@ class Tradier(Broker):
         tag = "".join([c if c.isalnum() or c == "-" else "-" for c in tag])
 
         try:
-            if order.asset.asset_type == "stock":
+            # Check if the order is an OCO order
+            if isinstance(order.order_class, str) and order.order_class.lower() == "oco":
+                # Create the legs for the OCO order
+                legs = []
+                for child_order in order.child_orders:
+                    if child_order.asset is None:
+                        logging.error(f"Asset {child_order.asset} not supported by Tradier.")
+                        return None
+                    
+                    # Check if the child order is an option or stock
+                    if child_order.asset.asset_type == "option":
+                        # Create the options symbol
+                        option_symbol = create_options_symbol(
+                            child_order.asset.symbol, child_order.asset.expiration, child_order.asset.right, child_order.asset.strike
+                        )
+
+                        # Create the leg
+                        leg = OrderLeg(
+                            option_symbol=option_symbol,
+                            quantity=child_order.quantity,
+                            side=self._lumi_side2tradier(child_order),
+                            price=child_order.limit_price,
+                            stop=child_order.stop_price,
+                            type=child_order.type,
+                        )
+                        legs.append(leg)
+
+                    elif child_order.asset.asset_type == "stock":
+                        # Make sure the symol is upper case
+                        symbol = child_order.asset.symbol.upper() 
+
+                        # Create the leg
+                        leg = OrderLeg(
+                            stock_symbol=symbol,
+                            quantity=child_order.quantity,
+                            side=child_order.side,
+                            price=child_order.limit_price,
+                            stop=child_order.stop_price,
+                            type=child_order.type,
+                        )
+                        legs.append(leg)
+
+                # Place the OCO order
+                order_response = self.tradier.orders.oco_order(
+                    duration=order.time_in_force,
+                    legs=legs,
+                    tag=tag,
+                )
+
+            elif order.asset is not None and order.asset.asset_type == "stock":
                 # Make sure the symol is upper case
                 symbol = order.asset.symbol.upper() 
 
@@ -233,7 +282,8 @@ class Tradier(Broker):
                     stop_price=order.stop_price,
                     tag=tag,
                 )
-            elif order.asset.asset_type == "option":
+
+            elif order.asset is not None and order.asset.asset_type == "option":
                 tradier_side = self._lumi_side2tradier(order)
                 stock_symbol = order.asset.symbol
                 option_symbol = create_options_symbol(
@@ -256,7 +306,9 @@ class Tradier(Broker):
                     tag=tag,
                 )
             else:
-                raise ValueError(f"Asset type {order.asset.asset_type} not supported by Tradier.")
+                # Log the error and return None
+                logging.error(f"Asset {order.asset} not supported by Tradier.")
+                return None
 
             order.identifier = order_response["id"]
             order.status = "submitted"

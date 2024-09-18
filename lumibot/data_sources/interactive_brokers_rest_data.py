@@ -223,8 +223,7 @@ class InteractiveBrokersRESTData(DataSource):
         if response is None or response == []:
             return None
 
-        ## Filters don't work, we'll filter on our own
-
+        # Filters don't work, we'll filter on our own
         filtered_orders = []
         for order in response['orders']:
             if order['status'] not in ["Cancelled", "Filled"]:
@@ -241,19 +240,24 @@ class InteractiveBrokersRESTData(DataSource):
         url = f'{self.base_url}/iserver/account/{self.account_id}/orders'
         response = self.post_to_endpoint(url, order_data)
         
-        if response is not None:
-            ## urgent fix
-            try:
-                if isinstance(response, list):
-                    return response
-                else:
-                    return response.get('orders')
-            except Exception as e:
-                error_message = f"An error occurred while retrieving the error message: {str(e)}"
-                logging.error(f"Failed to execute order: {error_message}")
-                return None
+        if response is None:
+            logging.error(f"Failed to execute order: no response from endpoint")
+            return None
+        
+        elif "error" in response:
+            logging.error(f"Failed to execute order: {response['error']}")
+            return None
+        
+        elif isinstance(response, list) and 'order_id' in response[0]:
+            logging.info("Order executed successfully")
+            return response
+        
+        elif "orders" in response: ## could be useless?
+            logging.info("Order executed successfully")
+            return response.get('orders')
+        
         else:
-            logging.error("Failed to execute order: No response from endpoint.")
+            logging.error(f"Failed to execute order: {response}")
             return None
     
     def delete_order(self, order):
@@ -269,9 +273,11 @@ class InteractiveBrokersRESTData(DataSource):
         """
         Retrieves the current positions for a given account ID.
         """
-        ## invalidate cache
+        # invalidate cache
+        '''
         url = f'{self.base_url}/portfolio/{self.account_id}/positions/invalidate'
         response = self.post_to_endpoint(url, {})
+        '''
 
         url = f"{self.base_url}/portfolio/{self.account_id}/positions"
         response = self.get_from_endpoint(url, "Getting account positions")

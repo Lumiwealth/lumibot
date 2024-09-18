@@ -376,20 +376,23 @@ class InteractiveBrokersREST(Broker):
             if is_multileg:
                 order_data = self.get_order_data_multileg(orders, order_type=order_type, duration=duration, price=price)
                 response = self.data_source.execute_order(order_data)
-                logging.info("WEIRD RESPONSE") ## this returns different stuff every time
-                logging.info(response)
-                order_id = response[0]["order_id"]
+                if response is None:
+                    return None
 
                 order = Order(orders[0].strategy)
                 order.order_class = Order.OrderClass.MULTILEG
                 order.child_orders = orders
-
                 order.status = "submitted"
-                order.identifier = order_id
+                order.identifier = response[0]["order_id"]
+
                 self._unprocessed_orders.append(order)
+                return [order]
+            
             else:
                 order_data = self.get_order_data_from_orders([order])
                 response = self.data_source.execute_order(order_data)
+                if response is None:
+                    return None
 
                 ## Could be a problematic system
                 order_id = 0
@@ -398,6 +401,8 @@ class InteractiveBrokersREST(Broker):
                     order.identifier = response[order_id]['order_id']
                     self._unprocessed_orders.append(order)
                     order_id+=1
+
+                return orders
 
         except Exception as e:
             logging.error(colored(f"An error occurred while submitting the order: {str(e)}", "red"))
@@ -420,7 +425,6 @@ class InteractiveBrokersREST(Broker):
         return legs_dict
     
     def get_order_data_from_orders(self, orders: list[Order]):
-        ## buy_to_open and sell_to_open not respected
         order_data = {
                 'orders': []
             }

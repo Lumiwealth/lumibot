@@ -65,10 +65,10 @@ def get_price_data(
     df_feather = None
     cache_file = build_cache_filename(asset, timespan, datastyle)
     if cache_file.exists():
-        logging.info(
-            f"\nLoading '{datastyle}' pricing data for {asset} / {quote_asset} with '{timespan}' timespan from cache file...")
+        logging.info(f"\nLoading '{datastyle}' pricing data for {asset} / {quote_asset} with '{timespan}' timespan from cache file...")
         df_feather = load_cache(cache_file)
-        df_all = df_feather.copy()  # Make a copy so we can check the original later for differences
+        if df_feather is not None and not df_feather.empty:
+            df_all = df_feather.copy() # Make a copy so we can check the original later for differences
 
     # Check if we need to get more data
     missing_dates = get_missing_dates(df_all, asset, start, end)
@@ -129,6 +129,8 @@ def get_price_data(
     # Close the progress bar when done
     pbar.close()
     return df_all
+
+
 
 
 def get_trading_dates(asset: Asset, start: datetime, end: datetime):
@@ -231,16 +233,22 @@ def get_missing_dates(df_all, asset, start, end):
 
 
 def load_cache(cache_file):
-    """Load the data from the cache file and return a DataFrame with a DateTimeIndex"""
-    df_feather = pd.read_feather(cache_file)
+    df_feather = None
+    try:
+        """Load the data from the cache file and return a DataFrame with a DateTimeIndex"""
+        df_feather = pd.read_feather(cache_file)
 
-    # Set the 'datetime' column as the index of the DataFrame
-    df_feather.set_index("datetime", inplace=True)
+        # Set the 'datetime' column as the index of the DataFrame
+        df_feather.set_index("datetime", inplace=True)
 
-    df_feather.index = pd.to_datetime(
-        df_feather.index
-    )  # TODO: Is there some way to speed this up? It takes several times longer than just reading the feather file
-    df_feather = df_feather.sort_index()
+        df_feather.index = pd.to_datetime(
+            df_feather.index
+        )  # TODO: Is there some way to speed this up? It takes several times longer than just reading the feather file
+        df_feather = df_feather.sort_index()
+    except Exception as e:
+        logging.error(f"Error loading cache file: {cache_file}")
+        logging.error(e)
+
     return df_feather
 
 

@@ -638,11 +638,15 @@ class Tradier(Broker):
         broker_ids = self._get_broker_id_from_raw_orders(raw_orders)
         for order_id, order in tracked_orders.items():
             if order_id not in broker_ids:
-                logging.info(
+                logging.debug(
                     f"Poll Update: {self.name} no longer has order {order}, but Lumibot does. " 
                     f"Dispatching as cancelled."
                 )
-                self.stream.dispatch(self.CANCELED_ORDER, order=order)
+                # Only dispatch orders that have not been filled or cancelled. Likely the broker has simply
+                # stopped tracking them. This is particularly true with Paper Trading where orders are not tracked
+                # overnight.
+                if order.is_active():
+                    self.stream.dispatch(self.CANCELED_ORDER, order=order)
 
     def _get_broker_id_from_raw_orders(self, raw_orders):
         ids = []

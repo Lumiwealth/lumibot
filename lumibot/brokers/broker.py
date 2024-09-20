@@ -747,6 +747,9 @@ class Broker(ABC):
     def market_close_time(self):
         return self.utc_to_local(self.market_hours(close=True))
 
+    def market_open_time(self):
+        return self.utc_to_local(self.market_hours(close=False))
+
     def is_market_open(self):
         """Determines if the market is open.
 

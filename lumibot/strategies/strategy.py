@@ -1750,6 +1750,10 @@ class Strategy(_Strategy):
         >>> self.cancel_order(order)
 
         """
+        # Set the status to CANCELLING
+        order.status = Order.OrderStatus.CANCELLING
+
+        # Cancel the order
         return self.broker.cancel_order(order)
 
     def cancel_orders(self, orders):

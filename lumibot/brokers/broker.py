@@ -913,9 +913,25 @@ class Broker(ABC):
             for broker_order in broker_orders:
                 # Check if it is a multileg order
                 if isinstance(broker_order, dict) and "leg" in broker_order and isinstance(broker_order["leg"], list):
+                    # First try to parse the parent order
+                    order = self._parse_broker_order(broker_order, strategy_name, strategy_object=strategy_object)
+
+                    # Parse the legs
+                    parsed_legs = []
                     for leg in broker_order["leg"]:
-                        order = self._parse_broker_order(leg, strategy_name, strategy_object=strategy_object)
+                        order_leg = self._parse_broker_order(leg, strategy_name, strategy_object=strategy_object)
+                        parsed_legs.append(order_leg)
+
+                    # If it is an OCO order, create a parent order that will contain the legs
+                    if order is not None and order.order_class == "oco":
+                        # Add the legs to the parent order
+                        order.child_orders = parsed_legs
+
+                        # Add the parent order to the result
                         result.append(order)
+
+                    else:
+                        result.extend(parsed_legs)
                 else:
                     order = self._parse_broker_order(broker_order, strategy_name, strategy_object=strategy_object)
                     result.append(order)
@@ -1220,11 +1236,11 @@ class Broker(ABC):
             "multiplier": multiplier,
             "trade_cost": stored_order.trade_cost,
             "time_in_force": stored_order.time_in_force,
-            "asset.right": stored_order.asset.right,
-            "asset.strike": stored_order.asset.strike,
-            "asset.multiplier": stored_order.asset.multiplier,
-            "asset.expiration": stored_order.asset.expiration,
-            "asset.asset_type": stored_order.asset.asset_type,
+            "asset.right": stored_order.asset.right if stored_order.asset is not None else None,
+            "asset.strike": stored_order.asset.strike if stored_order.asset is not None else None,
+            "asset.multiplier": stored_order.asset.multiplier if stored_order.asset is not None else None,
+            "asset.expiration": stored_order.asset.expiration if stored_order.asset is not None else None,
+            "asset.asset_type": stored_order.asset.asset_type if stored_order.asset is not None else None,
         }
         # Create a DataFrame with the new row
         new_row_df = pd.DataFrame(new_row, index=[0])

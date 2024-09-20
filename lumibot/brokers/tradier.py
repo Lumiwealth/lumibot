@@ -199,7 +199,15 @@ class Tradier(Broker):
         )
 
         return result
-        
+    
+    def submit_order(self, order: Order):
+        """
+        Submit an order to the broker. This function will check if the order is valid and then submit it to the broker.
+        """
+
+        # Submit the order
+        return self._submit_order(order)
+            
     def _submit_order(self, order: Order):
         """
         Do checking and input sanitization, then submit the order to the broker.
@@ -261,11 +269,16 @@ class Tradier(Broker):
                         legs.append(leg)
 
                 # Place the OCO order
-                order_response = self.tradier.orders.oco_order(
-                    duration=order.time_in_force,
-                    legs=legs,
-                    tag=tag,
-                )
+                try:
+                    order_response = self.tradier.orders.oco_order(
+                        duration=order.time_in_force,
+                        legs=legs,
+                        tag=tag,
+                    )
+                except TradierApiError as e:
+                    msg = colored(f"Error submitting order {order}: {e}", color="red")
+                    self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=msg)
+                    return None
 
             elif order.asset is not None and order.asset.asset_type == "stock":
                 # Make sure the symol is upper case
@@ -443,6 +456,9 @@ class Tradier(Broker):
 
         # Check if the order is a multileg order
         if "leg" in response and isinstance(response["leg"], list):
+            # First try to parse the parent order
+            parent_order = self._parse_broker_order(response, strategy_name, strategy_object)
+
             # Create the orders list
             orders = []
 
@@ -456,7 +472,17 @@ class Tradier(Broker):
                 # Add the order to the list
                 orders.append(order)
 
-            return orders
+            # Check if the parent order is not None and an OCO order
+            if parent_order is not None and parent_order.order_class == "oco":
+                # Set the child orders
+                parent_order.child_orders = orders
+
+                # Return the parent order
+                return [parent_order]
+            
+            # Otherwise, return the orders separately
+            else:
+                return orders
         
         # Create the order object
         order = self._parse_broker_order(response, strategy_name, strategy_object)
@@ -506,8 +532,21 @@ class Tradier(Broker):
             date_created=response["create_date"],
             avg_fill_price=response["avg_fill_price"] if "avg_fill_price" in response else None,
             error_message=reason_description,
+            order_class=response["class"] if "class" in response else None,
         )
-        order.status = response["status"]
+        # Translate the status
+        if response["status"] == "filled":
+            order.status = Order.OrderStatus.FILLED
+        elif response["status"] == "canceled":
+            order.status = Order.OrderStatus.CANCELED
+        elif response["status"] == "open":
+            order.status = Order.OrderStatus.NEW
+        elif response["status"] == "partial_filled":
+            order.status = Order.OrderStatus.PARTIALLY_FILLED
+        elif response["status"] == "rejected":
+            order.status = Order.OrderStatus.ERROR
+        else:
+            order.status = response["status"]
         order.avg_fill_price = response.get("avg_fill_price", order.avg_fill_price)
         order.update_raw(response)  # This marks order as 'transmitted'
         return order
@@ -537,6 +576,10 @@ class Tradier(Broker):
         return df.to_dict("records")
 
     def _lumi_side2tradier(self, order: Order) -> str:
+        # Make a copy of the side because we will modify it
+        original_side = order.side
+
+        # Set the side that we will return
         side = order.side
         if order.asset.asset_type == "stock":
             return side
@@ -565,9 +608,9 @@ class Tradier(Broker):
             else:
                 side = "buy_to_open" if side == "buy" else "sell_to_open"
 
-        # Stoploss and limit orders are always used to close positions, even if they are submitted "before" the
+        # Stoploss and limit orders are usually used to close positions, even if they are submitted "before" the
         # position is technically open (i.e. buy and stoploss order are submitted simultaneously)
-        if order.type in [Order.OrderType.STOP, Order.OrderType.TRAIL]:
+        if order.type in [Order.OrderType.STOP, Order.OrderType.TRAIL] and original_side == "buy" or original_side == "sell":
             side = side.replace("to_open", "to_close")
 
         # Check if the side is a valid Tradier side
@@ -584,6 +627,10 @@ class Tradier(Broker):
         Valid Stock Sides: buy, buy_to_cover, sell, sell_short
         Valid Option Sides: buy_to_open, buy_to_close, sell_to_open, sell_to_close
         """
+        # Check that the side is valid
+        if not isinstance(side, str):
+            return ""
+        
         if "buy" in side:
             return "buy"
         elif "sell" in side:

@@ -140,7 +140,7 @@ class Asset:
         underlying_asset: "Asset" = None,
     ):
         # Capitalize the symbol because some brokers require it
-        self.symbol = symbol.upper()
+        self.symbol = symbol.upper() if symbol is not None else None
         self.asset_type = asset_type
         self.strike = strike
         self.multiplier = multiplier
@@ -197,10 +197,14 @@ class Asset:
             )
         elif symbol_info["type"] == "stock":
             return Asset(symbol=symbol, asset_type="stock")
+        elif symbol_info["type"] == "future":
+            return Asset(symbol=symbol, asset_type="future", expiration=symbol_info["expiration_date"])
+        elif symbol_info["type"] == "forex":
+            return Asset(symbol=symbol, asset_type="forex")
+        elif symbol_info["type"] == "crypto":
+            return Asset(symbol=symbol, asset_type="crypto")
         else:
-            # TODO: Handle Crypto and Forex Symbols
-            logging.info(f"Unknown symbol asset type {symbol_info['type']}, defaulting to stock.")
-            return Asset(symbol=symbol)
+            return Asset(symbol=None)
 
     def __hash__(self):
         return hash((self.symbol, self.asset_type, self.expiration, self.strike, self.right))

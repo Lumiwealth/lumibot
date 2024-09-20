@@ -25,7 +25,7 @@ class ThetaDataBacktesting(PandasData):
         pandas_data=None,
         username=None,
         password=None,
-        use_quote_data=False,
+        use_quote_data=True,
         **kwargs,
     ):
         super().__init__(datetime_start=datetime_start, datetime_end=datetime_end, pandas_data=pandas_data, **kwargs)

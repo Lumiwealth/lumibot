@@ -11,7 +11,7 @@ from lumibot.tools.types import check_positive, check_price, check_quantity
 SELL = "sell"
 BUY = "buy"
 
-VALID_STATUS = ["unprocessed", "new", "open", "submitted", "fill", "partial_fill", "canceled", "error", "cash_settled"]
+VALID_STATUS = ["unprocessed", "new", "open", "submitted", "fill", "partial_fill", "cancelling", "canceled", "error", "cash_settled"]
 STATUS_ALIAS_MAP = {
     "cancelled": "canceled",
     "cancel": "canceled",
@@ -69,7 +69,10 @@ class Order:
         SELL_TO_CLOSE = "sell_to_close"
 
     class OrderStatus:
+        UNPROCESSED = "unprocessed"
+        OPEN = "open"
         NEW = "new"
+        CANCELLING = "cancelling"
         CANCELED = "canceled"
         FILLED = "fill"
         PARTIALLY_FILLED = "partial_fill"
@@ -299,7 +302,7 @@ class Order:
         self.stop_loss_price = None # Used for bracket, OTO, and OCO orders TODO: Remove this because it is confusing (use child orders instead)
         self.stop_loss_limit_price = None
         self.transactions = []
-        self.order_class = None
+        self.order_class = order_class
         self.dependent_order = None
         self.dependent_order_filled = False
         self.type = type
@@ -478,7 +481,6 @@ class Order:
             # This is a "One-Cancel-Other" advanced order
             self.order_class = self.OrderType.OCO
             self.type = self.OrderType.OCO
-            self.position_filled = True
             if stop_loss_price is not None and take_profit_price is not None:
                 self.take_profit_price = check_price(take_profit_price, "take_profit_price must be positive float.")
                 self.stop_loss_price = check_price(stop_loss_price, "stop_loss_price must be positive float.")
@@ -673,7 +675,13 @@ class Order:
 
         # If there are child orders, list them in the repr
         if self.child_orders:
-            repr_str = f"{self.type} order |"
+            # If there is an order class, use that in the repr instead of the type
+            if self.order_class:
+                repr_str = f"{self.order_class} order |"
+            else:
+                repr_str = f"{self.type} order |"
+
+            # Add the child orders to the repr
             for child_order in self.child_orders:
                 repr_str = f"{repr_str} {child_order.type} {child_order.side} {child_order.quantity} {child_order.asset} |"
         else:

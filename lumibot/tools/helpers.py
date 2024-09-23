@@ -159,6 +159,10 @@ def parse_symbol(symbol):
     For stocks, simply return the stock symbol.
     TODO: Crypto and Forex support
     """
+    # Check that the symbol is a string
+    if not isinstance(symbol, str):
+        return {"type": None}
+    
     # Pattern to match the option symbol format
     option_pattern = r"([A-Z]+)(\d{6})([CP])(\d+)"
 

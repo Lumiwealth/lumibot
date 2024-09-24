@@ -944,10 +944,10 @@ class StrategyExecutor(Thread):
                 current_date = current_datetime.date()
                 min_before_closing = timedelta(minutes=self.strategy.minutes_before_closing)
                 min_before_open = timedelta(minutes=self.strategy.minutes_before_opening)
-                min_after_open = timedelta(minutes=self.strategy.minutes_after_opening)
+                min_after_close = timedelta(minutes=self.strategy.minutes_after_closing)
 
                 # After market closes
-                if (current_datetime >= self.broker.market_close_time() + min_after_open and
+                if (current_datetime >= self.broker.market_close_time() + min_after_close and
                         current_date != self.lifecycle_last_date['after_market_closes']):
                     self._after_market_closes()
                     self.lifecycle_last_date['after_market_closes'] = current_date
@@ -959,7 +959,7 @@ class StrategyExecutor(Thread):
                     self.lifecycle_last_date['before_market_closes'] = current_date
 
                 # Before market opens
-                elif (current_datetime >= self.broker.market_open - min_before_open and
+                elif (current_datetime >= self.broker.market_open_time() - min_before_open and
                         current_date != self.lifecycle_last_date['before_market_opens']):
                     self._before_market_opens()
                     self.lifecycle_last_date['before_market_opens'] = current_date

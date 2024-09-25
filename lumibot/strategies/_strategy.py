@@ -76,6 +76,7 @@ class _Strategy:
         broker=None,
         minutes_before_closing=1,
         minutes_before_opening=60,
+        minutes_after_closing=0,
         sleeptime="1M",
         stats_file=None,
         risk_free_rate=None,
@@ -374,6 +375,7 @@ class _Strategy:
         self._initial_budget = budget
         self._minutes_before_closing = minutes_before_closing
         self._minutes_before_opening = minutes_before_opening
+        self._minutes_after_closing = minutes_after_closing
         self._sleeptime = sleeptime
         self._risk_free_rate = risk_free_rate
         self._executor = StrategyExecutor(self)

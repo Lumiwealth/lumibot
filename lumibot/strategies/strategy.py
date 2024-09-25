@@ -156,6 +156,33 @@ class Strategy(_Strategy):
         self._minutes_before_closing = value
 
     @property
+    def minutes_after_closing(self):
+        """Get or set the number of minutes that the strategy will continue executing after market closes.
+
+        The lifecycle method after_market_closes is executed minutes_after_closing minutes after the market closes. By default, equals to 0 minutes.
+
+        Returns
+        -------
+        int
+            The number of minutes after the market closes that the strategy will continue executing.
+
+        Example
+        -------
+        >>> # Set the number of minutes after the market closes
+        >>> self.minutes_after_closing = 10
+
+        >>> # Set the number of minutes after the market closes to 0 in the initialize method
+        >>> def initialize(self):
+        >>>     self.minutes_after_closing = 0
+
+        """
+        return self._minutes_after_closing
+
+    @minutes_after_closing.setter
+    def minutes_after_closing(self, value):
+        self._minutes_after_closing = value
+
+    @property
     def sleeptime(self):
         """Get or set the current sleep time for the strategy.
 

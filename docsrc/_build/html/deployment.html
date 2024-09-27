@@ -1,0 +1,923 @@
+<!doctype html>
+<html class="no-js" lang="en" data-content_root="./">
+  <head><meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="prev" title="Tradier" href="brokers.tradier.html" />
+
+    <!-- Generated with Sphinx 7.2.6 and Furo 2024.01.29 -->
+        <title>Deployment Guide - Lumibot Documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=a746c00c" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=135e06be" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=36a5483c" />
+    <link rel="stylesheet" type="text/css" href="_static/custom.css?v=3791830b" />
+    <link rel="stylesheet" type="text/css" href="_static/bootstrap/css/bootstrap.css?v=7edfbd0b" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #f8f8f8;
+  --color-code-foreground: black;
+  
+  }
+  @media not print {
+    body[data-theme="dark"] {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+      }
+    }
+  }
+</style></head>
+  <body>
+    
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-half" viewBox="0 0 24 24">
+    <title>Auto light/dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-shadow">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M13 12h5" />
+      <path d="M13 15h4" />
+      <path d="M13 18h1" />
+      <path d="M13 9h4" />
+      <path d="M13 6h1" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc">
+<label class="overlay sidebar-overlay" for="__navigation">
+  <div class="visually-hidden">Hide navigation sidebar</div>
+</label>
+<label class="overlay toc-overlay" for="__toc">
+  <div class="visually-hidden">Hide table of contents sidebar</div>
+</label>
+
+<div class="announcement">
+  <aside class="announcement-content">
+     
+    <div class="footer-banner bg-warning text-dark p-3">
+        <h5>Need Extra Help?</h5>
+        <p>Visit <a href="https://www.lumiwealth.com/?utm_source=documentation&utm_medium=referral&utm_campaign=lumibot_footer_banner" target="_blank" class="text-dark"><strong>Lumiwealth</strong></a> for courses, community, and profitable pre-made trading bots.</p>
+    </div>
+     
+  </aside>
+</div>
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <div class="visually-hidden">Toggle site navigation sidebar</div>
+        <i class="icon"><svg><use href="#svg-menu"></use></svg></i>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="index.html"><div class="brand">Lumibot Documentation</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle">
+          <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+          <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+        <div class="visually-hidden">Toggle table of contents sidebar</div>
+        <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="index.html">
+  
+  <div class="sidebar-logo-container">
+    <img class="sidebar-logo only-light" src="_static/Lumibot_Logo.webp" alt="Light Logo"/>
+    <img class="sidebar-logo only-dark" src="_static/Lumibot_Logo.webp" alt="Dark Logo"/>
+  </div>
+  
+  
+</a><form class="sidebar-search-container" method="get" action="search.html" role="search">
+  <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="index.html">Home</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://github.com/Lumiwealth/lumibot">GitHub</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://discord.gg/v6asVjTCvh">Discord Community</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://lumiwealth.com/?utm_source=documentation&amp;utm_medium=referral&amp;utm_campaign=lumibot_sidebar">Get Pre-Built Profitable Strategies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html">What is Lumibot?</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html#id1">Lumiwealth</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html#getting-started">Getting Started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html#adding-trading-fees">Adding Trading Fees</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html#profiling-to-improve-performance">Profiling to Improve Performance</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="lifecycle_methods.html">Lifecycle Methods</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle navigation of Lifecycle Methods</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.summary.html">Summary</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.initialize.html">def initialize</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_trading_iteration.html">def on_trading_iteration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.before_market_opens.html">def before_market_opens</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.before_starting_trading.html">def before_starting_trading</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.before_market_closes.html">def before_market_closes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.after_market_closes.html">def after_market_closes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_abrupt_closing.html">def on_abrupt_closing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_bot_crash.html">def on_bot_crash</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.trace_stats.html">def trace_stats</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_new_order.html">def on_new_order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_partially_filled_order.html">def on_partially_filled_order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_filled_order.html">def on_filled_order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_canceled_order.html">def on_canceled_order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_parameters_updated.html">def on_parameters_updated</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="strategy_methods.html">Strategy Methods</a><input class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><div class="visually-hidden">Toggle navigation of Strategy Methods</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.orders.html">Order Management</a><input class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><div class="visually-hidden">Toggle navigation of Order Management</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.create_order.html">self.create_order</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.submit_order.html">self.submit_order</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.submit_orders.html">self.submit_orders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.cancel_order.html">self.cancel_order</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.cancel_orders.html">self.cancel_orders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.cancel_open_orders.html">self.cancel_open_orders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.get_selling_order.html">self.get_selling_order</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.sell_all.html">self.sell_all</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.get_order.html">self.get_order</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.get_orders.html">self.get_orders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.get_asset_potential_total.html">self.get_asset_potential_total</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.account.html">Account Management</a><input class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><div class="visually-hidden">Toggle navigation of Account Management</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.get_portfolio_value.html">self.get_portfolio_value</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.get_cash.html">self.get_cash</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.get_position.html">self.get_position</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.get_positions.html">self.get_positions</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.data.html">Data</a><input class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" role="switch" type="checkbox"/><label for="toctree-checkbox-5"><div class="visually-hidden">Toggle navigation of Data</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_last_price.html">self.get_last_price</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_last_prices.html">self.get_last_prices</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_historical_prices.html">self.get_historical_prices</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_historical_prices_for_assets.html">self.get_historical_prices_for_assets</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_quote.html">self.get_quote</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_yesterday_dividend.html">self.get_yesterday_dividend</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_next_trading_day.html">self.get_next_trading_day</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.chart.html">Chart Functions</a><input class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><div class="visually-hidden">Toggle navigation of Chart Functions</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.chart/lumibot.strategies.strategy.Strategy.add_marker.html">self.add_marker</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.chart/lumibot.strategies.strategy.Strategy.add_line.html">self.add_line</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.chart/lumibot.strategies.strategy.Strategy.get_markers_df.html">self.get_markers_df</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.chart/lumibot.strategies.strategy.Strategy.get_lines_df.html">self.get_lines_df</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.parameters.html">Parameters</a><input class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><div class="visually-hidden">Toggle navigation of Parameters</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.get_parameters.html">self.get_parameters</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.set_parameters.html">self.set_parameters</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.options.html">Options</a><input class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><div class="visually-hidden">Toggle navigation of Options</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.get_chain.html">self.get_chain</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.get_chains.html">self.get_chains</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.get_greeks.html">self.get_greeks</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.get_strikes.html">self.get_strikes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.get_expiration.html">self.get_expiration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.get_multiplier.html">self.get_multiplier</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.options_expiry_to_datetime_date.html">self.options_expiry_to_datetime_date</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.get_next_trading_day.html">self.get_next_trading_day</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.datetime.html">DateTime</a><input class="toctree-checkbox" id="toctree-checkbox-9" name="toctree-checkbox-9" role="switch" type="checkbox"/><label for="toctree-checkbox-9"><div class="visually-hidden">Toggle navigation of DateTime</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_datetime.html">self.get_datetime</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_timestamp.html">self.get_timestamp</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_round_minute.html">self.get_round_minute</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_last_minute.html">self.get_last_minute</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_round_day.html">self.get_round_day</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_last_day.html">self.get_last_day</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_datetime_range.html">self.get_datetime_range</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.localize_datetime.html">self.localize_datetime</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.to_default_timezone.html">self.to_default_timezone</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.misc.html">Miscellaneous</a><input class="toctree-checkbox" id="toctree-checkbox-10" name="toctree-checkbox-10" role="switch" type="checkbox"/><label for="toctree-checkbox-10"><div class="visually-hidden">Toggle navigation of Miscellaneous</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.log_message.html">self.log_message</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.sleep.html">self.sleep</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.set_market.html">self.set_market</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.update_parameters.html">self.update_parameters</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.get_parameters.html">self.get_parameters</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.await_market_to_close.html">self.await_market_to_close</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.await_market_to_open.html">self.await_market_to_open</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_order_registration.html">self.wait_for_order_registration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_order_execution.html">self.wait_for_order_execution</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_registration.html">self.wait_for_orders_registration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_execution.html">self.wait_for_orders_execution</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="strategy_properties.html">Strategy Properties</a><input class="toctree-checkbox" id="toctree-checkbox-11" name="toctree-checkbox-11" role="switch" type="checkbox"/><label for="toctree-checkbox-11"><div class="visually-hidden">Toggle navigation of Strategy Properties</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.cash.html">self.cash</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.portfolio_value.html">self.portfolio_value</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.first_iteration.html">self.first_iteration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.is_backtesting.html">self.is_backtesting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.quote_asset.html">self.quote_asset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.name.html">self.name</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.initial_budget.html">self.initial_budget</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.minutes_before_closing.html">self.minutes_before_closing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.minutes_before_opening.html">self.minutes_before_opening</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.sleeptime.html">self.sleeptime</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.last_on_trading_iteration_datetime.html">self.last_on_trading_iteration_datetime</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.timezone.html">self.timezone</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.pytz.html">self.pytz</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.unspent_money.html">self.unspent_money</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="entities.html">Entities</a><input class="toctree-checkbox" id="toctree-checkbox-12" name="toctree-checkbox-12" role="switch" type="checkbox"/><label for="toctree-checkbox-12"><div class="visually-hidden">Toggle navigation of Entities</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="entities.asset.html">Asset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.bars.html">Bars</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.data.html">Data</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.order.html">Order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.position.html">Position</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.trading_fee.html">Trading Fee</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="backtesting.html">Backtesting</a><input class="toctree-checkbox" id="toctree-checkbox-13" name="toctree-checkbox-13" role="switch" type="checkbox"/><label for="toctree-checkbox-13"><div class="visually-hidden">Toggle navigation of Backtesting</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.how_to_backtest.html">How To Backtest</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.how_to_backtest.html#files-generated-from-backtesting">Files Generated from Backtesting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.backtesting_function.html">Backtesting Function</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.yahoo.html">Yahoo</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.pandas.html">Pandas (CSV or other data)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.polygon.html">Polygon.io Backtesting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.thetadata.html">ThetaData Backtesting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.tearsheet_html.html">Tearsheet HTML</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.trades_files.html">Trades Files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.indicators_files.html">Indicators Files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.logs_csv.html">Logs CSV</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="brokers.html">Brokers</a><input class="toctree-checkbox" id="toctree-checkbox-14" name="toctree-checkbox-14" role="switch" type="checkbox"/><label for="toctree-checkbox-14"><div class="visually-hidden">Toggle navigation of Brokers</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="brokers.alpaca.html">Alpaca</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.interactive_brokers.html">Interactive Brokers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.ccxt.html">Crypto Brokers (Using CCXT)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.tradier.html">Tradier</a></li>
+</ul>
+</li>
+<li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Deployment Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="#secrets-configuration">Secrets Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="#broker-configuration">Broker Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="#general-environment-variables">General Environment Variables</a></li>
+</ul>
+
+</div>
+</div>
+
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
+        <div class="content-icon-container">
+          
+<div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle">
+              <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+              <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+            <div class="visually-hidden">Toggle table of contents sidebar</div>
+            <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+          </label>
+        </div>
+        <article role="main">
+          <section id="deployment-guide">
+<h1>Deployment Guide<a class="headerlink" href="#deployment-guide" title="Link to this heading">#</a></h1>
+<p>Deploying your application is straightforward with our GitHub deployment buttons for <strong>Render</strong> and <strong>Replit</strong>. Follow the steps below to get your application up and running quickly. 🚀</p>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p><strong>Render</strong> is our recommended platform due to its ease of use and cost-effectiveness. <strong>Replit</strong> is also a great option, especially for developers who prefer editing code directly in the browser.</p>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p><strong>Tip:</strong> Scroll down to the <span class="xref std std-ref">Secrets Configuration</span> section for detailed information on setting up your environment variables.</p>
+</div>
+<section id="choosing-your-deployment-platform">
+<h2>Choosing Your Deployment Platform<a class="headerlink" href="#choosing-your-deployment-platform" title="Link to this heading">#</a></h2>
+<p>We recommend using <strong>Render</strong> for deployment because it is easier to use and more affordable compared to Replit. However, <strong>Replit</strong> is an excellent choice for developers who want to edit code directly in the browser.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><strong>Render</strong> costs <strong>$7/month</strong>, while <strong>Replit</strong> is priced at <strong>$25/month</strong>. Choose the platform that best fits your needs and budget.</p>
+</div>
+</section>
+<section id="deploying-to-render">
+<h2>Deploying to Render<a class="headerlink" href="#deploying-to-render" title="Link to this heading">#</a></h2>
+<p>Render offers powerful deployment options with easy scalability. Follow these steps to deploy your application on Render:</p>
+<ol class="arabic">
+<li><p><strong>Click the “Deploy to Render” Button</strong></p>
+<p>Start by clicking the <strong>“Deploy to Render”</strong> button on the GitHub repository.</p>
+<figure class="align-center" id="id1">
+<img alt="Deploy to Render Button" src="_static/images/render_deploy_button.png" />
+<figcaption>
+<p><span class="caption-text"><strong>Figure 1:</strong> Deploy to Render button on GitHub.</span><a class="headerlink" href="#id1" title="Link to this image">#</a></p>
+</figcaption>
+</figure>
+</li>
+<li><p><strong>Configure the Blueprint</strong></p>
+<ul class="simple">
+<li><p><strong>Choose a Blueprint Name:</strong> Enter a name for your blueprint, e.g., <strong>“Blueprint Name”</strong>.</p></li>
+<li><p><strong>Deploy Blueprint:</strong> Click the <strong>“Deploy Blueprint”</strong> button.</p></li>
+</ul>
+<figure class="align-center" id="id2">
+<img alt="Deploy Blueprint on Render" src="_static/images/render_deploy_blueprint.png" />
+<figcaption>
+<p><span class="caption-text"><strong>Figure 2:</strong> Deploying Blueprint on Render.</span><a class="headerlink" href="#id2" title="Link to this image">#</a></p>
+</figcaption>
+</figure>
+</li>
+<li><p><strong>Navigate to the Worker</strong>
+- <strong>Navigate to the Background Worker:</strong> Click on the name of the background worker, e.g., <strong>options-butterfly-condor-worker-afas (Starter)</strong> so you can configure theis specific bot worker (we are currently in the blueprint configuration, not the bot itself).</p>
+<figure class="align-center" id="id3">
+<img alt="Worker on Render" src="_static/images/render_worker.png" />
+<figcaption>
+<p><span class="caption-text"><strong>Figure 3:</strong> Worker on Render.</span><a class="headerlink" href="#id3" title="Link to this image">#</a></p>
+</figcaption>
+</figure>
+</li>
+<li><p><strong>Configure Environment Variables</strong></p>
+<ul class="simple">
+<li><p><strong>Select Environment:</strong> On the worker’s page, select <strong>Environment</strong> from the left sidebar.</p></li>
+<li><p><strong>Edit Environment Variables:</strong> Click <strong>Edit</strong> and fill in the required keys as detailed in the <span class="xref std std-ref">Secrets Configuration</span> section. Once you have added your values for the environment variables, click <strong>Save</strong>.</p></li>
+<li><p><strong>Delete Unnecessary Variables:</strong> If you have any unnecessary environment variables, you can delete them by clicking the <strong>Delete (trashcan)</strong> button next to the variable. One example of an unnecessary variable is <cite>POLYGON_API_KEY</cite> which is only used if you are backtesting.</p></li>
+</ul>
+<figure class="align-center" id="id4">
+<img alt="Environment Settings on Render" src="_static/images/render_worker_environment.png" />
+<figcaption>
+<p><span class="caption-text"><strong>Figure 3:</strong> Editing Environment Variables on Render.</span><a class="headerlink" href="#id4" title="Link to this image">#</a></p>
+</figcaption>
+</figure>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><strong>Note:</strong> Only the environment variables required for your chosen broker are mandatory. Refer to the <span class="xref std std-ref">Secrets Configuration</span> section to see which ones are mandatory and which are optional. If an optional environment variable is not needed, <strong>you can delete it.</strong></p>
+</div>
+</li>
+<li><p><strong>Restart the Service</strong></p>
+<p>After configuring the environment variables, navigate to the top right corner and click <strong>“Manual Deploy”</strong>, then <strong>“Deploy latest commit”</strong> to apply the changes.</p>
+<figure class="align-center" id="id5">
+<img alt="Restart Service on Render" src="_static/images/render_redeploy.png" />
+<figcaption>
+<p><span class="caption-text"><strong>Figure 4:</strong> Redeploying the Service on Render using the latest commit.</span><a class="headerlink" href="#id5" title="Link to this image">#</a></p>
+</figcaption>
+</figure>
+</li>
+<li><p><strong>View The Logs</strong></p>
+<ul class="simple">
+<li><p><strong>Check the Logs:</strong> Navigate to the <strong>Logs</strong> tab on the left to view the deployment logs and ensure that there are no errors.</p></li>
+</ul>
+<figure class="align-center" id="id6">
+<img alt="Logs on Render" src="_static/images/render_logs.png" />
+<figcaption>
+<p><span class="caption-text"><strong>Figure 5:</strong> Viewing Logs on Render.</span><a class="headerlink" href="#id6" title="Link to this image">#</a></p>
+</figcaption>
+</figure>
+</li>
+<li><p><strong>Monitor Bot Performance</strong></p>
+<ul class="simple">
+<li><p><strong>Monitor Performance:</strong> Go to your broker account to monitor the bot’s performance and ensure that it is executing trades as expected.</p></li>
+</ul>
+<blockquote>
+<div><figure class="align-center" id="id7">
+<img alt="Monitor bot performance" src="_static/images/replit_monitor_bot.png" />
+<figcaption>
+<p><span class="caption-text"><strong>Figure 13:</strong> Monitoring bot performance in Replit.</span><a class="headerlink" href="#id7" title="Link to this image">#</a></p>
+</figcaption>
+</figure>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><strong>Note:</strong> Monitor the bot’s performance regularly to ensure that it is functioning correctly and making profitable trades.</p>
+</div>
+</div></blockquote>
+</li>
+</ol>
+</section>
+<section id="deploying-to-replit">
+<h2>Deploying to Replit<a class="headerlink" href="#deploying-to-replit" title="Link to this heading">#</a></h2>
+<p>Replit is a versatile platform that allows you to deploy applications quickly. Follow these steps to deploy your application on Replit:</p>
+<ol class="arabic">
+<li><p><strong>Click the “Deploy on Replit” Button</strong></p>
+<p>Start by clicking the <strong>“Deploy on Replit”</strong> button on the GitHub repository.</p>
+<figure class="align-center" id="id8">
+<img alt="Deploy on Replit Button" src="_static/images/deploy_replit_button.png" />
+<figcaption>
+<p><span class="caption-text"><strong>Figure 6:</strong> Deploy on Replit button on GitHub.</span><a class="headerlink" href="#id8" title="Link to this image">#</a></p>
+</figcaption>
+</figure>
+</li>
+<li><p><strong>Open Secrets Configuration</strong></p>
+<p>Once your Replit project is created, navigate to the secrets configuration:</p>
+<ul class="simple">
+<li><p>Go to <strong>Tools</strong> in the sidebar.</p></li>
+<li><p>Select <strong>Secrets</strong> at the bottom left corner.</p></li>
+</ul>
+<figure class="align-center" id="id9">
+<img alt="Replit Tools -&gt; Secrets" src="_static/images/replit_tools_secrets.png" />
+<figcaption>
+<p><span class="caption-text"><strong>Figure 7:</strong> Accessing Secrets in Replit.</span><a class="headerlink" href="#id9" title="Link to this image">#</a></p>
+</figcaption>
+</figure>
+</li>
+<li><p><strong>Add Required Secrets</strong></p>
+<p>In the <strong>Secrets</strong> tab, add the necessary environment variables as detailed in the <span class="xref std std-ref">Secrets Configuration</span> section.</p>
+<figure class="align-center" id="id10">
+<img alt="Adding a new secret in Replit" src="_static/images/replit_add_secret.png" />
+<figcaption>
+<p><span class="caption-text"><strong>Figure 8:</strong> Adding a new secret in Replit.</span><a class="headerlink" href="#id10" title="Link to this image">#</a></p>
+</figcaption>
+</figure>
+</li>
+<li><p><strong>Test Run the Application</strong></p>
+<p>After adding all required secrets, click <strong>Run</strong>. This step is crucial as it installs all necessary libraries and ensures that the secrets are correctly configured.</p>
+<p>When you press <strong>Run</strong>, the application will start running in the console. You can see the logs in real-time to ensure that everything is working as expected.</p>
+<figure class="align-center" id="id11">
+<img alt="Running the application in Replit" src="_static/images/replit_run.png" />
+<figcaption>
+<p><span class="caption-text"><strong>Figure 9:</strong> Running the application in Replit.</span><a class="headerlink" href="#id11" title="Link to this image">#</a></p>
+</figcaption>
+</figure>
+<figure class="align-center" id="id12">
+<img alt="Viewing logs in Replit" src="_static/images/replit_logs.png" />
+<figcaption>
+<p><span class="caption-text"><strong>Figure 10:</strong> Viewing logs in Replit.</span><a class="headerlink" href="#id12" title="Link to this image">#</a></p>
+</figcaption>
+</figure>
+</li>
+<li><p><strong>Deployment Part 1</strong></p>
+<ul class="simple">
+<li><p><strong>Click Deploy:</strong> Navigate to <strong>Deploy</strong> located under <strong>Tools</strong> in the top right or within the <strong>Background Workers</strong> section.</p></li>
+<li><p><strong>Select Reserved VM:</strong> The strategies will only work on a <strong>Reserved VM</strong>, none of the other options will work.</p></li>
+</ul>
+<figure class="align-center" id="id13">
+<img alt="Select Reserved VM and Background Worker" src="_static/images/replit_reserved_vm.png" />
+<figcaption>
+<p><span class="caption-text"><strong>Figure 10:</strong> Selecting Reserved VM and Background Worker on Replit.</span><a class="headerlink" href="#id13" title="Link to this image">#</a></p>
+</figcaption>
+</figure>
+<p><strong>Note:</strong> Ensure that you have downgraded the vCPU before selecting the Background Worker to optimize costs effectively.</p>
+</li>
+<li><p><strong>Deployment Part 2</strong>
+- <strong>Downgrade vCPU:</strong> We recommend downgrading to <strong>0.25 vCPU</strong> to reduce costs. As of today, it costs <strong>$6/month</strong> compared to the default <strong>$12/month</strong> for <strong>0.5 vCPU</strong>.
+- <strong>Select Background Worker:</strong> Choose <strong>“Background Worker”</strong>.
+- <strong>Click Deploy:</strong> Click <strong>“Deploy”</strong> to deploy your application.
+- <strong>Wait for Deployment:</strong> The deployment process may take a few minutes. Once completed, you will see a success message.</p>
+<blockquote>
+<div><figure class="align-center" id="id14">
+<img alt="Deploying the application in Replit" src="_static/images/replit_deploy.png" />
+<figcaption>
+<p><span class="caption-text"><strong>Figure 11:</strong> Deploying the application in Replit.</span><a class="headerlink" href="#id14" title="Link to this image">#</a></p>
+</figcaption>
+</figure>
+<figure class="align-center" id="id15">
+<img alt="Deployment process" src="_static/images/replit_deploy_process.png" />
+<figcaption>
+<p><span class="caption-text"><strong>Figure 12:</strong> Deployment process in Replit.</span><a class="headerlink" href="#id15" title="Link to this image">#</a></p>
+</figcaption>
+</figure>
+</div></blockquote>
+</li>
+<li><p><strong>Check The Logs</strong></p>
+<ul class="simple">
+<li><p><strong>View Logs:</strong> Navigate to the <strong>Logs</strong> tab in <strong>Deployment</strong> to view the deployment logs and ensure that there are no errors.</p></li>
+</ul>
+<figure class="align-center" id="id16">
+<img alt="Logs on Replit" src="_static/images/replit_deploy_logs.png" />
+<figcaption>
+<p><span class="caption-text"><strong>Figure 12:</strong> Viewing Logs on Replit.</span><a class="headerlink" href="#id16" title="Link to this image">#</a></p>
+</figcaption>
+</figure>
+</li>
+<li><p><strong>Monitor Bot Performance</strong></p>
+<ul class="simple">
+<li><p><strong>Monitor Performance:</strong> Go to your broker account to monitor the bot’s performance and ensure that it is executing trades as expected.</p></li>
+</ul>
+<blockquote>
+<div><figure class="align-center" id="id17">
+<img alt="Monitor bot performance" src="_static/images/replit_monitor_bot.png" />
+<figcaption>
+<p><span class="caption-text"><strong>Figure 13:</strong> Monitoring bot performance in Replit.</span><a class="headerlink" href="#id17" title="Link to this image">#</a></p>
+</figcaption>
+</figure>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><strong>Note:</strong> Monitor the bot’s performance regularly to ensure that it is functioning correctly and making profitable trades.</p>
+</div>
+</div></blockquote>
+</li>
+</ol>
+</section>
+</section>
+<section id="secrets-configuration">
+<h1>Secrets Configuration<a class="headerlink" href="#secrets-configuration" title="Link to this heading">#</a></h1>
+<p>Proper configuration of environment variables is crucial for the successful deployment of your application. The most important secrets are those related to your chosen broker. First, set up the secrets for your broker, then add any additional general secrets if needed.</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p><strong>Tip:</strong> First, add the secrets for the broker you are using. After configuring the broker-specific secrets, you can add general secrets such as Discord webhook URLs or database connection strings.</p>
+</div>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p><strong>The secrets required for your chosen broker are mandatory, you only need to pick one. Also, depending on the strategy you are running, you might also need to set the `LIVE_CONFIG` environment variable.</strong></p>
+</div>
+</section>
+<section id="broker-configuration">
+<h1>Broker Configuration<a class="headerlink" href="#broker-configuration" title="Link to this heading">#</a></h1>
+<p>To support different brokers, we have separate sections. Choose the one that corresponds to the broker you are using.</p>
+<section id="tradier-configuration">
+<h2>Tradier Configuration<a class="headerlink" href="#tradier-configuration" title="Link to this heading">#</a></h2>
+<p>Tradier is great because they can trade stocks, options, and soon futures. Tradier also offers an incredible plan for $10/month, providing commission-free options trading. This can save a lot of money for those day trading options or engaging in similar activities. To create an account, visit the <a class="reference external" href="https://tradier.com/">Tradier</a> website.</p>
+<div class="table-wrapper colwidths-given docutils container" id="id18">
+<table class="docutils align-default" id="id18">
+<caption><span class="caption-text">Tradier Configuration</span><a class="headerlink" href="#id18" title="Link to this table">#</a></caption>
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 50.0%" />
+<col style="width: 25.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p><strong>Secret</strong></p></th>
+<th class="head"><p><strong>Description</strong></p></th>
+<th class="head"><p><strong>Example</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>TRADIER_ACCESS_TOKEN</p></td>
+<td><p>Your Access Token from Tradier</p></td>
+<td><p>qTRz3zUrl9244AHUw4AoyAPgvYra</p></td>
+</tr>
+<tr class="row-odd"><td><p>TRADIER_ACCOUNT_NUMBER</p></td>
+<td><p>Your Account Number from Tradier</p></td>
+<td><p>VA12204793</p></td>
+</tr>
+<tr class="row-even"><td><p>TRADIER_IS_PAPER</p></td>
+<td><p><strong>Set to “True”</strong> to use the paper trading API, <strong>set to “False”</strong> to use the real money trading API. Defaults to True.</p></td>
+<td><p>True</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="alpaca-configuration">
+<h2>Alpaca Configuration<a class="headerlink" href="#alpaca-configuration" title="Link to this heading">#</a></h2>
+<p>Alpaca is great because they’re a commission-free broker specifically designed for API trading, which aligns perfectly with our platform. Alpaca supports trading stocks, crypto, and soon options, with their APIs working seamlessly for automated trading strategies. To create an account, visit the <a class="reference external" href="https://alpaca.markets/">Alpaca</a> website.</p>
+<div class="table-wrapper colwidths-given docutils container" id="id19">
+<table class="docutils align-default" id="id19">
+<caption><span class="caption-text">Alpaca Configuration</span><a class="headerlink" href="#id19" title="Link to this table">#</a></caption>
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 50.0%" />
+<col style="width: 25.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p><strong>Secret</strong></p></th>
+<th class="head"><p><strong>Description</strong></p></th>
+<th class="head"><p><strong>Example</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>ALPACA_API_KEY</p></td>
+<td><p>Your API key from your Alpaca brokerage account</p></td>
+<td><p>PK7T6YVAX6PMH1EM20YN</p></td>
+</tr>
+<tr class="row-odd"><td><p>ALPACA_API_SECRET</p></td>
+<td><p>Your secret key from your Alpaca brokerage account</p></td>
+<td><p>9WgJLS3wIXq54FCpHwwZjCp8JCfJfKuwSrYskKMA</p></td>
+</tr>
+<tr class="row-even"><td><p>ALPACA_IS_PAPER</p></td>
+<td><p><strong>Set to “True”</strong> to use the Alpaca paper trading API, <strong>set to “False”</strong> to use the Alpaca real money trading API. Defaults to True.</p></td>
+<td><p>True</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="coinbase-configuration">
+<h2>Coinbase Configuration<a class="headerlink" href="#coinbase-configuration" title="Link to this heading">#</a></h2>
+<p>Coinbase is a cryptocurrency broker that is easy to set up and operates across all United States, including New York, which is typically challenging to find for crypto brokers. It offers a wide range of cryptocurrencies with user-friendly APIs. To create an account, visit the <a class="reference external" href="https://www.coinbase.com/">Coinbase</a> website.</p>
+<div class="table-wrapper colwidths-given docutils container" id="id20">
+<table class="docutils align-default" id="id20">
+<caption><span class="caption-text">Coinbase Configuration</span><a class="headerlink" href="#id20" title="Link to this table">#</a></caption>
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 50.0%" />
+<col style="width: 25.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p><strong>Secret</strong></p></th>
+<th class="head"><p><strong>Description</strong></p></th>
+<th class="head"><p><strong>Example</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>COINBASE_API_KEY</p></td>
+<td><p>Your API key for Coinbase. <strong>Required</strong> if you are using Coinbase as your broker.</p></td>
+<td><p>STeea9fhIsznTMpIHQjUdEqOliTJ0JAvZ</p></td>
+</tr>
+<tr class="row-odd"><td><p>COINBASE_API_SECRET</p></td>
+<td><p>Your API secret for Coinbase. <strong>Required</strong> if you are using Coinbase as your broker.</p></td>
+<td><p>NUzcnprsXjxxOUxRhQE5k2K1XnqLPcKH2XCUTIfkCw==</p></td>
+</tr>
+<tr class="row-even"><td><p>COINBASE_IS_SANDBOX</p></td>
+<td><p><strong>Set to “True”</strong> to use the Coinbase sandbox (paper trading) API, <strong>set to “False”</strong> to use the Coinbase real money trading API. Defaults to False.</p></td>
+<td><p>False</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="kraken-configuration">
+<h2>Kraken Configuration<a class="headerlink" href="#kraken-configuration" title="Link to this heading">#</a></h2>
+<p>Kraken is an excellent cryptocurrency broker offering very low fees and a wide range of cryptocurrencies, likely more than Coinbase. It is ideal for users focused on crypto trading with competitive pricing. To create an account, visit the <a class="reference external" href="https://www.kraken.com/">Kraken</a> website.</p>
+<div class="table-wrapper colwidths-given docutils container" id="id21">
+<table class="docutils align-default" id="id21">
+<caption><span class="caption-text">Kraken Configuration</span><a class="headerlink" href="#id21" title="Link to this table">#</a></caption>
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 50.0%" />
+<col style="width: 25.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p><strong>Secret</strong></p></th>
+<th class="head"><p><strong>Description</strong></p></th>
+<th class="head"><p><strong>Example</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>KRAKEN_API_KEY</p></td>
+<td><p>Your API key from Kraken. <strong>Required</strong> if you are using Kraken as your broker.</p></td>
+<td><p>XyZ1234567890abcdef</p></td>
+</tr>
+<tr class="row-odd"><td><p>KRAKEN_API_SECRET</p></td>
+<td><p>Your API secret for Kraken. <strong>Required</strong> if you are using Kraken as your broker.</p></td>
+<td><p>abcdef1234567890abcdef1234567890abcdef1234</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="interactive-brokers-configuration">
+<h2>Interactive Brokers Configuration<a class="headerlink" href="#interactive-brokers-configuration" title="Link to this heading">#</a></h2>
+<p>Interactive Brokers is ideal for international users as they offer a wide array of asset classes, including stocks, options, futures, forex, CFDs, and more. Their global presence makes them suitable for users around the world. To create an account, visit the <a class="reference external" href="https://www.interactivebrokers.com/">Interactive Brokers</a> website.</p>
+<div class="table-wrapper colwidths-given docutils container" id="id22">
+<table class="docutils align-default" id="id22">
+<caption><span class="caption-text">Interactive Brokers Configuration</span><a class="headerlink" href="#id22" title="Link to this table">#</a></caption>
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 50.0%" />
+<col style="width: 25.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p><strong>Secret</strong></p></th>
+<th class="head"><p><strong>Description</strong></p></th>
+<th class="head"><p><strong>Example</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>INTERACTIVE_BROKERS_PORT</p></td>
+<td><p>Socket port for Interactive Brokers.</p></td>
+<td><p>7497</p></td>
+</tr>
+<tr class="row-odd"><td><p>INTERACTIVE_BROKERS_CLIENT_ID</p></td>
+<td><p>Client ID for Interactive Brokers.</p></td>
+<td><p>123456</p></td>
+</tr>
+<tr class="row-even"><td><p>INTERACTIVE_BROKERS_IP</p></td>
+<td><p>IP address for Interactive Brokers (defaults to “127.0.0.1”). <strong>Required</strong> if you are using Interactive Brokers as your broker.</p></td>
+<td><p>127.0.0.1</p></td>
+</tr>
+<tr class="row-odd"><td><p>IB_SUBACCOUNT</p></td>
+<td><p>Subaccount for Interactive Brokers. <strong>Required</strong> if you are using Interactive Brokers as your broker.</p></td>
+<td><p>Subaccount1</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+</section>
+<section id="general-environment-variables">
+<h1>General Environment Variables<a class="headerlink" href="#general-environment-variables" title="Link to this heading">#</a></h1>
+<p>In addition to broker-specific secrets, the following environment variables are required for the strategy to function correctly:</p>
+<div class="table-wrapper colwidths-given docutils container" id="id23">
+<table class="docutils align-default" id="id23">
+<caption><span class="caption-text">General Environment Variables</span><a class="headerlink" href="#id23" title="Link to this table">#</a></caption>
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 50.0%" />
+<col style="width: 25.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p><strong>Secret</strong></p></th>
+<th class="head"><p><strong>Description</strong></p></th>
+<th class="head"><p><strong>Example</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>LIVE_CONFIG</p></td>
+<td><p>Your live config file, only needed for strategies that have multiple configurations (there will be a folder named “configurations” in the src/ folder) and if you are running the strategy live.</p></td>
+<td><p>paper_1</p></td>
+</tr>
+<tr class="row-odd"><td><p>IS_BACKTESTING</p></td>
+<td><p><strong>(Optional)</strong> Set to <strong>“True”</strong> to run the strategy in backtesting mode, set to <strong>“False”</strong> to run the strategy live (defaults to False).</p></td>
+<td><p>False</p></td>
+</tr>
+<tr class="row-even"><td><p>POLYGON_API_KEY</p></td>
+<td><p><strong>(Optional)</strong> Your API key from your Polygon account, only needed if you are backtesting.</p></td>
+<td><p>a7py0zIdhxde6QkX8OjjKNp7cD87hwKU</p></td>
+</tr>
+<tr class="row-odd"><td><p>DISCORD_WEBHOOK_URL</p></td>
+<td><p><strong>(Optional)</strong> Your Discord webhook URL, only needed if you want to send notifications to Discord. Learn how to get a Discord webhook URL here: <a class="reference external" href="https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks">Discord Webhooks</a></p></td>
+<td><p><a class="reference external" href="https://discord.com/api/webhooks/123456789/">https://discord.com/api/webhooks/123456789/</a></p></td>
+</tr>
+<tr class="row-even"><td><p>DB_CONNECTION_STR</p></td>
+<td><p><strong>(Optional)</strong> Your connection string to your account history database, only needed if you want to save your account history to a database.</p></td>
+<td><p>sqlite:///account_history.db</p></td>
+</tr>
+<tr class="row-odd"><td><p>STRATEGY_NAME</p></td>
+<td><p><strong>(Optional)</strong> The name of the strategy. This will change the strategy_id in the database and in the Discord messages.</p></td>
+<td><p>My Strategy</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p><strong>Tip:</strong> If you are running the strategy on your own computer, create a <cite>.env</cite> file in the same directory as <cite>main.py</cite> and add the environment variables there instead of using Replit or Render secrets.</p>
+</div>
+<section id="final-steps">
+<h2>Final Steps<a class="headerlink" href="#final-steps" title="Link to this heading">#</a></h2>
+<p>After configuring all the necessary environment variables and deploying your application on your chosen platform, ensure that everything is running smoothly:</p>
+<ul class="simple">
+<li><p><strong>Verify Deployment:</strong> Check the deployment logs to ensure there are no errors.</p></li>
+<li><p><strong>Test Functionality:</strong> Perform a few tests to confirm that the application behaves as expected.</p></li>
+<li><p><strong>Monitor Performance:</strong> Use the monitoring tools provided by Render or Replit to keep an eye on your application’s performance.</p></li>
+</ul>
+</section>
+<section id="conclusion">
+<h2>Conclusion<a class="headerlink" href="#conclusion" title="Link to this heading">#</a></h2>
+<p>Deploying your application is straightforward with our GitHub deployment buttons for <strong>Render</strong> and <strong>Replit</strong>. By following this guide, you can quickly set up your environment variables and get your application live. Happy deploying! 🎉</p>
+<p>For further assistance, refer to the [Render Documentation](<a class="reference external" href="https://render.com/docs">https://render.com/docs</a>) or the [Replit Documentation](<a class="reference external" href="https://docs.replit.com/">https://docs.replit.com/</a>).</p>
+</section>
+</section>
+
+        </article>
+      </div>
+      <footer>
+        
+        <div class="related-pages">
+          
+          <a class="prev-page" href="brokers.tradier.html">
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+              <div class="page-info">
+                <div class="context">
+                  <span>Previous</span>
+                </div>
+                
+                <div class="title">Tradier</div>
+                
+              </div>
+            </a>
+        </div>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2021, Lumiwealth
+            </div>
+            Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+            
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            
+          </div>
+          <div class="right-details">
+            
+          </div>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer">
+      
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            On this page
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">Deployment Guide</a><ul>
+<li><a class="reference internal" href="#choosing-your-deployment-platform">Choosing Your Deployment Platform</a></li>
+<li><a class="reference internal" href="#deploying-to-render">Deploying to Render</a></li>
+<li><a class="reference internal" href="#deploying-to-replit">Deploying to Replit</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#secrets-configuration">Secrets Configuration</a></li>
+<li><a class="reference internal" href="#broker-configuration">Broker Configuration</a><ul>
+<li><a class="reference internal" href="#tradier-configuration">Tradier Configuration</a></li>
+<li><a class="reference internal" href="#alpaca-configuration">Alpaca Configuration</a></li>
+<li><a class="reference internal" href="#coinbase-configuration">Coinbase Configuration</a></li>
+<li><a class="reference internal" href="#kraken-configuration">Kraken Configuration</a></li>
+<li><a class="reference internal" href="#interactive-brokers-configuration">Interactive Brokers Configuration</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#general-environment-variables">General Environment Variables</a><ul>
+<li><a class="reference internal" href="#final-steps">Final Steps</a></li>
+<li><a class="reference internal" href="#conclusion">Conclusion</a></li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
+      
+      
+    </aside>
+  </div>
+</div><script src="_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="_static/doctools.js?v=888ff710"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/scripts/furo.js?v=32e29ea5"></script>
+    </body>
+</html>

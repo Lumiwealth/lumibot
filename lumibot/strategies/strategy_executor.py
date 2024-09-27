@@ -55,6 +55,15 @@ class StrategyExecutor(Thread):
         # Keep track of Abrupt Closing method execution
         self.abrupt_closing = False
 
+        # Keep track of when LifCycle methods should be called.  This is important for Live trading sessions that
+        # run over multiple days and need to call the lifecycle methods at the correct time.
+        self.lifecycle_last_date = {
+            "after_market_closes": None,
+            "before_market_opens": None,
+            "before_market_closes": None,
+        }
+
+
     @property
     def name(self):
         return self.strategy._name
@@ -109,8 +118,8 @@ class StrategyExecutor(Thread):
         positions_broker = []
         while held_trades_len > 0:
             # Snapshot for the broker and lumibot:
-            cash_broker = self.broker._get_balances_at_broker(self.strategy.quote_asset)
-            if cash_broker is None:
+            broker_balances = self.broker._get_balances_at_broker(self.strategy.quote_asset)
+            if broker_balances is None:
                 if cash_broker_retries < cash_broker_max_retries:
                     self.strategy.logger.info("Unable to get cash from broker, trying again.")
                     cash_broker_retries += 1
@@ -120,11 +129,12 @@ class StrategyExecutor(Thread):
                         f"Unable to get the cash balance after {cash_broker_max_retries} "
                         f"tries, setting cash to zero."
                     )
-                    cash_broker = 0
+                    broker_balances = 0
             else:
-                cash_broker = cash_broker[0]
-                self.strategy._set_cash_position(cash_broker)
-                self.strategy.logger.info(f"Got Cash Balance: {cash_broker}")
+                cash_balance = broker_balances[0]
+                portfolio_value = broker_balances[2]
+                self.strategy._set_cash_position(cash_balance)
+                self.strategy.logger.info(f"Got Cash Balance: ${cash_balance:.2f}, Portfolio: ${portfolio_value:.2f}")
 
 
             held_trades_len = len(self.broker._held_trades)
@@ -851,10 +861,12 @@ class StrategyExecutor(Thread):
 
             if not self.broker.is_market_open():
                 self._before_market_opens()
+                self.lifecycle_last_date['before_market_opens'] = self.strategy.get_datetime().date()
 
             # Now go to the actual open without considering minutes_before_opening
             self.strategy.await_market_to_open(timedelta=0)
             self._before_starting_trading()
+            self.lifecycle_last_date['before_starting_trading'] = self.strategy.get_datetime().date()
 
             time_to_close = self.broker.get_time_to_close()
 
@@ -926,6 +938,31 @@ class StrategyExecutor(Thread):
                 if not is_247_or_should_we_stop:
                     print("Breaking loop because it's 24/7 and time to stop.")
                     break
+
+                # Handle LifeCycle methods
+                current_datetime = self.strategy.get_datetime()
+                current_date = current_datetime.date()
+                min_before_closing = timedelta(minutes=self.strategy.minutes_before_closing)
+                min_before_open = timedelta(minutes=self.strategy.minutes_before_opening)
+                min_after_close = timedelta(minutes=self.strategy.minutes_after_closing)
+
+                # After market closes
+                if (current_datetime >= self.broker.market_close_time() + min_after_close and
+                        current_date != self.lifecycle_last_date['after_market_closes']):
+                    self._after_market_closes()
+                    self.lifecycle_last_date['after_market_closes'] = current_date
+
+                # Before market closes
+                elif (current_datetime >= self.broker.market_close_time() - min_before_closing and
+                        current_date != self.lifecycle_last_date['before_market_closes']):
+                    self._before_market_closes()
+                    self.lifecycle_last_date['before_market_closes'] = current_date
+
+                # Before market opens
+                elif (current_datetime >= self.broker.market_open_time() - min_before_open and
+                        current_date != self.lifecycle_last_date['before_market_opens']):
+                    self._before_market_opens()
+                    self.lifecycle_last_date['before_market_opens'] = current_date
 
                 time.sleep(1)  # Sleep to save CPU
 

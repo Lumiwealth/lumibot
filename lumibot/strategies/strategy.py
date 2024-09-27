@@ -3877,7 +3877,7 @@ class Strategy(_Strategy):
             return
 
         # Check if the discord webhook URL is set
-        if self.discord_webhook_url is None:
+        if self.discord_webhook_url is None or self.discord_webhook_url == "":
             # If the webhook URL is not set, log and return
             self.logger.debug(
                 "The discord webhook URL is not set. Please set the discord_webhook_url parameter in the strategy \
@@ -4227,7 +4227,7 @@ class Strategy(_Strategy):
         if self.is_backtesting:
             return
 
-        if not hasattr(self, "db_connection_str") or self.db_connection_str is None or not self.should_backup_variables_to_database:
+        if not hasattr(self, "db_connection_str") or self.db_connection_str is None or self.db_connection_str == "" or not self.should_backup_variables_to_database:
             return
 
         # Ensure we have a self.db_engine
@@ -4518,13 +4518,13 @@ class Strategy(_Strategy):
                 "Not sending account summary to Discord because self does not have db_connection_str attribute")
             return False
 
-        if self.db_connection_str is None:
+        if self.db_connection_str is None or self.db_connection_str == "":
             # Log that we are not sending the account summary to Discord
             self.logger.info("Not sending account summary to Discord because db_connection_str is not set")
             return False
 
         # Check if discord_webhook_url has been set, if not, return False
-        if not self.discord_webhook_url:
+        if not self.discord_webhook_url or self.discord_webhook_url == "":
             # Log that we are not sending the account summary to Discord
             self.logger.info("Not sending account summary to Discord because discord_webhook_url is not set")
             return False

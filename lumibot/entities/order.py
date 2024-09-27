@@ -851,3 +851,20 @@ class Order:
         logging.info("Waiting for broker to execute order %r" % self)
         self._closed_event.wait()
         logging.info("Order %r executed by broker" % self)
+
+    # ========= Serialization methods ===========
+
+    def to_dict(self):
+        order_dict = copy.deepcopy(self.__dict__)
+        order_dict["asset"] = self.asset.to_dict()
+        order_dict["quote"] = self.quote.to_dict() if self.quote else None
+        order_dict["child_orders"] = [child_order.to_dict() for child_order in self.child_orders]
+        return order_dict
+    
+    @classmethod
+    def from_dict(cls, order_dict):
+        order_dict = copy.deepcopy(order_dict)
+        order_dict["asset"] = entities.Asset.from_dict(order_dict["asset"])
+        order_dict["quote"] = entities.Asset.from_dict(order_dict["quote"]) if order_dict["quote"] else None
+        order_dict["child_orders"] = [Order.from_dict(child_order) for child_order in order_dict["child_orders"]]
+        return cls(**order_dict)

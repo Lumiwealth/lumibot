@@ -18,12 +18,13 @@ When you run a backtest, several important files are generated, each prefixed by
    :maxdepth: 2
    :caption: Contents:
 
-   backtesting.tearsheet_html
-   backtesting.trades_files
-   backtesting.indicators_files
-   backtesting.logs_csv
+   backtesting.how_to_backtest
    backtesting.backtesting_function
    backtesting.yahoo
    backtesting.pandas
    backtesting.polygon
    backtesting.thetadata
+   backtesting.tearsheet_html
+   backtesting.trades_files
+   backtesting.indicators_files
+   backtesting.logs_csv

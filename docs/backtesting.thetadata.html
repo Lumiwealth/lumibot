@@ -3,7 +3,7 @@
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
-<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Brokers" href="brokers.html" /><link rel="prev" title="Polygon.io Backtesting" href="backtesting.polygon.html" />
+<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Tearsheet HTML" href="backtesting.tearsheet_html.html" /><link rel="prev" title="Polygon.io Backtesting" href="backtesting.polygon.html" />
 
     <!-- Generated with Sphinx 7.2.6 and Furo 2024.01.29 -->
         <title>ThetaData Backtesting - Lumibot Documentation</title>
@@ -297,15 +297,17 @@
 </ul>
 </li>
 <li class="toctree-l1 current has-children"><a class="reference internal" href="backtesting.html">Backtesting</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-12" name="toctree-checkbox-12" role="switch" type="checkbox"/><label for="toctree-checkbox-12"><div class="visually-hidden">Toggle navigation of Backtesting</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul class="current">
-<li class="toctree-l2"><a class="reference internal" href="backtesting.tearsheet_html.html">Tearsheet HTML</a></li>
-<li class="toctree-l2"><a class="reference internal" href="backtesting.trades_files.html">Trades Files</a></li>
-<li class="toctree-l2"><a class="reference internal" href="backtesting.indicators_files.html">Indicators Files</a></li>
-<li class="toctree-l2"><a class="reference internal" href="backtesting.logs_csv.html">Logs CSV</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.how_to_backtest.html">How To Backtest</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.how_to_backtest.html#files-generated-from-backtesting">Files Generated from Backtesting</a></li>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.backtesting_function.html">Backtesting Function</a></li>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.yahoo.html">Yahoo</a></li>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.pandas.html">Pandas (CSV or other data)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.polygon.html">Polygon.io Backtesting</a></li>
 <li class="toctree-l2 current current-page"><a class="current reference internal" href="#">ThetaData Backtesting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.tearsheet_html.html">Tearsheet HTML</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.trades_files.html">Trades Files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.indicators_files.html">Indicators Files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.logs_csv.html">Logs CSV</a></li>
 </ul>
 </li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="brokers.html">Brokers</a><input class="toctree-checkbox" id="toctree-checkbox-13" name="toctree-checkbox-13" role="switch" type="checkbox"/><label for="toctree-checkbox-13"><div class="visually-hidden">Toggle navigation of Brokers</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
@@ -400,22 +402,21 @@
 </pre></div>
 </div>
 <p>Finally, run the backtest:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">trader</span> <span class="o">=</span> <span class="n">Trader</span><span class="p">(</span><span class="n">backtest</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<span class="n">data_source</span> <span class="o">=</span> <span class="n">ThetaDataBacktesting</span><span class="p">(</span>
-        <span class="n">datetime_start</span><span class="o">=</span><span class="n">backtesting_start</span><span class="p">,</span>
-        <span class="n">datetime_end</span><span class="o">=</span><span class="n">backtesting_end</span><span class="p">,</span>
-        <span class="n">username</span><span class="o">=</span><span class="n">THETADATA_USERNAME</span><span class="p">,</span>
-        <span class="n">password</span><span class="o">=</span><span class="n">THETADATA_PASSWORD</span><span class="p">,</span>
-<span class="p">)</span>
-<span class="n">broker</span> <span class="o">=</span> <span class="n">BacktestingBroker</span><span class="p">(</span><span class="n">data_source</span><span class="p">)</span>
-<span class="n">my_strat</span> <span class="o">=</span> <span class="n">MyStrategy</span><span class="p">(</span>
-    <span class="n">broker</span><span class="o">=</span><span class="n">broker</span><span class="p">,</span>
-    <span class="n">backtesting_start</span><span class="o">=</span><span class="n">backtesting_start</span><span class="p">,</span>
-    <span class="n">backtesting_end</span><span class="o">=</span><span class="n">backtesting_end</span><span class="p">,</span>
-    <span class="n">benchmark_asset</span><span class="o">=</span><span class="s2">&quot;SPY&quot;</span><span class="p">,</span>
-<span class="p">)</span>
-<span class="n">trader</span><span class="o">.</span><span class="n">add_strategy</span><span class="p">(</span><span class="n">my_strat</span><span class="p">)</span>
-<span class="n">trader</span><span class="o">.</span><span class="n">run_all</span><span class="p">()</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">result</span> <span class="o">=</span> <span class="n">MyStrategy</span><span class="o">.</span><span class="n">run_backtest</span><span class="p">(</span>
+    <span class="n">ThetaDataBacktesting</span><span class="p">,</span>
+    <span class="n">backtesting_start</span><span class="p">,</span>
+    <span class="n">backtesting_end</span><span class="p">,</span>
+    <span class="n">benchmark_asset</span><span class="o">=</span><span class="s2">&quot;SPY&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Alternatively, if you want to use polygon for stock data, and thetadata for option data,
+you can pass a dictionary with both data sources as the first argument to <cite>run_backtest</cite>.
+In this example, we are using thetadata for both stock and option data.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">result</span> <span class="o">=</span> <span class="n">MyStrategy</span><span class="o">.</span><span class="n">run_backtest</span><span class="p">(</span>
+    <span class="p">{</span><span class="s2">&quot;STOCK&quot;</span><span class="p">:</span><span class="n">PolygonDataBacktesting</span><span class="p">,</span><span class="s2">&quot;OPTION&quot;</span><span class="p">:</span><span class="n">ThetaDataBacktesting</span><span class="p">},</span>
+    <span class="n">backtesting_start</span><span class="p">,</span>
+    <span class="n">backtesting_end</span><span class="p">,</span>
+    <span class="n">benchmark_asset</span><span class="o">=</span><span class="s2">&quot;SPY&quot;</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>Here’s the full code:</p>
@@ -447,21 +448,11 @@
 <span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
     <span class="n">backtesting_start</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">2023</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
     <span class="n">backtesting_end</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">2023</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
-
-    <span class="n">trader</span> <span class="o">=</span> <span class="n">Trader</span><span class="p">(</span><span class="n">backtest</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-    <span class="n">data_source</span> <span class="o">=</span> <span class="n">ThetaDataBacktesting</span><span class="p">(</span>
-        <span class="n">datetime_start</span><span class="o">=</span><span class="n">backtesting_start</span><span class="p">,</span>
-        <span class="n">datetime_end</span><span class="o">=</span><span class="n">backtesting_end</span><span class="p">,</span>
-        <span class="n">username</span><span class="o">=</span><span class="n">THETADATA_USERNAME</span><span class="p">,</span>
-        <span class="n">password</span><span class="o">=</span><span class="n">THETADATA_PASSWORD</span><span class="p">,</span>
-    <span class="p">)</span>
-    <span class="n">broker</span> <span class="o">=</span> <span class="n">BacktestingBroker</span><span class="p">(</span><span class="n">data_source</span><span class="p">)</span>
-    <span class="n">my_strat</span> <span class="o">=</span> <span class="n">MyStrategy</span><span class="p">(</span>
-        <span class="n">broker</span><span class="o">=</span><span class="n">broker</span><span class="p">,</span>
-        <span class="n">benchmark_asset</span><span class="o">=</span><span class="s2">&quot;SPY&quot;</span><span class="p">,</span>
-    <span class="p">)</span>
-    <span class="n">trader</span><span class="o">.</span><span class="n">add_strategy</span><span class="p">(</span><span class="n">my_strat</span><span class="p">)</span>
-    <span class="n">trader</span><span class="o">.</span><span class="n">run_all</span><span class="p">()</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">MyStrategy</span><span class="o">.</span><span class="n">run_backtest</span><span class="p">(</span>
+        <span class="n">ThetaDataBacktesting</span><span class="p">,</span>
+        <span class="n">backtesting_start</span><span class="p">,</span>
+        <span class="n">backtesting_end</span><span class="p">,</span>
+        <span class="n">benchmark_asset</span><span class="o">=</span><span class="s2">&quot;SPY&quot;</span><span class="p">)</span>
 </pre></div>
 </div>
 <div class="admonition important">
@@ -476,12 +467,12 @@
       <footer>
         
         <div class="related-pages">
-          <a class="next-page" href="brokers.html">
+          <a class="next-page" href="backtesting.tearsheet_html.html">
               <div class="page-info">
                 <div class="context">
                   <span>Next</span>
                 </div>
-                <div class="title">Brokers</div>
+                <div class="title">Tearsheet HTML</div>
               </div>
               <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
             </a>

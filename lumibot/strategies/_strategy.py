@@ -76,6 +76,7 @@ class _Strategy:
         broker=None,
         minutes_before_closing=1,
         minutes_before_opening=60,
+        minutes_after_closing=0,
         sleeptime="1M",
         stats_file=None,
         risk_free_rate=None,
@@ -374,6 +375,7 @@ class _Strategy:
         self._initial_budget = budget
         self._minutes_before_closing = minutes_before_closing
         self._minutes_before_opening = minutes_before_opening
+        self._minutes_after_closing = minutes_after_closing
         self._sleeptime = sleeptime
         self._risk_free_rate = risk_free_rate
         self._executor = StrategyExecutor(self)
@@ -957,8 +959,10 @@ class _Strategy:
 
         Returns
         -------
-        Backtest
-            The backtest object.
+        tuple of (dict, Strategy)
+            A tuple of the analysis dictionary and the strategy object. The analysis dictionary contains the
+            analysis of the strategy returns. The strategy object is the strategy object that was backtested, where 
+            you can access the strategy returns and other attributes.
 
         Examples
         --------
@@ -1099,7 +1103,7 @@ class _Strategy:
             thetadata_password = THETADATA_CONFIG.get('THETADATA_PASSWORD')
             
             # Check again if theta data username and pass are set
-            if thetadata_username is None or thetadata_password is None and (datasource_class == ThetaDataBacktesting or optionsource_class == ThetaDataBacktesting):
+            if (thetadata_username is None or thetadata_password is None) and (datasource_class == ThetaDataBacktesting or optionsource_class == ThetaDataBacktesting):
                 raise ValueError(
                     "Please set `thetadata_username` and `thetadata_password` in the backtest() function if "
                     "you are using ThetaDataBacktesting. If you don't have one, you can do registeration "

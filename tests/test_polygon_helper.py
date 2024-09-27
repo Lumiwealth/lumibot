@@ -141,6 +141,10 @@ class TestPolygonHelpers:
         asset = Asset("SPY")
         assert ph.get_polygon_symbol(asset, polygon_client) == "SPY"
 
+        # ------- Index
+        asset = Asset("SPX", asset_type="index")
+        assert ph.get_polygon_symbol(asset, polygon_client) == "I:SPX"
+
         # ------- Option
         expire_date = datetime.date(2023, 8, 1)
         option_asset = Asset("SPY", asset_type="option", expiration=expire_date, strike=100, right="CALL")

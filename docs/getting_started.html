@@ -297,15 +297,17 @@
 </ul>
 </li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="backtesting.html">Backtesting</a><input class="toctree-checkbox" id="toctree-checkbox-12" name="toctree-checkbox-12" role="switch" type="checkbox"/><label for="toctree-checkbox-12"><div class="visually-hidden">Toggle navigation of Backtesting</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
-<li class="toctree-l2"><a class="reference internal" href="backtesting.tearsheet_html.html">Tearsheet HTML</a></li>
-<li class="toctree-l2"><a class="reference internal" href="backtesting.trades_files.html">Trades Files</a></li>
-<li class="toctree-l2"><a class="reference internal" href="backtesting.indicators_files.html">Indicators Files</a></li>
-<li class="toctree-l2"><a class="reference internal" href="backtesting.logs_csv.html">Logs CSV</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.how_to_backtest.html">How To Backtest</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.how_to_backtest.html#files-generated-from-backtesting">Files Generated from Backtesting</a></li>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.backtesting_function.html">Backtesting Function</a></li>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.yahoo.html">Yahoo</a></li>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.pandas.html">Pandas (CSV or other data)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.polygon.html">Polygon.io Backtesting</a></li>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.thetadata.html">ThetaData Backtesting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.tearsheet_html.html">Tearsheet HTML</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.trades_files.html">Trades Files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.indicators_files.html">Indicators Files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.logs_csv.html">Logs CSV</a></li>
 </ul>
 </li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="brokers.html">Brokers</a><input class="toctree-checkbox" id="toctree-checkbox-13" name="toctree-checkbox-13" role="switch" type="checkbox"/><label for="toctree-checkbox-13"><div class="visually-hidden">Toggle navigation of Brokers</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
@@ -464,7 +466,7 @@
 
 <span class="n">backtesting_start</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">2020</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
 <span class="n">backtesting_end</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">2020</span><span class="p">,</span> <span class="mi">12</span><span class="p">,</span> <span class="mi">31</span><span class="p">)</span>
-<span class="n">strategy</span><span class="o">.</span><span class="n">backtest</span><span class="p">(</span>
+<span class="n">strategy</span><span class="o">.</span><span class="n">run_backtest</span><span class="p">(</span>
     <span class="n">YahooDataBacktesting</span><span class="p">,</span>
     <span class="n">backtesting_start</span><span class="p">,</span>
     <span class="n">backtesting_end</span><span class="p">,</span>
@@ -526,7 +528,7 @@
 
 <span class="n">backtesting_start</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">2020</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
 <span class="n">backtesting_end</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">2020</span><span class="p">,</span> <span class="mi">12</span><span class="p">,</span> <span class="mi">31</span><span class="p">)</span>
-<span class="n">strategy</span><span class="o">.</span><span class="n">backtest</span><span class="p">(</span>
+<span class="n">strategy</span><span class="o">.</span><span class="n">run_backtest</span><span class="p">(</span>
     <span class="n">YahooDataBacktesting</span><span class="p">,</span>
     <span class="n">backtesting_start</span><span class="p">,</span>
     <span class="n">backtesting_end</span><span class="p">,</span>
@@ -552,7 +554,7 @@
 
 <span class="n">backtesting_start</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">2020</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
 <span class="n">backtesting_end</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">2020</span><span class="p">,</span> <span class="mi">12</span><span class="p">,</span> <span class="mi">31</span><span class="p">)</span>
-<span class="n">strategy</span><span class="o">.</span><span class="n">backtest</span><span class="p">(</span>
+<span class="n">strategy</span><span class="o">.</span><span class="n">run_backtest</span><span class="p">(</span>
     <span class="n">YahooDataBacktesting</span><span class="p">,</span>
     <span class="n">backtesting_start</span><span class="p">,</span>
     <span class="n">backtesting_end</span><span class="p">,</span>
@@ -579,7 +581,7 @@
 <span class="c1">#######</span>
 <span class="c1"># Run your code here, eg. a backtest</span>
 <span class="c1">#######</span>
-<span class="n">MachineLearningLongShort</span><span class="o">.</span><span class="n">backtest</span><span class="p">(</span>
+<span class="n">MachineLearningLongShort</span><span class="o">.</span><span class="n">run_backtest</span><span class="p">(</span>
     <span class="n">PandasDataBacktesting</span><span class="p">,</span>
     <span class="n">backtesting_start</span><span class="p">,</span>
     <span class="n">backtesting_end</span><span class="p">,</span>
@@ -590,13 +592,30 @@
 <span class="c1"># Stop the profiler</span>
 <span class="n">yappi</span><span class="o">.</span><span class="n">stop</span><span class="p">()</span>
 
-<span class="c1"># Save the results</span>
-<span class="n">threads</span> <span class="o">=</span> <span class="n">yappi</span><span class="o">.</span><span class="n">get_thread_stats</span><span class="p">()</span>
-<span class="k">for</span> <span class="n">thread</span> <span class="ow">in</span> <span class="n">threads</span><span class="p">:</span>
-    <span class="nb">print</span><span class="p">(</span>
-        <span class="s2">&quot;Function stats for (</span><span class="si">%s</span><span class="s2">) (</span><span class="si">%d</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">thread</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">thread</span><span class="o">.</span><span class="n">id</span><span class="p">)</span>
-    <span class="p">)</span>
+<span class="c1"># Save the results to files</span>
+<span class="n">yappi</span><span class="o">.</span><span class="n">get_func_stats</span><span class="p">()</span><span class="o">.</span><span class="n">print_all</span><span class="p">()</span>
+<span class="n">yappi</span><span class="o">.</span><span class="n">get_thread_stats</span><span class="p">()</span><span class="o">.</span><span class="n">print_all</span><span class="p">()</span>
+
+<span class="c1"># Save the results to a file</span>
+<span class="n">yappi</span><span class="o">.</span><span class="n">get_func_stats</span><span class="p">()</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;yappi.prof&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;pstat&quot;</span><span class="p">)</span>
 </pre></div>
+</div>
+<p>To get the results of the profiling, you can use snakeviz to visualize the results. You can install snakeviz with the following command in your terminal:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>snakeviz
+</pre></div>
+</div>
+<p>Once installed, you can use snakeviz to visualize the results like this:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>snakeviz<span class="w"> </span>yappi.prof
+</pre></div>
+</div>
+<p>This will open a web browser with a visualization of the profiling results.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><strong>Profiling can slow down your code</strong>, so it is recommended to only use it when you need to.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><strong>Profiling can be complex</strong>, so it is recommended to read the <a href="#id3"><span class="problematic" id="id4">`</span></a>yappi documentation &lt;</p>
 </div>
 </section>
 

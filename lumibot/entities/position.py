@@ -162,3 +162,28 @@ class Position:
         self._quantity += Decimal(increment)
         if order not in self.orders:
             self.orders.append(order)
+
+    # ========= Serialization methods ===========
+    def to_dict(self):
+        return {
+            "strategy": self.strategy,
+            "asset": self.asset.to_dict(),
+            "quantity": str(self.quantity),
+            "orders": [order.to_dict() for order in self.orders],
+            "hold": str(self.hold),
+            "available": str(self.available),
+            "avg_fill_price": str(self.avg_fill_price),
+        }
+    
+    @classmethod
+    def from_dict(cls, data):
+        asset = entities.Asset.from_dict(data["asset"])
+        return cls(
+            strategy=data["strategy"],
+            asset=asset,
+            quantity=Decimal(data["quantity"]),
+            orders=[entities.Order.from_dict(order) for order in data["orders"]],
+            hold=Decimal(data["hold"]),
+            available=Decimal(data["available"]),
+            avg_fill_price=Decimal(data["avg_fill_price"]),
+        )

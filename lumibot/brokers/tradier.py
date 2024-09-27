@@ -245,7 +245,7 @@ class Tradier(Broker):
                         # Create the leg
                         leg = OrderLeg(
                             option_symbol=option_symbol,
-                            quantity=child_order.quantity,
+                            quantity=int(child_order.quantity),
                             side=self._lumi_side2tradier(child_order),
                             price=child_order.limit_price,
                             stop=child_order.stop_price,

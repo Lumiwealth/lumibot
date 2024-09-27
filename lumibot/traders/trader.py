@@ -152,9 +152,10 @@ class Trader:
         return result
 
     # Async version of run_all
-    def run_all_async(self, backtest=False):
+    def run_all_async(self):
         """run all strategies"""
-        return self.run_all(backtest=backtest, async_=True)
+        self.run_all(async_=True)
+        return self._strategies
 
     def stop_all(self):
         logging.info("Stopping all strategies for this trader")

@@ -163,9 +163,10 @@ Table of Contents
    lifecycle_methods
    strategy_methods
    strategy_properties
+   entities
    backtesting
    brokers
-   entities
+   deployment
 
 Indices and tables
 ==================

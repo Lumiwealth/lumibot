@@ -73,6 +73,10 @@ class PollingStream(CustomStream):
                 # If the queue is empty, it means the polling interval has been reached.
                 self._poll()
                 continue
+            # Ensure that the Polling thread does not die if an exception is raised in the event processing.
+            except Exception as e: # noqa
+                logging.exception(f"An error occurred while processing a queue event. {e}")
+                continue
 
     def _poll(self):
         if self.POLL_EVENT not in self._actions_mapping:

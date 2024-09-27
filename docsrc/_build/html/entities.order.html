@@ -296,7 +296,16 @@
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.unspent_money.html">self.unspent_money</a></li>
 </ul>
 </li>
-<li class="toctree-l1 has-children"><a class="reference internal" href="backtesting.html">Backtesting</a><input class="toctree-checkbox" id="toctree-checkbox-12" name="toctree-checkbox-12" role="switch" type="checkbox"/><label for="toctree-checkbox-12"><div class="visually-hidden">Toggle navigation of Backtesting</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l1 current has-children"><a class="reference internal" href="entities.html">Entities</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-12" name="toctree-checkbox-12" role="switch" type="checkbox"/><label for="toctree-checkbox-12"><div class="visually-hidden">Toggle navigation of Entities</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="entities.asset.html">Asset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.bars.html">Bars</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.data.html">Data</a></li>
+<li class="toctree-l2 current current-page"><a class="current reference internal" href="#">Order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.position.html">Position</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.trading_fee.html">Trading Fee</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="backtesting.html">Backtesting</a><input class="toctree-checkbox" id="toctree-checkbox-13" name="toctree-checkbox-13" role="switch" type="checkbox"/><label for="toctree-checkbox-13"><div class="visually-hidden">Toggle navigation of Backtesting</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.how_to_backtest.html">How To Backtest</a></li>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.how_to_backtest.html#files-generated-from-backtesting">Files Generated from Backtesting</a></li>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.backtesting_function.html">Backtesting Function</a></li>
@@ -310,22 +319,17 @@
 <li class="toctree-l2"><a class="reference internal" href="backtesting.logs_csv.html">Logs CSV</a></li>
 </ul>
 </li>
-<li class="toctree-l1 has-children"><a class="reference internal" href="brokers.html">Brokers</a><input class="toctree-checkbox" id="toctree-checkbox-13" name="toctree-checkbox-13" role="switch" type="checkbox"/><label for="toctree-checkbox-13"><div class="visually-hidden">Toggle navigation of Brokers</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l1 has-children"><a class="reference internal" href="brokers.html">Brokers</a><input class="toctree-checkbox" id="toctree-checkbox-14" name="toctree-checkbox-14" role="switch" type="checkbox"/><label for="toctree-checkbox-14"><div class="visually-hidden">Toggle navigation of Brokers</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="brokers.alpaca.html">Alpaca</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.interactive_brokers.html">Interactive Brokers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.ccxt.html">Crypto Brokers (Using CCXT)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.tradier.html">Tradier</a></li>
 </ul>
 </li>
-<li class="toctree-l1 current has-children"><a class="reference internal" href="entities.html">Entities</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-14" name="toctree-checkbox-14" role="switch" type="checkbox"/><label for="toctree-checkbox-14"><div class="visually-hidden">Toggle navigation of Entities</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul class="current">
-<li class="toctree-l2"><a class="reference internal" href="entities.asset.html">Asset</a></li>
-<li class="toctree-l2"><a class="reference internal" href="entities.bars.html">Bars</a></li>
-<li class="toctree-l2"><a class="reference internal" href="entities.data.html">Data</a></li>
-<li class="toctree-l2 current current-page"><a class="current reference internal" href="#">Order</a></li>
-<li class="toctree-l2"><a class="reference internal" href="entities.position.html">Position</a></li>
-<li class="toctree-l2"><a class="reference internal" href="entities.trading_fee.html">Trading Fee</a></li>
-</ul>
-</li>
+<li class="toctree-l1"><a class="reference internal" href="deployment.html">Deployment Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="deployment.html#secrets-configuration">Secrets Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="deployment.html#broker-configuration">Broker Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="deployment.html#general-environment-variables">General Environment Variables</a></li>
 </ul>
 
 </div>
@@ -553,6 +557,11 @@
 <dd></dd></dl>
 
 <dl class="py attribute">
+<dt class="sig sig-object py" id="entities.order.Order.OrderStatus.CANCELLING">
+<span class="sig-name descname"><span class="pre">CANCELLING</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'cancelling'</span></em><a class="headerlink" href="#entities.order.Order.OrderStatus.CANCELLING" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
 <dt class="sig sig-object py" id="entities.order.Order.OrderStatus.CASH_SETTLED">
 <span class="sig-name descname"><span class="pre">CASH_SETTLED</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'cash_settled'</span></em><a class="headerlink" href="#entities.order.Order.OrderStatus.CASH_SETTLED" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
@@ -578,8 +587,18 @@
 <dd></dd></dl>
 
 <dl class="py attribute">
+<dt class="sig sig-object py" id="entities.order.Order.OrderStatus.OPEN">
+<span class="sig-name descname"><span class="pre">OPEN</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'open'</span></em><a class="headerlink" href="#entities.order.Order.OrderStatus.OPEN" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
 <dt class="sig sig-object py" id="entities.order.Order.OrderStatus.PARTIALLY_FILLED">
 <span class="sig-name descname"><span class="pre">PARTIALLY_FILLED</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'partial_fill'</span></em><a class="headerlink" href="#entities.order.Order.OrderStatus.PARTIALLY_FILLED" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="entities.order.Order.OrderStatus.UNPROCESSED">
+<span class="sig-name descname"><span class="pre">UNPROCESSED</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'unprocessed'</span></em><a class="headerlink" href="#entities.order.Order.OrderStatus.UNPROCESSED" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
@@ -679,6 +698,11 @@
 <span class="sig-name descname"><span class="pre">equivalent_status</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">status</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">bool</span></span></span><a class="headerlink" href="#entities.order.Order.equivalent_status" title="Link to this definition">#</a></dt>
 <dd><p>Returns if the status is equivalent to the order status.</p>
 </dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="entities.order.Order.from_dict">
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">from_dict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">order_dict</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.order.Order.from_dict" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="entities.order.Order.get_fill_price">
@@ -791,6 +815,11 @@ has not yet been filled.</p>
 <dl class="py property">
 <dt class="sig sig-object py" id="entities.order.Order.status">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">status</span></span><a class="headerlink" href="#entities.order.Order.status" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="entities.order.Order.to_dict">
+<span class="sig-name descname"><span class="pre">to_dict</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#entities.order.Order.to_dict" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
@@ -915,12 +944,15 @@ This will be used to determine if a trailing stop order should be triggered in a
 </li>
 <li><a class="reference internal" href="#entities.order.Order.OrderStatus"><code class="docutils literal notranslate"><span class="pre">Order.OrderStatus</span></code></a><ul>
 <li><a class="reference internal" href="#entities.order.Order.OrderStatus.CANCELED"><code class="docutils literal notranslate"><span class="pre">Order.OrderStatus.CANCELED</span></code></a></li>
+<li><a class="reference internal" href="#entities.order.Order.OrderStatus.CANCELLING"><code class="docutils literal notranslate"><span class="pre">Order.OrderStatus.CANCELLING</span></code></a></li>
 <li><a class="reference internal" href="#entities.order.Order.OrderStatus.CASH_SETTLED"><code class="docutils literal notranslate"><span class="pre">Order.OrderStatus.CASH_SETTLED</span></code></a></li>
 <li><a class="reference internal" href="#entities.order.Order.OrderStatus.ERROR"><code class="docutils literal notranslate"><span class="pre">Order.OrderStatus.ERROR</span></code></a></li>
 <li><a class="reference internal" href="#entities.order.Order.OrderStatus.EXPIRED"><code class="docutils literal notranslate"><span class="pre">Order.OrderStatus.EXPIRED</span></code></a></li>
 <li><a class="reference internal" href="#entities.order.Order.OrderStatus.FILLED"><code class="docutils literal notranslate"><span class="pre">Order.OrderStatus.FILLED</span></code></a></li>
 <li><a class="reference internal" href="#entities.order.Order.OrderStatus.NEW"><code class="docutils literal notranslate"><span class="pre">Order.OrderStatus.NEW</span></code></a></li>
+<li><a class="reference internal" href="#entities.order.Order.OrderStatus.OPEN"><code class="docutils literal notranslate"><span class="pre">Order.OrderStatus.OPEN</span></code></a></li>
 <li><a class="reference internal" href="#entities.order.Order.OrderStatus.PARTIALLY_FILLED"><code class="docutils literal notranslate"><span class="pre">Order.OrderStatus.PARTIALLY_FILLED</span></code></a></li>
+<li><a class="reference internal" href="#entities.order.Order.OrderStatus.UNPROCESSED"><code class="docutils literal notranslate"><span class="pre">Order.OrderStatus.UNPROCESSED</span></code></a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#entities.order.Order.OrderType"><code class="docutils literal notranslate"><span class="pre">Order.OrderType</span></code></a><ul>
@@ -944,6 +976,7 @@ This will be used to determine if a trailing stop order should be triggered in a
 <li><a class="reference internal" href="#entities.order.Order.avg_fill_price"><code class="docutils literal notranslate"><span class="pre">Order.avg_fill_price</span></code></a></li>
 <li><a class="reference internal" href="#entities.order.Order.cash_pending"><code class="docutils literal notranslate"><span class="pre">Order.cash_pending()</span></code></a></li>
 <li><a class="reference internal" href="#entities.order.Order.equivalent_status"><code class="docutils literal notranslate"><span class="pre">Order.equivalent_status()</span></code></a></li>
+<li><a class="reference internal" href="#entities.order.Order.from_dict"><code class="docutils literal notranslate"><span class="pre">Order.from_dict()</span></code></a></li>
 <li><a class="reference internal" href="#entities.order.Order.get_fill_price"><code class="docutils literal notranslate"><span class="pre">Order.get_fill_price()</span></code></a></li>
 <li><a class="reference internal" href="#entities.order.Order.get_increment"><code class="docutils literal notranslate"><span class="pre">Order.get_increment()</span></code></a></li>
 <li><a class="reference internal" href="#entities.order.Order.is_active"><code class="docutils literal notranslate"><span class="pre">Order.is_active()</span></code></a></li>
@@ -960,6 +993,7 @@ This will be used to determine if a trailing stop order should be triggered in a
 <li><a class="reference internal" href="#entities.order.Order.set_new"><code class="docutils literal notranslate"><span class="pre">Order.set_new()</span></code></a></li>
 <li><a class="reference internal" href="#entities.order.Order.set_partially_filled"><code class="docutils literal notranslate"><span class="pre">Order.set_partially_filled()</span></code></a></li>
 <li><a class="reference internal" href="#entities.order.Order.status"><code class="docutils literal notranslate"><span class="pre">Order.status</span></code></a></li>
+<li><a class="reference internal" href="#entities.order.Order.to_dict"><code class="docutils literal notranslate"><span class="pre">Order.to_dict()</span></code></a></li>
 <li><a class="reference internal" href="#entities.order.Order.to_position"><code class="docutils literal notranslate"><span class="pre">Order.to_position()</span></code></a></li>
 <li><a class="reference internal" href="#entities.order.Order.update_raw"><code class="docutils literal notranslate"><span class="pre">Order.update_raw()</span></code></a></li>
 <li><a class="reference internal" href="#entities.order.Order.update_trail_stop_price"><code class="docutils literal notranslate"><span class="pre">Order.update_trail_stop_price()</span></code></a></li>

@@ -159,6 +159,7 @@ Table of Contents
    GitHub <https://github.com/Lumiwealth/lumibot>
    Discord Community <https://discord.gg/v6asVjTCvh>
    Get Pre-Built Profitable Strategies <https://lumiwealth.com/?utm_source=documentation&utm_medium=referral&utm_campaign=lumibot_sidebar>
+   deployment
    getting_started
    lifecycle_methods
    strategy_methods
@@ -166,7 +167,6 @@ Table of Contents
    entities
    backtesting
    brokers
-   deployment
 
 Indices and tables
 ==================

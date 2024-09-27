@@ -1088,7 +1088,7 @@ class _Strategy:
         cls.verify_backtest_inputs(backtesting_start, backtesting_end)
 
         # Make sure polygon_api_key is set if using PolygonDataBacktesting
-        polygon_api_key = polygon_api_key if polygon_api_key is not None or polygon_api_key != "" else POLYGON_API_KEY
+        polygon_api_key = polygon_api_key if polygon_api_key is not None else POLYGON_API_KEY
         if datasource_class == PolygonDataBacktesting and polygon_api_key is None:
             raise ValueError(
                 "Please set `POLYGON_API_KEY` to your API key from polygon.io as an environment variable if "

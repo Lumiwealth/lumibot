@@ -233,21 +233,21 @@ def get_missing_dates(df_all, asset, start, end):
 
 
 def load_cache(cache_file):
-    df_feather = None
-    try:
-        """Load the data from the cache file and return a DataFrame with a DateTimeIndex"""
-        df_feather = pd.read_feather(cache_file)
+    """Load the data from the cache file and return a DataFrame with a DateTimeIndex"""
+    df_feather = pd.read_feather(cache_file)
 
-        # Set the 'datetime' column as the index of the DataFrame
-        df_feather.set_index("datetime", inplace=True)
+    # Set the 'datetime' column as the index of the DataFrame
+    df_feather.set_index("datetime", inplace=True)
 
-        df_feather.index = pd.to_datetime(
-            df_feather.index
-        )  # TODO: Is there some way to speed this up? It takes several times longer than just reading the feather file
-        df_feather = df_feather.sort_index()
-    except Exception as e:
-        logging.error(f"Error loading cache file: {cache_file}")
-        logging.error(e)
+    df_feather.index = pd.to_datetime(
+        df_feather.index
+    )  # TODO: Is there some way to speed this up? It takes several times longer than just reading the feather file
+    df_feather = df_feather.sort_index()
+
+    # Check if the index is already timezone aware
+    if df_feather.index.tzinfo is None:
+        # Set the timezone to UTC
+        df_feather.index = df_feather.index.tz_localize("UTC")
 
     return df_feather
 

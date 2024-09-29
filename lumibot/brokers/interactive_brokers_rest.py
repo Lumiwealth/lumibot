@@ -137,7 +137,7 @@ class InteractiveBrokersREST(Broker):
                                                        response=response,
                                                        quantity=float(ratio), ## maybe not how ratios work
                                                        conId=leg,
-                                                       secType=leg_secType
+                                                       secType=ASSET_CLASS_MAPPING[leg_secType]
                                                        )
                 order.child_orders.append(child_order)
 
@@ -163,7 +163,6 @@ class InteractiveBrokersREST(Broker):
         limit_price = response['price'] if 'price' in response and response['price'] != '' else None
         stop_price = response['stop_price'] if 'stop_price' in response and response['stop_price'] != '' else None
         good_till_date = response['goodTillDate'] if 'goodTillDate' in response and response['goodTillDate'] != '' else None
-        secType = ASSET_CLASS_MAPPING[secType]
         ## rethink the fields
         
         contract_details = self.data_source.get_contract_details(conId)
@@ -448,7 +447,7 @@ class InteractiveBrokersREST(Broker):
 
                 if conid is None:
                     raise Exception("Order conid Not Found")
-
+                
                 data = {
                     "conid": conid, # required
                     "quantity": order.quantity, # required

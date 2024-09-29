@@ -7,6 +7,7 @@ from lumibot.entities import Asset, Order
 from lumibot.strategies.strategy import Strategy
 from lumibot.traders import Trader
 import yfinance as yf
+from datetime import timedelta
 
 # from lumiwealth_tradier import Tradier as _Tradier
 
@@ -26,6 +27,13 @@ class BrokerTest(Strategy):
         self.strike = 520
 
     def on_trading_iteration(self):
+        ## historical data
+        stock_asset = Asset(
+            symbol="SPY",
+            asset_type=Asset.AssetType.STOCK
+        )
+        self.get_historical_prices(stock_asset, 10, timestep="1 day", quote=stock_asset, include_after_hours=True, timeshift=timedelta(days=2))
+
         ## Get Positions
         positions = self.get_positions()
         logging.info(positions)
@@ -101,8 +109,16 @@ class BrokerTest(Strategy):
             result = self.submit_orders([order_1, order_4], is_multileg=True, price=2)
             logging.info(result)
 
-            self.cancel_orders(result)
+            ## stock order
+            stock_asset = Asset(
+                symbol="SPY",
+                asset_type=Asset.AssetType.STOCK
+            )
+            order = self.create_order(asset=stock_asset, quantity=2, side=Order.OrderSide.BUY_TO_OPEN)
 
+            self.submit_order(order)
+
+            self.cancel_orders(result)
         return
 
     def on_filled_order(self, position, order, price, quantity, multiplier):

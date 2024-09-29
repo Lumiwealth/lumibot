@@ -10,6 +10,9 @@ import requests
 import urllib3
 from lumibot.tools.helpers import create_options_symbol
 from datetime import datetime
+import pytz
+import pandas as pd
+
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -351,11 +354,104 @@ class InteractiveBrokersRESTData(DataSource):
 
         return chains
 
-    def get_historical_prices(
-        self, asset, length, timestep="", timeshift=None, quote=None, exchange=None, include_after_hours=True
-    ) -> Bars:
-        logging.error(colored("Method 'get_historical_prices' is not yet implemented.", "red"))
-        return None  # Return None as a placeholder
+    def get_historical_prices(self, asset, length, timestep="", timeshift=None, quote=None, exchange=None, include_after_hours=True) -> Bars:
+        """
+        Get bars for a given asset
+
+        Parameters
+        ----------
+        asset : Asset
+            The asset to get the bars for.
+        length : int
+            The number of bars to get.
+        timestep : str
+            The timestep to get the bars at. For example, "minute" or "day".
+        timeshift : datetime.timedelta
+            The amount of time to shift the bars by. For example, if you want the bars from 1 hour ago to now,
+            you would set timeshift to 1 hour.
+        quote : Asset
+            The quote asset to get the bars for.
+        exchange : str
+            The exchange to get the bars for.
+        include_after_hours : bool
+            Whether to include after hours data.
+        """
+
+        if isinstance(asset, str):
+            asset = Asset(symbol=asset)
+
+        if not timestep:
+            timestep = self.get_timestep()
+        
+        if timeshift:
+            start_time = (datetime.now() - timeshift).strftime("%Y%m%d-%H:%M:%S")
+        else:
+            start_time = datetime.now().strftime("%Y%m%d-%H:%M:%S")
+
+        conid = self.get_conid_from_asset(asset=asset)
+
+        ## may need to be tested out thoroughly
+        # Determine the period based on the timestep and length
+        if "minute" in timestep:
+            period = f"{length * int(timestep.split()[0])}mins"
+            timestep = f"{int(timestep.split()[0])}mins"
+        elif "hour" in timestep:
+            period = f"{length * int(timestep.split()[0])}h"
+            timestep = f"{int(timestep.split()[0])}h"
+        elif "day" in timestep:
+            period = f"{length * int(timestep.split()[0])}d"
+            timestep = f"{int(timestep.split()[0])}d"
+        elif "week" in timestep:
+            period = f"{length * int(timestep.split()[0])}w"
+            timestep = f"{int(timestep.split()[0])}w"
+        elif "month" in timestep:
+            period = f"{length * int(timestep.split()[0])}m"
+            timestep = f"{int(timestep.split()[0])}m"
+        elif "year" in timestep:
+            period = f"{length * int(timestep.split()[0])}y"
+            timestep = f"{int(timestep.split()[0])}y"
+        else:
+            raise ValueError(f"Unsupported timestep: {timestep}")
+
+        # Adjust period to account for market hours (assuming 6.5 hours per trading day)
+        if "minute" in timestep or "hour" in timestep:
+            trading_hours_per_day = 6.5
+            total_hours = length * int(timestep.split()[0])
+            trading_days = total_hours / trading_hours_per_day
+            period = f"{int(trading_days)}d"
+            
+        ## https://localhost:4234/v1/api/hmds/history?conid=756733&period=13d&bar=5 minutes&outsideRth=True&startTime=20240929-19:32:03
+        url = f"{self.base_url}/iserver/marketdata/history?conid={conid}&period={period}&bar={timestep}&outsideRth={include_after_hours}&startTime={start_time}"
+        
+        if exchange:
+            url += f"&exchange={exchange}"
+
+        result = self.get_from_endpoint(url, "Getting Historical Prices")
+        
+        if result and 'error' in result:
+            logging.error(f"Error getting historical prices: {result['error']}")
+            raise Exception(f"Error getting historical prices: {result['error']}")
+
+        # Create a DataFrame from the data
+        df = pd.DataFrame(result['data'], columns=['t', 'o', 'h', 'l', 'c', 'v'])
+
+        # Rename columns to match the expected format
+        df.rename(columns={'t': 'timestamp', 'o': 'open', 'h': 'high', 'l': 'low', 'c': 'close', 'v': 'volume'}, inplace=True)
+
+        # Convert timestamp to datetime and set as index
+        df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+        df['timestamp'] = df['timestamp'].dt.tz_localize('UTC').dt.tz_convert('America/New_York')
+        df.set_index('timestamp', inplace=True)
+
+        '''
+        # Add dividend and stock_splits columns with default values
+        df['dividend'] = 0.0
+        df['stock_splits'] = 0.0
+        '''
+
+        bars = Bars(df, self.SOURCE, asset, raw=df, quote=quote)
+
+        return bars
 
     def get_last_price(self, asset, quote=None, exchange=None) -> float:
         field = "last_price"
@@ -367,17 +463,17 @@ class InteractiveBrokersRESTData(DataSource):
         response = self.get_from_endpoint(url, "Getting Asset Currency")
         return SPREAD_CONID_MAP.get(response['currency'], None)
 
-    def get_conid_from_asset(self, asset: Asset):
+    def get_conid_from_asset(self, asset: Asset): ## futures?
         url = f'{self.base_url}/iserver/secdef/search?symbol={asset.symbol}'
         response = self.get_from_endpoint(url, "Getting Asset conid")
 
         conid = int(response[0]["conid"])
 
-        expiration_date = asset.expiration.strftime("%Y%m%d")
-        expiration_month = asset.expiration.strftime("%b%y").upper()  # in MMMYY
-        strike = asset.strike
-
         if asset.asset_type == "option":
+            expiration_date = asset.expiration.strftime("%Y%m%d")
+            expiration_month = asset.expiration.strftime("%b%y").upper()  # in MMMYY
+            strike = asset.strike
+
             url_for_expiry = f'{self.base_url}/iserver/secdef/info?conid={conid}&sectype=OPT&month={expiration_month}&right=C&strike={strike}'
             contract_info = self.get_from_endpoint(url_for_expiry, "Getting expiration Date")
 
@@ -404,7 +500,9 @@ class InteractiveBrokersRESTData(DataSource):
     def get_market_snapshot(self, asset: Asset, fields: list):
         all_fields = {
             "84": "bid",
+            "85": "ask_size",
             "86": "ask",
+            "88": "bid_size",
             "31": "last_price",
             "7283": "implied_volatility", ## could be the wrong iv, there are a lot
             "7311": "vega",
@@ -466,10 +564,12 @@ class InteractiveBrokersRESTData(DataSource):
         dict
            Quote of the asset, including the bid, and ask price.
         """
-        
-        result = self.get_market_snapshot(asset, ["bid", "ask"])
+        result = self.get_market_snapshot(asset, ["last_price", "bid", "ask", "bid_size", "ask_size"])
         if not result:
             return None
+        
+        if "last_price" in result:
+            result["price"] = result.pop("last_price")
         
         if result["bid"] == -1:
             result["bid"] = None

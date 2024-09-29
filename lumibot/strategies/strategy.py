@@ -156,6 +156,33 @@ class Strategy(_Strategy):
         self._minutes_before_closing = value
 
     @property
+    def minutes_after_closing(self):
+        """Get or set the number of minutes that the strategy will continue executing after market closes.
+
+        The lifecycle method after_market_closes is executed minutes_after_closing minutes after the market closes. By default, equals to 0 minutes.
+
+        Returns
+        -------
+        int
+            The number of minutes after the market closes that the strategy will continue executing.
+
+        Example
+        -------
+        >>> # Set the number of minutes after the market closes
+        >>> self.minutes_after_closing = 10
+
+        >>> # Set the number of minutes after the market closes to 0 in the initialize method
+        >>> def initialize(self):
+        >>>     self.minutes_after_closing = 0
+
+        """
+        return self._minutes_after_closing
+
+    @minutes_after_closing.setter
+    def minutes_after_closing(self, value):
+        self._minutes_after_closing = value
+
+    @property
     def sleeptime(self):
         """Get or set the current sleep time for the strategy.
 
@@ -1750,6 +1777,10 @@ class Strategy(_Strategy):
         >>> self.cancel_order(order)
 
         """
+        # Set the status to CANCELLING
+        order.status = Order.OrderStatus.CANCELLING
+
+        # Cancel the order
         return self.broker.cancel_order(order)
 
     def cancel_orders(self, orders):
@@ -3846,7 +3877,7 @@ class Strategy(_Strategy):
             return
 
         # Check if the discord webhook URL is set
-        if self.discord_webhook_url is None:
+        if self.discord_webhook_url is None or self.discord_webhook_url == "":
             # If the webhook URL is not set, log and return
             self.logger.debug(
                 "The discord webhook URL is not set. Please set the discord_webhook_url parameter in the strategy \
@@ -4196,7 +4227,7 @@ class Strategy(_Strategy):
         if self.is_backtesting:
             return
 
-        if not hasattr(self, "db_connection_str") or self.db_connection_str is None or not self.should_backup_variables_to_database:
+        if not hasattr(self, "db_connection_str") or self.db_connection_str is None or self.db_connection_str == "" or not self.should_backup_variables_to_database:
             return
 
         # Ensure we have a self.db_engine
@@ -4487,13 +4518,13 @@ class Strategy(_Strategy):
                 "Not sending account summary to Discord because self does not have db_connection_str attribute")
             return False
 
-        if self.db_connection_str is None:
+        if self.db_connection_str is None or self.db_connection_str == "":
             # Log that we are not sending the account summary to Discord
             self.logger.info("Not sending account summary to Discord because db_connection_str is not set")
             return False
 
         # Check if discord_webhook_url has been set, if not, return False
-        if not self.discord_webhook_url:
+        if not self.discord_webhook_url or self.discord_webhook_url == "":
             # Log that we are not sending the account summary to Discord
             self.logger.info("Not sending account summary to Discord because discord_webhook_url is not set")
             return False

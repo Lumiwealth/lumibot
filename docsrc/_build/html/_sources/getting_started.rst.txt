@@ -14,8 +14,8 @@ At Lumiwealth, you can join our **community of traders**, take comprehensive **c
 
    Visit `Lumiwealth <https://www.lumiwealth.com/?utm_source=documentation&utm_medium=referral&utm_campaign=lumibot_getting_started>`_ to learn more, and discover how you can enhance your trading skills and potentially achieve high returns with our expert guidance and resources.
 
-Getting Started
-****************
+Getting Started With Lumibot
+*****************************
 
 Welcome to Lumibot! This guide will help you get started with Lumibot. We hope you enjoy it!
 

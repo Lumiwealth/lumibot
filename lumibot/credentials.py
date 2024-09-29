@@ -119,13 +119,17 @@ POLYGON_CONFIG = {
 # Polygon API Key
 POLYGON_API_KEY = POLYGON_CONFIG['API_KEY']
 
+# Live trading configuration (if applicable)
+LIVE_CONFIG = os.environ.get("LIVE_CONFIG", None)
+
+# Thetadata Configuration
 THETADATA_CONFIG = {
     # Get the ThetaData API key from the .env file or secrets
     "THETADATA_USERNAME": os.environ.get("THETADATA_USERNAME"),
     "THETADATA_PASSWORD": os.environ.get("THETADATA_PASSWORD")
 }
 
-
+# Alpaca Configuration
 ALPACA_CONFIG = {  # Paper trading!
     # Add ALPACA_API_KEY, ALPACA_API_SECRET, and ALPACA_IS_PAPER to your .env file or set them as secrets
     "API_KEY": os.environ.get("ALPACA_API_KEY"),
@@ -135,6 +139,7 @@ ALPACA_CONFIG = {  # Paper trading!
     else True,
 }
 
+# Tradier Configuration
 TRADIER_CONFIG = {
     # Add TRADIER_ACCESS_TOKEN, TRADIER_ACCOUNT_NUMBER, and TRADIER_IS_PAPER to your .env file or set them as secrets
     "ACCESS_TOKEN": os.environ.get("TRADIER_ACCESS_TOKEN"),

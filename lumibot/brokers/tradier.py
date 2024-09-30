@@ -107,11 +107,34 @@ class Tradier(Broker):
         # Cancel the order
         self.tradier.orders.cancel(order.identifier)
 
-    def submit_orders(self, orders, is_multileg=False, order_type="market", duration="day", price=None):
+    def submit_orders(self, orders, is_multileg=False, order_type=None, duration="day", price=None):
         """
         Submit multiple orders to the broker. This function will submit the orders in the order they are provided.
         If any order fails to submit, the function will stop submitting orders and return the last successful order.
+
+        Parameters
+        ----------
+        orders: list[Order]
+            List of orders to submit
+        is_multileg: bool
+            Whether the order is a multi-leg order. Default is False.
+        order_type: str
+            The type of multi-leg order to submit, if applicable. Valid values are ('market', 'debit', 'credit', 'even'). Default is 'market'.
+        duration: str
+            The duration of the order. Valid values are ('day', 'gtc', 'pre', 'post'). Default is 'day'.
+        price: float
+            The limit price for the order. Required for 'debit' and 'credit' order types.
+
+        Returns
+        -------
+            Order
+                The list of processed order objects.
         """
+
+        # Check if order_type is set, if not, set it to 'market'
+        if order_type is None:
+            order_type = "market"
+
         # Check if the orders are empty
         if not orders or len(orders) == 0:
             return
@@ -129,6 +152,8 @@ class Tradier(Broker):
         # Submit each order
         for order in orders:
             self.submit_order(order)
+
+        return orders
 
     def _submit_multileg_order(self, orders, order_type="market", duration="day", price=None, tag=None):
         """
@@ -220,6 +245,7 @@ class Tradier(Broker):
         -------
             Updated order with broker identifier filled in
         """
+
         tag = order.tag if order.tag else order.strategy
 
         # Replace non-alphanumeric characters with '-', underscore "_" is not allowed by Tradier
@@ -567,7 +593,11 @@ class Tradier(Broker):
         and then returned. It is expected that the caller will convert each dictionary to an Order object by
         calling parse_broker_order() on the dictionary.
         """
-        df = self.tradier.orders.get_orders()
+        try:
+            df = self.tradier.orders.get_orders()
+        except Exception as e:
+            logging.error(f"Error pulling orders from Tradier: {e}")
+            return []
 
         # Check if the dataframe is empty or None
         if df is None or df.empty:

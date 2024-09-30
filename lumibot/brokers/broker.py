@@ -960,11 +960,11 @@ class Broker(ABC):
 
     def submit_order(self, order):
         """Submit an order for an asset"""
-        self._orders_queue.put(order)
+        self._submit_order(order)
 
     def submit_orders(self, orders, **kwargs):
         """Submit orders"""
-        self._orders_queue.put(orders)
+        self._submit_orders(orders, **kwargs)
 
     def wait_for_order_registration(self, order):
         """Wait for the order to be registered by the broker"""

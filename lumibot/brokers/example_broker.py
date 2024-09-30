@@ -37,7 +37,7 @@ class ExampleBroker(Broker):
         return cash, positions_value, portfolio_value
 
     def _get_stream_object(self):
-        logging.error(colored("Method '_get_stream_object' is not yet implemented.", "red"))
+        logging.info(colored("Method '_get_stream_object' is not yet implemented.", "yellow"))
         return None  # Return None as a placeholder
 
     def _parse_broker_order(self, response: dict, strategy_name: str, strategy_object: 'Strategy' = None) -> Order:

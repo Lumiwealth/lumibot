@@ -64,6 +64,8 @@ class InteractiveBrokersREST(Broker):
             data_source = InteractiveBrokersRESTData(config, api_url)
         super().__init__(name=self.NAME, data_source=data_source, config=config)
 
+        self.market = "NYSE"  # The default market is NYSE.
+
     # --------------------------------------------------------------
     # Broker methods
     # --------------------------------------------------------------
@@ -97,14 +99,25 @@ class InteractiveBrokersREST(Broker):
         # Get the quote asset symbol
         quote_symbol = quote_asset.symbol
 
-        # Get the account balances for the quote asset
-        balances_for_quote_asset = account_balances[quote_symbol]
+        # account_balances = {'CHF': {'commoditymarketvalue': 0.0, 'futuremarketvalue': 0.0, 'settledcash': 188.59, 'exchangerate': 1.1847296, 'sessionid': 1, 'cashbalance': 188.59, 'corporatebondsmarketvalue': 0.0, 'warrantsmarketvalue': 0.0, 'netliquidationvalue': 188.59, 'interest': 0, 'unrealizedpnl': 0.0, 'stockmarketvalue': 0.0, 'moneyfunds': 0.0, 'currency': 'CHF', 'realizedpnl': 0.0, 'funds': 0.0, 'acctcode': 'DU4299039', 'issueroptionsmarketvalue': 0.0, 'key': 'LedgerList', ...}, 'JPY': {'commoditymarketvalue': 0.0, 'futuremarketvalue': 0.0, 'settledcash': -3794999.0, 'exchangerate': 0.0069919, 'sessionid': 1, 'cashbalance': -3794999.0, 'corporatebondsmarketvalue': 0.0, 'warrantsmarketvalue': 0.0, 'netliquidationvalue': -3794999.0, 'interest': 0, 'unrealizedpnl': 0.0, 'stockmarketvalue': 0.0, 'moneyfunds': 0.0, 'currency': 'JPY', 'realizedpnl': 0.0, 'funds': 0.0, 'acctcode': 'DU4299039', 'issueroptionsmarketvalue': 0.0, 'key': 'LedgerList', ...}, 'EUR': {'commoditymarketvalue': 0.0, 'futuremarketvalue': 0.0, 'settledcash': 287480.9, 'exchangerate': 1.1157291, 'sessionid': 1, 'cashbalance': 287480.9, 'corporatebondsmarketvalue': 0.0, 'warrantsmarketvalue': 0.0, 'netliquidationvalue': 288112.94, 'interest': 632.03, 'unrealizedpnl': 0.0, 'stockmarketvalue': 0.0, 'moneyfunds': 0.0, 'currency': 'EUR', 'realizedpnl': 0.0, 'funds': 0.0, 'acctcode': 'DU4299039', 'issueroptionsmarketvalue': 0.0, 'key': 'LedgerList', ...}, 'USD': {'commoditymarketvalue': 0.0, 'futuremarketvalue': -87.3, 'settledcash': 208917.02, 'exchangerate': 1, 'sessionid': 1, 'cashbalance': 208917.02, 'corporatebondsmarketvalue': 0.0, 'warrantsmarketvalue': 0.0, 'netliquidationvalue': 209711.64, 'interest': 518.04, 'unrealizedpnl': 19358.56, 'stockmarketvalue': 276.58, 'moneyfunds': 0.0, 'currency': 'USD', 'realizedpnl': 0.0, 'funds': 0.0, 'acctcode': 'DU4299039', 'issueroptionsmarketvalue': 0.0, 'key': 'LedgerList', ...}, 'BASE': {'commoditymarketvalue': 0.0, 'futuremarketvalue': -87.3, 'settledcash': 503393.47, 'exchangerate': 1, 'sessionid': 1, 'cashbalance': 503393.47, 'corporatebondsmarketvalue': 0.0, 'warrantsmarketvalue': 0.0, 'netliquidationvalue': 504893.34, 'interest': 1223.307, 'unrealizedpnl': 19358.56, 'stockmarketvalue': 276.58, 'moneyfunds': 0.0, 'currency': 'BASE', 'realizedpnl': 0.0, 'funds': 0.0, 'acctcode': 'DU4299039', 'issueroptionsmarketvalue': 0.0, 'key': 'LedgerList', ...}}
+
+        # Loop through the account balances and find the quote asset. If not the quote asset, create a position object for the currency/forex asset.
+        cash = None
+        for currency, balances in account_balances.items():
+            if currency == quote_symbol:
+                # Get the account balances for the quote asset
+                balances_for_quote_asset = account_balances[quote_symbol]
+
+                # Get the cash balance for the quote asset
+                cash = balances_for_quote_asset['cashbalance']
+            else:
+                # Create a position object for the currency/forex asset
+                asset = Asset(symbol=currency, asset_type=Asset.AssetType.FOREX)
+                quantity = balances['cashbalance']
+                # TODO: Add the position object to the list of positions
 
         # Exmaple account balances response:
         # {'commoditymarketvalue': 0.0, 'futuremarketvalue': 677.49, 'settledcash': 202142.17, 'exchangerate': 1, 'sessionid': 1, 'cashbalance': 202142.17, 'corporatebondsmarketvalue': 0.0, 'warrantsmarketvalue': 0.0, 'netliquidationvalue': 202464.67, 'interest': 452.9, 'unrealizedpnl': 12841.38, 'stockmarketvalue': -130.4, 'moneyfunds': 0.0, 'currency': 'USD', 'realizedpnl': 0.0, 'funds': 0.0, 'acctcode': 'DU4299039', 'issueroptionsmarketvalue': 0.0, 'key': 'LedgerList', 'timestamp': 1724382002, 'severity': 0, 'stockoptionmarketvalue': 0.0, 'futuresonlypnl': 677.49, 'tbondsmarketvalue': 0.0, 'futureoptionmarketvalue': 0.0, 'cashbalancefxsegment': 0.0, 'secondkey': 'USD', 'tbillsmarketvalue': 0.0, 'endofbundle': 1, 'dividends': 0.0, 'cryptocurrencyvalue': 0.0}
-
-        # Get the cash balance for the quote asset
-        cash = balances_for_quote_asset['settledcash']
 
         # Get the net liquidation value for the quote asset
         total_liquidation_value = balances_for_quote_asset['netliquidationvalue']
@@ -339,7 +352,7 @@ class InteractiveBrokersREST(Broker):
                     right=right,
                 )
             else:
-                logging.error(colored(f"Asset class not supported yet (we need to add code for this asset type): {asset_class} for position {position}", "red"))
+                logging.warning(colored(f"Asset class '{asset_class}' not supported yet (we need to add code for this asset type): {asset_class} for position {position}", "yellow"))
                 continue
             
             # Create the Position object
@@ -358,6 +371,16 @@ class InteractiveBrokersREST(Broker):
     def _submit_order(self, order: Order) -> Order:
         try:
             order_data = self.get_order_data_from_orders([order])
+            if order_data is None:
+                self.logger.error(colored("Failed to get order data.", "red"))
+                return None
+
+            # Execute the order
+            executed_order = self.data_source.execute_order(order_data)
+            if executed_order is None:
+                self.logger.error(colored("Failed to execute the order.", "red"))
+                return None
+            
             order_id = self.data_source.execute_order(order_data)[0]["order_id"]
             order.identifier = order_id
             order.status = "submitted"
@@ -473,7 +496,9 @@ class InteractiveBrokersREST(Broker):
                 order_data['orders'].append(data)
         
             except Exception as e:
-                logging.error(colored(f"An error occurred while processing the order: {str(e)}", "red"))            
+                logging.error(colored(f"An error occurred while processing the order: {str(e)}", "red"))   
+                # Add traceback
+                logging.error(colored(f"Error details:", "red"), exc_info=True)         
 
         return order_data
 

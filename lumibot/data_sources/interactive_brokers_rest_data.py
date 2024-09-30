@@ -53,7 +53,8 @@ class InteractiveBrokersRESTData(DataSource):
             if not subprocess.run(['docker', '--version'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
                 logging.error("Docker is not installed.")
                 return
-            logging.info("Connecting to IBKR Client Portal...")
+            # Color the text green
+            logging.info(colored("Connecting to Interactive Brokers Client Portal REST API...", "green"))
 
             inputs_dir = '/srv/clientportal.gw/root/conf.yaml'
             env_variables = {
@@ -77,7 +78,7 @@ class InteractiveBrokersRESTData(DataSource):
             time.sleep(10)
 
         while not self.is_authenticated():
-            logging.info("Not connected to API server yet.")
+            logging.info(colored("Not connected to API server yet. Waiting for Interactive Brokers Client Portal in Docker to start...", "yellow"))
             logging.info("Waiting for another 10 seconds before checking again...")
             time.sleep(10)
         
@@ -541,6 +542,11 @@ class InteractiveBrokersRESTData(DataSource):
         output = {}
         for key, value in response[0].items():
             if key in fields_to_get:
+                # Convert the value to a float if it is a number
+                if value is not None:
+                    value = float(value)
+
+                # Map the field to the name
                 output[all_fields[key]] = value
 
         return output

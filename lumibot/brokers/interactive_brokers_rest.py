@@ -534,7 +534,6 @@ class InteractiveBrokersREST(Broker):
             if side == "SELL":
                 quantity = -quantity
             
-            ##
             ratios.append((conid, quantity))
 
         # Fixing order_quantity
@@ -553,14 +552,14 @@ class InteractiveBrokersREST(Broker):
             conidex += f'{conid}/{quantity // order_quantity}'
 
         side = "BUY"
-                
+        
         data = {
             "conidex": conidex, # required
             "quantity": order_quantity, # required
             "orderType": ORDERTYPE_MAPPING[order_type if order_type is not None else order.type], # required
             "side": side, # required
             "tif": duration.upper() if duration is not None else order.time_in_force.upper(), # required
-            "price": float(price),
+            "price": float(price) if price is not None else None,
             "auxPrice": order.stop_price,
             "listingExchange": order.exchange
             ### Add other necessary fields based on the Order object

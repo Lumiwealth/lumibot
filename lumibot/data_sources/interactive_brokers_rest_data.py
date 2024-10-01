@@ -54,7 +54,7 @@ class InteractiveBrokersRESTData(DataSource):
                 logging.error("Docker is not installed.")
                 return
             # Color the text green
-            logging.info(colored("Connecting to Interactive Brokers Client Portal REST API...", "green"))
+            logging.info(colored("Connecting to Interactive Brokers REST API...", "green"))
 
             inputs_dir = '/srv/clientportal.gw/root/conf.yaml'
             env_variables = {
@@ -79,7 +79,7 @@ class InteractiveBrokersRESTData(DataSource):
 
         while not self.is_authenticated():
             logging.info(colored("Not connected to API server yet. Waiting for Interactive Brokers Client Portal in Docker to start...", "yellow"))
-            logging.info("Waiting for another 10 seconds before checking again...")
+            logging.info(colored("Waiting for another 10 seconds before checking again...", "yellow"))
             time.sleep(10)
         
         # Ensure the Docker process is running
@@ -100,11 +100,11 @@ class InteractiveBrokersRESTData(DataSource):
             else:
                 logging.error(f"Failed to get Account ID.")
         
-        logging.info("Connected to Client Portal")
+        logging.info(colored("Connected to Client Portal", "green"))
 
         # Suppress weird server warnings
         url = f'{self.base_url}/iserver/questions/suppress'
-        json = {'messageIds': ['o451', 'o383']}
+        json = {'messageIds': ['o451', 'o383', 'o354']}
 
         self.post_to_endpoint(url, json=json)
 
@@ -240,7 +240,7 @@ class InteractiveBrokersRESTData(DataSource):
         response = self.get_from_endpoint(url, "Getting Order Info")
         return response
         
-    def execute_order(self, order_data): ## cooldown?
+    def execute_order(self, order_data):
         url = f'{self.base_url}/iserver/account/{self.account_id}/orders'
         response = self.post_to_endpoint(url, order_data)
         
@@ -256,7 +256,7 @@ class InteractiveBrokersRESTData(DataSource):
             logging.info("Order executed successfully")
             return response
         
-        elif "orders" in response: ## could be useless?
+        elif "orders" in response: # TODO could be useless?
             logging.info("Order executed successfully")
             return response.get('orders')
         
@@ -480,11 +480,11 @@ class InteractiveBrokersRESTData(DataSource):
 
             matching_contract = next((contract for contract in contract_info if contract["maturityDate"] == expiration_date), None)
 
-            if matching_contract:
-                return matching_contract['conid']
-            else:
+            if matching_contract is None:
                 logging.error(f"No matching contract found for expiration date {expiration_date}")
-            return None
+                return None
+            
+            return matching_contract['conid']
 
         elif asset.asset_type == "stock":
             return conid
@@ -535,7 +535,6 @@ class InteractiveBrokersRESTData(DataSource):
                 break
 
         if missing_fields:
-            # This should be alright
             response = self.get_from_endpoint(url, "Getting Market Snapshot")
 
         # return only what was requested
@@ -543,8 +542,10 @@ class InteractiveBrokersRESTData(DataSource):
         for key, value in response[0].items():
             if key in fields_to_get:
                 # Convert the value to a float if it is a number
-                if value is not None:
+                try:
                     value = float(value)
+                except ValueError:
+                    pass
 
                 # Map the field to the name
                 output[all_fields[key]] = value
@@ -574,9 +575,15 @@ class InteractiveBrokersRESTData(DataSource):
         if not result:
             return None
         
-        if "last_price" in result:
-            result["price"] = result.pop("last_price")
-        
+        result["price"] = result.pop("last_price")
+    
+        if isinstance(result['price'], str) and result['price'].startswith("C"):
+            logging.warning(f"Ticker {asset.symbol} of type {asset.asset_type} is not trading currently. Got the last close price instead.")
+            result['price'] = float(result['price'][1:])
+            result["trading"] = False
+        else:
+            result["trading"] = True
+                        
         if result["bid"] == -1:
             result["bid"] = None
         if result["ask"] == -1:

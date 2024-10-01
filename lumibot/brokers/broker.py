@@ -727,7 +727,7 @@ class Broker(ABC):
         dt_now_utc = datetime.now(timezone.utc)
 
         date = date if date is not None else dt_now_utc
-        trading_hours = mkt_cal.schedule(start_date=date, end_date=date + timedelta(weeks=1)).head(2)
+        trading_hours = mkt_cal.schedule(start_date=date, end_date=date + pd.DateOffset(weeks=1)).head(2)
 
         row = 0 if not next else 1
         th = trading_hours.iloc[row, :]

@@ -357,6 +357,7 @@ class StrategyExecutor(Thread):
 
     @lifecycle_method
     def _initialize(self):
+        self.strategy.log_message(f"Strategy {self.strategy._name} is initializing", color="green")
         self.strategy.log_message("Executing the initialize lifecycle method")
 
         # Do this for backwards compatibility.
@@ -415,7 +416,7 @@ class StrategyExecutor(Thread):
 
         self._strategy_context = None
         start_str = start_dt.strftime("%Y-%m-%d %H:%M:%S")
-        self.strategy.log_message(f"Executing the on_trading_iteration lifecycle method at {start_str}", color="blue")
+        self.strategy.log_message(f"Bot is running. Executing the on_trading_iteration lifecycle method at {start_str}", color="green")
         on_trading_iteration = append_locals(self.strategy.on_trading_iteration)
 
         # Time-consuming

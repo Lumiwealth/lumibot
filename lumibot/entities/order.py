@@ -2,7 +2,9 @@ import logging
 import uuid
 from collections import namedtuple
 from decimal import Decimal
+import threading    
 from threading import Event
+import datetime
 import copy
 
 import lumibot.entities as entities
@@ -855,16 +857,88 @@ class Order:
     # ========= Serialization methods ===========
 
     def to_dict(self):
-        order_dict = copy.deepcopy(self.__dict__)
-        order_dict["asset"] = self.asset.to_dict()
-        order_dict["quote"] = self.quote.to_dict() if self.quote else None
-        order_dict["child_orders"] = [child_order.to_dict() for child_order in self.child_orders]
+        # Initialize an empty dictionary for serializable attributes
+        order_dict = {}
+
+        # List of non-serializable keys (thread locks, events, etc.)
+        non_serializable_keys = [
+            "_new_event", "_canceled_event", "_partial_filled_event", "_filled_event", "_closed_event"
+        ]
+
+        # Iterate through all attributes in the object's __dict__
+        for key, value in self.__dict__.items():
+            # Skip known non-serializable attributes by name
+            if key in non_serializable_keys:
+                continue
+
+            # Convert datetime objects to ISO format for JSON serialization
+            if isinstance(value, datetime.datetime):
+                order_dict[key] = value.isoformat()
+
+            # Recursively handle objects that have their own to_dict method (like asset, quote, etc.)
+            elif hasattr(value, "to_dict"):
+                order_dict[key] = value.to_dict()
+
+            # Handle lists of objects, ensuring to call to_dict on each if applicable
+            elif isinstance(value, list):
+                order_dict[key] = [item.to_dict() if hasattr(item, "to_dict") else item for item in value]
+
+            # Add serializable attributes directly
+            else:
+                order_dict[key] = value
+
         return order_dict
     
     @classmethod
     def from_dict(cls, order_dict):
-        order_dict = copy.deepcopy(order_dict)
-        order_dict["asset"] = entities.Asset.from_dict(order_dict["asset"])
-        order_dict["quote"] = entities.Asset.from_dict(order_dict["quote"]) if order_dict["quote"] else None
-        order_dict["child_orders"] = [Order.from_dict(child_order) for child_order in order_dict["child_orders"]]
-        return cls(**order_dict)
+        # Extract the core essential arguments to pass to __init__
+        asset_data = order_dict.get('asset')
+        asset_obj = None
+        if asset_data and isinstance(asset_data, dict):
+            # Assuming Asset has its own from_dict method
+            asset_obj = entities.Asset.from_dict(asset_data)
+        
+        # Extract essential arguments, using None if the values are missing
+        strategy = order_dict.get('strategy', None)
+        side = order_dict.get('side', None)  # Default to None if side is missing
+        quantity = order_dict.get('quantity', None)
+        
+        # Create the initial object using the essential arguments
+        obj = cls(
+            strategy=strategy,
+            side=side,
+            asset=asset_obj,  # Pass the constructed asset object
+            quantity=quantity
+        )
+
+        # List of non-serializable keys (thread locks, events, etc.)
+        non_serializable_keys = [
+            "_new_event", "_canceled_event", "_partial_filled_event", "_filled_event", "_closed_event"
+        ]
+
+        # Handle additional fields directly after the instance is created
+        for key, value in order_dict.items():
+            if key not in ['strategy', 'side', 'asset', 'quantity'] and key not in non_serializable_keys:
+                
+                # Convert datetime strings back to datetime objects
+                if isinstance(value, str) and "T" in value:
+                    try:
+                        setattr(obj, key, datetime.datetime.fromisoformat(value))
+                    except ValueError:
+                        setattr(obj, key, value)
+                
+                # Recursively convert nested objects using from_dict (for objects like quote)
+                elif isinstance(value, dict) and hasattr(cls, key) and hasattr(getattr(cls, key), 'from_dict'):
+                    nested_class = getattr(cls, key)
+                    setattr(obj, key, nested_class.from_dict(value))
+                
+                # Handle list of orders (child_orders)
+                elif isinstance(value, list) and key == 'child_orders':
+                    child_orders = [cls.from_dict(item) for item in value]  # Recursively create Order objects
+                    setattr(obj, key, child_orders)
+                
+                # Set simple values directly
+                else:
+                    setattr(obj, key, value)
+
+        return obj

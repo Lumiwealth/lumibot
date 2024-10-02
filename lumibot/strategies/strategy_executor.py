@@ -384,6 +384,9 @@ class StrategyExecutor(Thread):
     @lifecycle_method
     @trace_stats
     def _on_trading_iteration(self):
+        # Call the send_update_to_cloud method to send the strategy's data to the cloud.
+        self.strategy.send_update_to_cloud()
+
         # If we are running live, we need to check if it's time to execute the trading iteration.
         if not self.strategy.is_backtesting:
             # Increase the cron count by 1.

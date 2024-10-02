@@ -173,6 +173,8 @@ INTERACTIVE_BROKERS_CONFIG = {
     "IP": os.environ.get("INTERACTIVE_BROKERS_IP", "127.0.0.1"),
     "IB_SUBACCOUNT": os.environ.get("IB_SUBACCOUNT", None)
 }
+
+LUMIWEALTH_API_KEY = os.environ.get("LUMIWEALTH_API_KEY")
  
 if IS_BACKTESTING:
     broker = None

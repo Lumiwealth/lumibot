@@ -152,23 +152,20 @@ class InteractiveBrokersREST(Broker):
             # Parse the legs of the combo order.
             legs = self.decode_conidex(response["conidex"])
             for leg, ratio in legs.items():
-                # Create the contract object with just the conId
+                # Create the object with just the conId
                 ## all legs using the same response could be an issue i think
-                leg_secType = self.data_source.get_sectype_from_conid(leg)
                 child_order = self._parse_order_object(strategy_name=strategy_name,
                                                        response=response,
-                                                       quantity=float(ratio), ## maybe not how ratios work
-                                                       conId=leg,
-                                                       secType=ASSET_CLASS_MAPPING[leg_secType]
+                                                       quantity=float(ratio)*totalQuantity,
+                                                       conId=leg
                                                        )
                 order.child_orders.append(child_order)
 
         else:
             order = self._parse_order_object(strategy_name=strategy_name, 
-                                             quantity=totalQuantity,
+                                             response=response,
+                                             quantity=float(totalQuantity),
                                              conId=response['conid'],
-                                             secType=asset_type,
-                                             response=response
                                              )
         
         order._transmitted = True
@@ -177,19 +174,25 @@ class InteractiveBrokersREST(Broker):
         order.update_raw(response)
         return order
 
-    def _parse_order_object(self, strategy_name, response, quantity, secType, conId):
-        side=response['side'] #oi
-        symbol=response['ticker'] #oi
+    def _parse_order_object(self, strategy_name, response, quantity, conId):
+        if quantity < 0:
+            side = "SELL"
+            quantity=-quantity
+        else:
+            side = "BUY"
+        
+        symbol=response['ticker']
         currency=response['cashCcy']
         time_in_force=response['timeInForce']
         limit_price = response['price'] if 'price' in response and response['price'] != '' else None
         stop_price = response['stop_price'] if 'stop_price' in response and response['stop_price'] != '' else None
         good_till_date = response['goodTillDate'] if 'goodTillDate' in response and response['goodTillDate'] != '' else None
-        ## rethink the fields
         
         contract_details = self.data_source.get_contract_details(conId)
         if contract_details is None:
             contract_details = {}
+        
+        secType = ASSET_CLASS_MAPPING[contract_details["instrument_type"]]
 
         multiplier = 1
         right = None
@@ -202,7 +205,6 @@ class InteractiveBrokersREST(Broker):
 
         if secType in ["option", "future"]:
             multiplier = contract_details['multiplier']
-
             maturity_date = contract_details["maturity_date"] # in YYYYMMDD
 
             # Format the datetime object as a string that matches the format in DATE_MAP[secType]
@@ -385,20 +387,44 @@ class InteractiveBrokersREST(Broker):
             positions_list.append(position_obj)
 
         return positions_list
-        
+    
+    def _log_order_status(self, order, status, success=True):
+        if success:
+            if order.order_class == Order.OrderClass.MULTILEG:
+                logging.info(colored("Order executed successfully: This is a multileg order.", "green"))
+                for child_order in order.child_orders:
+                    logging.info(colored(f"Child Order: Ticker: {child_order.asset.symbol}, Quantity: {child_order.quantity}, Asset Type: {child_order.asset.asset_type}, Right: {child_order.asset.right}, Side: {child_order.side}", "green"))
+            elif order.asset.asset_type in [Asset.AssetType.STOCK, Asset.AssetType.FOREX]:
+                logging.info(colored(f"Order executed successfully: Ticker: {order.asset.symbol}, Quantity: {order.quantity}", "green"))
+            elif order.asset.asset_type == Asset.AssetType.OPTION:
+                logging.info(colored(f"Order executed successfully: Ticker: {order.asset.symbol}, Expiration Date: {order.asset.expiration}, Strike: {order.asset.strike}, Right: {order.asset.right}, Quantity: {order.quantity}, Side: {order.side}", "green"))
+            elif order.asset.asset_type == Asset.AssetType.FUTURE:
+                logging.info(colored(f"Order executed successfully: Ticker: {order.asset.symbol}, Expiration Date: {order.asset.expiration}, Multiplier: {order.asset.multiplier}, Quantity: {order.quantity}", "green"))
+            else:
+                logging.info(colored(f"Order executed successfully: Ticker: {order.asset.symbol}, Quantity: {order.quantity}, Asset Type: {order.asset.asset_type}", "green"))
+        else:
+            if order.order_class == Order.OrderClass.MULTILEG:
+                logging.debug(colored("Order details for failed multileg order.", "blue"))
+                for child_order in order.child_orders:
+                    logging.debug(colored(f"Child Order: Ticker: {child_order.asset.symbol}, Quantity: {child_order.quantity}, Asset Type: {child_order.asset.asset_type}, Right: {child_order.asset.right}, Side: {child_order.side}", "blue"))
+            elif order.asset.asset_type in [Asset.AssetType.STOCK, Asset.AssetType.FOREX]:
+                logging.debug(colored(f"Order details for failed {order.asset.asset_type.lower()} order: Ticker: {order.asset.symbol}, Quantity: {order.quantity}", "blue"))
+            elif order.asset.asset_type == Asset.AssetType.OPTION:
+                logging.debug(colored(f"Order details for failed option order: Ticker: {order.asset.symbol}, Expiry Date: {order.asset.expiration}, Strike: {order.asset.strike}, Right: {order.asset.right}, Quantity: {order.quantity}, Side: {order.side}", "blue"))
+            elif order.asset.asset_type == Asset.AssetType.FUTURE:
+                logging.debug(colored(f"Order details for failed future order: Ticker: {order.asset.symbol}, Expiry Date: {order.asset.expiration}, Multiplier: {order.asset.multiplier}, Quantity: {order.quantity}", "blue"))
+            else:
+                logging.debug(colored(f"Order details for failed order: Ticker: {order.asset.symbol}, Quantity: {order.quantity}, Asset Type: {order.asset.asset_type}", "blue"))
+
     def _submit_order(self, order: Order) -> Order:
         try:
             order_data = self.get_order_data_from_orders([order])
-            if order_data is None:
-                self.logger.error(colored("Failed to get order data.", "red"))
-                return None
-
-            # Execute the order
             response = self.data_source.execute_order(order_data)
-
             if response is None:
-                logging.error(colored("Failed to execute the order.", "red"))
-                return None
+                self._log_order_status(order, "failed", success=False)
+                return order
+            else:
+                self._log_order_status(order, "executed", success=True)
 
             order.identifier = response[0]["order_id"]
             order.status = "submitted"
@@ -417,6 +443,8 @@ class InteractiveBrokersREST(Broker):
                 order_data = self.get_order_data_multileg(orders, order_type=order_type, duration=duration, price=price)
                 response = self.data_source.execute_order(order_data)
                 if response is None:
+                    for order in orders:
+                        self._log_order_status(order, "failed", success=False)
                     return None
 
                 order = Order(orders[0].strategy)
@@ -426,21 +454,25 @@ class InteractiveBrokersREST(Broker):
                 order.identifier = response[0]["order_id"]
 
                 self._unprocessed_orders.append(order)
+                self._log_order_status(order, "executed", success=True)
                 return [order]
             
             else:
                 order_data = self.get_order_data_from_orders([order])
                 response = self.data_source.execute_order(order_data)
                 if response is None:
+                    for order in orders:
+                        self._log_order_status(order, "failed", success=False)
                     return None
-
+                
                 ## Could be a problematic system
                 order_id = 0
                 for order in orders:
                     order.status = "submitted"
                     order.identifier = response[order_id]['order_id']
                     self._unprocessed_orders.append(order)
-                    order_id+=1
+                    self._log_order_status(order, "executed", success=True)
+                    order_id += 1
 
                 return orders
 
@@ -483,7 +515,9 @@ class InteractiveBrokersREST(Broker):
             conid = self.data_source.get_conid_from_asset(order.asset)
 
             if conid is None:
-                logging.error(colored("Order conid Not Found", "red"))
+                asset_type = order.asset.asset_type
+                expiry_date = order.asset.expiration if hasattr(order.asset, 'expiration') else 'N/A'
+                logging.error(colored(f"Couldn't find an appropriate asset for {order.asset} (Type: {asset_type}, Expiry: {expiry_date}).", "red"))
                 return None
             
             data = {

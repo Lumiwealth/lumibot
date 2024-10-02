@@ -218,7 +218,7 @@ class InteractiveBrokersRESTData(DataSource):
             logging.error(colored(f"Error {url}: {e}", "red"))
     
     def get_open_orders(self):
-        # Clear cache with force=true
+        # Clear cache with force=true TODO may be useless
         url = f'{self.base_url}/iserver/account/orders?force=true'
         response = self.get_from_endpoint(url, "Getting open orders")
 
@@ -243,11 +243,15 @@ class InteractiveBrokersRESTData(DataSource):
         return response
         
     def execute_order(self, order_data):
+        if order_data is None:
+            logging.debug(colored("Failed to get order data.", "red"))
+            return None
+        
         url = f'{self.base_url}/iserver/account/{self.account_id}/orders'
         response = self.post_to_endpoint(url, order_data)
         
         if isinstance(response, list) and 'order_id' in response[0]:
-            logging.info("Order executed successfully")
+            # success
             return response
         
             """         
@@ -270,7 +274,7 @@ class InteractiveBrokersRESTData(DataSource):
         url = f'{self.base_url}/iserver/account/{self.account_id}/order/{orderId}'
         status = self.delete_to_endpoint(url)
         if status:
-            logging.info(f"Order with ID {orderId} canceled successfully.")
+            logging.info(colored(f"Order with ID {orderId} canceled successfully.", "green"))
         else:
             logging.error(colored(f"Failed to delete order with ID {orderId}.", "red"))
 
@@ -296,7 +300,7 @@ class InteractiveBrokersRESTData(DataSource):
 
         subprocess.run(['docker', 'rm', '-f', 'lumibot-client-portal'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-    def get_chains(self, asset: Asset, quote: Asset = None) -> dict:
+    def get_chains(self, asset: Asset, quote = None) -> dict:
         '''
             - `Multiplier` (str) eg: `100`
             - 'Chains' - paired Expiration/Strike info to guarentee that the strikes are valid for the specific
@@ -469,6 +473,10 @@ class InteractiveBrokersRESTData(DataSource):
         url = f'{self.base_url}/iserver/secdef/search?symbol={asset.symbol}'
         response = self.get_from_endpoint(url, "Getting Asset conid")
 
+        if response is None or not response:
+            logging.error(colored(f"Failed to get conid of asset: {asset.symbol} of type {asset.asset_type}", "red"))
+            return None
+        
         conid = int(response[0]["conid"])
 
         if asset.asset_type == "option":
@@ -479,21 +487,17 @@ class InteractiveBrokersRESTData(DataSource):
             url_for_expiry = f'{self.base_url}/iserver/secdef/info?conid={conid}&sectype=OPT&month={expiration_month}&right=C&strike={strike}'
             contract_info = self.get_from_endpoint(url_for_expiry, "Getting expiration Date")
 
-            matching_contract = next((contract for contract in contract_info if contract["maturityDate"] == expiration_date), None)
+            matching_contract = None
+            if contract_info:
+                matching_contract = next((contract for contract in contract_info if contract["maturityDate"] == expiration_date), None)
 
             if matching_contract is None:
-                logging.error(colored(f"No matching contract found for expiration date {expiration_date}", "red"))
                 return None
             
             return matching_contract['conid']
 
         elif asset.asset_type == "stock":
             return conid
-    
-    def get_sectype_from_conid(self, conId):
-        url = f'{self.base_url}/iserver/contract/{conId}/info'
-        response = self.get_from_endpoint(url, "Getting SecType")
-        return response["instrument_type"]
 
     def query_greeks(self, asset: Asset):
         greeks = self.get_market_snapshot(asset, ["vega", "theta", "gamma", "delta"])
@@ -579,7 +583,7 @@ class InteractiveBrokersRESTData(DataSource):
         result["price"] = result.pop("last_price")
     
         if isinstance(result['price'], str) and result['price'].startswith("C"):
-            logging.warning(colored(f"Ticker {asset.symbol} of type {asset.asset_type} is not trading currently. Got the last close price instead.", "yellow"))
+            logging.warning(colored(f"Ticker {asset.symbol} of type {asset.asset_type} with strike price {asset.strike} and expiry date {asset.expiration} is not trading currently. Got the last close price instead.", "yellow"))
             result['price'] = float(result['price'][1:])
             result["trading"] = False
         else:

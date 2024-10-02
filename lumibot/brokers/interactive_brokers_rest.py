@@ -71,7 +71,7 @@ class InteractiveBrokersREST(Broker):
     # --------------------------------------------------------------
 
     # Existing method stubs with logging
-    def _get_balances_at_broker(self, quote_asset: Asset) -> tuple:
+    def _get_balances_at_broker(self, quote_asset: Asset, strategy_name) -> tuple:
         """
         Get the account balances for the quote asset from the broker.
         
@@ -110,11 +110,20 @@ class InteractiveBrokersREST(Broker):
 
                 # Get the cash balance for the quote asset
                 cash = balances_for_quote_asset['cashbalance']
-            else:
+            elif currency != "BASE":
                 # Create a position object for the currency/forex asset
                 asset = Asset(symbol=currency, asset_type=Asset.AssetType.FOREX)
                 quantity = balances['cashbalance']
-                # TODO: Add the position object to the list of positions
+
+                if quantity != 0:
+                    position = Position(
+                        strategy=strategy_name,  # You can set the appropriate strategy here ###
+                        asset=asset,
+                        quantity=quantity,
+                    )
+                    self._filled_positions.append(position)
+                
+                pos = self._filled_positions
 
         # Exmaple account balances response:
         # {'commoditymarketvalue': 0.0, 'futuremarketvalue': 677.49, 'settledcash': 202142.17, 'exchangerate': 1, 'sessionid': 1, 'cashbalance': 202142.17, 'corporatebondsmarketvalue': 0.0, 'warrantsmarketvalue': 0.0, 'netliquidationvalue': 202464.67, 'interest': 452.9, 'unrealizedpnl': 12841.38, 'stockmarketvalue': -130.4, 'moneyfunds': 0.0, 'currency': 'USD', 'realizedpnl': 0.0, 'funds': 0.0, 'acctcode': 'DU4299039', 'issueroptionsmarketvalue': 0.0, 'key': 'LedgerList', 'timestamp': 1724382002, 'severity': 0, 'stockoptionmarketvalue': 0.0, 'futuresonlypnl': 677.49, 'tbondsmarketvalue': 0.0, 'futureoptionmarketvalue': 0.0, 'cashbalancefxsegment': 0.0, 'secondkey': 'USD', 'tbillsmarketvalue': 0.0, 'endofbundle': 1, 'dividends': 0.0, 'cryptocurrencyvalue': 0.0}
@@ -351,6 +360,15 @@ class InteractiveBrokersREST(Broker):
                     strike=strike,
                     right=right,
                 )
+            elif asset_class == Asset.AssetType.FUTURE:
+                expiry = position['expiry']
+                multiplier = position['multiplier']
+                asset = Asset(
+                    symbol=symbol,
+                    asset_type=asset_class,
+                    expiration=expiry,
+                    multiplier=multiplier,
+                )
             else:
                 logging.warning(colored(f"Asset class '{asset_class}' not supported yet (we need to add code for this asset type): {asset_class} for position {position}", "yellow"))
                 continue
@@ -376,13 +394,13 @@ class InteractiveBrokersREST(Broker):
                 return None
 
             # Execute the order
-            executed_order = self.data_source.execute_order(order_data)
-            if executed_order is None:
-                self.logger.error(colored("Failed to execute the order.", "red"))
+            response = self.data_source.execute_order(order_data)
+
+            if response is None:
+                logging.error(colored("Failed to execute the order.", "red"))
                 return None
-            
-            order_id = self.data_source.execute_order(order_data)[0]["order_id"]
-            order.identifier = order_id
+
+            order.identifier = response[0]["order_id"]
             order.status = "submitted"
             self._unprocessed_orders.append(order)
 
@@ -446,71 +464,81 @@ class InteractiveBrokersREST(Broker):
         
         return legs_dict
     
+    def get_order_data_from_order(self, order):
+        try:
+            conid = None
+            side = None
+            orderType = None
+
+            if order.is_buy_order():
+                side = "BUY"
+            elif order.is_sell_order():
+                side = "SELL"
+            else:
+                logging.error(colored("Order Side Not Found", "red"))
+                return None
+            
+            orderType = ORDERTYPE_MAPPING[order.type]
+
+            conid = self.data_source.get_conid_from_asset(order.asset)
+
+            if conid is None:
+                logging.error(colored("Order conid Not Found", "red"))
+                return None
+            
+            data = {
+                "conid": conid, # required
+                "quantity": order.quantity, # required
+                "orderType": orderType, # required
+                "side": side, # required
+                "tif": order.time_in_force.upper(), # required
+                "price": order.limit_price,
+                "auxPrice": order.stop_price,
+                "listingExchange": order.exchange
+                # Add other necessary fields based on the Order object
+            }
+
+            if order.trail_percent:
+                data["trailingType"] = "%"
+                data["trailingAmt"] = order.trail_percent
+
+            if order.trail_price:
+                data["trailingType"] = "amt"
+                data["trailingAmt"] = order.trail_price
+
+            # Remove items with value None from order_data
+            data = {k: v for k, v in data.items() if v is not None}
+            return data
+    
+        except Exception as e:
+            logging.error(colored(f"An error occurred while processing the order: {str(e)}", "red"))   
+            # Add traceback
+            logging.error(colored(f"Error details:", "red"), exc_info=True)
+            return None      
+
     def get_order_data_from_orders(self, orders: list[Order]):
         order_data = {
                 'orders': []
             }
         
         for order in orders:
-            try:
-                conid = None
-                side = None
-                orderType = None
-
-                if order.is_buy_order():
-                    side = "BUY"
-                elif order.is_sell_order():
-                    side = "SELL"
-                else:
-                    raise Exception("Order Side Not Found")
-                
-                orderType = ORDERTYPE_MAPPING[order.type]
-
-                conid = self.data_source.get_conid_from_asset(order.asset)
-
-                if conid is None:
-                    raise Exception("Order conid Not Found")
-                
-                data = {
-                    "conid": conid, # required
-                    "quantity": order.quantity, # required
-                    "orderType": orderType, # required
-                    "side": side, # required
-                    "tif": order.time_in_force.upper(), # required
-                    "price": order.limit_price,
-                    "auxPrice": order.stop_price,
-                    "listingExchange": order.exchange
-                    ### Add other necessary fields based on the Order object
-                }
-
-                if order.trail_percent:
-                    data["trailingType"] = "%"
-                    data["trailingAmt"] = order.trail_percent
-
-                if order.trail_price:
-                    data["trailingType"] = "amt"
-                    data["trailingAmt"] = order.trail_price
-
-                # Remove items with value None from order_data
-                data = {k: v for k, v in data.items() if v is not None}
+            data = self.get_order_data_from_order(order)
+            if data is not None:
                 order_data['orders'].append(data)
-        
-            except Exception as e:
-                logging.error(colored(f"An error occurred while processing the order: {str(e)}", "red"))   
-                # Add traceback
-                logging.error(colored(f"Error details:", "red"), exc_info=True)         
 
-        return order_data
-
+        return order_data if order_data['orders'] else None
+    
     def get_order_data_multileg(self, orders: list[Order], order_type=None, duration=None, price=None):
-        ## buy_to_open and sell_to_open not respected
+        # TODO buy_to_open and sell_to_open not respected
         order_data = {
                 'orders': []
             }
-
-        conid = self.data_source.get_conid_from_asset(orders[0].asset)
+        
         spread_conid = SPREAD_CONID_MAP[orders[0].quote.symbol]
-
+        if spread_conid is None:
+            logging.error(colored("Spread conid Not Found", "red"))
+            return None
+        
         # Build Conidex {spread_conid};;;{leg_conid1}/{ratio},{leg_conid2}/{ratio}
         conidex = f'{spread_conid};;;'
 
@@ -526,10 +554,17 @@ class InteractiveBrokersREST(Broker):
             elif order.is_sell_order():
                 side = "SELL"
             else:
-                raise Exception("Order Side Not Found")
-                
+                logging.error(colored("Order Side Not Found", "red"))
+                return None
+                            
             conid = self.data_source.get_conid_from_asset(order.asset)
+            if conid is None:
+                logging.error(colored("Order conid Not Found", "red"))
+                return None
+            
             quantity = order.quantity
+            if quantity == 0 or quantity is None:
+                return None
 
             if side == "SELL":
                 quantity = -quantity
@@ -541,6 +576,7 @@ class InteractiveBrokersREST(Broker):
         for _, quant in ratios:
             quantities.append(quant)
 
+        # Make quantities as small as possible in the conidex. Not really necessary but it's prettier that way
         order_quantity = gcd(*quantities)
 
         first_order = True
@@ -550,7 +586,8 @@ class InteractiveBrokersREST(Broker):
             else:
                 conidex += ","
             conidex += f'{conid}/{quantity // order_quantity}'
-
+        
+        # side = BUY, buys are indicated with a positive quantity in the conidex and sells with a negative
         side = "BUY"
         
         data = {
@@ -562,7 +599,7 @@ class InteractiveBrokersREST(Broker):
             "price": float(price) if price is not None else None,
             "auxPrice": order.stop_price,
             "listingExchange": order.exchange
-            ### Add other necessary fields based on the Order object
+            # Add other necessary fields based on the Order object
         }
 
         '''

@@ -115,7 +115,7 @@ class Broker(ABC):
 
     # =========Account functions=======================
     @abstractmethod
-    def _get_balances_at_broker(self, quote_asset: Asset) -> tuple:
+    def _get_balances_at_broker(self, quote_asset: Asset, strategy_name) -> tuple:
         """
         Get the actual cash balance at the broker.
         Parameters

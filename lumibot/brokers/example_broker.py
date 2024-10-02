@@ -27,7 +27,7 @@ class ExampleBroker(Broker):
         )
 
     # Method stubs with logging for not yet implemented methods
-    def _get_balances_at_broker(self, quote_asset: Asset) -> tuple:
+    def _get_balances_at_broker(self, quote_asset: Asset, strategy_name) -> tuple:
         logging.error(colored("Method '_get_balances_at_broker' is not yet implemented.", "red"))
 
         cash = 0.0

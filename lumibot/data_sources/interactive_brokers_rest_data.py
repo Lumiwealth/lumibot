@@ -8,9 +8,7 @@ import os
 import time
 import requests
 import urllib3
-from lumibot.tools.helpers import create_options_symbol
 from datetime import datetime
-import pytz
 import pandas as pd
 
 
@@ -51,7 +49,7 @@ class InteractiveBrokersRESTData(DataSource):
         if not hasattr(self, "api_url"):
             # Run the Docker image with the specified environment variables and port mapping
             if not subprocess.run(['docker', '--version'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
-                logging.error("Docker is not installed.")
+                logging.error(colored("Docker is not installed.", "red"))
                 return
             # Color the text green
             logging.info(colored("Connecting to Interactive Brokers REST API...", "green"))
@@ -85,8 +83,8 @@ class InteractiveBrokersRESTData(DataSource):
         # Ensure the Docker process is running
         docker_ps = subprocess.run(['docker', 'ps', '--filter', 'name=lumibot-client-portal', '--format', '{{.Names}}'], capture_output=True, text=True)
         if 'lumibot-client-portal' not in docker_ps.stdout:
-            logging.error("Docker container 'lumibot-client-portal' is not running.")
-            logging.error("Waiting for 5 seconds and retrying...")
+            logging.error(colored("Docker container 'lumibot-client-portal' is not running.", "red"))
+            logging.error(colored("Waiting for 5 seconds and retrying...", "red"))
             time.sleep(5)
             self.start()
             return
@@ -98,7 +96,7 @@ class InteractiveBrokersRESTData(DataSource):
             if response is not None:
                 self.account_id = response[0]['id']
             else:
-                logging.error(f"Failed to get Account ID.")
+                logging.error(colored("Failed to get Account ID.", "red"))
         
         logging.info(colored("Connected to Client Portal", "green"))
 
@@ -146,7 +144,7 @@ class InteractiveBrokersRESTData(DataSource):
                 return response.json()
             elif response.status_code == 404:
                 if not silent:
-                    logging.warning(f"{description} endpoint not found.")
+                    logging.warning(colored(f"{description} endpoint not found.", "yellow"))
                 return None
             elif response.status_code == 429:
                 logging.info(f"You got rate limited {description}. Waiting for 5 seconds...")
@@ -155,13 +153,13 @@ class InteractiveBrokersRESTData(DataSource):
             else:
                 # Log an error message if the request failed
                 if not silent:
-                    logging.error(f"Task '{description}' Failed. Status code: {response.status_code}, Response: {response.text}")
+                    logging.error(colored(f"Task '{description}' Failed. Status code: {response.status_code}, Response: {response.text}", "red"))
                 return None
 
         except requests.exceptions.RequestException as e:
             # Log an error message if there was a problem with the request
             if not silent:
-                logging.error(f"Error {description}: {e}")
+                logging.error(colored(f"Error {description}: {e}", "red"))
             return None
     
     def post_to_endpoint(self, url, json: dict):
@@ -172,19 +170,23 @@ class InteractiveBrokersRESTData(DataSource):
                 # Return the JSON response containing the account balances
                 return response.json()
             elif response.status_code == 404:
-                logging.warning(f"{url} endpoint not found.")
+                logging.error(colored(f"{url} endpoint not found.", "red"))
                 return None
             elif response.status_code == 429:
                 logging.info(f"You got rate limited {url}. Waiting for 5 seconds...")
                 time.sleep(5)
                 return self.get_from_endpoint(url, json)
             else:
-                logging.error(f"Task '{url}' Failed. Status code: {response.status_code}, Response: {response.text}")
+                if "error" in response.json():
+                    logging.error(colored(f"Task '{url}' Failed. Error: {response.json()['error']}", "red"))
+                else:
+                    logging.error(colored(f"Task '{url}' Failed. Status code: {response.status_code}, "
+                                          f"Response: {response.text}", "red"))
                 return None
             
         except requests.exceptions.RequestException as e:
             # Log an error message if there was a problem with the request
-            logging.error(f"Error {url}: {e}")
+            logging.error(colored(f"Error {url}: {e}", "red"))
     
     def delete_to_endpoint(self, url):
         try:
@@ -193,27 +195,27 @@ class InteractiveBrokersRESTData(DataSource):
             if response.status_code == 200:
                 # Return the JSON response containing the account balances
                 if "error" in response.json() and "doesn't exist" in response.json()["error"]:
-                    logging.warning(f"Order ID doesn't exist: {response.json()['error']}")
+                    logging.warning(colored(f"Order ID doesn't exist: {response.json()['error']}", "yellow"))
                     return None
             
                 return response.json()
             elif response.status_code == 404:
-                logging.warning(f"{url} endpoint not found.")
+                logging.error(colored(f"{url} endpoint not found.", "red"))
                 return None
             elif response.status_code == 429:
                 logging.info(f"You got rate limited {url}. Waiting for 5 seconds...")
                 time.sleep(5)
                 return self.delete_to_endpoint(url)
             else:
-                logging.error(f"Task '{url}' Failed. Status code: {response.status_code}, Response: {response.text}")
+                logging.error(colored(f"Task '{url}' Failed. Status code: {response.status_code}, Response: {response.text}", "red"))
                 return None
         except requests.exceptions.RequestException as e:
             # Log an error message if there was a problem with the request
-            logging.error(f"Error {url}: {e}")
+            logging.error(colored(f"Error {url}: {e}", "red"))
             
         except requests.exceptions.RequestException as e:
             # Log an error message if there was a problem with the request
-            logging.error(f"Error {url}: {e}")
+            logging.error(colored(f"Error {url}: {e}", "red"))
     
     def get_open_orders(self):
         # Clear cache with force=true
@@ -244,24 +246,23 @@ class InteractiveBrokersRESTData(DataSource):
         url = f'{self.base_url}/iserver/account/{self.account_id}/orders'
         response = self.post_to_endpoint(url, order_data)
         
-        if response is None:
-            logging.error(f"Failed to execute order: no response from endpoint")
-            return None
-        
-        elif "error" in response:
-            logging.error(f"Failed to execute order: {response['error']}")
-            return None
-        
-        elif isinstance(response, list) and 'order_id' in response[0]:
+        if isinstance(response, list) and 'order_id' in response[0]:
             logging.info("Order executed successfully")
             return response
         
-        elif "orders" in response: # TODO could be useless?
+            """         
+            elif "orders" in response: # TODO could be useless?
             logging.info("Order executed successfully")
-            return response.get('orders')
+            return response.get('orders') 
+            """
         
         else:
-            logging.error(f"Failed to execute order: {response}")
+            if response is None:
+                logging.error(colored("Failed to execute order: Unknown error", "red"))
+            elif isinstance(response, dict) and 'error' in response:
+                logging.error(colored(f"Failed to execute order: {response['error']}", "red"))
+            else:
+                logging.error(colored(f"Failed to execute order: {response}", "red"))
             return None
     
     def delete_order(self, order):
@@ -271,7 +272,7 @@ class InteractiveBrokersRESTData(DataSource):
         if status:
             logging.info(f"Order with ID {orderId} canceled successfully.")
         else:
-            logging.error(f"Failed to delete order with ID {orderId}.")
+            logging.error(colored(f"Failed to delete order with ID {orderId}.", "red"))
 
     def get_positions(self):
         """
@@ -430,8 +431,8 @@ class InteractiveBrokersRESTData(DataSource):
         result = self.get_from_endpoint(url, "Getting Historical Prices")
         
         if result and 'error' in result:
-            logging.error(f"Error getting historical prices: {result['error']}")
-            raise Exception(f"Error getting historical prices: {result['error']}")
+            logging.error(colored(f"Error getting historical prices: {result['error']}", "red"))
+            raise Exception("Error getting historical prices")
 
         # Create a DataFrame from the data
         df = pd.DataFrame(result['data'], columns=['t', 'o', 'h', 'l', 'c', 'v'])
@@ -481,7 +482,7 @@ class InteractiveBrokersRESTData(DataSource):
             matching_contract = next((contract for contract in contract_info if contract["maturityDate"] == expiration_date), None)
 
             if matching_contract is None:
-                logging.error(f"No matching contract found for expiration date {expiration_date}")
+                logging.error(colored(f"No matching contract found for expiration date {expiration_date}", "red"))
                 return None
             
             return matching_contract['conid']
@@ -578,7 +579,7 @@ class InteractiveBrokersRESTData(DataSource):
         result["price"] = result.pop("last_price")
     
         if isinstance(result['price'], str) and result['price'].startswith("C"):
-            logging.warning(f"Ticker {asset.symbol} of type {asset.asset_type} is not trading currently. Got the last close price instead.")
+            logging.warning(colored(f"Ticker {asset.symbol} of type {asset.asset_type} is not trading currently. Got the last close price instead.", "yellow"))
             result['price'] = float(result['price'][1:])
             result["trading"] = False
         else:

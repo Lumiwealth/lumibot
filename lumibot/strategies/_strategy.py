@@ -33,6 +33,7 @@ from ..credentials import (
     MARKET,
     HIDE_POSITIONS,
     HIDE_TRADES,
+    LUMIWEALTH_API_KEY,
 )
     
 class CustomLoggerAdapter(logging.LoggerAdapter):
@@ -100,6 +101,7 @@ class _Strategy:
         should_backup_variables_to_database=True,
         should_send_summary_to_discord=True,
         save_logfile=False,
+        lumiwealth_api_key=None,
         **kwargs,
     ):
         """Initializes a Strategy object.
@@ -183,6 +185,8 @@ class _Strategy:
         save_logfile : bool
             Whether to save the logfile. Defaults to False. If True, the logfile will be saved to the logs directory.
             Turning on this option will slow down the backtest.
+        lumiwealth_api_key : str
+            The API key to use for the LumiWealth data source. Defaults to None (saving to the cloud is off).
         kwargs : dict
             A dictionary of additional keyword arguments to pass to the strategy.
 
@@ -261,6 +265,12 @@ class _Strategy:
             
         self.discord_account_summary_footer = discord_account_summary_footer
         self.backup_table_name="vars_backup"
+
+        # Set the LumiWealth API key
+        if lumiwealth_api_key:
+            self.lumiwealth_api_key = lumiwealth_api_key
+        else:
+            self.lumiwealth_api_key = LUMIWEALTH_API_KEY
 
         if strategy_id is None:
             self.strategy_id = self._name

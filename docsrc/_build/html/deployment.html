@@ -366,33 +366,55 @@
         <article role="main">
           <section id="deployment-guide">
 <h1>Deployment Guide<a class="headerlink" href="#deployment-guide" title="Link to this heading">#</a></h1>
-<p>Deploying your application is straightforward with our GitHub deployment buttons for <strong>Render</strong> and <strong>Replit</strong>. Follow the steps below to get your application up and running quickly. 🚀</p>
+<p>This guide will walk you through the deployment process for your trading strategy. We will cover the following topics:</p>
+<ul class="simple">
+<li><p><strong>Choosing Your Deployment Platform:</strong> Decide whether to deploy on <strong>Render</strong> or <strong>Replit</strong>.</p></li>
+<li><p><strong>Deploying to Render:</strong> Step-by-step instructions for deploying on Render.</p></li>
+<li><p><strong>Deploying to Replit:</strong> Step-by-step instructions for deploying on Replit.</p></li>
+<li><p><strong>Secrets Configuration:</strong> Detailed information on setting up your environment variables.</p></li>
+<li><p><strong>Broker Configuration:</strong> Required secrets for different brokers.</p></li>
+<li><p><strong>General Environment Variables:</strong> Additional environment variables required for the strategy to function correctly.</p></li>
+</ul>
+<p>Before deploying your application, ensure that you have the necessary environment variables configured. The environment variables are crucial for the successful deployment of your application. We will cover the required environment variables for different brokers and general environment variables that are essential for the strategy to function correctly.</p>
+<section id="example-strategy-for-deployment">
+<h2>Example Strategy for Deployment<a class="headerlink" href="#example-strategy-for-deployment" title="Link to this heading">#</a></h2>
 <div class="admonition important">
 <p class="admonition-title">Important</p>
-<p><strong>Render</strong> is our recommended platform due to its ease of use and cost-effectiveness. <strong>Replit</strong> is also a great option, especially for developers who prefer editing code directly in the browser.</p>
+<p><strong>Important:</strong> This example strategy is for those without a strategy ready to deploy. If you have your own strategy, skip to <a class="reference external" href="#id1">Choosing Your Deployment Platform</a>.</p>
 </div>
+<p>Use this example to see the deployment process in action. It’s not intended for real-money use. More details are available in the GitHub repository: <a class="reference external" href="https://github.com/Lumiwealth-Strategies/stock_example_algo">Example Algorithm GitHub</a></p>
+<p>To run the example strategy, click the Deploy to Render button or the Run on Repl.it button. See <a class="reference external" href="#id2">Deploying to Render</a> and <a class="reference external" href="#id3">Deploying to Replit</a> for more details.</p>
+<div style="display: flex; justify-content: center; gap: 20px; margin-bottom: 20px;">
+    <a href="https://render.com/deploy?repo=https://github.com/Lumiwealth-Strategies/stock_example_algo" target="_blank">
+        <img src="https://render.com/images/deploy-to-render-button.svg" alt="Deploy to Render" style="width: 200px; height: auto;">
+    </a>
+    <a href="https://replit.com/new/github/Lumiwealth-Strategies/stock_example_algo" target="_blank">
+        <img src="https://replit.com/badge/github/Lumiwealth-Strategies/stock_example_algo" alt="Replit" style="width: 200px; height: auto;">
+    </a>
+</div><p>Render is recommended for ease of use and affordability. Replit is more expensive but great for in-browser code editing, if you want to see/edit the code directly in your browser.</p>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
 <p><strong>Tip:</strong> Scroll down to the <span class="xref std std-ref">Secrets Configuration</span> section for detailed information on setting up your environment variables.</p>
 </div>
-<section id="choosing-your-deployment-platform">
-<h2>Choosing Your Deployment Platform<a class="headerlink" href="#choosing-your-deployment-platform" title="Link to this heading">#</a></h2>
+</section>
+<section id="id1">
+<h2>Choosing Your Deployment Platform<a class="headerlink" href="#id1" title="Link to this heading">#</a></h2>
 <p>We recommend using <strong>Render</strong> for deployment because it is easier to use and more affordable compared to Replit. However, <strong>Replit</strong> is an excellent choice for developers who want to edit code directly in the browser.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p><strong>Render</strong> costs <strong>$7/month</strong>, while <strong>Replit</strong> is priced at <strong>$25/month</strong>. Choose the platform that best fits your needs and budget.</p>
 </div>
 </section>
-<section id="deploying-to-render">
-<h2>Deploying to Render<a class="headerlink" href="#deploying-to-render" title="Link to this heading">#</a></h2>
+<section id="id2">
+<h2>Deploying to Render<a class="headerlink" href="#id2" title="Link to this heading">#</a></h2>
 <p>Render offers powerful deployment options with easy scalability. Follow these steps to deploy your application on Render:</p>
 <ol class="arabic">
 <li><p><strong>Click the “Deploy to Render” Button</strong></p>
 <p>Start by clicking the <strong>“Deploy to Render”</strong> button on the GitHub repository.</p>
-<figure class="align-center" id="id1">
+<figure class="align-center" id="id4">
 <img alt="Deploy to Render Button" src="_static/images/render_deploy_button.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure 1:</strong> Deploy to Render button on GitHub.</span><a class="headerlink" href="#id1" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure 1:</strong> Deploy to Render button on GitHub.</span><a class="headerlink" href="#id4" title="Link to this image">#</a></p>
 </figcaption>
 </figure>
 </li>
@@ -401,19 +423,21 @@
 <li><p><strong>Choose a Blueprint Name:</strong> Enter a name for your blueprint, e.g., <strong>“Blueprint Name”</strong>.</p></li>
 <li><p><strong>Deploy Blueprint:</strong> Click the <strong>“Deploy Blueprint”</strong> button.</p></li>
 </ul>
-<figure class="align-center" id="id2">
+<figure class="align-center" id="id5">
 <img alt="Deploy Blueprint on Render" src="_static/images/render_deploy_blueprint.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure 2:</strong> Deploying Blueprint on Render.</span><a class="headerlink" href="#id2" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure 2:</strong> Deploying Blueprint on Render.</span><a class="headerlink" href="#id5" title="Link to this image">#</a></p>
 </figcaption>
 </figure>
 </li>
-<li><p><strong>Navigate to the Worker</strong>
-- <strong>Navigate to the Background Worker:</strong> Click on the name of the background worker, e.g., <strong>options-butterfly-condor-worker-afas (Starter)</strong> so you can configure theis specific bot worker (we are currently in the blueprint configuration, not the bot itself).</p>
-<figure class="align-center" id="id3">
+<li><p><strong>Navigate to the Worker</strong></p>
+<ul class="simple">
+<li><p><strong>Navigate to the Background Worker:</strong> Click on the name of the background worker, e.g., <strong>options-butterfly-condor-worker-afas (Starter)</strong> so you can configure this specific bot worker (we are currently in the blueprint configuration, not the bot itself).</p></li>
+</ul>
+<figure class="align-center" id="id6">
 <img alt="Worker on Render" src="_static/images/render_worker.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure 3:</strong> Worker on Render.</span><a class="headerlink" href="#id3" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure 3:</strong> Worker on Render.</span><a class="headerlink" href="#id6" title="Link to this image">#</a></p>
 </figcaption>
 </figure>
 </li>
@@ -423,10 +447,10 @@
 <li><p><strong>Edit Environment Variables:</strong> Click <strong>Edit</strong> and fill in the required keys as detailed in the <span class="xref std std-ref">Secrets Configuration</span> section. Once you have added your values for the environment variables, click <strong>Save</strong>.</p></li>
 <li><p><strong>Delete Unnecessary Variables:</strong> If you have any unnecessary environment variables, you can delete them by clicking the <strong>Delete (trashcan)</strong> button next to the variable. One example of an unnecessary variable is <cite>POLYGON_API_KEY</cite> which is only used if you are backtesting.</p></li>
 </ul>
-<figure class="align-center" id="id4">
+<figure class="align-center" id="id7">
 <img alt="Environment Settings on Render" src="_static/images/render_worker_environment.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure 3:</strong> Editing Environment Variables on Render.</span><a class="headerlink" href="#id4" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure 4:</strong> Editing Environment Variables on Render.</span><a class="headerlink" href="#id7" title="Link to this image">#</a></p>
 </figcaption>
 </figure>
 <div class="admonition note">
@@ -436,10 +460,10 @@
 </li>
 <li><p><strong>Restart the Service</strong></p>
 <p>After configuring the environment variables, navigate to the top right corner and click <strong>“Manual Deploy”</strong>, then <strong>“Deploy latest commit”</strong> to apply the changes.</p>
-<figure class="align-center" id="id5">
+<figure class="align-center" id="id8">
 <img alt="Restart Service on Render" src="_static/images/render_redeploy.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure 4:</strong> Redeploying the Service on Render using the latest commit.</span><a class="headerlink" href="#id5" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure 5:</strong> Redeploying the Service on Render using the latest commit.</span><a class="headerlink" href="#id8" title="Link to this image">#</a></p>
 </figcaption>
 </figure>
 </li>
@@ -447,10 +471,10 @@
 <ul class="simple">
 <li><p><strong>Check the Logs:</strong> Navigate to the <strong>Logs</strong> tab on the left to view the deployment logs and ensure that there are no errors.</p></li>
 </ul>
-<figure class="align-center" id="id6">
+<figure class="align-center" id="id9">
 <img alt="Logs on Render" src="_static/images/render_logs.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure 5:</strong> Viewing Logs on Render.</span><a class="headerlink" href="#id6" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure 6:</strong> Viewing Logs on Render.</span><a class="headerlink" href="#id9" title="Link to this image">#</a></p>
 </figcaption>
 </figure>
 </li>
@@ -458,31 +482,29 @@
 <ul class="simple">
 <li><p><strong>Monitor Performance:</strong> Go to your broker account to monitor the bot’s performance and ensure that it is executing trades as expected.</p></li>
 </ul>
-<blockquote>
-<div><figure class="align-center" id="id7">
+<figure class="align-center" id="id10">
 <img alt="Monitor bot performance" src="_static/images/replit_monitor_bot.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure 13:</strong> Monitoring bot performance in Replit.</span><a class="headerlink" href="#id7" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure 7:</strong> Monitoring bot performance.</span><a class="headerlink" href="#id10" title="Link to this image">#</a></p>
 </figcaption>
 </figure>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p><strong>Note:</strong> Monitor the bot’s performance regularly to ensure that it is functioning correctly and making profitable trades.</p>
 </div>
-</div></blockquote>
 </li>
 </ol>
 </section>
-<section id="deploying-to-replit">
-<h2>Deploying to Replit<a class="headerlink" href="#deploying-to-replit" title="Link to this heading">#</a></h2>
+<section id="id3">
+<h2>Deploying to Replit<a class="headerlink" href="#id3" title="Link to this heading">#</a></h2>
 <p>Replit is a versatile platform that allows you to deploy applications quickly. Follow these steps to deploy your application on Replit:</p>
 <ol class="arabic">
 <li><p><strong>Click the “Deploy on Replit” Button</strong></p>
 <p>Start by clicking the <strong>“Deploy on Replit”</strong> button on the GitHub repository.</p>
-<figure class="align-center" id="id8">
+<figure class="align-center" id="id11">
 <img alt="Deploy on Replit Button" src="_static/images/deploy_replit_button.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure 6:</strong> Deploy on Replit button on GitHub.</span><a class="headerlink" href="#id8" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure 8:</strong> Deploy on Replit button on GitHub.</span><a class="headerlink" href="#id11" title="Link to this image">#</a></p>
 </figcaption>
 </figure>
 </li>
@@ -492,35 +514,35 @@
 <li><p>Go to <strong>Tools</strong> in the sidebar.</p></li>
 <li><p>Select <strong>Secrets</strong> at the bottom left corner.</p></li>
 </ul>
-<figure class="align-center" id="id9">
+<figure class="align-center" id="id12">
 <img alt="Replit Tools -&gt; Secrets" src="_static/images/replit_tools_secrets.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure 7:</strong> Accessing Secrets in Replit.</span><a class="headerlink" href="#id9" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure 9:</strong> Accessing Secrets in Replit.</span><a class="headerlink" href="#id12" title="Link to this image">#</a></p>
 </figcaption>
 </figure>
 </li>
 <li><p><strong>Add Required Secrets</strong></p>
 <p>In the <strong>Secrets</strong> tab, add the necessary environment variables as detailed in the <span class="xref std std-ref">Secrets Configuration</span> section.</p>
-<figure class="align-center" id="id10">
+<figure class="align-center" id="id13">
 <img alt="Adding a new secret in Replit" src="_static/images/replit_add_secret.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure 8:</strong> Adding a new secret in Replit.</span><a class="headerlink" href="#id10" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure 10:</strong> Adding a new secret in Replit.</span><a class="headerlink" href="#id13" title="Link to this image">#</a></p>
 </figcaption>
 </figure>
 </li>
 <li><p><strong>Test Run the Application</strong></p>
 <p>After adding all required secrets, click <strong>Run</strong>. This step is crucial as it installs all necessary libraries and ensures that the secrets are correctly configured.</p>
 <p>When you press <strong>Run</strong>, the application will start running in the console. You can see the logs in real-time to ensure that everything is working as expected.</p>
-<figure class="align-center" id="id11">
+<figure class="align-center" id="id14">
 <img alt="Running the application in Replit" src="_static/images/replit_run.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure 9:</strong> Running the application in Replit.</span><a class="headerlink" href="#id11" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure 11:</strong> Running the application in Replit.</span><a class="headerlink" href="#id14" title="Link to this image">#</a></p>
 </figcaption>
 </figure>
-<figure class="align-center" id="id12">
+<figure class="align-center" id="id15">
 <img alt="Viewing logs in Replit" src="_static/images/replit_logs.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure 10:</strong> Viewing logs in Replit.</span><a class="headerlink" href="#id12" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure 12:</strong> Viewing logs in Replit.</span><a class="headerlink" href="#id15" title="Link to this image">#</a></p>
 </figcaption>
 </figure>
 </li>
@@ -529,42 +551,45 @@
 <li><p><strong>Click Deploy:</strong> Navigate to <strong>Deploy</strong> located under <strong>Tools</strong> in the top right or within the <strong>Background Workers</strong> section.</p></li>
 <li><p><strong>Select Reserved VM:</strong> The strategies will only work on a <strong>Reserved VM</strong>, none of the other options will work.</p></li>
 </ul>
-<figure class="align-center" id="id13">
+<figure class="align-center" id="id16">
 <img alt="Select Reserved VM and Background Worker" src="_static/images/replit_reserved_vm.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure 10:</strong> Selecting Reserved VM and Background Worker on Replit.</span><a class="headerlink" href="#id13" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure 13:</strong> Selecting Reserved VM and Background Worker on Replit.</span><a class="headerlink" href="#id16" title="Link to this image">#</a></p>
 </figcaption>
 </figure>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
 <p><strong>Note:</strong> Ensure that you have downgraded the vCPU before selecting the Background Worker to optimize costs effectively.</p>
+</div>
 </li>
-<li><p><strong>Deployment Part 2</strong>
-- <strong>Downgrade vCPU:</strong> We recommend downgrading to <strong>0.25 vCPU</strong> to reduce costs. As of today, it costs <strong>$6/month</strong> compared to the default <strong>$12/month</strong> for <strong>0.5 vCPU</strong>.
-- <strong>Select Background Worker:</strong> Choose <strong>“Background Worker”</strong>.
-- <strong>Click Deploy:</strong> Click <strong>“Deploy”</strong> to deploy your application.
-- <strong>Wait for Deployment:</strong> The deployment process may take a few minutes. Once completed, you will see a success message.</p>
-<blockquote>
-<div><figure class="align-center" id="id14">
+<li><p><strong>Deployment Part 2</strong></p>
+<ul class="simple">
+<li><p><strong>Downgrade vCPU:</strong> We recommend downgrading to <strong>0.25 vCPU</strong> to reduce costs. As of today, it costs <strong>$6/month</strong> compared to the default <strong>$12/month</strong> for <strong>0.5 vCPU</strong>.</p></li>
+<li><p><strong>Select Background Worker:</strong> Choose <strong>“Background Worker”</strong>.</p></li>
+<li><p><strong>Click Deploy:</strong> Click <strong>“Deploy”</strong> to deploy your application.</p></li>
+<li><p><strong>Wait for Deployment:</strong> The deployment process may take a few minutes. Once completed, you will see a success message.</p></li>
+</ul>
+<figure class="align-center" id="id17">
 <img alt="Deploying the application in Replit" src="_static/images/replit_deploy.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure 11:</strong> Deploying the application in Replit.</span><a class="headerlink" href="#id14" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure 14:</strong> Deploying the application in Replit.</span><a class="headerlink" href="#id17" title="Link to this image">#</a></p>
 </figcaption>
 </figure>
-<figure class="align-center" id="id15">
+<figure class="align-center" id="id18">
 <img alt="Deployment process" src="_static/images/replit_deploy_process.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure 12:</strong> Deployment process in Replit.</span><a class="headerlink" href="#id15" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure 15:</strong> Deployment process in Replit.</span><a class="headerlink" href="#id18" title="Link to this image">#</a></p>
 </figcaption>
 </figure>
-</div></blockquote>
 </li>
 <li><p><strong>Check The Logs</strong></p>
 <ul class="simple">
 <li><p><strong>View Logs:</strong> Navigate to the <strong>Logs</strong> tab in <strong>Deployment</strong> to view the deployment logs and ensure that there are no errors.</p></li>
 </ul>
-<figure class="align-center" id="id16">
+<figure class="align-center" id="id19">
 <img alt="Logs on Replit" src="_static/images/replit_deploy_logs.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure 12:</strong> Viewing Logs on Replit.</span><a class="headerlink" href="#id16" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure 16:</strong> Viewing Logs on Replit.</span><a class="headerlink" href="#id19" title="Link to this image">#</a></p>
 </figcaption>
 </figure>
 </li>
@@ -572,18 +597,16 @@
 <ul class="simple">
 <li><p><strong>Monitor Performance:</strong> Go to your broker account to monitor the bot’s performance and ensure that it is executing trades as expected.</p></li>
 </ul>
-<blockquote>
-<div><figure class="align-center" id="id17">
+<figure class="align-center" id="id20">
 <img alt="Monitor bot performance" src="_static/images/replit_monitor_bot.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure 13:</strong> Monitoring bot performance in Replit.</span><a class="headerlink" href="#id17" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure 17:</strong> Monitoring bot performance.</span><a class="headerlink" href="#id20" title="Link to this image">#</a></p>
 </figcaption>
 </figure>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p><strong>Note:</strong> Monitor the bot’s performance regularly to ensure that it is functioning correctly and making profitable trades.</p>
 </div>
-</div></blockquote>
 </li>
 </ol>
 </section>
@@ -606,9 +629,9 @@
 <section id="tradier-configuration">
 <h2>Tradier Configuration<a class="headerlink" href="#tradier-configuration" title="Link to this heading">#</a></h2>
 <p>Tradier is great because they can trade stocks, options, and soon futures. Tradier also offers an incredible plan for $10/month, providing commission-free options trading. This can save a lot of money for those day trading options or engaging in similar activities. To create an account, visit the <a class="reference external" href="https://tradier.com/">Tradier</a> website.</p>
-<div class="table-wrapper colwidths-given docutils container" id="id18">
-<table class="docutils align-default" id="id18">
-<caption><span class="caption-text">Tradier Configuration</span><a class="headerlink" href="#id18" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id21">
+<table class="docutils align-default" id="id21">
+<caption><span class="caption-text">Tradier Configuration</span><a class="headerlink" href="#id21" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -640,9 +663,9 @@
 <section id="alpaca-configuration">
 <h2>Alpaca Configuration<a class="headerlink" href="#alpaca-configuration" title="Link to this heading">#</a></h2>
 <p>Alpaca is great because they’re a commission-free broker specifically designed for API trading, which aligns perfectly with our platform. Alpaca supports trading stocks, crypto, and soon options, with their APIs working seamlessly for automated trading strategies. To create an account, visit the <a class="reference external" href="https://alpaca.markets/">Alpaca</a> website.</p>
-<div class="table-wrapper colwidths-given docutils container" id="id19">
-<table class="docutils align-default" id="id19">
-<caption><span class="caption-text">Alpaca Configuration</span><a class="headerlink" href="#id19" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id22">
+<table class="docutils align-default" id="id22">
+<caption><span class="caption-text">Alpaca Configuration</span><a class="headerlink" href="#id22" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -674,9 +697,9 @@
 <section id="coinbase-configuration">
 <h2>Coinbase Configuration<a class="headerlink" href="#coinbase-configuration" title="Link to this heading">#</a></h2>
 <p>Coinbase is a cryptocurrency broker that is easy to set up and operates across all United States, including New York, which is typically challenging to find for crypto brokers. It offers a wide range of cryptocurrencies with user-friendly APIs. To create an account, visit the <a class="reference external" href="https://www.coinbase.com/">Coinbase</a> website.</p>
-<div class="table-wrapper colwidths-given docutils container" id="id20">
-<table class="docutils align-default" id="id20">
-<caption><span class="caption-text">Coinbase Configuration</span><a class="headerlink" href="#id20" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id23">
+<table class="docutils align-default" id="id23">
+<caption><span class="caption-text">Coinbase Configuration</span><a class="headerlink" href="#id23" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -708,9 +731,9 @@
 <section id="kraken-configuration">
 <h2>Kraken Configuration<a class="headerlink" href="#kraken-configuration" title="Link to this heading">#</a></h2>
 <p>Kraken is an excellent cryptocurrency broker offering very low fees and a wide range of cryptocurrencies, likely more than Coinbase. It is ideal for users focused on crypto trading with competitive pricing. To create an account, visit the <a class="reference external" href="https://www.kraken.com/">Kraken</a> website.</p>
-<div class="table-wrapper colwidths-given docutils container" id="id21">
-<table class="docutils align-default" id="id21">
-<caption><span class="caption-text">Kraken Configuration</span><a class="headerlink" href="#id21" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id24">
+<table class="docutils align-default" id="id24">
+<caption><span class="caption-text">Kraken Configuration</span><a class="headerlink" href="#id24" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -738,9 +761,9 @@
 <section id="interactive-brokers-configuration">
 <h2>Interactive Brokers Configuration<a class="headerlink" href="#interactive-brokers-configuration" title="Link to this heading">#</a></h2>
 <p>Interactive Brokers is ideal for international users as they offer a wide array of asset classes, including stocks, options, futures, forex, CFDs, and more. Their global presence makes them suitable for users around the world. To create an account, visit the <a class="reference external" href="https://www.interactivebrokers.com/">Interactive Brokers</a> website.</p>
-<div class="table-wrapper colwidths-given docutils container" id="id22">
-<table class="docutils align-default" id="id22">
-<caption><span class="caption-text">Interactive Brokers Configuration</span><a class="headerlink" href="#id22" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id25">
+<table class="docutils align-default" id="id25">
+<caption><span class="caption-text">Interactive Brokers Configuration</span><a class="headerlink" href="#id25" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -777,9 +800,9 @@
 <section id="general-environment-variables">
 <h1>General Environment Variables<a class="headerlink" href="#general-environment-variables" title="Link to this heading">#</a></h1>
 <p>In addition to broker-specific secrets, the following environment variables are required for the strategy to function correctly:</p>
-<div class="table-wrapper colwidths-given docutils container" id="id23">
-<table class="docutils align-default" id="id23">
-<caption><span class="caption-text">General Environment Variables</span><a class="headerlink" href="#id23" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id26">
+<table class="docutils align-default" id="id26">
+<caption><span class="caption-text">General Environment Variables</span><a class="headerlink" href="#id26" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -835,7 +858,7 @@
 <section id="conclusion">
 <h2>Conclusion<a class="headerlink" href="#conclusion" title="Link to this heading">#</a></h2>
 <p>Deploying your application is straightforward with our GitHub deployment buttons for <strong>Render</strong> and <strong>Replit</strong>. By following this guide, you can quickly set up your environment variables and get your application live. Happy deploying! 🎉</p>
-<p>For further assistance, refer to the [Render Documentation](<a class="reference external" href="https://render.com/docs">https://render.com/docs</a>) or the [Replit Documentation](<a class="reference external" href="https://docs.replit.com/">https://docs.replit.com/</a>).</p>
+<p>For further assistance, refer to the <a class="reference external" href="https://render.com/docs">Render Documentation</a> or the <a class="reference external" href="https://docs.replit.com/">Replit Documentation</a>.</p>
 </section>
 </section>
 
@@ -895,9 +918,10 @@
           <div class="toc-tree">
             <ul>
 <li><a class="reference internal" href="#">Deployment Guide</a><ul>
-<li><a class="reference internal" href="#choosing-your-deployment-platform">Choosing Your Deployment Platform</a></li>
-<li><a class="reference internal" href="#deploying-to-render">Deploying to Render</a></li>
-<li><a class="reference internal" href="#deploying-to-replit">Deploying to Replit</a></li>
+<li><a class="reference internal" href="#example-strategy-for-deployment">Example Strategy for Deployment</a></li>
+<li><a class="reference internal" href="#id1">Choosing Your Deployment Platform</a></li>
+<li><a class="reference internal" href="#id2">Deploying to Render</a></li>
+<li><a class="reference internal" href="#id3">Deploying to Replit</a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#secrets-configuration">Secrets Configuration</a></li>

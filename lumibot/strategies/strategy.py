@@ -4566,3 +4566,71 @@ class Strategy(_Strategy):
 
             # Return False because we should not send the account summary to Discord
             return False
+
+    def send_update_to_cloud(self):
+        """
+        Sends an update to the LumiWealth cloud server with the current portfolio value, cash, positions, and any outstanding orders.
+        There is an API Key that is required to send the update to the cloud. 
+        The API Key is stored in the environment variable LUMIWEALTH_API_KEY.
+        """
+        # Check if we are in backtesting mode, if so, don't send the message
+        if self.is_backtesting:
+            return
+        
+        # Check if self.lumiwealth_api_key has been set, if not, return
+        if not hasattr(self, "lumiwealth_api_key") or self.lumiwealth_api_key is None or self.lumiwealth_api_key == "":
+        
+            # TODO: Set this to a warning once the API is ready
+            # Log that we are not sending the update to the cloud
+            self.logger.debug("LUMIWEALTH_API_KEY not set. Not sending an update to the cloud because lumiwealth_api_key is not set. If you would like to be able to track your bot performance on our website, please set the lumiwealth_api_key parameter in the strategy initialization or the LUMIWEALTH_API_KEY environment variable.")
+            return
+
+        # Get the current portfolio value
+        portfolio_value = self.get_portfolio_value()
+
+        # Get the current cash
+        cash = self.get_cash()
+
+        # Get the current positions
+        positions = self.get_positions()
+
+        # Get the current orders
+        orders = self.get_orders()
+
+        # Get the current time in New York
+        ny_tz = pytz.timezone("America/New_York")
+        now = datetime.datetime.now(ny_tz)
+
+        LUMIWEALTH_URL = "https://api.lumiwealth.com/v1/update"
+
+        headers = {
+            "Authorization": f"Bearer {self.lumiwealth_api_key}",
+            "Content-Type": "application/json",
+        }
+
+        # Create the data to send to the cloud
+        data = {
+            "portfolio_value": portfolio_value,
+            "cash": cash,
+            "positions": [position.to_dict() for position in positions],
+            "orders": [order.to_dict() for order in orders],
+            "datetime": now.isoformat(),
+        }
+
+        # Send the data to the cloud
+        response = requests.post(LUMIWEALTH_URL, headers=headers, json=data)
+
+        # TODO: Uncomment this code once the API is ready
+        # # Check if the message was sent successfully
+        # if response.status_code == 200:
+        #     self.logger.info("Update sent to the cloud successfully")
+        #     return True
+        # else:
+        #     self.logger.error(
+        #         f"Failed to send update to the cloud. Status code: {response.status_code}, message: {response.text}"
+        #     )
+        #     return False
+
+        return True
+
+

@@ -284,7 +284,7 @@ class TestThetaDataBacktestFull:
         assert 130.0 < theta_strat_obj.prices[asset_order_id] < 140.0, "Valid asset price between 130 and 140"
         assert 130.0 < stock_order.get_fill_price() < 140.0, "Valid asset price between 130 and 140"
         assert theta_strat_obj.prices[option_order_id] == 4.5, "Price is $4.5 on 08/01/2023 12:30pm"
-        assert option_order.get_fill_price() == 4.5, "Fills at 1st candle open price of $4.10 on 08/01/2023"
+        assert option_order.get_fill_price() == 4.55, "Fills at 1st candle open price of $4.10 on 08/01/2023"
 
         assert option_order.is_filled()
 

@@ -20,7 +20,7 @@ To run this example strategy, click on the `Deploy to Render` button below to de
 
 [![Run on Repl.it](https://replit.com/badge/github/Lumiwealth-Strategies/stock_example_algo)](https://replit.com/new/github/Lumiwealth-Strategies/stock_example_algo)
 
-For more information on how to run the example strategy, you can check out the README in the example strategy repository here: [Example Algorithm](https://github.com/Lumiwealth-Strategies/stock_example_algo)
+**For more information on how to run the example strategy, you can check out the README in the example strategy repository here: [Example Algorithm](https://github.com/Lumiwealth-Strategies/stock_example_algo)**
 
 ## Contributors
 

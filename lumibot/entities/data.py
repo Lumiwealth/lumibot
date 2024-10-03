@@ -402,7 +402,9 @@ class Data:
         float
         """
         iter_count = self.get_iter_count(dt)
-        price = self.datalines["open"].dataline[iter_count]
+        open_price = self.datalines["open"].dataline[iter_count]
+        close_price = self.datalines["close"].dataline[iter_count]
+        price = close_price if dt > self.datalines["datetime"].dataline[iter_count] else open_price
         return price
 
     @check_data

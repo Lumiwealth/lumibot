@@ -82,9 +82,13 @@ class PollingStream(CustomStream):
         if self.POLL_EVENT not in self._actions_mapping:
             raise ValueError("No action is defined for the poll event. You must register a polling action with "
                              "add_action()")
+
         try:
             self._process_queue_event(self.POLL_EVENT, {})
         except queue.Full:
             logging.info("Polling action itself has added too many events to the queue. Skipping this polling cycle, "
                          "(it is incomplete) to allow the queue to drain. The next cycle will occur as scheduled.")
             return
+        # Ensure that the Polling thread does not die if an exception is raised in the event processing.
+        except Exception as e: # noqa
+            logging.exception(f"An error occurred while polling. {e}")

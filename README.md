@@ -10,15 +10,17 @@ To get started with Lumibot, you can check out our documentation below.
 
 **Check out the documentation for the project here: 👉 <http://lumibot.lumiwealth.com/> 👈**
 
-# Run an Example Strategy
+## Run an Example Strategy
 
-We made a small example strategy to show you how to use Lumibot in this GitHub repository: [stock_example_algo](https://github.com/Lumiwealth-Strategies/stock_example_algo)
+We made a small example strategy to show you how to use Lumibot in this GitHub repository: [Example Algorithm GitHub](https://github.com/Lumiwealth-Strategies/stock_example_algo)
 
 To run this example strategy, click on the `Deploy to Render` button below to deploy the strategy to Render (our recommendation). You can also run the strategy on Repl.it by clicking on the `Run on Repl.it` button below.
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Lumiwealth-Strategies/stock_example_algo)
 
 [![Run on Repl.it](https://replit.com/badge/github/Lumiwealth-Strategies/stock_example_algo)](https://replit.com/new/github/Lumiwealth-Strategies/stock_example_algo)
+
+For more information on how to run the example strategy, you can check out the README in the example strategy repository here: [Example Algorithm](https://github.com/Lumiwealth-Strategies/stock_example_algo)
 
 ## Contributors
 

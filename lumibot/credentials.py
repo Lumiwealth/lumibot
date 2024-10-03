@@ -174,12 +174,11 @@ INTERACTIVE_BROKERS_CONFIG = {
     "IB_SUBACCOUNT": os.environ.get("IB_SUBACCOUNT", None)
 }
 
- 
-
 INTERACTIVE_BROKERS_REST_CONFIG = {
     "IB_USERNAME": os.environ.get("IB_USERNAME"),
     "IB_PASSWORD": os.environ.get("IB_PASSWORD"),
-    "ACCOUNT_ID": os.environ.get("ACCOUNT_ID")
+    "ACCOUNT_ID": os.environ.get("ACCOUNT_ID"),
+    "API_URL": os.environ.get("IB_API_URL")
 }
 
 LUMIWEALTH_API_KEY = os.environ.get("LUMIWEALTH_API_KEY")

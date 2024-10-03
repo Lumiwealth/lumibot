@@ -31,13 +31,13 @@ class InteractiveBrokersRESTData(DataSource):
     MIN_TIMESTEP = "minute"
     SOURCE = "InteractiveBrokersREST"
 
-    def __init__(self, config, api_url):
-        if api_url is None:
+    def __init__(self, config):
+        if not "API_URL" in config:
             self.port = "4234"
             self.base_url = f'https://localhost:{self.port}/v1/api'
         else:
-            self.api_url = api_url
-            self.base_url = f'{api_url}/v1/api'
+            self.api_url = config['API_URL']
+            self.base_url = f'{self.api_url}/v1/api'
         
         self.account_id = config["ACCOUNT_ID"] if "ACCOUNT_ID" in config else None
         self.ib_username = config["IB_USERNAME"]

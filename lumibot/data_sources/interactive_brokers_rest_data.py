@@ -32,7 +32,7 @@ class InteractiveBrokersRESTData(DataSource):
     SOURCE = "InteractiveBrokersREST"
 
     def __init__(self, config):
-        if not "API_URL" in config:
+        if config["API_URL"] is None:
             self.port = "4234"
             self.base_url = f'https://localhost:{self.port}/v1/api'
         else:
@@ -44,14 +44,12 @@ class InteractiveBrokersRESTData(DataSource):
         self.ib_password = config["IB_PASSWORD"]
 
         # Check if we are running on a server
-        running_on_server = config["RUNNING_ON_SERVER"]
-        if not running_on_server or running_on_server.lower() == "false":
-            self.running_on_server = False
-        elif running_on_server.lower() == "true":
+        running_on_server = config["RUNNING_ON_SERVER"] if config["RUNNING_ON_SERVER"] is not None else ""
+        if running_on_server.lower() == "true":
             self.running_on_server = True
         else:
             self.running_on_server = False
-
+        
         self.start()
 
     def start(self):
@@ -85,7 +83,7 @@ class InteractiveBrokersRESTData(DataSource):
             time.sleep(10)
 
         while not self.is_authenticated():
-            logging.info(colored("Not connected to API server yet. Waiting for Interactive Brokers Client Portal in Docker to start...", "yellow"))
+            logging.info(colored("Not connected to API server yet. Waiting for Interactive Brokers API Portal to start in Docker...", "yellow"))
             logging.info(colored("Waiting for another 10 seconds before checking again...", "yellow"))
             time.sleep(10)
         
@@ -344,7 +342,7 @@ class InteractiveBrokersRESTData(DataSource):
         months = option_dates.split(';') # in MMMYY
 
         for month in months:
-            url_for_strikes = f'{self.base_url}/iserver/secdef/strikes?sectype=OPT&conid={conid}&month={month}' ## &exchange could be added
+            url_for_strikes = f'{self.base_url}/iserver/secdef/strikes?sectype=OPT&conid={conid}&month={month}' # TODO &exchange could be added
             strikes = self.get_from_endpoint(url_for_strikes, "Getting Strikes")
 
             for strike in strikes['call']:
@@ -405,7 +403,6 @@ class InteractiveBrokersRESTData(DataSource):
 
         conid = self.get_conid_from_asset(asset=asset)
 
-        ## may need to be tested out thoroughly
         # Determine the period based on the timestep and length
         if "minute" in timestep:
             period = f"{length * int(timestep.split()[0])}mins"
@@ -435,7 +432,6 @@ class InteractiveBrokersRESTData(DataSource):
             trading_days = total_hours / trading_hours_per_day
             period = f"{int(trading_days)}d"
             
-        ## https://localhost:4234/v1/api/hmds/history?conid=756733&period=13d&bar=5 minutes&outsideRth=True&startTime=20240929-19:32:03
         url = f"{self.base_url}/iserver/marketdata/history?conid={conid}&period={period}&bar={timestep}&outsideRth={include_after_hours}&startTime={start_time}"
         
         if exchange:
@@ -478,7 +474,7 @@ class InteractiveBrokersRESTData(DataSource):
         response = self.get_from_endpoint(url, "Getting Asset Currency")
         return SPREAD_CONID_MAP.get(response['currency'], None)
 
-    def get_conid_from_asset(self, asset: Asset): ## futures?
+    def get_conid_from_asset(self, asset: Asset): # TODO futures
         url = f'{self.base_url}/iserver/secdef/search?symbol={asset.symbol}'
         response = self.get_from_endpoint(url, "Getting Asset conid")
 
@@ -519,7 +515,7 @@ class InteractiveBrokersRESTData(DataSource):
             "86": "ask",
             "88": "bid_size",
             "31": "last_price",
-            "7283": "implied_volatility", ## could be the wrong iv, there are a lot
+            "7283": "implied_volatility",
             "7311": "vega",
             "7310": "theta",
             "7308": "delta",

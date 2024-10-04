@@ -514,7 +514,7 @@ class _Strategy:
                 self.last_broker_balances_update + datetime.timedelta(seconds=UPDATE_INTERVAL) < datetime.datetime.now()
             )
         ):
-            broker_balances = self.broker._get_balances_at_broker(self.quote_asset, self._name)
+            broker_balances = self.broker._get_balances_at_broker(self.quote_asset, self)
 
             if broker_balances is not None:
                 (
@@ -540,7 +540,7 @@ class _Strategy:
     def _update_portfolio_value(self):
         """updates self.portfolio_value"""
         if not self.is_backtesting:
-            broker_balances = self.broker._get_balances_at_broker(self.quote_asset, self._name)
+            broker_balances = self.broker._get_balances_at_broker(self.quote_asset, self)
 
             if broker_balances is not None:
                 return broker_balances[2]

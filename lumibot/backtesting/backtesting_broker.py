@@ -67,7 +67,7 @@ class BacktestingBroker(Broker):
         """TODO: Why is this not used for Backtesting, but it is used for real brokers?"""
         pass
 
-    def _get_balances_at_broker(self, quote_asset):
+    def _get_balances_at_broker(self, quote_asset, strategy):
         """
         Get the balances of the broker
         """

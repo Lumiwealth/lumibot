@@ -361,7 +361,7 @@ class Tradier(Broker):
 
         return order
 
-    def _get_balances_at_broker(self, quote_asset: Asset):
+    def _get_balances_at_broker(self, quote_asset: Asset, strategy):
         try:
             df = self.tradier.account.get_account_balance()
         except TradierApiError as e:

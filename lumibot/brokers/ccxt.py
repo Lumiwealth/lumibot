@@ -75,7 +75,7 @@ class Ccxt(Broker):
         return self.api.fetch_balance(params)
 
     # =========Positions functions==================
-    def _get_balances_at_broker(self, quote_asset):
+    def _get_balances_at_broker(self, quote_asset, strategy):
         """Get's the current actual cash, positions value, and total
         liquidation value from ccxt.
 

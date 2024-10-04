@@ -389,7 +389,7 @@ class InteractiveBrokers(Broker):
 
         return False
 
-    def _get_balances_at_broker(self, quote_asset):
+    def _get_balances_at_broker(self, quote_asset, strategy):
         """Gets the current actual cash, positions value, and total
         liquidation value from interactive Brokers.
 

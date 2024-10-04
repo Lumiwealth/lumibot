@@ -118,7 +118,8 @@ class StrategyExecutor(Thread):
         positions_broker = []
         while held_trades_len > 0:
             # Snapshot for the broker and lumibot:
-            broker_balances = self.broker._get_balances_at_broker(self.strategy.quote_asset)
+            self.strategy
+            broker_balances = self.broker._get_balances_at_broker(self.strategy.quote_asset, self.strategy)
             if broker_balances is None:
                 if cash_broker_retries < cash_broker_max_retries:
                     self.strategy.logger.info("Unable to get cash from broker, trying again.")

@@ -43,10 +43,19 @@ class InteractiveBrokersRESTData(DataSource):
         self.ib_username = config["IB_USERNAME"]
         self.ib_password = config["IB_PASSWORD"]
 
+        # Check if we are running on a server
+        running_on_server = config["RUNNING_ON_SERVER"]
+        if not running_on_server or running_on_server.lower() == "false":
+            self.running_on_server = False
+        elif running_on_server.lower() == "true":
+            self.running_on_server = True
+        else:
+            self.running_on_server = False
+
         self.start()
 
     def start(self):
-        if not hasattr(self, "api_url"):
+        if not hasattr(self, "api_url") and not self.running_on_server:
             # Run the Docker image with the specified environment variables and port mapping
             if not subprocess.run(['docker', '--version'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
                 logging.error(colored("Docker is not installed.", "red"))

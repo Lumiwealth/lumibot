@@ -65,10 +65,10 @@ def get_price_data(
     df_feather = None
     cache_file = build_cache_filename(asset, timespan, datastyle)
     if cache_file.exists():
-        logging.info(
-            f"\nLoading '{datastyle}' pricing data for {asset} / {quote_asset} with '{timespan}' timespan from cache file...")
+        logging.info(f"\nLoading '{datastyle}' pricing data for {asset} / {quote_asset} with '{timespan}' timespan from cache file...")
         df_feather = load_cache(cache_file)
-        df_all = df_feather.copy()  # Make a copy so we can check the original later for differences
+        if df_feather is not None and not df_feather.empty:
+            df_all = df_feather.copy() # Make a copy so we can check the original later for differences
 
     # Check if we need to get more data
     missing_dates = get_missing_dates(df_all, asset, start, end)
@@ -129,6 +129,8 @@ def get_price_data(
     # Close the progress bar when done
     pbar.close()
     return df_all
+
+
 
 
 def get_trading_dates(asset: Asset, start: datetime, end: datetime):
@@ -241,6 +243,12 @@ def load_cache(cache_file):
         df_feather.index
     )  # TODO: Is there some way to speed this up? It takes several times longer than just reading the feather file
     df_feather = df_feather.sort_index()
+
+    # Check if the index is already timezone aware
+    if df_feather.index.tzinfo is None:
+        # Set the timezone to UTC
+        df_feather.index = df_feather.index.tz_localize("UTC")
+
     return df_feather
 
 

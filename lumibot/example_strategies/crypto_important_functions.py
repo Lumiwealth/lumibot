@@ -32,6 +32,30 @@ class ImportantFunctions(Strategy):
         self.submit_order(lmt_order)
 
         ###########################
+        # Placing a Crypto Futures Order
+        ###########################
+
+        # Define the base and quote assets for our transactions
+        base = Asset(
+            symbol="BTC/USDT",
+            asset_type=Asset.AssetType.FUTURE
+            )
+        quote = Asset(
+            symbol="USDT", 
+            asset_type=Asset.AssetType.CRYPTO
+            )
+
+        # Market Order for 0.1 BTC/USDT
+        mkt_order = self.create_order(base, 0.1, "buy", quote=quote)
+        self.submit_order(mkt_order)
+
+        orders = self.get_orders()
+        # TODO: Check if the orders are futures
+
+        positions = self.get_positions()
+        # TODO: Check if the positions are futures
+
+        ###########################
         # Getting Historical Data
         ###########################
 

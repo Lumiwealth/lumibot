@@ -3,7 +3,7 @@ from decimal import Decimal
 
 
 def check_numeric(
-    input, type, error_message, positive=True, strict=False, nullable=False, ratio=False
+    input, type, error_message, positive=True, strict=False, nullable=False, ratio=False, allow_negative=True
 ):
     if nullable and input is None:
         return None
@@ -16,13 +16,14 @@ def check_numeric(
         except:
             raise error
 
-    if positive:
-        if strict:
-            if input <= 0:
-                raise error
-        else:
-            if input < 0:
-                raise error
+    if not allow_negative:
+        if positive:
+            if strict:
+                if input <= 0:
+                    raise error
+            else:
+                if input < 0:
+                    raise error
 
     if ratio:
         if input >= 0:
@@ -66,10 +67,10 @@ def check_quantity(quantity, custom_message=""):
     return result
 
 
-def check_price(price, custom_message="", nullable=True):
+def check_price(price, custom_message="", nullable=True, allow_negative=True):
     error_message = "%r is not a valid price." % price
     if custom_message:
         error_message = f"{error_message} {custom_message}"
 
-    result = check_numeric(price, float, error_message, strict=True, nullable=nullable)
+    result = check_numeric(price, float, error_message, strict=True, nullable=nullable, allow_negative=allow_negative)
     return result

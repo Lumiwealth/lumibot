@@ -1951,7 +1951,7 @@ class Strategy(_Strategy):
     def get_quote(self, asset):
         """Get a quote for the asset.
 
-        NOTE: This currently only works with Tradier. It does not work with backtetsing or other brokers.
+        NOTE: This currently only works with Tradier and IB REST. It does not work with backtetsing or other brokers.
 
         Parameters
         ----------

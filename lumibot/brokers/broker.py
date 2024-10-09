@@ -120,7 +120,7 @@ class Broker(ABC):
 
     # =========Account functions=======================
     @abstractmethod
-    def _get_balances_at_broker(self, quote_asset: Asset) -> tuple:
+    def _get_balances_at_broker(self, quote_asset: Asset, strategy) -> tuple:
         """
         Get the actual cash balance at the broker.
         Parameters
@@ -732,7 +732,7 @@ class Broker(ABC):
         dt_now_utc = datetime.now(timezone.utc)
 
         date = date if date is not None else dt_now_utc
-        trading_hours = mkt_cal.schedule(start_date=date, end_date=date + timedelta(weeks=1)).head(2)
+        trading_hours = mkt_cal.schedule(start_date=date, end_date=date + pd.DateOffset(weeks=1)).head(2)
 
         row = 0 if not next else 1
         th = trading_hours.iloc[row, :]
@@ -958,11 +958,11 @@ class Broker(ABC):
 
     def submit_order(self, order):
         """Submit an order for an asset"""
-        self._orders_queue.put(order)
+        self._submit_order(order)
 
     def submit_orders(self, orders, **kwargs):
         """Submit orders"""
-        self._orders_queue.put(orders)
+        self._submit_orders(orders, **kwargs)
 
     def wait_for_order_registration(self, order):
         """Wait for the order to be registered by the broker"""
@@ -1186,12 +1186,10 @@ class Broker(ABC):
 
         if filled_quantity is not None:
             error = ValueError(
-                f"filled_quantity must be a positive integer or float, received {filled_quantity} instead")
+                f"filled_quantity must be an integer or float, received {filled_quantity} instead")
             try:
                 if not isinstance(filled_quantity, float):
                     filled_quantity = float(filled_quantity)
-                if filled_quantity < 0:
-                    raise error
             except ValueError:
                 raise error
 

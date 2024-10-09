@@ -25,12 +25,15 @@ class ThetaDataBacktesting(PandasData):
         pandas_data=None,
         username=None,
         password=None,
+        use_quote_data=True,
         **kwargs,
     ):
         super().__init__(datetime_start=datetime_start, datetime_end=datetime_end, pandas_data=pandas_data, **kwargs)
 
-        self._username = username
-        self._password = password
+        self._username       = username
+        self._password       = password
+        self._use_quote_data = use_quote_data
+
         self.kill_processes_by_name("ThetaTerminal.jar")
 
     def is_weekend(self, date):
@@ -60,7 +63,7 @@ class ThetaDataBacktesting(PandasData):
         except Exception as e:
             print(f"An error occurred during kill process: {e}")
 
-    def update_pandas_data(self, asset, quote, length, timestep, start_dt=None):
+    def _update_pandas_data(self, asset, quote, length, timestep, start_dt=None):
         """
         Get asset data and update the self.pandas_data dictionary.
 
@@ -147,6 +150,7 @@ class ThetaDataBacktesting(PandasData):
         try:
             # Get ohlc data from ThetaData
             date_time_now = self.get_datetime()
+            df_ohlc = None
             df_ohlc = thetadata_helper.get_price_data(
                 self._username,
                 self._password,
@@ -158,38 +162,47 @@ class ThetaDataBacktesting(PandasData):
                 dt=date_time_now,
                 datastyle="ohlc"
             )
-            # Get quote data from ThetaData
-            df_quote = thetadata_helper.get_price_data(
-                self._username,
-                self._password,
-                asset_separated,
-                start_datetime,
-                self.datetime_end,
-                timespan=ts_unit,
-                quote_asset=quote_asset,
-                dt=date_time_now,
-                datastyle="quote"
-            )
-
-            # Check if we have data
-            if df_ohlc is None or df_quote is None:
+            if df_ohlc is None:
+                logging.info(f"\nSKIP: No OHLC data found for {asset_separated} from ThetaData")
                 return None
 
-            # Combine the ohlc and quote data
-            df = pd.concat([df_ohlc, df_quote], axis=1, join='inner')
+            if self._use_quote_data:
+                # Get quote data from ThetaData
+                df_quote = thetadata_helper.get_price_data(
+                    self._username,
+                    self._password,
+                    asset_separated,
+                    start_datetime,
+                    self.datetime_end,
+                    timespan=ts_unit,
+                    quote_asset=quote_asset,
+                    dt=date_time_now,
+                    datastyle="quote"
+                )
+
+                # Check if we have data
+                if df_quote is None:
+                    logging.info(f"\nSKIP: No QUOTE data found for {quote_asset} from ThetaData")
+                    return None
+
+                # Combine the ohlc and quote data
+                df = pd.concat([df_ohlc, df_quote], axis=1, join='inner')
+            else:
+                df = df_ohlc
+
         except Exception as e:
-            logging.error(traceback.format_exc())
             raise Exception("Error getting data from ThetaData") from e
 
-        if df is None:
+        if df is None or df.empty:
             return None
 
-        pandas_data = []
         data = Data(asset_separated, df, timestep=ts_unit, quote=quote_asset)
-        pandas_data.append(data)
-        pandas_data_updated = self._set_pandas_data_keys(pandas_data)
-
-        return pandas_data_updated
+        pandas_data_update = self._set_pandas_data_keys([data])
+        if pandas_data_update is not None:
+            # Add the keys to the self.pandas_data dictionary
+            self.pandas_data.update(pandas_data_update)
+            self._data_store.update(pandas_data_update)
+        
 
     def _pull_source_symbol_bars(
         self,
@@ -201,11 +214,11 @@ class ThetaDataBacktesting(PandasData):
         exchange=None,
         include_after_hours=True,
     ):
-        pandas_data_update = self.update_pandas_data(asset, quote, length, timestep)
-
-        if pandas_data_update is not None:
-            # Add the keys to the self.pandas_data dictionary
-            self.pandas_data.update(pandas_data_update)
+        try:
+            dt = self.get_datetime()
+            self._update_pandas_data(asset, quote, 1, timestep, dt)
+        except Exception as e:
+            logging.error(f"\nERROR: _pull_source_symbol_bars from ThetaData: {e}, {dt}, asset:{asset}")
 
         return super()._pull_source_symbol_bars(
             asset, length, timestep, timeshift, quote, exchange, include_after_hours
@@ -222,10 +235,7 @@ class ThetaDataBacktesting(PandasData):
         start_date=None,
         end_date=None,
     ):
-        pandas_data_update = self.update_pandas_data(asset, quote, 1, timestep)
-        if pandas_data_update is not None:
-            # Add the keys to the self.pandas_data dictionary
-            self.pandas_data.update(pandas_data_update)
+        self._update_pandas_data(asset, quote, 1, timestep)
 
         response = super()._pull_source_symbol_bars_between_dates(
             asset, timestep, quote, exchange, include_after_hours, start_date, end_date
@@ -240,25 +250,19 @@ class ThetaDataBacktesting(PandasData):
     def get_last_price(self, asset, timestep="minute", quote=None, exchange=None, **kwargs):
         try:
             dt = self.get_datetime()
-            pandas_data_update = self.update_pandas_data(asset, quote, 1, timestep, dt)
-            if pandas_data_update is not None:
-                # Add the keys to the self.pandas_data dictionary
-                self.pandas_data.update(pandas_data_update)
-                self._data_store.update(pandas_data_update)
+            self._update_pandas_data(asset, quote, 1, timestep, dt)
         except Exception as e:
-            logging.info(f"\nError get_last_price from ThetaData: {e}, {dt}, asset:{asset}")
+            logging.error(f"\nERROR: get_last_price from ThetaData: {e}, {dt}, asset:{asset}")
+
         return super().get_last_price(asset=asset, quote=quote, exchange=exchange)
     
     def get_quote(self, asset, timestep="minute", quote=None, exchange=None, **kwargs):
         try:
             dt = self.get_datetime()
-            pandas_data_update = self.update_pandas_data(asset, quote, 1, timestep, dt)
-            if pandas_data_update is not None:
-                # Add the keys to the self.pandas_data dictionary
-                self.pandas_data.update(pandas_data_update)
-                self._data_store.update(pandas_data_update)
+            self._update_pandas_data(asset, quote, 1, timestep, dt)
         except Exception as e:
-            logging.info(f"\nError get_quote from ThetaData: {e}, {dt}, asset:{asset}")
+            logging.error(f"\nnERROR: get_quote from ThetaData: {e}, {dt}, asset:{asset}")
+            
         return super().get_quote(asset=asset, quote=quote, exchange=exchange)
 
     def get_chains(self, asset):

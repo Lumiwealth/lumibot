@@ -343,6 +343,13 @@ class BacktestingBroker(Broker):
         """
         BackTesting needs to create/update positions when orders are filled becuase there is no broker to do it
         """
+        # This is a parent order, typically for a Multileg strategy. The parent order itself is expected to be
+        # filled after all child orders are filled.
+        if order.is_parent():
+            order.avg_fill_price = price
+            order.quantity = quantity
+            return super()._process_filled_order(order, price, quantity)  # Do not store parent order positions
+
         existing_position = self.get_tracked_position(order.strategy, order.asset)
 
         # Currently perfect fill price in backtesting!
@@ -352,7 +359,7 @@ class BacktestingBroker(Broker):
         if existing_position:
             position.add_order(order, quantity)  # Add will update quantity, but not double count the order
             if position.quantity == 0:
-                logging.info("Position %r liquidated" % position)
+                logging.info(f"Position {position} liquidated")
                 self._filled_positions.remove(position)
         else:
             self._filled_positions.append(position)  # New position, add it to the tracker
@@ -399,10 +406,34 @@ class BacktestingBroker(Broker):
         )
         return order
 
-    def submit_orders(self, orders, **kwargs):
+    def submit_orders(self, orders, is_multileg=False, **kwargs):
         results = []
         for order in orders:
             results.append(self.submit_order(order))
+
+        if is_multileg:
+            # Each leg uses a different option asset, just use the base symbol.
+            symbol = orders[0].asset.symbol
+            parent_asset = Asset(symbol=symbol)
+            parent_order = Order(
+                asset=parent_asset,
+                strategy=orders[0].strategy,
+                order_class=Order.OrderClass.MULTILEG,
+                side=orders[0].side,
+                quantity=orders[0].quantity,
+                type=orders[0].type,
+                tag=orders[0].tag,
+                status=Order.OrderStatus.SUBMITTED
+            )
+
+            for o in orders:
+                o.parent_identifier = parent_order.identifier
+
+            parent_order.child_orders = orders
+            self._unprocessed_orders.append(parent_order)
+            self.stream.dispatch(self.NEW_ORDER, order=parent_order)
+            return [parent_order]
+
         return results
 
     def cancel_order(self, order):
@@ -569,6 +600,24 @@ class BacktestingBroker(Broker):
 
         for order in pending_orders:
             if order.dependent_order_filled or order.status == self.CANCELED_ORDER:
+                continue
+
+            # Multileg parent orders will wait for child orders to fill before processing
+            if order.is_parent():
+                # If this is the final fill for a multileg order, mark the parent order as filled
+                if all([o.is_filled() for o in order.child_orders]):
+                    parent_qty = sum([abs(o.quantity) for o in order.child_orders])
+                    child_prices = [o.get_fill_price() if o.is_buy_order() else -o.get_fill_price()
+                                    for o in order.child_orders]
+                    parent_price = sum(child_prices)
+                    self.stream.dispatch(
+                        self.FILLED_ORDER,
+                        wait_until_complete=True,
+                        order=order,
+                        price=parent_price,
+                        filled_quantity=parent_qty,
+                    )
+
                 continue
 
             # Check validity if current date > valid date, cancel order. todo valid date

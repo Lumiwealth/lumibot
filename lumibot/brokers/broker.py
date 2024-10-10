@@ -869,7 +869,7 @@ class Broker(ABC):
 
     def get_all_orders(self) -> list[Order]:
         """get all tracked and completed orders"""
-        orders = (self._tracked_orders)
+        orders = self._tracked_orders
         return orders
 
     def get_order(self, identifier) -> Order:

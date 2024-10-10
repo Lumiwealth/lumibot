@@ -686,7 +686,8 @@ class Tradier(Broker):
         stored_orders = {x.identifier: x for x in self.get_all_orders()}
         for order_row in raw_orders:
             order = self._parse_broker_order_dict(order_row, strategy_name=self._strategy_name)
-            all_orders = [order] + [child for child in order.child_orders]
+            # Process child orders first so they are tracked in the Lumi system before the parent order
+            all_orders = [child for child in order.child_orders] + [order]
 
             # Process all parent and child orders
             for order in all_orders:
@@ -713,8 +714,13 @@ class Tradier(Broker):
                         # Add to order in lumibot.
                         self._process_new_order(order)
                 else:
+                    # Always Update Quantity and Children. Children can change as they are assigned an identifier
+                    # for the first time.
                     stored_order = stored_orders[order.identifier]
                     stored_order.quantity = order.quantity  # Update the quantity in case it has changed
+                    stored_children = [stored_orders[o.identifier] if o.identifier in stored_orders else o
+                                       for o in order.child_orders]
+                    stored_order.child_orders = stored_children
 
                     # Status has changed since last time we saw it, dispatch the new status.
                     #  - Polling methods are unable to track partial fills

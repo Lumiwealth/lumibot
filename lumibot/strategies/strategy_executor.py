@@ -250,7 +250,9 @@ class StrategyExecutor(Thread):
             quantity = payload["quantity"]
             multiplier = payload["multiplier"]
 
-            if order.asset.asset_type != "crypto":
+            # Parent orders to not affect cash or trades directly, the individual child_orders will when they
+            # are filled. Skip the parent order so as not to double count.
+            if not order.is_parent() and order.asset.asset_type != "crypto":
                 self.strategy._update_cash(order.side, quantity, price, multiplier)
 
             self._on_filled_order(**payload)

@@ -45,7 +45,8 @@ class Broker(ABC):
     CASH_SETTLED = "cash_settled"
     ERROR_ORDER = "error"
 
-    def __init__(self, name="", connect_stream=True, data_source: DataSource = None, option_source: DataSource = None, config=None, max_workers=20):
+    def __init__(self, name="", connect_stream=True, data_source: DataSource = None, option_source: DataSource = None,
+                 config=None, max_workers=20, extended_trading_minutes=0):
         """Broker constructor"""
         # Shared Variables between threads
         self.name = name
@@ -69,7 +70,11 @@ class Broker(ABC):
         self.max_workers = min(max_workers, 200)
         self.quote_assets = set()  # Quote positions will never be removed from tracking during sync operations
 
-        # Set the the state of first iteration to True. This will later be updated to False by the strategy executor
+        # Brokers like Tradier allows SPY option trading for 15 additional min after market close
+        # This will need to be set directly by the strategy
+        self.extended_trading_minutes = extended_trading_minutes
+
+        # Set the state of first iteration to True. This will later be updated to False by the strategy executor
         self._first_iteration = True
 
         # Create an adapter with 'strategy_name' set to the instance's name
@@ -272,7 +277,7 @@ class Broker(ABC):
                 if position_lumi.quantity != position.quantity:
                     position_lumi.quantity = position.quantity
 
-                # No current brokers have anyway to distinguish between strategies for an open position.
+                # No current brokers have any way to distinguish between strategies for an open position.
                 # Therefore, we will just update the strategy to the current strategy.
                 # This is added here because with initial polling, no strategy is set for the positions so we
                 # can create ones that have no strategy attached. This will ensure that all stored positions have a
@@ -734,7 +739,7 @@ class Broker(ABC):
         market_open, market_close = th.iloc[0], th.iloc[1]
 
         if close:
-            return market_close
+            return market_close + timedelta(minutes=self.extended_trading_minutes)
         else:
             return market_open
 
@@ -864,7 +869,7 @@ class Broker(ABC):
 
     def get_all_orders(self) -> list[Order]:
         """get all tracked and completed orders"""
-        orders = (self._tracked_orders)
+        orders = self._tracked_orders
         return orders
 
     def get_order(self, identifier) -> Order:
@@ -914,30 +919,23 @@ class Broker(ABC):
         result = []
         if broker_orders is not None:
             for broker_order in broker_orders:
-                # Check if it is a multileg order
-                if isinstance(broker_order, dict) and "leg" in broker_order and isinstance(broker_order["leg"], list):
-                    # First try to parse the parent order
-                    order = self._parse_broker_order(broker_order, strategy_name, strategy_object=strategy_object)
+                # First try to parse the parent order
+                order = self._parse_broker_order(broker_order, strategy_name, strategy_object=strategy_object)
 
-                    # Parse the legs
+                # Check if it is a multileg order and Parse the legs
+                if isinstance(broker_order, dict) and "leg" in broker_order and isinstance(broker_order["leg"], list):
                     parsed_legs = []
                     for leg in broker_order["leg"]:
                         order_leg = self._parse_broker_order(leg, strategy_name, strategy_object=strategy_object)
+                        order_leg.parent_identifier = order.identifier
                         parsed_legs.append(order_leg)
 
-                    # If it is an OCO order, create a parent order that will contain the legs
-                    if order is not None and order.order_class == "oco":
-                        # Add the legs to the parent order
-                        order.child_orders = parsed_legs
+                    # Add the legs to the parent order
+                    order.child_orders = parsed_legs
 
-                        # Add the parent order to the result
-                        result.append(order)
+                # Add the parent order to the result
+                result.append(order)
 
-                    else:
-                        result.extend(parsed_legs)
-                else:
-                    order = self._parse_broker_order(broker_order, strategy_name, strategy_object=strategy_object)
-                    result.append(order)
         else:
             self.logger.warning("No orders found in broker._parse_broker_orders: the broker_orders object is None")
 

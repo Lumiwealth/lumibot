@@ -53,7 +53,9 @@ class InteractiveBrokersRESTData(DataSource):
         self.start()
 
     def start(self):
-        if not self.running_on_server:
+        if self.running_on_server:
+            from ibeam import ibeam_starter
+        else:
             # Run the Docker image with the specified environment variables and port mapping
             if not subprocess.run(['docker', '--version'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
                 logging.error(colored("Docker is not installed.", "red"))

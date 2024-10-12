@@ -468,7 +468,13 @@ class InteractiveBrokersRESTData(DataSource):
     def get_last_price(self, asset, quote=None, exchange=None) -> float:
         field = "last_price"
         response = self.get_market_snapshot(asset, [field])
-        return response[field]
+        price = response[field]
+
+        # Remove the 'C' prefix if it exists
+        if isinstance(price, str) and price.startswith("C"):
+            price = float(price[1:])
+
+        return price
     
     def get_spread_conid(self, conid):
         url = f'{self.base_url}/iserver/secdef/info?conid={conid}'

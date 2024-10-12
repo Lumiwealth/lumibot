@@ -407,6 +407,9 @@ In addition to broker-specific secrets, the following environment variables are 
    * - STRATEGY_NAME
      - **(Optional)** The name of the strategy. This will change the strategy_id in the database and in the Discord messages.
      - My Strategy
+   * - MARKET
+     - **(Optional)** The market you want the bot to think it is. Eg. "24/7" will make the bot think it is trading in a 24/7 market.
+     - 24/7
 
 .. tip::
 

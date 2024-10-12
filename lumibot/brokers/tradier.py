@@ -39,6 +39,10 @@ class Tradier(Broker):
             # Need sequential order submission for Tradier becuase it is very strict that buy orders exist
             # before any stoploss/limit orders.
             max_workers=1,
+
+            # Tradier allows SPY option trading for 15 additional min after market close
+            # This will need to be set directly by the strategy
+            extended_trading_minutes=0,
     ):
         # Check if the user provided both config file and keys
         if (access_token is not None or account_number is not None or paper is not None) and config is not None:
@@ -93,6 +97,7 @@ class Tradier(Broker):
             config=config,
             max_workers=max_workers,
             connect_stream=connect_stream,
+            extended_trading_minutes=extended_trading_minutes,
         )
 
     def cancel_order(self, order: Order):
@@ -138,7 +143,7 @@ class Tradier(Broker):
         # Check if the orders are empty
         if not orders or len(orders) == 0:
             return
-        
+
         # Check if it is a multi-leg order
         if is_multileg:
             tag = orders[0].tag if orders[0].tag else orders[0].strategy
@@ -147,15 +152,17 @@ class Tradier(Broker):
             tag = "".join([c if c.isalnum() or c == "-" else "" for c in tag])
 
             # Submit the multi-leg order
-            return self._submit_multileg_order(orders, order_type, duration, price, tag)
+            parent_order = self._submit_multileg_order(orders, order_type, duration, price, tag)
+            return [parent_order]
 
-        # Submit each order
-        for order in orders:
-            self.submit_order(order)
+        else:
+            # Submit each order
+            for order in orders:
+                self.submit_order(order)
 
-        return orders
+            return orders
 
-    def _submit_multileg_order(self, orders, order_type="market", duration="day", price=None, tag=None):
+    def _submit_multileg_order(self, orders, order_type="market", duration="day", price=None, tag=None) -> Order:
         """
         Submit a multi-leg order to Tradier. This function will submit the multi-leg order to Tradier.
 
@@ -174,18 +181,17 @@ class Tradier(Broker):
 
         Returns
         -------
-            list of Order objects
-                List of processed order objects.
+            parent order of the multi-leg orders
         """
 
         # Check if the order type is valid
         if order_type not in ["market", "debit", "credit", "even"]:
             raise ValueError(f"Invalid order type '{order_type}' for multi-leg order.")
-        
+
         # Check if the duration is valid
         if duration not in ["day", "gtc", "pre", "post"]:   
             raise ValueError(f"Invalid duration {duration} for multi-leg order.")
-        
+
         # Check if the price is required
         if order_type in ["debit", "credit"] and price is None:
             raise ValueError(f"Price is required for '{order_type}' order type.")
@@ -193,7 +199,7 @@ class Tradier(Broker):
         # Check that all the order objects have the same symbol
         if len(set([order.asset.symbol for order in orders])) > 1:
             raise ValueError("All orders in a multi-leg order must have the same symbol.")
-        
+
         # Get the symbol from the first order
         symbol = orders[0].asset.symbol
 
@@ -214,7 +220,7 @@ class Tradier(Broker):
             legs.append(leg)
 
         # Example assuming order_type and duration are required and correctly set
-        result = self.tradier.orders.multileg_order(
+        order_response = self.tradier.orders.multileg_order(
             symbol=symbol,
             order_type=order_type,
             duration=duration,
@@ -223,8 +229,30 @@ class Tradier(Broker):
             tag=tag,
         )
 
-        return result
-    
+        # Each leg uses a different option asset, just use the base symbol. This matches later Tradier API response.
+        parent_asset = Asset(symbol=symbol)
+        parent_order = Order(
+            identifier=order_response["id"],
+            asset=parent_asset,
+            strategy=orders[0].strategy,
+            order_class=Order.OrderClass.MULTILEG,
+            side=orders[0].side,
+            quantity=orders[0].quantity,
+            type=orders[0].type,
+            time_in_force=duration,
+            limit_price=price,
+            tag=tag,
+            status=Order.OrderStatus.SUBMITTED
+        )
+        for o in orders:
+            o.parent_identifier = parent_order.identifier
+
+        parent_order.child_orders = orders
+        parent_order.update_raw(order_response)  # This marks order as 'transmitted'
+        self._unprocessed_orders.append(parent_order)
+        self.stream.dispatch(self.NEW_ORDER, order=parent_order)
+        return parent_order
+
     def submit_order(self, order: Order):
         """
         Submit an order to the broker. This function will check if the order is valid and then submit it to the broker.
@@ -308,7 +336,7 @@ class Tradier(Broker):
 
             elif order.asset is not None and order.asset.asset_type == "stock":
                 # Make sure the symol is upper case
-                symbol = order.asset.symbol.upper() 
+                symbol = order.asset.symbol.upper()
 
                 # Place the order
                 order_response = self.tradier.orders.order(
@@ -350,7 +378,7 @@ class Tradier(Broker):
                 return None
 
             order.identifier = order_response["id"]
-            order.status = "submitted"
+            order.status = Order.OrderStatus.SUBMITTED
             order.update_raw(order_response)  # This marks order as 'transmitted'
             self._unprocessed_orders.append(order)
             self.stream.dispatch(self.NEW_ORDER, order=order)
@@ -459,7 +487,7 @@ class Tradier(Broker):
                 return position
 
         return None
-    
+
     def _parse_broker_order_dict(self, response: dict, strategy_name: str, strategy_object=None):
         """
         Parse a broker order representation to a Lumi order object or objects. Once the Lumi order has been created,
@@ -476,43 +504,25 @@ class Tradier(Broker):
 
         Returns
         -------
-        list[Order]
-            The Lumibot order objects created from the response
+        Order
+            The Lumibot order object created from the response. For multileg orders, the parent order will be returned
+            with child orders internally attached.
         """
+        # First try to parse the parent order
+        parent_order = self._parse_broker_order(response, strategy_name, strategy_object)
 
         # Check if the order is a multileg order
         if "leg" in response and isinstance(response["leg"], list):
-            # First try to parse the parent order
-            parent_order = self._parse_broker_order(response, strategy_name, strategy_object)
-
-            # Create the orders list
-            orders = []
-
             # Loop through each leg in the response
             for leg in response["leg"]:
                 # Create the order object
-                order = self._parse_broker_order(leg, strategy_name, strategy_object)
-
-                # TODO: Get the average fill price and quantity
+                child_order = self._parse_broker_order(leg, strategy_name, strategy_object)
+                child_order.parent_identifier = parent_order.identifier
 
                 # Add the order to the list
-                orders.append(order)
+                parent_order.add_child_order(child_order)
 
-            # Check if the parent order is not None and an OCO order
-            if parent_order is not None and parent_order.order_class == "oco":
-                # Set the child orders
-                parent_order.child_orders = orders
-
-                # Return the parent order
-                return [parent_order]
-            
-            # Otherwise, return the orders separately
-            else:
-                return orders
-        
-        # Create the order object
-        order = self._parse_broker_order(response, strategy_name, strategy_object)
-        return [order]
+        return parent_order
 
     def _parse_broker_order(self, response: dict, strategy_name: str, strategy_object=None):
         """
@@ -541,12 +551,13 @@ class Tradier(Broker):
         )
 
         # Get the reason_description if it exists
-        reason_description = response.get("reason_description", None)
+        reason_description = response.get("reason_description", "")
 
         # Create the order object
         order = Order(
             identifier=response["id"],
             strategy=strategy_name,
+            status=response["status"],  # Status conversion happens automatically in Order
             asset=asset,
             side=self._tradier_side2lumi(response["side"]),
             quantity=response["quantity"],
@@ -560,20 +571,9 @@ class Tradier(Broker):
             error_message=reason_description,
             order_class=response["class"] if "class" in response else None,
         )
-        # Translate the status
-        if response["status"] == "filled":
-            order.status = Order.OrderStatus.FILLED
-        elif response["status"] == "canceled":
-            order.status = Order.OrderStatus.CANCELED
-        elif response["status"] == "open":
-            order.status = Order.OrderStatus.NEW
-        elif response["status"] == "partial_filled":
-            order.status = Order.OrderStatus.PARTIALLY_FILLED
-        elif response["status"] == "rejected":
-            order.status = Order.OrderStatus.ERROR
-        else:
-            order.status = response["status"]
-        order.avg_fill_price = response.get("avg_fill_price", order.avg_fill_price)
+        # Example Tradier Date Value: '2024-10-04T15:46:14.946Z'
+        order.broker_create_date = response["create_date"] if "create_date" in response else None
+        order.broker_update_date = response["transaction_date"] if "transaction_date" in response else None
         order.update_raw(response)  # This marks order as 'transmitted'
         return order
 
@@ -685,9 +685,12 @@ class Tradier(Broker):
         raw_orders = self._pull_broker_all_orders()
         stored_orders = {x.identifier: x for x in self.get_all_orders()}
         for order_row in raw_orders:
-            orders = self._parse_broker_order_dict(order_row, strategy_name=self._strategy_name)
+            order = self._parse_broker_order_dict(order_row, strategy_name=self._strategy_name)
+            # Process child orders first so they are tracked in the Lumi system before the parent order
+            all_orders = [child for child in order.child_orders] + [order]
 
-            for order in orders:
+            # Process all parent and child orders
+            for order in all_orders:
                 # First time seeing this order, something weird has happened
                 if order.identifier not in stored_orders:
                     # If it is the brokers first iteration then fully process the order because it is likely
@@ -711,8 +714,13 @@ class Tradier(Broker):
                         # Add to order in lumibot.
                         self._process_new_order(order)
                 else:
+                    # Always Update Quantity and Children. Children can change as they are assigned an identifier
+                    # for the first time.
                     stored_order = stored_orders[order.identifier]
                     stored_order.quantity = order.quantity  # Update the quantity in case it has changed
+                    stored_children = [stored_orders[o.identifier] if o.identifier in stored_orders else o
+                                       for o in order.child_orders]
+                    stored_order.child_orders = stored_children
 
                     # Status has changed since last time we saw it, dispatch the new status.
                     #  - Polling methods are unable to track partial fills
@@ -730,11 +738,11 @@ class Tradier(Broker):
                             case "fill":
                                 # Check if the order has an avg_fill_price, if not use the order_row price
                                 if order.avg_fill_price is None:
-                                    fill_price = order_row["avg_fill_price"] 
+                                    fill_price = order_row["avg_fill_price"]
                                 else:
                                     fill_price = order.avg_fill_price
 
-                                # Check if the order has a quantity, if not 
+                                # Check if the order has a quantity
                                 if order.quantity is None:
                                     fill_qty = order_row["exec_quantity"]
                                 else:
@@ -768,7 +776,7 @@ class Tradier(Broker):
         for order_id, order in tracked_orders.items():
             if order_id not in broker_ids:
                 logging.debug(
-                    f"Poll Update: {self.name} no longer has order {order}, but Lumibot does. " 
+                    f"Poll Update: {self.name} no longer has order {order}, but Lumibot does. "
                     f"Dispatching as cancelled."
                 )
                 # Only dispatch orders that have not been filled or cancelled. Likely the broker has simply

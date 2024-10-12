@@ -236,7 +236,7 @@ class Alpaca(Broker):
 
     # =========Positions functions==================
 
-    def _get_balances_at_broker(self, quote_asset):
+    def _get_balances_at_broker(self, quote_asset, strategy):
         """Get's the current actual cash, positions value, and total
         liquidation value from Alpaca.
 
@@ -248,7 +248,7 @@ class Alpaca(Broker):
         tuple of float
             (cash, positions_value, total_liquidation_value)
         """
-
+        
         response = self.api.get_account()
         total_cash_value = float(response.cash)
         gross_positions_value = float(response.long_market_value) - float(response.short_market_value)

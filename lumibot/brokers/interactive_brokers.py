@@ -251,7 +251,8 @@ class InteractiveBrokers(Broker):
 
                 action = leg.action
                 child_order = self._parse_order_object(strategy_name, contract, leg.ratio * totalQuantity, action, limit_price, stop_price, time_in_force, good_till_date)
-                order.child_orders.append(child_order)
+                child_order.parent_identifier = order.identifier
+                order.add_child_order(child_order)
 
         else:
             action = response.action
@@ -389,7 +390,7 @@ class InteractiveBrokers(Broker):
 
         return False
 
-    def _get_balances_at_broker(self, quote_asset):
+    def _get_balances_at_broker(self, quote_asset, strategy):
         """Gets the current actual cash, positions value, and total
         liquidation value from interactive Brokers.
 

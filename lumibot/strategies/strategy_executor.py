@@ -118,7 +118,8 @@ class StrategyExecutor(Thread):
         positions_broker = []
         while held_trades_len > 0:
             # Snapshot for the broker and lumibot:
-            broker_balances = self.broker._get_balances_at_broker(self.strategy.quote_asset)
+            self.strategy
+            broker_balances = self.broker._get_balances_at_broker(self.strategy.quote_asset, self.strategy)
             if broker_balances is None:
                 if cash_broker_retries < cash_broker_max_retries:
                     self.strategy.logger.info("Unable to get cash from broker, trying again.")
@@ -249,7 +250,9 @@ class StrategyExecutor(Thread):
             quantity = payload["quantity"]
             multiplier = payload["multiplier"]
 
-            if order.asset.asset_type != "crypto":
+            # Parent orders to not affect cash or trades directly, the individual child_orders will when they
+            # are filled. Skip the parent order so as not to double count.
+            if not order.is_parent() and order.asset.asset_type != "crypto":
                 self.strategy._update_cash(order.side, quantity, price, multiplier)
 
             self._on_filled_order(**payload)

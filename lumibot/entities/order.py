@@ -72,6 +72,7 @@ class Order:
 
     class OrderStatus:
         UNPROCESSED = "unprocessed"
+        SUBMITTED = "submitted"
         OPEN = "open"
         NEW = "new"
         CANCELLING = "cancelling"
@@ -264,7 +265,7 @@ class Order:
 
         """
         # Ensure child_orders is properly initialized
-        self.child_orders = child_orders if child_orders is not None else []
+        self.child_orders = child_orders if isinstance(child_orders, list) else []
 
         if asset == quote and asset is not None:
             logging.error(
@@ -289,6 +290,7 @@ class Order:
 
         self.symbol = self.asset.symbol if self.asset else None
         self.identifier = identifier if identifier else uuid.uuid4().hex
+        self.parent_identifier = None
         self._status = "unprocessed"
         self._date_created = date_created
         self.side = None
@@ -365,6 +367,19 @@ class Order:
             self.side == self.OrderSide.SELL_SHORT or \
             self.side == self.OrderSide.SELL_TO_OPEN or \
             self.side == self.OrderSide.SELL_TO_CLOSE
+
+    def is_parent(self) -> bool:
+        """
+        Check if the order is a parent order. Parent orders are typically Multileg orders where the child orders
+        do the actual trading and cash settlements and the parent order is a container that holds them all together.
+        Lumibot should not update any positions/cash balances when parent orders fill.
+
+        Returns
+        -------
+        bool
+            True if the order is a parent order, False otherwise.
+        """
+        return bool(self.child_orders)
 
     def add_child_order(self, o):
         """
@@ -484,11 +499,11 @@ class Order:
             self.order_class = self.OrderType.OCO
             self.type = self.OrderType.OCO
             if stop_loss_price is not None and take_profit_price is not None:
-                self.take_profit_price = check_price(take_profit_price, "take_profit_price must be positive float.")
-                self.stop_loss_price = check_price(stop_loss_price, "stop_loss_price must be positive float.")
+                self.take_profit_price = check_price(take_profit_price, "take_profit_price must be float.")
+                self.stop_loss_price = check_price(stop_loss_price, "stop_loss_price must be float.")
                 self.stop_loss_limit_price = check_price(
                     stop_loss_limit_price,
-                    "stop_loss_limit_price must be positive float.",
+                    "stop_loss_limit_price must be float.",
                     nullable=True,
                 )
 
@@ -528,20 +543,20 @@ class Order:
             # If limit_price is set then the initial order is a limit order
             if limit_price is not None:
                 self.type = "limit"
-                self.limit_price = check_price(limit_price, "limit_price must be positive float.")
+                self.limit_price = check_price(limit_price, "limit_price must be float.")
             # If stop_price is set then the initial order is a stop order
             elif stop_price is not None:
                 self.type = "stop"
-                self.stop_price = check_price(stop_price, "stop_price must be positive float.")
+                self.stop_price = check_price(stop_price, "stop_price must be float.")
             # If neither limit_price nor stop_price is set then the initial order is a market order
             else:
                 self.type = "market"
 
-            self.take_profit_price = check_price(take_profit_price, "take_profit_price must be positive float.")
-            self.stop_loss_price = check_price(stop_loss_price, "stop_loss_price must be positive float.")
+            self.take_profit_price = check_price(take_profit_price, "take_profit_price must be float.")
+            self.stop_loss_price = check_price(stop_loss_price, "stop_loss_price must be float.")
             self.stop_loss_limit_price = check_price(
                 stop_loss_limit_price,
-                "stop_loss_limit_price must be positive float.",
+                "stop_loss_limit_price must be float.",
                 nullable=True,
             )
 
@@ -552,11 +567,11 @@ class Order:
             # If limit_price is set then the initial order is a limit order
             if limit_price is not None:
                 self.type = "limit"
-                self.limit_price = check_price(limit_price, "limit_price must be positive float.")
+                self.limit_price = check_price(limit_price, "limit_price must be float.")
             # If stop_price is set then the initial order is a stop order
             elif stop_price is not None:
                 self.type = "stop"
-                self.stop_price = check_price(stop_price, "stop_price must be positive float.")
+                self.stop_price = check_price(stop_price, "stop_price must be float.")
             # If neither limit_price nor stop_price is set then the initial order is a market order
             else:
                 self.type = "market"
@@ -564,20 +579,20 @@ class Order:
             if take_profit_price is not None:
                 self.take_profit_price = check_price(
                     take_profit_price,
-                    "take_profit_price must be positive float.",
+                    "take_profit_price must be float.",
                 )
             else:
-                self.stop_loss_price = check_price(stop_loss_price, "stop_loss_price must be positive float.")
+                self.stop_loss_price = check_price(stop_loss_price, "stop_loss_price must be float.")
                 self.stop_loss_limit_price = check_price(
                     stop_loss_limit_price,
-                    "stop_loss_limit_price must be positive float.",
+                    "stop_loss_limit_price must be float.",
                     nullable=True,
                 )
 
         # If it's a trailing stop order, then make sure the trailing price is set
         elif self.type == "trailing_stop":
             if trail_price is not None:
-                self.trail_price = check_price(trail_price, "trail_price must be positive float.")
+                self.trail_price = check_price(trail_price, "trail_price must be positive float.", allow_negative=False)
             else:
                 self.trail_percent = check_positive(
                     trail_percent,
@@ -587,16 +602,16 @@ class Order:
 
         # If it's a stop order, then make sure the stop price is set
         elif self.type == "stop":
-            self.stop_price = check_price(stop_price, "stop_price must be positive float.")
+            self.stop_price = check_price(stop_price, "stop_price must be float.")
 
         # If it's a limit order, then make sure the limit price is set
         elif self.type == "limit":
-            self.limit_price = check_price(limit_price, "limit_price must be positive float.")
+            self.limit_price = check_price(limit_price, "limit_price must be float.")
 
         # If it's a stop limit order, then make sure the stop and limit prices are set
         elif self.type == "stop_limit":
-            self.limit_price = check_price(limit_price, "limit_price must be positive float.")
-            self.stop_price = check_price(stop_price, "stop_price must be positive float.")
+            self.limit_price = check_price(limit_price, "limit_price must be float.")
+            self.stop_price = check_price(stop_price, "stop_price must be float.")
 
     @property
     def avg_fill_price(self):
@@ -604,8 +619,7 @@ class Order:
 
     @avg_fill_price.setter
     def avg_fill_price(self, value):
-        if self._avg_fill_price is not None:
-            self._avg_fill_price = round(float(value), 2) if value else 0.0
+        self._avg_fill_price = round(float(value), 2) if value is not None else None
 
     @property
     def status(self):
@@ -726,10 +740,14 @@ class Order:
             The weighted average filled price for this order. 0.0 will be returned if the order
             has not yet been filled.
         """
+        # Average price is set directly by the broker for parent orders
+        if self.avg_fill_price is not None:
+            return self.avg_fill_price
+
         # Only calculate on filled orders
         if not self.transactions or not self.quantity:
             return None
-        
+
         # Check if x.price is None
         if any(x.price is None for x in self.transactions):
             return None

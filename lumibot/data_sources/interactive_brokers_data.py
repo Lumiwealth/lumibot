@@ -312,7 +312,7 @@ class InteractiveBrokersData(DataSource):
         raise NotImplementedError(
             "Lumibot InteractiveBrokersData does not support get_chains options data. However, this is defined in"
             "the InteractiveBroker broker class as it has access to IBClient and IBWrapper functionality not available"
-            "here. If you need this feature, please use call the broker object method directly"
+            "here. If you need this feature, please call the broker object method directly"
         )
 
     def get_historical_prices(

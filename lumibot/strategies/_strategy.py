@@ -514,7 +514,7 @@ class _Strategy:
                 self.last_broker_balances_update + datetime.timedelta(seconds=UPDATE_INTERVAL) < datetime.datetime.now()
             )
         ):
-            broker_balances = self.broker._get_balances_at_broker(self.quote_asset)
+            broker_balances = self.broker._get_balances_at_broker(self.quote_asset, self)
 
             if broker_balances is not None:
                 (
@@ -540,7 +540,7 @@ class _Strategy:
     def _update_portfolio_value(self):
         """updates self.portfolio_value"""
         if not self.is_backtesting:
-            broker_balances = self.broker._get_balances_at_broker(self.quote_asset)
+            broker_balances = self.broker._get_balances_at_broker(self.quote_asset, self)
 
             if broker_balances is not None:
                 return broker_balances[2]
@@ -893,6 +893,7 @@ class _Strategy:
         indicators_file=None,
         show_indicators=True,
         save_logfile=False,
+        use_quote_data=False,
         **kwargs,
     ):
         """Backtest a strategy.
@@ -966,6 +967,9 @@ class _Strategy:
             Whether to show the indicators plot.
         save_logfile : bool
             Whether to save the logfile. Defaults to False. If True, the logfile will be saved to the logs directory. Turning on this option will slow down the backtest.
+        use_quote_data : bool
+            Whether to use quote data for the backtest. Defaults to False. If True, the backtest will use quote data for the backtest. (Currently this is specific to ThetaData)
+            When set to true this requests Quote data in addition to OHLC which adds time to backtests.
 
         Returns
         -------
@@ -1157,6 +1161,7 @@ class _Strategy:
                 username=thetadata_username,
                 password=thetadata_password,
                 pandas_data=pandas_data,
+                use_quote_data=use_quote_data,
                 **kwargs,
             )
         else:
@@ -1370,6 +1375,7 @@ class _Strategy:
         save_logfile=False,
         thetadata_username=None,
         thetadata_password=None,
+        use_quote_data=False,
         **kwargs,
     ):
         """Backtest a strategy.
@@ -1448,6 +1454,9 @@ class _Strategy:
             The username to use for the ThetaDataBacktesting datasource. Only required if you are using ThetaDataBacktesting as the datasource_class.
         thetadata_password : str
             The password to use for the ThetaDataBacktesting datasource. Only required if you are using ThetaDataBacktesting as the datasource_class.
+        use_quote_data : bool
+            Whether to use quote data for the backtest. Defaults to False. If True, the backtest will use quote data for the backtest. (Currently this is specific to ThetaData)
+            When set to true this requests Quote data in addition to OHLC which adds time to backtests.
 
         Returns
         -------
@@ -1514,6 +1523,7 @@ class _Strategy:
             save_logfile=save_logfile,
             thetadata_username=thetadata_username,
             thetadata_password=thetadata_password,
+            use_quote_data=use_quote_data,
             **kwargs,
         )
         return results

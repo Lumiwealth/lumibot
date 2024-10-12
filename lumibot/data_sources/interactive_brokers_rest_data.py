@@ -439,6 +439,10 @@ class InteractiveBrokersRESTData(DataSource):
         if result and 'error' in result:
             logging.error(colored(f"Error getting historical prices: {result['error']}", "red"))
             raise Exception("Error getting historical prices")
+        
+        if not result or not result['data']:
+            logging.error(colored(f"Failed to get historical prices for {asset.symbol}, result was: {result}", "red"))
+            return None
 
         # Create a DataFrame from the data
         df = pd.DataFrame(result['data'], columns=['t', 'o', 'h', 'l', 'c', 'v'])

@@ -104,6 +104,7 @@ class InteractiveBrokersREST(Broker):
 
         # Loop through the account balances and find the quote asset. If not the quote asset, create a position object for the currency/forex asset.
         cash = None
+        balances_for_quote_asset = None
         for currency, balances in account_balances.items():
             if currency == quote_symbol:
                 # Get the account balances for the quote asset
@@ -124,16 +125,14 @@ class InteractiveBrokersREST(Broker):
                     )
                     self._filled_positions.append(position)
                 
-                pos = self._filled_positions
-
         # Exmaple account balances response:
         # {'commoditymarketvalue': 0.0, 'futuremarketvalue': 677.49, 'settledcash': 202142.17, 'exchangerate': 1, 'sessionid': 1, 'cashbalance': 202142.17, 'corporatebondsmarketvalue': 0.0, 'warrantsmarketvalue': 0.0, 'netliquidationvalue': 202464.67, 'interest': 452.9, 'unrealizedpnl': 12841.38, 'stockmarketvalue': -130.4, 'moneyfunds': 0.0, 'currency': 'USD', 'realizedpnl': 0.0, 'funds': 0.0, 'acctcode': 'DU4299039', 'issueroptionsmarketvalue': 0.0, 'key': 'LedgerList', 'timestamp': 1724382002, 'severity': 0, 'stockoptionmarketvalue': 0.0, 'futuresonlypnl': 677.49, 'tbondsmarketvalue': 0.0, 'futureoptionmarketvalue': 0.0, 'cashbalancefxsegment': 0.0, 'secondkey': 'USD', 'tbillsmarketvalue': 0.0, 'endofbundle': 1, 'dividends': 0.0, 'cryptocurrencyvalue': 0.0}
 
         # Get the net liquidation value for the quote asset
-        total_liquidation_value = balances_for_quote_asset['netliquidationvalue']
+        total_liquidation_value = balances_for_quote_asset['netliquidationvalue'] if balances_for_quote_asset is not None else 0
 
         # Calculate the positions value
-        positions_value = total_liquidation_value - cash
+        positions_value = (total_liquidation_value - cash) if total_liquidation_value != 0 and cash is not None else 0
 
         return cash, positions_value, total_liquidation_value
 

@@ -18,6 +18,9 @@ from plotly.subplots import make_subplots
 
 from .yahoo_helper import YahooHelper as yh
 
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
 
 def total_return(_df):
     """Calculate the cumulative return in a dataframe
@@ -220,10 +223,10 @@ def plot_indicators(
 ):
     # If show plot is False, then we don't want to open the plot in the browser
     if not show_indicators:
-        print("show_indicators is False, not creating the plot file.")
+        logger.debug("show_indicators is False, not creating the plot file.")
         return
 
-    print("\nCreating indicators plot...")
+    logger.info("\nCreating indicators plot...")
 
     fig = make_subplots(specs=[[{"secondary_y": True}]])
 
@@ -368,10 +371,10 @@ def plot_returns(
 ):
     # If show plot is False, then we don't want to open the plot in the browser
     if not show_plot:
-        print("show_plot is False, not creating the plot file.")
+        logging.info("show_plot is False, not creating the plot file.")
         return
 
-    print("\nCreating trades plot...")
+    logging.info("\nCreating trades plot...")
 
     dfs_concat = []
 
@@ -685,10 +688,10 @@ def create_tearsheet(
     # If show tearsheet is False, then we don't want to open the tearsheet in the browser
     # IMS create the tearsheet even if we are not showinbg it
     if not save_tearsheet:
-        print("save_tearsheet is False, not creating the tearsheet file.")
+        logging.info("save_tearsheet is False, not creating the tearsheet file.")
         return
 
-    print("\nCreating tearsheet...")
+    logging.info("\nCreating tearsheet...")
 
     # Check if df1 or df2 are empty and return if they are
     if strategy_df is None or benchmark_df is None or strategy_df.empty or benchmark_df.empty:

@@ -35,7 +35,8 @@ from ..credentials import (
     HIDE_TRADES,
     LUMIWEALTH_API_KEY,
 )
-    
+
+
 class CustomLoggerAdapter(logging.LoggerAdapter):
     def __init__(self, logger, extra):
         super().__init__(logger, extra)
@@ -102,6 +103,7 @@ class _Strategy:
         should_send_summary_to_discord=True,
         save_logfile=False,
         lumiwealth_api_key=None,
+        quiet_logs=True,
         **kwargs,
     ):
         """Initializes a Strategy object.
@@ -187,6 +189,8 @@ class _Strategy:
             Turning on this option will slow down the backtest.
         lumiwealth_api_key : str
             The API key to use for the LumiWealth data source. Defaults to None (saving to the cloud is off).
+        quiet_logs : bool
+            Whether to quiet noisy logs by setting the log level to ERROR. Defaults to True.
         kwargs : dict
             A dictionary of additional keyword arguments to pass to the strategy.
 
@@ -247,7 +251,7 @@ class _Strategy:
         if MARKET:
             # Log the market being used
             colored_message = colored(f"Using market from environment variables: {MARKET}", "green")
-            logger.info(colored_message)
+            self.logger.info(colored_message)
             self.set_market(MARKET)
 
         # Create an adapter with 'strategy_name' set to the instance's name
@@ -281,7 +285,7 @@ class _Strategy:
 
         # Check if self.broker is set
         if self.broker is None:
-            logger.error(colored("No broker is set. Please set a broker using environment variables, secrets or by passing it as an argument.", "red"))
+            self.logger.error(colored("No broker is set. Please set a broker using environment variables, secrets or by passing it as an argument.", "red"))
             raise ValueError("No broker is set. Please set a broker using environment variables, secrets or by passing it as an argument.")
 
         # Check if the quote_assets exists on the broker
@@ -527,13 +531,13 @@ class _Strategy:
                 return True
 
             else:
-                logger.error(
+                self.logger.error(
                     "Unable to get balances (cash, portfolio value, etc) from broker. "
                     "Please check your broker and your broker configuration."
                 )
                 return False
         else:
-            logger.debug("Balances already updated recently. Skipping update.")
+            self.logger.debug("Balances already updated recently. Skipping update.")
 
     # =============Auto updating functions=============
 
@@ -894,6 +898,8 @@ class _Strategy:
         show_indicators=True,
         save_logfile=False,
         use_quote_data=False,
+        show_progress_bar=True,
+        quiet_logs=True,
         **kwargs,
     ):
         """Backtest a strategy.
@@ -1033,7 +1039,9 @@ class _Strategy:
         )
 
         # Print start message
-        print(f"Starting backtest for {cls.__name__}...")
+        logger = logging.getLogger("backtest_stats")
+        logger.setLevel(logging.INFO)
+        logger.info(f"Starting backtest for {cls.__name__}...")
 
         # Handling positional arguments.
         if len(args) == 3:
@@ -1140,7 +1148,7 @@ class _Strategy:
             )
             return None
 
-        trader = Trader(logfile=logfile, backtest=True)
+        trader = Trader(logfile=logfile, backtest=True, quiet_logs=quiet_logs)
 
         if datasource_class == PolygonDataBacktesting:
             data_source = datasource_class(
@@ -1150,6 +1158,7 @@ class _Strategy:
                 auto_adjust=auto_adjust,
                 api_key=polygon_api_key,
                 pandas_data=pandas_data,
+                show_progress_bar=show_progress_bar,
                 **kwargs,
             )
         elif datasource_class == ThetaDataBacktesting or optionsource_class == ThetaDataBacktesting:
@@ -1162,6 +1171,7 @@ class _Strategy:
                 password=thetadata_password,
                 pandas_data=pandas_data,
                 use_quote_data=use_quote_data,
+                show_progress_bar=show_progress_bar,
                 **kwargs,
             )
         else:
@@ -1171,6 +1181,7 @@ class _Strategy:
                 config=config,
                 auto_adjust=auto_adjust,
                 pandas_data=pandas_data,
+                show_progress_bar=show_progress_bar,
                 **kwargs,
             )
 
@@ -1185,6 +1196,7 @@ class _Strategy:
                 username=thetadata_username,
                 password=thetadata_password,
                 pandas_data=pandas_data,
+                show_progress_bar=show_progress_bar,
                 **kwargs,
             )
             backtesting_broker = BacktestingBroker(data_source, options_source)
@@ -1212,8 +1224,6 @@ class _Strategy:
         )
         trader.add_strategy(strategy)
 
-        logger = logging.getLogger("backtest_stats")
-        logger.setLevel(logging.INFO)
         logger.info("Starting backtest...")
         start = datetime.datetime.now()
 
@@ -1376,6 +1386,8 @@ class _Strategy:
         thetadata_username=None,
         thetadata_password=None,
         use_quote_data=False,
+        show_progress_bar=True,
+        quiet_logs=True,
         **kwargs,
     ):
         """Backtest a strategy.
@@ -1457,6 +1469,10 @@ class _Strategy:
         use_quote_data : bool
             Whether to use quote data for the backtest. Defaults to False. If True, the backtest will use quote data for the backtest. (Currently this is specific to ThetaData)
             When set to true this requests Quote data in addition to OHLC which adds time to backtests.
+        show_progress_bar : bool
+            Whether to show the progress bar. Defaults to True.
+        quiet_logs : bool
+            Whether to quiet noisy logs by setting the log level to ERROR. Defaults to True.
 
         Returns
         -------
@@ -1524,6 +1540,8 @@ class _Strategy:
             thetadata_username=thetadata_username,
             thetadata_password=thetadata_password,
             use_quote_data=use_quote_data,
+            show_progress_bar=show_progress_bar,
+            quiet_logs=quiet_logs,
             **kwargs,
         )
         return results

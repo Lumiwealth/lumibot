@@ -17,7 +17,14 @@ class DataSourceBacktesting(DataSource, ABC):
     IS_BACKTESTING_DATA_SOURCE = True
 
     def __init__(
-        self, datetime_start, datetime_end, backtesting_started=None, config=None, api_key=None, pandas_data=None
+        self,
+        datetime_start,
+        datetime_end,
+        backtesting_started=None,
+        config=None,
+        api_key=None,
+        pandas_data=None,
+        show_progress_bar=True
     ):
         super().__init__(api_key=api_key)
 
@@ -38,6 +45,9 @@ class DataSourceBacktesting(DataSource, ABC):
         # Legacy strategy.backtest code will always pass in a config even for DataSources that don't need it, so
         # catch it here and ignore it in this class. Child classes that need it should error check it themselves.
         self._config = config
+
+        # If false, we don't show the progress bar
+        self._show_progress_bar = show_progress_bar
 
     def get_datetime(self, adjust_for_delay=False):
         """
@@ -72,11 +82,12 @@ class DataSourceBacktesting(DataSource, ABC):
 
     def _update_datetime(self, new_datetime, cash=None, portfolio_value=None):
         self._datetime = new_datetime
-        print_progress_bar(
-            new_datetime,
-            self.datetime_start,
-            self.datetime_end,
-            self.backtesting_started,
-            cash=cash,
-            portfolio_value=portfolio_value,
-        )
+        if self._show_progress_bar:
+            print_progress_bar(
+                new_datetime,
+                self.datetime_start,
+                self.datetime_end,
+                self.backtesting_started,
+                cash=cash,
+                portfolio_value=portfolio_value,
+            )

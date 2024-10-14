@@ -103,7 +103,7 @@ class InteractiveBrokersREST(Broker):
         # account_balances = {'CHF': {'commoditymarketvalue': 0.0, 'futuremarketvalue': 0.0, 'settledcash': 188.59, 'exchangerate': 1.1847296, 'sessionid': 1, 'cashbalance': 188.59, 'corporatebondsmarketvalue': 0.0, 'warrantsmarketvalue': 0.0, 'netliquidationvalue': 188.59, 'interest': 0, 'unrealizedpnl': 0.0, 'stockmarketvalue': 0.0, 'moneyfunds': 0.0, 'currency': 'CHF', 'realizedpnl': 0.0, 'funds': 0.0, 'acctcode': 'DU4299039', 'issueroptionsmarketvalue': 0.0, 'key': 'LedgerList', ...}, 'JPY': {'commoditymarketvalue': 0.0, 'futuremarketvalue': 0.0, 'settledcash': -3794999.0, 'exchangerate': 0.0069919, 'sessionid': 1, 'cashbalance': -3794999.0, 'corporatebondsmarketvalue': 0.0, 'warrantsmarketvalue': 0.0, 'netliquidationvalue': -3794999.0, 'interest': 0, 'unrealizedpnl': 0.0, 'stockmarketvalue': 0.0, 'moneyfunds': 0.0, 'currency': 'JPY', 'realizedpnl': 0.0, 'funds': 0.0, 'acctcode': 'DU4299039', 'issueroptionsmarketvalue': 0.0, 'key': 'LedgerList', ...}, 'EUR': {'commoditymarketvalue': 0.0, 'futuremarketvalue': 0.0, 'settledcash': 287480.9, 'exchangerate': 1.1157291, 'sessionid': 1, 'cashbalance': 287480.9, 'corporatebondsmarketvalue': 0.0, 'warrantsmarketvalue': 0.0, 'netliquidationvalue': 288112.94, 'interest': 632.03, 'unrealizedpnl': 0.0, 'stockmarketvalue': 0.0, 'moneyfunds': 0.0, 'currency': 'EUR', 'realizedpnl': 0.0, 'funds': 0.0, 'acctcode': 'DU4299039', 'issueroptionsmarketvalue': 0.0, 'key': 'LedgerList', ...}, 'USD': {'commoditymarketvalue': 0.0, 'futuremarketvalue': -87.3, 'settledcash': 208917.02, 'exchangerate': 1, 'sessionid': 1, 'cashbalance': 208917.02, 'corporatebondsmarketvalue': 0.0, 'warrantsmarketvalue': 0.0, 'netliquidationvalue': 209711.64, 'interest': 518.04, 'unrealizedpnl': 19358.56, 'stockmarketvalue': 276.58, 'moneyfunds': 0.0, 'currency': 'USD', 'realizedpnl': 0.0, 'funds': 0.0, 'acctcode': 'DU4299039', 'issueroptionsmarketvalue': 0.0, 'key': 'LedgerList', ...}, 'BASE': {'commoditymarketvalue': 0.0, 'futuremarketvalue': -87.3, 'settledcash': 503393.47, 'exchangerate': 1, 'sessionid': 1, 'cashbalance': 503393.47, 'corporatebondsmarketvalue': 0.0, 'warrantsmarketvalue': 0.0, 'netliquidationvalue': 504893.34, 'interest': 1223.307, 'unrealizedpnl': 19358.56, 'stockmarketvalue': 276.58, 'moneyfunds': 0.0, 'currency': 'BASE', 'realizedpnl': 0.0, 'funds': 0.0, 'acctcode': 'DU4299039', 'issueroptionsmarketvalue': 0.0, 'key': 'LedgerList', ...}}
 
         # Loop through the account balances and find the quote asset. If not the quote asset, create a position object for the currency/forex asset.
-        cash = None
+        cash = 0
         balances_for_quote_asset = None
         for currency, balances in account_balances.items():
             if currency == quote_symbol:
@@ -132,7 +132,25 @@ class InteractiveBrokersREST(Broker):
         total_liquidation_value = balances_for_quote_asset['netliquidationvalue'] if balances_for_quote_asset is not None else 0
 
         # Calculate the positions value
-        positions_value = (total_liquidation_value - cash) if total_liquidation_value != 0 and cash is not None else 0
+        positions_value = (total_liquidation_value - cash) if total_liquidation_value != 0 else 0
+
+        # Check if there is a forex asset with more than 0 quantity
+        if not hasattr(self, '_quote_asset_checked'):
+            forex_assets_with_quantity = [
+                position for position in self._filled_positions
+                if position.asset.asset_type == Asset.AssetType.FOREX and position.quantity > 0
+            ]
+
+            # Recommend changing quote asset if yes
+            if cash == 0 and forex_assets_with_quantity:
+                logging.warning(
+                    colored(
+                    f"The selected quote asset '{quote_asset.symbol}' has a quantity of 0. "
+                    f"Consider using a different quote asset",
+                    "yellow"
+                    )
+                )
+                self._quote_asset_checked = True
 
         return cash, positions_value, total_liquidation_value
 
@@ -153,7 +171,7 @@ class InteractiveBrokersREST(Broker):
             legs = self.decode_conidex(response["conidex"])
             for leg, ratio in legs.items():
                 # Create the object with just the conId
-                # TODO check if all legs using the same response is an issue
+                # TODO check if all legs using the same response is an issue; test with covered calls
                 child_order = self._parse_order_object(strategy_name=strategy_name,
                                                        response=response,
                                                        quantity=float(ratio)*totalQuantity,

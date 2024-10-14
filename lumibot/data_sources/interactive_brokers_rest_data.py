@@ -421,13 +421,6 @@ class InteractiveBrokersRESTData(DataSource):
             timestep = f"{timestep_value}y"
         else:
             raise ValueError(f"Unsupported timestep: {timestep}")
-
-        # Adjust period to account for market hours (assuming 6.5 hours per trading day)
-        if "minute" in timestep or "hour" in timestep:
-            trading_hours_per_day = 6.5
-            total_hours = length * int(timestep.split()[0])
-            trading_days = total_hours / trading_hours_per_day
-            period = f"{int(trading_days)}d"
             
         url = f"{self.base_url}/iserver/marketdata/history?conid={conid}&period={period}&bar={timestep}&outsideRth={include_after_hours}&startTime={start_time}"
         
@@ -442,7 +435,7 @@ class InteractiveBrokersRESTData(DataSource):
         
         if not result or not result['data']:
             logging.error(colored(f"Failed to get historical prices for {asset.symbol}, result was: {result}", "red"))
-            return None
+            return Bars(pd.DataFrame(), self.SOURCE, asset, raw=pd.DataFrame(), quote=quote)
 
         # Create a DataFrame from the data
         df = pd.DataFrame(result['data'], columns=['t', 'o', 'h', 'l', 'c', 'v'])
@@ -508,7 +501,7 @@ class InteractiveBrokersRESTData(DataSource):
             
             return matching_contract['conid']
 
-        elif asset.asset_type == "stock":
+        elif asset.asset_type in ["stock", "forex"]:
             return conid
 
     def query_greeks(self, asset: Asset):

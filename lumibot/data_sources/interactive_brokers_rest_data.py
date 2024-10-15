@@ -494,7 +494,8 @@ class InteractiveBrokersRESTData(DataSource):
             period = f"{length * timestep_value}y"
             timestep = f"{timestep_value}y"
         else:
-            raise ValueError(f"Unsupported timestep: {timestep}")
+            logging.error(colored(f"Unsupported timestep: {timestep}", "red"))
+            return Bars(pd.DataFrame(), self.SOURCE, asset, raw=pd.DataFrame(), quote=quote)
             
         url = f"{self.base_url}/iserver/marketdata/history?conid={conid}&period={period}&bar={timestep}&outsideRth={include_after_hours}&startTime={start_time}"
         
@@ -505,7 +506,7 @@ class InteractiveBrokersRESTData(DataSource):
         
         if result and 'error' in result:
             logging.error(colored(f"Error getting historical prices: {result['error']}", "red"))
-            raise Exception("Error getting historical prices")
+            return Bars(pd.DataFrame(), self.SOURCE, asset, raw=pd.DataFrame(), quote=quote)
         
         if not result or not result['data']:
             logging.error(colored(f"Failed to get historical prices for {asset.symbol}, result was: {result}", "red"))

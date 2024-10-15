@@ -549,12 +549,9 @@ class InteractiveBrokersRESTData(DataSource):
         return float(price)
 
     def get_conid_from_asset(self, asset: Asset): # TODO futures
+        # Get conid of underlying
         url = f'{self.base_url}/iserver/secdef/search?symbol={asset.symbol}'
-        response = self.get_from_endpoint(url, "Getting Asset conid")
-
-        if response is None or not response:
-            logging.error(colored(f"Failed to get conid of asset: {asset.symbol} of type {asset.asset_type}", "red"))
-            return None
+        response = self.get_from_endpoint(url, "Getting Underlying conid")
         
         if isinstance(response, list) and len(response) > 0 and isinstance(response[0], dict) and "conid" in response[0]:
             conid = int(response[0]["conid"])
@@ -582,9 +579,9 @@ class InteractiveBrokersRESTData(DataSource):
         elif asset.asset_type in ["stock", "forex"]:
             return conid
 
-    def query_greeks(self, asset: Asset):
+    def query_greeks(self, asset: Asset) -> dict:
         greeks = self.get_market_snapshot(asset, ["vega", "theta", "gamma", "delta"])
-        return greeks
+        return greeks if greeks is not None else {}
 
     def get_market_snapshot(self, asset: Asset, fields: list):
         all_fields = {
@@ -610,6 +607,10 @@ class InteractiveBrokersRESTData(DataSource):
         
         fields_str = ",".join(str(field) for field in fields_to_get)
         
+        if not self.is_authenticated():
+            logging.error(colored("Unable to retrieve market snapshot. Not Authenticated.", "red"))
+            return None
+
         url = f'{self.base_url}/iserver/marketdata/snapshot?conids={conId}&fields={fields_str}'
         
         # First time will only return conid and conidEx

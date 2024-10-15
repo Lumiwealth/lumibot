@@ -4601,7 +4601,7 @@ class Strategy(_Strategy):
         ny_tz = pytz.timezone("America/New_York")
         now = datetime.datetime.now(ny_tz)
 
-        LUMIWEALTH_URL = "https://api.lumiwealth.com/v1/update"
+        LUMIWEALTH_URL = "https://tntc3iftia.execute-api.us-east-1.amazonaws.com/prod/portfolio_events"
 
         headers = {
             "Authorization": f"Bearer {self.lumiwealth_api_key}",
@@ -4620,17 +4620,14 @@ class Strategy(_Strategy):
         # Send the data to the cloud
         response = requests.post(LUMIWEALTH_URL, headers=headers, json=data)
 
-        # TODO: Uncomment this code once the API is ready
-        # # Check if the message was sent successfully
-        # if response.status_code == 200:
-        #     self.logger.info("Update sent to the cloud successfully")
-        #     return True
-        # else:
-        #     self.logger.error(
-        #         f"Failed to send update to the cloud. Status code: {response.status_code}, message: {response.text}"
-        #     )
-        #     return False
-
-        return True
+        # Check if the message was sent successfully
+        if response.status_code == 200:
+            self.logger.info("Update sent to the cloud successfully")
+            return True
+        else:
+            self.logger.error(
+                f"Failed to send update to the cloud. Status code: {response.status_code}, message: {response.text}"
+            )
+            return False
 
 

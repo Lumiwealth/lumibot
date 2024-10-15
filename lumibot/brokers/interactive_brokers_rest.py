@@ -230,26 +230,32 @@ class InteractiveBrokersREST(Broker):
                 maturity_date,
                 DATE_MAP[secType]
             )
+    
+        asset = Asset(
+            symbol=symbol,
+            asset_type=secType,
+            multiplier=multiplier
+        )
+
+        if expiration is not None:
+            asset.expiration = expiration
+        if strike is not None:
+            asset.strike = strike
+        if right is not None:
+            asset.right = right
 
         order = Order(
             strategy_name,
-            Asset(
-                symbol=symbol,
-                asset_type=secType,
-                expiration=expiration,
-                strike=strike,
-                right=right,
-                multiplier=multiplier
-            ),
+            asset,
             quantity = Decimal(quantity),
             side = side.lower(),
             limit_price = limit_price,
             stop_price = stop_price,
             time_in_force = time_in_force,
             good_till_date = good_till_date,
-            quote = Asset(symbol=currency, asset_type="forex"),
+            quote = Asset(symbol=currency, asset_type="forex")
         )
-
+        
         return order
 
     def _pull_broker_all_orders(self):
@@ -259,8 +265,11 @@ class InteractiveBrokersREST(Broker):
     
     def _pull_broker_order(self, identifier: str) -> Order:
         """Get a broker order representation by its id"""
-        pull_order = [order for order in self.data_source.get_open_orders() if order.orderId == order_id]
+        pull_order = [order for order in self.data_source.get_open_orders() if order.orderId == identifier]
         response = pull_order[0] if len(pull_order) > 0 else None
+        if response is None:
+            logging.error(colored(f"Order with identifier {identifier} not found.", "red"))
+            return Order(self._strategy_name)
         return response
     
     def _parse_broker_position(self, broker_position, strategy, orders=None):
@@ -311,10 +320,13 @@ class InteractiveBrokersREST(Broker):
 
         return result
     
-    def _pull_position(self, strategy: 'Strategy', asset: Asset) -> Position:
+    def _pull_position(self, strategy, asset: Asset) -> Position:
         response = self._pull_broker_positions(strategy)
         result = self._parse_broker_positions(response, strategy.name)
-        return result
+        for pos in result:
+            if pos.asset == asset:
+                return pos
+        return Position(strategy, asset, 0)
 
     def _pull_broker_positions(self, strategy=None):
         """Get the broker representation of all positions"""
@@ -329,7 +341,7 @@ class InteractiveBrokersREST(Broker):
 
         return positions
 
-    def _pull_positions(self, strategy: 'Strategy') -> list[Position]:
+    def _pull_positions(self, strategy) -> list[Position]:
         """
         Get the positions from the broker for the given strategy.
         
@@ -454,7 +466,7 @@ class InteractiveBrokersREST(Broker):
             logging.error(colored(f"Error details:", "red"), exc_info=True)
             return order
 
-    def submit_orders(self, orders: list[Order], is_multileg=False, order_type="market", duration="day", price=None):
+    def submit_orders(self, orders: list[Order], is_multileg:bool=False, order_type:str="market", duration:str="day", price=None):
         try:
             if is_multileg:
                 order_data = self.get_order_data_multileg(orders, order_type=order_type, duration=duration, price=price)
@@ -578,26 +590,54 @@ class InteractiveBrokersREST(Broker):
         return order_data if order_data['orders'] else None
     
     def get_order_data_multileg(self, orders: list[Order], order_type=None, duration=None, price=None):
-        # TODO buy_to_open and sell_to_open not respected
-        order_data = {
-                'orders': []
-            }
+        """
+        Generate the order data for a multileg order.
+
+        Parameters
+        ----------
+        orders : list[Order]
+            List of Order objects representing the legs of the multileg order.
+        order_type : str, optional
+            The type of the order (e.g., 'market', 'limit'). Defaults to None.
+        duration : str, optional
+            The duration of the order (e.g., 'day', 'gtc'). Defaults to None.
+        price : float, optional
+            The price of the order. Defaults to None.
+
+        Returns
+        -------
+        dict
+            A dictionary containing the order data for the multileg order.
+        """
         
-        spread_conid = SPREAD_CONID_MAP[orders[0].quote.symbol]
+        # Initialize the order data dictionary
+        order_data = {
+            'orders': []
+        }
+        
+        # Ensure the first order has a quote asset
+        if orders[0].quote is None:
+            logging.error("Quote is None for the first order.")
+            return None
+
+        # Get the spread conid for the quote asset
+        spread_conid = SPREAD_CONID_MAP.get(orders[0].quote.symbol)
         if spread_conid is None:
             logging.error(colored("Spread conid Not Found", "red"))
             return None
         
-        # Build Conidex {spread_conid};;;{leg_conid1}/{ratio},{leg_conid2}/{ratio}
+        # Build the conidex string in the format {spread_conid};;;{leg_conid1}/{ratio},{leg_conid2}/{ratio}
         conidex = f'{spread_conid};;;'
 
-        # conid:quantity
+        # List to store conid and quantity pairs
         ratios = []
 
+        # Loop through each order to get the conid and quantity
         for order in orders:
             side = None
             conid = None
             
+            # Determine the side of the order (buy or sell)
             if order.is_buy_order():
                 side = "BUY"
             elif order.is_sell_order():
@@ -605,29 +645,30 @@ class InteractiveBrokersREST(Broker):
             else:
                 logging.error(colored("Order Side Not Found", "red"))
                 return None
-                            
+            
+            # Get the conid for the asset
             conid = self.data_source.get_conid_from_asset(order.asset)
             if conid is None:
                 logging.error(colored("Order conid Not Found", "red"))
                 return None
             
+            # Get the quantity of the order
             quantity = order.quantity
             if quantity == 0 or quantity is None:
                 return None
 
+            # If the order is a sell, make the quantity negative
             if side == "SELL":
                 quantity = -quantity
             
+            # Append the conid and quantity pair to the ratios list
             ratios.append((conid, quantity))
 
-        # Fixing order_quantity
-        quantities = []
-        for _, quant in ratios:
-            quantities.append(quant)
-
-        # Make quantities as small as possible in the conidex. Not really necessary but it's prettier that way
+        # Calculate the greatest common divisor (GCD) of the quantities to simplify the conidex
+        quantities = [quant for _, quant in ratios]
         order_quantity = gcd(*quantities)
 
+        # Build the conidex string with the simplified quantities
         first_order = True
         for conid, quantity in ratios:
             if first_order:
@@ -636,13 +677,25 @@ class InteractiveBrokersREST(Broker):
                 conidex += ","
             conidex += f'{conid}/{quantity // order_quantity}'
         
-        # side = BUY, buys are indicated with a positive quantity in the conidex and sells with a negative
+        # Set the side to "BUY" for the multileg order
         side = "BUY"
         
+        if not orders:
+            raise ValueError("Orders list cannot be empty")
+
+        order = orders[0]
+
+        # Determine the order type, defaulting to "MKT" if not specified
+        order_type_value = order_type if order_type is not None else order.type
+        if order_type_value is None:
+            order_type_value = "MKT"
+            logging.info("Order type not specified. Defaulting to 'MKT'.")
+
+        # Build the order data dictionary
         data = {
             "conidex": conidex,
             "quantity": order_quantity,
-            "orderType": ORDERTYPE_MAPPING[order_type if order_type is not None else order.type],
+            "orderType": ORDERTYPE_MAPPING.get(order_type_value),
             "side": side,
             "tif": duration.upper() if duration is not None else order.time_in_force.upper(),
             "price": float(price) if price is not None else None,
@@ -650,17 +703,7 @@ class InteractiveBrokersREST(Broker):
             "listingExchange": order.exchange
         }
 
-        '''
-        if order.trail_percent:
-            data["trailingType"] = "%"
-            data["trailingAmt"] = order.trail_percent
-
-        if order.trail_price:
-            data["trailingType"] = "amt"
-            data["trailingAmt"] = order.trail_price
-        ''' # TODO for later consideration
-
-        # Remove items with value None from order_data
+        # Remove items with value None from the order data
         data = {k: v for k, v in data.items() if v is not None}
         order_data['orders'].append(data)   
 

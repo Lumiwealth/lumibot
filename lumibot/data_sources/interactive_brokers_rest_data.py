@@ -92,7 +92,10 @@ class InteractiveBrokersRESTData(DataSource):
             url = f'{self.base_url}/portfolio/accounts'
             response = self.get_from_endpoint(url, "Fetching Account ID")
             if response is not None:
-                self.account_id = response[0]['id']
+                if isinstance(response, list) and len(response) > 0 and isinstance(response[0], dict):
+                    self.account_id = response[0]['id']
+                else:
+                    logging.error(colored("Failed to get Account ID.", "red"))
             else:
                 logging.error(colored("Failed to get Account ID.", "red"))
         
@@ -106,7 +109,15 @@ class InteractiveBrokersRESTData(DataSource):
 
     def is_authenticated(self):
         url = f'{self.base_url}/iserver/accounts'
-        response = self.get_from_endpoint(url, "Auth Check", silent=True)
+        response = self.get_from_endpoint(url, "Auth Check", silent=True, return_errors=False)
+        if response is not None:
+            return True
+        else:
+            return False
+    
+    def ping_portfolio(self):
+        url = f'{self.base_url}/portfolio/accounts'
+        response = self.get_from_endpoint(url, "Auth Check", silent=True, return_errors=False)
         if response is not None:
             return True
         else:
@@ -122,16 +133,29 @@ class InteractiveBrokersRESTData(DataSource):
         response = self.get_from_endpoint(url, "Getting account info")
         return response
             
-    def get_account_balances(self):
+    def get_account_balances(self, silent=True):
         """
         Retrieves the account balances for a given account ID.
         """
         # Define the endpoint URL for fetching account balances
         url = f"{self.base_url}/portfolio/{self.account_id}/ledger"
-        response = self.get_from_endpoint(url, "Getting account balances")
+        response = self.get_from_endpoint(url, "Getting account balances", silent=silent)
+        
+        # Handle "Please query /accounts first"
+        if response is not None and 'error' in response:
+            if silent:
+                if self.ping_portfolio():
+                    return self.get_account_balances(silent=False)
+                else:
+                    logging.error(colored(f"Couldn't get account balances. Not authenticated. Error: {response['error']}", "red"))
+                    return None
+            else:
+                logging.error(colored(f"Couldn't get account balances. Error: {response['error']}", "red"))
+                return None
+
         return response
             
-    def get_from_endpoint(self, endpoint, description, silent=False):
+    def get_from_endpoint(self, endpoint, description, silent=False, return_errors=True):
         try:
             # Make the request to the endpoint
             response = requests.get(endpoint, verify=False)
@@ -141,23 +165,31 @@ class InteractiveBrokersRESTData(DataSource):
                 # Return the JSON response containing the account balances
                 return response.json()
             elif response.status_code == 404:
+                error_message = f"error: {description} endpoint not found."
                 if not silent:
-                    logging.warning(colored(f"{description} endpoint not found.", "yellow"))
+                    logging.warning(colored(error_message, "yellow"))
+                if return_errors:
+                    return {"error": error_message}
                 return None
             elif response.status_code == 429:
                 logging.info(f"You got rate limited {description}. Waiting for 5 seconds...")
                 time.sleep(5)
                 return self.get_from_endpoint(endpoint, description, silent)
             else:
-                # Log an error message if the request failed
+                error_message = f"error: Task '{description}' Failed. Status code: {response.status_code}, Response: {response.text}"
                 if not silent:
-                    logging.error(colored(f"Task '{description}' Failed. Status code: {response.status_code}, Response: {response.text}", "red"))
+                    logging.error(colored(error_message, "red"))
+                if return_errors:
+                    return {"error": error_message}
                 return None
 
         except requests.exceptions.RequestException as e:
+            error_message = f"error: {description}: {e}"
             # Log an error message if there was a problem with the request
             if not silent:
-                logging.error(colored(f"Error {description}: {e}", "red"))
+                logging.error(colored(error_message, "red"))
+            if return_errors:
+                return {"error": error_message}
             return None
     
     def post_to_endpoint(self, url, json: dict):
@@ -210,28 +242,38 @@ class InteractiveBrokersRESTData(DataSource):
         except requests.exceptions.RequestException as e:
             # Log an error message if there was a problem with the request
             logging.error(colored(f"Error {url}: {e}", "red"))
-            
-        except requests.exceptions.RequestException as e:
-            # Log an error message if there was a problem with the request
-            logging.error(colored(f"Error {url}: {e}", "red"))
     
-    def get_open_orders(self):
+
+    def get_open_orders(self, silent=True):
         # Clear cache with force=true TODO may be useless
         url = f'{self.base_url}/iserver/account/orders?force=true'
         response = self.get_from_endpoint(url, "Getting open orders")
 
         # Fetch
         url = f'{self.base_url}/iserver/account/orders?&accountId={self.account_id}&filters=Submitted,PreSubmitted'
-        response = self.get_from_endpoint(url, "Getting open orders")
+        response = self.get_from_endpoint(url, "Getting open orders", silent=silent)
+
+        # Handle "Please query /accounts first"
+        if response is not None and 'error' in response:
+            if silent:
+                if self.ping_portfolio():
+                    return self.get_open_orders(silent=False)
+                else:
+                    logging.error(colored(f"Couldn't retrieve open orders. Not authenticated. Error: {response['error']}", "red"))
+                    return None
+            else:
+                logging.error(colored(f"Couldn't retrieve open orders. Error: {response['error']}", "red"))
+                return None
 
         if response is None or response == []:
             return None
 
         # Filters don't work, we'll filter on our own
         filtered_orders = []
-        for order in response['orders']:
-            if order['status'] not in ["Cancelled", "Filled"]:
-                filtered_orders.append(order)
+        if isinstance(response, dict) and 'orders' in response and isinstance(response['orders'], list):
+            for order in response['orders']:
+                if isinstance(order, dict) and order.get('status') not in ["Cancelled", "Filled"]:
+                    filtered_orders.append(order)
 
         return filtered_orders
 
@@ -276,7 +318,7 @@ class InteractiveBrokersRESTData(DataSource):
         else:
             logging.error(colored(f"Failed to delete order with ID {orderId}.", "red"))
 
-    def get_positions(self):
+    def get_positions(self, silent=True):
         """
         Retrieves the current positions for a given account ID.
         """
@@ -287,7 +329,19 @@ class InteractiveBrokersRESTData(DataSource):
         '''
 
         url = f"{self.base_url}/portfolio/{self.account_id}/positions"
-        response = self.get_from_endpoint(url, "Getting account positions")
+        response = self.get_from_endpoint(url, "Getting account positions", silent=silent)
+        
+        # Handle "Please query /accounts first"
+        if response is not None and 'error' in response:
+            if silent:
+                if self.ping_portfolio():
+                    return self.get_positions(silent=False)
+                else:
+                    logging.error(colored(f"Couldn't get account positions. Not authenticated. Error: {response['error']}", "red"))
+                    return None
+            else:
+                logging.error(colored(f"Couldn't get account positions. Error: {response['error']}", "red"))
+                return None
 
         return response
     
@@ -298,7 +352,7 @@ class InteractiveBrokersRESTData(DataSource):
 
         subprocess.run(['docker', 'rm', '-f', 'lumibot-client-portal'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-    def get_chains(self, asset: Asset, quote = None) -> dict:
+    def get_chains(self, asset: Asset, quote=None) -> dict:
         '''
             - `Multiplier` (str) eg: `100`
             - 'Chains' - paired Expiration/Strike info to guarentee that the strikes are valid for the specific
@@ -321,40 +375,60 @@ class InteractiveBrokersRESTData(DataSource):
         url_for_dates = f'{self.base_url}/iserver/secdef/search?symbol={asset.symbol}'
         response = self.get_from_endpoint(url_for_dates, "Getting Option Dates")
         
-        conid = response[0]['conid']
+        if response and isinstance(response, list) and 'conid' in response[0]:
+            conid = response[0]['conid']
+        else:
+            logging.error("Failed to get conid from response")
+            return {}
 
         option_dates = None 
-        for section in response[0]['sections']:
-            if section['secType'] == "OPT":
-                option_dates = section['months'] 
-                break
+        if response and isinstance(response, list) and 'sections' in response[0]:
+            for section in response[0]['sections']:
+                if 'secType' in section and section['secType'] == "OPT":
+                    option_dates = section['months']
+                    break
+        else:
+            logging.error("Failed to get sections from response")
+            return {}
 
         # Array of options dates for asset
-        months = option_dates.split(';') # in MMMYY
+        if option_dates:
+            months = option_dates.split(';') # in MMMYY
+        else:
+            logging.error("Option dates are None")
+            return {}
 
         for month in months:
             url_for_strikes = f'{self.base_url}/iserver/secdef/strikes?sectype=OPT&conid={conid}&month={month}' # TODO &exchange could be added
             strikes = self.get_from_endpoint(url_for_strikes, "Getting Strikes")
 
-            for strike in strikes['call']:
-                url_for_expiry = f'{self.base_url}/iserver/secdef/info?conid={conid}&sectype=OPT&month={month}&right=C&strike={strike}'
-                contract_info = self.get_from_endpoint(url_for_expiry, "Getting expiration Date")
-                if contract_info is not None:
-                    expiry_date = contract_info[0]['maturityDate']
-                    expiry_date = datetime.strptime(expiry_date, "%Y%m%d").strftime("%Y-%m-%d") # convert to yyyy-mm-dd
-                    if expiry_date not in chains['Chains']['CALL']:
-                        chains['Chains']['CALL'][expiry_date] = []
-                    chains['Chains']['CALL'][expiry_date].append(strike)
+            if strikes and 'call' in strikes:
+                for strike in strikes['call']:
+                    url_for_expiry = f'{self.base_url}/iserver/secdef/info?conid={conid}&sectype=OPT&month={month}&right=C&strike={strike}'
+                    contract_info = self.get_from_endpoint(url_for_expiry, "Getting expiration Date")
+                    if contract_info and isinstance(contract_info, list) and len(contract_info) > 0 and 'maturityDate' in contract_info[0]:
+                        expiry_date = contract_info[0]['maturityDate']
+                        expiry_date = datetime.strptime(expiry_date, "%Y%m%d").strftime("%Y-%m-%d") # convert to yyyy-mm-dd
+                        if expiry_date not in chains['Chains']['CALL']:
+                            chains['Chains']['CALL'][expiry_date] = []
+                        chains['Chains']['CALL'][expiry_date].append(strike)
+                    else:
+                        logging.error("Invalid contract_info format")
+                        return {}
             
-            for strike in strikes['put']:
-                url_for_expiry = f'{self.base_url}/iserver/secdef/info?conid={conid}&sectype=OPT&month={month}&right=P&strike={strike}'
-                contract_info = self.get_from_endpoint(url_for_expiry, "Getting expiration Date")
-                if contract_info is not None:
-                    expiry_date = contract_info[0]['maturityDate']
-                    expiry_date = datetime.strptime(expiry_date, "%Y%m%d").strftime("%Y-%m-%d") # convert to yyyy-mm-dd
-                    if expiry_date not in chains['Chains']['CALL']:
-                        chains['Chains']['PUT'][expiry_date] = []
-                    chains['Chains']['PUT'][expiry_date].append(strike)
+            if strikes and 'put' in strikes:
+                for strike in strikes['put']:
+                    url_for_expiry = f'{self.base_url}/iserver/secdef/info?conid={conid}&sectype=OPT&month={month}&right=P&strike={strike}'
+                    contract_info = self.get_from_endpoint(url_for_expiry, "Getting expiration Date")
+                    if contract_info and isinstance(contract_info, list) and len(contract_info) > 0 and 'maturityDate' in contract_info[0]:
+                        expiry_date = contract_info[0]['maturityDate']
+                        expiry_date = datetime.strptime(expiry_date, "%Y%m%d").strftime("%Y-%m-%d") # convert to yyyy-mm-dd
+                        if expiry_date not in chains['Chains']['PUT']:
+                            chains['Chains']['PUT'][expiry_date] = []
+                        chains['Chains']['PUT'][expiry_date].append(strike)
+                    else:
+                        logging.error("Invalid contract_info format")
+                        return {}
 
         return chains
 
@@ -460,19 +534,19 @@ class InteractiveBrokersRESTData(DataSource):
 
     def get_last_price(self, asset, quote=None, exchange=None) -> float:
         field = "last_price"
-        response = self.get_market_snapshot(asset, [field])
+        response = self.get_market_snapshot(asset, [field]) #TODO add exchange
+        
+        if response is None or field not in response:
+            logging.error(f"Failed to get {field} for asset {asset.symbol}")
+            return -1
+
         price = response[field]
 
         # Remove the 'C' prefix if it exists
         if isinstance(price, str) and price.startswith("C"):
             price = float(price[1:])
 
-        return price
-    
-    def get_spread_conid(self, conid):
-        url = f'{self.base_url}/iserver/secdef/info?conid={conid}'
-        response = self.get_from_endpoint(url, "Getting Asset Currency")
-        return SPREAD_CONID_MAP.get(response['currency'], None)
+        return float(price)
 
     def get_conid_from_asset(self, asset: Asset): # TODO futures
         url = f'{self.base_url}/iserver/secdef/search?symbol={asset.symbol}'
@@ -482,7 +556,11 @@ class InteractiveBrokersRESTData(DataSource):
             logging.error(colored(f"Failed to get conid of asset: {asset.symbol} of type {asset.asset_type}", "red"))
             return None
         
-        conid = int(response[0]["conid"])
+        if isinstance(response, list) and len(response) > 0 and isinstance(response[0], dict) and "conid" in response[0]:
+            conid = int(response[0]["conid"])
+        else:
+            logging.error(colored(f"Failed to get conid of asset: {asset.symbol} of type {asset.asset_type}", "red"))
+            return None
 
         if asset.asset_type == "option":
             expiration_date = asset.expiration.strftime("%Y%m%d")
@@ -494,7 +572,7 @@ class InteractiveBrokersRESTData(DataSource):
 
             matching_contract = None
             if contract_info:
-                matching_contract = next((contract for contract in contract_info if contract["maturityDate"] == expiration_date), None)
+                matching_contract = next((contract for contract in contract_info if isinstance(contract, dict) and contract.get("maturityDate") == expiration_date), None)
 
             if matching_contract is None:
                 return None
@@ -540,7 +618,7 @@ class InteractiveBrokersRESTData(DataSource):
         # If fields are missing, then its first time, fetch again
         missing_fields = False
         for field in fields_to_get:
-            if not field in response[0]:
+            if response and isinstance(response, list) and len(response) > 0 and not field in response[0]:
                 missing_fields = True
                 break
 
@@ -549,16 +627,18 @@ class InteractiveBrokersRESTData(DataSource):
 
         # return only what was requested
         output = {}
-        for key, value in response[0].items():
-            if key in fields_to_get:
-                # Convert the value to a float if it is a number
-                try:
-                    value = float(value)
-                except ValueError:
-                    pass
+        
+        if response and isinstance(response, list) and len(response) > 0 and isinstance(response[0], dict):
+            for key, value in response[0].items():
+                if key in fields_to_get:
+                    # Convert the value to a float if it is a number
+                    try:
+                        value = float(value)
+                    except ValueError:
+                        pass
 
-                # Map the field to the name
-                output[all_fields[key]] = value
+                    # Map the field to the name
+                    output[all_fields[key]] = value
 
         return output
 

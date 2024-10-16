@@ -4,8 +4,6 @@ import signal
 import sys
 from pathlib import Path
 
-import appdirs
-
 # Overloading time.sleep to warn users against using it
 
 logger = logging.getLogger(__name__)
@@ -13,7 +11,7 @@ logger.setLevel(logging.INFO)
 
 
 class Trader:
-    def __init__(self, logfile="", backtest=False, debug=False, strategies=None, quiet_logs=True):
+    def __init__(self, logfile="", backtest=False, debug=False, strategies=None, quiet_logs=False):
         """
 
         Parameters
@@ -193,6 +191,9 @@ class Trader:
             logger.setLevel(logging.DEBUG)
         elif self.is_backtest_broker:
             logger.setLevel(logging.INFO)
+            for handler in logger.handlers:
+                if handler.__class__.__name__ == "StreamHandler":
+                    handler.setLevel(logging.ERROR)
         else:
             logger.setLevel(logging.INFO)
 

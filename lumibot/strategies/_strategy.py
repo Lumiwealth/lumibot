@@ -4,7 +4,6 @@ from termcolor import colored
 from asyncio.log import logger
 from decimal import Decimal
 import os
-import json
 import string
 import random
 
@@ -48,7 +47,6 @@ class CustomLoggerAdapter(logging.LoggerAdapter):
         except Exception as e:
             return msg, kwargs
 
-
 class Vars:
     def __init__(self):
         super().__setattr__('_vars_dict', {})
@@ -74,7 +72,6 @@ class _Strategy:
 
     def __init__(
         self,
-        *args,
         broker=None,
         minutes_before_closing=1,
         minutes_before_opening=60,
@@ -103,7 +100,7 @@ class _Strategy:
         should_send_summary_to_discord=True,
         save_logfile=False,
         lumiwealth_api_key=None,
-        quiet_logs=True,
+        quiet_logs=False,
         **kwargs,
     ):
         """Initializes a Strategy object.
@@ -195,49 +192,19 @@ class _Strategy:
             A dictionary of additional keyword arguments to pass to the strategy.
 
         """
-        # Handling positional arguments.
-        # If there is one positional argument, it is assumed to be `broker`.
-        # If there are two positional arguments, they are assumed to be
-        # `name` and `broker`.
-        # If there are three positional arguments, they are assumed to be
-        # `name`, `budget` and `broker`
-
-        # Configure logging
-        logging.basicConfig(level=logging.INFO)
-        self.logger = logging.getLogger(__name__)
-
         # TODO: Break up this function, too long!
 
         self.buy_trading_fees = buy_trading_fees
         self.sell_trading_fees = sell_trading_fees
         self.save_logfile = save_logfile
+        self.broker = broker
+        self._name = name
 
-        if len(args) == 1:
-            if isinstance(args[0], str):
-                self._name = args[0]
-                self.broker = broker
-            else:
-                self.broker = args[0]
-                self._name = kwargs.get("name", name)
-        elif len(args) == 2:
-            self._name = args[0]
-            self.broker = args[1]
-            self.logger.warning(
-                "You are using the old style of initializing a Strategy. Only use \n"
-                "the broker class as the first positional argument and the rest as keyword arguments. \n"
-                "For example `MyStrategy(broker, name=strategy_name, budget=budget)`\n"
-            )
-        elif len(args) == 3:
-            self._name = args[0]
-            self.broker = args[2]
-            self.logger.warning(
-                "You are using the old style of initializing a Strategy. Only use \n"
-                "the broker class as the first positional argument and the rest as keyword arguments. \n"
-                "For example `MyStrategy(broker, name=strategy_name, budget=budget)`\n"
-            )
-        else:
-            self.broker = broker
-            self._name = name
+        # Create an adapter with 'strategy_name' set to the instance's name
+        self.logger = CustomLoggerAdapter(logger, {'strategy_name': self._name})
+
+        # Set the log level to INFO so that all logs INFO and above are displayed
+        self.logger.setLevel(logging.INFO)
         
         if self.broker == None:
             self.broker = BROKER
@@ -257,9 +224,6 @@ class _Strategy:
             colored_message = colored(f"Using market from environment variables: {MARKET}", "green")
             self.logger.info(colored_message)
             self.set_market(MARKET)
-
-        # Create an adapter with 'strategy_name' set to the instance's name
-        self.logger = CustomLoggerAdapter(logger, {'strategy_name': self._name})
 
         self.discord_webhook_url = discord_webhook_url if discord_webhook_url is not None else DISCORD_WEBHOOK_URL
         
@@ -522,7 +486,11 @@ class _Strategy:
                 self.last_broker_balances_update + datetime.timedelta(seconds=UPDATE_INTERVAL) < datetime.datetime.now()
             )
         ):
-            broker_balances = self.broker._get_balances_at_broker(self.quote_asset, self)
+            try:
+                broker_balances = self.broker._get_balances_at_broker(self.quote_asset, self)
+            except Exception as e:
+                self.logger.error(f"Error getting broker balances: {e}")
+                return False
 
             if broker_balances is not None:
                 (
@@ -548,7 +516,11 @@ class _Strategy:
     def _update_portfolio_value(self):
         """updates self.portfolio_value"""
         if not self.is_backtesting:
-            broker_balances = self.broker._get_balances_at_broker(self.quote_asset, self)
+            try:
+                broker_balances = self.broker._get_balances_at_broker(self.quote_asset, self)
+            except Exception as e:
+                self.logger.error(f"Error getting broker balances: {e}")
+                return None
 
             if broker_balances is not None:
                 return broker_balances[2]
@@ -903,7 +875,7 @@ class _Strategy:
         save_logfile=False,
         use_quote_data=False,
         show_progress_bar=True,
-        quiet_logs=True,
+        quiet_logs=False,
         **kwargs,
     ):
         """Backtest a strategy.
@@ -1391,7 +1363,7 @@ class _Strategy:
         thetadata_password=None,
         use_quote_data=False,
         show_progress_bar=True,
-        quiet_logs=True,
+        quiet_logs=False,
         **kwargs,
     ):
         """Backtest a strategy.

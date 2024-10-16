@@ -202,6 +202,10 @@ class _Strategy:
         # If there are three positional arguments, they are assumed to be
         # `name`, `budget` and `broker`
 
+        # Configure logging
+        logging.basicConfig(level=logging.INFO)
+        self.logger = logging.getLogger(__name__)
+
         # TODO: Break up this function, too long!
 
         self.buy_trading_fees = buy_trading_fees
@@ -218,7 +222,7 @@ class _Strategy:
         elif len(args) == 2:
             self._name = args[0]
             self.broker = args[1]
-            logging.warning(
+            self.logger.warning(
                 "You are using the old style of initializing a Strategy. Only use \n"
                 "the broker class as the first positional argument and the rest as keyword arguments. \n"
                 "For example `MyStrategy(broker, name=strategy_name, budget=budget)`\n"
@@ -226,7 +230,7 @@ class _Strategy:
         elif len(args) == 3:
             self._name = args[0]
             self.broker = args[2]
-            logging.warning(
+            self.logger.warning(
                 "You are using the old style of initializing a Strategy. Only use \n"
                 "the broker class as the first positional argument and the rest as keyword arguments. \n"
                 "For example `MyStrategy(broker, name=strategy_name, budget=budget)`\n"
@@ -1014,7 +1018,7 @@ class _Strategy:
         """
         # Log a warning for polygon_has_paid_subscription as it is deprecated
         if polygon_has_paid_subscription:
-            logging.warning(
+            self.logger.warning(
                 "polygon_has_paid_subscription is deprecated and will be removed in future versions. "
                 "Please remove it from your code."
             )

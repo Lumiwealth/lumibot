@@ -103,7 +103,7 @@ class InteractiveBrokersRESTData(DataSource):
 
         # Suppress weird server warnings
         url = f'{self.base_url}/iserver/questions/suppress'
-        json = {'messageIds': ['o451', 'o383', 'o354']}
+        json = {'messageIds': ['o451', 'o383', 'o354', 'o163']}
 
         self.post_to_endpoint(url, json=json)
 
@@ -286,7 +286,7 @@ class InteractiveBrokersRESTData(DataSource):
         if order_data is None:
             logging.debug(colored("Failed to get order data.", "red"))
             return None
-        
+
         url = f'{self.base_url}/iserver/account/{self.account_id}/orders'
         response = self.post_to_endpoint(url, order_data)
         
@@ -299,15 +299,14 @@ class InteractiveBrokersRESTData(DataSource):
             logging.info("Order executed successfully")
             return response.get('orders') 
             """
-        
-        else:
-            if response is None:
-                logging.error(colored("Failed to execute order: Unknown error", "red"))
-            elif isinstance(response, dict) and 'error' in response:
-                logging.error(colored(f"Failed to execute order: {response['error']}", "red"))
-            else:
-                logging.error(colored(f"Failed to execute order: {response}", "red"))
+        elif response is not None and 'error' in response:
+            logging.error(colored(f"Failed to execute order: {response['error']}", "red"))
             return None
+        elif response is not None and 'message' in response:
+            logging.error(colored(f"Failed to execute order: {response['message']}", "red"))
+            return None
+        else:
+            logging.error(colored(f"Failed to execute order: {order_data}", "red"))
     
     def delete_order(self, order):
         orderId = order.identifier
@@ -567,8 +566,9 @@ class InteractiveBrokersRESTData(DataSource):
             expiration_date = asset.expiration.strftime("%Y%m%d")
             expiration_month = asset.expiration.strftime("%b%y").upper()  # in MMMYY
             strike = asset.strike
+            right = asset.right
 
-            url_for_expiry = f'{self.base_url}/iserver/secdef/info?conid={conid}&sectype=OPT&month={expiration_month}&right=C&strike={strike}'
+            url_for_expiry = f'{self.base_url}/iserver/secdef/info?conid={conid}&sectype=OPT&month={expiration_month}&right={right}&strike={strike}'
             contract_info = self.get_from_endpoint(url_for_expiry, "Getting expiration Date")
 
             matching_contract = None
@@ -627,6 +627,8 @@ class InteractiveBrokersRESTData(DataSource):
 
         response = None
         while missing_fields and retries < max_retries:
+            if retries >= 3:
+                time.sleep(5)
             response = self.get_from_endpoint(url, "Getting Market Snapshot")
             retries += 1
             missing_fields = False
@@ -634,9 +636,6 @@ class InteractiveBrokersRESTData(DataSource):
                 if response and isinstance(response, list) and len(response) > 0 and not field in response[0]:
                     missing_fields = True
                     break
-        
-            if retries >= 3:
-                time.sleep(5)
 
         # return only what was requested
         output = {}

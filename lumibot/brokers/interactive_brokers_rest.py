@@ -469,6 +469,24 @@ class InteractiveBrokersREST(Broker):
     def submit_orders(self, orders: list[Order], is_multileg:bool=False, order_type:str="market", duration:str="day", price=None):
         try:
             if is_multileg:
+                if order_type == "credit":
+                    if price is not None:
+                        order_type = "limit"
+                        if price < 0:
+                            price = -price
+                    else:
+                        order_type = "market"
+
+                elif order_type == "debit":
+                    if price is not None:
+                        order_type = "limit"
+                    else:
+                        order_type = "market"
+                
+                elif order_type == "even":
+                    price=0
+                    order_type = "limit"
+                
                 order_data = self.get_order_data_multileg(orders, order_type=order_type, duration=duration, price=price)
                 response = self.data_source.execute_order(order_data)
                 if response is None:
@@ -551,12 +569,12 @@ class InteractiveBrokersREST(Broker):
             
             data = {
                 "conid": conid,
-                "quantity": order.quantity,
+                "quantity": round(order.quantity, 2),
                 "orderType": orderType,
                 "side": side,
                 "tif": order.time_in_force.upper(),
-                "price": order.limit_price,
-                "auxPrice": order.stop_price,
+                "price": round(order.limit_price, 2) if order.limit_price is not None else None,
+                "auxPrice": round(order.stop_price, 2) if order.stop_price is not None else None,
                 "listingExchange": order.exchange
             }
 
@@ -694,12 +712,12 @@ class InteractiveBrokersREST(Broker):
         # Build the order data dictionary
         data = {
             "conidex": conidex,
-            "quantity": order_quantity,
+            "quantity": round(order_quantity, 2),
             "orderType": ORDERTYPE_MAPPING.get(order_type_value),
             "side": side,
             "tif": duration.upper() if duration is not None else order.time_in_force.upper(),
-            "price": float(price) if price is not None else None,
-            "auxPrice": order.stop_price,
+            "price": round(float(price), 2) if price is not None else None,
+            "auxPrice": round(order.stop_price, 2) if order.stop_price is not None else None,
             "listingExchange": order.exchange
         }
 

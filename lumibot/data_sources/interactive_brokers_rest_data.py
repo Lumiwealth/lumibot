@@ -682,8 +682,7 @@ class InteractiveBrokersRESTData(DataSource):
 
         # Iterate through each month to retrieve strikes and expiration dates
         for month in months:
-            # Define the endpoint URL for fetching strikes
-            url_for_strikes = f"{self.base_url}/iserver/secdef/strikes?sectype=OPT&conid={conid}&month={month}"
+            url_for_strikes = f"{self.base_url}/iserver/secdef/strikes?sectype=OPT&conid={conid}&month={month}"  # TODO &exchange could be added
             strikes = self.get_from_endpoint(url_for_strikes, "Getting Strikes")
 
             # Process CALL options

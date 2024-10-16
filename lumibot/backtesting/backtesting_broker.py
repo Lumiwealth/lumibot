@@ -11,6 +11,9 @@ from lumibot.data_sources import DataSourceBacktesting
 from lumibot.entities import Asset, Order, Position, TradingFee
 from lumibot.trading_builtins import CustomStream
 
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
 
 class BacktestingBroker(Broker):
     # Metainfo
@@ -43,7 +46,7 @@ class BacktestingBroker(Broker):
                 if result.was_transmitted() and result.order_class and result.order_class == "oco":
                     orders = broker._flatten_order(result)
                     for order in orders:
-                        logging.info(f"{order} was sent to broker {self.name}")
+                        logger.info(f"{order} was sent to broker {self.name}")
                         broker._new_orders.append(order)
 
                     # Remove the original order from the list of new orders because
@@ -96,7 +99,7 @@ class BacktestingBroker(Broker):
         self.data_source._update_datetime(new_datetime, cash=cash, portfolio_value=portfolio_value)
         if self.option_source:
             self.option_source._update_datetime(new_datetime, cash=cash, portfolio_value=portfolio_value)
-        logging.info(f"Current backtesting datetime {self.datetime}")
+        logger.info(f"Current backtesting datetime {self.datetime}")
 
     # =========Clock functions=====================
 
@@ -359,7 +362,7 @@ class BacktestingBroker(Broker):
         if existing_position:
             position.add_order(order, quantity)  # Add will update quantity, but not double count the order
             if position.quantity == 0:
-                logging.info(f"Position {position} liquidated")
+                logger.info(f"Position {position} liquidated")
                 self._filled_positions.remove(position)
         else:
             self._filled_positions.append(position)  # New position, add it to the tracker
@@ -385,7 +388,7 @@ class BacktestingBroker(Broker):
         if existing_position:
             existing_position.add_order(order, quantity)  # Add will update quantity, but not double count the order
             if existing_position.quantity == 0:
-                logging.info("Position %r liquidated" % existing_position)
+                logger.info("Position %r liquidated" % existing_position)
                 self._filled_positions.remove(existing_position)
 
     def submit_order(self, order):
@@ -545,7 +548,7 @@ class BacktestingBroker(Broker):
                 if position.asset.expiration == self.datetime.date() and time_to_close > seconds_before_closing:
                     continue
 
-                logging.info(f"Automatically selling expired contract for asset {position.asset}")
+                logger.info(f"Automatically selling expired contract for asset {position.asset}")
 
                 # Cash settle the options contract
                 self.cash_settle_options_contract(position, strategy)
@@ -738,7 +741,7 @@ class BacktestingBroker(Broker):
                 if order.order_class in ["bracket", "oto"]:
                     orders = self._flatten_order(order)
                     for flat_order in orders:
-                        logging.info(f"{order} was sent to broker {self.name}")
+                        logger.info(f"{order} was sent to broker {self.name}")
                         self._new_orders.append(flat_order)
 
                 trade_cost = self.calculate_trade_cost(order, strategy, price)

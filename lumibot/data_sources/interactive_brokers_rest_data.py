@@ -650,31 +650,23 @@ class InteractiveBrokersRESTData(DataSource):
             period = f"{length * timestep_value}y"
             timestep = f"{timestep_value}y"
         else:
-            raise ValueError(f"Unsupported timestep: {timestep}")
-
+            logging.error(colored(f"Unsupported timestep: {timestep}", "red"))
+            return Bars(pd.DataFrame(), self.SOURCE, asset, raw=pd.DataFrame(), quote=quote)
+            
         url = f"{self.base_url}/iserver/marketdata/history?conid={conid}&period={period}&bar={timestep}&outsideRth={include_after_hours}&startTime={start_time}"
 
         if exchange:
             url += f"&exchange={exchange}"
 
         result = self.get_from_endpoint(url, "Getting Historical Prices")
-
-        if result and "error" in result:
-            logging.error(
-                colored(f"Error getting historical prices: {result['error']}", "red")
-            )
-            raise Exception("Error getting historical prices")
-
-        if not result or not result["data"]:
-            logging.error(
-                colored(
-                    f"Failed to get historical prices for {asset.symbol}, result was: {result}",
-                    "red",
-                )
-            )
-            return Bars(
-                pd.DataFrame(), self.SOURCE, asset, raw=pd.DataFrame(), quote=quote
-            )
+        
+        if result and 'error' in result:
+            logging.error(colored(f"Error getting historical prices: {result['error']}", "red"))
+            return Bars(pd.DataFrame(), self.SOURCE, asset, raw=pd.DataFrame(), quote=quote)
+        
+        if not result or not result['data']:
+            logging.error(colored(f"Failed to get historical prices for {asset.symbol}, result was: {result}", "red"))
+            return Bars(pd.DataFrame(), self.SOURCE, asset, raw=pd.DataFrame(), quote=quote)
 
         # Create a DataFrame from the data
         df = pd.DataFrame(result["data"], columns=["t", "o", "h", "l", "c", "v"])

@@ -8,9 +8,12 @@ import appdirs
 
 # Overloading time.sleep to warn users against using it
 
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
 
 class Trader:
-    def __init__(self, logfile="", backtest=False, debug=False, strategies=None):
+    def __init__(self, logfile="", backtest=False, debug=False, strategies=None, quiet_logs=True):
         """
 
         Parameters
@@ -24,6 +27,8 @@ class Trader:
             Whether to run the strategies in debug mode or not. This will set the log level to DEBUG.
         strategies: list
             A list of strategies to run. If not specified, you must add strategies using trader.add_strategy(strategy)
+        quiet_logs: bool
+            Whether to quiet noisy logs by setting the log level to ERROR. Defaults to True.
         """
         # Check if the logfile is a valid path
         if logfile:
@@ -33,7 +38,8 @@ class Trader:
         # Setting debug and _logfile parameters and setting global log format
         self.debug = debug
         self.backtest = backtest
-        self.log_format = logging.Formatter("%(asctime)s: %(name)s: %(levelname)s: %(message)s")
+        self.log_format = logging.Formatter("%(asctime)s | %(name)s | %(levelname)s | %(message)s")
+        self.quiet_logs = quiet_logs
 
         if logfile:
             self.logfile = Path(logfile)
@@ -127,7 +133,7 @@ class Trader:
         strat = self._strategies[0]
         if self.is_backtest_broker:
             strat.verify_backtest_inputs(strat.backtesting_start, strat.backtesting_end)
-            logging.info("Backtesting starting...")
+            logger.info("Backtesting starting...")
 
         signal.signal(signal.SIGINT, self._stop_pool)
         self._set_logger()
@@ -138,7 +144,7 @@ class Trader:
         result = self._collect_analysis()
 
         if self.is_backtest_broker:
-            logging.info("Backtesting finished")
+            logger.info("Backtesting finished")
             strat.backtest_analysis(
                 logdir=self.logdir,
                 show_plot=show_plot,
@@ -168,6 +174,11 @@ class Trader:
         logging.getLogger("apscheduler.scheduler").setLevel(logging.ERROR)
         logging.getLogger("apscheduler.executors.default").setLevel(logging.ERROR)
 
+        if self.quiet_logs:
+            logging.getLogger("asyncio").setLevel(logging.ERROR)
+            logging.getLogger("lumibot.backtesting.backtesting_broker").setLevel(logging.ERROR)
+            logging.getLogger("lumibot.data_sources.yahoo_data").setLevel(logging.ERROR)
+
         logger = logging.getLogger()
 
         for handler in logger.handlers:
@@ -182,9 +193,6 @@ class Trader:
             logger.setLevel(logging.DEBUG)
         elif self.is_backtest_broker:
             logger.setLevel(logging.INFO)
-            for handler in logger.handlers:
-                if handler.__class__.__name__ == "StreamHandler":
-                    handler.setLevel(logging.ERROR)
         else:
             logger.setLevel(logging.INFO)
 

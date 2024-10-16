@@ -8,6 +8,9 @@ from lumibot.data_sources import DataSourceBacktesting
 from lumibot.entities import Asset, Bars
 from lumibot.tools import YahooHelper
 
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
 
 class YahooData(DataSourceBacktesting):
     SOURCE = "YAHOO"
@@ -59,12 +62,12 @@ class YahooData(DataSourceBacktesting):
         self, asset, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None, exchange=None, include_after_hours=True
     ):
         if exchange is not None:
-            logging.warning(
+            logger.warning(
                 f"the exchange parameter is not implemented for YahooData, but {exchange} was passed as the exchange"
             )
 
         if quote is not None:
-            logging.warning(f"quote is not implemented for YahooData, but {quote} was passed as the quote")
+            logger.warning(f"quote is not implemented for YahooData, but {quote} was passed as the quote")
 
         interval = self._parse_source_timestep(timestep, reverse=True)
         if asset in self._data_store:
@@ -104,7 +107,7 @@ class YahooData(DataSourceBacktesting):
         """pull broker bars for a list assets"""
 
         if quote is not None:
-            logging.warning(f"quote is not implemented for YahooData, but {quote} was passed as the quote")
+            logger.warning(f"quote is not implemented for YahooData, but {quote} was passed as the quote")
 
         interval = self._parse_source_timestep(timestep, reverse=True)
         missing_assets = [asset.symbol for asset in assets if asset not in self._data_store]
@@ -121,7 +124,7 @@ class YahooData(DataSourceBacktesting):
 
     def _parse_source_symbol_bars(self, response, asset, quote=None, length=None):
         if quote is not None:
-            logging.warning(f"quote is not implemented for YahooData, but {quote} was passed as the quote")
+            logger.warning(f"quote is not implemented for YahooData, but {quote} was passed as the quote")
 
         bars = Bars(response, self.SOURCE, asset, raw=response)
         return bars

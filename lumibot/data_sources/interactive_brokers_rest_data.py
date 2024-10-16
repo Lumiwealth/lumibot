@@ -67,7 +67,7 @@ class InteractiveBrokersRESTData(DataSource):
                 'IBEAM_PASSWORD': self.ib_password,
                 'IBEAM_GATEWAY_BASE_URL': f'https://localhost:{self.port}',
                 'IBEAM_LOG_TO_FILE': False,
-                'IBEAM_REQUEST_RETRIES': 10,
+                'IBEAM_REQUEST_RETRIES': 1,
                 'IBEAM_PAGE_LOAD_TIMEOUT': 30,
                 'IBEAM_INPUTS_DIR': inputs_dir
             }
@@ -172,8 +172,8 @@ class InteractiveBrokersRESTData(DataSource):
                     return {"error": error_message}
                 return None
             elif response.status_code == 429:
-                logging.info(f"You got rate limited {description}. Waiting for 5 seconds...")
-                time.sleep(5)
+                logging.info(f"You got rate limited {description}. Waiting for 1 second...")
+                time.sleep(1)
                 return self.get_from_endpoint(endpoint, description, silent)
             else:
                 error_message = f"error: Task '{description}' Failed. Status code: {response.status_code}, Response: {response.text}"
@@ -256,7 +256,7 @@ class InteractiveBrokersRESTData(DataSource):
         # Handle "Please query /accounts first"
         if response is not None and 'error' in response:
             if silent:
-                if self.ping_portfolio():
+                if self.is_authenticated():
                     return self.get_open_orders(silent=False)
                 else:
                     logging.error(colored(f"Couldn't retrieve open orders. Not authenticated. Error: {response['error']}", "red"))
@@ -537,7 +537,10 @@ class InteractiveBrokersRESTData(DataSource):
         response = self.get_market_snapshot(asset, [field]) #TODO add exchange
         
         if response is None or field not in response:
-            logging.error(f"Failed to get {field} for asset {asset.symbol}")
+            if asset.asset_type in ["option", "future"]:
+                logging.error(f"Failed to get {field} for asset {asset.symbol} with strike {asset.strike} and expiration date {asset.expiration}")
+            else:
+                logging.error(f"Failed to get {field} for asset {asset.symbol}")
             return -1
 
         price = response[field]
@@ -557,6 +560,7 @@ class InteractiveBrokersRESTData(DataSource):
             conid = int(response[0]["conid"])
         else:
             logging.error(colored(f"Failed to get conid of asset: {asset.symbol} of type {asset.asset_type}", "red"))
+            logging.error(colored(f"Response: {response}", "red"))
             return None
 
         if asset.asset_type == "option":
@@ -572,6 +576,7 @@ class InteractiveBrokersRESTData(DataSource):
                 matching_contract = next((contract for contract in contract_info if isinstance(contract, dict) and contract.get("maturityDate") == expiration_date), None)
 
             if matching_contract is None:
+                logging.debug(colored(f"No matching contract found for asset: {asset.symbol} with expiration date {expiration_date} and strike {strike}", "red"))
                 return None
             
             return matching_contract['conid']
@@ -599,6 +604,8 @@ class InteractiveBrokersRESTData(DataSource):
         }
 
         conId = self.get_conid_from_asset(asset)
+        if conId is None:
+            return None
 
         fields_to_get = []
         for identifier, name in all_fields.items():
@@ -613,18 +620,23 @@ class InteractiveBrokersRESTData(DataSource):
 
         url = f'{self.base_url}/iserver/marketdata/snapshot?conids={conId}&fields={fields_str}'
         
-        # First time will only return conid and conidEx
-        response = self.get_from_endpoint(url, "Getting Market Snapshot")
-        
-        # If fields are missing, then its first time, fetch again
-        missing_fields = False
-        for field in fields_to_get:
-            if response and isinstance(response, list) and len(response) > 0 and not field in response[0]:
-                missing_fields = True
-                break
+        # If fields are missing, fetch again
+        max_retries = 500
+        retries = 0
+        missing_fields = True
 
-        if missing_fields:
+        response = None
+        while missing_fields and retries < max_retries:
             response = self.get_from_endpoint(url, "Getting Market Snapshot")
+            retries += 1
+            missing_fields = False
+            for field in fields_to_get:
+                if response and isinstance(response, list) and len(response) > 0 and not field in response[0]:
+                    missing_fields = True
+                    break
+        
+            if retries >= 3:
+                time.sleep(5)
 
         # return only what was requested
         output = {}

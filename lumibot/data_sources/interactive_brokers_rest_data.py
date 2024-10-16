@@ -527,7 +527,8 @@ class InteractiveBrokersRESTData(DataSource):
             return {}
 
         for month in months:
-            url_for_strikes = f"{self.base_url}/iserver/secdef/strikes?sectype=OPT&conid={conid}&month={month}"  # TODO &exchange could be added
+            # TODO &exchange could be added
+            url_for_strikes = f"{self.base_url}/iserver/secdef/strikes?sectype=OPT&conid={conid}&month={month}"
             strikes = self.get_from_endpoint(url_for_strikes, "Getting Strikes")
 
             if strikes and "call" in strikes:

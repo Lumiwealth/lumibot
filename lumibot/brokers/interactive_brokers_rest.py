@@ -841,9 +841,7 @@ class InteractiveBrokersREST(Broker):
             if duration is not None
             else order.time_in_force.upper(),
             "price": round(float(price), 2) if price is not None else None,
-            "auxPrice": round(order.stop_price, 2)
-            if order.stop_price is not None
-            else None,
+            "auxPrice": round(order.stop_price, 2) if order.stop_price is not None else None,
             "listingExchange": order.exchange,
         }
 

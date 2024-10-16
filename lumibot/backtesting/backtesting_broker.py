@@ -407,6 +407,10 @@ class BacktestingBroker(Broker):
         return order
 
     def submit_orders(self, orders, is_multileg=False, **kwargs):
+        # Check that the orders object is not empty
+        if not orders or len(orders) == 0:
+            return []
+
         results = []
         for order in orders:
             results.append(self.submit_order(order))

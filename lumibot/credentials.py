@@ -92,6 +92,11 @@ LIVE_CONFIG = os.environ.get("LIVE_CONFIG")
 # Discord credentials
 DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL")
 
+# Get SHOW_PLOT and SHOW_INDICATORS from the environment variables, default to True
+SHOW_PLOT = os.environ.get("SHOW_PLOT", "True") == "True"
+SHOW_INDICATORS = os.environ.get("SHOW_INDICATORS", "True") == "True"
+SHOW_TEARSHEET = os.environ.get("SHOW_TEARSHEET", "True") == "True"
+
 # Set DB_CONNECTION_STR to None by default
 DB_CONNECTION_STR = None
 

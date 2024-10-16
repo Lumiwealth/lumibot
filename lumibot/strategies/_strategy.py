@@ -34,6 +34,9 @@ from ..credentials import (
     HIDE_POSITIONS,
     HIDE_TRADES,
     LUMIWEALTH_API_KEY,
+    SHOW_INDICATORS,
+    SHOW_PLOT,
+    SHOW_TEARSHEET,
 )
     
 class CustomLoggerAdapter(logging.LoggerAdapter):
@@ -859,8 +862,10 @@ class _Strategy:
 
     @classmethod
     def run_backtest(
-        cls,
-        *args,
+        self,
+        datasource_class,
+        backtesting_start,
+        backtesting_end,
         minutes_before_closing=5,
         minutes_before_opening=60,
         sleeptime=1,
@@ -878,10 +883,10 @@ class _Strategy:
         pandas_data=None,
         quote_asset=Asset(symbol="USD", asset_type="forex"),
         starting_positions=None,
-        show_plot=True,
+        show_plot=None,
         tearsheet_file=None,
         save_tearsheet=True,
-        show_tearsheet=True,
+        show_tearsheet=None,
         parameters={},
         buy_trading_fees=[],
         sell_trading_fees=[],
@@ -891,7 +896,7 @@ class _Strategy:
         thetadata_username=None,
         thetadata_password=None,
         indicators_file=None,
-        show_indicators=True,
+        show_indicators=None,
         save_logfile=False,
         use_quote_data=False,
         **kwargs,
@@ -1006,6 +1011,22 @@ class _Strategy:
         >>>     benchmark_asset=benchmark_asset,
         >>> )
         """
+
+        # Print start message
+        print(f"Starting backtest for {datasource_class.__name__}...")
+
+        # If show_plot is None, then set it to True
+        if show_plot is None:
+            show_plot = SHOW_PLOT
+
+        # If show_tearsheet is None, then set it to True
+        if show_tearsheet is None:
+            show_tearsheet = SHOW_TEARSHEET
+
+        # If show_indicators is None, then set it to True
+        if show_indicators is None:
+            show_indicators = SHOW_INDICATORS
+
         # Log a warning for polygon_has_paid_subscription as it is deprecated
         if polygon_has_paid_subscription:
             logging.warning(
@@ -1013,54 +1034,8 @@ class _Strategy:
                 "Please remove it from your code."
             )
 
-        positional_args_error_message = (
-            "Please do not use `name' or 'budget' as positional arguments. \n"
-            "These have been changed to keyword arguments. For example, \n"
-            "please create your `strategy.backtest` similar to below adding, \n"
-            "if you need them, `name` and `budget` as keyword arguments. \n"
-            "    strategy_class.backtest(\n"
-            "        backtesting_datasource,\n"
-            "        backtesting_start,\n"
-            "        backtesting_end,\n"
-            "        pandas_data=pandas_data,\n"
-            "        stats_file=stats_file,\n"
-            "        name='my_strategy_name',\n"
-            "        budget=50000,\n"
-            "        config=config,\n"
-            "        logfile=logfile,\n"
-            "        **kwargs,\n"
-            "    )"
-        )
-
-        # Print start message
-        print(f"Starting backtest for {cls.__name__}...")
-
-        # Handling positional arguments.
-        if len(args) == 3:
-            datasource_class = args[0]
-            backtesting_start = args[1]
-            backtesting_end = args[2]
-            name = kwargs.get("name", name)
-            budget = kwargs.get("budget", budget)
-        elif len(args) == 5:
-            name = args[0]
-            budget = args[1]
-            datasource_class = args[2]
-            backtesting_start = args[3]
-            backtesting_end = args[4]
-            logging.warning(
-                f"You are using the old style of initializing a backtest object. \n" f"{positional_args_error_message}"
-            )
-        else:
-            # Error message
-            logging.error(
-                "Unable to interpret positional arguments. Please ensure you have \n"
-                "included `datasource_class`, `backtesting_start`,  and `backtesting_end` \n"
-                "for your three positional arguments. \n"
-            )
-
         if name is None:
-            name = cls.__name__
+            name = self.__name__
 
         # check if datasource_class is a class or a dictionary
         if isinstance(datasource_class, dict):
@@ -1099,7 +1074,7 @@ class _Strategy:
         if use_other_option_source and not isinstance(optionsource_class, type):
             raise ValueError(f"`optionsource_class` must be a class. You passed in {optionsource_class}")
 
-        cls.verify_backtest_inputs(backtesting_start, backtesting_end)
+        self.verify_backtest_inputs(backtesting_start, backtesting_end)
 
         # Make sure polygon_api_key is set if using PolygonDataBacktesting
         polygon_api_key = polygon_api_key if polygon_api_key is not None else POLYGON_API_KEY
@@ -1124,7 +1099,7 @@ class _Strategy:
                     "from https://www.thetadata.net/."
                 )
 
-        if not cls.IS_BACKTESTABLE:
+        if not self.IS_BACKTESTABLE:
             logging.warning(f"Strategy {name + ' ' if name is not None else ''}cannot be " f"backtested at the moment")
             return None
 
@@ -1136,7 +1111,6 @@ class _Strategy:
                 "`backtesting_start` and `backtesting_end` must be datetime objects. \n"
                 "You are receiving this error most likely because you are using \n"
                 "the original positional arguments for backtesting. \n\n"
-                f"{positional_args_error_message}"
             )
             return None
 
@@ -1189,7 +1163,7 @@ class _Strategy:
             )
             backtesting_broker = BacktestingBroker(data_source, options_source)
 
-        strategy = cls(
+        strategy = self(
             backtesting_broker,
             minutes_before_closing=minutes_before_closing,
             minutes_before_opening=minutes_before_opening,
@@ -1343,8 +1317,10 @@ class _Strategy:
 
     @classmethod
     def backtest(
-        cls,
-        *args,
+        self,
+        datasource_class,
+        backtesting_start,
+        backtesting_end,
         minutes_before_closing=1,
         minutes_before_opening=60,
         sleeptime=1,
@@ -1362,16 +1338,16 @@ class _Strategy:
         pandas_data=None,
         quote_asset=Asset(symbol="USD", asset_type="forex"),
         starting_positions=None,
-        show_plot=True,
+        show_plot=None,
         tearsheet_file=None,
         save_tearsheet=True,
-        show_tearsheet=True,
+        show_tearsheet=None,
         parameters={},
         buy_trading_fees=[],
         sell_trading_fees=[],
         polygon_api_key=None,
         indicators_file=None,
-        show_indicators=True,
+        show_indicators=None,
         save_logfile=False,
         thetadata_username=None,
         thetadata_password=None,
@@ -1491,8 +1467,10 @@ class _Strategy:
         >>>     benchmark_asset=benchmark_asset,
         >>> )
         """
-        results, strategy = cls.run_backtest(
-            *args,
+        results, strategy = self.run_backtest(
+            datasource_class=datasource_class,
+            backtesting_start=backtesting_start,
+            backtesting_end=backtesting_end,
             minutes_before_closing=minutes_before_closing,
             minutes_before_opening=minutes_before_opening,
             sleeptime=sleeptime,

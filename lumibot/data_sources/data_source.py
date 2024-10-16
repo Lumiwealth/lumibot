@@ -2,6 +2,7 @@ import logging
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
+import time
 
 import pandas as pd
 
@@ -417,15 +418,18 @@ class DataSource(ABC):
             A DataFrame containing the full chain information for the option asset. Greeks columns will be named as
             'greeks.delta', 'greeks.theta', etc.
         """
+        start_t = time.perf_counter()
         # Base level DataSource assumes that the data source does not support this and the greeks will be calculated
         # locally. Subclasses can override this method to provide a more efficient implementation.
         expiry_dt = datetime.strptime(expiry, "%Y-%m-%d") if isinstance(expiry, str) else expiry
+        expiry_str = expiry_dt.strftime("%Y-%m-%d")
         if chains is None:
             chains = self.get_chains(asset)
 
         rows = []
+        query_total = 0
         for right in chains["Chains"]:
-            for strike in chains["Chains"][right][expiry]:
+            for strike in chains["Chains"][right][expiry_str]:
                 # Skip strikes outside the requested range. Saves querying time.
                 if strike_min and strike < strike_min or strike_max and strike > strike_max:
                     continue
@@ -438,15 +442,17 @@ class DataSource(ABC):
                     strike=strike,
                     right=right,
                 )
+                query_t = time.perf_counter()
                 option_symbol = create_options_symbol(opt_asset.symbol, expiry_dt, right, strike)
                 opt_price = self.get_last_price(opt_asset)
                 greeks = self.calculate_greeks(opt_asset, opt_price, underlying_price, risk_free_rate)
+                query_total += time.perf_counter() - query_t
 
                 # Build the row. Match the Tradier column naming conventions.
                 row = {
                     "symbol": option_symbol,
                     "last": opt_price,
-                    "expiration_date": expiry,
+                    "expiration_date": expiry_dt,
                     "strike": strike,
                     "option_type": right,
                     "underlying": opt_asset.symbol,
@@ -464,7 +470,10 @@ class DataSource(ABC):
                 row.update({f"greeks.{col}": val for col, val in greeks.items()})
                 rows.append(row)
 
-        return pd.DataFrame(rows).sort_values("strike")
+        logging.info(f"Chain Full Info Query Total: {query_total:.2f}s. "
+                     f"Total Time: {time.perf_counter() - start_t:.2f}s, "
+                     f"Rows: {len(rows)}")
+        return pd.DataFrame(rows).sort_values("strike") if rows else pd.DataFrame()
 
     def calculate_greeks(
         self,

@@ -124,9 +124,6 @@ POLYGON_CONFIG = {
 # Polygon API Key
 POLYGON_API_KEY = POLYGON_CONFIG['API_KEY']
 
-# Live trading configuration (if applicable)
-LIVE_CONFIG = os.environ.get("LIVE_CONFIG", None)
-
 # Thetadata Configuration
 THETADATA_CONFIG = {
     # Get the ThetaData API key from the .env file or secrets

@@ -36,6 +36,7 @@ from ..credentials import (
     SHOW_INDICATORS,
     SHOW_PLOT,
     SHOW_TEARSHEET,
+    LIVE_CONFIG,
 )
 
 
@@ -228,6 +229,7 @@ class _Strategy:
             self.logger.info(colored_message)
             self.set_market(MARKET)
 
+        self.live_config = LIVE_CONFIG
         self.discord_webhook_url = discord_webhook_url if discord_webhook_url is not None else DISCORD_WEBHOOK_URL
         
         if account_history_db_connection_str: 

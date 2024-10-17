@@ -410,8 +410,12 @@ class BacktestingBroker(Broker):
         return order
 
     def submit_orders(self, orders, is_multileg=False, **kwargs):
-        # Check that the orders object is not empty
-        if not orders or len(orders) == 0:
+        """Submit multiple orders for an asset"""
+
+        # Check that orders is a list and not zero
+        if not orders or not isinstance(orders, list) or len(orders) == 0:
+            # Log an error and return an empty list
+            logging.error("No orders to submit to broker when calling submit_orders")
             return []
 
         results = []

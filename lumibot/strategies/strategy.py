@@ -4601,8 +4601,8 @@ class Strategy(_Strategy):
         ny_tz = pytz.timezone("America/New_York")
         now = datetime.datetime.now(ny_tz)
 
-        LUMIWEALTH_URL = "https://listener.lumiwealth.com/prod/portfolio_events"
         # LUMIWEALTH_URL = "https://tntc3iftia.execute-api.us-east-1.amazonaws.com/prod/portfolio_events"
+        LUMIWEALTH_URL = "https://listener.lumiwealth.com/prod/portfolio_events"
 
         headers = {
             "x-api-key": f"{self.lumiwealth_api_key}",
@@ -4615,7 +4615,6 @@ class Strategy(_Strategy):
             "cash": cash,
             "positions": [position.to_dict() for position in positions],
             "orders": [order.to_dict() for order in orders],
-            "datetime": now.isoformat(),
         }
 
         try:

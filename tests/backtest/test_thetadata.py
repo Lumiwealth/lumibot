@@ -15,6 +15,8 @@ import pytest
 keyword = 'ThetaTerminal.jar'
 
 
+
+
 def find_git_root(path):
     # Traverse the directories upwards until a .git directory is found
     original_path = path

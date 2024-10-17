@@ -4,7 +4,6 @@ from termcolor import colored
 from asyncio.log import logger
 from decimal import Decimal
 import os
-import json
 import string
 import random
 
@@ -38,7 +37,8 @@ from ..credentials import (
     SHOW_PLOT,
     SHOW_TEARSHEET,
 )
-    
+
+
 class CustomLoggerAdapter(logging.LoggerAdapter):
     def __init__(self, logger, extra):
         super().__init__(logger, extra)
@@ -49,7 +49,6 @@ class CustomLoggerAdapter(logging.LoggerAdapter):
             return self.prefix + msg, kwargs
         except Exception as e:
             return msg, kwargs
-
 
 class Vars:
     def __init__(self):
@@ -76,7 +75,6 @@ class _Strategy:
 
     def __init__(
         self,
-        *args,
         broker=None,
         minutes_before_closing=1,
         minutes_before_opening=60,
@@ -105,6 +103,7 @@ class _Strategy:
         should_send_summary_to_discord=True,
         save_logfile=False,
         lumiwealth_api_key=None,
+        quiet_logs=False,
         **kwargs,
     ):
         """Initializes a Strategy object.
@@ -190,49 +189,25 @@ class _Strategy:
             Turning on this option will slow down the backtest.
         lumiwealth_api_key : str
             The API key to use for the LumiWealth data source. Defaults to None (saving to the cloud is off).
+        quiet_logs : bool
+            Whether to quiet noisy logs by setting the log level to ERROR. Defaults to True.
         kwargs : dict
             A dictionary of additional keyword arguments to pass to the strategy.
 
         """
-        # Handling positional arguments.
-        # If there is one positional argument, it is assumed to be `broker`.
-        # If there are two positional arguments, they are assumed to be
-        # `name` and `broker`.
-        # If there are three positional arguments, they are assumed to be
-        # `name`, `budget` and `broker`
-
         # TODO: Break up this function, too long!
 
         self.buy_trading_fees = buy_trading_fees
         self.sell_trading_fees = sell_trading_fees
         self.save_logfile = save_logfile
+        self.broker = broker
+        self._name = name
 
-        if len(args) == 1:
-            if isinstance(args[0], str):
-                self._name = args[0]
-                self.broker = broker
-            else:
-                self.broker = args[0]
-                self._name = kwargs.get("name", name)
-        elif len(args) == 2:
-            self._name = args[0]
-            self.broker = args[1]
-            logging.warning(
-                "You are using the old style of initializing a Strategy. Only use \n"
-                "the broker class as the first positional argument and the rest as keyword arguments. \n"
-                "For example `MyStrategy(broker, name=strategy_name, budget=budget)`\n"
-            )
-        elif len(args) == 3:
-            self._name = args[0]
-            self.broker = args[2]
-            logging.warning(
-                "You are using the old style of initializing a Strategy. Only use \n"
-                "the broker class as the first positional argument and the rest as keyword arguments. \n"
-                "For example `MyStrategy(broker, name=strategy_name, budget=budget)`\n"
-            )
-        else:
-            self.broker = broker
-            self._name = name
+        # Create an adapter with 'strategy_name' set to the instance's name
+        self.logger = CustomLoggerAdapter(logger, {'strategy_name': self._name})
+
+        # Set the log level to INFO so that all logs INFO and above are displayed
+        self.logger.setLevel(logging.INFO)
         
         if self.broker == None:
             self.broker = BROKER
@@ -250,11 +225,8 @@ class _Strategy:
         if MARKET:
             # Log the market being used
             colored_message = colored(f"Using market from environment variables: {MARKET}", "green")
-            logger.info(colored_message)
+            self.logger.info(colored_message)
             self.set_market(MARKET)
-
-        # Create an adapter with 'strategy_name' set to the instance's name
-        self.logger = CustomLoggerAdapter(logger, {'strategy_name': self._name})
 
         self.discord_webhook_url = discord_webhook_url if discord_webhook_url is not None else DISCORD_WEBHOOK_URL
         
@@ -284,7 +256,7 @@ class _Strategy:
 
         # Check if self.broker is set
         if self.broker is None:
-            logger.error(colored("No broker is set. Please set a broker using environment variables, secrets or by passing it as an argument.", "red"))
+            self.logger.error(colored("No broker is set. Please set a broker using environment variables, secrets or by passing it as an argument.", "red"))
             raise ValueError("No broker is set. Please set a broker using environment variables, secrets or by passing it as an argument.")
 
         # Check if the quote_assets exists on the broker
@@ -517,7 +489,11 @@ class _Strategy:
                 self.last_broker_balances_update + datetime.timedelta(seconds=UPDATE_INTERVAL) < datetime.datetime.now()
             )
         ):
-            broker_balances = self.broker._get_balances_at_broker(self.quote_asset, self)
+            try:
+                broker_balances = self.broker._get_balances_at_broker(self.quote_asset, self)
+            except Exception as e:
+                self.logger.error(f"Error getting broker balances: {e}")
+                return False
 
             if broker_balances is not None:
                 (
@@ -530,20 +506,24 @@ class _Strategy:
                 return True
 
             else:
-                logger.error(
+                self.logger.error(
                     "Unable to get balances (cash, portfolio value, etc) from broker. "
                     "Please check your broker and your broker configuration."
                 )
                 return False
         else:
-            logger.debug("Balances already updated recently. Skipping update.")
+            self.logger.debug("Balances already updated recently. Skipping update.")
 
     # =============Auto updating functions=============
 
     def _update_portfolio_value(self):
         """updates self.portfolio_value"""
         if not self.is_backtesting:
-            broker_balances = self.broker._get_balances_at_broker(self.quote_asset, self)
+            try:
+                broker_balances = self.broker._get_balances_at_broker(self.quote_asset, self)
+            except Exception as e:
+                self.logger.error(f"Error getting broker balances: {e}")
+                return None
 
             if broker_balances is not None:
                 return broker_balances[2]
@@ -899,6 +879,8 @@ class _Strategy:
         show_indicators=None,
         save_logfile=False,
         use_quote_data=False,
+        show_progress_bar=True,
+        quiet_logs=False,
         **kwargs,
     ):
         """Backtest a strategy.
@@ -1029,11 +1011,11 @@ class _Strategy:
 
         # Log a warning for polygon_has_paid_subscription as it is deprecated
         if polygon_has_paid_subscription:
-            logging.warning(
+            self.logger.warning(
                 "polygon_has_paid_subscription is deprecated and will be removed in future versions. "
                 "Please remove it from your code."
             )
-
+            
         if name is None:
             name = self.__name__
 
@@ -1114,7 +1096,7 @@ class _Strategy:
             )
             return None
 
-        trader = Trader(logfile=logfile, backtest=True)
+        trader = Trader(logfile=logfile, backtest=True, quiet_logs=quiet_logs)
 
         if datasource_class == PolygonDataBacktesting:
             data_source = datasource_class(
@@ -1124,6 +1106,7 @@ class _Strategy:
                 auto_adjust=auto_adjust,
                 api_key=polygon_api_key,
                 pandas_data=pandas_data,
+                show_progress_bar=show_progress_bar,
                 **kwargs,
             )
         elif datasource_class == ThetaDataBacktesting or optionsource_class == ThetaDataBacktesting:
@@ -1136,6 +1119,7 @@ class _Strategy:
                 password=thetadata_password,
                 pandas_data=pandas_data,
                 use_quote_data=use_quote_data,
+                show_progress_bar=show_progress_bar,
                 **kwargs,
             )
         else:
@@ -1145,6 +1129,7 @@ class _Strategy:
                 config=config,
                 auto_adjust=auto_adjust,
                 pandas_data=pandas_data,
+                show_progress_bar=show_progress_bar,
                 **kwargs,
             )
 
@@ -1159,6 +1144,7 @@ class _Strategy:
                 username=thetadata_username,
                 password=thetadata_password,
                 pandas_data=pandas_data,
+                show_progress_bar=show_progress_bar,
                 **kwargs,
             )
             backtesting_broker = BacktestingBroker(data_source, options_source)
@@ -1186,8 +1172,6 @@ class _Strategy:
         )
         trader.add_strategy(strategy)
 
-        logger = logging.getLogger("backtest_stats")
-        logger.setLevel(logging.INFO)
         logger.info("Starting backtest...")
         start = datetime.datetime.now()
 
@@ -1352,6 +1336,8 @@ class _Strategy:
         thetadata_username=None,
         thetadata_password=None,
         use_quote_data=False,
+        show_progress_bar=True,
+        quiet_logs=False,
         **kwargs,
     ):
         """Backtest a strategy.
@@ -1433,6 +1419,10 @@ class _Strategy:
         use_quote_data : bool
             Whether to use quote data for the backtest. Defaults to False. If True, the backtest will use quote data for the backtest. (Currently this is specific to ThetaData)
             When set to true this requests Quote data in addition to OHLC which adds time to backtests.
+        show_progress_bar : bool
+            Whether to show the progress bar. Defaults to True.
+        quiet_logs : bool
+            Whether to quiet noisy logs by setting the log level to ERROR. Defaults to True.
 
         Returns
         -------
@@ -1502,6 +1492,8 @@ class _Strategy:
             thetadata_username=thetadata_username,
             thetadata_password=thetadata_password,
             use_quote_data=use_quote_data,
+            show_progress_bar=show_progress_bar,
+            quiet_logs=quiet_logs,
             **kwargs,
         )
         return results

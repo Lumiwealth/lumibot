@@ -405,6 +405,11 @@ class Tradier(Broker):
                 access_token = self._tradier_access_token[:7] + "*" * 7
                 colored_message = colored(f"Your TRADIER_ACCOUNT_NUMBER or TRADIER_ACCESS_TOKEN are invalid. Your account number is: {self._tradier_account_number} and your access token is: {access_token}", color="red")
                 raise ValueError(colored_message)
+        except Exception as e:
+            logging.error(f"Error pulling balances from Tradier: {e}")
+            # Add traceback to the error message
+            logging.error(traceback.format_exc())
+            return None
             
 
         # Get the portfolio value (total_equity) column

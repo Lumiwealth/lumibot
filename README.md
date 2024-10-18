@@ -14,7 +14,7 @@ To get started with Lumibot, you can check out our documentation below.
 
 Our blog has lots of example strategies and shows you how to run a bot using LumiBot. Check the blog out here:
 
-**[https://lumiwealth.com/blog/]**
+**https://lumiwealth.com/blog/**
 
 ## Run an Example Strategy
 

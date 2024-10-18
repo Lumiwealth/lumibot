@@ -323,10 +323,13 @@ class InteractiveBrokersREST(Broker):
                 asset_type="forex",
             )
         else:  # Unreachable code.
-            raise ValueError(
-                f"From Interactive Brokers, asset type can only be `stock`, "
-                f"`future`, or `option`. A value of {broker_position['asset_type']} "
-                f"was received."
+            logging.error(
+                colored(
+                    f"From Interactive Brokers, asset type can only be `stock`, "
+                    f"`future`, or `option`. A value of {broker_position['asset_type']} "
+                    f"was received.",
+                    "red",
+                )
             )
 
         quantity = broker_position["position"]
@@ -821,7 +824,7 @@ class InteractiveBrokersREST(Broker):
         side = "BUY"
 
         if not orders:
-            raise ValueError("Orders list cannot be empty")
+            logging.error("Orders list cannot be empty")
 
         order = orders[0]
 
@@ -841,7 +844,9 @@ class InteractiveBrokersREST(Broker):
             if duration is not None
             else order.time_in_force.upper(),
             "price": round(float(price), 2) if price is not None else None,
-            "auxPrice": round(order.stop_price, 2) if order.stop_price is not None else None,
+            "auxPrice": round(order.stop_price, 2)
+            if order.stop_price is not None
+            else None,
             "listingExchange": order.exchange,
         }
 

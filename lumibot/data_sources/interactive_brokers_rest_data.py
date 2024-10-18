@@ -8,9 +8,8 @@ import os
 import time
 import requests
 import urllib3
-from datetime import datetime
+from datetime import datetime, timedelta
 import pandas as pd
-
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -133,20 +132,7 @@ class InteractiveBrokersRESTData(DataSource):
             time.sleep(10)
 
         # Set self.account_id
-        if self.account_id is None:
-            url = f"{self.base_url}/portfolio/accounts"
-            response = self.get_from_endpoint(url, "Fetching Account ID")
-            if response is not None:
-                if (
-                    isinstance(response, list)
-                    and len(response) > 0
-                    and isinstance(response[0], dict)
-                ):
-                    self.account_id = response[0]["id"]
-                else:
-                    logging.error(colored("Failed to get Account ID.", "red"))
-            else:
-                logging.error(colored("Failed to get Account ID.", "red"))
+        self.fetch_account_id()
 
         logging.info(colored("Connected to Client Portal", "green"))
 
@@ -155,6 +141,48 @@ class InteractiveBrokersRESTData(DataSource):
         json = {"messageIds": ["o451", "o383", "o354", "o163"]}
 
         self.post_to_endpoint(url, json=json)
+
+    def fetch_account_id(self):
+        if self.account_id is not None:
+            return  # Account ID already set
+
+        url = f"{self.base_url}/portfolio/accounts"
+
+        while self.account_id is None:
+            response = self.get_from_endpoint(url, "Fetching Account ID")
+            self.last_portfolio_ping = datetime.now()
+
+            if response:
+                if (
+                    isinstance(response, list)
+                    and len(response) > 0
+                    and isinstance(response[0], dict)
+                    and "id" in response[0]
+                ):
+                    self.account_id = response[0]["id"]
+                    logging.info(
+                        colored(
+                            f"Successfully retrieved Account ID: {self.account_id}",
+                            "green",
+                        )
+                    )
+                else:
+                    logging.error(
+                        colored(
+                            "Failed to get Account ID. Response structure is unexpected.",
+                            "red",
+                        )
+                    )
+            else:
+                logging.error(
+                    colored("Failed to get Account ID. Response is None.", "red")
+                )
+
+            if self.account_id is None:
+                logging.info(
+                    colored("Retrying to fetch Account ID in 5 seconds...", "yellow")
+                )
+                time.sleep(5)  # Wait for 5 seconds before retrying
 
     def is_authenticated(self):
         url = f"{self.base_url}/iserver/accounts"
@@ -166,57 +194,93 @@ class InteractiveBrokersRESTData(DataSource):
         else:
             return False
 
-    def ping_portfolio(self):
-        url = f"{self.base_url}/portfolio/accounts"
-        response = self.get_from_endpoint(
-            url, "Auth Check", silent=True, return_errors=False
-        )
-        if response is not None:
+    def ping_iserver(self):
+        def func() -> bool:
+            url = f"{self.base_url}/iserver/accounts"
+            response = self.get_from_endpoint(
+                url, "Auth Check", silent=True, return_errors=False
+            )
+
+            if response is not None:
+                return True
+            else:
+                return False
+
+        if not hasattr(
+            self, "last_iserver_ping"
+        ) or datetime.now() - self.last_iserver_ping > timedelta(seconds=10):
+            first_run = True
+            while not func():
+                if first_run:
+                    logging.warning(colored("Not Authenticated. Retrying...", "yellow"))
+                    first_run = False
+
+                self.last_iserver_ping = datetime.now()
+                time.sleep(5)
+
+            if not first_run:
+                logging.info(colored("Re-Authenticated Successfully", "green"))
+
             return True
         else:
-            return False
+            return True
+
+    def ping_portfolio(self):
+        def func() -> bool:
+            url = f"{self.base_url}/portfolio/accounts"
+            response = self.get_from_endpoint(
+                url, "Auth Check", silent=True, return_errors=False
+            )
+            if response is not None:
+                return True
+            else:
+                return False
+
+        if not hasattr(
+            self, "last_portfolio_ping"
+        ) or datetime.now() - self.last_portfolio_ping > timedelta(seconds=10):
+            first_run = True
+            while not func():
+                if first_run:
+                    logging.warning(colored("Not Authenticated. Retrying...", "yellow"))
+                    first_run = False
+
+                self.last_portfolio_ping = datetime.now()
+                time.sleep(5)
+
+            if not first_run:
+                logging.info(colored("Re-Authenticated Successfully", "green"))
+
+            return True
+        else:
+            return True
 
     def get_contract_details(self, conId):
+        self.ping_iserver()
+
         url = f"{self.base_url}/iserver/contract/{conId}/info"
         response = self.get_from_endpoint(url, "Getting contract details")
         return response
 
-    def get_account_info(self):
-        url = f"{self.base_url}/portal/account/summary?accountId={self.account_id}"
-        response = self.get_from_endpoint(url, "Getting account info")
-        return response
-
-    def get_account_balances(self, silent=True):
+    def get_account_balances(self):
         """
         Retrieves the account balances for a given account ID.
         """
+        self.ping_portfolio()
+
         # Define the endpoint URL for fetching account balances
         url = f"{self.base_url}/portfolio/{self.account_id}/ledger"
-        response = self.get_from_endpoint(
-            url, "Getting account balances", silent=silent
-        )
+        response = self.get_from_endpoint(url, "Getting account balances")
 
-        # Handle "Please query /accounts first"
+        # Error handle
         if response is not None and "error" in response:
-            if silent:
-                if self.ping_portfolio():
-                    return self.get_account_balances(silent=False)
-                else:
-                    logging.error(
-                        colored(
-                            f"Couldn't get account balances. Not authenticated. Error: {response['error']}",
-                            "red",
-                        )
-                    )
-                    return None
-            else:
-                logging.error(
-                    colored(
-                        f"Couldn't get account balances. Error: {response['error']}",
-                        "red",
-                    )
+            logging.error(
+                colored(
+                    f"Couldn't get account balances. Error: {response['error']}",
+                    "red",
                 )
-                return None
+            )
+            return None
 
         return response
 
@@ -335,29 +399,22 @@ class InteractiveBrokersRESTData(DataSource):
             # Log an error message if there was a problem with the request
             logging.error(colored(f"Error {url}: {e}", "red"))
 
-    def get_open_orders(self, silent=True):
+    def get_open_orders(self):
+        self.ping_iserver()
+
         # Clear cache with force=true TODO may be useless
+        """
         url = f"{self.base_url}/iserver/account/orders?force=true"
         response = self.get_from_endpoint(url, "Getting open orders")
+        """
 
-        # Fetch
-        url = f"{self.base_url}/iserver/account/orders?&accountId={self.account_id}&filters=Submitted,PreSubmitted"
-        response = self.get_from_endpoint(url, "Getting open orders", silent=silent)
+        def func():
+            # Fetch
+            url = f"{self.base_url}/iserver/account/orders?&accountId={self.account_id}&filters=Submitted,PreSubmitted"
+            response = self.get_from_endpoint(url, "Getting open orders")
 
-        # Handle "Please query /accounts first"
-        if response is not None and "error" in response:
-            if silent:
-                if self.is_authenticated():
-                    return self.get_open_orders(silent=False)
-                else:
-                    logging.error(
-                        colored(
-                            f"Couldn't retrieve open orders. Not authenticated. Error: {response['error']}",
-                            "red",
-                        )
-                    )
-                    return None
-            else:
+            # Error handle
+            if response is not None and "error" in response:
                 logging.error(
                     colored(
                         f"Couldn't retrieve open orders. Error: {response['error']}",
@@ -366,8 +423,39 @@ class InteractiveBrokersRESTData(DataSource):
                 )
                 return None
 
-        if response is None or response == []:
-            return None
+            if response is None or response == []:
+                logging.error(
+                    colored(
+                        f"Couldn't retrieve open orders. Error: {response['error']}",
+                        "red",
+                    )
+                )
+                return None
+
+            return response
+
+        # Rate limiting
+        if hasattr(self, "last_orders_ping"):
+            if datetime.now() - self.last_orders_ping < timedelta(seconds=5):
+                time_difference = timedelta(seconds=5) - (
+                    datetime.now() - self.last_orders_ping
+                )
+                seconds_to_wait = time_difference.total_seconds()
+                time.sleep(seconds_to_wait)
+
+        first_run = True
+        response = None
+        while response is None:
+            response = func()
+            self.last_orders_ping = datetime.now()
+            if response is None:
+                if first_run:
+                    logging.warning("Failed getting open orders. Retrying ...")
+                    first_run = False
+                time.sleep(5)
+
+        if not first_run:
+            logging.info("Got open orders")
 
         # Filters don't work, we'll filter on our own
         filtered_orders = []
@@ -386,6 +474,8 @@ class InteractiveBrokersRESTData(DataSource):
         return filtered_orders
 
     def get_order_info(self, orderid):
+        self.ping_iserver()
+
         url = f"{self.base_url}/iserver/account/order/status/{orderid}"
         response = self.get_from_endpoint(url, "Getting Order Info")
         return response
@@ -394,6 +484,8 @@ class InteractiveBrokersRESTData(DataSource):
         if order_data is None:
             logging.debug(colored("Failed to get order data.", "red"))
             return None
+
+        self.ping_iserver()
 
         url = f"{self.base_url}/iserver/account/{self.account_id}/orders"
         response = self.post_to_endpoint(url, order_data)
@@ -421,6 +513,7 @@ class InteractiveBrokersRESTData(DataSource):
             logging.error(colored(f"Failed to execute order: {order_data}", "red"))
 
     def delete_order(self, order):
+        self.ping_iserver()
         orderId = order.identifier
         url = f"{self.base_url}/iserver/account/{self.account_id}/order/{orderId}"
         status = self.delete_to_endpoint(url)
@@ -431,7 +524,7 @@ class InteractiveBrokersRESTData(DataSource):
         else:
             logging.error(colored(f"Failed to delete order with ID {orderId}.", "red"))
 
-    def get_positions(self, silent=True):
+    def get_positions(self):
         """
         Retrieves the current positions for a given account ID.
         """
@@ -441,32 +534,20 @@ class InteractiveBrokersRESTData(DataSource):
         response = self.post_to_endpoint(url, {})
         """
 
-        url = f"{self.base_url}/portfolio/{self.account_id}/positions"
-        response = self.get_from_endpoint(
-            url, "Getting account positions", silent=silent
-        )
+        self.ping_portfolio()
 
-        # Handle "Please query /accounts first"
+        url = f"{self.base_url}/portfolio/{self.account_id}/positions"
+        response = self.get_from_endpoint(url, "Getting account positions")
+
+        # Error handle
         if response is not None and "error" in response:
-            if silent:
-                if self.ping_portfolio():
-                    return self.get_positions(silent=False)
-                else:
-                    logging.error(
-                        colored(
-                            f"Couldn't get account positions. Not authenticated. Error: {response['error']}",
-                            "red",
-                        )
-                    )
-                    return None
-            else:
-                logging.error(
-                    colored(
-                        f"Couldn't get account positions. Error: {response['error']}",
-                        "red",
-                    )
+            logging.error(
+                colored(
+                    f"Couldn't get account positions. Error: {response['error']}",
+                    "red",
                 )
-                return None
+            )
+            return None
 
         return response
 
@@ -499,6 +580,7 @@ class InteractiveBrokersRESTData(DataSource):
         logging.info(
             "This task is extremely slow. If you still wish to use it, prepare yourself for a long wait."
         )
+        self.ping_iserver()
 
         url_for_dates = f"{self.base_url}/iserver/secdef/search?symbol={asset.symbol}"
         response = self.get_from_endpoint(url_for_dates, "Getting Option Dates")
@@ -610,6 +692,7 @@ class InteractiveBrokersRESTData(DataSource):
         include_after_hours : bool
             Whether to include after hours data.
         """
+        self.ping_iserver()
 
         if isinstance(asset, str):
             asset = Asset(symbol=asset)
@@ -651,22 +734,35 @@ class InteractiveBrokersRESTData(DataSource):
             timestep = f"{timestep_value}y"
         else:
             logging.error(colored(f"Unsupported timestep: {timestep}", "red"))
-            return Bars(pd.DataFrame(), self.SOURCE, asset, raw=pd.DataFrame(), quote=quote)
-            
+            return Bars(
+                pd.DataFrame(), self.SOURCE, asset, raw=pd.DataFrame(), quote=quote
+            )
+
         url = f"{self.base_url}/iserver/marketdata/history?conid={conid}&period={period}&bar={timestep}&outsideRth={include_after_hours}&startTime={start_time}"
 
         if exchange:
             url += f"&exchange={exchange}"
 
         result = self.get_from_endpoint(url, "Getting Historical Prices")
-        
-        if result and 'error' in result:
-            logging.error(colored(f"Error getting historical prices: {result['error']}", "red"))
-            return Bars(pd.DataFrame(), self.SOURCE, asset, raw=pd.DataFrame(), quote=quote)
-        
-        if not result or not result['data']:
-            logging.error(colored(f"Failed to get historical prices for {asset.symbol}, result was: {result}", "red"))
-            return Bars(pd.DataFrame(), self.SOURCE, asset, raw=pd.DataFrame(), quote=quote)
+
+        if result and "error" in result:
+            logging.error(
+                colored(f"Error getting historical prices: {result['error']}", "red")
+            )
+            return Bars(
+                pd.DataFrame(), self.SOURCE, asset, raw=pd.DataFrame(), quote=quote
+            )
+
+        if not result or not result["data"]:
+            logging.error(
+                colored(
+                    f"Failed to get historical prices for {asset.symbol}, result was: {result}",
+                    "red",
+                )
+            )
+            return Bars(
+                pd.DataFrame(), self.SOURCE, asset, raw=pd.DataFrame(), quote=quote
+            )
 
         # Create a DataFrame from the data
         df = pd.DataFrame(result["data"], columns=["t", "o", "h", "l", "c", "v"])
@@ -723,6 +819,7 @@ class InteractiveBrokersRESTData(DataSource):
         return float(price)
 
     def get_conid_from_asset(self, asset: Asset):  # TODO futures
+        self.ping_iserver()
         # Get conid of underlying
         url = f"{self.base_url}/iserver/secdef/search?symbol={asset.symbol}"
         response = self.get_from_endpoint(url, "Getting Underlying conid")
@@ -799,6 +896,7 @@ class InteractiveBrokersRESTData(DataSource):
             "7309": "gamma"
             # https://www.interactivebrokers.com/campus/ibkr-api-page/webapi-ref/#tag/Trading-Market-Data/paths/~1iserver~1marketdata~1snapshot/get
         }
+        self.ping_iserver()
 
         conId = self.get_conid_from_asset(asset)
         if conId is None:
@@ -810,12 +908,6 @@ class InteractiveBrokersRESTData(DataSource):
                 fields_to_get.append(identifier)
 
         fields_str = ",".join(str(field) for field in fields_to_get)
-
-        if not self.is_authenticated():
-            logging.error(
-                colored("Unable to retrieve market snapshot. Not Authenticated.", "red")
-            )
-            return None
 
         url = f"{self.base_url}/iserver/marketdata/snapshot?conids={conId}&fields={fields_str}"
 

@@ -10,6 +10,12 @@ To get started with Lumibot, you can check out our documentation below.
 
 **Check out the documentation for the project here: 👉 <http://lumibot.lumiwealth.com/> 👈**
 
+## Blog
+
+Our blog has lots of example strategies and shows you how to run a bot using LumiBot. Check the blog out here:
+
+**https://lumiwealth.com/blog/**
+
 ## Run an Example Strategy
 
 We made a small example strategy to show you how to use Lumibot in this GitHub repository: [Example Algorithm GitHub](https://github.com/Lumiwealth-Strategies/stock_example_algo)

@@ -103,7 +103,6 @@ class _Strategy:
         should_send_summary_to_discord=True,
         save_logfile=False,
         lumiwealth_api_key=None,
-        quiet_logs=False,
         **kwargs,
     ):
         """Initializes a Strategy object.
@@ -189,8 +188,6 @@ class _Strategy:
             Turning on this option will slow down the backtest.
         lumiwealth_api_key : str
             The API key to use for the LumiWealth data source. Defaults to None (saving to the cloud is off).
-        quiet_logs : bool
-            Whether to quiet noisy logs by setting the log level to ERROR. Defaults to True.
         kwargs : dict
             A dictionary of additional keyword arguments to pass to the strategy.
 

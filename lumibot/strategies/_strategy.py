@@ -1337,7 +1337,7 @@ class _Strategy:
         thetadata_password=None,
         use_quote_data=False,
         show_progress_bar=True,
-        quiet_logs=False,
+        quiet_logs=True,
         **kwargs,
     ):
         """Backtest a strategy.

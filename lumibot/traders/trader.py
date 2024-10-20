@@ -189,11 +189,6 @@ class Trader:
 
         if self.debug:
             logger.setLevel(logging.DEBUG)
-        elif self.is_backtest_broker:
-            logger.setLevel(logging.INFO)
-            for handler in logger.handlers:
-                if handler.__class__.__name__ == "StreamHandler":
-                    handler.setLevel(logging.ERROR)
         else:
             logger.setLevel(logging.INFO)
 

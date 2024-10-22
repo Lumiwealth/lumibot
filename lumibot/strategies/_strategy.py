@@ -238,7 +238,7 @@ class _Strategy:
         elif db_connection_str:
             self.db_connection_str = db_connection_str
         else:
-            self.db_connection_str = DB_CONNECTION_STR
+            self.db_connection_str = DB_CONNECTION_STR if DB_CONNECTION_STR else None
             
         self.discord_account_summary_footer = discord_account_summary_footer
         self.backup_table_name="vars_backup"

@@ -140,7 +140,7 @@ class InteractiveBrokersRESTData(DataSource):
         url = f"{self.base_url}/iserver/questions/suppress"
         json = {"messageIds": ["o451", "o383", "o354", "o163"]}
 
-        self.post_to_endpoint(url, json=json)
+        self.post_to_endpoint(url, json=json, allow_fail=False)
 
     def fetch_account_id(self):
         if self.account_id is not None:
@@ -149,7 +149,9 @@ class InteractiveBrokersRESTData(DataSource):
         url = f"{self.base_url}/portfolio/accounts"
 
         while self.account_id is None:
-            response = self.get_from_endpoint(url, "Fetching Account ID")
+            response = self.get_from_endpoint(
+                url, "Fetching Account ID", allow_fail=False
+            )
             self.last_portfolio_ping = datetime.now()
 
             if response:
@@ -270,7 +272,9 @@ class InteractiveBrokersRESTData(DataSource):
 
         # Define the endpoint URL for fetching account balances
         url = f"{self.base_url}/portfolio/{self.account_id}/ledger"
-        response = self.get_from_endpoint(url, "Getting account balances")
+        response = self.get_from_endpoint(
+            url, "Getting account balances", allow_fail=False
+        )
 
         # Error handle
         if response is not None and "error" in response:
@@ -285,119 +289,211 @@ class InteractiveBrokersRESTData(DataSource):
         return response
 
     def get_from_endpoint(
-        self, endpoint, description, silent=False, return_errors=True
+        self, endpoint, description, silent=False, return_errors=True, allow_fail=True
     ):
-        try:
-            # Make the request to the endpoint
-            response = requests.get(endpoint, verify=False)
+        to_return = None
+        first_run = True
+        while (not allow_fail) or first_run:
+            try:
+                # Make the request to the endpoint
+                response = requests.get(endpoint, verify=False)
 
-            # Check if the request was successful
-            if response.status_code == 200:
-                # Return the JSON response containing the account balances
-                return response.json()
-            elif response.status_code == 404:
-                error_message = f"error: {description} endpoint not found."
-                if not silent:
-                    logging.warning(colored(error_message, "yellow"))
-                if return_errors:
-                    return {"error": error_message}
-                return None
-            elif response.status_code == 429:
-                logging.info(
-                    f"You got rate limited {description}. Waiting for 1 second..."
-                )
-                time.sleep(1)
-                return self.get_from_endpoint(endpoint, description, silent)
-            else:
-                error_message = f"error: Task '{description}' Failed. Status code: {response.status_code}, Response: {response.text}"
-                if not silent:
-                    logging.error(colored(error_message, "red"))
-                if return_errors:
-                    return {"error": error_message}
-                return None
+                # Check if the request was successful
+                if response.status_code == 200:
+                    # Return the JSON response containing the account balances
+                    to_return = response.json()
+                    allow_fail = True
 
-        except requests.exceptions.RequestException as e:
-            error_message = f"error: {description}: {e}"
-            # Log an error message if there was a problem with the request
-            if not silent:
-                logging.error(colored(error_message, "red"))
-            if return_errors:
-                return {"error": error_message}
-            return None
+                elif response.status_code == 404:
+                    if not silent:
+                        if (not allow_fail) and first_run:
+                            logging.warning(
+                                colored(
+                                    f"error: {description} endpoint not found. Retrying...",
+                                    "yellow",
+                                )
+                            )
+                            time.sleep(1)
 
-    def post_to_endpoint(self, url, json: dict):
-        try:
-            response = requests.post(url, json=json, verify=False)
-            # Check if the request was successful
-            if response.status_code == 200:
-                # Return the JSON response containing the account balances
-                return response.json()
-            elif response.status_code == 404:
-                logging.error(colored(f"{url} endpoint not found.", "red"))
-                return None
-            elif response.status_code == 429:
-                logging.info(f"You got rate limited {url}. Waiting for 5 seconds...")
-                time.sleep(5)
-                return self.get_from_endpoint(url, json)
-            else:
-                if "error" in response.json():
-                    logging.error(
-                        colored(
-                            f"Task '{url}' Failed. Error: {response.json()['error']}",
-                            "red",
-                        )
+                        elif (not allow_fail) and (not first_run):
+                            pass  # quiet
+
+                        elif allow_fail:
+                            logging.error(
+                                colored(
+                                    f"error: {description} endpoint not found.",
+                                    "yellow",
+                                )
+                            )
+
+                    if return_errors:
+                        error_message = f"error: {description} endpoint not found."
+                        to_return = {"error": error_message}
+                    else:
+                        to_return = None
+
+                elif response.status_code == 429:
+                    logging.warning(
+                        f"You got rate limited {description}. Waiting for 1 second..."
                     )
+                    time.sleep(1)
+                    return self.get_from_endpoint(endpoint, description, silent)
+
+                else:
+                    if not silent:
+                        if (not allow_fail) and first_run:
+                            logging.warning(
+                                colored(
+                                    f"error: Task '{description}' Failed. Status code: {response.status_code}, Response: {response.text} Retrying...",
+                                    "yellow",
+                                )
+                            )
+                            time.sleep(1)
+
+                        elif (not allow_fail) and (not first_run):
+                            pass  # quiet
+
+                        elif allow_fail:
+                            logging.error(
+                                colored(
+                                    f"error: Task '{description}' Failed. Status code: {response.status_code}, Response: {response.text}",
+                                    "yellow",
+                                )
+                            )
+
+                    if return_errors:
+                        error_message = f"error: Task '{description}' Failed. Status code: {response.status_code}, Response: {response.text}"
+                        to_return = {"error": error_message}
+                    else:
+                        to_return = None
+
+            except requests.exceptions.RequestException as e:
+                if not silent:
+                    if (not allow_fail) and first_run:
+                        logging.warning(
+                            colored(f"error: {description}. Retrying...", "yellow")
+                        )
+                        time.sleep(1)
+
+                    elif (not allow_fail) and (not first_run):
+                        pass  # quiet
+
+                    elif allow_fail:
+                        logging.error(colored(f"error: {description}", "yellow"))
+
+                if return_errors:
+                    error_message = f"error: {description}"
+                    to_return = {"error": error_message}
+                else:
+                    to_return = None
+
+            first_run = False
+
+        return to_return
+
+    def post_to_endpoint(self, url, json: dict, allow_fail=True):
+        to_return = None
+        first_run = True
+
+        while (not allow_fail) or first_run:
+            try:
+                response = requests.post(url, json=json, verify=False)
+                # Check if the request was successful
+                if response.status_code == 200:
+                    # Return the JSON response containing the account balances
+                    to_return = response.json()
+                    allow_fail = True
+
+                elif response.status_code == 404:
+                    logging.error(colored(f"{url} endpoint not found.", "red"))
+                    to_return = None
+
+                elif response.status_code == 429:
+                    logging.info(
+                        f"You got rate limited {url}. Waiting for 5 seconds..."
+                    )
+                    time.sleep(5)
+                    return self.post_to_endpoint(url, json, allow_fail=allow_fail)
+
+                else:
+                    if "error" in response.json():
+                        logging.error(
+                            colored(
+                                f"Task '{url}' Failed. Error: {response.json()['error']}",
+                                "red",
+                            )
+                        )
+                    else:
+                        logging.error(
+                            colored(
+                                f"Task '{url}' Failed. Status code: {response.status_code}, "
+                                f"Response: {response.text}",
+                                "red",
+                            )
+                        )
+                    to_return = None
+
+            except requests.exceptions.RequestException as e:
+                # Log an error message if there was a problem with the request
+                logging.error(colored(f"Error {url}: {e}", "red"))
+                to_return = None
+
+            first_run = False
+
+        return to_return
+
+    def delete_to_endpoint(self, url, allow_fail=True):
+        to_return = None
+        first_run = True
+        while (not allow_fail) or first_run:
+            try:
+                response = requests.delete(url, verify=False)
+                # Check if the request was successful
+                if response.status_code == 200:
+                    # Return the JSON response containing the account balances
+                    if (
+                        "error" in response.json()
+                        and "doesn't exist" in response.json()["error"]
+                    ):
+                        logging.warning(
+                            colored(
+                                f"Order ID doesn't exist: {response.json()['error']}",
+                                "yellow",
+                            )
+                        )
+                        to_return = None
+                    else:
+                        to_return = response.json()
+                        allow_fail = True
+
+                elif response.status_code == 404:
+                    logging.error(colored(f"{url} endpoint not found.", "red"))
+                    to_return = None
+
+                elif response.status_code == 429:
+                    logging.info(
+                        f"You got rate limited {url}. Waiting for 5 seconds..."
+                    )
+                    time.sleep(5)
+                    return self.delete_to_endpoint(url)
+
                 else:
                     logging.error(
                         colored(
-                            f"Task '{url}' Failed. Status code: {response.status_code}, "
-                            f"Response: {response.text}",
+                            f"Task '{url}' Failed. Status code: {response.status_code}, Response: {response.text}",
                             "red",
                         )
                     )
-                return None
+                    to_return = None
 
-        except requests.exceptions.RequestException as e:
-            # Log an error message if there was a problem with the request
-            logging.error(colored(f"Error {url}: {e}", "red"))
+            except requests.exceptions.RequestException as e:
+                # Log an error message if there was a problem with the request
+                logging.error(colored(f"Error {url}: {e}", "red"))
+                to_return = None
 
-    def delete_to_endpoint(self, url):
-        try:
-            response = requests.delete(url, verify=False)
-            # Check if the request was successful
-            if response.status_code == 200:
-                # Return the JSON response containing the account balances
-                if (
-                    "error" in response.json()
-                    and "doesn't exist" in response.json()["error"]
-                ):
-                    logging.warning(
-                        colored(
-                            f"Order ID doesn't exist: {response.json()['error']}",
-                            "yellow",
-                        )
-                    )
-                    return None
+            first_run = False
 
-                return response.json()
-            elif response.status_code == 404:
-                logging.error(colored(f"{url} endpoint not found.", "red"))
-                return None
-            elif response.status_code == 429:
-                logging.info(f"You got rate limited {url}. Waiting for 5 seconds...")
-                time.sleep(5)
-                return self.delete_to_endpoint(url)
-            else:
-                logging.error(
-                    colored(
-                        f"Task '{url}' Failed. Status code: {response.status_code}, Response: {response.text}",
-                        "red",
-                    )
-                )
-                return None
-        except requests.exceptions.RequestException as e:
-            # Log an error message if there was a problem with the request
-            logging.error(colored(f"Error {url}: {e}", "red"))
+        return to_return
 
     def get_open_orders(self):
         self.ping_iserver()
@@ -411,7 +507,9 @@ class InteractiveBrokersRESTData(DataSource):
         def func():
             # Fetch
             url = f"{self.base_url}/iserver/account/orders?&accountId={self.account_id}&filters=Submitted,PreSubmitted"
-            response = self.get_from_endpoint(url, "Getting open orders")
+            response = self.get_from_endpoint(
+                url, "Getting open orders", allow_fail=False
+            )
 
             # Error handle
             if response is not None and "error" in response:
@@ -533,11 +631,12 @@ class InteractiveBrokersRESTData(DataSource):
         url = f'{self.base_url}/portfolio/{self.account_id}/positions/invalidate'
         response = self.post_to_endpoint(url, {})
         """
-
         self.ping_portfolio()
 
         url = f"{self.base_url}/portfolio/{self.account_id}/positions"
-        response = self.get_from_endpoint(url, "Getting account positions")
+        response = self.get_from_endpoint(
+            url, "Getting account positions", allow_fail=False
+        )
 
         # Error handle
         if response is not None and "error" in response:

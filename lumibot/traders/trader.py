@@ -171,11 +171,11 @@ class Trader:
         logging.getLogger("requests").setLevel(logging.ERROR)
         logging.getLogger("apscheduler.scheduler").setLevel(logging.ERROR)
         logging.getLogger("apscheduler.executors.default").setLevel(logging.ERROR)
+        logging.getLogger("lumibot.data_sources.yahoo_data").setLevel(logging.ERROR)
 
         if self.quiet_logs:
             logging.getLogger("asyncio").setLevel(logging.ERROR)
             logging.getLogger("lumibot.backtesting.backtesting_broker").setLevel(logging.ERROR)
-            logging.getLogger("lumibot.data_sources.yahoo_data").setLevel(logging.ERROR)
 
         logger = logging.getLogger()
 

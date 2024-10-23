@@ -160,7 +160,7 @@ def get_price_data_from_polygon(
     # multiple queries if we are requesting more than 30 days of data
     delta = timedelta(days=MAX_POLYGON_DAYS)
     while poly_start <= missing_dates[-1]:
-        if poly_end > poly_start + delta:
+        if poly_end > (poly_start + delta):
             poly_end = poly_start + delta
 
         result = polygon_client.get_aggs(

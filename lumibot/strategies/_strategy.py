@@ -202,7 +202,8 @@ class _Strategy:
         self._name = name
 
         # Create an adapter with 'strategy_name' set to the instance's name
-        self.logger = CustomLoggerAdapter(logger, {'strategy_name': self._name})
+        if not hasattr(self, "logger") or self.logger is None:
+            self.logger = CustomLoggerAdapter(logger, {'strategy_name': self._name})
 
         # Set the log level to INFO so that all logs INFO and above are displayed
         self.logger.setLevel(logging.INFO)
@@ -993,6 +994,15 @@ class _Strategy:
         >>> )
         """
 
+        if name is None:
+            name = self.__name__
+
+        self._name = name
+
+        # Create an adapter with 'strategy_name' set to the instance's name
+        if not hasattr(self, "logger") or self.logger is None:
+            self.logger = CustomLoggerAdapter(logger, {'strategy_name': self._name})
+
         # Print start message
         print(f"Starting backtest for {datasource_class.__name__}...")
 
@@ -1014,9 +1024,6 @@ class _Strategy:
                 "polygon_has_paid_subscription is deprecated and will be removed in future versions. "
                 "Please remove it from your code."
             )
-            
-        if name is None:
-            name = self.__name__
 
         # check if datasource_class is a class or a dictionary
         if isinstance(datasource_class, dict):

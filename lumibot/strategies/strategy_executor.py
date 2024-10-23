@@ -93,7 +93,7 @@ class StrategyExecutor(Thread):
 
     def sync_broker(self):
         # Log that we are syncing the broker.
-        self.strategy.logger.info("Syncing the broker.")
+        self.strategy.logger.debug("Syncing the broker.")
 
         # Only audit the broker positions during live trading.
         if self.broker.IS_BACKTESTING_BROKER:

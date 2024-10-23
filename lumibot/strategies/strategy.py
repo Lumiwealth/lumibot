@@ -3098,7 +3098,7 @@ class Strategy(_Strategy):
         if quote is None:
             quote = self.quote_asset
 
-        self.logger.info(f"Getting historical prices for {asset}, {length} bars, {timestep}")
+        self.logger.debug(f"Getting historical prices for {asset}, {length} bars, {timestep}")
 
         asset = self._sanitize_user_asset(asset)
 
@@ -4114,12 +4114,12 @@ class Strategy(_Strategy):
 
     def send_account_summary_to_discord(self):
         # Log that we are sending the account summary to Discord
-        self.logger.info("Considering to send account summary to Discord")
+        self.logger.debug("Considering sending account summary to Discord")
 
         # Check if we are in backtesting mode, if so, don't send the message
         if self.is_backtesting:
             # Log that we are not sending the account summary to Discord
-            self.logger.info("Not sending account summary to Discord because we are in backtesting mode")
+            self.logger.debug("Not sending account summary to Discord because we are in backtesting mode")
             return
 
         # Check if last_account_summary_dt has been set, if not, set it to None

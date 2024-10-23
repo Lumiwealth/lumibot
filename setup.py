@@ -18,7 +18,7 @@ setuptools.setup(
         "alpaca-py>=0.28.1",
         "alpha_vantage",
         "ibapi==9.81.1.post1",
-        "yfinance>=0.2.37",
+        "yfinance>=0.2.46",
         "matplotlib>=3.3.3",
         "quandl",
         # Numpy over 1.2 but below 2 since v2 is not supported by several libraries yet

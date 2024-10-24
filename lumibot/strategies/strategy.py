@@ -3098,7 +3098,7 @@ class Strategy(_Strategy):
         if quote is None:
             quote = self.quote_asset
 
-        self.logger.debug(f"Getting historical prices for {asset}, {length} bars, {timestep}")
+        self.logger.info(f"Getting historical prices for {asset}, {length} bars, {timestep}")
 
         asset = self._sanitize_user_asset(asset)
 

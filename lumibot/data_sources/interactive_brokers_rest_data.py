@@ -293,6 +293,8 @@ class InteractiveBrokersRESTData(DataSource):
     ):
         to_return = None
         first_run = True
+        retries = 0  # Counter to track the number of retries
+
         while (not allow_fail) or first_run:
             try:
                 # Make the request to the endpoint
@@ -300,8 +302,18 @@ class InteractiveBrokersRESTData(DataSource):
 
                 # Check if the request was successful
                 if response.status_code == 200:
-                    # Return the JSON response containing the account balances
+                    # Parse the JSON response
                     to_return = response.json()
+
+                    if not first_run:
+                        # Log that the task succeeded after retries
+                        logging.info(
+                            colored(
+                                f"success: Task '{description}' succeeded after {retries} retry(ies).",
+                                "green",
+                            )
+                        )
+
                     allow_fail = True
 
                 elif response.status_code == 404:
@@ -322,7 +334,7 @@ class InteractiveBrokersRESTData(DataSource):
                             logging.error(
                                 colored(
                                     f"error: {description} endpoint not found.",
-                                    "yellow",
+                                    "red",
                                 )
                             )
 
@@ -334,17 +346,23 @@ class InteractiveBrokersRESTData(DataSource):
 
                 elif response.status_code == 429:
                     logging.warning(
-                        f"You got rate limited {description}. Waiting for 1 second..."
+                        f"You got rate limited for '{description}'. Waiting for 1 second before retrying..."
                     )
                     time.sleep(1)
-                    return self.get_from_endpoint(endpoint, description, silent)
+                    retries += 1
 
                 else:
+                    # Attempt to extract a more readable error message from JSON
+                    try:
+                        error_detail = response.json().get('error', response.text)
+                    except ValueError:
+                        error_detail = response.text  # Fallback to raw text if JSON parsing fails
+
                     if not silent:
                         if (not allow_fail) and first_run:
                             logging.warning(
                                 colored(
-                                    f"error: Task '{description}' Failed. Status code: {response.status_code}, Response: {response.text} Retrying...",
+                                    f"error: Task '{description}' Failed. Status code: {response.status_code}, Response: {error_detail} Retrying...",
                                     "yellow",
                                 )
                             )
@@ -356,13 +374,13 @@ class InteractiveBrokersRESTData(DataSource):
                         elif allow_fail:
                             logging.error(
                                 colored(
-                                    f"error: Task '{description}' Failed. Status code: {response.status_code}, Response: {response.text}",
-                                    "yellow",
+                                    f"error: Task '{description}' Failed. Status code: {response.status_code}, Response: {error_detail}",
+                                    "red",
                                 )
                             )
 
                     if return_errors:
-                        error_message = f"error: Task '{description}' Failed. Status code: {response.status_code}, Response: {response.text}"
+                        error_message = f"error: Task '{description}' Failed. Status code: {response.status_code}, Response: {error_detail}"
                         to_return = {"error": error_message}
                     else:
                         to_return = None
@@ -379,17 +397,19 @@ class InteractiveBrokersRESTData(DataSource):
                         pass  # quiet
 
                     elif allow_fail:
-                        logging.error(colored(f"error: {description}", "yellow"))
+                        logging.error(colored(f"error: {description}", "red"))
 
                 if return_errors:
-                    error_message = f"error: {description}"
+                    error_message = f"error: {description}. Exception: {str(e)}"
                     to_return = {"error": error_message}
                 else:
                     to_return = None
 
             first_run = False
+            retries += 1  # Increment retry counter after each attempt
 
         return to_return
+
 
     def post_to_endpoint(self, url, json: dict, allow_fail=True):
         to_return = None

@@ -1,6 +1,17 @@
+from typing import Dict
+import os
 import pytest
+import logging
 import datetime
+
+import pandas as pd
+
+from lumibot.entities import Data, Asset
 from lumibot.backtesting import PolygonDataBacktesting
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
 
 @pytest.fixture
 def polygon_data_backtesting():
@@ -17,3 +28,50 @@ def polygon_data_backtesting():
     )
     
     return polygon_data_instance
+
+
+@pytest.fixture(scope="function")
+def pandas_data_fixture() -> Dict[Asset, Data]:
+    """
+    Get a dictionary of Lumibot Data objects from the test data in tests/data folder
+    """
+    symbols = ["SPY", "TLT", "GLD"]
+    pandas_data = dict()
+    data_dir = os.getcwd() + "/data"
+    print(data_dir)
+    for symbol in symbols:
+        csv_path = data_dir + f"/{symbol}.csv"
+        asset = Asset(
+            symbol=symbol,
+            asset_type="stock",
+        )
+        df = pd.read_csv(
+            csv_path,
+            parse_dates=True,
+            index_col=0,
+            header=0,
+            usecols=[0, 1, 2, 3, 4, 6],
+            names=["Date", "Open", "High", "Low", "Close", "Volume"],
+        )
+        df = df.rename(
+            columns={
+                "Date": "date",
+                "Open": "open",
+                "High": "high",
+                "Low": "low",
+                "Close": "close",
+                "Volume": "volume",
+            }
+        )
+        df = df[["open", "high", "low", "close", "volume"]]
+        df.index.name = "datetime"
+
+        data = Data(
+            asset,
+            df,
+            date_start=datetime.datetime(2019, 1, 6),
+            date_end=datetime.datetime(2019, 12, 15),
+            timestep="day",
+        )
+        pandas_data[asset] = data
+    return pandas_data

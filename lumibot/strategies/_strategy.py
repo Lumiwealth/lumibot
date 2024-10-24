@@ -199,19 +199,24 @@ class _Strategy:
         self.sell_trading_fees = sell_trading_fees
         self.save_logfile = save_logfile
         self.broker = broker
-        self._name = name
+
+        if name is not None:
+            self._name = name
+
+        elif STRATEGY_NAME is not None:
+            self._name = STRATEGY_NAME
+        
+        else:
+            self._name = self.__class__.__name__
 
         # Create an adapter with 'strategy_name' set to the instance's name
         self.logger = CustomLoggerAdapter(logger, {'strategy_name': self._name})
-
+        logging.info(self.__class__.__name__)
         # Set the log level to INFO so that all logs INFO and above are displayed
         self.logger.setLevel(logging.INFO)
         
         if self.broker == None:
             self.broker = BROKER
-        
-        if self._name == None:
-            self._name = STRATEGY_NAME
 
         self.hide_positions = HIDE_POSITIONS
         self.hide_trades = HIDE_TRADES

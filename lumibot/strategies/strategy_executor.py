@@ -135,7 +135,7 @@ class StrategyExecutor(Thread):
                 cash_balance = broker_balances[0]
                 portfolio_value = broker_balances[2]
                 self.strategy._set_cash_position(cash_balance)
-                self.strategy.logger.info(f"Got Cash Balance: ${cash_balance:.2f}, Portfolio: ${portfolio_value:.2f}")
+                self.strategy.logger.debug(f"Got Cash Balance: ${cash_balance:.2f}, Portfolio: ${portfolio_value:.2f}")
 
 
             held_trades_len = len(self.broker._held_trades)

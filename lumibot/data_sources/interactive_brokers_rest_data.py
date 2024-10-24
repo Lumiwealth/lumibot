@@ -162,9 +162,9 @@ class InteractiveBrokersRESTData(DataSource):
                     and "id" in response[0]
                 ):
                     self.account_id = response[0]["id"]
-                    logging.info(
+                    logging.debug(
                         colored(
-                            f"Successfully retrieved Account ID: {self.account_id}",
+                            f"Retrieved Account ID",
                             "green",
                         )
                     )

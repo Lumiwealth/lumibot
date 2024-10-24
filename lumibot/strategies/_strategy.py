@@ -199,7 +199,15 @@ class _Strategy:
         self.sell_trading_fees = sell_trading_fees
         self.save_logfile = save_logfile
         self.broker = broker
-        self._name = name
+
+        if name is not None:
+            self._name = name
+
+        elif STRATEGY_NAME is not None:
+            self._name = STRATEGY_NAME
+        
+        else:
+            self._name = self.__class__.__name__
 
         # Create an adapter with 'strategy_name' set to the instance's name
         if not hasattr(self, "logger") or self.logger is None:
@@ -210,15 +218,9 @@ class _Strategy:
         
         if self.broker == None:
             self.broker = BROKER
-        
-        if self._name == None:
-            self._name = STRATEGY_NAME
 
         self.hide_positions = HIDE_POSITIONS
         self.hide_trades = HIDE_TRADES
-
-        if self._name is None:
-            self._name = self.__class__.__name__
 
         # If the MARKET env variable is set, use it as the market
         if MARKET:

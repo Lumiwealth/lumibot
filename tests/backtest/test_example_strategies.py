@@ -41,7 +41,7 @@ class TestExampleStrategies:
             show_plot=False,
             show_tearsheet=False,
             save_tearsheet=False,
-            polygon_api_key=POLYGON_API_KEY,
+            show_indicators=False,
         )
         assert results
         assert isinstance(strat_obj, StockBracket)

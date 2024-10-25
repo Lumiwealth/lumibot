@@ -12,7 +12,6 @@ from lumibot.entities import Asset, Order, Position, TradingFee
 from lumibot.trading_builtins import CustomStream
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 
 class BacktestingBroker(Broker):

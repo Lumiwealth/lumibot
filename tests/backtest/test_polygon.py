@@ -6,6 +6,7 @@ import pytest
 
 import pandas_market_calendars as mcal
 
+
 from tests.backtest.fixtures import polygon_data_backtesting
 import pytz
 from lumibot.backtesting import BacktestingBroker, PolygonDataBacktesting
@@ -18,7 +19,7 @@ from datetime import timedelta
 
 # Global parameters
 # API Key for testing Polygon.io
-POLYGON_API_KEY = os.environ.get("POLYGON_API_KEY")
+from lumibot.credentials import POLYGON_API_KEY
 
 
 class PolygonBacktestStrat(Strategy):

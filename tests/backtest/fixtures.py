@@ -10,7 +10,6 @@ from lumibot.entities import Data, Asset
 from lumibot.backtesting import PolygonDataBacktesting
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 
 @pytest.fixture

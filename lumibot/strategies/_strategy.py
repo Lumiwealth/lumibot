@@ -1013,9 +1013,6 @@ class _Strategy:
         if not hasattr(self, "logger") or self.logger is None:
             self.logger = CustomLoggerAdapter(logger, {'strategy_name': self._name})
 
-        # Print start message
-        print(f"Starting backtest for {datasource_class.__name__}...")
-
         # If show_plot is None, then set it to True
         if show_plot is None:
             show_plot = SHOW_PLOT

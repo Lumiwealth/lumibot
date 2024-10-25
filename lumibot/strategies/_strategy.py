@@ -73,6 +73,7 @@ class Vars:
 
 class _Strategy:
     IS_BACKTESTABLE = True
+    _trader = None
 
     def __init__(
         self,
@@ -1111,7 +1112,7 @@ class _Strategy:
             )
             return None
 
-        trader = trader_class(logfile=logfile, backtest=True, quiet_logs=quiet_logs)
+        self._trader = trader_class(logfile=logfile, backtest=True, quiet_logs=quiet_logs)
 
         if datasource_class == PolygonDataBacktesting:
             data_source = datasource_class(
@@ -1185,12 +1186,12 @@ class _Strategy:
             save_logfile=save_logfile,
             **kwargs,
         )
-        trader.add_strategy(strategy)
+        self._trader.add_strategy(strategy)
 
         logger.info("Starting backtest...")
         start = datetime.datetime.now()
 
-        result = trader.run_all(
+        result = self._trader.run_all(
             show_plot=show_plot,
             show_tearsheet=show_tearsheet,
             save_tearsheet=save_tearsheet,

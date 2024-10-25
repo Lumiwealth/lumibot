@@ -2,45 +2,13 @@ import logging
 from datetime import datetime as DateTime
 
 from lumibot.backtesting import PandasDataBacktesting
-from lumibot.strategies.strategy import Strategy
+from lumibot.example_strategies.lifecycle_logger import LifecycleLogger
 
 from tests.backtest.fixtures import pandas_data_fixture
 
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
-
-
-class LifecycleLogger(Strategy):
-
-    parameters = {
-        "sleeptime": "1D",
-        "market": "NYSE",
-    }
-
-    def initialize(self, symbol=""):
-        self.sleeptime = self.parameters["sleeptime"]
-        self.set_market(self.parameters["market"])
-
-    def before_market_opens(self):
-        dt = self.get_datetime()
-        logger.info(f"{dt} before_market_opens called")
-
-    def before_starting_trading(self):
-        dt = self.get_datetime()
-        logger.info(f"{dt} before_starting_trading called")
-
-    def on_trading_iteration(self):
-        dt = self.get_datetime()
-        logger.info(f"{dt} on_trading_iteration called")
-
-    def before_market_closes(self):
-        dt = self.get_datetime()
-        logger.info(f"{dt} before_market_closes called")
-
-    def after_market_closes(self):
-        dt = self.get_datetime()
-        logger.info(f"{dt} after_market_closes called")
 
 
 class TestPandasBacktest:

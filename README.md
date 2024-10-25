@@ -37,7 +37,7 @@ If you want to contribute to Lumibot, you can check how to get started below. We
 1. Clone the repository to your local machine
 2. Create a new branch for your feature
 3. Run `pip install -r requirements_dev.txt` to install the developer dependencies
-4. Install all the requriements from setup.py: `pip install -e .`
+4. Install all the requirements from setup.py: `pip install -e .`
 5. Make your changes
 6. Run `pytest` to make sure all the tests pass
 7. Create a pull request to merge your branch into master
@@ -48,6 +48,12 @@ We use pytest for our testing framework. To run the tests, you can run the follo
 
 ```bash
 pytest
+```
+
+To run an individual test file, you can run the following command:
+
+```bash
+pytest tests/test_asset.py
 ```
 
 ### Showing Code Coverage

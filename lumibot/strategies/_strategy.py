@@ -1438,8 +1438,6 @@ class _Strategy:
             When set to true this requests Quote data in addition to OHLC which adds time to backtests.
         show_progress_bar : bool
             Whether to show the progress bar. Defaults to True.
-        trader_class : Trader class
-            The trader class to use. Defaults to Trader.
         quiet_logs : bool
             Whether to quiet noisy logs by setting the log level to ERROR. Defaults to True.
         trader_class : Trader class

@@ -278,19 +278,16 @@ class Data:
         idx = idx[(idx >= self.datetime_start) & (idx <= self.datetime_end)]
 
         # After all time series merged, adjust the local dataframe to reindex and fill nan's.
-        df = self.df.reindex(idx, method="ffill")
-        df.loc[df["volume"].isna(), "volume"] = 0
-        df.loc[:, ~df.columns.isin(["open", "high", "low"])] = df.loc[
-            :, ~df.columns.isin(["open", "high", "low"])
+        self.df = self.df.reindex(idx, method="ffill")
+        self.df.loc[self.df["volume"].isna(), "volume"] = 0
+        self.df.loc[:, ~self.df.columns.isin(["open", "high", "low"])] = self.df.loc[
+            :, ~self.df.columns.isin(["open", "high", "low"])
         ].ffill()
         for col in ["open", "high", "low"]:
-            df.loc[df[col].isna(), col] = df.loc[df[col].isna(), "close"]
+            self.df.loc[self.df[col].isna(), col] = self.df.loc[self.df[col].isna(), "close"]
 
-        self.df = df
-
-        iter_index = pd.Series(df.index)
+        iter_index = pd.Series(self.df.index)
         self.iter_index = pd.Series(iter_index.index, index=iter_index)
-        self.iter_index_dict = self.iter_index.to_dict()
 
         self.datalines = dict()
         self.to_datalines()
@@ -328,15 +325,9 @@ class Data:
         # known data (this speeds up the process)
         i = None
 
-        # Check if we have the iter_index_dict, if not then repair the times and fill (which will create the iter_index_dict)
-        if getattr(self, "iter_index_dict", None) is None:
-            self.repair_times_and_fill(self.df.index)
-
-        # Search for dt in self.iter_index_dict
-        if dt in self.iter_index_dict:
-            i = self.iter_index_dict[dt]
-        else:
-            # If not found, get the last known data
+        # Check if we have the iter_index, if not then repair the times and fill (which will create the iter_index)
+        i = self.iter_index.get(dt)
+        if i is None:
             i = self.iter_index.asof(dt)
 
         return i
@@ -345,37 +336,9 @@ class Data:
         # Validates if the provided date, length, timeshift, and timestep
         # will return data. Runs function if data, returns None if no data.
         def checker(self, *args, **kwargs):
-            if type(kwargs.get("length", 1)) not in [int, float]:
-                raise TypeError(f"Length must be an integer. {type(kwargs.get('length', 1))} was provided.")
-
-            dt = args[0]
-
-            # Check if the iter date is outside of this data's date range.
-            if dt < self.datetime_start:
-                raise ValueError(
-                    f"The date you are looking for ({dt}) for ({self.asset}) is outside of the data's date range ({self.datetime_start} to {self.datetime_end}). This could be because the data for this asset does not exist for the date you are looking for, or something else."
-                )
-
-            # Search for dt in self.iter_index_dict
-            if getattr(self, "iter_index_dict", None) is None:
+            # Search for dt in self.iter_index
+            if getattr(self, "iter_index", None) is None:
                 self.repair_times_and_fill(self.df.index)
-
-            if dt in self.iter_index_dict:
-                i = self.iter_index_dict[dt]
-            else:
-                # If not found, get the last known data
-                i = self.iter_index.asof(dt)
-
-            length = kwargs.get("length", 1)
-            timeshift = kwargs.get("timeshift", 0)
-            data_index = i + 1 - length - timeshift
-            is_data = data_index >= 0
-            if not is_data:
-                # Log a warning
-                logging.warning(
-                    f"The date you are looking for ({dt}) is outside of the data's date range ({self.datetime_start} to {self.datetime_end}) after accounting for a length of {kwargs.get('length', 1)} and a timeshift of {kwargs.get('timeshift', 0)}. Keep in mind that the length you are requesting must also be available in your data, in this case we are {data_index} rows away from the data you need."
-                )
-
             res = func(self, *args, **kwargs)
             # print(f"Results last price: {res}")
             return res

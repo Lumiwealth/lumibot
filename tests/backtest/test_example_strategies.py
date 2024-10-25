@@ -208,6 +208,7 @@ class TestExampleStrategies:
         assert round(results["total_return"] * 100, 1) >= 0.7
         assert round(results["max_drawdown"]["drawdown"] * 100, 1) <= 0.2
 
+    @pytest.mark.skipif(POLYGON_API_KEY == '<your key here>', reason="This test requires a Polygon.io API key")
     def test_options_hold_to_expiry(self):
         """
         Test the example strategy OptionsHoldToExpiry by running a backtest and checking that the strategy object is

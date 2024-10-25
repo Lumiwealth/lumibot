@@ -44,7 +44,7 @@ If you want to contribute to Lumibot, you can check how to get started below. We
 
 ## Running Tests
 
-We use pytest for our testing framework. To run the tests, you can run the following command:
+We use pytest for our testing framework. Some tests require API keys to be in a `.env` file in the root directory. To run the tests, you can run the following command:
 
 ```bash
 pytest

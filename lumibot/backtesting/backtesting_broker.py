@@ -99,7 +99,7 @@ class BacktestingBroker(Broker):
         self.data_source._update_datetime(new_datetime, cash=cash, portfolio_value=portfolio_value)
         if self.option_source:
             self.option_source._update_datetime(new_datetime, cash=cash, portfolio_value=portfolio_value)
-        logger.info(f"Current backtesting datetime {self.datetime}")
+        logger.debug(f"Current backtesting datetime {self.datetime}")
 
     # =========Clock functions=====================
 
@@ -192,9 +192,6 @@ class BacktestingBroker(Broker):
         return delta.total_seconds()
 
     def _await_market_to_open(self, timedelta=None, strategy=None):
-        if self.data_source.SOURCE == "PANDAS" and self.data_source._timestep == "day":
-            return
-
         # Process outstanding orders first before waiting for market to open
         # or else they don't get processed until the next day
         self.process_pending_orders(strategy=strategy)
@@ -205,9 +202,6 @@ class BacktestingBroker(Broker):
         self._update_datetime(time_to_open)
 
     def _await_market_to_close(self, timedelta=None, strategy=None):
-        if self.data_source.SOURCE == "PANDAS" and self.data_source._timestep == "day":
-            return
-
         # Process outstanding orders first before waiting for market to close
         # or else they don't get processed until the next day
         self.process_pending_orders(strategy=strategy)

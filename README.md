@@ -16,6 +16,14 @@ Our blog has lots of example strategies and shows you how to run a bot using Lum
 
 **https://lumiwealth.com/blog/**
 
+## Run a backtest
+
+To run a backtest, you can use the following code snippet:
+
+```bash
+python -m lumibot.example_strategies.stock_buy_and_hold
+```
+
 ## Run an Example Strategy
 
 We made a small example strategy to show you how to use Lumibot in this GitHub repository: [Example Algorithm GitHub](https://github.com/Lumiwealth-Strategies/stock_example_algo)
@@ -44,7 +52,7 @@ If you want to contribute to Lumibot, you can check how to get started below. We
 
 ## Running Tests
 
-We use pytest for our testing framework. To run the tests, you can run the following command:
+We use pytest for our testing framework. Some tests require API keys to be in a `.env` file in the root directory. To run the tests, you can run the following command:
 
 ```bash
 pytest

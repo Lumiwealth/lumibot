@@ -16,7 +16,6 @@ import termcolor
 
 # Configure logging
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 
 def find_and_load_dotenv(base_dir) -> bool:

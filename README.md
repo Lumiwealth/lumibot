@@ -139,6 +139,40 @@ Here's an example of an actual launch.json file:
 }
 ```
 
+## An assortment of git commands our contributors may find useful
+
+Making a new branch and pulling from main:
+```shell
+git checkout -b my-feature
+git fetch origin
+git merge origin/dev
+```
+Committing work to you feature branch:
+```shell
+git add .
+git commit -m "my changes"
+git push -u origin my-feature
+```
+
+If work on main progressed while you were in another branch, fetch it, then merge it into your branch:
+```shell
+git checkout dev
+git fetch origin
+git merge origin/d
+git checkout my-feature
+git merge origin/dev
+```
+
+When ready to merge the branch into main, go into github, create a pull request, and await review. When your PR is approved it will automatically be merged into the dev branch remotely. Now, you can delete your local branch and the remote branch.
+```shell
+git checkout dev
+git fetch origin
+git merge origin/dev
+git branch -D my-feature
+git push origin --delete my-feature
+```
+
+
 ## Community
 
 If you want to learn more about Lumibot or Algorithmic Trading then you will love out communities! You can join us on Discord.

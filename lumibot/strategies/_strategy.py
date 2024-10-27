@@ -1013,9 +1013,6 @@ class _Strategy:
         if not hasattr(self, "logger") or self.logger is None:
             self.logger = CustomLoggerAdapter(logger, {'strategy_name': self._name})
 
-        # Print start message
-        print(f"Starting backtest for {datasource_class.__name__}...")
-
         # If show_plot is None, then set it to True
         if show_plot is None:
             show_plot = SHOW_PLOT
@@ -1438,8 +1435,6 @@ class _Strategy:
             When set to true this requests Quote data in addition to OHLC which adds time to backtests.
         show_progress_bar : bool
             Whether to show the progress bar. Defaults to True.
-        trader_class : Trader class
-            The trader class to use. Defaults to Trader.
         quiet_logs : bool
             Whether to quiet noisy logs by setting the log level to ERROR. Defaults to True.
         trader_class : Trader class

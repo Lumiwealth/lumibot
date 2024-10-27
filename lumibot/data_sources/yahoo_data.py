@@ -9,7 +9,6 @@ from lumibot.entities import Asset, Bars
 from lumibot.tools import YahooHelper
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 
 class YahooData(DataSourceBacktesting):

@@ -19,7 +19,6 @@ from plotly.subplots import make_subplots
 from .yahoo_helper import YahooHelper as yh
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 
 def total_return(_df):

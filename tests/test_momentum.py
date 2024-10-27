@@ -4,14 +4,16 @@ import logging
 import pytest
 
 import pandas as pd
-from pandas.testing import assert_frame_equal
-import numpy as np
+from pandas.testing import assert_series_equal
 
 from lumibot.strategies import Strategy
 from lumibot.backtesting import PandasDataBacktesting
 from tests.backtest.fixtures import pandas_data_fixture
+from lumibot.tools.pandas import print_full_pandas_dataframes, set_pandas_float_precision
 
 logger = logging.getLogger(__name__)
+# print_full_pandas_dataframes()
+# set_pandas_float_precision(precision=10)
 
 
 class MomoTester(Strategy):
@@ -27,23 +29,26 @@ class MomoTester(Strategy):
         self.lookback_period = self.parameters["lookback_period"]
 
         # build a dataframe to store the datetime, closing price, and momentum
-        self.momo_df = pd.DataFrame(columns=["dt", "start_close", "end_close", "lumi_momo", "my_momo"])
+        self.momo_df = pd.DataFrame(columns=["dt", "start_close", "end_close", "actual_momo", "expected_momo"])
 
     def on_trading_iteration(self):
-        dt, start_close, end_close, lumi_momo, my_momo = self.get_momentum(self.symbol, self.lookback_period)
-        self.momo_df.loc[len(self.momo_df)] = {"dt": dt, "start_close": start_close, "end_close": end_close,
-                                               "lumi_momo": lumi_momo, "my_momo": my_momo}
+        dt, start_close, end_close, actual_momo, expected_momo = self.get_momentum(self.symbol, self.lookback_period)
+        self.momo_df.loc[len(self.momo_df)] = {
+            "dt": dt, 
+            "start_close": start_close, 
+            "end_close": end_close,
+            "actual_momo": actual_momo, 
+            "expected_momo": expected_momo
+        }
 
     def get_momentum(self, symbol, lookback_period):
-        start_date = self.get_round_day(timeshift=lookback_period + 1)
-        end_date = self.get_round_day(timeshift=1)
         bars = self.get_historical_prices(symbol, lookback_period + 2, timestep="day")
         dt = self.get_datetime()
         start_close = bars.df["close"].iloc[-lookback_period - 1]
         end_close = bars.df["close"].iloc[-1]
-        lumi_momo = bars.get_momentum(start=start_date, end=end_date)
-        my_momo = (end_close - start_close) / start_close
-        return dt, start_close, end_close, lumi_momo, my_momo
+        actual_momo = bars.get_momentum(lookback_period)
+        expected_momo = (end_close - start_close) / start_close
+        return dt, start_close, end_close, actual_momo, expected_momo
 
 
 class TestMomentum:
@@ -69,12 +74,15 @@ class TestMomentum:
             show_progress_bar=False,
         )
 
-        # convert the momo_tracker dictionary to a DataFrame
         momo_df = strat_obj.momo_df
-        # use date as the index
-        momo_df.set_index("dt", inplace=True)
-
-        logger.info(f"\n{momo_df}")
+        # print(f"\n{momo_df}")
+        assert_series_equal(
+            momo_df["actual_momo"],
+            momo_df["expected_momo"],
+            check_names=False,
+            rtol=1e-10,
+            atol=0
+        )
 
     def test_momo_tester_strategy_lookback_3(self, pandas_data_fixture):
         parameters = {
@@ -95,12 +103,44 @@ class TestMomentum:
             show_progress_bar=False,
         )
 
-        # convert the momo_tracker dictionary to a DataFrame
         momo_df = strat_obj.momo_df
-        # use date as the index
-        momo_df.set_index("dt", inplace=True)
+        # print(f"\n{momo_df}")
+        assert_series_equal(
+            momo_df["actual_momo"],
+            momo_df["expected_momo"],
+            check_names=False,
+            rtol=1e-10,
+            atol=0
+        )
 
-        logger.info(f"\n{momo_df}")
+    def test_momo_tester_strategy_lookback_20(self, pandas_data_fixture):
+        parameters = {
+            "lookback_period": 20,
+        }
+
+        results, strat_obj = MomoTester.run_backtest(
+            datasource_class=PandasDataBacktesting,
+            backtesting_start=self.backtesting_start,
+            backtesting_end=self.backtesting_end,
+            pandas_data=list(pandas_data_fixture.values()),
+            parameters=parameters,
+            show_plot=False,
+            show_tearsheet=False,
+            save_tearsheet=False,
+            show_indicators=False,
+            save_logfile=False,
+            show_progress_bar=False,
+        )
+
+        momo_df = strat_obj.momo_df
+        # print(f"\n{momo_df}")
+        assert_series_equal(
+            momo_df["actual_momo"],
+            momo_df["expected_momo"],
+            check_names=False,
+            rtol=1e-10,
+            atol=0
+        )
 
     @pytest.mark.skip()
     def test_momentum_using_adjusted_close_diff_from_unadjusted_momentum(self):

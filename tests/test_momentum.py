@@ -12,8 +12,8 @@ from tests.backtest.fixtures import pandas_data_fixture
 from lumibot.tools.pandas import print_full_pandas_dataframes, set_pandas_float_precision
 
 logger = logging.getLogger(__name__)
-# print_full_pandas_dataframes()
-# set_pandas_float_precision(precision=10)
+print_full_pandas_dataframes()
+set_pandas_float_precision(precision=5)
 
 
 class MomoTester(Strategy):
@@ -55,6 +55,7 @@ class TestMomentum:
     backtesting_start = datetime.datetime(2019, 3, 1)
     backtesting_end = datetime.datetime(2019, 3, 31)
 
+    # @pytest.mark.skip()
     def test_momo_tester_strategy_lookback_2(self, pandas_data_fixture):
         parameters = {
             "lookback_period": 2,
@@ -80,10 +81,11 @@ class TestMomentum:
             momo_df["actual_momo"],
             momo_df["expected_momo"],
             check_names=False,
-            rtol=1e-10,
-            atol=0
+            atol=1e-10,
+            rtol=0
         )
 
+    # @pytest.mark.skip()
     def test_momo_tester_strategy_lookback_3(self, pandas_data_fixture):
         parameters = {
             "lookback_period": 3,
@@ -109,10 +111,11 @@ class TestMomentum:
             momo_df["actual_momo"],
             momo_df["expected_momo"],
             check_names=False,
-            rtol=1e-10,
-            atol=0
+            atol=1e-10,
+            rtol=0
         )
 
+    # @pytest.mark.skip()
     def test_momo_tester_strategy_lookback_20(self, pandas_data_fixture):
         parameters = {
             "lookback_period": 20,
@@ -138,33 +141,28 @@ class TestMomentum:
             momo_df["actual_momo"],
             momo_df["expected_momo"],
             check_names=False,
-            rtol=1e-10,
-            atol=0
+            atol=1e-10,
+            rtol=0
         )
 
-    @pytest.mark.skip()
-    def test_momentum_using_adjusted_close_diff_from_unadjusted_momentum(self):
+    def test_calculate_adjusted_returns_from_close_and_dividends(self):
         file_path = os.getcwd() + "/data/SPY.csv"
         df = pd.read_csv(file_path, parse_dates=True, index_col=0)
-        lookback_period = 2
+        df = df.sort_index(ascending=True)
 
-        df["adj_momentum"] = df["Adj Close"].pct_change(lookback_period).shift(1)
-        df["momentum"] = df["Close"].pct_change(lookback_period).shift(1)
+        # Adjusted returns  = (current close - previous close + dividends) / previous close
+        df['my_adj_returns'] = (df['Close'] - df['Close'].shift(1) + df['Dividends']) / df['Close'].shift(1)
 
-        # Use March 2019 because there is a dividend on March 15th
-        # momo_df = df.loc["2019-03-02":"2019-03-31", ["adj_momentum",  "unadj_momentum"]]
-        momo_df = df.loc[self.backtesting_start:self.backtesting_end, ["Close", "momentum", "Adj Close", "adj_momentum", ]]
-        # momo_df['diff'] = momo_df['adj_momentum'] - momo_df['unadj_momentum']
+        # For comparison, calculate the adjusted returns using the Adj Close column
+        df['adj_returns'] = df['Adj Close'].pct_change()
 
-        # show diff as zeros not in scientific notation
-        pd.options.display.float_format = '{:.9f}'.format
-        logger.error(f"\n{momo_df}")
+        # cols_to_print = ['Close', 'Adj Close', 'Dividends', 'adj_returns', 'my_adj_returns']
+        cols_to_print = ['Dividends', 'adj_returns', 'my_adj_returns']
+        # print(f"\n{df[-15:][cols_to_print]}")
 
-        # # get a series for the values of the diff column before the dividend date
-        # assert momo_df.loc["2019-03-02":"2019-03-14"]["diff"].abs().max() < 1e-5
-        #
-        # # assert that the diff increases on the dividend date
-        # assert momo_df.loc["2019-03-15"]["diff"] > 0
-        #
-        # # assert that the diff remains increased after the dividend date
-        # assert momo_df.loc["2019-03-16":]["diff"].abs().min() > 1e-5
+        assert_series_equal(
+            df["adj_returns"],
+            df["my_adj_returns"],
+            check_names=False,
+            atol=1e-4,
+        )

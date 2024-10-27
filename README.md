@@ -162,13 +162,13 @@ git commit -m "my changes"
 git push -u origin my-feature
 ```
 
-If work on main progressed while you were in another branch, fetch it, then merge it into your branch:
+If work on main progressed while you were in another branch, this is how you rebase it into your branch:
 ```shell
 git checkout dev
 git fetch origin
-git merge origin/d
-git checkout my-feature
 git merge origin/dev
+git checkout my-feature
+git rebase dev
 ```
 
 When ready to merge the branch into main, go into github, create a pull request, and await review. When your PR is approved it will automatically be merged into the dev branch remotely. Now, you can delete your local branch and the remote branch.

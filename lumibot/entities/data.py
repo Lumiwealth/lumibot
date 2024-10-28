@@ -346,11 +346,11 @@ class Data:
                 )
 
             # Search for dt in self.iter_index_dict
-            if getattr(self, "iter_index_dict", None) is None:
+            if getattr(self, "iter_index", None) is None:
                 self.repair_times_and_fill(self.df.index)
 
-            if dt in self.iter_index_dict:
-                i = self.iter_index_dict[dt]
+            if dt in self.iter_index:
+                i = self.iter_index.iloc[dt]
             else:
                 # If not found, get the last known data
                 i = self.iter_index.asof(dt)

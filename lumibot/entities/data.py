@@ -315,22 +315,7 @@ class Data:
                     }
                 )
             setattr(self, column, self.datalines[column].dataline)
-        
-    @lru_cache(maxsize=32)
-    @check_data
-    def get_iter_count(self, dt):
-        '''
-            # Use searchsorted to find the insertion point for dt
-        pos = self.iter_index.index.searchsorted(dt, side='right') - 1
-
-        # If pos is valid, return the corresponding value; else, return None
-        if pos >= 0:
-            return self.iter_index.iloc[pos]
-        else:
-            return None
-        '''
-        return self.iter_index.index.searchsorted(dt, side='right') - 1
-
+    
     def check_data(func):
         # Validates if the provided date, length, timeshift, and timestep
         # will return data. Runs function if data, returns None if no data.
@@ -346,6 +331,11 @@ class Data:
             return res
 
         return checker
+
+    @lru_cache(maxsize=32)
+    @check_data
+    def get_iter_count(self, dt):
+        return self.iter_index.index.searchsorted(dt, side='right') - 1
 
     @check_data
     def get_last_price(self, dt, length=1, timeshift=0):

@@ -118,7 +118,7 @@ class TestMomentum:
             comparison_df["actual_momo"],
             comparison_df["expected_momo"],
             check_names=False,
-            atol=1e-3,
+            atol=1e-4,
             rtol=0
         )
 
@@ -147,7 +147,7 @@ class TestMomentum:
             comparison_df["actual_momo"],
             comparison_df["expected_momo"],
             check_names=False,
-            atol=1e-3,
+            atol=1e-4,
             rtol=0
         )
 
@@ -175,7 +175,7 @@ class TestMomentum:
             comparison_df["actual_momo"],
             comparison_df["expected_momo"],
             check_names=False,
-            atol=1e-3,
+            atol=1e-4,
             rtol=0
         )
 
@@ -203,6 +203,6 @@ class TestMomentum:
             comparison_df["actual_momo"],
             comparison_df["expected_momo"],
             check_names=False,
-            atol=1e-2,
+            atol=1e-4,
             rtol=0
         )

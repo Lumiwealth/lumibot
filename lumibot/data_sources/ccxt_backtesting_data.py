@@ -228,8 +228,6 @@ class CcxtBacktestingData(DataSourceBacktesting):
     def _parse_source_symbol_bars(self, response:DataFrame, asset:tuple[Asset,Asset],
                                   quote:Asset=None, length:int=None)->Bars:
         # Parse the dataframe returned from CCXT.
-        if "return" not in response.columns:
-            response["return"] = response["close"].pct_change()
         bars = Bars(response, self.SOURCE, asset, quote=quote, raw=response)
         return bars
 

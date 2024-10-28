@@ -1,7 +1,6 @@
 import os
 import datetime
 import logging
-from typing import Any
 
 import pytest
 
@@ -9,13 +8,10 @@ import pandas as pd
 import pytz
 from pandas.testing import assert_series_equal
 
-from lumibot.strategies import Strategy
-from lumibot.backtesting import PandasDataBacktesting, YahooDataBacktesting, PolygonDataBacktesting
+from lumibot.backtesting import PolygonDataBacktesting
 from lumibot.data_sources import AlpacaData, TradierData, YahooData, PandasData
 from tests.fixtures import pandas_data_fixture
 from lumibot.tools.pandas import print_full_pandas_dataframes, set_pandas_float_precision
-from lumibot.traders import Trader
-from lumibot.brokers import Alpaca
 from lumibot.entities import Asset
 
 # Global parameters
@@ -27,37 +23,6 @@ from lumibot.credentials import TRADIER_CONFIG, ALPACA_CONFIG
 logger = logging.getLogger(__name__)
 print_full_pandas_dataframes()
 set_pandas_float_precision(precision=15)
-
-
-# class BarsTester(Strategy):
-#     """This strategy saves the return values each trading iteration, so we can compare them later."""
-#     symbol: str = ""
-#     actual_df: pd.DataFrame = None
-#     timestep: str = ""
-#
-#     parameters = {
-#         "market": "NYSE",
-#         "sleeptime": "1D",
-#         "symbol": "SPY",
-#         "timestep": "day",
-#     }
-#
-#     def initialize(self, parameters: Any = None) -> None:
-#         self.set_market(self.parameters["market"])
-#         self.sleeptime = self.parameters["sleeptime"]
-#         self.symbol = self.parameters["symbol"]
-#         self.timestep = self.parameters["timestep"]
-#
-#         # build a dataframe where the index is a Date and the columns are the actual returns
-#         self.actual_df = pd.DataFrame(columns=["actual_return"])
-#
-#     def on_trading_iteration(self):
-#         bars = self.get_historical_prices(self.symbol, 1, timestep=self.timestep)
-#         dt = bars.df.index[-1]
-#         actual_return = bars.df["return"].iloc[-1]
-#         self.actual_df.loc[dt.date()] = {
-#             "actual_return": actual_return,
-#         }
 
 
 class TestBarsContainReturns:
@@ -77,18 +42,6 @@ class TestBarsContainReturns:
         df.set_index('date', inplace=True)
         df['expected_return'] = df['Adj Close'].pct_change()
         cls.expected_df = df
-    #
-    # def build_comparison_df(self, strat_obj) -> pd.DataFrame:
-    #     # This helper function just gets the actual_returns from the strategy and the expected_returns from the test
-    #     # and puts them side by side for comparison.
-    #     actual_df = strat_obj.actual_df
-    #
-    #     # make a new dataframe with the actual and expected values side by side using the actual_df index
-    #     comparison_df = pd.concat(
-    #         [actual_df["actual_return"],
-    #          self.expected_df["expected_return"]],
-    #         axis=1).reindex(actual_df.index)
-    #     return comparison_df
 
     @pytest.mark.skipif(not ALPACA_CONFIG['API_KEY'], reason="This test requires an alpaca API key")
     @pytest.mark.skipif(ALPACA_CONFIG['API_KEY'] == '<your key here>', reason="This test requires an alpaca API key")
@@ -138,6 +91,7 @@ class TestBarsContainReturns:
              self.expected_df["expected_return"]],
             axis=1).reindex(actual_df.index)
 
+        comparison_df = comparison_df.dropna()
         # print(f"\n{comparison_df}")
 
         # check that the returns are adjusted correctly
@@ -150,7 +104,6 @@ class TestBarsContainReturns:
             rtol=0
         )
 
-    @pytest.mark.skip(reason="Pandas bars don't have returns.... yet")
     def test_pandas_data_source_generates_adjusted_returns(self, pandas_data_fixture):
         """
         This tests that the pandas data_source calculates adjusted returns for bars and that they
@@ -164,8 +117,6 @@ class TestBarsContainReturns:
             pandas_data=pandas_data_fixture
         )
         prices = data_source.get_historical_prices("SPY", 25, "day")
-        # print(f"\n{prices.df}")
-        return
 
         # assert that the last row has a return value
         assert prices.df["return"].iloc[-1] is not None
@@ -189,6 +140,7 @@ class TestBarsContainReturns:
              self.expected_df["expected_return"]],
             axis=1).reindex(actual_df.index)
 
+        comparison_df = comparison_df.dropna()
         # print(f"\n{comparison_df}")
 
         # check that the returns are adjusted correctly
@@ -201,7 +153,6 @@ class TestBarsContainReturns:
             rtol=0
         )
 
-    @pytest.mark.skip(reason="Polygon bars don't have returns.... yet")
     @pytest.mark.skipif(POLYGON_API_KEY == '<your key here>', reason="This test requires a Polygon.io API key")
     def test_polygon_data_source_generates_simple_returns(self):
         """
@@ -219,12 +170,10 @@ class TestBarsContainReturns:
             start, end, api_key=POLYGON_API_KEY
         )
         prices = data_source.get_historical_prices("SPY", 2, "day")
-        # print(f"\n{prices.df}")
-        # print(f"\n{prices.df[['close', 'return']]}")
+
         # assert that the last row has a return value
         assert prices.df["return"].iloc[-1] is not None
 
-    @pytest.mark.skip(reason="Tradier bars don't have returns.... yet")
     @pytest.mark.skipif(not TRADIER_CONFIG['ACCESS_TOKEN'], reason="No Tradier credentials provided.")
     def test_tradier_data_source_generates_simple_returns(self):
         """
@@ -238,7 +187,6 @@ class TestBarsContainReturns:
         )
         spy_asset = Asset("SPY")
         prices = data_source.get_historical_prices(spy_asset, 2, "day")
-        # print(f"\n{prices.df}")
-        # print(f"\n{prices.df[['close', 'return']]}")
+
         # assert that the last row has a return value
-        # assert prices.df["return"].iloc[-1] is not None
+        assert prices.df["return"].iloc[-1] is not None

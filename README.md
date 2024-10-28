@@ -156,8 +156,8 @@ returned in a Bars entity that is returned from calls to get_historical_prices.
 |-------------|-------|-------|----------------|-----------|---------|---------------------------|
 | yahoo       | stock | Yes   | Yes            | Yes       | Yes     | Yes                       |
 | alpaca      | stock | Yes   | Yes            | No        | Yes     | No                        |
-| polygon     | stock | Yes   | Yes            | No        | No      | N/A                       |
-| Tradier     | stock | Yes   | Yes            | No        | No      | N/A                       |
+| polygon     | stock | Yes   | Yes            | No        | Yes     | No                        |
+| Tradier     | stock | Yes   | Yes            | No        | Yes     | No                        |
 | Pandas*     | stock | Yes   | Yes            | Yes       | Yes     | Yes                       |
 
 *Pandas is not a data source per se, but it can load csv files in the same format as Yahoo dataframes,

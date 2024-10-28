@@ -1,10 +1,12 @@
 import datetime
 import os
 from collections import defaultdict
+
+import numpy as np
 import pandas as pd
 import pytest
-
 import pandas_market_calendars as mcal
+from pandas.testing import assert_frame_equal
 
 
 from tests.fixtures import polygon_data_backtesting
@@ -148,7 +150,9 @@ class PolygonBacktestStrat(Strategy):
         else:
             self.cancel_open_orders()
 
+
 class TestPolygonBacktestFull:
+
     def verify_backtest_results(self, poly_strat_obj):
         assert isinstance(poly_strat_obj, PolygonBacktestStrat)
 
@@ -369,7 +373,8 @@ class TestPolygonDataSource:
                 "high": 494.3778,
                 "low": 490.23,
                 "close": 492.57,
-                "volume": 74655145.0
+                "volume": 74655145.0,
+                "return": np.nan
             },
             {
                 "datetime": "2024-02-06 00:00:00-05:00",
@@ -377,10 +382,11 @@ class TestPolygonDataSource:
                 "high": 494.3200,
                 "low": 492.03,
                 "close": 493.82,
-                "volume": 54775803.0
+                "volume": 54775803.0,
+                "return": 0.0025377103761901054
             },
         ], index="datetime")
         expected_df.index = pd.to_datetime(expected_df.index).tz_convert(tzinfo)
 
         assert prices is not None
-        assert prices.df.equals(expected_df)
+        assert_frame_equal(prices.df, expected_df, check_dtype=False, check_index_type=False)

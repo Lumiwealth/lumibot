@@ -264,6 +264,36 @@ class InteractiveBrokersRESTData(DataSource):
         response = self.get_from_endpoint(url, "Getting contract details")
         return response
 
+    def get_contract_rules(self, conid):
+        """
+        Get the contract rules for a given contract ID (conid) and whether it is a buy or sell.
+
+        Parameters
+        ----------
+        conid : int
+            The contract ID.
+        isBuy : bool
+            True if it is a buy order, False if it is a sell order.
+
+        Returns
+        -------
+        dict
+            The contract rules if the request is successful, None otherwise.
+        """
+        self.ping_iserver()
+
+        url = f"{self.base_url}/iserver/contract/{conid}/info-and-rules"
+
+        response = self.get_from_endpoint(url, "Getting Contract Rules")
+
+        if response is not None and "error" in response:
+            logging.error(
+            colored(f"Failed to get contract rules: {response['error']}", "red")
+            )
+            return None
+
+        return response
+    
     def get_account_balances(self):
         """
         Retrieves the account balances for a given account ID.
@@ -926,7 +956,7 @@ class InteractiveBrokersRESTData(DataSource):
                     f"Failed to get {field} for asset {asset.symbol} with strike {asset.strike} and expiration date {asset.expiration}"
                 )
             else:
-                logging.error(f"Failed to get {field} for asset {asset.symbol}")
+                logging.error(f"Failed to get {field} for asset {asset.symbol} of type {asset.asset_type}")
             return -1
 
         price = response[field]
@@ -994,7 +1024,7 @@ class InteractiveBrokersRESTData(DataSource):
 
             return matching_contract["conid"]
 
-        elif asset.asset_type in ["stock", "forex"]:
+        elif asset.asset_type in ["stock", "forex", "index"]:
             return conid
 
     def query_greeks(self, asset: Asset) -> dict:

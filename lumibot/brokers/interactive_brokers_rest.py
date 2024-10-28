@@ -686,18 +686,19 @@ class InteractiveBrokersREST(Broker):
                 )
                 return None
 
+            rules = self.data_source.get_contract_rules(conid)
+            increment = rules['rules']['increment'] # 0.05 for example
+            price = (order.limit_price // increment) * increment if order.limit_price is not None else None
+            aux_price = (order.stop_price // increment) * increment if order.stop_price is not None else None
+
             data = {
                 "conid": conid,
                 "quantity": round(order.quantity, 2),
                 "orderType": orderType,
                 "side": side,
                 "tif": order.time_in_force.upper(),
-                "price": round(order.limit_price, 2)
-                if order.limit_price is not None
-                else None,
-                "auxPrice": round(order.stop_price, 2)
-                if order.stop_price is not None
-                else None,
+                "price": price,
+                "auxPrice": aux_price,
                 "listingExchange": order.exchange,
             }
 
@@ -834,6 +835,11 @@ class InteractiveBrokersREST(Broker):
             order_type_value = "MKT"
             logging.info("Order type not specified. Defaulting to 'MKT'.")
 
+        rules = self.data_source.get_contract_rules(conid)
+        increment = rules['rules']['increment'] # 0.05 for example
+        price = (price // increment) * increment if price is not None else None
+        aux_price = (order.stop_price // increment) * increment if order.stop_price is not None else None
+
         # Build the order data dictionary
         data = {
             "conidex": conidex,
@@ -843,10 +849,8 @@ class InteractiveBrokersREST(Broker):
             "tif": duration.upper()
             if duration is not None
             else order.time_in_force.upper(),
-            "price": round(float(price), 2) if price is not None else None,
-            "auxPrice": round(order.stop_price, 2)
-            if order.stop_price is not None
-            else None,
+            "price": price,
+            "auxPrice": aux_price,
             "listingExchange": order.exchange,
         }
 

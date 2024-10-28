@@ -15,25 +15,34 @@ from dotenv import load_dotenv
 import termcolor
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
+def find_and_load_dotenv(base_dir) -> bool:
+    for root, dirs, files in os.walk(base_dir):
+        logger.debug(f"Checking {root} for .env file")
+        if '.env' in files:
+            dotenv_path = os.path.join(root, '.env')
+            load_dotenv(dotenv_path)
+
+            # Create a colored message for the log using termcolor
+            colored_message = termcolor.colored(f".env file loaded from: {dotenv_path}", "green")
+            logger.info(colored_message)
+            return True
+
+    return False
+
+
 # Get the directory of the original script being run
-base_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
+script_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
+logger.debug(f"script_dir: {script_dir}")
+found_dotenv = find_and_load_dotenv(script_dir)
 
-found_dotenv = False
-# Walk through the directory tree
-for root, dirs, files in os.walk(base_dir):
-    if '.env' in files:
-        dotenv_path = os.path.join(root, '.env')
-        load_dotenv(dotenv_path)
-
-        # Create a colored message for the log using termcolor
-        colored_message = termcolor.colored(f".env file loaded from: {dotenv_path}", "green")
-        logger.info(colored_message)
-
-        # Set the flag to True if a .env file was found
-        found_dotenv = True
+if not found_dotenv:
+    # Get the root directory of the project
+    cwd_dir = os.getcwd()
+    logger.debug(f"cwd_dir: {cwd_dir}")
+    found_dotenv = find_and_load_dotenv(cwd_dir)
 
 # If no .env file was found, print a warning message
 if not found_dotenv:

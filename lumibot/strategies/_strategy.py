@@ -73,6 +73,7 @@ class Vars:
 
 class _Strategy:
     IS_BACKTESTABLE = True
+    _trader = None
 
     def __init__(
         self,
@@ -882,7 +883,8 @@ class _Strategy:
         save_logfile=False,
         use_quote_data=False,
         show_progress_bar=True,
-        quiet_logs=False,
+        quiet_logs=True,
+        trader_class=Trader,
         **kwargs,
     ):
         """Backtest a strategy.
@@ -959,6 +961,12 @@ class _Strategy:
         use_quote_data : bool
             Whether to use quote data for the backtest. Defaults to False. If True, the backtest will use quote data for the backtest. (Currently this is specific to ThetaData)
             When set to true this requests Quote data in addition to OHLC which adds time to backtests.
+        show_progress_bar : bool
+            Whether to show the progress bar during the backtest. Defaults to True.
+        quiet_logs : bool
+            Whether to quiet the logs during the backtest. Defaults to True.
+        trader_class : class
+            The class to use for the trader. Defaults to Trader.
 
         Returns
         -------
@@ -1004,9 +1012,6 @@ class _Strategy:
         # Create an adapter with 'strategy_name' set to the instance's name
         if not hasattr(self, "logger") or self.logger is None:
             self.logger = CustomLoggerAdapter(logger, {'strategy_name': self._name})
-
-        # Print start message
-        print(f"Starting backtest for {datasource_class.__name__}...")
 
         # If show_plot is None, then set it to True
         if show_plot is None:
@@ -1104,7 +1109,7 @@ class _Strategy:
             )
             return None
 
-        trader = Trader(logfile=logfile, backtest=True, quiet_logs=quiet_logs)
+        self._trader = trader_class(logfile=logfile, backtest=True, quiet_logs=quiet_logs)
 
         if datasource_class == PolygonDataBacktesting:
             data_source = datasource_class(
@@ -1178,12 +1183,12 @@ class _Strategy:
             save_logfile=save_logfile,
             **kwargs,
         )
-        trader.add_strategy(strategy)
+        self._trader.add_strategy(strategy)
 
         logger.info("Starting backtest...")
         start = datetime.datetime.now()
 
-        result = trader.run_all(
+        result = self._trader.run_all(
             show_plot=show_plot,
             show_tearsheet=show_tearsheet,
             save_tearsheet=save_tearsheet,
@@ -1346,6 +1351,7 @@ class _Strategy:
         use_quote_data=False,
         show_progress_bar=True,
         quiet_logs=True,
+        trader_class=Trader,
         **kwargs,
     ):
         """Backtest a strategy.
@@ -1431,6 +1437,8 @@ class _Strategy:
             Whether to show the progress bar. Defaults to True.
         quiet_logs : bool
             Whether to quiet noisy logs by setting the log level to ERROR. Defaults to True.
+        trader_class : Trader class
+            The trader class to use. Defaults to Trader.
 
         Returns
         -------
@@ -1502,6 +1510,7 @@ class _Strategy:
             use_quote_data=use_quote_data,
             show_progress_bar=show_progress_bar,
             quiet_logs=quiet_logs,
+            trader_class=trader_class,
             **kwargs,
         )
         return results

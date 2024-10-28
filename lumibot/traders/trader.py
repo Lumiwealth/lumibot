@@ -7,7 +7,6 @@ from pathlib import Path
 # Overloading time.sleep to warn users against using it
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 
 class Trader:
@@ -142,6 +141,7 @@ class Trader:
         result = self._collect_analysis()
 
         if self.is_backtest_broker:
+            logger.setLevel(logging.INFO)
             logger.info("Backtesting finished")
             strat.backtest_analysis(
                 logdir=self.logdir,
@@ -189,8 +189,8 @@ class Trader:
 
         if self.debug:
             logger.setLevel(logging.DEBUG)
-        elif self.is_backtest_broker:
-            logger.setLevel(logging.INFO)
+        elif self.quiet_logs:
+            logger.setLevel(logging.ERROR)
             for handler in logger.handlers:
                 if handler.__class__.__name__ == "StreamHandler":
                     handler.setLevel(logging.ERROR)

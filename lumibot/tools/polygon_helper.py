@@ -434,10 +434,7 @@ def get_missing_dates(df_all, asset, start, end):
 
     # For Options, don't need any dates passed the expiration date
     if asset.asset_type == "option":
-        # Find the index where asset.expiration would be inserted to keep trading_dates sorted
-        index = bisect.bisect_right(trading_dates, asset.expiration)
-        # Slice the list to include only dates up to asset.expiration
-        trading_dates = trading_dates[:index]
+        trading_dates = [x for x in trading_dates if x <= asset.expiration]
 
     if df_all is None or not len(df_all) or df_all.empty:
         return trading_dates

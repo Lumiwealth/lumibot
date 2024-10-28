@@ -334,36 +334,11 @@ class Data:
         # Validates if the provided date, length, timeshift, and timestep
         # will return data. Runs function if data, returns None if no data.
         def checker(self, *args, **kwargs):
-            if type(kwargs.get("length", 1)) not in [int, float]:
-                raise TypeError(f"Length must be an integer. {type(kwargs.get('length', 1))} was provided.")
 
-            dt = args[0]
-
-            # Check if the iter date is outside of this data's date range.
-            if dt < self.datetime_start:
-                raise ValueError(
-                    f"The date you are looking for ({dt}) for ({self.asset}) is outside of the data's date range ({self.datetime_start} to {self.datetime_end}). This could be because the data for this asset does not exist for the date you are looking for, or something else."
-                )
-
-            # Search for dt in self.iter_index_dict
+            # Search for dt in self.iter_index
             if getattr(self, "iter_index", None) is None:
                 self.repair_times_and_fill(self.df.index)
 
-            if dt in self.iter_index:
-                i = self.iter_index.iloc[dt]
-            else:
-                # If not found, get the last known data
-                i = self.iter_index.asof(dt)
-
-            length = kwargs.get("length", 1)
-            timeshift = kwargs.get("timeshift", 0)
-            data_index = i + 1 - length - timeshift
-            is_data = data_index >= 0
-            if not is_data:
-                # Log a warning
-                logging.warning(
-                    f"The date you are looking for ({dt}) is outside of the data's date range ({self.datetime_start} to {self.datetime_end}) after accounting for a length of {kwargs.get('length', 1)} and a timeshift of {kwargs.get('timeshift', 0)}. Keep in mind that the length you are requesting must also be available in your data, in this case we are {data_index} rows away from the data you need."
-                )
 
             res = func(self, *args, **kwargs)
             # print(f"Results last price: {res}")

@@ -144,7 +144,6 @@ class Data:
 
         self.timestep = timestep
 
-        self.last_iter_index = None
         self.df = self.columns(df)
 
         # Check if the index is datetime (it has to be), and if it's not then try to find it in the columns
@@ -280,6 +279,12 @@ class Data:
 
         # After all time series merged, adjust the local dataframe to reindex and fill nan's.
         self.df = self.df.reindex(idx, method="ffill")
+        self.df.loc[self.df["volume"].isna(), "volume"] = 0
+        self.df.loc[:, ~self.df.columns.isin(["open", "high", "low"])] = self.df.loc[
+            :, ~self.df.columns.isin(["open", "high", "low"])
+        ].ffill()
+        for col in ["open", "high", "low"]:
+            self.df.loc[self.df[col].isna(), col] = self.df.loc[self.df[col].isna(), "close"]
 
         iter_index = pd.Series(self.df.index)
         self.iter_index = pd.Series(iter_index.index, index=iter_index)

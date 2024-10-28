@@ -215,9 +215,19 @@ class Bars:
 
     def get_momentum(self, num_periods: int = 1):
         """
-        Calculate the momentum of the asset over the last num_periods rows.
+        Calculate the adjusted momentum of the asset over the last num_periods rows.
         """
-        momentum = self.df["close"].pct_change(num_periods).iloc[-1]
+        df_copy = self.df.copy()
+        if "return" in df_copy.columns:
+            momentum = df_copy["return"].iloc[-num_periods:].sum()
+        elif "dividend" in df_copy.columns:
+            df_copy['adj_returns'] = (df_copy['close'] - df_copy['close'].shift(1) + df_copy['dividend']) / df_copy['close'].shift(1)
+            # Momentum is the cumprod of the adjusted returns over the last num_periods
+            # get a slice of the last num_periods rows and calculate the cumulative product
+            period_adj_returns = df_copy['adj_returns'].iloc[-num_periods:]
+            momentum = (1 + period_adj_returns).cumprod().iloc[-1] - 1
+        else:
+            momentum = df_copy['close'].pct_change(num_periods).iloc[-1]
         return momentum
 
     def get_total_volume(self, start=None, end=None):

@@ -4,7 +4,7 @@ from datetime import datetime as DateTime
 from lumibot.backtesting import PandasDataBacktesting
 from lumibot.example_strategies.lifecycle_logger import LifecycleLogger
 
-from tests.backtest.fixtures import pandas_data_fixture
+from tests.fixtures import pandas_data_fixture
 
 
 logger = logging.getLogger(__name__)

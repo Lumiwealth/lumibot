@@ -7,7 +7,7 @@ import pytest
 import pandas_market_calendars as mcal
 
 
-from tests.backtest.fixtures import polygon_data_backtesting
+from tests.fixtures import polygon_data_backtesting
 import pytz
 from lumibot.backtesting import BacktestingBroker, PolygonDataBacktesting
 from lumibot.entities import Asset
@@ -147,7 +147,6 @@ class PolygonBacktestStrat(Strategy):
         # Not the 1st iteration, cancel orders.
         else:
             self.cancel_open_orders()
-
 
 class TestPolygonBacktestFull:
     def verify_backtest_results(self, poly_strat_obj):

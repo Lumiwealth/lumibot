@@ -147,6 +147,22 @@ Here's an example of an actual launch.json file:
 }
 ```
 
+## Notes on data sources
+
+This table points out some of the differences between the data sources we use in Lumibot. These refer to the data 
+returned in a Bars entity that is returned from calls to get_historical_prices. 
+
+| data_source | type  | OHLCV | split adjusted | dividends | returns | dividend adjusted returns |
+|-------------|-------|-------|----------------|-----------|---------|---------------------------|
+| yahoo       | stock | Yes   | Yes            | Yes       | Yes     | Yes                       |
+| alpaca      | stock | Yes   | Yes            | No        | Yes     | No                        |
+| polygon     | stock | Yes   | Yes            | No        | No      | N/A                       |
+| Tradier     | stock | Yes   | Yes            | No        | No      | N/A                       |
+| Pandas*     | stock | Yes   | Yes            | Yes       | Yes     | Yes                       |
+
+*Pandas is not a data source per se, but it can load csv files in the same format as Yahoo dataframes,
+which can contain dividends.
+
 ## An assortment of git commands our contributors may find useful
 
 Making a new branch and pulling from main:

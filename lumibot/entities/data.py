@@ -317,6 +317,7 @@ class Data:
             setattr(self, column, self.datalines[column].dataline)
         
     @lru_cache(maxsize=32)
+    @check_data
     def get_iter_count(self, dt):
         '''
             # Use searchsorted to find the insertion point for dt

@@ -8,7 +8,7 @@ from lumibot.tools.helpers import parse_timestep_qty_and_unit, to_datetime_aware
 
 from .asset import Asset
 from .dataline import Dataline
-
+from functools import lru_cache
 
 class Data:
     """Input and manage Pandas dataframes for backtesting.
@@ -144,6 +144,7 @@ class Data:
 
         self.timestep = timestep
 
+        self.last_iter_index = None
         self.df = self.columns(df)
 
         # Check if the index is datetime (it has to be), and if it's not then try to find it in the columns
@@ -279,12 +280,6 @@ class Data:
 
         # After all time series merged, adjust the local dataframe to reindex and fill nan's.
         self.df = self.df.reindex(idx, method="ffill")
-        self.df.loc[self.df["volume"].isna(), "volume"] = 0
-        self.df.loc[:, ~self.df.columns.isin(["open", "high", "low"])] = self.df.loc[
-            :, ~self.df.columns.isin(["open", "high", "low"])
-        ].ffill()
-        for col in ["open", "high", "low"]:
-            self.df.loc[self.df[col].isna(), col] = self.df.loc[self.df[col].isna(), "close"]
 
         iter_index = pd.Series(self.df.index)
         self.iter_index = pd.Series(iter_index.index, index=iter_index)
@@ -298,8 +293,7 @@ class Data:
                 "datetime": Dataline(
                     self.asset,
                     "datetime",
-                    self.df.index.to_numpy(),
-                    self.df.index.dtype,
+                    self.df.index
                 )
             }
         )
@@ -311,26 +305,25 @@ class Data:
                     column: Dataline(
                         self.asset,
                         column,
-                        self.df[column].to_numpy(),
-                        self.df[column].dtype,
-                    )
-                }
-            )
+                        self.df[column]
+                        )
+                    }
+                )
             setattr(self, column, self.datalines[column].dataline)
-
+        
+    @lru_cache(maxsize=32)
     def get_iter_count(self, dt):
-        # Return the index location for a given datetime.
+        '''
+            # Use searchsorted to find the insertion point for dt
+        pos = self.iter_index.index.searchsorted(dt, side='right') - 1
 
-        # Check if the date is in the dataframe, if not then get the last
-        # known data (this speeds up the process)
-        i = None
-
-        # Check if we have the iter_index, if not then repair the times and fill (which will create the iter_index)
-        i = self.iter_index.get(dt)
-        if i is None:
-            i = self.iter_index.asof(dt)
-
-        return i
+        # If pos is valid, return the corresponding value; else, return None
+        if pos >= 0:
+            return self.iter_index.iloc[pos]
+        else:
+            return None
+        '''
+        return self.iter_index.index.searchsorted(dt, side='right') - 1
 
     def check_data(func):
         # Validates if the provided date, length, timeshift, and timestep
@@ -365,8 +358,8 @@ class Data:
         float
         """
         iter_count = self.get_iter_count(dt)
-        open_price = self.datalines["open"].dataline[iter_count]
-        close_price = self.datalines["close"].dataline[iter_count]
+        open_price = self.datalines["open"].dataline.iloc[iter_count]
+        close_price = self.datalines["close"].dataline.iloc[iter_count]
         price = close_price if dt > self.datalines["datetime"].dataline[iter_count] else open_price
         return price
 
@@ -390,19 +383,19 @@ class Data:
         dict
         """
         iter_count = self.get_iter_count(dt)
-        open = round(self.datalines["open"].dataline[iter_count], 2)
-        high = round(self.datalines["high"].dataline[iter_count], 2)
-        low = round(self.datalines["low"].dataline[iter_count], 2)
-        close = round(self.datalines["close"].dataline[iter_count], 2)
-        bid = round(self.datalines["bid"].dataline[iter_count], 2)
-        ask = round(self.datalines["ask"].dataline[iter_count], 2)
-        volume = round(self.datalines["volume"].dataline[iter_count], 0)
-        bid_size = round(self.datalines["bid_size"].dataline[iter_count], 0)
-        bid_condition = round(self.datalines["bid_condition"].dataline[iter_count], 0)
-        bid_exchange = round(self.datalines["bid_exchange"].dataline[iter_count], 0)
-        ask_size = round(self.datalines["ask_size"].dataline[iter_count], 0)
-        ask_condition = round(self.datalines["ask_condition"].dataline[iter_count], 0)
-        ask_exchange = round(self.datalines["ask_exchange"].dataline[iter_count], 0)
+        open = round(self.datalines["open"].dataline.iloc[iter_count], 2)
+        high = round(self.datalines["high"].dataline.iloc[iter_count], 2)
+        low = round(self.datalines["low"].dataline.iloc[iter_count], 2)
+        close = round(self.datalines["close"].dataline.iloc[iter_count], 2)
+        bid = round(self.datalines["bid"].dataline.iloc[iter_count], 2)
+        ask = round(self.datalines["ask"].dataline.iloc[iter_count], 2)
+        volume = round(self.datalines["volume"].dataline.iloc[iter_count], 0)
+        bid_size = round(self.datalines["bid_size"].dataline.iloc[iter_count], 0)
+        bid_condition = round(self.datalines["bid_condition"].dataline.iloc[iter_count], 0)
+        bid_exchange = round(self.datalines["bid_exchange"].dataline.iloc[iter_count], 0)
+        ask_size = round(self.datalines["ask_size"].dataline.iloc[iter_count], 0)
+        ask_condition = round(self.datalines["ask_condition"].dataline.iloc[iter_count], 0)
+        ask_exchange = round(self.datalines["ask_exchange"].dataline.iloc[iter_count], 0)
 
         return {
             "open": open,

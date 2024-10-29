@@ -19,26 +19,25 @@ class PolygonDataBacktesting(PandasData):
     Backtesting implementation of Polygon
     """
 
-    # Size limit for the pandas_data and _data_store (dicts of Pandas DataFrames) in bytes.
-    # Set to None to disable the limit.
-    MAX_STORAGE_BYTES = None
-
     def __init__(
         self,
         datetime_start,
         datetime_end,
         pandas_data=None,
         api_key=None,
+        max_memory=None,
         **kwargs,
     ):
         super().__init__(
             datetime_start=datetime_start, datetime_end=datetime_end, pandas_data=pandas_data, api_key=api_key, **kwargs
         )
 
+        # Memory limit, off by default
+        self.MAX_STORAGE_BYTES = max_memory
+
         # RESTClient API for Polygon.io polygon-api-client
         self.polygon_client = PolygonClient.create(api_key=api_key)
 
-    @staticmethod
     def _enforce_storage_limit(pandas_data: OrderedDict):
         storage_used = sum(data.df.memory_usage().sum() for data in pandas_data.values())
         logging.info(f"{storage_used = :,} bytes for {len(pandas_data)} items")
@@ -173,7 +172,7 @@ class PolygonDataBacktesting(PandasData):
         pandas_data_update = self._set_pandas_data_keys([data])
         # Add the keys to the self.pandas_data dictionary
         self.pandas_data.update(pandas_data_update)
-        if PolygonDataBacktesting.MAX_STORAGE_BYTES:
+        if self.MAX_STORAGE_BYTES:
             self._enforce_storage_limit(self.pandas_data)
 
     def _pull_source_symbol_bars(

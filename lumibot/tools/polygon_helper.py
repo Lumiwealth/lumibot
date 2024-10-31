@@ -22,6 +22,7 @@ from lumibot import LUMIBOT_CACHE_FOLDER
 from lumibot.entities import Asset
 from lumibot import LUMIBOT_DEFAULT_PYTZ
 from lumibot.credentials import POLYGON_API_KEY
+import bisect
 
 MAX_POLYGON_DAYS = 30
 
@@ -29,47 +30,80 @@ MAX_POLYGON_DAYS = 30
 schedule_cache = {}
 buffered_schedules = {}
 
+from datetime import timedelta
+import pandas as pd
+
+# Initialize caches globally
+buffered_schedules = {}
+schedule_cache = {}
 
 def get_cached_schedule(cal, start_date, end_date, buffer_days=30):
     """
-    Fetch schedule with a buffer at the end. This is done to reduce the number of calls to the calendar API (which is slow).
+    Fetch schedule with a buffer at the end to reduce the number of API calls.
+
+    Parameters:
+    - cal: pandas market calendar object with a 'name' attribute and a 'schedule' method.
+    - start_date (str or datetime-like): The start date for the schedule.
+    - end_date (str or datetime-like): The end date for the schedule.
+    - buffer_days (int): Number of buffer days to extend the end_date to minimize API calls.
+
+    Returns:
+    - pd.DataFrame: The schedule DataFrame filtered between start_date and end_date.
     """
-    global buffered_schedules
+    global buffered_schedules, schedule_cache
 
-    buffer_end = end_date + timedelta(days=buffer_days)
-    cache_key = (cal.name, start_date, end_date)
+    # Validate buffer_days
+    if buffer_days < 0:
+        logging.error("buffer_days must be non-negative.")
+        return None
 
-    # Check if the required range is in the schedule cache
+    # Convert start_date and end_date to pd.Timestamp
+    start_ts = pd.to_datetime(start_date)
+    end_ts = pd.to_datetime(end_date)
+
+    if start_ts > end_ts:
+        logging.error("start_date must be earlier than or equal to end_date.")
+        return None
+
+    # Define the cache key
+    cache_key = (cal.name, start_ts, end_ts)
+
+    # Return from cache if available
     if cache_key in schedule_cache:
         return schedule_cache[cache_key]
 
-    # Convert start_date and end_date to pd.Timestamp for comparison
-    start_timestamp = pd.Timestamp(start_date)
-    end_timestamp = pd.Timestamp(end_date)
+    # Define buffer_end to extend the schedule range
+    buffer_end = end_ts + timedelta(days=buffer_days)
 
-    # Check if we have the buffered schedule for this calendar
-    if cal.name in buffered_schedules:
-        buffered_schedule = buffered_schedules[cal.name]
-        # Check if the current buffered schedule covers the required range
-        if buffered_schedule.index.min() <= start_timestamp and buffered_schedule.index.max() >= end_timestamp:
-            filtered_schedule = buffered_schedule[(buffered_schedule.index >= start_timestamp) & (
-                buffered_schedule.index <= end_timestamp)]
+    # Retrieve the buffered schedule for the calendar if it exists
+    buffered_schedule = buffered_schedules.get(cal.name)
+
+    if buffered_schedule is not None:
+        schedule_min = buffered_schedule.index[0]
+        schedule_max = buffered_schedule.index[-1]
+
+        # Check if the buffered schedule covers the required range
+        if schedule_min <= start_ts and schedule_max >= end_ts:
+            # Use .loc for efficient slicing
+            filtered_schedule = buffered_schedule.loc[start_ts:end_ts]
+            # Cache and return
             schedule_cache[cache_key] = filtered_schedule
             return filtered_schedule
 
-    # Fetch and cache the new buffered schedule
-    buffered_schedule = cal.schedule(start_date=start_date, end_date=buffer_end)
-    buffered_schedules[cal.name] = buffered_schedule  # Store the buffered schedule for this calendar
+    # Fetch new buffered schedule from the calendar API
+    # Assuming cal.schedule returns a DataFrame with a sorted DatetimeIndex
+    new_buffered_schedule = cal.schedule(start_date=start_date, end_date=buffer_end)
 
-    # Filter the schedule to only include the requested date range
-    filtered_schedule = buffered_schedule[(buffered_schedule.index >= start_timestamp)
-                                          & (buffered_schedule.index <= end_timestamp)]
+    # Update the buffered_schedules with the new buffered schedule
+    buffered_schedules[cal.name] = new_buffered_schedule
 
-    # Cache the filtered schedule for quick lookup
+    # Filter the new buffered schedule to the requested date range using .loc
+    filtered_schedule = new_buffered_schedule.loc[start_ts:end_ts]
+
+    # Cache the filtered schedule for future requests
     schedule_cache[cache_key] = filtered_schedule
 
     return filtered_schedule
-
 
 def get_price_data_from_polygon(
     api_key: str,
@@ -400,7 +434,10 @@ def get_missing_dates(df_all, asset, start, end):
 
     # For Options, don't need any dates passed the expiration date
     if asset.asset_type == "option":
-        trading_dates = [x for x in trading_dates if x <= asset.expiration]
+        # Find the index where asset.expiration would be inserted to keep trading_dates sorted
+        index = bisect.bisect_right(trading_dates, asset.expiration)
+        # Slice the list to include only dates up to asset.expiration
+        trading_dates = trading_dates[:index]
 
     if df_all is None or not len(df_all) or df_all.empty:
         return trading_dates

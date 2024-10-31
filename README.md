@@ -147,6 +147,56 @@ Here's an example of an actual launch.json file:
 }
 ```
 
+## Notes on data sources
+
+This table points out some of the differences between the data sources we use in Lumibot. These refer to the data 
+returned in a Bars entity that is returned from calls to get_historical_prices. 
+
+| data_source | type  | OHLCV | split adjusted | dividends | returns | dividend adjusted returns |
+|-------------|-------|-------|----------------|-----------|---------|---------------------------|
+| yahoo       | stock | Yes   | Yes            | Yes       | Yes     | Yes                       |
+| alpaca      | stock | Yes   | Yes            | No        | Yes     | No                        |
+| polygon     | stock | Yes   | Yes            | No        | Yes     | No                        |
+| Tradier     | stock | Yes   | Yes            | No        | Yes     | No                        |
+| Pandas*     | stock | Yes   | Yes            | Yes       | Yes     | Yes                       |
+
+*Pandas is not a data source per se, but it can load csv files in the same format as Yahoo dataframes,
+which can contain dividends.
+
+## An assortment of git commands our contributors may find useful
+
+Making a new branch and pulling from main:
+```shell
+git checkout -b my-feature
+git fetch origin
+git merge origin/dev
+```
+Committing work to you feature branch:
+```shell
+git add .
+git commit -m "my changes"
+git push -u origin my-feature
+```
+
+If work on main progressed while you were in another branch, this is how you rebase it into your branch:
+```shell
+git checkout dev
+git fetch origin
+git merge origin/dev
+git checkout my-feature
+git rebase dev
+```
+
+When ready to merge the branch into main, go into github, create a pull request, and await review. When your PR is approved it will automatically be merged into the dev branch remotely. Now, you can delete your local branch and the remote branch.
+```shell
+git checkout dev
+git fetch origin
+git merge origin/dev
+git branch -D my-feature
+git push origin --delete my-feature
+```
+
+
 ## Community
 
 If you want to learn more about Lumibot or Algorithmic Trading then you will love out communities! You can join us on Discord.

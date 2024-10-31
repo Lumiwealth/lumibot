@@ -579,6 +579,8 @@ class Data:
             return None
 
         df = pd.DataFrame(data).assign(datetime=lambda df: pd.to_datetime(df['datetime'])).set_index('datetime')
+        if "dividend" in df.columns:
+            agg_column_map["dividend"] = "sum"
         df_result = df.resample(f"{quantity}{unit}").agg(agg_column_map)
 
         # Drop any rows that have NaN values (this can happen if the data is not complete, eg. weekends)

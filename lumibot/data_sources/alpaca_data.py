@@ -335,7 +335,6 @@ class AlpacaData(DataSource):
         return response[asset]
 
     def _parse_source_symbol_bars(self, response, asset, quote=None, length=None):
-        # TODO: Alpaca return should also include dividend yield
-        response["return"] = response["close"].pct_change()
+        # TODO: Alpaca return should also include dividends
         bars = Bars(response, self.SOURCE, asset, raw=response, quote=quote)
         return bars

@@ -162,6 +162,7 @@ Table of Contents
    deployment
    getting_started
    lifecycle_methods
+   vars
    strategy_methods
    strategy_properties
    entities

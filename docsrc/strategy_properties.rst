@@ -23,3 +23,4 @@ Inside your strategy you can also get a lot of information about the state of th
     timezone
     pytz
     unspent_money
+    vars

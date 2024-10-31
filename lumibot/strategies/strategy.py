@@ -78,7 +78,7 @@ class Strategy(_Strategy):
     def quote_asset(self, value):
         self._quote_asset = value
         self.broker.quote_assets.add(value)
-
+    
     @property
     def last_on_trading_iteration_datetime(self):
         """Returns the datetime of the last iteration.
@@ -273,7 +273,7 @@ class Strategy(_Strategy):
         self.update_broker_balances(force_update=False)
 
         return self._portfolio_value
-
+    
     @property
     def cash(self):
         """Returns the current cash. This is the money that is not used for positions or

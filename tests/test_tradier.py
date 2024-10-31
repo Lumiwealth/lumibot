@@ -24,6 +24,7 @@ def tradier():
 
 
 @pytest.mark.apitest
+@pytest.mark.skipif(not TRADIER_ACCOUNT_ID_PAPER or not TRADIER_TOKEN_PAPER, reason="No Tradier credentials provided.")
 class TestTradierDataAPI:
     """
     API Tests skipped by default. To run all API tests, use the following command:
@@ -92,6 +93,7 @@ class TestTradierDataAPI:
 
 
 @pytest.mark.apitest
+@pytest.mark.skipif(not TRADIER_ACCOUNT_ID_PAPER or not TRADIER_TOKEN_PAPER, reason="No Tradier credentials provided.")
 class TestTradierBrokerAPI:
     """
     API Tests skipped by default. To run all API tests, use the following command:
@@ -114,6 +116,8 @@ class TestTradierBrokerAPI:
         # How do we check this? Who changes the Lumibot order status to "canceled"?
         tradier.cancel_order(submitted_order)
 
+
+@pytest.mark.skipif(not TRADIER_ACCOUNT_ID_PAPER or not TRADIER_TOKEN_PAPER, reason="No Tradier credentials provided.")
 class TestTradierBroker:
     """
     Unit tests for the Tradier broker. These tests do not require any API calls.

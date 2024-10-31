@@ -21,9 +21,10 @@ todos.txt
 test_bot.py
 .vscode
 .coverage*
-*secret*/**.env
+.env
 lumi_tradier
 lumiwealth_tradier
+ThetaTerminal.jar
 
 # Pypi deployment
 build

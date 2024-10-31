@@ -11,6 +11,8 @@ from lumibot.data_sources import DataSourceBacktesting
 from lumibot.entities import Asset, Order, Position, TradingFee
 from lumibot.trading_builtins import CustomStream
 
+logger = logging.getLogger(__name__)
+
 
 class BacktestingBroker(Broker):
     # Metainfo
@@ -43,7 +45,7 @@ class BacktestingBroker(Broker):
                 if result.was_transmitted() and result.order_class and result.order_class == "oco":
                     orders = broker._flatten_order(result)
                     for order in orders:
-                        logging.info(f"{order} was sent to broker {self.name}")
+                        logger.info(f"{order} was sent to broker {self.name}")
                         broker._new_orders.append(order)
 
                     # Remove the original order from the list of new orders because
@@ -96,7 +98,7 @@ class BacktestingBroker(Broker):
         self.data_source._update_datetime(new_datetime, cash=cash, portfolio_value=portfolio_value)
         if self.option_source:
             self.option_source._update_datetime(new_datetime, cash=cash, portfolio_value=portfolio_value)
-        logging.info(f"Current backtesting datetime {self.datetime}")
+        logger.debug(f"Current backtesting datetime {self.datetime}")
 
     # =========Clock functions=====================
 
@@ -115,20 +117,34 @@ class BacktestingBroker(Broker):
     def is_market_open(self):
         """Return True if market is open else false"""
         now = self.datetime
+        increased_idx = False
 
-        # As the index is sorted, use searchsorted to find the relevant day
-        idx = self._trading_days.index.searchsorted(now, side='right')
+        if not hasattr(self, '_cached_idx_right'):
+            idx = self._trading_days.index.searchsorted(now, side='right')
+            self._cached_idx_right = idx
+        else:
+            if now > self._previous_market_close_right:
+                self._cached_idx_right += 1
+                increased_idx = True
+                
+            idx = self._cached_idx_right
 
-        # Check that the index is not out of bounds
-        if idx >= len(self._trading_days):
-            logging.error("Cannot predict future")
-            return False
+        if hasattr(self, '_previous_market_close_right') and not increased_idx:
+            market_close = self._previous_market_close_right
+            market_open = self._previous_market_open_right
+        else:
+            if idx >= len(self._trading_days):
+                logging.error("Cannot predict future")
+                return 0
 
-        # The index of the trading_day is used as the market close time
-        market_close = self._trading_days.index[idx]
+            # The index of the trading_day is used as the market close time
+            market_close = self._trading_days.index[idx]
 
-        # Retrieve market open time using .at since idx is a valid datetime index
-        market_open = self._trading_days.at[market_close, 'market_open']
+            # Retrieve market open time using .at since idx is a valid datetime index
+            market_open = self._trading_days.at[market_close, 'market_open']
+
+            self._previous_market_open_right = market_open
+            self._previous_market_close_right = market_close
 
         # Check if 'now' is within the trading hours of the located day
         return market_open <= now < market_close
@@ -169,18 +185,36 @@ class BacktestingBroker(Broker):
     def get_time_to_close(self):
         """Return the remaining time for the market to close in seconds"""
         now = self.datetime
+        increased_idx = False
 
         # Use searchsorted for efficient searching and reduce unnecessary DataFrame access
-        idx = self._trading_days.index.searchsorted(now, side='left')
+        if not hasattr(self, '_cached_idx'):
+            idx = self._trading_days.index.searchsorted(now, side='left')
+            self._cached_idx = idx
+        else:
+            if now > self._previous_market_close:
+                self._cached_idx += 1
+                increased_idx = True
+                
+            idx = self._cached_idx
 
-        if idx >= len(self._trading_days):
-            logging.error("Cannot predict future")
-            return 0
+        if hasattr(self, '_previous_market_close') and not increased_idx:
+            # Skip computation if done already
+            market_close = self._previous_market_close
+            market_open = self._previous_market_open
+        
+        else:
+            if idx >= len(self._trading_days):
+                logging.error("Cannot predict future")
+                return 0
 
-        # Directly access the data needed using more efficient methods
-        market_close_time = self._trading_days.index[idx]
-        market_open = self._trading_days.at[market_close_time, 'market_open']
-        market_close = market_close_time  # Assuming this is a scalar value directly from the index
+            # Directly access the data needed using more efficient methods
+            market_close_time = self._trading_days.index[idx]
+            market_open = self._trading_days.at[market_close_time, 'market_open']
+            market_close = market_close_time  # Assuming this is a scalar value directly from the index
+
+            self._previous_market_open = market_open
+            self._previous_market_close = market_close
 
         if now < market_open:
             return None
@@ -189,9 +223,6 @@ class BacktestingBroker(Broker):
         return delta.total_seconds()
 
     def _await_market_to_open(self, timedelta=None, strategy=None):
-        if self.data_source.SOURCE == "PANDAS" and self.data_source._timestep == "day":
-            return
-
         # Process outstanding orders first before waiting for market to open
         # or else they don't get processed until the next day
         self.process_pending_orders(strategy=strategy)
@@ -202,9 +233,6 @@ class BacktestingBroker(Broker):
         self._update_datetime(time_to_open)
 
     def _await_market_to_close(self, timedelta=None, strategy=None):
-        if self.data_source.SOURCE == "PANDAS" and self.data_source._timestep == "day":
-            return
-
         # Process outstanding orders first before waiting for market to close
         # or else they don't get processed until the next day
         self.process_pending_orders(strategy=strategy)
@@ -359,7 +387,7 @@ class BacktestingBroker(Broker):
         if existing_position:
             position.add_order(order, quantity)  # Add will update quantity, but not double count the order
             if position.quantity == 0:
-                logging.info(f"Position {position} liquidated")
+                logger.info(f"Position {position} liquidated")
                 self._filled_positions.remove(position)
         else:
             self._filled_positions.append(position)  # New position, add it to the tracker
@@ -385,7 +413,7 @@ class BacktestingBroker(Broker):
         if existing_position:
             existing_position.add_order(order, quantity)  # Add will update quantity, but not double count the order
             if existing_position.quantity == 0:
-                logging.info("Position %r liquidated" % existing_position)
+                logger.info("Position %r liquidated" % existing_position)
                 self._filled_positions.remove(existing_position)
 
     def submit_order(self, order):
@@ -407,6 +435,14 @@ class BacktestingBroker(Broker):
         return order
 
     def submit_orders(self, orders, is_multileg=False, **kwargs):
+        """Submit multiple orders for an asset"""
+
+        # Check that orders is a list and not zero
+        if not orders or not isinstance(orders, list) or len(orders) == 0:
+            # Log an error and return an empty list
+            logging.error("No orders to submit to broker when calling submit_orders")
+            return []
+
         results = []
         for order in orders:
             results.append(self.submit_order(order))
@@ -545,7 +581,7 @@ class BacktestingBroker(Broker):
                 if position.asset.expiration == self.datetime.date() and time_to_close > seconds_before_closing:
                     continue
 
-                logging.info(f"Automatically selling expired contract for asset {position.asset}")
+                logger.info(f"Automatically selling expired contract for asset {position.asset}")
 
                 # Cash settle the options contract
                 self.cash_settle_options_contract(position, strategy)
@@ -738,7 +774,7 @@ class BacktestingBroker(Broker):
                 if order.order_class in ["bracket", "oto"]:
                     orders = self._flatten_order(order)
                     for flat_order in orders:
-                        logging.info(f"{order} was sent to broker {self.name}")
+                        logger.info(f"{order} was sent to broker {self.name}")
                         self._new_orders.append(flat_order)
 
                 trade_cost = self.calculate_trade_cost(order, strategy, price)

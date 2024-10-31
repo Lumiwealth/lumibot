@@ -15,6 +15,8 @@ import pytest
 keyword = 'ThetaTerminal.jar'
 
 
+
+
 def find_git_root(path):
     # Traverse the directories upwards until a .git directory is found
     original_path = path
@@ -76,15 +78,15 @@ THETADATA_USERNAME = os.environ.get("THETADATA_USERNAME")
 THETADATA_PASSWORD = os.environ.get("THETADATA_PASSWORD")
 ############################################################################################################
 secrets_not_found = False
-if not THETADATA_USERNAME:
+if not THETADATA_USERNAME or THETADATA_USERNAME == "uname":
     print("CHECK: Unable to get THETADATA_USERNAME in the environemnt variables.")
     secrets_not_found = True
-if not THETADATA_PASSWORD:
+if not THETADATA_PASSWORD or THETADATA_PASSWORD == "pwd":
     print("CHECK: Unable to get THETADATA_PASSWORD in the environemnt variables.")
     secrets_not_found = True
 
 if secrets_not_found:
-    raise "ERROR: Unable to get ThetaData API credentials from the environment variables."
+    print("ERROR: Unable to get ThetaData API credentials from the environment variables.")
 
 
 class ThetadataBacktestStrat(Strategy):
@@ -314,6 +316,10 @@ class TestThetaDataBacktestFull:
         )
         assert "fill" not in theta_strat_obj.order_time_tracker[stoploss_order_id]
 
+    @pytest.mark.skipif(
+        secrets_not_found,
+        reason="Skipping test because ThetaData API credentials not found in environment variables",
+    )
     def test_thetadata_restclient(self):
         """
         Test ThetaDataBacktesting with Lumibot Backtesting and real API calls to ThetaData. Using the Amazon stock

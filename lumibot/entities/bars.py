@@ -101,7 +101,7 @@ class Bars:
         """
         if df.shape[0] == 0:
             logging.warning(f"Unable to get bar data for {asset} {source}")
-        self.df = df
+
         self.source = source.upper()
         self.asset = asset
         if isinstance(asset, tuple):
@@ -110,6 +110,15 @@ class Bars:
             self.symbol = asset.symbol.upper()
         self.quote = quote
         self._raw = raw
+
+        if "dividend" in df.columns:
+            df["price_change"] = df["close"].pct_change()
+            df["dividend_yield"] = df["dividend"] / df["close"]
+            df["return"] = df["dividend_yield"] + df["price_change"]
+        else:
+            df["return"] = df["close"].pct_change()
+
+        self.df = df
 
     def __repr__(self):
         return repr(self.df)
@@ -213,27 +222,17 @@ class Bars:
 
         return df_copy
 
-    def get_momentum(self, start=None, end=None):
-        """Return the momentum (return based on closing prices) of the bars between start and end
-
-        Parameters
-        ----------
-        start : datetime.datetime
-            The start of the range to filter on (inclusive) (default: None)
-
-        end : datetime.datetime
-            The end of the range to filter on (inclusive) (default: None)
-
-        Returns
-        -------
-        float
+    def get_momentum(self, num_periods: int = 1):
         """
-        df_copy = self.filter(start=start, end=end)
-        n_rows = df_copy.shape[0]
-        if n_rows == 0:
-            return 0
-
-        momentum = df_copy["close"].pct_change(n_rows - 1).iloc[-1]
+        Calculate the momentum of the asset over the last num_periods rows. If dividends are provided by the data source,
+        and included in the return calculation, the momentum will be adjusted for dividends.
+        """
+        df_copy = self.df.copy()
+        if "return" in df_copy.columns:
+            period_adj_returns = df_copy['return'].iloc[-num_periods:]
+            momentum = (1 + period_adj_returns).cumprod().iloc[-1] - 1
+        else:
+            momentum = df_copy['close'].pct_change(num_periods).iloc[-1]
         return momentum
 
     def get_total_volume(self, start=None, end=None):

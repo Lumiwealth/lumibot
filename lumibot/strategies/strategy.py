@@ -4114,12 +4114,12 @@ class Strategy(_Strategy):
 
     def send_account_summary_to_discord(self):
         # Log that we are sending the account summary to Discord
-        self.logger.info("Considering to send account summary to Discord")
+        self.logger.debug("Considering sending account summary to Discord")
 
         # Check if we are in backtesting mode, if so, don't send the message
         if self.is_backtesting:
             # Log that we are not sending the account summary to Discord
-            self.logger.info("Not sending account summary to Discord because we are in backtesting mode")
+            self.logger.debug("Not sending account summary to Discord because we are in backtesting mode")
             return
 
         # Check if last_account_summary_dt has been set, if not, set it to None
@@ -4596,41 +4596,38 @@ class Strategy(_Strategy):
 
         # Get the current orders
         orders = self.get_orders()
-
-        # Get the current time in New York
-        ny_tz = pytz.timezone("America/New_York")
-        now = datetime.datetime.now(ny_tz)
-
-        LUMIWEALTH_URL = "https://api.lumiwealth.com/v1/update"
+        
+        LUMIWEALTH_URL = "https://listener.lumiwealth.com/portfolio_events"
 
         headers = {
-            "Authorization": f"Bearer {self.lumiwealth_api_key}",
+            "x-api-key": f"{self.lumiwealth_api_key}",
             "Content-Type": "application/json",
         }
 
         # Create the data to send to the cloud
         data = {
+            "data_type": "portfolio_event",
             "portfolio_value": portfolio_value,
             "cash": cash,
             "positions": [position.to_dict() for position in positions],
             "orders": [order.to_dict() for order in orders],
-            "datetime": now.isoformat(),
         }
 
-        # Send the data to the cloud
-        response = requests.post(LUMIWEALTH_URL, headers=headers, json=data)
+        try:
+            # Send the data to the cloud
+             response = requests.post(LUMIWEALTH_URL, headers=headers, json=data)
+        except Exception as e:
+            self.logger.error(f"Failed to send update to the cloud. Error: {e}")
+            return False
 
-        # TODO: Uncomment this code once the API is ready
-        # # Check if the message was sent successfully
-        # if response.status_code == 200:
-        #     self.logger.info("Update sent to the cloud successfully")
-        #     return True
-        # else:
-        #     self.logger.error(
-        #         f"Failed to send update to the cloud. Status code: {response.status_code}, message: {response.text}"
-        #     )
-        #     return False
-
-        return True
+        # Check if the message was sent successfully
+        if response.status_code == 200:
+            self.logger.info("Update sent to the cloud successfully")
+            return True
+        else:
+            self.logger.error(
+                f"Failed to send update to the cloud. Status code: {response.status_code}, message: {response.text}"
+            )
+            return False
 
 

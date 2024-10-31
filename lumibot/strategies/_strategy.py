@@ -4,7 +4,6 @@ from termcolor import colored
 from asyncio.log import logger
 from decimal import Decimal
 import os
-import json
 import string
 import random
 
@@ -34,8 +33,14 @@ from ..credentials import (
     HIDE_POSITIONS,
     HIDE_TRADES,
     LUMIWEALTH_API_KEY,
+    SHOW_INDICATORS,
+    SHOW_PLOT,
+    SHOW_TEARSHEET,
+    LIVE_CONFIG,
+    POLYGON_MAX_MEMORY_BYTES,
 )
-    
+
+
 class CustomLoggerAdapter(logging.LoggerAdapter):
     def __init__(self, logger, extra):
         super().__init__(logger, extra)
@@ -46,7 +51,6 @@ class CustomLoggerAdapter(logging.LoggerAdapter):
             return self.prefix + msg, kwargs
         except Exception as e:
             return msg, kwargs
-
 
 class Vars:
     def __init__(self):
@@ -70,10 +74,10 @@ class Vars:
 
 class _Strategy:
     IS_BACKTESTABLE = True
+    _trader = None
 
     def __init__(
         self,
-        *args,
         broker=None,
         minutes_before_closing=1,
         minutes_before_opening=60,
@@ -191,68 +195,43 @@ class _Strategy:
             A dictionary of additional keyword arguments to pass to the strategy.
 
         """
-        # Handling positional arguments.
-        # If there is one positional argument, it is assumed to be `broker`.
-        # If there are two positional arguments, they are assumed to be
-        # `name` and `broker`.
-        # If there are three positional arguments, they are assumed to be
-        # `name`, `budget` and `broker`
-
         # TODO: Break up this function, too long!
 
         self.buy_trading_fees = buy_trading_fees
         self.sell_trading_fees = sell_trading_fees
         self.save_logfile = save_logfile
+        self.broker = broker
 
-        if len(args) == 1:
-            if isinstance(args[0], str):
-                self._name = args[0]
-                self.broker = broker
-            else:
-                self.broker = args[0]
-                self._name = kwargs.get("name", name)
-        elif len(args) == 2:
-            self._name = args[0]
-            self.broker = args[1]
-            logging.warning(
-                "You are using the old style of initializing a Strategy. Only use \n"
-                "the broker class as the first positional argument and the rest as keyword arguments. \n"
-                "For example `MyStrategy(broker, name=strategy_name, budget=budget)`\n"
-            )
-        elif len(args) == 3:
-            self._name = args[0]
-            self.broker = args[2]
-            logging.warning(
-                "You are using the old style of initializing a Strategy. Only use \n"
-                "the broker class as the first positional argument and the rest as keyword arguments. \n"
-                "For example `MyStrategy(broker, name=strategy_name, budget=budget)`\n"
-            )
-        else:
-            self.broker = broker
+        if name is not None:
             self._name = name
+
+        elif STRATEGY_NAME is not None:
+            self._name = STRATEGY_NAME
+        
+        else:
+            self._name = self.__class__.__name__
+
+        # Create an adapter with 'strategy_name' set to the instance's name
+        if not hasattr(self, "logger") or self.logger is None:
+            self.logger = CustomLoggerAdapter(logger, {'strategy_name': self._name})
+
+        # Set the log level to INFO so that all logs INFO and above are displayed
+        self.logger.setLevel(logging.INFO)
         
         if self.broker == None:
             self.broker = BROKER
-        
-        if self._name == None:
-            self._name = STRATEGY_NAME
 
         self.hide_positions = HIDE_POSITIONS
         self.hide_trades = HIDE_TRADES
-
-        if self._name is None:
-            self._name = self.__class__.__name__
 
         # If the MARKET env variable is set, use it as the market
         if MARKET:
             # Log the market being used
             colored_message = colored(f"Using market from environment variables: {MARKET}", "green")
-            logger.info(colored_message)
+            self.logger.info(colored_message)
             self.set_market(MARKET)
 
-        # Create an adapter with 'strategy_name' set to the instance's name
-        self.logger = CustomLoggerAdapter(logger, {'strategy_name': self._name})
-
+        self.live_config = LIVE_CONFIG
         self.discord_webhook_url = discord_webhook_url if discord_webhook_url is not None else DISCORD_WEBHOOK_URL
         
         if account_history_db_connection_str: 
@@ -261,7 +240,7 @@ class _Strategy:
         elif db_connection_str:
             self.db_connection_str = db_connection_str
         else:
-            self.db_connection_str = DB_CONNECTION_STR
+            self.db_connection_str = DB_CONNECTION_STR if DB_CONNECTION_STR else None
             
         self.discord_account_summary_footer = discord_account_summary_footer
         self.backup_table_name="vars_backup"
@@ -281,7 +260,7 @@ class _Strategy:
 
         # Check if self.broker is set
         if self.broker is None:
-            logger.error(colored("No broker is set. Please set a broker using environment variables, secrets or by passing it as an argument.", "red"))
+            self.logger.error(colored("No broker is set. Please set a broker using environment variables, secrets or by passing it as an argument.", "red"))
             raise ValueError("No broker is set. Please set a broker using environment variables, secrets or by passing it as an argument.")
 
         # Check if the quote_assets exists on the broker
@@ -514,7 +493,11 @@ class _Strategy:
                 self.last_broker_balances_update + datetime.timedelta(seconds=UPDATE_INTERVAL) < datetime.datetime.now()
             )
         ):
-            broker_balances = self.broker._get_balances_at_broker(self.quote_asset, self)
+            try:
+                broker_balances = self.broker._get_balances_at_broker(self.quote_asset, self)
+            except Exception as e:
+                self.logger.error(f"Error getting broker balances: {e}")
+                return False
 
             if broker_balances is not None:
                 (
@@ -527,20 +510,24 @@ class _Strategy:
                 return True
 
             else:
-                logger.error(
+                self.logger.error(
                     "Unable to get balances (cash, portfolio value, etc) from broker. "
                     "Please check your broker and your broker configuration."
                 )
                 return False
         else:
-            logger.debug("Balances already updated recently. Skipping update.")
+            self.logger.debug("Balances already updated recently. Skipping update.")
 
     # =============Auto updating functions=============
 
     def _update_portfolio_value(self):
         """updates self.portfolio_value"""
         if not self.is_backtesting:
-            broker_balances = self.broker._get_balances_at_broker(self.quote_asset, self)
+            try:
+                broker_balances = self.broker._get_balances_at_broker(self.quote_asset, self)
+            except Exception as e:
+                self.logger.error(f"Error getting broker balances: {e}")
+                return None
 
             if broker_balances is not None:
                 return broker_balances[2]
@@ -859,8 +846,10 @@ class _Strategy:
 
     @classmethod
     def run_backtest(
-        cls,
-        *args,
+        self,
+        datasource_class,
+        backtesting_start,
+        backtesting_end,
         minutes_before_closing=5,
         minutes_before_opening=60,
         sleeptime=1,
@@ -878,10 +867,10 @@ class _Strategy:
         pandas_data=None,
         quote_asset=Asset(symbol="USD", asset_type="forex"),
         starting_positions=None,
-        show_plot=True,
+        show_plot=None,
         tearsheet_file=None,
         save_tearsheet=True,
-        show_tearsheet=True,
+        show_tearsheet=None,
         parameters={},
         buy_trading_fees=[],
         sell_trading_fees=[],
@@ -891,9 +880,12 @@ class _Strategy:
         thetadata_username=None,
         thetadata_password=None,
         indicators_file=None,
-        show_indicators=True,
+        show_indicators=None,
         save_logfile=False,
         use_quote_data=False,
+        show_progress_bar=True,
+        quiet_logs=True,
+        trader_class=Trader,
         **kwargs,
     ):
         """Backtest a strategy.
@@ -970,6 +962,12 @@ class _Strategy:
         use_quote_data : bool
             Whether to use quote data for the backtest. Defaults to False. If True, the backtest will use quote data for the backtest. (Currently this is specific to ThetaData)
             When set to true this requests Quote data in addition to OHLC which adds time to backtests.
+        show_progress_bar : bool
+            Whether to show the progress bar during the backtest. Defaults to True.
+        quiet_logs : bool
+            Whether to quiet the logs during the backtest. Defaults to True.
+        trader_class : class
+            The class to use for the trader. Defaults to Trader.
 
         Returns
         -------
@@ -1006,61 +1004,34 @@ class _Strategy:
         >>>     benchmark_asset=benchmark_asset,
         >>> )
         """
+
+        if name is None:
+            name = self.__name__
+
+        self._name = name
+
+        # Create an adapter with 'strategy_name' set to the instance's name
+        if not hasattr(self, "logger") or self.logger is None:
+            self.logger = CustomLoggerAdapter(logger, {'strategy_name': self._name})
+
+        # If show_plot is None, then set it to True
+        if show_plot is None:
+            show_plot = SHOW_PLOT
+
+        # If show_tearsheet is None, then set it to True
+        if show_tearsheet is None:
+            show_tearsheet = SHOW_TEARSHEET
+
+        # If show_indicators is None, then set it to True
+        if show_indicators is None:
+            show_indicators = SHOW_INDICATORS
+
         # Log a warning for polygon_has_paid_subscription as it is deprecated
         if polygon_has_paid_subscription:
-            logging.warning(
+            self.logger.warning(
                 "polygon_has_paid_subscription is deprecated and will be removed in future versions. "
                 "Please remove it from your code."
             )
-
-        positional_args_error_message = (
-            "Please do not use `name' or 'budget' as positional arguments. \n"
-            "These have been changed to keyword arguments. For example, \n"
-            "please create your `strategy.backtest` similar to below adding, \n"
-            "if you need them, `name` and `budget` as keyword arguments. \n"
-            "    strategy_class.backtest(\n"
-            "        backtesting_datasource,\n"
-            "        backtesting_start,\n"
-            "        backtesting_end,\n"
-            "        pandas_data=pandas_data,\n"
-            "        stats_file=stats_file,\n"
-            "        name='my_strategy_name',\n"
-            "        budget=50000,\n"
-            "        config=config,\n"
-            "        logfile=logfile,\n"
-            "        **kwargs,\n"
-            "    )"
-        )
-
-        # Print start message
-        print(f"Starting backtest for {cls.__name__}...")
-
-        # Handling positional arguments.
-        if len(args) == 3:
-            datasource_class = args[0]
-            backtesting_start = args[1]
-            backtesting_end = args[2]
-            name = kwargs.get("name", name)
-            budget = kwargs.get("budget", budget)
-        elif len(args) == 5:
-            name = args[0]
-            budget = args[1]
-            datasource_class = args[2]
-            backtesting_start = args[3]
-            backtesting_end = args[4]
-            logging.warning(
-                f"You are using the old style of initializing a backtest object. \n" f"{positional_args_error_message}"
-            )
-        else:
-            # Error message
-            logging.error(
-                "Unable to interpret positional arguments. Please ensure you have \n"
-                "included `datasource_class`, `backtesting_start`,  and `backtesting_end` \n"
-                "for your three positional arguments. \n"
-            )
-
-        if name is None:
-            name = cls.__name__
 
         # check if datasource_class is a class or a dictionary
         if isinstance(datasource_class, dict):
@@ -1099,7 +1070,7 @@ class _Strategy:
         if use_other_option_source and not isinstance(optionsource_class, type):
             raise ValueError(f"`optionsource_class` must be a class. You passed in {optionsource_class}")
 
-        cls.verify_backtest_inputs(backtesting_start, backtesting_end)
+        self.verify_backtest_inputs(backtesting_start, backtesting_end)
 
         # Make sure polygon_api_key is set if using PolygonDataBacktesting
         polygon_api_key = polygon_api_key if polygon_api_key is not None else POLYGON_API_KEY
@@ -1124,7 +1095,7 @@ class _Strategy:
                     "from https://www.thetadata.net/."
                 )
 
-        if not cls.IS_BACKTESTABLE:
+        if not self.IS_BACKTESTABLE:
             logging.warning(f"Strategy {name + ' ' if name is not None else ''}cannot be " f"backtested at the moment")
             return None
 
@@ -1136,11 +1107,10 @@ class _Strategy:
                 "`backtesting_start` and `backtesting_end` must be datetime objects. \n"
                 "You are receiving this error most likely because you are using \n"
                 "the original positional arguments for backtesting. \n\n"
-                f"{positional_args_error_message}"
             )
             return None
 
-        trader = Trader(logfile=logfile, backtest=True)
+        self._trader = trader_class(logfile=logfile, backtest=True, quiet_logs=quiet_logs)
 
         if datasource_class == PolygonDataBacktesting:
             data_source = datasource_class(
@@ -1150,6 +1120,8 @@ class _Strategy:
                 auto_adjust=auto_adjust,
                 api_key=polygon_api_key,
                 pandas_data=pandas_data,
+                show_progress_bar=show_progress_bar,
+                max_memory=POLYGON_MAX_MEMORY_BYTES,
                 **kwargs,
             )
         elif datasource_class == ThetaDataBacktesting or optionsource_class == ThetaDataBacktesting:
@@ -1162,6 +1134,7 @@ class _Strategy:
                 password=thetadata_password,
                 pandas_data=pandas_data,
                 use_quote_data=use_quote_data,
+                show_progress_bar=show_progress_bar,
                 **kwargs,
             )
         else:
@@ -1171,6 +1144,7 @@ class _Strategy:
                 config=config,
                 auto_adjust=auto_adjust,
                 pandas_data=pandas_data,
+                show_progress_bar=show_progress_bar,
                 **kwargs,
             )
 
@@ -1185,11 +1159,12 @@ class _Strategy:
                 username=thetadata_username,
                 password=thetadata_password,
                 pandas_data=pandas_data,
+                show_progress_bar=show_progress_bar,
                 **kwargs,
             )
             backtesting_broker = BacktestingBroker(data_source, options_source)
 
-        strategy = cls(
+        strategy = self(
             backtesting_broker,
             minutes_before_closing=minutes_before_closing,
             minutes_before_opening=minutes_before_opening,
@@ -1210,14 +1185,12 @@ class _Strategy:
             save_logfile=save_logfile,
             **kwargs,
         )
-        trader.add_strategy(strategy)
+        self._trader.add_strategy(strategy)
 
-        logger = logging.getLogger("backtest_stats")
-        logger.setLevel(logging.INFO)
         logger.info("Starting backtest...")
         start = datetime.datetime.now()
 
-        result = trader.run_all(
+        result = self._trader.run_all(
             show_plot=show_plot,
             show_tearsheet=show_tearsheet,
             save_tearsheet=save_tearsheet,
@@ -1343,8 +1316,10 @@ class _Strategy:
 
     @classmethod
     def backtest(
-        cls,
-        *args,
+        self,
+        datasource_class,
+        backtesting_start,
+        backtesting_end,
         minutes_before_closing=1,
         minutes_before_opening=60,
         sleeptime=1,
@@ -1362,20 +1337,23 @@ class _Strategy:
         pandas_data=None,
         quote_asset=Asset(symbol="USD", asset_type="forex"),
         starting_positions=None,
-        show_plot=True,
+        show_plot=None,
         tearsheet_file=None,
         save_tearsheet=True,
-        show_tearsheet=True,
+        show_tearsheet=None,
         parameters={},
         buy_trading_fees=[],
         sell_trading_fees=[],
         polygon_api_key=None,
         indicators_file=None,
-        show_indicators=True,
+        show_indicators=None,
         save_logfile=False,
         thetadata_username=None,
         thetadata_password=None,
         use_quote_data=False,
+        show_progress_bar=True,
+        quiet_logs=True,
+        trader_class=Trader,
         **kwargs,
     ):
         """Backtest a strategy.
@@ -1457,6 +1435,12 @@ class _Strategy:
         use_quote_data : bool
             Whether to use quote data for the backtest. Defaults to False. If True, the backtest will use quote data for the backtest. (Currently this is specific to ThetaData)
             When set to true this requests Quote data in addition to OHLC which adds time to backtests.
+        show_progress_bar : bool
+            Whether to show the progress bar. Defaults to True.
+        quiet_logs : bool
+            Whether to quiet noisy logs by setting the log level to ERROR. Defaults to True.
+        trader_class : Trader class
+            The trader class to use. Defaults to Trader.
 
         Returns
         -------
@@ -1491,8 +1475,10 @@ class _Strategy:
         >>>     benchmark_asset=benchmark_asset,
         >>> )
         """
-        results, strategy = cls.run_backtest(
-            *args,
+        results, strategy = self.run_backtest(
+            datasource_class=datasource_class,
+            backtesting_start=backtesting_start,
+            backtesting_end=backtesting_end,
             minutes_before_closing=minutes_before_closing,
             minutes_before_opening=minutes_before_opening,
             sleeptime=sleeptime,
@@ -1524,6 +1510,9 @@ class _Strategy:
             thetadata_username=thetadata_username,
             thetadata_password=thetadata_password,
             use_quote_data=use_quote_data,
+            show_progress_bar=show_progress_bar,
+            quiet_logs=quiet_logs,
+            trader_class=trader_class,
             **kwargs,
         )
         return results

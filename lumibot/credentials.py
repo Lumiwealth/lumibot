@@ -15,25 +15,34 @@ from dotenv import load_dotenv
 import termcolor
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
+def find_and_load_dotenv(base_dir) -> bool:
+    for root, dirs, files in os.walk(base_dir):
+        logger.debug(f"Checking {root} for .env file")
+        if '.env' in files:
+            dotenv_path = os.path.join(root, '.env')
+            load_dotenv(dotenv_path)
+
+            # Create a colored message for the log using termcolor
+            colored_message = termcolor.colored(f".env file loaded from: {dotenv_path}", "green")
+            logger.info(colored_message)
+            return True
+
+    return False
+
+
 # Get the directory of the original script being run
-base_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
+script_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
+logger.debug(f"script_dir: {script_dir}")
+found_dotenv = find_and_load_dotenv(script_dir)
 
-found_dotenv = False
-# Walk through the directory tree
-for root, dirs, files in os.walk(base_dir):
-    if '.env' in files:
-        dotenv_path = os.path.join(root, '.env')
-        load_dotenv(dotenv_path)
-
-        # Create a colored message for the log using termcolor
-        colored_message = termcolor.colored(f".env file loaded from: {dotenv_path}", "green")
-        logger.info(colored_message)
-
-        # Set the flag to True if a .env file was found
-        found_dotenv = True
+if not found_dotenv:
+    # Get the root directory of the project
+    cwd_dir = os.getcwd()
+    logger.debug(f"cwd_dir: {cwd_dir}")
+    found_dotenv = find_and_load_dotenv(cwd_dir)
 
 # If no .env file was found, print a warning message
 if not found_dotenv:
@@ -92,6 +101,11 @@ LIVE_CONFIG = os.environ.get("LIVE_CONFIG")
 # Discord credentials
 DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL")
 
+# Get SHOW_PLOT and SHOW_INDICATORS from the environment variables, default to True
+SHOW_PLOT = os.environ.get("SHOW_PLOT", "True") == "True"
+SHOW_INDICATORS = os.environ.get("SHOW_INDICATORS", "True") == "True"
+SHOW_TEARSHEET = os.environ.get("SHOW_TEARSHEET", "True") == "True"
+
 # Set DB_CONNECTION_STR to None by default
 DB_CONNECTION_STR = None
 
@@ -107,6 +121,9 @@ if os.environ.get("DB_CONNECTION_STR"):
 # Name for the strategy to be used in the database
 STRATEGY_NAME = os.environ.get("STRATEGY_NAME")
 
+# Set a hard limit on the memory polygon uses
+POLYGON_MAX_MEMORY_BYTES = os.environ.get("POLYGON_MAX_MEMORY_BYTES")
+
 POLYGON_CONFIG = {
     # Add POLYGON_API_KEY and POLYGON_IS_PAID_SUBSCRIPTION to your .env file or set them as secrets
     "API_KEY": os.environ.get("POLYGON_API_KEY"),
@@ -118,9 +135,6 @@ POLYGON_CONFIG = {
 
 # Polygon API Key
 POLYGON_API_KEY = POLYGON_CONFIG['API_KEY']
-
-# Live trading configuration (if applicable)
-LIVE_CONFIG = os.environ.get("LIVE_CONFIG", None)
 
 # Thetadata Configuration
 THETADATA_CONFIG = {

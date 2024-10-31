@@ -10,6 +10,20 @@ To get started with Lumibot, you can check out our documentation below.
 
 **Check out the documentation for the project here: 👉 <http://lumibot.lumiwealth.com/> 👈**
 
+## Blog
+
+Our blog has lots of example strategies and shows you how to run a bot using LumiBot. Check the blog out here:
+
+**https://lumiwealth.com/blog/**
+
+## Run a backtest
+
+To run a backtest, you can use the following code snippet:
+
+```bash
+python -m lumibot.example_strategies.stock_buy_and_hold
+```
+
 ## Run an Example Strategy
 
 We made a small example strategy to show you how to use Lumibot in this GitHub repository: [Example Algorithm GitHub](https://github.com/Lumiwealth-Strategies/stock_example_algo)
@@ -31,17 +45,23 @@ If you want to contribute to Lumibot, you can check how to get started below. We
 1. Clone the repository to your local machine
 2. Create a new branch for your feature
 3. Run `pip install -r requirements_dev.txt` to install the developer dependencies
-4. Install all the requriements from setup.py: `pip install -e .`
+4. Install all the requirements from setup.py: `pip install -e .`
 5. Make your changes
 6. Run `pytest` to make sure all the tests pass
 7. Create a pull request to merge your branch into master
 
 ## Running Tests
 
-We use pytest for our testing framework. To run the tests, you can run the following command:
+We use pytest for our testing framework. Some tests require API keys to be in a `.env` file in the root directory. To run the tests, you can run the following command:
 
 ```bash
 pytest
+```
+
+To run an individual test file, you can run the following command:
+
+```bash
+pytest tests/test_asset.py
 ```
 
 ### Showing Code Coverage
@@ -126,6 +146,56 @@ Here's an example of an actual launch.json file:
     ]
 }
 ```
+
+## Notes on data sources
+
+This table points out some of the differences between the data sources we use in Lumibot. These refer to the data 
+returned in a Bars entity that is returned from calls to get_historical_prices. 
+
+| data_source | type  | OHLCV | split adjusted | dividends | returns | dividend adjusted returns |
+|-------------|-------|-------|----------------|-----------|---------|---------------------------|
+| yahoo       | stock | Yes   | Yes            | Yes       | Yes     | Yes                       |
+| alpaca      | stock | Yes   | Yes            | No        | Yes     | No                        |
+| polygon     | stock | Yes   | Yes            | No        | Yes     | No                        |
+| Tradier     | stock | Yes   | Yes            | No        | Yes     | No                        |
+| Pandas*     | stock | Yes   | Yes            | Yes       | Yes     | Yes                       |
+
+*Pandas is not a data source per se, but it can load csv files in the same format as Yahoo dataframes,
+which can contain dividends.
+
+## An assortment of git commands our contributors may find useful
+
+Making a new branch and pulling from main:
+```shell
+git checkout -b my-feature
+git fetch origin
+git merge origin/dev
+```
+Committing work to you feature branch:
+```shell
+git add .
+git commit -m "my changes"
+git push -u origin my-feature
+```
+
+If work on main progressed while you were in another branch, this is how you rebase it into your branch:
+```shell
+git checkout dev
+git fetch origin
+git merge origin/dev
+git checkout my-feature
+git rebase dev
+```
+
+When ready to merge the branch into main, go into github, create a pull request, and await review. When your PR is approved it will automatically be merged into the dev branch remotely. Now, you can delete your local branch and the remote branch.
+```shell
+git checkout dev
+git fetch origin
+git merge origin/dev
+git branch -D my-feature
+git push origin --delete my-feature
+```
+
 
 ## Community
 

@@ -93,7 +93,7 @@ class StrategyExecutor(Thread):
 
     def sync_broker(self):
         # Log that we are syncing the broker.
-        self.strategy.logger.info("Syncing the broker.")
+        self.strategy.logger.debug("Syncing the broker.")
 
         # Only audit the broker positions during live trading.
         if self.broker.IS_BACKTESTING_BROKER:
@@ -135,7 +135,7 @@ class StrategyExecutor(Thread):
                 cash_balance = broker_balances[0]
                 portfolio_value = broker_balances[2]
                 self.strategy._set_cash_position(cash_balance)
-                self.strategy.logger.info(f"Got Cash Balance: ${cash_balance:.2f}, Portfolio: ${portfolio_value:.2f}")
+                self.strategy.logger.debug(f"Got Cash Balance: ${cash_balance:.2f}, Portfolio: ${portfolio_value:.2f}")
 
 
             held_trades_len = len(self.broker._held_trades)
@@ -1032,7 +1032,10 @@ class StrategyExecutor(Thread):
         market = self.broker.market
 
         # Get the trading days based on the market that the strategy is trading on
-        self.broker._trading_days = get_trading_days(market)
+        if self.strategy.is_backtesting:
+            self.broker._trading_days = get_trading_days(market=market, start_date=self.strategy._backtesting_start)
+        else:
+            self.broker._trading_days = get_trading_days(market)
 
         # Sort the trading days by market close time so that we can search them faster
         self.broker._trading_days.sort_values('market_close', inplace=True)  # Ensure sorted order

@@ -1,7 +1,7 @@
 Interactive Brokers
 ===================================
 
-To trade in your interactive brokers account, you must install Trader Workstation (or Gateway). Instructions for installation can be found here: https://interactivebrokers.github.io/tws-api/initial_setup.html
+To trade in your interactive brokers account, you must install Trader Workstation (or Gateway). Instructions for installation can be found here: https://ibkrcampus.com/campus/ibkr-api-page/twsapi-doc/
 
 Once installed, navigate in Trader Workstation to ``File -> Global Configuration -> API -> Settings`` The key settings required to trade using Lumibot are:
 

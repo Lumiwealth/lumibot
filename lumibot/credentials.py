@@ -121,6 +121,9 @@ if os.environ.get("DB_CONNECTION_STR"):
 # Name for the strategy to be used in the database
 STRATEGY_NAME = os.environ.get("STRATEGY_NAME")
 
+# Set a hard limit on the memory polygon uses
+POLYGON_MAX_MEMORY_BYTES = os.environ.get("POLYGON_MAX_MEMORY_BYTES")
+
 POLYGON_CONFIG = {
     # Add POLYGON_API_KEY and POLYGON_IS_PAID_SUBSCRIPTION to your .env file or set them as secrets
     "API_KEY": os.environ.get("POLYGON_API_KEY"),

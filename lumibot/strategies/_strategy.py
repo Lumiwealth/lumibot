@@ -37,6 +37,7 @@ from ..credentials import (
     SHOW_PLOT,
     SHOW_TEARSHEET,
     LIVE_CONFIG,
+    POLYGON_MAX_MEMORY_BYTES,
 )
 
 
@@ -1120,6 +1121,7 @@ class _Strategy:
                 api_key=polygon_api_key,
                 pandas_data=pandas_data,
                 show_progress_bar=show_progress_bar,
+                max_memory=POLYGON_MAX_MEMORY_BYTES,
                 **kwargs,
             )
         elif datasource_class == ThetaDataBacktesting or optionsource_class == ThetaDataBacktesting:

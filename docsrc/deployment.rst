@@ -364,6 +364,31 @@ Interactive Brokers is ideal for international users as they offer a wide array 
    * - **Secret**
      - **Description**
      - **Example**
+   * - IB_USERNAME
+     - Your Interactive Brokers username.
+     - user123
+   * - IB_PASSWORD
+     - Your Interactive Brokers password.
+     - password123
+   * - ACCOUNT_ID
+     - (Optional) An Interactive Brokers subaccount to trade on.
+     - U17369206
+   * - IB_API_URL
+     - (Optional) The URL of your self-hosted Interactive Brokers REST API. You likely don't need it.
+     - https://localhost:8000
+
+Interactive Brokers-Legacy Configuration
+---------------------------------
+
+This is the legacy version of our Interactive Brokers implementation, which uses their TWS API. It is maintained for compatibility purposes, but we recommend using the newer implementation.
+
+.. list-table:: Interactive Brokers-Legacy Configuration
+   :widths: 25 50 25
+   :header-rows: 1
+
+   * - **Secret**
+     - **Description**
+     - **Example**
    * - INTERACTIVE_BROKERS_PORT
      - Socket port for Interactive Brokers.
      - 7497
@@ -410,6 +435,9 @@ In addition to broker-specific secrets, the following environment variables are 
    * - MARKET
      - **(Optional)** The market you want the bot to think it is. Eg. "24/7" will make the bot think it is trading in a 24/7 market.
      - 24/7
+   * - POLYGON_MAX_MEMORY_BYTES
+     - **(Optional)** The maximum memory in bytes that the Polygon API can use. This is useful for limiting memory usage during backtesting.
+     - 512000000
 
 .. tip::
 

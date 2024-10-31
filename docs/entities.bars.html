@@ -244,6 +244,7 @@
 <li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_parameters_updated.html">def on_parameters_updated</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="vars.html">Variable Backup &amp; Restore</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="strategy_methods.html">Strategy Methods</a><input class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><div class="visually-hidden">Toggle navigation of Strategy Methods</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.orders.html">Order Management</a><input class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><div class="visually-hidden">Toggle navigation of Order Management</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.create_order.html">self.create_order</a></li>
@@ -635,19 +636,9 @@ Returns a new bars object.</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="id3">
-<span class="sig-name descname"><span class="pre">get_momentum</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">start</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">end</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#id3" title="Link to this definition">¶</a></dt>
-<dd><p>Return the momentum (return based on closing prices) of the bars between start and end</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>start</strong> (<em>datetime.datetime</em>) – The start of the range to filter on (inclusive) (default: None)</p></li>
-<li><p><strong>end</strong> (<em>datetime.datetime</em>) – The end of the range to filter on (inclusive) (default: None)</p></li>
-</ul>
-</dd>
-<dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p>float</p>
-</dd>
-</dl>
+<span class="sig-name descname"><span class="pre">get_momentum</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">num_periods</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#id3" title="Link to this definition">¶</a></dt>
+<dd><p>Calculate the momentum of the asset over the last num_periods rows. If dividends are provided by the data source,
+and included in the return calculation, the momentum will be adjusted for dividends.</p>
 </dd></dl>
 
 <dl class="py method">

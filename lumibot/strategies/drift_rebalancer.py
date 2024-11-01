@@ -11,6 +11,18 @@ logger = logging.getLogger(__name__)
 # print_full_pandas_dataframes()
 # set_pandas_float_precision(precision=15)
 
+"""
+The DriftRebalancer strategy is designed to maintain a portfolio's target asset allocation by 
+rebalancing assets based on their drift from target weights. The strategy calculates the 
+drift of each asset in the portfolio and triggers a rebalance if the drift exceeds a predefined 
+threshold. It uses limit orders to buy or sell assets to bring the portfolio back to its target allocation.
+
+It basically does the following:
+Calculate Drift: Determine the difference between the current and target weights of each asset in the portfolio.
+Trigger Rebalance: Initiate buy or sell orders when the drift exceeds the threshold.
+Execute Orders: Place limit orders to buy or sell assets based on the calculated drift.
+"""
+
 
 class DriftCalculationLogic:
     def __init__(self, target_weights: Dict[str, Decimal]) -> None:

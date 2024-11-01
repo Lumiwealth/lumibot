@@ -438,7 +438,7 @@ class TestDriftRebalancer:
             show_indicators=False,
             save_logfile=False,
             show_progress_bar=False,
-            quiet_logs=False,
+            quiet_logs=True,
         )
 
         expected_results = {'cagr': 0.22310804893738934, 'volatility': 0.0690583452535692, 'sharpe': 3.0127864810707985, 'max_drawdown': {'drawdown': 0.025983871768394628, 'date': pd.Timestamp('2019-10-02 09:30:00-0400', tz='America/New_York')}, 'romad': 8.586405094900671, 'total_return': 0.22159156832392668}

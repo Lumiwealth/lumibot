@@ -5,9 +5,11 @@ import time
 import logging
 
 from lumibot.strategies.strategy import Strategy
-from lumibot.tools.pandas import prettify_dataframe_with_decimals
+from lumibot.tools import prettify_dataframe_with_decimals
 
 logger = logging.getLogger(__name__)
+# print_full_pandas_dataframes()
+# set_pandas_float_precision(precision=15)
 
 
 class DriftCalculationLogic:

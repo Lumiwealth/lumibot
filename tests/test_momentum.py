@@ -11,16 +11,12 @@ from pandas.testing import assert_series_equal
 from lumibot.strategies import Strategy
 from lumibot.backtesting import PandasDataBacktesting, YahooDataBacktesting, PolygonDataBacktesting
 from tests.fixtures import pandas_data_fixture
-from lumibot.tools.pandas import print_full_pandas_dataframes, set_pandas_float_precision
-
-# Global parameters
-# API Key for testing Polygon.io
-from lumibot.credentials import POLYGON_CONFIG
+from lumibot.tools import print_full_pandas_dataframes, set_pandas_float_precision
 
 
 logger = logging.getLogger(__name__)
-print_full_pandas_dataframes()
-set_pandas_float_precision(precision=15)
+# print_full_pandas_dataframes()
+# set_pandas_float_precision(precision=15)
 
 
 class MomoTester(Strategy):

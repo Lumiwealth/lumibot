@@ -371,6 +371,7 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="brokers.html">Brokers</a><input class="toctree-checkbox" id="toctree-checkbox-14" name="toctree-checkbox-14" role="switch" type="checkbox"/><label for="toctree-checkbox-14"><div class="visually-hidden">Toggle navigation of Brokers</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="brokers.alpaca.html">Alpaca</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.interactive_brokers.html">Interactive Brokers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.interactive_brokers_legacy.html">Interactive Brokers Legacy</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.ccxt.html">Crypto Brokers (Using CCXT)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.tradier.html">Tradier</a></li>
 </ul>
@@ -417,53 +418,86 @@
         <article role="main" id="furo-main-content">
           <section id="variable-backup-restore">
 <h1>Variable Backup &amp; Restore<a class="headerlink" href="#variable-backup-restore" title="Link to this heading">¶</a></h1>
-<p>Every <cite>Strategy</cite> object includes a <cite>vars</cite> attribute (<cite>self.vars</cite>), which is an instance of the <cite>Vars</cite> class. It stores the strategy’s runtime variables and is periodically backed up to the database provided with the <cite>DB_CONNECTION_STR</cite> environment variable.</p>
-<div class="admonition important">
-<p class="admonition-title">Important</p>
-<p>We strongly recommend using <cite>self.vars</cite> for storing your strategy’s runtime variables, as this ensures that if the strategy stops unexpectedly, it can safely resume from the backup state stored in <cite>self.vars</cite>.</p>
-</div>
-<section id="class-definition">
-<h2>Class Definition<a class="headerlink" href="#class-definition" title="Link to this heading">¶</a></h2>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">Vars</span><span class="p">:</span>
-  <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-    <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="s1">&#39;_vars_dict&#39;</span><span class="p">,</span> <span class="p">{})</span>
-
-  <span class="k">def</span> <span class="fm">__getattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
-    <span class="k">try</span><span class="p">:</span>
-      <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_vars_dict</span><span class="p">[</span><span class="n">name</span><span class="p">]</span>
-    <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
-      <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;&#39;Vars&#39; object has no attribute &#39;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">&#39;&quot;</span><span class="p">)</span>
-
-  <span class="k">def</span> <span class="fm">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
-    <span class="bp">self</span><span class="o">.</span><span class="n">_vars_dict</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
-
-  <span class="k">def</span> <span class="nf">set</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
-    <span class="bp">self</span><span class="o">.</span><span class="n">_vars_dict</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
-
-  <span class="k">def</span> <span class="nf">all</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_vars_dict</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
-</pre></div>
-</div>
+<p>Every <cite>Strategy</cite> object has a <cite>vars</cite> attribute (<cite>self.vars</cite>), an instance of the <cite>Vars</cite> class. It stores runtime variables and is periodically backed up to the database specified by the <cite>DB_CONNECTION_STR</cite> environment variable.</p>
+<section id="how-it-works">
+<h2>How It Works<a class="headerlink" href="#how-it-works" title="Link to this heading">¶</a></h2>
+<ul class="simple">
+<li><p><strong>Loading Variables:</strong> Before the first trading iteration, saved variables are loaded into <cite>self.vars</cite>.</p></li>
+<li><p><strong>Backing Up Variables:</strong> After each trading iteration and when the bot stops or crashes, <cite>self.vars</cite> is automatically backed up to the database.</p></li>
+</ul>
 </section>
-<section id="usage-examples">
-<h2>Usage Examples<a class="headerlink" href="#usage-examples" title="Link to this heading">¶</a></h2>
-<p><strong>Set attributes:</strong></p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="bp">self</span><span class="o">.</span><span class="n">vars</span><span class="o">.</span><span class="n">some_var</span> <span class="o">=</span> <span class="mi">10</span>
-<span class="bp">self</span><span class="o">.</span><span class="n">vars</span><span class="o">.</span><span class="n">another_var</span> <span class="o">=</span> <span class="s2">&quot;Hello, World!&quot;</span>
+<section id="benefits-of-self-vars">
+<h2>Benefits of <cite>self.vars</cite><a class="headerlink" href="#benefits-of-self-vars" title="Link to this heading">¶</a></h2>
+<ul class="simple">
+<li><p><strong>Persistence:</strong> Resume from the last state after interruptions.</p></li>
+<li><p><strong>Namespacing:</strong> Prevent conflicts with other components or strategies.</p></li>
+<li><p><strong>Scalability:</strong> Efficient storage, especially when scaling or using multiple strategies.</p></li>
+</ul>
+</section>
+<section id="usage-guide">
+<h2>Usage Guide<a class="headerlink" href="#usage-guide" title="Link to this heading">¶</a></h2>
+<p><strong>Setting Variables:</strong></p>
+<p>Assign values using attribute notation:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">on_trading_iteration</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">vars</span><span class="o">.</span><span class="n">trade_count</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">vars</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;trade_count&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
 </pre></div>
 </div>
-<p><strong>Get attributes:</strong></p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nb">print</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">vars</span><span class="o">.</span><span class="n">some_var</span><span class="p">)</span>    <span class="c1"># Output: 10</span>
-<span class="nb">print</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">vars</span><span class="o">.</span><span class="n">another_var</span><span class="p">)</span> <span class="c1"># Output: Hello, World!</span>
+<p><strong>Accessing Variables:</strong></p>
+<p>Retrieve variables using attribute notation:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">on_trading_iteration</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="n">current_count</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">vars</span><span class="o">.</span><span class="n">trade_count</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Current trade count: </span><span class="si">{</span><span class="n">current_count</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 </pre></div>
 </div>
-<p><strong>Get all attributes:</strong></p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nb">print</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">vars</span><span class="o">.</span><span class="n">all</span><span class="p">())</span>  <span class="c1"># Output: {&#39;some_var&#39;: 10, &#39;another_var&#39;: &#39;Hello, World!&#39;}</span>
+<p><strong>Getting All Variables:</strong></p>
+<p>Use the <cite>all()</cite> method:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">all_variables</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">vars</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">all_variables</span><span class="p">)</span>
+
+<span class="c1"># Output: {&#39;trade_count&#39;: 5, &#39;last_price&#39;: 102.5}</span>
 </pre></div>
 </div>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
-<p><strong>Tip:</strong> Use the <cite>all()</cite> method to get a copy of all stored variables in a dictionary format.</p>
+<p>Use <cite>all()</cite> for debugging or processing multiple variables at once.</p>
+</div>
+</section>
+<section id="database-configuration">
+<h2>Database Configuration<a class="headerlink" href="#database-configuration" title="Link to this heading">¶</a></h2>
+<p>Set the <cite>DB_CONNECTION_STR</cite> environment variable in your .env file:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">DB_CONNECTION_STR</span><span class="o">=</span><span class="s2">&quot;postgresql://user:password@localhost:5432/database_name&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="database-storage-structure">
+<h2>Database Storage Structure<a class="headerlink" href="#database-storage-structure" title="Link to this heading">¶</a></h2>
+<p>Variables are stored in a PostgreSQL table:</p>
+<ul class="simple">
+<li><p><strong>Table Name:</strong> Defined by <cite>self.backup_table_name</cite> (default is <cite>vars_backup</cite>).</p></li>
+<li><p><strong>Columns:</strong>
+- <cite>id</cite> (Primary Key)
+- <cite>last_updated</cite>: Timestamp of the last backup.
+- <cite>variables</cite>: JSON string of the strategy’s variables (<cite>self.vars.all()</cite>).
+- <cite>strategy_id</cite>: Strategy name (<cite>self.name</cite>).</p></li>
+</ul>
+<p>Example Database:</p>
+<div class="table-wrapper docutils container">
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p><strong>id</strong></p></th>
+<th class="head"><p><strong>last_updated</strong></p></th>
+<th class="head"><p><strong>variables</strong></p></th>
+<th class="head"><p><strong>strategy_id</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>550e8400</p></td>
+<td><p>2023-10-05 14:30:00</p></td>
+<td><p>{“var1”: 10, “var2”: “A”}</p></td>
+<td><p>OptionsCondorMartingale</p></td>
+</tr>
+</tbody>
+</table>
 </div>
 </section>
 </section>
@@ -524,8 +558,11 @@
           <div class="toc-tree">
             <ul>
 <li><a class="reference internal" href="#">Variable Backup &amp; Restore</a><ul>
-<li><a class="reference internal" href="#class-definition">Class Definition</a></li>
-<li><a class="reference internal" href="#usage-examples">Usage Examples</a></li>
+<li><a class="reference internal" href="#how-it-works">How It Works</a></li>
+<li><a class="reference internal" href="#benefits-of-self-vars">Benefits of <cite>self.vars</cite></a></li>
+<li><a class="reference internal" href="#usage-guide">Usage Guide</a></li>
+<li><a class="reference internal" href="#database-configuration">Database Configuration</a></li>
+<li><a class="reference internal" href="#database-storage-structure">Database Storage Structure</a></li>
 </ul>
 </li>
 </ul>

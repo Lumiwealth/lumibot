@@ -117,34 +117,20 @@ class BacktestingBroker(Broker):
     def is_market_open(self):
         """Return True if market is open else false"""
         now = self.datetime
-        increased_idx = False
 
-        if not hasattr(self, '_cached_idx_right'):
-            idx = self._trading_days.index.searchsorted(now, side='right')
-            self._cached_idx_right = idx
-        else:
-            if now > self._previous_market_close_right:
-                self._cached_idx_right += 1
-                increased_idx = True
-                
-            idx = self._cached_idx_right
+        # As the index is sorted, use searchsorted to find the relevant day
+        idx = self._trading_days.index.searchsorted(now, side='right')
 
-        if hasattr(self, '_previous_market_close_right') and not increased_idx:
-            market_close = self._previous_market_close_right
-            market_open = self._previous_market_open_right
-        else:
-            if idx >= len(self._trading_days):
-                logging.error("Cannot predict future")
-                return 0
+        # Check that the index is not out of bounds
+        if idx >= len(self._trading_days):
+            logging.error("Cannot predict future")
+            return False
 
-            # The index of the trading_day is used as the market close time
-            market_close = self._trading_days.index[idx]
+        # The index of the trading_day is used as the market close time
+        market_close = self._trading_days.index[idx]
 
-            # Retrieve market open time using .at since idx is a valid datetime index
-            market_open = self._trading_days.at[market_close, 'market_open']
-
-            self._previous_market_open_right = market_open
-            self._previous_market_close_right = market_close
+        # Retrieve market open time using .at since idx is a valid datetime index
+        market_open = self._trading_days.at[market_close, 'market_open']
 
         # Check if 'now' is within the trading hours of the located day
         return market_open <= now < market_close
@@ -185,36 +171,18 @@ class BacktestingBroker(Broker):
     def get_time_to_close(self):
         """Return the remaining time for the market to close in seconds"""
         now = self.datetime
-        increased_idx = False
 
         # Use searchsorted for efficient searching and reduce unnecessary DataFrame access
-        if not hasattr(self, '_cached_idx'):
-            idx = self._trading_days.index.searchsorted(now, side='left')
-            self._cached_idx = idx
-        else:
-            if now > self._previous_market_close:
-                self._cached_idx += 1
-                increased_idx = True
-                
-            idx = self._cached_idx
+        idx = self._trading_days.index.searchsorted(now, side='left')
 
-        if hasattr(self, '_previous_market_close') and not increased_idx:
-            # Skip computation if done already
-            market_close = self._previous_market_close
-            market_open = self._previous_market_open
-        
-        else:
-            if idx >= len(self._trading_days):
-                logging.error("Cannot predict future")
-                return 0
+        if idx >= len(self._trading_days):
+            logging.error("Cannot predict future")
+            return 0
 
-            # Directly access the data needed using more efficient methods
-            market_close_time = self._trading_days.index[idx]
-            market_open = self._trading_days.at[market_close_time, 'market_open']
-            market_close = market_close_time  # Assuming this is a scalar value directly from the index
-
-            self._previous_market_open = market_open
-            self._previous_market_close = market_close
+        # Directly access the data needed using more efficient methods
+        market_close_time = self._trading_days.index[idx]
+        market_open = self._trading_days.at[market_close_time, 'market_open']
+        market_close = market_close_time  # Assuming this is a scalar value directly from the index
 
         if now < market_open:
             return None

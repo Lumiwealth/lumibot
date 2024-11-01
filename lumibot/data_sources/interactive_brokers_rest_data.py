@@ -884,7 +884,11 @@ class InteractiveBrokersRESTData(DataSource):
         else:
             logging.error(colored(f"Unsupported timestep: {timestep}", "red"))
             return Bars(
-                pd.DataFrame(), self.SOURCE, asset, raw=pd.DataFrame(), quote=quote
+                pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume"]), 
+                self.SOURCE, 
+                asset, 
+                raw=pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume"]), 
+                quote=quote
             )
 
         url = f"{self.base_url}/iserver/marketdata/history?conid={conid}&period={period}&bar={timestep}&outsideRth={include_after_hours}&startTime={start_time}"
@@ -899,7 +903,11 @@ class InteractiveBrokersRESTData(DataSource):
                 colored(f"Error getting historical prices: {result['error']}", "red")
             )
             return Bars(
-                pd.DataFrame(), self.SOURCE, asset, raw=pd.DataFrame(), quote=quote
+                pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume"]), 
+                self.SOURCE, 
+                asset, 
+                raw=pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume"]), 
+                quote=quote
             )
 
         if not result or not result["data"]:
@@ -910,7 +918,11 @@ class InteractiveBrokersRESTData(DataSource):
                 )
             )
             return Bars(
-                pd.DataFrame(), self.SOURCE, asset, raw=pd.DataFrame(), quote=quote
+                pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume"]), 
+                self.SOURCE, 
+                asset, 
+                raw=pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume"]), 
+                quote=quote
             )
 
         # Create a DataFrame from the data

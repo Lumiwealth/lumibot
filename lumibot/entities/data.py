@@ -8,7 +8,7 @@ from lumibot.tools.helpers import parse_timestep_qty_and_unit, to_datetime_aware
 
 from .asset import Asset
 from .dataline import Dataline
-from functools import lru_cache
+
 
 class Data:
     """Input and manage Pandas dataframes for backtesting.
@@ -278,16 +278,19 @@ class Data:
         idx = idx[(idx >= self.datetime_start) & (idx <= self.datetime_end)]
 
         # After all time series merged, adjust the local dataframe to reindex and fill nan's.
-        self.df = self.df.reindex(idx, method="ffill")
-        self.df.loc[self.df["volume"].isna(), "volume"] = 0
-        self.df.loc[:, ~self.df.columns.isin(["open", "high", "low"])] = self.df.loc[
-            :, ~self.df.columns.isin(["open", "high", "low"])
+        df = self.df.reindex(idx, method="ffill")
+        df.loc[df["volume"].isna(), "volume"] = 0
+        df.loc[:, ~df.columns.isin(["open", "high", "low"])] = df.loc[
+            :, ~df.columns.isin(["open", "high", "low"])
         ].ffill()
         for col in ["open", "high", "low"]:
-            self.df.loc[self.df[col].isna(), col] = self.df.loc[self.df[col].isna(), "close"]
+            df.loc[df[col].isna(), col] = df.loc[df[col].isna(), "close"]
 
-        iter_index = pd.Series(self.df.index)
+        self.df = df
+
+        iter_index = pd.Series(df.index)
         self.iter_index = pd.Series(iter_index.index, index=iter_index)
+        self.iter_index_dict = self.iter_index.to_dict()
 
         self.datalines = dict()
         self.to_datalines()
@@ -298,7 +301,8 @@ class Data:
                 "datetime": Dataline(
                     self.asset,
                     "datetime",
-                    self.df.index
+                    self.df.index.to_numpy(),
+                    self.df.index.dtype,
                 )
             }
         )
@@ -310,32 +314,73 @@ class Data:
                     column: Dataline(
                         self.asset,
                         column,
-                        self.df[column]
-                        )
-                    }
-                )
+                        self.df[column].to_numpy(),
+                        self.df[column].dtype,
+                    )
+                }
+            )
             setattr(self, column, self.datalines[column].dataline)
-    
+
+    def get_iter_count(self, dt):
+        # Return the index location for a given datetime.
+
+        # Check if the date is in the dataframe, if not then get the last
+        # known data (this speeds up the process)
+        i = None
+
+        # Check if we have the iter_index_dict, if not then repair the times and fill (which will create the iter_index_dict)
+        if getattr(self, "iter_index_dict", None) is None:
+            self.repair_times_and_fill(self.df.index)
+
+        # Search for dt in self.iter_index_dict
+        if dt in self.iter_index_dict:
+            i = self.iter_index_dict[dt]
+        else:
+            # If not found, get the last known data
+            i = self.iter_index.asof(dt)
+
+        return i
+
     def check_data(func):
         # Validates if the provided date, length, timeshift, and timestep
         # will return data. Runs function if data, returns None if no data.
         def checker(self, *args, **kwargs):
+            if type(kwargs.get("length", 1)) not in [int, float]:
+                raise TypeError(f"Length must be an integer. {type(kwargs.get('length', 1))} was provided.")
 
-            # Search for dt in self.iter_index
-            if getattr(self, "iter_index", None) is None:
+            dt = args[0]
+
+            # Check if the iter date is outside of this data's date range.
+            if dt < self.datetime_start:
+                raise ValueError(
+                    f"The date you are looking for ({dt}) for ({self.asset}) is outside of the data's date range ({self.datetime_start} to {self.datetime_end}). This could be because the data for this asset does not exist for the date you are looking for, or something else."
+                )
+
+            # Search for dt in self.iter_index_dict
+            if getattr(self, "iter_index_dict", None) is None:
                 self.repair_times_and_fill(self.df.index)
 
+            if dt in self.iter_index_dict:
+                i = self.iter_index_dict[dt]
+            else:
+                # If not found, get the last known data
+                i = self.iter_index.asof(dt)
+
+            length = kwargs.get("length", 1)
+            timeshift = kwargs.get("timeshift", 0)
+            data_index = i + 1 - length - timeshift
+            is_data = data_index >= 0
+            if not is_data:
+                # Log a warning
+                logging.warning(
+                    f"The date you are looking for ({dt}) is outside of the data's date range ({self.datetime_start} to {self.datetime_end}) after accounting for a length of {kwargs.get('length', 1)} and a timeshift of {kwargs.get('timeshift', 0)}. Keep in mind that the length you are requesting must also be available in your data, in this case we are {data_index} rows away from the data you need."
+                )
 
             res = func(self, *args, **kwargs)
             # print(f"Results last price: {res}")
             return res
 
         return checker
-
-    @lru_cache(maxsize=32)
-    @check_data
-    def get_iter_count(self, dt):
-        return self.iter_index.index.searchsorted(dt, side='right') - 1
 
     @check_data
     def get_last_price(self, dt, length=1, timeshift=0):
@@ -357,8 +402,8 @@ class Data:
         float
         """
         iter_count = self.get_iter_count(dt)
-        open_price = self.datalines["open"].dataline.iloc[iter_count]
-        close_price = self.datalines["close"].dataline.iloc[iter_count]
+        open_price = self.datalines["open"].dataline[iter_count]
+        close_price = self.datalines["close"].dataline[iter_count]
         price = close_price if dt > self.datalines["datetime"].dataline[iter_count] else open_price
         return price
 
@@ -382,19 +427,19 @@ class Data:
         dict
         """
         iter_count = self.get_iter_count(dt)
-        open = round(self.datalines["open"].dataline.iloc[iter_count], 2)
-        high = round(self.datalines["high"].dataline.iloc[iter_count], 2)
-        low = round(self.datalines["low"].dataline.iloc[iter_count], 2)
-        close = round(self.datalines["close"].dataline.iloc[iter_count], 2)
-        bid = round(self.datalines["bid"].dataline.iloc[iter_count], 2)
-        ask = round(self.datalines["ask"].dataline.iloc[iter_count], 2)
-        volume = round(self.datalines["volume"].dataline.iloc[iter_count], 0)
-        bid_size = round(self.datalines["bid_size"].dataline.iloc[iter_count], 0)
-        bid_condition = round(self.datalines["bid_condition"].dataline.iloc[iter_count], 0)
-        bid_exchange = round(self.datalines["bid_exchange"].dataline.iloc[iter_count], 0)
-        ask_size = round(self.datalines["ask_size"].dataline.iloc[iter_count], 0)
-        ask_condition = round(self.datalines["ask_condition"].dataline.iloc[iter_count], 0)
-        ask_exchange = round(self.datalines["ask_exchange"].dataline.iloc[iter_count], 0)
+        open = round(self.datalines["open"].dataline[iter_count], 2)
+        high = round(self.datalines["high"].dataline[iter_count], 2)
+        low = round(self.datalines["low"].dataline[iter_count], 2)
+        close = round(self.datalines["close"].dataline[iter_count], 2)
+        bid = round(self.datalines["bid"].dataline[iter_count], 2)
+        ask = round(self.datalines["ask"].dataline[iter_count], 2)
+        volume = round(self.datalines["volume"].dataline[iter_count], 0)
+        bid_size = round(self.datalines["bid_size"].dataline[iter_count], 0)
+        bid_condition = round(self.datalines["bid_condition"].dataline[iter_count], 0)
+        bid_exchange = round(self.datalines["bid_exchange"].dataline[iter_count], 0)
+        ask_size = round(self.datalines["ask_size"].dataline[iter_count], 0)
+        ask_condition = round(self.datalines["ask_condition"].dataline[iter_count], 0)
+        ask_exchange = round(self.datalines["ask_exchange"].dataline[iter_count], 0)
 
         return {
             "open": open,

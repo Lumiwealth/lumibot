@@ -83,7 +83,7 @@ class DriftCalculationLogic:
                 return row["target_weight"] - row["current_weight"]
 
         self.df["absolute_drift"] = self.df.apply(calculate_drift_row, axis=1)
-        return self.df
+        return self.df.copy()
 
 
 class LimitOrderRebalanceLogic:

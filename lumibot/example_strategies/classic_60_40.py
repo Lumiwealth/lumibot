@@ -49,10 +49,12 @@ if __name__ == "__main__":
             benchmark_asset="SPY",
             parameters=parameters,
             show_plot=False,
-            show_tearsheet=True,
+            show_tearsheet=False,
             save_tearsheet=False,
             show_indicators=False,
             save_logfile=False,
+            # show_progress_bar=False,
+            # quiet_logs=False
         )
 
         print(results)

@@ -404,6 +404,19 @@ class TestLimitOrderRebalance:
         executor.rebalance()
         assert len(strategy.orders) == 0
 
+    def test_attempting_to_sell_when_the_amount_we_need_to_sell_is_less_than_the_limit_price_should_not_sell(self):
+        strategy = MockStrategy(broker=self.backtesting_broker)
+        df = pd.DataFrame({
+            "symbol": ["AAPL"],
+            "current_quantity": [Decimal("1")],
+            "current_value": [Decimal("100")],
+            "target_value": [Decimal("10")],
+            "absolute_drift": [Decimal("-0.5")]
+        })
+        executor = LimitOrderRebalanceLogic(strategy=strategy, df=df)
+        executor.rebalance()
+        assert len(strategy.orders) == 0
+
 
 # @pytest.mark.skip()
 class TestDriftRebalancer:

@@ -21,6 +21,9 @@ It basically does the following:
 Calculate Drift: Determine the difference between the current and target weights of each asset in the portfolio.
 Trigger Rebalance: Initiate buy or sell orders when the drift exceeds the threshold.
 Execute Orders: Place limit orders to buy or sell assets based on the calculated drift.
+
+Note: If you run this strategy in a live trading environment, be sure to not make manual trades in the same account.
+This strategy will sell other positions in order to get the account to the target weights. 
 """
 
 
@@ -112,7 +115,8 @@ class LimitOrderRebalanceLogic:
                 last_price = Decimal(self.strategy.get_last_price(symbol))
                 limit_price = self.calculate_limit_price(last_price=last_price, side="sell")
                 quantity = ((row["current_value"] - row["target_value"]) / limit_price).quantize(Decimal('1'), rounding=ROUND_DOWN)
-                self.place_limit_order(symbol=symbol, quantity=quantity, limit_price=limit_price, side="sell")
+                if quantity > 0:
+                    self.place_limit_order(symbol=symbol, quantity=quantity, limit_price=limit_price, side="sell")
 
         if not self.strategy.is_backtesting:
             # Sleep to allow sell orders to fill
@@ -133,7 +137,7 @@ class LimitOrderRebalanceLogic:
                     self.place_limit_order(symbol=symbol, quantity=quantity, limit_price=limit_price, side="buy")
                     cash_position -= min(order_value, cash_position)
                 else:
-                    logger.error(f"Ran out of cash to buy {symbol}. cash: {cash_position}")
+                    logger.info(f"Ran out of cash to buy {symbol}. Cash: {cash_position} and limit_price: {limit_price:.2f}")
 
     def calculate_limit_price(self, *, last_price: Decimal, side: str) -> Decimal:
         if side == "sell":
@@ -168,14 +172,30 @@ class DriftRebalancer(Strategy):
     Example parameters:
 
     parameters = {
+
+        ### Standard lumibot strategy parameters
         "market": "NYSE",
         "sleeptime": "1D",
-        "absolute_drift_threshold": "0.20",
+
+        ### DriftRebalancer parameters
+
+        # This is the absolute drift threshold that will trigger a rebalance. If the target_weight is 0.30 and the
+        # absolute_drift_threshold is 0.05, then the rebalance will be triggered when the assets current_weight
+        # is less than 0.25 or greater than 0.35.
+        "absolute_drift_threshold": "0.05",
+
+        # This is the acceptable slippage that will be used when calculating the number of shares to buy or sell.
+        # The default is 0.0005 (5 BPS)
         "acceptable_slippage": "0.0005",
+
+         # The amount of time to sleep between the sells and buys to give enough time for the orders to fill
         "fill_sleeptime": 15,
+
+        # The target weights for each asset in the portfolio. You can put the quote asset in here (or not).
         "target_weights": {
             "SPY": "0.60",
-            "TLT": "0.40"
+            "TLT": "0.40",
+            "USD": "0.00",
         }
     }
     """
@@ -205,6 +225,10 @@ class DriftRebalancer(Strategy):
         dt = self.get_datetime()
         logger.info(f"{dt} on_trading_iteration called")
         self.cancel_open_orders()
+
+        if self.cash < 0:
+            logger.error(f"Negative cash: {self.cash} but DriftRebalancer does not currently support margin trading.")
+
         drift_calculator = DriftCalculationLogic(target_weights=self.target_weights)
 
         # Get all positions and add them to the calculator
@@ -226,11 +250,18 @@ class DriftRebalancer(Strategy):
             )
 
         df = drift_calculator.calculate()
+        msg = f"Drift:\n{prettify_dataframe_with_decimals(df)}"
+        logger.info(msg)
+        self.log_message(msg, broadcast=True)
 
         # Check if the absolute value of any drift is greater than the threshold
         if (df["absolute_drift"].abs() > self.absolute_drift_threshold).any():
-            logger.info(f"Absolute drift exceeds threshold. Rebalancing portfolio.")
-            logger.info(f"Drift:\n{prettify_dataframe_with_decimals(df)}")
+            msg = (
+                f"At least one asset's absolute drift exceeds threshold of {self.absolute_drift_threshold}. " 
+                f"Rebalancing portfolio."
+            )
+            logger.info(msg)
+            self.log_message(msg, broadcast=True)
             rebalance_logic = LimitOrderRebalanceLogic(
                 strategy=self,
                 df=df,

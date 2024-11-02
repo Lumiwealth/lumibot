@@ -191,6 +191,7 @@ class TestMomentum:
             show_indicators=False,
             save_logfile=False,
             show_progress_bar=False,
+            quiet_logs=False
         )
         comparison_df = self.build_comparison_df(strat_obj)
         # print(f"\n{comparison_df}")

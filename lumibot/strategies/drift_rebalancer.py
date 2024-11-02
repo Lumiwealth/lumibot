@@ -208,6 +208,7 @@ class DriftRebalancer(Strategy):
         self.acceptable_slippage = Decimal(self.parameters.get("acceptable_slippage", "0.0005"))
         self.fill_sleeptime = self.parameters.get("fill_sleeptime", 15)
         self.target_weights = {k: Decimal(v) for k, v in self.parameters["target_weights"].items()}
+        self.drift_df = pd.DataFrame()
 
         # Sanity checks
         if self.acceptable_slippage >= self.absolute_drift_threshold:
@@ -249,22 +250,27 @@ class DriftRebalancer(Strategy):
                 current_value=current_value
             )
 
-        df = drift_calculator.calculate()
-        msg = f"Drift:\n{prettify_dataframe_with_decimals(df)}"
-        logger.info(msg)
-        self.log_message(msg, broadcast=True)
+        self.drift_df = drift_calculator.calculate()
 
         # Check if the absolute value of any drift is greater than the threshold
-        if (df["absolute_drift"].abs() > self.absolute_drift_threshold).any():
-            msg = (
-                f"At least one asset's absolute drift exceeds threshold of {self.absolute_drift_threshold}. " 
-                f"Rebalancing portfolio."
-            )
+        rebalance_needed = False
+        for index, row in self.drift_df.iterrows():
+            if row["absolute_drift"] > self.absolute_drift_threshold:
+                rebalance_needed = True
+                msg = (
+                    f"Absolute drift for {row['symbol']} is {row['absolute_drift']:.2f} "
+                    f"and exceeds threshold of {self.absolute_drift_threshold:.2f}"
+                )
+                logger.info(msg)
+                self.log_message(msg, broadcast=True)
+
+        if rebalance_needed:
+            msg = f"Rebalancing portfolio."
             logger.info(msg)
             self.log_message(msg, broadcast=True)
             rebalance_logic = LimitOrderRebalanceLogic(
                 strategy=self,
-                df=df,
+                df=self.drift_df,
                 fill_sleeptime=self.fill_sleeptime,
                 acceptable_slippage=self.acceptable_slippage
             )

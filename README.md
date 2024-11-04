@@ -188,7 +188,6 @@ git fetch origin
 git merge origin/dev
 git checkout my-feature
 git rebase dev
-git checkout my-feature
 git push --force-with-lease origin my-feature
 ```
 

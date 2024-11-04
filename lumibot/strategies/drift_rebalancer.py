@@ -123,10 +123,10 @@ class DriftRebalancer(Strategy):
         # Check if the absolute value of any drift is greater than the threshold
         rebalance_needed = False
         for index, row in self.drift_df.iterrows():
-            if row["absolute_drift"] > self.absolute_drift_threshold:
+            if abs(row["absolute_drift"]) > self.absolute_drift_threshold:
                 rebalance_needed = True
                 msg = (
-                    f"Absolute drift for {row['symbol']} is {row['absolute_drift']:.2f} "
+                    f"Absolute drift for {row['symbol']} is {abs(row['absolute_drift']):.2f} "
                     f"and exceeds threshold of {self.absolute_drift_threshold:.2f}"
                 )
                 logger.info(msg)

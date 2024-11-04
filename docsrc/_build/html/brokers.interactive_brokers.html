@@ -3,7 +3,7 @@
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
-<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Crypto Brokers (Using CCXT)" href="brokers.ccxt.html" /><link rel="prev" title="Alpaca" href="brokers.alpaca.html" />
+<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Interactive Brokers Legacy" href="brokers.interactive_brokers_legacy.html" /><link rel="prev" title="Alpaca" href="brokers.alpaca.html" />
 
     <!-- Generated with Sphinx 8.1.3 and Furo 2024.08.06 -->
         <title>Interactive Brokers - Lumibot Documentation</title>
@@ -189,7 +189,7 @@
           <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
         </button>
       </div>
-      <label class="toc-overlay-icon toc-header-icon no-toc" for="__toc">
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
         <div class="visually-hidden">Toggle table of contents sidebar</div>
         <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
       </label>
@@ -371,6 +371,7 @@
 <li class="toctree-l1 current has-children"><a class="reference internal" href="brokers.html">Brokers</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-14" name="toctree-checkbox-14" role="switch" type="checkbox"/><label for="toctree-checkbox-14"><div class="visually-hidden">Toggle navigation of Brokers</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="brokers.alpaca.html">Alpaca</a></li>
 <li class="toctree-l2 current current-page"><a class="current reference internal" href="#">Interactive Brokers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.interactive_brokers_legacy.html">Interactive Brokers Legacy</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.ccxt.html">Crypto Brokers (Using CCXT)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.tradier.html">Tradier</a></li>
 </ul>
@@ -409,7 +410,7 @@
               <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
             </button>
           </div>
-          <label class="toc-overlay-icon toc-content-icon no-toc" for="__toc">
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
             <div class="visually-hidden">Toggle table of contents sidebar</div>
             <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
           </label>
@@ -417,47 +418,106 @@
         <article role="main" id="furo-main-content">
           <section id="interactive-brokers">
 <h1>Interactive Brokers<a class="headerlink" href="#interactive-brokers" title="Link to this heading">¶</a></h1>
-<p>To trade in your interactive brokers account, you must install Trader Workstation (or Gateway). Instructions for installation can be found here: <a class="reference external" href="https://ibkrcampus.com/campus/ibkr-api-page/twsapi-doc/">https://ibkrcampus.com/campus/ibkr-api-page/twsapi-doc/</a></p>
-<p>Once installed, navigate in Trader Workstation to <code class="docutils literal notranslate"><span class="pre">File</span> <span class="pre">-&gt;</span> <span class="pre">Global</span> <span class="pre">Configuration</span> <span class="pre">-&gt;</span> <span class="pre">API</span> <span class="pre">-&gt;</span> <span class="pre">Settings</span></code> The key settings required to trade using Lumibot are:</p>
-<ol class="arabic simple">
-<li><p>Enable ActiveX and Socket Clients</p></li>
-<li><p>Disable Read-Only API</p></li>
-<li><dl class="simple">
-<dt>Socket port <code class="docutils literal notranslate"><span class="pre">7496</span></code> for live trading, <code class="docutils literal notranslate"><span class="pre">7497</span></code> for paper account trading.</dt><dd><ul class="simple">
-<li><p>NOTE: It is highly recommended to thoroughly test your algorithm in paper trading mode before trading live.</p></li>
+<p>Interactive Brokers is a brokerage firm that operates in most countries around the world. This makes it a great choice for investing and trading if you don’t have access to our other supported platforms.</p>
+<p><strong>Note:</strong> If you do have access to other supported brokers, compare their fee structures to see which one is the best deal for you.</p>
+<section id="market-data-subscriptions">
+<h2>Market Data Subscriptions<a class="headerlink" href="#market-data-subscriptions" title="Link to this heading">¶</a></h2>
+<p>To access real-time market data, you need to subscribe to the appropriate market data packages. Interactive Brokers offers various market data subscriptions depending on the exchanges and types of data you need. Here are some common subscriptions:</p>
+<ul class="simple">
+<li><p>US Securities Snapshot and Futures Value Bundle</p></li>
+<li><p>US Equity and Options Add-On Streaming Bundle</p></li>
+<li><p>NASDAQ (Network C/UTP) TotalView</p></li>
+<li><p>NYSE (Network A/CTA) OpenBook Ultra</p></li>
+<li><p>OPRA (US Options Exchanges)</p></li>
 </ul>
-</dd>
-</dl>
-</li>
-<li><p>Master API Client ID: You can find in the Trader Workstation by going to <code class="docutils literal notranslate"><span class="pre">File</span> <span class="pre">-&gt;</span> <span class="pre">Global</span> <span class="pre">Configurations</span> <span class="pre">-&gt;</span> <span class="pre">API</span> <span class="pre">-&gt;</span> <span class="pre">Settings</span></code>, then looking for “Master API client ID”. This can be any number you choose up to <code class="docutils literal notranslate"><span class="pre">999</span></code>. You will use this in your configuration file to log in.</p></li>
-</ol>
-<img alt="_images/interactive_brokers.png" src="_images/interactive_brokers.png" />
-<p>Set up your credentials as follows in <code class="docutils literal notranslate"><span class="pre">credentials.py</span></code>:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">INTERACTIVE_BROKERS_CONFIG</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s2">&quot;SOCKET_PORT&quot;</span><span class="p">:</span> <span class="mi">7497</span><span class="p">,</span>
-    <span class="s2">&quot;CLIENT_ID&quot;</span><span class="p">:</span> <span class="s2">&quot;your Master API Client ID three digit number&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;IP&quot;</span><span class="p">:</span> <span class="s2">&quot;127.0.0.1&quot;</span><span class="p">,</span>
-<span class="p">}</span>
-</pre></div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Different strategies may require different market data subscriptions. For our top options-related strategies, the OPRA (US Options Exchanges) should suffice.</p>
 </div>
-<p>Set up your entry point file as above, except using Interactive Brokers. Here is an example of a completed file:</p>
+<p><strong>To subscribe to market data:</strong></p>
+<ol class="arabic simple">
+<li><p>Log in to the IBKR Client Portal.</p></li>
+<li><p>Navigate to the “Settings” menu.</p></li>
+<li><p>Under “Account Settings”, find the “Market Data Subscriptions” section.</p></li>
+<li><p>Click “Configure” and select the desired market data packages.</p></li>
+<li><p>Follow the prompts to complete the subscription process.</p></li>
+</ol>
+<p><strong>Note:</strong> Market data subscriptions may incur additional fees. Be sure to review the costs associated with each package before subscribing.</p>
+</section>
+<section id="automating-two-factor-authentication">
+<h2>Automating Two-Factor Authentication<a class="headerlink" href="#automating-two-factor-authentication" title="Link to this heading">¶</a></h2>
+<p>Currently, automating two-factor authentication (2FA) is not supported. For now, Lumibot will send you 2FA notifications through IBKey, and you will need to respond to them manually.</p>
+</section>
+<section id="using-a-secondary-account">
+<h2>Using a Secondary Account<a class="headerlink" href="#using-a-secondary-account" title="Link to this heading">¶</a></h2>
+<p>IBKR only permits a single login at a time for any given set of credentials. Consequently, you can’t use the IBKR website while the Gateway (or a sort of api connection) is running. If you try to anyway, the Gateway will be disconnected, which will trigger a re-authentication attempt, which will potentially disconnect your website session. If you then log in to the website again, you’ll just start the loop all over again. An easy solution is to stop a sort of api connection before using the website, but that can be tedious.</p>
+<p>A more convenient solution is to create a second username for your account and use that for a sort of api connection. From the client portal API documentation section “Multiple usernames”:</p>
+<p>Clients wishing to use multiple IBKR products at the same time (TWS, IBKR Mobile or Client Portal) can do so by creating a new username that can then be used to log into other services while using the Client Portal API. To create a second username please see the following IBKR Knowledge Base article.</p>
+<p>The Knowledge Base article linked above is slightly out of date with respect to the current layout of the IBKR Client Portal:</p>
+<ul class="simple">
+<li><p>The “Manage Account” item in the User menu (upper right corner) is now called “Settings”</p></li>
+<li><p>The “Users &amp; Access Rights” panel is no longer on the Settings page, but you can find a similarly named link at the very bottom-left of the page (you may have to scroll to find it)</p></li>
+<li><p>The resulting page doesn’t have a “Configure (gear) icon”. It does have a plus sign button in the “Users” header that does the same thing.</p></li>
+</ul>
+<p>From there you’ll be shown a fairly standard-looking username and password dialog. Fill it out in the normal fashion, then click through the many many pages of boilerplate and settings. Feel free to disable many of the notification settings for the new username. Otherwise you’ll start getting duplicate emails from IBKR.</p>
+<p>At the end of the process, you’ll get an email with a confirmation code, but no indication as to what to do with it. Log out and log back in using the new username and password that you just created. You’ll then be prompted to enter the confirmation code. Note that you need to be quick about this part because the code expires fast. If you’re not fast enough you’ll get another automated email with a new code a few minutes after the previous one expired. In fact, you’ll keep getting new codes until you get it right.</p>
+<p>After entering the confirmation code you’ll likely be prompted to change the password for the secondary user.</p>
+<p>The final screen of the process says that the request for account creation will be reviewed on the next business day. Some time later you’ll receive an email asking you to upload a “Proof of trader authority” for the new username. The verbiage implies that you need to generate a document to upload, however that isn’t the case. Simply log in using your primary username (not the secondary!) and you’ll be prompted to upload the requested document. At the bottom of the pop-up will be a button titled “Click Here to Upload Documents”. Click that and you’ll be shown a EULA and a signature block. Type your name (not the new user’s name) and click Submit.</p>
+<p>After that you should be back at the normal dashboard page, with little indication that you’re logged in as the second user. Log out and the new credentials will be ready to use with a sort of api connection. In the future be sure to only use your primary credentials on the website and the secondary credentials for a sort of api connection.</p>
+<p><strong>Source:</strong> <a class="reference external" href="https://github.com/Voyz/ibeam/wiki/Runtime-environment">IBeam GitHub</a></p>
+</section>
+<section id="strategy-setup">
+<h2>Strategy Setup<a class="headerlink" href="#strategy-setup" title="Link to this heading">¶</a></h2>
+<p>Add these variables to a <cite>.env</cite> file in the same directory as your strategy:</p>
+<div class="table-wrapper colwidths-given docutils container" id="id1">
+<table class="docutils align-default" id="id1">
+<caption><span class="caption-text">Interactive Brokers Configuration</span><a class="headerlink" href="#id1" title="Link to this table">¶</a></caption>
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 50.0%" />
+<col style="width: 25.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p><strong>Secret</strong></p></th>
+<th class="head"><p><strong>Description</strong></p></th>
+<th class="head"><p><strong>Example</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>IB_USERNAME</p></td>
+<td><p>Your Interactive Brokers username.</p></td>
+<td><p><cite>user123</cite></p></td>
+</tr>
+<tr class="row-odd"><td><p>IB_PASSWORD</p></td>
+<td><p>Your Interactive Brokers password.</p></td>
+<td><p><cite>password123</cite></p></td>
+</tr>
+<tr class="row-even"><td><p>ACCOUNT_ID</p></td>
+<td><p>(Optional) An Interactive Brokers subaccount to trade on.</p></td>
+<td><p><cite>U17369206</cite></p></td>
+</tr>
+<tr class="row-odd"><td><p>IB_API_URL</p></td>
+<td><p>(Optional) The URL of your self-hosted Interactive Brokers REST API. You likely don’t need it.</p></td>
+<td><p><cite>https://localhost:8000</cite></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="example-strategy">
+<h2>Example Strategy<a class="headerlink" href="#example-strategy" title="Link to this heading">¶</a></h2>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">lumibot.traders</span> <span class="kn">import</span> <span class="n">Trader</span>
 <span class="c1"># Import interactive brokers</span>
-<span class="hll"><span class="kn">from</span> <span class="nn">lumibot.brokers</span> <span class="kn">import</span> <span class="n">InteractiveBrokers</span>
-</span><span class="kn">from</span> <span class="nn">lumibot.strategies.examples</span> <span class="kn">import</span> <span class="n">Strangle</span>
-<span class="kn">from</span> <span class="nn">credentials</span> <span class="kn">import</span> <span class="n">INTERACTIVE_BROKERS_CONFIG</span>
-
-
+<span class="hll"><span class="kn">from</span> <span class="nn">lumibot.strategies.examples</span> <span class="kn">import</span> <span class="n">Strangle</span>
+</span>
 <span class="n">trader</span> <span class="o">=</span> <span class="n">Trader</span><span class="p">()</span>
-<span class="c1"># Initialize interactive brokers</span>
-<span class="n">interactive_brokers</span> <span class="o">=</span> <span class="n">InteractiveBrokers</span><span class="p">(</span><span class="n">INTERACTIVE_BROKERS_CONFIG</span><span class="p">)</span>
 
-<span class="hll"><span class="n">strategy</span> <span class="o">=</span> <span class="n">Strangle</span><span class="p">(</span><span class="n">broker</span><span class="o">=</span><span class="n">interactive_brokers</span><span class="p">)</span>
-</span><span class="n">trader</span><span class="o">.</span><span class="n">add_strategy</span><span class="p">(</span><span class="n">strategy</span><span class="p">)</span>
+<span class="n">strategy</span> <span class="o">=</span> <span class="n">Strangle</span><span class="p">()</span>
+<span class="n">trader</span><span class="o">.</span><span class="n">add_strategy</span><span class="p">(</span><span class="n">strategy</span><span class="p">)</span>
 <span class="n">trader</span><span class="o">.</span><span class="n">run_all</span><span class="p">()</span>
 </pre></div>
 </div>
-<p>You can also see the file simple_start_ib.py for a working bot here: <a class="reference external" href="https://github.com/Lumiwealth/lumibot/blob/master/getting_started/simple_start_ib.py">https://github.com/Lumiwealth/lumibot/blob/master/getting_started/simple_start_ib.py</a></p>
+</section>
 </section>
 
         </article>
@@ -465,12 +525,12 @@
       <footer>
         
         <div class="related-pages">
-          <a class="next-page" href="brokers.ccxt.html">
+          <a class="next-page" href="brokers.interactive_brokers_legacy.html">
               <div class="page-info">
                 <div class="context">
                   <span>Next</span>
                 </div>
-                <div class="title">Crypto Brokers (Using CCXT)</div>
+                <div class="title">Interactive Brokers Legacy</div>
               </div>
               <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
             </a>
@@ -503,8 +563,31 @@
         
       </footer>
     </div>
-    <aside class="toc-drawer no-toc">
+    <aside class="toc-drawer">
       
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            On this page
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">Interactive Brokers</a><ul>
+<li><a class="reference internal" href="#market-data-subscriptions">Market Data Subscriptions</a></li>
+<li><a class="reference internal" href="#automating-two-factor-authentication">Automating Two-Factor Authentication</a></li>
+<li><a class="reference internal" href="#using-a-secondary-account">Using a Secondary Account</a></li>
+<li><a class="reference internal" href="#strategy-setup">Strategy Setup</a></li>
+<li><a class="reference internal" href="#example-strategy">Example Strategy</a></li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
       
       
     </aside>

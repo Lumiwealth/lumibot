@@ -69,8 +69,8 @@ def pandas_data_fixture() -> Dict[Asset, Data]:
         data = Data(
             asset,
             df,
-            date_start=datetime.datetime(2019, 1, 6),
-            date_end=datetime.datetime(2019, 12, 15),
+            date_start=datetime.datetime(2019, 1, 2),
+            date_end=datetime.datetime(2019, 12, 31),
             timestep="day",
         )
         pandas_data[asset] = data

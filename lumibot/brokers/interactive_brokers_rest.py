@@ -399,7 +399,10 @@ class InteractiveBrokersREST(Broker):
         for position in positions:
             # Create the Asset object for the position
             symbol = position["contractDesc"]
+            if symbol.startswith("C"):
+                symbol = symbol[1:].replace(" ", "")
             asset_class = ASSET_CLASS_MAPPING[position["assetClass"]]
+
 
             # If asset class is stock, create a stock asset
             if asset_class == Asset.AssetType.STOCK:
@@ -417,6 +420,7 @@ class InteractiveBrokersREST(Broker):
                     right=right,
                 )
             elif asset_class == Asset.AssetType.FUTURE:
+                #contract_details = self.data_source.get_contract_details(position['conid'])
                 expiry = position["expiry"]
                 multiplier = position["multiplier"]
                 asset = Asset(

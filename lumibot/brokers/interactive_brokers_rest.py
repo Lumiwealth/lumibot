@@ -6,6 +6,7 @@ from lumibot.data_sources import InteractiveBrokersRESTData
 import datetime
 from decimal import Decimal
 from math import gcd
+import re
 
 TYPE_MAP = dict(
     stock="STK",
@@ -408,17 +409,72 @@ class InteractiveBrokersREST(Broker):
             if asset_class == Asset.AssetType.STOCK:
                 asset = Asset(symbol=symbol, asset_type=asset_class)
             elif asset_class == Asset.AssetType.OPTION:
-                expiry = position["expiry"]
-                strike = position["strike"]
-                right = position["putOrCall"]
-                # If asset class is option, create an option asset
-                asset = Asset(
-                    symbol=symbol,
-                    asset_type=asset_class,
-                    expiration=expiry,
-                    strike=strike,
-                    right=right,
+                contract_desc = position.get("contractDesc", "").strip()
+    
+                if not contract_desc:
+                    logging.error("Empty contract description for option. Skipping this position.")
+                    continue  # Skip processing this position as contract_desc is missing
+
+                # Define a regex pattern to parse the contract description
+                # Example contract_desc: 'SPY    NOV2024 562 P [SPY   241105P00562000 100]'
+                # This pattern captures the underlying symbol, expiry, strike, and right
+                option_pattern = re.compile(
+                    r'^(?P<underlying>\w+)\s+'
+                    r'(?P<expiry>[A-Z]{3}\d{4})\s+'
+                    r'(?P<strike>\d+\.?\d*)\s+'
+                    r'(?P<right>[CP])',
+                    re.IGNORECASE
                 )
+
+                match = option_pattern.match(contract_desc)
+                
+                if match:
+                    try:
+                        # Extract components using named groups
+                        underlying_asset_raw = match.group("underlying")
+                        expiry_raw = match.group("expiry")
+                        strike_raw = match.group("strike")
+                        right_raw = match.group("right").upper()
+                        
+                        # Parse expiry date
+                        try:
+                            expiry = datetime.datetime.strptime(expiry_raw, "%b%Y").date()
+                        except ValueError as ve:
+                            logging.error(f"Invalid expiry format '{expiry_raw}' in contract '{contract_desc}': {ve}")
+                            continue  # Skip this position due to invalid expiry format
+                        
+                        # Parse and round strike price
+                        try:
+                            strike = round(float(strike_raw), 2)
+                        except ValueError as ve:
+                            logging.error(f"Invalid strike price '{strike_raw}' in contract '{contract_desc}': {ve}")
+                            continue  # Skip this position due to invalid strike price
+                        
+                        # Determine the option type
+                        right = Asset.OptionRight.CALL if right_raw == "C" else Asset.OptionRight.PUT
+                        
+                        # Create the underlying asset object
+                        underlying_asset = Asset(
+                            symbol=underlying_asset_raw,
+                            asset_type=Asset.AssetType.STOCK
+                        )
+                        
+                        # Create the option asset object
+                        asset = Asset(
+                            symbol=symbol,
+                            asset_type=asset_class,
+                            expiration=expiry,
+                            strike=strike,
+                            right=right,
+                            underlying_asset=underlying_asset,
+                        )
+                        
+                    except Exception as e:
+                        logging.error(f"Unexpected error parsing contract '{contract_desc}': {e}")
+                        continue  # Skip this position due to an unexpected error
+                else:
+                    logging.error(f"Contract description format not recognized for option: '{contract_desc}'. Skipping this position.")
+                    continue  # Skip this position as it doesn't match the expected pattern
             elif asset_class == Asset.AssetType.FUTURE:
                 #contract_details = self.data_source.get_contract_details(position['conid'])
                 expiry = position["expiry"]

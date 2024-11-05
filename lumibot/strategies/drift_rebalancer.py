@@ -52,8 +52,8 @@ class DriftRebalancer(Strategy):
         "absolute_drift_threshold": "0.05",
 
         # This is the acceptable slippage that will be used when calculating the number of shares to buy or sell.
-        # The default is 0.0005 (5 BPS)
-        "acceptable_slippage": "0.0005",
+        # The default is 0.005 (50 BPS)
+        "acceptable_slippage": "0.005",  # 50 BPS
 
          # The amount of time to sleep between the sells and buys to give enough time for the orders to fill
         "fill_sleeptime": 15,
@@ -72,7 +72,7 @@ class DriftRebalancer(Strategy):
         self.set_market(self.parameters.get("market", "NYSE"))
         self.sleeptime = self.parameters.get("sleeptime", "1D")
         self.absolute_drift_threshold = Decimal(self.parameters.get("absolute_drift_threshold", "0.20"))
-        self.acceptable_slippage = Decimal(self.parameters.get("acceptable_slippage", "0.0005"))
+        self.acceptable_slippage = Decimal(self.parameters.get("acceptable_slippage", "0.005"))
         self.fill_sleeptime = self.parameters.get("fill_sleeptime", 15)
         self.target_weights = {k: Decimal(v) for k, v in self.parameters["target_weights"].items()}
         self.drift_df = pd.DataFrame()
@@ -223,7 +223,7 @@ class LimitOrderRebalanceLogic:
             strategy: Strategy,
             df: pd.DataFrame,
             fill_sleeptime: int = 15,
-            acceptable_slippage: Decimal = Decimal("0.0005")
+            acceptable_slippage: Decimal = Decimal("0.005")
     ) -> None:
         self.strategy = strategy
         self.df = df
@@ -232,6 +232,7 @@ class LimitOrderRebalanceLogic:
 
     def rebalance(self) -> None:
         # Execute sells first
+        sell_orders = []
         for index, row in self.df.iterrows():
             if row["absolute_drift"] == -1:
                 # Sell everything
@@ -239,18 +240,36 @@ class LimitOrderRebalanceLogic:
                 quantity = row["current_quantity"]
                 last_price = Decimal(self.strategy.get_last_price(symbol))
                 limit_price = self.calculate_limit_price(last_price=last_price, side="sell")
-                self.place_limit_order(symbol=symbol, quantity=quantity, limit_price=limit_price, side="sell")
+                order = self.place_limit_order(
+                    symbol=symbol,
+                    quantity=quantity,
+                    limit_price=limit_price,
+                    side="sell"
+                )
+                sell_orders.append(order)
             elif row["absolute_drift"] < 0:
                 symbol = row["symbol"]
                 last_price = Decimal(self.strategy.get_last_price(symbol))
                 limit_price = self.calculate_limit_price(last_price=last_price, side="sell")
                 quantity = ((row["current_value"] - row["target_value"]) / limit_price).quantize(Decimal('1'), rounding=ROUND_DOWN)
                 if quantity > 0:
-                    self.place_limit_order(symbol=symbol, quantity=quantity, limit_price=limit_price, side="sell")
+                    order = self.place_limit_order(
+                        symbol=symbol,
+                        quantity=quantity,
+                        limit_price=limit_price,
+                        side="sell"
+                    )
+                    sell_orders.append(order)
+
+        for order in sell_orders:
+            logger.info(f"Submitted sell order: {order}")
 
         if not self.strategy.is_backtesting:
             # Sleep to allow sell orders to fill
             time.sleep(self.fill_sleeptime)
+            orders = self.strategy.broker._pull_all_orders(self.strategy.name, self.strategy)
+            for order in orders:
+                logger.info(f"Order at broker: {order}")
 
         # Get current cash position from the broker
         cash_position = self.get_current_cash_position()
@@ -271,19 +290,19 @@ class LimitOrderRebalanceLogic:
 
     def calculate_limit_price(self, *, last_price: Decimal, side: str) -> Decimal:
         if side == "sell":
-            return last_price * (1 - self.acceptable_slippage / Decimal(10000))
+            return last_price * (1 - self.acceptable_slippage)
         elif side == "buy":
-            return last_price * (1 + self.acceptable_slippage / Decimal(10000))
+            return last_price * (1 + self.acceptable_slippage)
 
     def get_current_cash_position(self) -> Decimal:
         self.strategy.update_broker_balances(force_update=True)
         return Decimal(self.strategy.cash)
 
-    def place_limit_order(self, *, symbol: str, quantity: Decimal, limit_price: Decimal, side: str) -> None:
+    def place_limit_order(self, *, symbol: str, quantity: Decimal, limit_price: Decimal, side: str) -> Any:
         limit_order = self.strategy.create_order(
             asset=symbol,
             quantity=quantity,
             side=side,
             limit_price=float(limit_price)
         )
-        self.strategy.submit_order(limit_order)
+        return self.strategy.submit_order(limit_order)

@@ -319,6 +319,7 @@ class MockStrategy(Strategy):
 
     def submit_order(self, order) -> None:
         self.orders.append(order)
+        return order
 
 
 class TestLimitOrderRebalance:
@@ -418,6 +419,32 @@ class TestLimitOrderRebalance:
         executor.rebalance()
         assert len(strategy.orders) == 0
 
+    def test_calculate_limit_price_when_selling(self):
+        strategy = MockStrategy(broker=self.backtesting_broker)
+        df = pd.DataFrame({
+            "symbol": ["AAPL"],
+            "current_quantity": [Decimal("10")],
+            "current_value": [Decimal("1000")],
+            "target_value": [Decimal("0")],
+            "absolute_drift": [Decimal("-1")]
+        })
+        executor = LimitOrderRebalanceLogic(strategy=strategy, df=df, acceptable_slippage=Decimal("0.005"))
+        limit_price = executor.calculate_limit_price(last_price=Decimal("120.00"), side="sell")
+        assert limit_price == Decimal("119.4")
+
+    def test_calculate_limit_price_when_buying(self):
+        strategy = MockStrategy(broker=self.backtesting_broker)
+        df = pd.DataFrame({
+            "symbol": ["AAPL"],
+            "current_quantity": [Decimal("10")],
+            "current_value": [Decimal("1000")],
+            "target_value": [Decimal("0")],
+            "absolute_drift": [Decimal("-1")]
+        })
+        executor = LimitOrderRebalanceLogic(strategy=strategy, df=df, acceptable_slippage=Decimal("0.005"))
+        limit_price = executor.calculate_limit_price(last_price=Decimal("120.00"), side="buy")
+        assert limit_price == Decimal("120.6")
+
 
 # @pytest.mark.skip()
 class TestDriftRebalancer:
@@ -432,7 +459,7 @@ class TestDriftRebalancer:
             "market": "NYSE",
             "sleeptime": "1D",
             "absolute_drift_threshold": "0.03",
-            "acceptable_slippage": "0.0005",
+            "acceptable_slippage": "0.005",
             "fill_sleeptime": 15,
             "target_weights": {
                 "SPY": "0.60",
@@ -456,7 +483,7 @@ class TestDriftRebalancer:
         )
 
         assert results is not None
-        assert np.isclose(results["cagr"], 0.22310804893738934, atol=1e-4)
-        assert np.isclose(results["volatility"], 0.0690583452535692, atol=1e-4)
-        assert np.isclose(results["sharpe"], 3.0127864810707985, atol=1e-4)
-        assert np.isclose(results["max_drawdown"]["drawdown"], 0.025983871768394628, atol=1e-4)
+        assert np.isclose(results["cagr"], 0.22076538945204272, atol=1e-4)
+        assert np.isclose(results["volatility"], 0.06740737779031068, atol=1e-4)
+        assert np.isclose(results["sharpe"], 3.051823053251843, atol=1e-4)
+        assert np.isclose(results["max_drawdown"]["drawdown"], 0.025697778711759052, atol=1e-4)

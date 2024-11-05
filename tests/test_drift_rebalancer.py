@@ -567,7 +567,8 @@ class TestDriftRebalancer:
             "target_weights": {
                 "SPY": "0.60",
                 "TLT": "0.40"
-            }
+            },
+            "shorting": False
         }
 
         results, strat_obj = DriftRebalancer.run_backtest(
@@ -590,3 +591,7 @@ class TestDriftRebalancer:
         assert np.isclose(results["volatility"], 0.06740737779031068, atol=1e-4)
         assert np.isclose(results["sharpe"], 3.051823053251843, atol=1e-4)
         assert np.isclose(results["max_drawdown"]["drawdown"], 0.025697778711759052, atol=1e-4)
+
+    def test_with_shorting(self):
+        # TODO
+        pass

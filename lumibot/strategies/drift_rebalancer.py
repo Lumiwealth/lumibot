@@ -64,6 +64,9 @@ class DriftRebalancer(Strategy):
             "TLT": "0.40",
             "USD": "0.00",
         }
+
+        # If you want to allow shorting, set this to True.
+        shorting: False
     }
     """
 
@@ -75,6 +78,7 @@ class DriftRebalancer(Strategy):
         self.acceptable_slippage = Decimal(self.parameters.get("acceptable_slippage", "0.005"))
         self.fill_sleeptime = self.parameters.get("fill_sleeptime", 15)
         self.target_weights = {k: Decimal(v) for k, v in self.parameters["target_weights"].items()}
+        self.shorting = self.parameters.get("shorting", False)
         self.drift_df = pd.DataFrame()
 
         # Sanity checks
@@ -146,7 +150,7 @@ class DriftRebalancer(Strategy):
                 df=self.drift_df,
                 fill_sleeptime=self.fill_sleeptime,
                 acceptable_slippage=self.acceptable_slippage,
-                shorting=False
+                shorting=self.shorting
             )
             rebalance_logic.rebalance()
 

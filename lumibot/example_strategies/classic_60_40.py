@@ -23,7 +23,8 @@ if __name__ == "__main__":
         "target_weights": {
             "SPY": "0.60",
             "TLT": "0.40"
-        }
+        },
+        "shorting": False
     }
 
     if is_live:

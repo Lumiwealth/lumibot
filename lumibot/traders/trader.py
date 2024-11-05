@@ -25,7 +25,7 @@ class Trader:
         strategies: list
             A list of strategies to run. If not specified, you must add strategies using trader.add_strategy(strategy)
         quiet_logs: bool
-            Whether to quiet noisy logs by setting the log level to ERROR. Defaults to True.
+            Whether to quiet backtest logs by setting the log level to ERROR. Defaults to False.
         """
         # Check if the logfile is a valid path
         if logfile:
@@ -35,8 +35,11 @@ class Trader:
         # Setting debug and _logfile parameters and setting global log format
         self.debug = debug
         self.backtest = backtest
-        self.log_format = logging.Formatter("%(asctime)s | %(name)s | %(levelname)s | %(message)s")
-        self.quiet_logs = quiet_logs
+        std_format = "%(asctime)s: %(levelname)s: %(message)s"
+        debug_format = "%(asctime)s: %(name)s: %(levelname)s: %(message)s"
+        log_format = std_format if not self.debug else debug_format
+        self.log_format = logging.Formatter(log_format)
+        self.quiet_logs = quiet_logs  # Turns off all logging execpt for error messages in backtesting
 
         if logfile:
             self.logfile = Path(logfile)
@@ -172,11 +175,6 @@ class Trader:
         logging.getLogger("apscheduler.scheduler").setLevel(logging.ERROR)
         logging.getLogger("apscheduler.executors.default").setLevel(logging.ERROR)
         logging.getLogger("lumibot.data_sources.yahoo_data").setLevel(logging.ERROR)
-
-        if self.quiet_logs:
-            logging.getLogger("asyncio").setLevel(logging.ERROR)
-            logging.getLogger("lumibot.backtesting.backtesting_broker").setLevel(logging.ERROR)
-
         logger = logging.getLogger()
 
         for handler in logger.handlers:
@@ -189,12 +187,18 @@ class Trader:
 
         if self.debug:
             logger.setLevel(logging.DEBUG)
-        elif self.quiet_logs:
-            logger.setLevel(logging.ERROR)
-            for handler in logger.handlers:
-                if handler.__class__.__name__ == "StreamHandler":
-                    handler.setLevel(logging.ERROR)
+        elif self.is_backtest_broker:
+            logger.setLevel(logging.INFO)
+
+            # Quiet logs turns off all backtesting logging except for error messages
+            if self.quiet_logs:
+                logger.setLevel(logging.ERROR)
+
+            # Ensure console has minimal logging to keep things clean during backtesting
+            stream_handler.setLevel(logging.ERROR)
+
         else:
+            # Live trades should always have full logging.
             logger.setLevel(logging.INFO)
 
         # Setting file logging

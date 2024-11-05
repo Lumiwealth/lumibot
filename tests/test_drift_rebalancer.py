@@ -102,7 +102,7 @@ class TestDriftCalculationLogic:
             Decimal('-0.0424242424242424242424242424')
         ]
 
-    def test_drift_is_negative_one_when_were_have_a_position_and_the_target_weights_says_to_not_have_it(self):
+    def test_drift_is_negative_one_when_we_have_a_position_and_the_target_weights_says_to_not_have_it(self):
         target_weights = {
             "AAPL": Decimal("0.5"),
             "GOOGL": Decimal("0.3"),
@@ -299,6 +299,57 @@ class TestDriftCalculationLogic:
         assert df["target_value"].tolist() == [Decimal("250"), Decimal("250"), Decimal("500")]
         assert df["drift"].tolist() == [Decimal("-0.25"), Decimal("-0.25"), Decimal("0")]
 
+    def test_calculate_drift_when_we_want_short_something(self):
+        target_weights = {
+            "AAPL": Decimal("-0.50"),
+            "USD": Decimal("0.50")
+        }
+        self.calculator = DriftCalculationLogic(target_weights=target_weights)
+        self.calculator.add_position(
+            symbol="USD",
+            is_quote_asset=True,
+            current_quantity=Decimal("1000"),
+            current_value=Decimal("1000")
+        )
+        self.calculator.add_position(
+            symbol="AAPL",
+            is_quote_asset=False,
+            current_quantity=Decimal("0"),
+            current_value=Decimal("0")
+        )
+
+        df = self.calculator.calculate()
+        print(f"\n{df}")
+
+        assert df["current_weight"].tolist() == [Decimal("0.0"), Decimal("1.0")]
+        assert df["target_value"].tolist() == [Decimal("-500"), Decimal("500")]
+        assert df["drift"].tolist() == [Decimal("-0.50"), Decimal("0")]
+
+    def test_calculate_drift_when_we_want_a_100_percent_short_position(self):
+        target_weights = {
+            "AAPL": Decimal("-1.0"),
+            "USD": Decimal("0.0")
+        }
+        self.calculator = DriftCalculationLogic(target_weights=target_weights)
+        self.calculator.add_position(
+            symbol="USD",
+            is_quote_asset=True,
+            current_quantity=Decimal("1000"),
+            current_value=Decimal("1000")
+        )
+        self.calculator.add_position(
+            symbol="AAPL",
+            is_quote_asset=False,
+            current_quantity=Decimal("0"),
+            current_value=Decimal("0")
+        )
+
+        df = self.calculator.calculate()
+
+        assert df["current_weight"].tolist() == [Decimal("0.0"), Decimal("1.0")]
+        assert df["target_value"].tolist() == [Decimal("-1000"), Decimal("0")]
+        assert df["drift"].tolist() == [Decimal("-1.0"), Decimal("0")]
+
 
 class MockStrategy(Strategy):
 
@@ -372,6 +423,45 @@ class TestLimitOrderRebalance:
         executor = LimitOrderRebalanceLogic(strategy=strategy, df=df)
         executor.rebalance()
         assert len(strategy.orders) == 0
+
+    def test_selling_small_short_position_creates_and_order_when_shorting_is_enabled(self):
+        strategy = MockStrategy(broker=self.backtesting_broker)
+        df = pd.DataFrame({
+            "symbol": ["AAPL"],
+            "current_quantity": [Decimal("0")],
+            "current_value": [Decimal("0")],
+            "target_value": [Decimal("-1000")],
+            "drift": [Decimal("-0.25")]
+        })
+        executor = LimitOrderRebalanceLogic(strategy=strategy, df=df, shorting=True)
+        executor.rebalance()
+        assert len(strategy.orders) == 1
+
+    def test_selling_small_short_position_doesnt_creatne_order_when_shorting_is_disabled(self):
+        strategy = MockStrategy(broker=self.backtesting_broker)
+        df = pd.DataFrame({
+            "symbol": ["AAPL"],
+            "current_quantity": [Decimal("0")],
+            "current_value": [Decimal("0")],
+            "target_value": [Decimal("-1000")],
+            "drift": [Decimal("-0.25")]
+        })
+        executor = LimitOrderRebalanceLogic(strategy=strategy, df=df, shorting=False)
+        executor.rebalance()
+        assert len(strategy.orders) == 0
+
+    def test_selling_a_100_percent_short_position_creates_and_order_when_shorting_is_enabled(self):
+        strategy = MockStrategy(broker=self.backtesting_broker)
+        df = pd.DataFrame({
+            "symbol": ["AAPL"],
+            "current_quantity": [Decimal("0")],
+            "current_value": [Decimal("0")],
+            "target_value": [Decimal("-1000")],
+            "drift": [Decimal("-1")]
+        })
+        executor = LimitOrderRebalanceLogic(strategy=strategy, df=df, shorting=True)
+        executor.rebalance()
+        assert len(strategy.orders) == 1
 
     def test_buying_something_when_we_have_enough_money_and_there_is_slippage(self):
         strategy = MockStrategy(broker=self.backtesting_broker)

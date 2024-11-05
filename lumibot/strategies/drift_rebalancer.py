@@ -145,7 +145,8 @@ class DriftRebalancer(Strategy):
                 strategy=self,
                 df=self.drift_df,
                 fill_sleeptime=self.fill_sleeptime,
-                acceptable_slippage=self.acceptable_slippage
+                acceptable_slippage=self.acceptable_slippage,
+                shorting=False
             )
             rebalance_logic.rebalance()
 
@@ -210,10 +211,16 @@ class DriftCalculationLogic:
             if row["is_quote_asset"]:
                 # We can never buy or sell the quote asset
                 return Decimal(0)
+
+            # Check if we should sell everything
             elif row["current_quantity"] > Decimal(0) and row["target_weight"] == Decimal(0):
                 return Decimal(-1)
+
+            # Check if we need to buy for the first time
             elif row["current_quantity"] == Decimal(0) and row["target_weight"] > Decimal(0):
                 return Decimal(1)
+
+            # Otherwise we just need to adjust our holding
             else:
                 return row["target_weight"] - row["current_weight"]
 
@@ -228,12 +235,14 @@ class LimitOrderRebalanceLogic:
             strategy: Strategy,
             df: pd.DataFrame,
             fill_sleeptime: int = 15,
-            acceptable_slippage: Decimal = Decimal("0.005")
+            acceptable_slippage: Decimal = Decimal("0.005"),
+            shorting: bool = False
     ) -> None:
         self.strategy = strategy
         self.df = df
         self.fill_sleeptime = fill_sleeptime
         self.acceptable_slippage = acceptable_slippage
+        self.shorting = shorting
 
     def rebalance(self) -> None:
         # Execute sells first
@@ -245,7 +254,7 @@ class LimitOrderRebalanceLogic:
                 quantity = row["current_quantity"]
                 last_price = Decimal(self.strategy.get_last_price(symbol))
                 limit_price = self.calculate_limit_price(last_price=last_price, side="sell")
-                if quantity > 0:
+                if quantity > 0 or (quantity == 0 and self.shorting):
                     order = self.place_limit_order(
                         symbol=symbol,
                         quantity=quantity,
@@ -253,12 +262,13 @@ class LimitOrderRebalanceLogic:
                         side="sell"
                     )
                     sell_orders.append(order)
+
             elif row["drift"] < 0:
                 symbol = row["symbol"]
                 last_price = Decimal(self.strategy.get_last_price(symbol))
                 limit_price = self.calculate_limit_price(last_price=last_price, side="sell")
                 quantity = ((row["current_value"] - row["target_value"]) / limit_price).quantize(Decimal('1'), rounding=ROUND_DOWN)
-                if quantity > 0:
+                if quantity > 0 and (quantity < row["current_quantity"] or self.shorting):
                     order = self.place_limit_order(
                         symbol=symbol,
                         quantity=quantity,

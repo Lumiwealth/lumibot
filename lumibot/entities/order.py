@@ -893,6 +893,10 @@ class Order:
             if isinstance(value, datetime.datetime):
                 order_dict[key] = value.isoformat()
 
+            # If it is a Decimal object, convert it to a float
+            elif isinstance(value, Decimal):
+                order_dict[key] = float(value)
+
             # Recursively handle objects that have their own to_dict method (like asset, quote, etc.)
             elif hasattr(value, "to_dict"):
                 order_dict[key] = value.to_dict()

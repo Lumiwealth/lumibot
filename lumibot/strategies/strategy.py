@@ -9,6 +9,8 @@ from decimal import Decimal
 from typing import Union
 from sqlalchemy import create_engine, inspect, text, bindparam
 from sqlalchemy.exc import OperationalError
+import traceback
+import math
 
 import jsonpickle
 import matplotlib
@@ -4613,11 +4615,28 @@ class Strategy(_Strategy):
             "orders": [order.to_dict() for order in orders],
         }
 
+        # Helper function to recursively replace NaN in dictionaries
+        def replace_nan(value):
+            if isinstance(value, float) and math.isnan(value):
+                return None  # or 0 if you prefer
+            elif isinstance(value, dict):
+                return {k: replace_nan(v) for k, v in value.items()}
+            elif isinstance(value, list):
+                return [replace_nan(v) for v in value]
+            else:
+                return value
+
+        # Apply to your data dictionary
+        data = replace_nan(data)
+
         try:
             # Send the data to the cloud
-             response = requests.post(LUMIWEALTH_URL, headers=headers, json=data)
+            json_data = json.dumps(data)
+            response = requests.post(LUMIWEALTH_URL, headers=headers, data=json_data)
         except Exception as e:
-            self.logger.error(f"Failed to send update to the cloud. Error: {e}")
+            self.logger.error(f"Failed to send update to the cloud because of lumibot error. Error: {e}")
+            # Add the traceback to the log
+            self.logger.error(traceback.format_exc())
             return False
 
         # Check if the message was sent successfully
@@ -4626,7 +4645,7 @@ class Strategy(_Strategy):
             return True
         else:
             self.logger.error(
-                f"Failed to send update to the cloud. Status code: {response.status_code}, message: {response.text}"
+                f"Failed to send update to the cloud because of cloud error. Status code: {response.status_code}, message: {response.text}"
             )
             return False
 

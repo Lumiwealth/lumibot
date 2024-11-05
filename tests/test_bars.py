@@ -11,7 +11,7 @@ from pandas.testing import assert_series_equal
 from lumibot.backtesting import PolygonDataBacktesting
 from lumibot.data_sources import AlpacaData, TradierData, YahooData, PandasData
 from tests.fixtures import pandas_data_fixture
-from lumibot.tools.pandas import print_full_pandas_dataframes, set_pandas_float_precision
+from lumibot.tools import print_full_pandas_dataframes, set_pandas_float_precision
 from lumibot.entities import Asset
 
 # Global parameters

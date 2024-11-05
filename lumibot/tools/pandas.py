@@ -1,4 +1,5 @@
 from datetime import time
+from decimal import Decimal
 
 import pandas as pd
 
@@ -57,3 +58,11 @@ def print_full_pandas_dataframes():
 def set_pandas_float_precision(precision: int = 5):
     format_str = '{:.' + str(precision) + 'f}'
     pd.set_option('display.float_format', format_str.format)
+
+
+def prettify_dataframe_with_decimals(df: pd.DataFrame, decimal_places: int = 5) -> str:
+    def decimal_formatter(x):
+        if isinstance(x, Decimal):
+            return f"{x:.{decimal_places}f}"
+        return x
+    return df.to_string(formatters={col: decimal_formatter for col in df.columns})

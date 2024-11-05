@@ -178,13 +178,18 @@ git commit -m "my changes"
 git push -u origin my-feature
 ```
 
-If work on main progressed while you were in another branch, this is how you rebase it into your branch:
+If work on main progressed while you were in another branch, this is how you rebase it into your branch. Note that
+since you've rebased your local branch, you'll need to force push your changes to update the remote branch. 
+The --force-with-lease option is a safer alternative to --force as it will abort the push if there are any new 
+commits on the remote that you haven't incorporated into your local branch
 ```shell
 git checkout dev
 git fetch origin
 git merge origin/dev
 git checkout my-feature
 git rebase dev
+git checkout my-feature
+git push --force-with-lease origin my-feature
 ```
 
 When ready to merge the branch into main, go into github, create a pull request, and await review. When your PR is approved it will automatically be merged into the dev branch remotely. Now, you can delete your local branch and the remote branch.

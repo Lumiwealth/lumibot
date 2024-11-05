@@ -40,8 +40,6 @@ class InteractiveBrokersRESTData(DataSource):
             self.base_url = f"{self.api_url}/v1/api"
 
         self.account_id = config["ACCOUNT_ID"] if "ACCOUNT_ID" in config else None
-        self.ib_username = config["IB_USERNAME"]
-        self.ib_password = config["IB_PASSWORD"]
 
         # Check if we are running on a server
         running_on_server = (
@@ -54,9 +52,9 @@ class InteractiveBrokersRESTData(DataSource):
         else:
             self.running_on_server = False
 
-        self.start()
+        self.start(config["IB_USERNAME"], config["IB_PASSWORD"])
 
-    def start(self):
+    def start(self, ib_username, ib_password):
         if not self.running_on_server:
             # Run the Docker image with the specified environment variables and port mapping
             if (
@@ -76,8 +74,8 @@ class InteractiveBrokersRESTData(DataSource):
 
             inputs_dir = "/srv/clientportal.gw/root/conf.yaml"
             env_variables = {
-                "IBEAM_ACCOUNT": self.ib_username,
-                "IBEAM_PASSWORD": self.ib_password,
+                "IBEAM_ACCOUNT": ib_username,
+                "IBEAM_PASSWORD": ib_password,
                 "IBEAM_GATEWAY_BASE_URL": f"https://localhost:{self.port}",
                 "IBEAM_LOG_TO_FILE": False,
                 "IBEAM_REQUEST_RETRIES": 1,
@@ -466,21 +464,22 @@ class InteractiveBrokersRESTData(DataSource):
                     return self.post_to_endpoint(url, json, allow_fail=allow_fail)
 
                 else:
-                    if "error" in response.json():
-                        logging.error(
-                            colored(
-                                f"Task '{url}' Failed. Error: {response.json()['error']}",
-                                "red",
+                    if allow_fail:
+                        if "error" in response.json():
+                            logging.error(
+                                colored(
+                                    f"Task '{url}' Failed. Error: {response.json()['error']}",
+                                    "red",
+                                )
                             )
-                        )
-                    else:
-                        logging.error(
-                            colored(
-                                f"Task '{url}' Failed. Status code: {response.status_code}, "
-                                f"Response: {response.text}",
-                                "red",
+                        else:
+                            logging.error(
+                                colored(
+                                    f"Task '{url}' Failed. Status code: {response.status_code}, "
+                                    f"Response: {response.text}",
+                                    "red",
+                                )
                             )
-                        )
                     to_return = None
 
             except requests.exceptions.RequestException as e:
@@ -528,12 +527,13 @@ class InteractiveBrokersRESTData(DataSource):
                     return self.delete_to_endpoint(url)
 
                 else:
-                    logging.error(
-                        colored(
-                            f"Task '{url}' Failed. Status code: {response.status_code}, Response: {response.text}",
-                            "red",
+                    if allow_fail:
+                        logging.error(
+                            colored(
+                                f"Task '{url}' Failed. Status code: {response.status_code}, Response: {response.text}",
+                                "red",
+                            )
                         )
-                    )
                     to_return = None
 
             except requests.exceptions.RequestException as e:
@@ -958,18 +958,18 @@ class InteractiveBrokersRESTData(DataSource):
 
         return bars
 
-    def get_last_price(self, asset, quote=None, exchange=None) -> float:
+    def get_last_price(self, asset, quote=None, exchange=None) -> float | None:
         field = "last_price"
         response = self.get_market_snapshot(asset, [field])  # TODO add exchange
 
         if response is None or field not in response:
             if asset.asset_type in ["option", "future"]:
-                logging.error(
+                logging.debug(
                     f"Failed to get {field} for asset {asset.symbol} with strike {asset.strike} and expiration date {asset.expiration}"
                 )
             else:
-                logging.error(f"Failed to get {field} for asset {asset.symbol} of type {asset.asset_type}")
-            return -1
+                logging.debug(f"Failed to get {field} for asset {asset.symbol} of type {asset.asset_type}")
+            return None
 
         price = response[field]
 

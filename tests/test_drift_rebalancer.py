@@ -96,7 +96,7 @@ class TestDriftCalculationLogic:
 
         assert df["target_value"].tolist() == [Decimal('1650.0'), Decimal('990.0'), Decimal('660.0')]
 
-        assert df["absolute_drift"].tolist() == [
+        assert df["drift"].tolist() == [
             Decimal('0.0454545454545454545454545455'),
             Decimal('-0.0030303030303030303030303030'),
             Decimal('-0.0424242424242424242424242424')
@@ -144,7 +144,7 @@ class TestDriftCalculationLogic:
         assert df["target_value"].tolist() == [Decimal("1650"), Decimal("990"), Decimal("0")]
 
         pd.testing.assert_series_equal(
-            df["absolute_drift"],
+            df["drift"],
             pd.Series([
                 Decimal('0.0454545454545454545454545455'),
                 Decimal('-0.0030303030303030303030303030'),
@@ -197,7 +197,7 @@ class TestDriftCalculationLogic:
         assert df["target_value"].tolist() == [Decimal("825"), Decimal("825"), Decimal("825"), Decimal("825")]
 
         pd.testing.assert_series_equal(
-            df["absolute_drift"],
+            df["drift"],
             pd.Series([
                 Decimal('-0.2045454545454545454545454545'),
                 Decimal('-0.0530303030303030303030303030'),
@@ -256,7 +256,7 @@ class TestDriftCalculationLogic:
         assert df["target_value"].tolist() == [Decimal("2150"), Decimal("1290"), Decimal("860"), Decimal("0")]
 
         pd.testing.assert_series_equal(
-            df["absolute_drift"],
+            df["drift"],
             pd.Series([
                 Decimal('0.1511627906976744186046511628'),
                 Decimal('0.0674418604651162790697674419'),
@@ -297,7 +297,7 @@ class TestDriftCalculationLogic:
 
         assert df["current_weight"].tolist() == [Decimal("0.5"), Decimal("0.5"), Decimal("0.0")]
         assert df["target_value"].tolist() == [Decimal("250"), Decimal("250"), Decimal("500")]
-        assert df["absolute_drift"].tolist() == [Decimal("-0.25"), Decimal("-0.25"), Decimal("0")]
+        assert df["drift"].tolist() == [Decimal("-0.25"), Decimal("-0.25"), Decimal("0")]
 
 
 class MockStrategy(Strategy):
@@ -337,7 +337,7 @@ class TestLimitOrderRebalance:
             "current_quantity": [Decimal("10")],
             "current_value": [Decimal("1000")],
             "target_value": [Decimal("0")],
-            "absolute_drift": [Decimal("-1")]
+            "drift": [Decimal("-1")]
         })
         executor = LimitOrderRebalanceLogic(strategy=strategy, df=df)
         executor.rebalance()
@@ -352,13 +352,26 @@ class TestLimitOrderRebalance:
             "current_quantity": [Decimal("10")],
             "current_value": [Decimal("1000")],
             "target_value": [Decimal("500")],
-            "absolute_drift": [Decimal("-0.5")]
+            "drift": [Decimal("-0.5")]
         })
         executor = LimitOrderRebalanceLogic(strategy=strategy, df=df)
         executor.rebalance()
         assert len(strategy.orders) == 1
         assert strategy.orders[0].side == "sell"
         assert strategy.orders[0].quantity == Decimal("5")
+
+    def test_selling_short_doesnt_create_and_order_when_shorting_is_disabled(self):
+        strategy = MockStrategy(broker=self.backtesting_broker)
+        df = pd.DataFrame({
+            "symbol": ["AAPL"],
+            "current_quantity": [Decimal("0")],
+            "current_value": [Decimal("0")],
+            "target_value": [Decimal("-1000")],
+            "drift": [Decimal("-1")]
+        })
+        executor = LimitOrderRebalanceLogic(strategy=strategy, df=df)
+        executor.rebalance()
+        assert len(strategy.orders) == 0
 
     def test_buying_something_when_we_have_enough_money_and_there_is_slippage(self):
         strategy = MockStrategy(broker=self.backtesting_broker)
@@ -367,7 +380,7 @@ class TestLimitOrderRebalance:
             "current_quantity": [Decimal("0")],
             "current_value": [Decimal("0")],
             "target_value": [Decimal("1000")],
-            "absolute_drift": [Decimal("1")]
+            "drift": [Decimal("1")]
         })
         executor = LimitOrderRebalanceLogic(strategy=strategy, df=df)
         executor.rebalance()
@@ -384,7 +397,7 @@ class TestLimitOrderRebalance:
             "current_quantity": [Decimal("0")],
             "current_value": [Decimal("0")],
             "target_value": [Decimal("1000")],
-            "absolute_drift": [Decimal("1")]
+            "drift": [Decimal("1")]
         })
         executor = LimitOrderRebalanceLogic(strategy=strategy, df=df)
         executor.rebalance()
@@ -400,7 +413,7 @@ class TestLimitOrderRebalance:
             "current_quantity": [Decimal("0")],
             "current_value": [Decimal("0")],
             "target_value": [Decimal("1000")],
-            "absolute_drift": [Decimal("1")]
+            "drift": [Decimal("1")]
         })
         executor = LimitOrderRebalanceLogic(strategy=strategy, df=df)
         executor.rebalance()
@@ -413,7 +426,7 @@ class TestLimitOrderRebalance:
             "current_quantity": [Decimal("1")],
             "current_value": [Decimal("100")],
             "target_value": [Decimal("10")],
-            "absolute_drift": [Decimal("-0.5")]
+            "drift": [Decimal("-0.5")]
         })
         executor = LimitOrderRebalanceLogic(strategy=strategy, df=df)
         executor.rebalance()
@@ -426,7 +439,7 @@ class TestLimitOrderRebalance:
             "current_quantity": [Decimal("10")],
             "current_value": [Decimal("1000")],
             "target_value": [Decimal("0")],
-            "absolute_drift": [Decimal("-1")]
+            "drift": [Decimal("-1")]
         })
         executor = LimitOrderRebalanceLogic(strategy=strategy, df=df, acceptable_slippage=Decimal("0.005"))
         limit_price = executor.calculate_limit_price(last_price=Decimal("120.00"), side="sell")
@@ -439,7 +452,7 @@ class TestLimitOrderRebalance:
             "current_quantity": [Decimal("10")],
             "current_value": [Decimal("1000")],
             "target_value": [Decimal("0")],
-            "absolute_drift": [Decimal("-1")]
+            "drift": [Decimal("-1")]
         })
         executor = LimitOrderRebalanceLogic(strategy=strategy, df=df, acceptable_slippage=Decimal("0.005"))
         limit_price = executor.calculate_limit_price(last_price=Decimal("120.00"), side="buy")
@@ -458,7 +471,7 @@ class TestDriftRebalancer:
         parameters = {
             "market": "NYSE",
             "sleeptime": "1D",
-            "absolute_drift_threshold": "0.03",
+            "drift_threshold": "0.03",
             "acceptable_slippage": "0.005",
             "fill_sleeptime": 15,
             "target_weights": {
@@ -479,7 +492,7 @@ class TestDriftRebalancer:
             show_indicators=False,
             save_logfile=False,
             show_progress_bar=False,
-            quiet_logs=True,
+            quiet_logs=False,
         )
 
         assert results is not None

@@ -17,7 +17,7 @@ if __name__ == "__main__":
     parameters = {
         "market": "NYSE",
         "sleeptime": "1D",
-        "absolute_drift_threshold": "0.15",
+        "drift_threshold": "0.15",
         "acceptable_slippage": "0.005",  # 50 BPS
         "fill_sleeptime": 15,
         "target_weights": {

@@ -30,7 +30,7 @@ class DriftRebalancer(Strategy):
     """The DriftRebalancer strategy rebalances a portfolio based on drift from target weights.
 
     The strategy calculates the drift of each asset in the portfolio and triggers a rebalance if the drift exceeds
-    the absolute_drift_threshold. The strategy will sell assets that have drifted above the threshold and
+    the drift_threshold. The strategy will sell assets that have drifted above the threshold and
     buy assets that have drifted below the threshold.
 
     The current version of the DriftRebalancer strategy only supports limit orders and whole share quantities.
@@ -46,10 +46,10 @@ class DriftRebalancer(Strategy):
 
         ### DriftRebalancer parameters
 
-        # This is the absolute drift threshold that will trigger a rebalance. If the target_weight is 0.30 and the
-        # absolute_drift_threshold is 0.05, then the rebalance will be triggered when the assets current_weight
+        # This is the drift threshold that will trigger a rebalance. If the target_weight is 0.30 and the
+        # drift_threshold is 0.05, then the rebalance will be triggered when the assets current_weight
         # is less than 0.25 or greater than 0.35.
-        "absolute_drift_threshold": "0.05",
+        "drift_threshold": "0.05",
 
         # This is the acceptable slippage that will be used when calculating the number of shares to buy or sell.
         # The default is 0.005 (50 BPS)
@@ -71,28 +71,30 @@ class DriftRebalancer(Strategy):
     def initialize(self, parameters: Any = None) -> None:
         self.set_market(self.parameters.get("market", "NYSE"))
         self.sleeptime = self.parameters.get("sleeptime", "1D")
-        self.absolute_drift_threshold = Decimal(self.parameters.get("absolute_drift_threshold", "0.20"))
+        self.drift_threshold = Decimal(self.parameters.get("drift_threshold", "0.20"))
         self.acceptable_slippage = Decimal(self.parameters.get("acceptable_slippage", "0.005"))
         self.fill_sleeptime = self.parameters.get("fill_sleeptime", 15)
         self.target_weights = {k: Decimal(v) for k, v in self.parameters["target_weights"].items()}
         self.drift_df = pd.DataFrame()
 
         # Sanity checks
-        if self.acceptable_slippage >= self.absolute_drift_threshold:
-            raise ValueError("acceptable_slippage must be less than absolute_drift_threshold")
-        if self.absolute_drift_threshold >= Decimal("1.0"):
-            raise ValueError("absolute_drift_threshold must be less than 1.0")
+        if self.acceptable_slippage >= self.drift_threshold:
+            raise ValueError("acceptable_slippage must be less than drift_threshold")
+        if self.drift_threshold >= Decimal("1.0"):
+            raise ValueError("drift_threshold must be less than 1.0")
         for key, target_weight in self.target_weights.items():
-            if self.absolute_drift_threshold >= target_weight:
+            if self.drift_threshold >= target_weight:
                 logger.warning(
-                    f"absolute_drift_threshold of {self.absolute_drift_threshold} is "
+                    f"drift_threshold of {self.drift_threshold} is "
                     f">= target_weight of {key}: {target_weight}. Drift in this asset will never trigger a rebalance."
                 )
 
     # noinspection PyAttributeOutsideInit
     def on_trading_iteration(self) -> None:
         dt = self.get_datetime()
-        logger.info(f"{dt} on_trading_iteration called")
+        msg = f"{dt} on_trading_iteration called"
+        logger.info(msg)
+        self.log_message(msg, broadcast=True)
         self.cancel_open_orders()
 
         if self.cash < 0:
@@ -123,14 +125,17 @@ class DriftRebalancer(Strategy):
         # Check if the absolute value of any drift is greater than the threshold
         rebalance_needed = False
         for index, row in self.drift_df.iterrows():
-            if abs(row["absolute_drift"]) > self.absolute_drift_threshold:
+            msg = (
+                f"Symbol: {row['symbol']} current_weight: {row['current_weight']:.2%} "
+                f"target_weight: {row['target_weight']:.2%} drift: {row['drift']:.2%}"
+            )
+            if abs(row["drift"]) > self.drift_threshold:
                 rebalance_needed = True
-                msg = (
-                    f"Absolute drift for {row['symbol']} is {abs(row['absolute_drift']):.2f} "
-                    f"and exceeds threshold of {self.absolute_drift_threshold:.2f}"
+                msg += (
+                    f" Absolute drift exceeds threshold of {self.drift_threshold:.2%}. Rebalance needed."
                 )
-                logger.info(msg)
-                self.log_message(msg, broadcast=True)
+            logger.info(msg)
+            self.log_message(msg, broadcast=True)
 
         if rebalance_needed:
             msg = f"Rebalancing portfolio."
@@ -167,7 +172,7 @@ class DriftCalculationLogic:
             "current_weight": Decimal(0),
             "target_weight": [Decimal(weight) for weight in target_weights.values()],
             "target_value": Decimal(0),
-            "absolute_drift": Decimal(0)
+            "drift": Decimal(0)
         })
 
     def add_position(self, *, symbol: str, is_quote_asset: bool, current_quantity: Decimal, current_value: Decimal) -> None:
@@ -184,7 +189,7 @@ class DriftCalculationLogic:
                 "current_weight": Decimal(0),
                 "target_weight": Decimal(0),
                 "target_value": Decimal(0),
-                "absolute_drift": Decimal(0)
+                "drift": Decimal(0)
             }
             # Convert the dictionary to a DataFrame
             new_row_df = pd.DataFrame([new_row])
@@ -212,7 +217,7 @@ class DriftCalculationLogic:
             else:
                 return row["target_weight"] - row["current_weight"]
 
-        self.df["absolute_drift"] = self.df.apply(calculate_drift_row, axis=1)
+        self.df["drift"] = self.df.apply(calculate_drift_row, axis=1)
         return self.df.copy()
 
 
@@ -234,20 +239,21 @@ class LimitOrderRebalanceLogic:
         # Execute sells first
         sell_orders = []
         for index, row in self.df.iterrows():
-            if row["absolute_drift"] == -1:
+            if row["drift"] == -1:
                 # Sell everything
                 symbol = row["symbol"]
                 quantity = row["current_quantity"]
                 last_price = Decimal(self.strategy.get_last_price(symbol))
                 limit_price = self.calculate_limit_price(last_price=last_price, side="sell")
-                order = self.place_limit_order(
-                    symbol=symbol,
-                    quantity=quantity,
-                    limit_price=limit_price,
-                    side="sell"
-                )
-                sell_orders.append(order)
-            elif row["absolute_drift"] < 0:
+                if quantity > 0:
+                    order = self.place_limit_order(
+                        symbol=symbol,
+                        quantity=quantity,
+                        limit_price=limit_price,
+                        side="sell"
+                    )
+                    sell_orders.append(order)
+            elif row["drift"] < 0:
                 symbol = row["symbol"]
                 last_price = Decimal(self.strategy.get_last_price(symbol))
                 limit_price = self.calculate_limit_price(last_price=last_price, side="sell")
@@ -276,7 +282,7 @@ class LimitOrderRebalanceLogic:
 
         # Execute buys
         for index, row in self.df.iterrows():
-            if row["absolute_drift"] > 0:
+            if row["drift"] > 0:
                 symbol = row["symbol"]
                 last_price = Decimal(self.strategy.get_last_price(symbol))
                 limit_price = self.calculate_limit_price(last_price=last_price, side="buy")

@@ -409,72 +409,92 @@ class InteractiveBrokersREST(Broker):
             if asset_class == Asset.AssetType.STOCK:
                 asset = Asset(symbol=symbol, asset_type=asset_class)
             elif asset_class == Asset.AssetType.OPTION:
+                # Example contract_desc: 'SPY    NOV2024 562 P [SPY   241105P00562000 100]'
+                # This example format includes:
+                #   - An underlying symbol at the beginning (e.g., "SPY")
+                #   - Expiry and strike in human-readable format (e.g., "NOV2024 562 P")
+                #   - Option details within square brackets (e.g., "[SPY   241105P00562000 100]"),
+                #     where "241105P00562000" holds the expiry (YYMMDD), option type (C/P), and strike price
+
                 contract_desc = position.get("contractDesc", "").strip()
-    
+
                 if not contract_desc:
                     logging.error("Empty contract description for option. Skipping this position.")
                     continue  # Skip processing this position as contract_desc is missing
 
-                # Define a regex pattern to parse the contract description
-                # Example contract_desc: 'SPY    NOV2024 562 P [SPY   241105P00562000 100]'
-                # This pattern captures the underlying symbol, expiry, strike, and right
-                option_pattern = re.compile(
-                    r'^(?P<underlying>\w+)\s+'
-                    r'(?P<expiry>[A-Z]{3}\d{4})\s+'
-                    r'(?P<strike>\d+\.?\d*)\s+'
-                    r'(?P<right>[CP])',
-                    re.IGNORECASE
-                )
+                try:
+                    # Locate the square brackets and extract the option details part
+                    start_idx = contract_desc.find('[')
+                    end_idx = contract_desc.find(']', start_idx)
+                    
+                    if start_idx == -1 or end_idx == -1:
+                        logging.error(f"Brackets not found in contract description '{contract_desc}'. Expected format like '[SPY   241105P00562000 100]'.")
+                        continue  # Skip if brackets are missing
 
-                match = option_pattern.match(contract_desc)
-                
-                if match:
+                    # Extract content within brackets and find the critical pattern (e.g., "241105P00562000")
+                    bracket_content = contract_desc[start_idx + 1:end_idx].strip()
+                    # Search for 6 digits, followed by 'C' or 'P', followed by 8 digits for strike
+                    details_match = re.search(r'\d{6}[CP]\d{8}', bracket_content)
+                    
+                    if not details_match:
+                        logging.error(f"Expected option pattern not found in contract '{contract_desc}'.")
+                        continue  # Skip if pattern does not match
+
+                    contract_details = details_match.group(0)
+                    
+                    # Parse components from the details
+                    expiry_raw = contract_details[:6]      # First six digits (YYMMDD format)
+                    right_raw = contract_details[6]        # Seventh character (C or P)
+                    strike_raw = contract_details[7:]      # Remaining characters (strike price)
+
+                    # Check if expiry is in the correct format and convert to date
                     try:
-                        # Extract components using named groups
-                        underlying_asset_raw = match.group("underlying")
-                        expiry_raw = match.group("expiry")
-                        strike_raw = match.group("strike")
-                        right_raw = match.group("right").upper()
-                        
-                        # Parse expiry date
-                        try:
-                            expiry = datetime.datetime.strptime(expiry_raw, "%b%Y").date()
-                        except ValueError as ve:
-                            logging.error(f"Invalid expiry format '{expiry_raw}' in contract '{contract_desc}': {ve}")
-                            continue  # Skip this position due to invalid expiry format
-                        
-                        # Parse and round strike price
-                        try:
-                            strike = round(float(strike_raw), 2)
-                        except ValueError as ve:
-                            logging.error(f"Invalid strike price '{strike_raw}' in contract '{contract_desc}': {ve}")
-                            continue  # Skip this position due to invalid strike price
-                        
-                        # Determine the option type
-                        right = Asset.OptionRight.CALL if right_raw == "C" else Asset.OptionRight.PUT
-                        
-                        # Create the underlying asset object
-                        underlying_asset = Asset(
-                            symbol=underlying_asset_raw,
-                            asset_type=Asset.AssetType.STOCK
-                        )
-                        
-                        # Create the option asset object
-                        asset = Asset(
-                            symbol=symbol,
-                            asset_type=asset_class,
-                            expiration=expiry,
-                            strike=strike,
-                            right=right,
-                            underlying_asset=underlying_asset,
-                        )
-                        
-                    except Exception as e:
-                        logging.error(f"Unexpected error parsing contract '{contract_desc}': {e}")
-                        continue  # Skip this position due to an unexpected error
-                else:
-                    logging.error(f"Contract description format not recognized for option: '{contract_desc}'. Skipping this position.")
-                    continue  # Skip this position as it doesn't match the expected pattern
+                        expiry = datetime.datetime.strptime(expiry_raw, "%y%m%d").date()
+                    except ValueError as ve:
+                        logging.error(f"Invalid expiry format '{expiry_raw}' in contract '{contract_desc}': {ve}")
+                        continue  # Skip this position due to invalid expiry format
+
+                    # Convert strike to a float, assuming it’s in thousandths (e.g., "00562000" to "562.00")
+                    try:
+                        strike = round(float(strike_raw) / 1000, 2)
+                    except ValueError as ve:
+                        logging.error(f"Invalid strike price '{strike_raw}' in contract '{contract_desc}': {ve}")
+                        continue  # Skip this position due to invalid strike price
+
+                    # Validate the option type (right) as either C or P
+                    if right_raw.upper() not in ["C", "P"]:
+                        logging.error(f"Invalid option type '{right_raw}' in contract '{contract_desc}'. Expected 'C' or 'P'.")
+                        continue  # Skip if option type is not valid
+
+                    # Determine the option right type
+                    right = Asset.OptionRight.CALL if right_raw.upper() == "C" else Asset.OptionRight.PUT
+
+                    # Extract the underlying symbol, assumed to be the first word in contract_desc
+                    underlying_asset_raw = contract_desc.split()[0]
+                    
+                    # Ensure underlying symbol is alphanumeric and non-empty
+                    if not underlying_asset_raw.isalnum():
+                        logging.error(f"Invalid underlying asset symbol '{underlying_asset_raw}' in '{contract_desc}'.")
+                        continue
+
+                    # Create the underlying asset object
+                    underlying_asset = Asset(
+                        symbol=underlying_asset_raw,
+                        asset_type=Asset.AssetType.STOCK
+                    )
+
+                    # Create the option asset object
+                    asset = Asset(
+                        symbol=symbol,
+                        asset_type=asset_class,
+                        expiration=expiry,
+                        strike=strike,
+                        right=right,
+                        underlying_asset=underlying_asset,
+                    )
+
+                except Exception as e:
+                    logging.error(f"Error processing contract '{contract_desc}': {e}")
             elif asset_class == Asset.AssetType.FUTURE:
                 #contract_details = self.data_source.get_contract_details(position['conid'])
                 expiry = position["expiry"]

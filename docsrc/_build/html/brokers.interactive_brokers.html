@@ -424,11 +424,11 @@
 <h2>Market Data Subscriptions<a class="headerlink" href="#market-data-subscriptions" title="Link to this heading">¶</a></h2>
 <p>To access real-time market data, you need to subscribe to the appropriate market data packages. Interactive Brokers offers various market data subscriptions depending on the exchanges and types of data you need. Here are some common subscriptions:</p>
 <ul class="simple">
-<li><p>US Securities Snapshot and Futures Value Bundle</p></li>
-<li><p>US Equity and Options Add-On Streaming Bundle</p></li>
-<li><p>NASDAQ (Network C/UTP) TotalView</p></li>
-<li><p>NYSE (Network A/CTA) OpenBook Ultra</p></li>
-<li><p>OPRA (US Options Exchanges)</p></li>
+<li><p><strong>US Securities Snapshot and Futures Value Bundle</strong></p></li>
+<li><p><strong>US Equity and Options Add-On Streaming Bundle</strong></p></li>
+<li><p><strong>NASDAQ (Network C/UTP) TotalView</strong></p></li>
+<li><p><strong>NYSE (Network A/CTA) OpenBook Ultra</strong></p></li>
+<li><p><strong>OPRA (US Options Exchanges)</strong></p></li>
 </ul>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -436,35 +436,101 @@
 </div>
 <p><strong>To subscribe to market data:</strong></p>
 <ol class="arabic simple">
-<li><p>Log in to the IBKR Client Portal.</p></li>
-<li><p>Navigate to the “Settings” menu.</p></li>
-<li><p>Under “Account Settings”, find the “Market Data Subscriptions” section.</p></li>
-<li><p>Click “Configure” and select the desired market data packages.</p></li>
+<li><p>Log in to the <a class="reference external" href="https://www.interactivebrokers.com">IBKR Client Portal</a>.</p></li>
+<li><p>Navigate to the <strong>Settings</strong> menu.</p></li>
+</ol>
+<img alt="IB Main Menu" class="with-border align-center" src="_images/ib-main.png" />
+<ol class="arabic simple" start="3">
+<li><p>Under <strong>Account Settings</strong>, find the <strong>Market Data Subscriptions</strong> section.</p></li>
+</ol>
+<img alt="IB Settings" class="with-border align-center" src="_images/ib-settings.png" />
+<ol class="arabic simple" start="4">
+<li><p>Click <strong>Configure</strong> and select the desired market data packages.</p></li>
+</ol>
+<img alt="IB Market Data Subscriptions" class="with-border align-center" src="_images/ib-market-data-subscriptions.png" />
+<ol class="arabic simple" start="5">
+<li><p>Find your desired subscription</p></li>
 <li><p>Follow the prompts to complete the subscription process.</p></li>
 </ol>
 <p><strong>Note:</strong> Market data subscriptions may incur additional fees. Be sure to review the costs associated with each package before subscribing.</p>
 </section>
+<section id="using-a-paper-trading-account">
+<h2>Using a Paper Trading Account<a class="headerlink" href="#using-a-paper-trading-account" title="Link to this heading">¶</a></h2>
+<p>When using a paper trading account, you should log in with your paper trading username and password. This allows you to practice trading without risking real money.</p>
+<p><strong>Steps to get your paper trading username and password:</strong></p>
+<ol class="arabic simple">
+<li><p><strong>Log in</strong> to the <strong>IBKR Client Portal</strong> using your primary (live) account credentials.</p></li>
+<li><p>Navigate to the <strong>Settings</strong> menu in the upper right corner.</p></li>
+<li><p>Under <strong>Account Settings</strong>, find the <strong>Paper Trading Account</strong> section.</p></li>
+<li><p>Click on <strong>Configure</strong> or <strong>Request Paper Trading Account</strong>.</p></li>
+<li><p>Follow the prompts to set up your paper trading account.</p></li>
+</ol>
+<blockquote>
+<div><ul class="simple">
+<li><p>You may need to agree to terms and conditions.</p></li>
+</ul>
+</div></blockquote>
+<ol class="arabic simple" start="6">
+<li><p>Once the setup is complete, you’ll receive a separate <strong>username</strong> and <strong>password</strong> for your paper trading account.</p></li>
+<li><p>Use these credentials when logging into the paper trading environment and configuring your API connection.</p></li>
+</ol>
+<p><strong>Note:</strong> The paper trading account is separate from your live account. Ensure you’re using the correct credentials for each environment to avoid any login conflicts.</p>
+</section>
 <section id="automating-two-factor-authentication">
 <h2>Automating Two-Factor Authentication<a class="headerlink" href="#automating-two-factor-authentication" title="Link to this heading">¶</a></h2>
-<p>Currently, automating two-factor authentication (2FA) is not supported. For now, Lumibot will send you 2FA notifications through IBKey, and you will need to respond to them manually.</p>
+<p>Currently, automating two-factor authentication (2FA) is not supported. Lumibot will send you 2FA notifications through IBKey, and you will need to respond to them manually.</p>
 </section>
 <section id="using-a-secondary-account">
 <h2>Using a Secondary Account<a class="headerlink" href="#using-a-secondary-account" title="Link to this heading">¶</a></h2>
-<p>IBKR only permits a single login at a time for any given set of credentials. Consequently, you can’t use the IBKR website while the Gateway (or a sort of api connection) is running. If you try to anyway, the Gateway will be disconnected, which will trigger a re-authentication attempt, which will potentially disconnect your website session. If you then log in to the website again, you’ll just start the loop all over again. An easy solution is to stop a sort of api connection before using the website, but that can be tedious.</p>
-<p>A more convenient solution is to create a second username for your account and use that for a sort of api connection. From the client portal API documentation section “Multiple usernames”:</p>
-<p>Clients wishing to use multiple IBKR products at the same time (TWS, IBKR Mobile or Client Portal) can do so by creating a new username that can then be used to log into other services while using the Client Portal API. To create a second username please see the following IBKR Knowledge Base article.</p>
-<p>The Knowledge Base article linked above is slightly out of date with respect to the current layout of the IBKR Client Portal:</p>
-<ul class="simple">
-<li><p>The “Manage Account” item in the User menu (upper right corner) is now called “Settings”</p></li>
-<li><p>The “Users &amp; Access Rights” panel is no longer on the Settings page, but you can find a similarly named link at the very bottom-left of the page (you may have to scroll to find it)</p></li>
-<li><p>The resulting page doesn’t have a “Configure (gear) icon”. It does have a plus sign button in the “Users” header that does the same thing.</p></li>
+<p>Interactive Brokers only allows a single login at a time for any given set of credentials. This means you can’t use the IBKR website while the API connection is running. If you try, it will disconnect the API connection, causing a re-authentication loop.</p>
+<p>An easy solution is to stop the API connection before using the website, but that can be tedious. A more convenient solution is to create a <strong>secondary username</strong> for your account and use that for the API connection.</p>
+<p><strong>Steps to create a secondary username:</strong></p>
+<ol class="arabic simple">
+<li><p><strong>Log in</strong> to the <strong>IBKR Client Portal</strong> with your primary username.</p></li>
+<li><p>Click on the <strong>Settings</strong> menu in the upper right corner.</p></li>
+<li><p>Scroll to the bottom-left of the page and find the <strong>Users &amp; Access Rights</strong> link.</p></li>
+</ol>
+<blockquote>
+<div><ul class="simple">
+<li><p>You may need to scroll down to see it.</p></li>
 </ul>
-<p>From there you’ll be shown a fairly standard-looking username and password dialog. Fill it out in the normal fashion, then click through the many many pages of boilerplate and settings. Feel free to disable many of the notification settings for the new username. Otherwise you’ll start getting duplicate emails from IBKR.</p>
-<p>At the end of the process, you’ll get an email with a confirmation code, but no indication as to what to do with it. Log out and log back in using the new username and password that you just created. You’ll then be prompted to enter the confirmation code. Note that you need to be quick about this part because the code expires fast. If you’re not fast enough you’ll get another automated email with a new code a few minutes after the previous one expired. In fact, you’ll keep getting new codes until you get it right.</p>
-<p>After entering the confirmation code you’ll likely be prompted to change the password for the secondary user.</p>
-<p>The final screen of the process says that the request for account creation will be reviewed on the next business day. Some time later you’ll receive an email asking you to upload a “Proof of trader authority” for the new username. The verbiage implies that you need to generate a document to upload, however that isn’t the case. Simply log in using your primary username (not the secondary!) and you’ll be prompted to upload the requested document. At the bottom of the pop-up will be a button titled “Click Here to Upload Documents”. Click that and you’ll be shown a EULA and a signature block. Type your name (not the new user’s name) and click Submit.</p>
-<p>After that you should be back at the normal dashboard page, with little indication that you’re logged in as the second user. Log out and the new credentials will be ready to use with a sort of api connection. In the future be sure to only use your primary credentials on the website and the secondary credentials for a sort of api connection.</p>
-<p><strong>Source:</strong> <a class="reference external" href="https://github.com/Voyz/ibeam/wiki/Runtime-environment">IBeam GitHub</a></p>
+</div></blockquote>
+<ol class="arabic simple" start="4">
+<li><p>Click the <strong>plus sign (+)</strong> button in the <strong>Users</strong> header to add a new user.</p></li>
+<li><p>Fill out the username and password fields for the new user.</p></li>
+<li><p>Click through the settings pages, adjusting notifications and permissions as needed.</p></li>
+</ol>
+<blockquote>
+<div><ul class="simple">
+<li><p>Feel free to disable unnecessary notifications to avoid duplicate emails.</p></li>
+</ul>
+</div></blockquote>
+<ol class="arabic simple" start="7">
+<li><p>At the end of the process, you’ll receive an email with a <strong>confirmation code</strong>.</p></li>
+</ol>
+<p><strong>Activating your secondary username:</strong></p>
+<ol class="arabic simple">
+<li><p>Log out and log back in using the <strong>new secondary username and password</strong>.</p></li>
+<li><p>Enter the <strong>confirmation code</strong> you received via email.</p></li>
+</ol>
+<blockquote>
+<div><ul class="simple">
+<li><p><strong>Note:</strong> The code expires quickly, so act promptly.</p></li>
+</ul>
+</div></blockquote>
+<ol class="arabic simple" start="3">
+<li><p>You may be prompted to <strong>change the password</strong> for the secondary user.</p></li>
+</ol>
+<p><strong>Finalizing the setup:</strong></p>
+<ul class="simple">
+<li><p>You might receive an email asking for a <strong>“Proof of trader authority”</strong> for the new username.</p></li>
+<li><p>Log in using your <strong>primary username</strong> (not the secondary one).</p></li>
+<li><p>You’ll be prompted to upload the requested document.
+- Click on <strong>“Click Here to Upload Documents”</strong>.
+- You’ll see an EULA and a signature block.
+- Type your <strong>name</strong> (not the new user’s name) and click <strong>Submit</strong>.</p></li>
+</ul>
+<p>After completing these steps, your secondary credentials will be ready to use with the API connection. In the future, use your <strong>primary credentials</strong> on the website and the <strong>secondary credentials</strong> for the API connection.</p>
 </section>
 <section id="strategy-setup">
 <h2>Strategy Setup<a class="headerlink" href="#strategy-setup" title="Link to this heading">¶</a></h2>
@@ -497,7 +563,7 @@
 <td><p><cite>U17369206</cite></p></td>
 </tr>
 <tr class="row-odd"><td><p>IB_API_URL</p></td>
-<td><p>(Optional) The URL of your self-hosted Interactive Brokers REST API. You likely don’t need it.</p></td>
+<td><p>(Optional) The URL of your self-hosted Interactive Brokers REST API.</p></td>
 <td><p><cite>https://localhost:8000</cite></p></td>
 </tr>
 </tbody>
@@ -507,9 +573,9 @@
 <section id="example-strategy">
 <h2>Example Strategy<a class="headerlink" href="#example-strategy" title="Link to this heading">¶</a></h2>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">lumibot.traders</span> <span class="kn">import</span> <span class="n">Trader</span>
-<span class="c1"># Import interactive brokers</span>
-<span class="hll"><span class="kn">from</span> <span class="nn">lumibot.strategies.examples</span> <span class="kn">import</span> <span class="n">Strangle</span>
-</span>
+<span class="c1"># We will get your credentials from the .env file</span>
+<span class="kn">from</span> <span class="nn">lumibot.strategies.examples</span> <span class="kn">import</span> <span class="n">Strangle</span>
+
 <span class="n">trader</span> <span class="o">=</span> <span class="n">Trader</span><span class="p">()</span>
 
 <span class="n">strategy</span> <span class="o">=</span> <span class="n">Strangle</span><span class="p">()</span>
@@ -577,6 +643,7 @@
             <ul>
 <li><a class="reference internal" href="#">Interactive Brokers</a><ul>
 <li><a class="reference internal" href="#market-data-subscriptions">Market Data Subscriptions</a></li>
+<li><a class="reference internal" href="#using-a-paper-trading-account">Using a Paper Trading Account</a></li>
 <li><a class="reference internal" href="#automating-two-factor-authentication">Automating Two-Factor Authentication</a></li>
 <li><a class="reference internal" href="#using-a-secondary-account">Using a Secondary Account</a></li>
 <li><a class="reference internal" href="#strategy-setup">Strategy Setup</a></li>

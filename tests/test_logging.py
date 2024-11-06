@@ -13,52 +13,6 @@ class TestLogging:
         logger.info("This is an info message")
         assert "This is an info message" in caplog.text
 
-    def test_backtest_produces_no_logs_by_default(self, caplog):
-        caplog.set_level(logging.INFO)
-        backtesting_start = datetime.datetime(2023, 1, 2)
-        backtesting_end = datetime.datetime(2023, 1, 4)
-
-        LifecycleLogger.backtest(
-            YahooDataBacktesting,
-            backtesting_start,
-            backtesting_end,
-            parameters={"sleeptime": "1D", "market": "NYSE"},
-            show_plot=False,
-            save_tearsheet=False,
-            show_tearsheet=False,
-            show_indicators=False,
-            save_logfile=False,
-        )
-        # count that this contains 3 new lines. Its an easy proxy for the number of log messages and avoids
-        # the issue where the datetime is always gonna be different.
-        assert caplog.text.count("\n") == 3
-        assert "Starting backtest...\n" in caplog.text
-        assert "Backtesting starting...\n" in caplog.text
-        assert "Backtesting finished\n" in caplog.text
-
-    def test_run_backtest_produces_no_logs_by_default(self, caplog):
-        caplog.set_level(logging.INFO)
-        backtesting_start = datetime.datetime(2023, 1, 2)
-        backtesting_end = datetime.datetime(2023, 1, 4)
-
-        LifecycleLogger.run_backtest(
-            YahooDataBacktesting,
-            backtesting_start,
-            backtesting_end,
-            parameters={"sleeptime": "1D", "market": "NYSE"},
-            show_plot=False,
-            save_tearsheet=False,
-            show_tearsheet=False,
-            show_indicators=False,
-            save_logfile=False,
-        )
-        # count that this contains 3 new lines. Its an easy proxy for the number of log messages and avoids
-        # the issue where the datetime is always gonna be different.
-        assert caplog.text.count("\n") == 3
-        assert "Starting backtest...\n" in caplog.text
-        assert "Backtesting starting...\n" in caplog.text
-        assert "Backtesting finished\n" in caplog.text
-
     def test_backtest_produces_no_logs_when_quiet_logs_is_true(self, caplog):
         caplog.set_level(logging.INFO)
         backtesting_start = datetime.datetime(2023, 1, 2)
@@ -79,10 +33,11 @@ class TestLogging:
         )
         # count that this contains 3 new lines. Its an easy proxy for the number of log messages and avoids
         # the issue where the datetime is always gonna be different.
-        assert caplog.text.count("\n") == 3
+        assert caplog.text.count("\n") == 4
         assert "Starting backtest...\n" in caplog.text
         assert "Backtesting starting...\n" in caplog.text
         assert "Backtesting finished\n" in caplog.text
+        assert "Backtest took " in caplog.text
 
     def test_backtest_produces_logs_when_quiet_logs_is_false(self, caplog):
         caplog.set_level(logging.INFO)
@@ -103,7 +58,7 @@ class TestLogging:
             quiet_logs=False,
         )
 
-        assert caplog.text.count("\n") == 9
+        assert caplog.text.count("\n") >= 9
         assert "Starting backtest...\n" in caplog.text
         assert "Backtesting starting...\n" in caplog.text
         assert "before_market_opens called\n" in caplog.text

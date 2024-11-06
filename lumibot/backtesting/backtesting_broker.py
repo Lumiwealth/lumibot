@@ -98,7 +98,7 @@ class BacktestingBroker(Broker):
         self.data_source._update_datetime(new_datetime, cash=cash, portfolio_value=portfolio_value)
         if self.option_source:
             self.option_source._update_datetime(new_datetime, cash=cash, portfolio_value=portfolio_value)
-        logger.debug(f"Current backtesting datetime {self.datetime}")
+        logger.info(f"Current backtesting datetime {self.datetime}")
 
     # =========Clock functions=====================
 

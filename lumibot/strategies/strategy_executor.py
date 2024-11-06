@@ -34,6 +34,7 @@ class StrategyExecutor(Thread):
         self._strategy_context = None
         self.broker = self.strategy.broker
         self.result = {}
+        self._in_trading_iteration = False
 
         # Create a dictionary of job stores. A job store is where the scheduler persists its jobs. In this case,
         # we create an in-memory job store for "default" and "On_Trading_Iteration" which is the job store we will
@@ -303,6 +304,7 @@ class StrategyExecutor(Thread):
                 self._before_lifecycle_method()
                 result = func_input(self, *args, **kwargs)
                 self._after_lifecycle_method()
+                
                 return result
 
         return func_output
@@ -389,6 +391,7 @@ class StrategyExecutor(Thread):
     def _on_trading_iteration(self):
         # Call the send_update_to_cloud method to send the strategy's data to the cloud.
         self.strategy.send_update_to_cloud()
+        self._in_trading_iteration = True
 
         # If we are running live, we need to check if it's time to execute the trading iteration.
         if not self.strategy.is_backtesting:
@@ -442,6 +445,7 @@ class StrategyExecutor(Thread):
             runtime = (end_dt - start_dt).total_seconds()
 
             # Variable Backup
+            self._in_trading_iteration = False
             self.strategy.backup_variables_to_db()
             
             # Update cron count to account for how long this iteration took to complete so that the next iteration will
@@ -932,7 +936,7 @@ class StrategyExecutor(Thread):
                 should_continue = self.should_continue
                 # Check if the strategy is 24/7 or if it's time to stop.
                 is_247_or_should_we_stop = not is_247 or not should_we_stop
-
+                
                 if not jobs:
                     print("Breaking loop because no jobs.")
                     break
@@ -945,7 +949,12 @@ class StrategyExecutor(Thread):
                 if not is_247_or_should_we_stop:
                     print("Breaking loop because it's 24/7 and time to stop.")
                     break
-
+                
+                # Send data to cloud every minute. Ensure not being in a trading iteration currently as it can cause an incomplete data sync
+                if ((not hasattr(self, '_last_updated_cloud')) or (datetime.now() - self._last_updated_cloud >= timedelta(minutes=1))) and (not self._in_trading_iteration):
+                    self.strategy.send_update_to_cloud()
+                    self._last_updated_cloud = datetime.now()
+                
                 # Handle LifeCycle methods
                 current_datetime = self.strategy.get_datetime()
                 current_date = current_datetime.date()
@@ -1064,7 +1073,6 @@ class StrategyExecutor(Thread):
                 if not self._strategy_sleep():
                     self.result = self.strategy._analysis
                     return False
-
         try:
             self._on_strategy_end()
         except Exception as e:

@@ -400,10 +400,9 @@ class InteractiveBrokersREST(Broker):
         for position in positions:
             # Create the Asset object for the position
             symbol = position["contractDesc"]
-            if symbol.startswith("C"):
+            if symbol.startswith("C "):
                 symbol = symbol[1:].replace(" ", "")
             asset_class = ASSET_CLASS_MAPPING[position["assetClass"]]
-
 
             # If asset class is stock, create a stock asset
             if asset_class == Asset.AssetType.STOCK:
@@ -415,6 +414,7 @@ class InteractiveBrokersREST(Broker):
                 #   - Expiry and strike in human-readable format (e.g., "NOV2024 562 P")
                 #   - Option details within square brackets (e.g., "[SPY   241105P00562000 100]"),
                 #     where "241105P00562000" holds the expiry (YYMMDD), option type (C/P), and strike price
+                contract_details = self.data_source.get_contract_details(position['conid'])
 
                 contract_desc = position.get("contractDesc", "").strip()
 
@@ -495,15 +495,15 @@ class InteractiveBrokersREST(Broker):
 
                 except Exception as e:
                     logging.error(f"Error processing contract '{contract_desc}': {e}")
+                    
             elif asset_class == Asset.AssetType.FUTURE:
-                #contract_details = self.data_source.get_contract_details(position['conid'])
-                expiry = position["expiry"]
-                multiplier = position["multiplier"]
+                contract_details = self.data_source.get_contract_details(position['conid'])
+
                 asset = Asset(
-                    symbol=symbol,
+                    symbol=contract_details["symbol"],
                     asset_type=asset_class,
-                    expiration=expiry,
-                    multiplier=multiplier,
+                    expiration=datetime.datetime.strptime(contract_details["maturity_date"], "%Y%m%d").date(),
+                    multiplier=int(contract_details["multiplier"])
                 )
             else:
                 logging.warning(
@@ -957,8 +957,8 @@ class InteractiveBrokersREST(Broker):
         return None
 
     def _get_stream_object(self):
-        logging.error(
-            colored("Method '_get_stream_object' is not yet implemented.", "red")
+        logging.warning(
+            colored("Method '_get_stream_object' is not yet implemented.", "yellow")
         )
         return None
 

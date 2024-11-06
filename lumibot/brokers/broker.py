@@ -287,7 +287,7 @@ class Broker(ABC):
             else:
                 # Add to positions in lumibot, position does not exist
                 # in lumibot.
-                if position.quantity != 0:
+                if position.quantity != 0.0:
                     self._filled_positions.append(position)
 
         # Now iterate through lumibot positions.
@@ -587,7 +587,8 @@ class Broker(ABC):
         """Set initial positions"""
         positions = self._pull_positions(strategy)
         for pos in positions:
-            self._filled_positions.append(pos)
+            if pos.quantity != 0.0:
+                self._filled_positions.append(pos)
 
     def _process_new_order(self, order):
         # Check if this order already exists in self._new_orders based on the identifier

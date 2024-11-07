@@ -1,100 +1,169 @@
 Interactive Brokers
 ===================
 
-Interactive Brokers is a brokerage firm that operates in most countries around the world. This makes it a great choice for investing and trading if you don't have access to our other supported platforms.
+Interactive Brokers is a brokerage firm that operates in most countries around the world. It's a great choice for investing and trading, especially if you don't have access to other supported platforms.
 
-**Note:** If you do have access to other supported brokers, compare their fee structures to see which one is the best deal for you.
+**Note:** If you have access to other supported brokers, compare their fee structures to see which one offers the best deal for you.
 
 Market Data Subscriptions
 -------------------------
-To access real-time market data, you need to subscribe to the appropriate market data packages. Interactive Brokers offers various market data subscriptions depending on the exchanges and types of data you need. Here are some common subscriptions:
 
-- US Securities Snapshot and Futures Value Bundle
-- US Equity and Options Add-On Streaming Bundle
-- NASDAQ (Network C/UTP) TotalView
-- NYSE (Network A/CTA) OpenBook Ultra
-- OPRA (US Options Exchanges)
+To access real-time market data, you need to subscribe to the appropriate market data packages. Interactive Brokers offers various subscriptions depending on the exchanges and types of data you need. Here are some common options:
+
+- **US Securities Snapshot and Futures Value Bundle**
+- **US Equity and Options Add-On Streaming Bundle**
+- **NASDAQ (Network C/UTP) TotalView**
+- **NYSE (Network A/CTA) OpenBook Ultra**
+- **OPRA (US Options Exchanges)**
 
 .. note::
 
-    Different strategies may require different market data subscriptions. For our top options-related strategies, the OPRA (US Options Exchanges) should suffice.
+  Different strategies may require different market data subscriptions. For top options-related strategies, the **OPRA (US Options Exchanges)** subscription should suffice.
 
 **To subscribe to market data:**
 
-1. Log in to the IBKR Client Portal.
-2. Navigate to the "Settings" menu.
-3. Under "Account Settings", find the "Market Data Subscriptions" section.
-4. Click "Configure" and select the desired market data packages.
-5. Follow the prompts to complete the subscription process.
+.. important::
+  Market data subscriptions are login-specific. Ensure you're logged in with the same credentials you plan to use with Lumibot before proceeding.
 
-**Note:** Market data subscriptions may incur additional fees. Be sure to review the costs associated with each package before subscribing.
+1. Log in to the `IBKR Client Portal <https://www.interactivebrokers.com>`_.
+2. Navigate to the **Settings** menu.
 
-Automating Two-Factor Authentication
-------------------------------------
-Currently, automating two-factor authentication (2FA) is not supported. For now, Lumibot will send you 2FA notifications through IBKey, and you will need to respond to them manually.
+  .. image:: images/ib-main.png
+    :alt: IB Main Menu
+    :align: center
 
-Using a Secondary Account
--------------------------
-IBKR only permits a single login at a time for any given set of credentials. Consequently, you can't use the IBKR website while the Gateway (or a sort of api connection) is running. If you try to anyway, the Gateway will be disconnected, which will trigger a re-authentication attempt, which will potentially disconnect your website session. If you then log in to the website again, you'll just start the loop all over again. An easy solution is to stop a sort of api connection before using the website, but that can be tedious.
+3. Under **Account Settings**, find the **Market Data Subscriptions** section.
 
-A more convenient solution is to create a second username for your account and use that for a sort of api connection. From the client portal API documentation section "Multiple usernames":
+  .. image:: images/ib-settings.png
+    :alt: IB Settings
+    :align: center
 
-Clients wishing to use multiple IBKR products at the same time (TWS, IBKR Mobile or Client Portal) can do so by creating a new username that can then be used to log into other services while using the Client Portal API. To create a second username please see the following IBKR Knowledge Base article.
+4. Click **Configure** and select the desired market data packages.
 
-The Knowledge Base article linked above is slightly out of date with respect to the current layout of the IBKR Client Portal:
+  .. image:: images/ib-market-data-subscriptions.png
+    :alt: IB Market Data Subscriptions
+    :align: center
 
-- The "Manage Account" item in the User menu (upper right corner) is now called "Settings"
-- The "Users & Access Rights" panel is no longer on the Settings page, but you can find a similarly named link at the very bottom-left of the page (you may have to scroll to find it)
-- The resulting page doesn't have a "Configure (gear) icon". It does have a plus sign button in the "Users" header that does the same thing.
+5. Find your desired subscription.
+6. Follow the prompts to complete the subscription process.
 
-From there you'll be shown a fairly standard-looking username and password dialog. Fill it out in the normal fashion, then click through the many many pages of boilerplate and settings. Feel free to disable many of the notification settings for the new username. Otherwise you'll start getting duplicate emails from IBKR.
+**Note:** Market data subscriptions may incur additional fees. Review the costs associated with each package before subscribing.
 
-At the end of the process, you'll get an email with a confirmation code, but no indication as to what to do with it. Log out and log back in using the new username and password that you just created. You'll then be prompted to enter the confirmation code. Note that you need to be quick about this part because the code expires fast. If you're not fast enough you'll get another automated email with a new code a few minutes after the previous one expired. In fact, you'll keep getting new codes until you get it right.
+Two-Factor Authentication (2FA)
+-------------------------------
 
-After entering the confirmation code you'll likely be prompted to change the password for the secondary user.
+Interactive Brokers requires two-factor authentication (2FA) for account security. When using Lumibot, you'll receive 2FA notifications through the IB Key mobile app, which require manual approval. This can interrupt automated trading operations.
 
-The final screen of the process says that the request for account creation will be reviewed on the next business day. Some time later you'll receive an email asking you to upload a "Proof of trader authority" for the new username. The verbiage implies that you need to generate a document to upload, however that isn't the case. Simply log in using your primary username (not the secondary!) and you'll be prompted to upload the requested document. At the bottom of the pop-up will be a button titled "Click Here to Upload Documents". Click that and you'll be shown a EULA and a signature block. Type your name (not the new user's name) and click Submit.
+**Important:** Automated handling of 2FA is not currently supported in Lumibot.
 
-After that you should be back at the normal dashboard page, with little indication that you're logged in as the second user. Log out and the new credentials will be ready to use with a sort of api connection. In the future be sure to only use your primary credentials on the website and the secondary credentials for a sort of api connection.
+**Possible Solution: Create a Secondary Username**
 
-**Source:** `IBeam GitHub <https://github.com/Voyz/ibeam/wiki/Runtime-environment>`_
+To enable fully automated trading, you can create a secondary username for your account that doesn't require 2FA. This approach is secure and convenient:
+
+- The primary account maintains full 2FA security for website access.
+- The secondary account, used only for API connections, can operate without 2FA.
+- Both accounts have separate access controls you can configure.
+
+.. note::
+
+  When using a secondary account without 2FA:
+
+  - You'll need separate market data subscriptions for each user.
+  - If trading with both primary and secondary users, you'll pay for market data twice.
+  - Enhance security by:
+    - Setting a complex password.
+    - Restricting IP addresses for TWS/IBGateway access.
+    - Limiting the account's permissions to only what's needed.
+    - Keeping API connection details secure.
+
+See the **Using a Secondary Username** section below for detailed setup instructions.
+
+Using a Secondary Username
+--------------------------
+
+Interactive Brokers allows only one login at a time for any given set of credentials. Attempting to use the IBKR website while the API connection is running will disconnect the API connection, causing a re-authentication loop.
+
+An easy solution is to stop the API connection before using the website, but this can be tedious. A more convenient solution is to create a **secondary username** for your account and use that for the API connection.
+
+**Steps to create a secondary username:**
+
+1. Log in to the **IBKR Client Portal** with your primary username.
+2. Click on the **Settings** menu in the upper right corner.
+3. Scroll down and find the **Users & Access Rights** link.
+4. Click the **plus sign (+)** button in the **Users** header to add a new user.
+5. Fill out the username and password fields for the new user.
+6. Click through the settings pages, adjusting notifications and permissions as needed.
+7. At the end of the process, you'll receive an email with a **confirmation code**.
+
+**Activating your secondary username:**
+
+1. Log out and log back in using the **new secondary username and password**.
+2. Enter the **confirmation code** received via email.
+  - **Note:** The code expires quickly, so act promptly.
+3. You may be prompted to **change the password** for the secondary user.
+
+**Finalizing the setup:**
+
+- You might receive an email asking for a **"Proof of trader authority"** for the new username.
+- Log in using your **primary username** (not the secondary one).
+- You'll be prompted to upload the requested document.
+  - Click on **"Click Here to Upload Documents"**.
+  - You'll see an EULA and a signature block.
+  - Type your **name** (not the new user's name) and click **Submit**.
+
+After completing these steps, your secondary credentials will be ready to use with the API connection. Use your **primary credentials** on the website and the **secondary credentials** for the API connection.
+
+Using a Paper Trading Account
+-----------------------------
+
+When using a paper trading account, log in with your paper trading username and password. This allows you to practice trading without risking real money.
+
+**Steps to get your paper trading username and password:**
+
+1. Log in to the **IBKR Client Portal** using your primary (live) account credentials.
+2. Navigate to the **Settings** menu in the upper right corner.
+3. Under **Account Settings**, find the **Paper Trading Account** section.
+4. Click on **Configure** or **Request Paper Trading Account**.
+5. Follow the prompts to set up your paper trading account.
+6. Once the setup is complete, you'll receive a separate **username** and **password** for your paper trading account.
+7. Use these credentials when logging into the paper trading environment and configuring your API connection.
+
+**Note:** The paper trading account is separate from your live account. Ensure you're using the correct credentials for each environment to avoid any login conflicts.
 
 Strategy Setup
 --------------
+
 Add these variables to a `.env` file in the same directory as your strategy:
 
 .. list-table:: Interactive Brokers Configuration
-    :widths: 25 50 25
-    :header-rows: 1
+  :widths: 25 50 25
+  :header-rows: 1
 
-    * - **Secret**
-      - **Description**
-      - **Example**
-    * - IB_USERNAME
-      - Your Interactive Brokers username.
-      - `user123`
-    * - IB_PASSWORD
-      - Your Interactive Brokers password.
-      - `password123`
-    * - ACCOUNT_ID
-      - (Optional) An Interactive Brokers subaccount to trade on.
-      - `U17369206`
-    * - IB_API_URL
-      - (Optional) The URL of your self-hosted Interactive Brokers REST API. You likely don't need it.
-      - `https://localhost:8000`
+  * - **Secret**
+    - **Description**
+    - **Example**
+  * - `IB_USERNAME`
+    - Your Interactive Brokers username.
+    - `user123`
+  * - `IB_PASSWORD`
+    - Your Interactive Brokers password.
+    - `password123`
+  * - `ACCOUNT_ID`
+    - (Optional) An Interactive Brokers subaccount to trade on.
+    - `U17369206`
+  * - `IB_API_URL`
+    - (Optional) The URL of your self-hosted Interactive Brokers REST API.
+    - `https://localhost:8000`
 
 Example Strategy
 ----------------
 
 .. code-block:: python
-     :emphasize-lines: 3,12
 
-     from lumibot.traders import Trader
-     # Import interactive brokers
-     from lumibot.strategies.examples import Strangle
+  from lumibot.traders import Trader
+  from lumibot.strategies.examples import Strangle
 
-     trader = Trader()
-
-     strategy = Strangle()
-     trader.add_strategy(strategy)
-     trader.run_all()
+  trader = Trader()
+  strategy = Strangle()
+  trader.add_strategy(strategy)
+  trader.run_all()

@@ -67,6 +67,7 @@ class TestDatasourceDailyBars:
         prices = data_source.get_historical_prices(asset=self.asset, length=self.length, timestep=self.timestep)
 
         assert isinstance(prices.df.index[0], pd.Timestamp)
+        assert prices.df.index[0].tzinfo.zone == "America/New_York"
         assert len(prices.df) == self.length
 
         assert isinstance(prices.df.index[0], pd.Timestamp)
@@ -88,6 +89,7 @@ class TestDatasourceDailyBars:
         prices = data_source.get_historical_prices(asset=self.asset, length=self.length, timestep=self.timestep)
 
         assert isinstance(prices.df.index[0], pd.Timestamp)
+        assert prices.df.index[0].tzinfo.zone == "America/New_York"
         assert len(prices.df) == self.length
 
         # assert that the last row has a return value
@@ -138,8 +140,9 @@ class TestDatasourceDailyBars:
             pandas_data=pandas_data_fixture
         )
         prices = data_source.get_historical_prices(asset=self.asset, length=self.length, timestep=self.timestep)
-
+        tz = pytz.timezone("America/New_York")
         assert isinstance(prices.df.index[0], pd.Timestamp)
+        assert prices.df.index[0].tzinfo.zone == "America/New_York"
         assert len(prices.df) == self.length
         assert prices.df["return"].iloc[-1] is not None
 
@@ -194,6 +197,7 @@ class TestDatasourceDailyBars:
         prices = data_source.get_historical_prices(asset=self.asset, length=self.length, timestep=self.timestep)
 
         assert isinstance(prices.df.index[0], pd.Timestamp)
+        assert prices.df.index[0].tzinfo.zone == "America/New_York"
         assert len(prices.df) == self.length
 
         # assert that the last row has a return value
@@ -216,6 +220,7 @@ class TestDatasourceDailyBars:
         prices = data_source.get_historical_prices(asset=self.asset, length=self.length, timestep=self.timestep)
 
         assert isinstance(prices.df.index[0], pd.Timestamp)
+        assert prices.df.index[0].tzinfo.zone == "America/New_York"
         assert len(prices.df) == self.length
 
         # This shows a bug. The index a datetime.date but should be a timestamp

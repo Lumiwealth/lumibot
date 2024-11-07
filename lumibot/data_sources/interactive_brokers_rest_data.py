@@ -113,7 +113,7 @@ class InteractiveBrokersRESTData(DataSource):
             )
 
             # check if authenticated
-            time.sleep(10)
+            time.sleep(15)
 
         while not self.is_authenticated():
             logging.info(
@@ -641,12 +641,7 @@ class InteractiveBrokersRESTData(DataSource):
         if isinstance(response, list) and "order_id" in response[0]:
             # success
             return response
-
-            """         
-            elif "orders" in response: # TODO could be useless?
-            logging.info("Order executed successfully")
-            return response.get('orders') 
-            """
+        
         elif response is not None and "error" in response:
             logging.error(
                 colored(f"Failed to execute order: {response['error']}", "red")
@@ -979,7 +974,7 @@ class InteractiveBrokersRESTData(DataSource):
 
         return float(price)
 
-    def get_conid_from_asset(self, asset: Asset):  # TODO futures
+    def get_conid_from_asset(self, asset: Asset):
         self.ping_iserver()
         # Get conid of underlying
         url = f"{self.base_url}/iserver/secdef/search?symbol={asset.symbol}"
@@ -991,7 +986,7 @@ class InteractiveBrokersRESTData(DataSource):
             and isinstance(response[0], dict)
             and "conid" in response[0]
         ):
-            conid = int(response[0]["conid"])
+            underlying_conid = int(response[0]["conid"])
         else:
             logging.error(
                 colored(
@@ -1003,41 +998,72 @@ class InteractiveBrokersRESTData(DataSource):
             return None
 
         if asset.asset_type == "option":
-            expiration_date = asset.expiration.strftime("%Y%m%d")
-            expiration_month = asset.expiration.strftime("%b%y").upper()  # in MMMYY
-            strike = asset.strike
-            right = asset.right
+            return self._get_conid_for_derivative(
+                underlying_conid,
+                asset,
+                sec_type="OPT",
+                additional_params={
+                    'right': asset.right,
+                    'strike': asset.strike,
+                },
+            )
+        elif asset.asset_type == "future":
+            return self._get_conid_for_derivative(
+                underlying_conid,
+                asset,
+                sec_type="FUT",
+                additional_params={
+                    'multiplier': asset.multiplier,
+                },
+            )
+        elif asset.asset_type in ["stock", "forex", "index"]:
+            return underlying_conid
 
-            url_for_expiry = f"{self.base_url}/iserver/secdef/info?conid={conid}&sectype=OPT&month={expiration_month}&right={right}&strike={strike}"
-            contract_info = self.get_from_endpoint(
-                url_for_expiry, "Getting expiration Date"
+    def _get_conid_for_derivative(
+        self,
+        underlying_conid: int,
+        asset: Asset,
+        sec_type: str,
+        additional_params: dict,
+    ):
+        expiration_date = asset.expiration.strftime("%Y%m%d")
+        expiration_month = asset.expiration.strftime("%b%y").upper()  # in MMMYY
+
+        params = {
+            'conid': underlying_conid,
+            'sectype': sec_type,
+            'month': expiration_month,
+        }
+        params.update(additional_params)
+        query_string = '&'.join(f'{key}={value}' for key, value in params.items())
+
+        url_for_expiry = f"{self.base_url}/iserver/secdef/info?{query_string}"
+        contract_info = self.get_from_endpoint(
+            url_for_expiry, f"Getting {sec_type} Contract Info"
+        )
+
+        matching_contract = None
+        if contract_info:
+            matching_contract = next(
+                (
+                    contract
+                    for contract in contract_info
+                    if isinstance(contract, dict)
+                    and contract.get("maturityDate") == expiration_date
+                ),
+                None,
             )
 
-            matching_contract = None
-            if contract_info:
-                matching_contract = next(
-                    (
-                        contract
-                        for contract in contract_info
-                        if isinstance(contract, dict)
-                        and contract.get("maturityDate") == expiration_date
-                    ),
-                    None,
+        if matching_contract is None:
+            logging.debug(
+                colored(
+                    f"No matching contract found for asset: {asset.symbol} with expiration date {expiration_date}",
+                    "red",
                 )
+            )
+            return None
 
-            if matching_contract is None:
-                logging.debug(
-                    colored(
-                        f"No matching contract found for asset: {asset.symbol} with expiration date {expiration_date} and strike {strike}",
-                        "red",
-                    )
-                )
-                return None
-
-            return matching_contract["conid"]
-
-        elif asset.asset_type in ["stock", "forex", "index"]:
-            return conid
+        return matching_contract["conid"]
 
     def query_greeks(self, asset: Asset) -> dict:
         greeks = self.get_market_snapshot(asset, ["vega", "theta", "gamma", "delta"])

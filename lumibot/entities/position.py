@@ -168,11 +168,11 @@ class Position:
         return {
             "strategy": self.strategy,
             "asset": self.asset.to_dict(),
-            "quantity": self.quantity,
+            "quantity": float(self.quantity),
             "orders": [order.to_dict() for order in self.orders],
             "hold": self.hold,
-            "available": self.available,
-            "avg_fill_price": self.avg_fill_price,
+            "available": float(self.available) if self.available else None,
+            "avg_fill_price": float(self.avg_fill_price) if self.avg_fill_price else None,
         }
     
     @classmethod

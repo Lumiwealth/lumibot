@@ -884,7 +884,7 @@ class _Strategy:
         save_logfile=False,
         use_quote_data=False,
         show_progress_bar=True,
-        quiet_logs=True,
+        quiet_logs=False,
         trader_class=Trader,
         **kwargs,
     ):

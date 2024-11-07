@@ -4441,10 +4441,11 @@ class Strategy(_Strategy):
             if stats_past_24_hours.shape[0] > 0:
                 # Get the portfolio value 24 hours ago
                 portfolio_value_24_hours_ago = stats_past_24_hours.iloc[0]["portfolio_value"]
-                # Calculate the return over the past 24 hours
-                return_24_hours = ((portfolio_value / portfolio_value_24_hours_ago) - 1) * 100
-                # Add the return to the results
-                results_text += f"**24 hour Return:** {return_24_hours:,.2f}% (${(portfolio_value - portfolio_value_24_hours_ago):,.2f} change)\n"
+                if float(portfolio_value_24_hours_ago) != 0.0:
+                    # Calculate the return over the past 24 hours
+                    return_24_hours = ((portfolio_value / portfolio_value_24_hours_ago) - 1) * 100
+                    # Add the return to the results
+                    results_text += f"**24 hour Return:** {return_24_hours:,.2f}% (${(portfolio_value - portfolio_value_24_hours_ago):,.2f} change)\n"
 
             # Add results for the past 7 days
             # Get the datetime 7 days ago
@@ -4457,10 +4458,11 @@ class Strategy(_Strategy):
                 if stats_past_7_days.shape[0] > 0:
                     # Get the portfolio value 7 days ago
                     portfolio_value_7_days_ago = stats_past_7_days.iloc[0]["portfolio_value"]
-                    # Calculate the return over the past 7 days
-                    return_7_days = ((portfolio_value / portfolio_value_7_days_ago) - 1) * 100
-                    # Add the return to the results
-                    results_text += f"**7 day Return:** {return_7_days:,.2f}% (${(portfolio_value - portfolio_value_7_days_ago):,.2f} change)\n"
+                    if float(portfolio_value_7_days_ago) != 0.0:
+                        # Calculate the return over the past 7 days
+                        return_7_days = ((portfolio_value / portfolio_value_7_days_ago) - 1) * 100
+                        # Add the return to the results
+                        results_text += f"**7 day Return:** {return_7_days:,.2f}% (${(portfolio_value - portfolio_value_7_days_ago):,.2f} change)\n"
 
                     # If we are up more than pct_up_threshold over the past 7 days, send a message to Discord
                     PERCENT_UP_THRESHOLD = 3
@@ -4488,10 +4490,11 @@ class Strategy(_Strategy):
                 if stats_past_30_days.shape[0] > 0:
                     # Get the portfolio value 30 days ago
                     portfolio_value_30_days_ago = stats_past_30_days.iloc[0]["portfolio_value"]
-                    # Calculate the return over the past 30 days
-                    return_30_days = ((portfolio_value / portfolio_value_30_days_ago) - 1) * 100
-                    # Add the return to the results
-                    results_text += f"**30 day Return:** {return_30_days:,.2f}% (${(portfolio_value - portfolio_value_30_days_ago):,.2f} change)\n"
+                    if float(portfolio_value_30_days_ago) != 0.0:
+                        # Calculate the return over the past 30 days
+                        return_30_days = ((portfolio_value / portfolio_value_30_days_ago) - 1) * 100
+                        # Add the return to the results
+                        results_text += f"**30 day Return:** {return_30_days:,.2f}% (${(portfolio_value - portfolio_value_30_days_ago):,.2f} change)\n"
 
             # Get inception date
             inception_date = stats_df["datetime"].min()

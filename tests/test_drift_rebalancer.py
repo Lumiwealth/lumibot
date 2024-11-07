@@ -2,20 +2,16 @@ from decimal import Decimal
 from typing import Any
 import datetime
 import logging
-import pytest
 
 import pandas as pd
 import numpy as np
 
-from lumibot.strategies.drift_rebalancer import DriftCalculationLogic
-from lumibot.strategies.drift_rebalancer import LimitOrderRebalanceLogic, Strategy
-from lumibot.entities import Asset, Order
+from lumibot.example_strategies.drift_rebalancer import DriftCalculationLogic, LimitOrderRebalanceLogic, DriftRebalancer
 from lumibot.backtesting import BacktestingBroker, YahooDataBacktesting, PandasDataBacktesting
-from lumibot.strategies.drift_rebalancer import DriftRebalancer
+from lumibot.strategies.strategy import Strategy
 from tests.fixtures import pandas_data_fixture
 from lumibot.tools import print_full_pandas_dataframes, set_pandas_float_precision
 
-logger = logging.getLogger(__name__)
 print_full_pandas_dataframes()
 set_pandas_float_precision(precision=5)
 
@@ -319,7 +315,7 @@ class TestDriftCalculationLogic:
         )
 
         df = self.calculator.calculate()
-        print(f"\n{df}")
+        # print(f"\n{df}")
 
         assert df["current_weight"].tolist() == [Decimal("0.0"), Decimal("1.0")]
         assert df["target_value"].tolist() == [Decimal("-500"), Decimal("500")]
@@ -583,7 +579,7 @@ class TestDriftRebalancer:
             show_indicators=False,
             save_logfile=False,
             show_progress_bar=False,
-            quiet_logs=False,
+            # quiet_logs=False,
         )
 
         assert results is not None

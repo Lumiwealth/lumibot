@@ -2,13 +2,8 @@ import pandas as pd
 from typing import Dict, Any
 from decimal import Decimal, ROUND_DOWN
 import time
-import logging
 
 from lumibot.strategies.strategy import Strategy
-
-logger = logging.getLogger(__name__)
-# print_full_pandas_dataframes()
-# set_pandas_float_precision(precision=15)
 
 """
 The DriftRebalancer strategy is designed to maintain a portfolio's target asset allocation by 
@@ -88,7 +83,7 @@ class DriftRebalancer(Strategy):
             raise ValueError("drift_threshold must be less than 1.0")
         for key, target_weight in self.target_weights.items():
             if self.drift_threshold >= target_weight:
-                logger.warning(
+                self.logger.warning(
                     f"drift_threshold of {self.drift_threshold} is "
                     f">= target_weight of {key}: {target_weight}. Drift in this asset will never trigger a rebalance."
                 )
@@ -97,12 +92,12 @@ class DriftRebalancer(Strategy):
     def on_trading_iteration(self) -> None:
         dt = self.get_datetime()
         msg = f"{dt} on_trading_iteration called"
-        logger.info(msg)
+        self.logger.info(msg)
         self.log_message(msg, broadcast=True)
         self.cancel_open_orders()
 
         if self.cash < 0:
-            logger.error(f"Negative cash: {self.cash} but DriftRebalancer does not support short sales or margin yet.")
+            self.logger.error(f"Negative cash: {self.cash} but DriftRebalancer does not support short sales or margin yet.")
 
         drift_calculator = DriftCalculationLogic(target_weights=self.target_weights)
 
@@ -138,12 +133,12 @@ class DriftRebalancer(Strategy):
                 msg += (
                     f" Absolute drift exceeds threshold of {self.drift_threshold:.2%}. Rebalance needed."
                 )
-            logger.info(msg)
+            self.logger.info(msg)
             self.log_message(msg, broadcast=True)
 
         if rebalance_needed:
             msg = f"Rebalancing portfolio."
-            logger.info(msg)
+            self.logger.info(msg)
             self.log_message(msg, broadcast=True)
             rebalance_logic = LimitOrderRebalanceLogic(
                 strategy=self,
@@ -156,13 +151,13 @@ class DriftRebalancer(Strategy):
 
     def on_abrupt_closing(self):
         dt = self.get_datetime()
-        logger.info(f"{dt} on_abrupt_closing called")
+        self.logger.info(f"{dt} on_abrupt_closing called")
         self.log_message("On abrupt closing called.", broadcast=True)
         self.cancel_open_orders()
 
     def on_bot_crash(self, error):
         dt = self.get_datetime()
-        logger.info(f"{dt} on_bot_crash called")
+        self.logger.info(f"{dt} on_bot_crash called")
         self.log_message(f"Bot crashed with error: {error}", broadcast=True)
         self.cancel_open_orders()
 
@@ -251,6 +246,7 @@ class LimitOrderRebalanceLogic:
     def rebalance(self) -> None:
         # Execute sells first
         sell_orders = []
+        buy_orders = []
         for index, row in self.df.iterrows():
             if row["drift"] == -1:
                 # Sell everything
@@ -282,14 +278,14 @@ class LimitOrderRebalanceLogic:
                     sell_orders.append(order)
 
         for order in sell_orders:
-            logger.info(f"Submitted sell order: {order}")
+            self.strategy.logger.info(f"Submitted sell order: {order}")
 
         if not self.strategy.is_backtesting:
             # Sleep to allow sell orders to fill
             time.sleep(self.fill_sleeptime)
             orders = self.strategy.broker._pull_all_orders(self.strategy.name, self.strategy)
             for order in orders:
-                logger.info(f"Order at broker: {order}")
+                self.strategy.logger.info(f"Order at broker: {order}")
 
         # Get current cash position from the broker
         cash_position = self.get_current_cash_position()
@@ -303,10 +299,21 @@ class LimitOrderRebalanceLogic:
                 order_value = row["target_value"] - row["current_value"]
                 quantity = (min(order_value, cash_position) / limit_price).quantize(Decimal('1'), rounding=ROUND_DOWN)
                 if quantity > 0:
-                    self.place_limit_order(symbol=symbol, quantity=quantity, limit_price=limit_price, side="buy")
+                    order = self.place_limit_order(symbol=symbol, quantity=quantity, limit_price=limit_price, side="buy")
+                    buy_orders.append(order)
                     cash_position -= min(order_value, cash_position)
                 else:
-                    logger.info(f"Ran out of cash to buy {symbol}. Cash: {cash_position} and limit_price: {limit_price:.2f}")
+                    self.strategy.logger.info(f"Ran out of cash to buy {symbol}. Cash: {cash_position} and limit_price: {limit_price:.2f}")
+
+        for order in buy_orders:
+            self.strategy.logger.info(f"Submitted buy order: {order}")
+
+        if not self.strategy.is_backtesting:
+            # Sleep to allow orders to fill
+            time.sleep(self.fill_sleeptime)
+            orders = self.strategy.broker._pull_all_orders(self.strategy.name, self.strategy)
+            for order in orders:
+                self.strategy.logger.info(f"Order at broker: {order}")
 
     def calculate_limit_price(self, *, last_price: Decimal, side: str) -> Decimal:
         if side == "sell":

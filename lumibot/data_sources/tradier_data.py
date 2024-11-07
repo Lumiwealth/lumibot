@@ -1,6 +1,6 @@
 import logging
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, date
 
 import pandas as pd
 import pytz
@@ -229,6 +229,10 @@ class TradierData(DataSource):
             df = df.drop(columns=["time"])
         if "timestamp" in df.columns:
             df = df.drop(columns=["timestamp"])
+
+        # if type of index is date, convert it to datetime
+        if isinstance(df.index[0], date):
+            df.index = pd.to_datetime(df.index)
 
         # Convert the dataframe to a Bars object
         bars = Bars(df, self.SOURCE, asset, raw=df, quote=quote)

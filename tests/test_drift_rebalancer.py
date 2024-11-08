@@ -2,20 +2,16 @@ from decimal import Decimal
 from typing import Any
 import datetime
 import logging
-import pytest
 
 import pandas as pd
 import numpy as np
 
-from lumibot.strategies.drift_rebalancer import DriftCalculationLogic
-from lumibot.strategies.drift_rebalancer import LimitOrderRebalanceLogic, Strategy
-from lumibot.entities import Asset, Order
+from lumibot.example_strategies.drift_rebalancer import DriftCalculationLogic, LimitOrderRebalanceLogic, DriftRebalancer
 from lumibot.backtesting import BacktestingBroker, YahooDataBacktesting, PandasDataBacktesting
-from lumibot.strategies.drift_rebalancer import DriftRebalancer
+from lumibot.strategies.strategy import Strategy
 from tests.fixtures import pandas_data_fixture
 from lumibot.tools import print_full_pandas_dataframes, set_pandas_float_precision
 
-logger = logging.getLogger(__name__)
 print_full_pandas_dataframes()
 set_pandas_float_precision(precision=5)
 
@@ -96,13 +92,13 @@ class TestDriftCalculationLogic:
 
         assert df["target_value"].tolist() == [Decimal('1650.0'), Decimal('990.0'), Decimal('660.0')]
 
-        assert df["absolute_drift"].tolist() == [
+        assert df["drift"].tolist() == [
             Decimal('0.0454545454545454545454545455'),
             Decimal('-0.0030303030303030303030303030'),
             Decimal('-0.0424242424242424242424242424')
         ]
 
-    def test_drift_is_negative_one_when_were_have_a_position_and_the_target_weights_says_to_not_have_it(self):
+    def test_drift_is_negative_one_when_we_have_a_position_and_the_target_weights_says_to_not_have_it(self):
         target_weights = {
             "AAPL": Decimal("0.5"),
             "GOOGL": Decimal("0.3"),
@@ -144,7 +140,7 @@ class TestDriftCalculationLogic:
         assert df["target_value"].tolist() == [Decimal("1650"), Decimal("990"), Decimal("0")]
 
         pd.testing.assert_series_equal(
-            df["absolute_drift"],
+            df["drift"],
             pd.Series([
                 Decimal('0.0454545454545454545454545455'),
                 Decimal('-0.0030303030303030303030303030'),
@@ -197,7 +193,7 @@ class TestDriftCalculationLogic:
         assert df["target_value"].tolist() == [Decimal("825"), Decimal("825"), Decimal("825"), Decimal("825")]
 
         pd.testing.assert_series_equal(
-            df["absolute_drift"],
+            df["drift"],
             pd.Series([
                 Decimal('-0.2045454545454545454545454545'),
                 Decimal('-0.0530303030303030303030303030'),
@@ -256,7 +252,7 @@ class TestDriftCalculationLogic:
         assert df["target_value"].tolist() == [Decimal("2150"), Decimal("1290"), Decimal("860"), Decimal("0")]
 
         pd.testing.assert_series_equal(
-            df["absolute_drift"],
+            df["drift"],
             pd.Series([
                 Decimal('0.1511627906976744186046511628'),
                 Decimal('0.0674418604651162790697674419'),
@@ -297,7 +293,58 @@ class TestDriftCalculationLogic:
 
         assert df["current_weight"].tolist() == [Decimal("0.5"), Decimal("0.5"), Decimal("0.0")]
         assert df["target_value"].tolist() == [Decimal("250"), Decimal("250"), Decimal("500")]
-        assert df["absolute_drift"].tolist() == [Decimal("-0.25"), Decimal("-0.25"), Decimal("0")]
+        assert df["drift"].tolist() == [Decimal("-0.25"), Decimal("-0.25"), Decimal("0")]
+
+    def test_calculate_drift_when_we_want_short_something(self):
+        target_weights = {
+            "AAPL": Decimal("-0.50"),
+            "USD": Decimal("0.50")
+        }
+        self.calculator = DriftCalculationLogic(target_weights=target_weights)
+        self.calculator.add_position(
+            symbol="USD",
+            is_quote_asset=True,
+            current_quantity=Decimal("1000"),
+            current_value=Decimal("1000")
+        )
+        self.calculator.add_position(
+            symbol="AAPL",
+            is_quote_asset=False,
+            current_quantity=Decimal("0"),
+            current_value=Decimal("0")
+        )
+
+        df = self.calculator.calculate()
+        # print(f"\n{df}")
+
+        assert df["current_weight"].tolist() == [Decimal("0.0"), Decimal("1.0")]
+        assert df["target_value"].tolist() == [Decimal("-500"), Decimal("500")]
+        assert df["drift"].tolist() == [Decimal("-0.50"), Decimal("0")]
+
+    def test_calculate_drift_when_we_want_a_100_percent_short_position(self):
+        target_weights = {
+            "AAPL": Decimal("-1.0"),
+            "USD": Decimal("0.0")
+        }
+        self.calculator = DriftCalculationLogic(target_weights=target_weights)
+        self.calculator.add_position(
+            symbol="USD",
+            is_quote_asset=True,
+            current_quantity=Decimal("1000"),
+            current_value=Decimal("1000")
+        )
+        self.calculator.add_position(
+            symbol="AAPL",
+            is_quote_asset=False,
+            current_quantity=Decimal("0"),
+            current_value=Decimal("0")
+        )
+
+        df = self.calculator.calculate()
+
+        assert df["current_weight"].tolist() == [Decimal("0.0"), Decimal("1.0")]
+        assert df["target_value"].tolist() == [Decimal("-1000"), Decimal("0")]
+        assert df["drift"].tolist() == [Decimal("-1.0"), Decimal("0")]
 
 
 class MockStrategy(Strategy):
@@ -319,6 +366,7 @@ class MockStrategy(Strategy):
 
     def submit_order(self, order) -> None:
         self.orders.append(order)
+        return order
 
 
 class TestLimitOrderRebalance:
@@ -336,7 +384,7 @@ class TestLimitOrderRebalance:
             "current_quantity": [Decimal("10")],
             "current_value": [Decimal("1000")],
             "target_value": [Decimal("0")],
-            "absolute_drift": [Decimal("-1")]
+            "drift": [Decimal("-1")]
         })
         executor = LimitOrderRebalanceLogic(strategy=strategy, df=df)
         executor.rebalance()
@@ -351,13 +399,65 @@ class TestLimitOrderRebalance:
             "current_quantity": [Decimal("10")],
             "current_value": [Decimal("1000")],
             "target_value": [Decimal("500")],
-            "absolute_drift": [Decimal("-0.5")]
+            "drift": [Decimal("-0.5")]
         })
         executor = LimitOrderRebalanceLogic(strategy=strategy, df=df)
         executor.rebalance()
         assert len(strategy.orders) == 1
         assert strategy.orders[0].side == "sell"
         assert strategy.orders[0].quantity == Decimal("5")
+
+    def test_selling_short_doesnt_create_and_order_when_shorting_is_disabled(self):
+        strategy = MockStrategy(broker=self.backtesting_broker)
+        df = pd.DataFrame({
+            "symbol": ["AAPL"],
+            "current_quantity": [Decimal("0")],
+            "current_value": [Decimal("0")],
+            "target_value": [Decimal("-1000")],
+            "drift": [Decimal("-1")]
+        })
+        executor = LimitOrderRebalanceLogic(strategy=strategy, df=df)
+        executor.rebalance()
+        assert len(strategy.orders) == 0
+
+    def test_selling_small_short_position_creates_and_order_when_shorting_is_enabled(self):
+        strategy = MockStrategy(broker=self.backtesting_broker)
+        df = pd.DataFrame({
+            "symbol": ["AAPL"],
+            "current_quantity": [Decimal("0")],
+            "current_value": [Decimal("0")],
+            "target_value": [Decimal("-1000")],
+            "drift": [Decimal("-0.25")]
+        })
+        executor = LimitOrderRebalanceLogic(strategy=strategy, df=df, shorting=True)
+        executor.rebalance()
+        assert len(strategy.orders) == 1
+
+    def test_selling_small_short_position_doesnt_creatne_order_when_shorting_is_disabled(self):
+        strategy = MockStrategy(broker=self.backtesting_broker)
+        df = pd.DataFrame({
+            "symbol": ["AAPL"],
+            "current_quantity": [Decimal("0")],
+            "current_value": [Decimal("0")],
+            "target_value": [Decimal("-1000")],
+            "drift": [Decimal("-0.25")]
+        })
+        executor = LimitOrderRebalanceLogic(strategy=strategy, df=df, shorting=False)
+        executor.rebalance()
+        assert len(strategy.orders) == 0
+
+    def test_selling_a_100_percent_short_position_creates_and_order_when_shorting_is_enabled(self):
+        strategy = MockStrategy(broker=self.backtesting_broker)
+        df = pd.DataFrame({
+            "symbol": ["AAPL"],
+            "current_quantity": [Decimal("0")],
+            "current_value": [Decimal("0")],
+            "target_value": [Decimal("-1000")],
+            "drift": [Decimal("-1")]
+        })
+        executor = LimitOrderRebalanceLogic(strategy=strategy, df=df, shorting=True)
+        executor.rebalance()
+        assert len(strategy.orders) == 1
 
     def test_buying_something_when_we_have_enough_money_and_there_is_slippage(self):
         strategy = MockStrategy(broker=self.backtesting_broker)
@@ -366,7 +466,7 @@ class TestLimitOrderRebalance:
             "current_quantity": [Decimal("0")],
             "current_value": [Decimal("0")],
             "target_value": [Decimal("1000")],
-            "absolute_drift": [Decimal("1")]
+            "drift": [Decimal("1")]
         })
         executor = LimitOrderRebalanceLogic(strategy=strategy, df=df)
         executor.rebalance()
@@ -383,7 +483,7 @@ class TestLimitOrderRebalance:
             "current_quantity": [Decimal("0")],
             "current_value": [Decimal("0")],
             "target_value": [Decimal("1000")],
-            "absolute_drift": [Decimal("1")]
+            "drift": [Decimal("1")]
         })
         executor = LimitOrderRebalanceLogic(strategy=strategy, df=df)
         executor.rebalance()
@@ -399,7 +499,7 @@ class TestLimitOrderRebalance:
             "current_quantity": [Decimal("0")],
             "current_value": [Decimal("0")],
             "target_value": [Decimal("1000")],
-            "absolute_drift": [Decimal("1")]
+            "drift": [Decimal("1")]
         })
         executor = LimitOrderRebalanceLogic(strategy=strategy, df=df)
         executor.rebalance()
@@ -412,11 +512,37 @@ class TestLimitOrderRebalance:
             "current_quantity": [Decimal("1")],
             "current_value": [Decimal("100")],
             "target_value": [Decimal("10")],
-            "absolute_drift": [Decimal("-0.5")]
+            "drift": [Decimal("-0.5")]
         })
         executor = LimitOrderRebalanceLogic(strategy=strategy, df=df)
         executor.rebalance()
         assert len(strategy.orders) == 0
+
+    def test_calculate_limit_price_when_selling(self):
+        strategy = MockStrategy(broker=self.backtesting_broker)
+        df = pd.DataFrame({
+            "symbol": ["AAPL"],
+            "current_quantity": [Decimal("10")],
+            "current_value": [Decimal("1000")],
+            "target_value": [Decimal("0")],
+            "drift": [Decimal("-1")]
+        })
+        executor = LimitOrderRebalanceLogic(strategy=strategy, df=df, acceptable_slippage=Decimal("0.005"))
+        limit_price = executor.calculate_limit_price(last_price=Decimal("120.00"), side="sell")
+        assert limit_price == Decimal("119.4")
+
+    def test_calculate_limit_price_when_buying(self):
+        strategy = MockStrategy(broker=self.backtesting_broker)
+        df = pd.DataFrame({
+            "symbol": ["AAPL"],
+            "current_quantity": [Decimal("10")],
+            "current_value": [Decimal("1000")],
+            "target_value": [Decimal("0")],
+            "drift": [Decimal("-1")]
+        })
+        executor = LimitOrderRebalanceLogic(strategy=strategy, df=df, acceptable_slippage=Decimal("0.005"))
+        limit_price = executor.calculate_limit_price(last_price=Decimal("120.00"), side="buy")
+        assert limit_price == Decimal("120.6")
 
 
 # @pytest.mark.skip()
@@ -431,13 +557,14 @@ class TestDriftRebalancer:
         parameters = {
             "market": "NYSE",
             "sleeptime": "1D",
-            "absolute_drift_threshold": "0.03",
-            "acceptable_slippage": "0.0005",
+            "drift_threshold": "0.03",
+            "acceptable_slippage": "0.005",
             "fill_sleeptime": 15,
             "target_weights": {
                 "SPY": "0.60",
                 "TLT": "0.40"
-            }
+            },
+            "shorting": False
         }
 
         results, strat_obj = DriftRebalancer.run_backtest(
@@ -452,11 +579,15 @@ class TestDriftRebalancer:
             show_indicators=False,
             save_logfile=False,
             show_progress_bar=False,
-            quiet_logs=True,
+            # quiet_logs=False,
         )
 
         assert results is not None
-        assert np.isclose(results["cagr"], 0.22310804893738934, atol=1e-4)
-        assert np.isclose(results["volatility"], 0.0690583452535692, atol=1e-4)
-        assert np.isclose(results["sharpe"], 3.0127864810707985, atol=1e-4)
-        assert np.isclose(results["max_drawdown"]["drawdown"], 0.025983871768394628, atol=1e-4)
+        assert np.isclose(results["cagr"], 0.22076538945204272, atol=1e-4)
+        assert np.isclose(results["volatility"], 0.06740737779031068, atol=1e-4)
+        assert np.isclose(results["sharpe"], 3.051823053251843, atol=1e-4)
+        assert np.isclose(results["max_drawdown"]["drawdown"], 0.025697778711759052, atol=1e-4)
+
+    def test_with_shorting(self):
+        # TODO
+        pass

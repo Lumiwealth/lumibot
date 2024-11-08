@@ -1,5 +1,5 @@
 import os
-import datetime
+from datetime import datetime, timedelta
 import logging
 
 import pytest
@@ -29,8 +29,8 @@ class TestBarsContainReturns:
     """These tests check that the bars from get_historical_prices contain returns for the different data sources."""
 
     expected_df = None
-    backtesting_start = datetime.datetime(2019, 3, 1)
-    backtesting_end = datetime.datetime(2019, 3, 31)
+    backtesting_start = datetime(2019, 3, 1)
+    backtesting_end = datetime(2019, 3, 31)
 
     @classmethod
     def setup_class(cls):
@@ -53,6 +53,8 @@ class TestBarsContainReturns:
         data_source = AlpacaData(ALPACA_CONFIG)
         prices = data_source.get_historical_prices("SPY", 2, "day")
 
+        assert isinstance(prices.df.index[0], pd.Timestamp)
+
         # assert that the last row has a return value
         assert prices.df["return"].iloc[-1] is not None
 
@@ -64,8 +66,8 @@ class TestBarsContainReturns:
         This tests that the yahoo data_source calculates adjusted returns for bars and that they
         are calculated correctly.
         """
-        start = self.backtesting_start + datetime.timedelta(days=25)
-        end = self.backtesting_end + datetime.timedelta(days=25)
+        start = self.backtesting_start + timedelta(days=25)
+        end = self.backtesting_end + timedelta(days=25)
         data_source = YahooData(datetime_start=start, datetime_end=end)
         prices = data_source.get_historical_prices("SPY", 25, "day")
 
@@ -109,8 +111,8 @@ class TestBarsContainReturns:
         This tests that the pandas data_source calculates adjusted returns for bars and that they
         are calculated correctly. It assumes that it is provided split adjusted OHLCV and dividend data.
         """
-        start = self.backtesting_start + datetime.timedelta(days=25)
-        end = self.backtesting_end + datetime.timedelta(days=25)
+        start = self.backtesting_start + timedelta(days=25)
+        end = self.backtesting_end + timedelta(days=25)
         data_source = PandasData(
             datetime_start=start,
             datetime_end=end,
@@ -118,7 +120,8 @@ class TestBarsContainReturns:
         )
         prices = data_source.get_historical_prices("SPY", 25, "day")
 
-        # assert that the last row has a return value
+        assert isinstance(prices.df.index[0], pd.Timestamp)
+
         assert prices.df["return"].iloc[-1] is not None
 
         # check that there is a dividend column.
@@ -160,8 +163,8 @@ class TestBarsContainReturns:
         alpaca, we are not going to check if the returns are adjusted correctly.
         """
         # get data from  3 months ago, so we can use the free Polygon.io data
-        start = datetime.datetime.now() - datetime.timedelta(days=90)
-        end = datetime.datetime.now() - datetime.timedelta(days=60)
+        start = datetime.now() - timedelta(days=90)
+        end = datetime.now() - timedelta(days=60)
         tzinfo = pytz.timezone("America/New_York")
         start = start.astimezone(tzinfo)
         end = end.astimezone(tzinfo)
@@ -173,6 +176,8 @@ class TestBarsContainReturns:
 
         # assert that the last row has a return value
         assert prices.df["return"].iloc[-1] is not None
+
+        assert isinstance(prices.df.index[0], pd.Timestamp)
 
     @pytest.mark.skipif(not TRADIER_CONFIG['ACCESS_TOKEN'], reason="No Tradier credentials provided.")
     def test_tradier_data_source_generates_simple_returns(self):
@@ -187,6 +192,9 @@ class TestBarsContainReturns:
         )
         spy_asset = Asset("SPY")
         prices = data_source.get_historical_prices(spy_asset, 2, "day")
+
+        # This shows a bug. The index a datetime.date but should be a timestamp
+        # assert isinstance(prices.df.index[0], pd.Timestamp)
 
         # assert that the last row has a return value
         assert prices.df["return"].iloc[-1] is not None

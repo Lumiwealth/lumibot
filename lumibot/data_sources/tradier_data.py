@@ -6,7 +6,7 @@ import pandas as pd
 import pytz
 
 from lumibot.entities import Asset, Bars
-from lumibot.tools.helpers import create_options_symbol, parse_timestep_qty_and_unit
+from lumibot.tools.helpers import create_options_symbol, parse_timestep_qty_and_unit, get_trading_days
 from lumiwealth_tradier import Tradier
 
 from .data_source import DataSource
@@ -201,6 +201,14 @@ class TradierData(DataSource):
         # Calculate the start date
         td, _ = self.convert_timestep_str_to_timedelta(timestep)
         start_date = end_date - (td * length)
+
+        if timestep == 'day' and timeshift is None:
+            # What we really want is the last n bars, not the bars from the last n days.
+            # get twice as many days as we need to ensure we get enough bars
+            tcal_start_date = end_date - (td * length * 2)
+            trading_days = get_trading_days(market='NYSE', start_date=tcal_start_date, end_date=end_date)
+            # Now, start_date is the length bars before the last trading day
+            start_date = trading_days.index[-length]
 
         # Check what timestep we are using, different endpoints are required for different timesteps
         try:

@@ -56,7 +56,7 @@ class TestDatasourceDailyBars:
         df['expected_return'] = df['Adj Close'].pct_change()
         cls.expected_df = df
 
-    @pytest.mark.skip()
+    # @pytest.mark.skip()
     @pytest.mark.skipif(not ALPACA_CONFIG['API_KEY'], reason="This test requires an alpaca API key")
     @pytest.mark.skipif(ALPACA_CONFIG['API_KEY'] == '<your key here>', reason="This test requires an alpaca API key")
     def test_alpaca_data_source_daily_bars(self):
@@ -80,7 +80,7 @@ class TestDatasourceDailyBars:
         # check that there is no dividend column... This test will fail when dividends are added. We hope that's soon.
         assert "dividend" not in prices.df.columns
 
-    @pytest.mark.skip()
+    # @pytest.mark.skip()
     def test_yahoo_data_source_daily_bars(self):
         """
         This tests that the yahoo data_source calculates adjusted returns for bars and that they
@@ -130,7 +130,7 @@ class TestDatasourceDailyBars:
             rtol=0
         )
 
-    @pytest.mark.skip()
+    # @pytest.mark.skip()
     def test_pandas_data_source_daily_bars(self, pandas_data_fixture):
         """
         This tests that the pandas data_source calculates adjusted returns for bars and that they
@@ -181,7 +181,7 @@ class TestDatasourceDailyBars:
             rtol=0
         )
 
-    @pytest.mark.skip()
+    # @pytest.mark.skip()
     @pytest.mark.skipif(POLYGON_API_KEY == '<your key here>', reason="This test requires a Polygon.io API key")
     def test_polygon_data_source_daily_bars(self):
         """

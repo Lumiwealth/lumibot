@@ -286,12 +286,12 @@ class InteractiveBrokersRESTData(DataSource):
 
         if response is not None and "error" in response:
             logging.error(
-            colored(f"Failed to get contract rules: {response['error']}", "red")
+                colored(f"Failed to get contract rules: {response['error']}", "red")
             )
             return None
 
         return response
-    
+
     def get_account_balances(self):
         """
         Retrieves the account balances for a given account ID.
@@ -315,7 +315,10 @@ class InteractiveBrokersRESTData(DataSource):
             return None
 
         return response
-    def get_from_endpoint(self, url, description='', silent=False, return_errors=True, allow_fail=True):
+
+    def get_from_endpoint(
+        self, url, description="", silent=False, return_errors=True, allow_fail=True
+    ):
         to_return = None
         retries = 0
         first_run = True
@@ -332,9 +335,12 @@ class InteractiveBrokersRESTData(DataSource):
                     # Successful response
                     to_return = response.json()
                     if retries > 0:
-                        logging.debug(colored(
-                            f"Success: Task '{description}' succeeded after {retries} retry(ies).", "green"
-                        ))
+                        logging.debug(
+                            colored(
+                                f"Success: Task '{description}' succeeded after {retries} retry(ies).",
+                                "green",
+                            )
+                        )
                     allow_fail = True
 
                 elif status_code == 404:
@@ -368,7 +374,7 @@ class InteractiveBrokersRESTData(DataSource):
 
                 else:
                     try:
-                        error_detail = response.json().get('error', response.text)
+                        error_detail = response.json().get("error", response.text)
                     except ValueError:
                         error_detail = response.text
                     message = (
@@ -404,7 +410,15 @@ class InteractiveBrokersRESTData(DataSource):
 
         return to_return
 
-    def post_to_endpoint(self, url, json: dict, description='', silent=False, return_errors=True, allow_fail=True):
+    def post_to_endpoint(
+        self,
+        url,
+        json: dict,
+        description="",
+        silent=False,
+        return_errors=True,
+        allow_fail=True,
+    ):
         to_return = None
         retries = 0
         first_run = True
@@ -421,9 +435,12 @@ class InteractiveBrokersRESTData(DataSource):
                     # Successful response
                     to_return = response.json()
                     if retries > 0:
-                        logging.debug(colored(
-                            f"Success: Task '{description}' succeeded after {retries} retry(ies).", "green"
-                        ))
+                        logging.debug(
+                            colored(
+                                f"Success: Task '{description}' succeeded after {retries} retry(ies).",
+                                "green",
+                            )
+                        )
                     allow_fail = True
 
                 elif status_code == 404:
@@ -457,7 +474,7 @@ class InteractiveBrokersRESTData(DataSource):
 
                 else:
                     try:
-                        error_detail = response.json().get('error', response.text)
+                        error_detail = response.json().get("error", response.text)
                     except ValueError:
                         error_detail = response.text
                     message = (
@@ -493,7 +510,9 @@ class InteractiveBrokersRESTData(DataSource):
 
         return to_return
 
-    def delete_to_endpoint(self, url, description='', silent=False, return_errors=True, allow_fail=True):
+    def delete_to_endpoint(
+        self, url, description="", silent=False, return_errors=True, allow_fail=True
+    ):
         to_return = None
         retries = 0
         first_run = True
@@ -519,9 +538,12 @@ class InteractiveBrokersRESTData(DataSource):
                             to_return = None
                     else:
                         if retries > 0:
-                            logging.debug(colored(
-                                f"Success: Task '{description}' succeeded after {retries} retry(ies).", "green"
-                            ))
+                            logging.debug(
+                                colored(
+                                    f"Success: Task '{description}' succeeded after {retries} retry(ies).",
+                                    "green",
+                                )
+                            )
                         allow_fail = True
 
                 elif status_code == 404:
@@ -555,7 +577,7 @@ class InteractiveBrokersRESTData(DataSource):
 
                 else:
                     try:
-                        error_detail = response.json().get('error', response.text)
+                        error_detail = response.json().get("error", response.text)
                     except ValueError:
                         error_detail = response.text
                     message = (
@@ -687,7 +709,7 @@ class InteractiveBrokersRESTData(DataSource):
         if isinstance(response, list) and "order_id" in response[0]:
             # success
             return response
-        
+
         elif response is not None and "error" in response:
             logging.error(
                 colored(f"Failed to execute order: {response['error']}", "red")
@@ -699,9 +721,7 @@ class InteractiveBrokersRESTData(DataSource):
             )
             return None
         elif response is not None:
-            logging.error(
-                colored(f"Failed to execute order: {response}", "red")
-            )
+            logging.error(colored(f"Failed to execute order: {response}", "red"))
         else:
             logging.error(colored(f"Failed to execute order: {order_data}", "red"))
 
@@ -929,11 +949,15 @@ class InteractiveBrokersRESTData(DataSource):
         else:
             logging.error(colored(f"Unsupported timestep: {timestep}", "red"))
             return Bars(
-                pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume"]), 
-                self.SOURCE, 
-                asset, 
-                raw=pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume"]), 
-                quote=quote
+                pd.DataFrame(
+                    columns=["timestamp", "open", "high", "low", "close", "volume"]
+                ),
+                self.SOURCE,
+                asset,
+                raw=pd.DataFrame(
+                    columns=["timestamp", "open", "high", "low", "close", "volume"]
+                ),
+                quote=quote,
             )
 
         url = f"{self.base_url}/iserver/marketdata/history?conid={conid}&period={period}&bar={timestep}&outsideRth={include_after_hours}&startTime={start_time}"
@@ -948,11 +972,15 @@ class InteractiveBrokersRESTData(DataSource):
                 colored(f"Error getting historical prices: {result['error']}", "red")
             )
             return Bars(
-                pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume"]), 
-                self.SOURCE, 
-                asset, 
-                raw=pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume"]), 
-                quote=quote
+                pd.DataFrame(
+                    columns=["timestamp", "open", "high", "low", "close", "volume"]
+                ),
+                self.SOURCE,
+                asset,
+                raw=pd.DataFrame(
+                    columns=["timestamp", "open", "high", "low", "close", "volume"]
+                ),
+                quote=quote,
             )
 
         if not result or not result["data"]:
@@ -963,11 +991,15 @@ class InteractiveBrokersRESTData(DataSource):
                 )
             )
             return Bars(
-                pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume"]), 
-                self.SOURCE, 
-                asset, 
-                raw=pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume"]), 
-                quote=quote
+                pd.DataFrame(
+                    columns=["timestamp", "open", "high", "low", "close", "volume"]
+                ),
+                self.SOURCE,
+                asset,
+                raw=pd.DataFrame(
+                    columns=["timestamp", "open", "high", "low", "close", "volume"]
+                ),
+                quote=quote,
             )
 
         # Create a DataFrame from the data
@@ -1013,7 +1045,9 @@ class InteractiveBrokersRESTData(DataSource):
                     f"Failed to get {field} for asset {asset.symbol} with strike {asset.strike} and expiration date {asset.expiration}"
                 )
             else:
-                logging.debug(f"Failed to get {field} for asset {asset.symbol} of type {asset.asset_type}")
+                logging.debug(
+                    f"Failed to get {field} for asset {asset.symbol} of type {asset.asset_type}"
+                )
             return None
 
         price = response[field]
@@ -1053,8 +1087,8 @@ class InteractiveBrokersRESTData(DataSource):
                 asset,
                 sec_type="OPT",
                 additional_params={
-                    'right': asset.right,
-                    'strike': asset.strike,
+                    "right": asset.right,
+                    "strike": asset.strike,
                 },
             )
         elif asset.asset_type == "future":
@@ -1063,7 +1097,7 @@ class InteractiveBrokersRESTData(DataSource):
                 asset,
                 sec_type="FUT",
                 additional_params={
-                    'multiplier': asset.multiplier,
+                    "multiplier": asset.multiplier,
                 },
             )
         elif asset.asset_type in ["stock", "forex", "index"]:
@@ -1080,12 +1114,12 @@ class InteractiveBrokersRESTData(DataSource):
         expiration_month = asset.expiration.strftime("%b%y").upper()  # in MMMYY
 
         params = {
-            'conid': underlying_conid,
-            'sectype': sec_type,
-            'month': expiration_month,
+            "conid": underlying_conid,
+            "sectype": sec_type,
+            "month": expiration_month,
         }
         params.update(additional_params)
-        query_string = '&'.join(f'{key}={value}' for key, value in params.items())
+        query_string = "&".join(f"{key}={value}" for key, value in params.items())
 
         url_for_expiry = f"{self.base_url}/iserver/secdef/info?{query_string}"
         contract_info = self.get_from_endpoint(
@@ -1130,7 +1164,7 @@ class InteractiveBrokersRESTData(DataSource):
             "7311": "vega",
             "7310": "theta",
             "7308": "delta",
-            "7309": "gamma"
+            "7309": "gamma",
             # https://www.interactivebrokers.com/campus/ibkr-api-page/webapi-ref/#tag/Trading-Market-Data/paths/~1iserver~1marketdata~1snapshot/get
         }
         self.ping_iserver()

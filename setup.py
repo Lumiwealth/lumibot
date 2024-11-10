@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="lumibot",
-    version="3.8.5",
+    version="3.8.6",
     author="Robert Grzesik",
     author_email="rob@lumiwealth.com",
     description="Backtesting and Trading Library, Made by Lumiwealth",
@@ -21,8 +21,7 @@ setuptools.setup(
         "yfinance>=0.2.46",
         "matplotlib>=3.3.3",
         "quandl",
-        # Numpy over 1.2 but below 2 since v2 is not supported by several libraries yet
-        "numpy>=1.20.0,<2",
+        "numpy>=1.20.0",
         "pandas>=2.2.0",
         "pandas_datareader",
         "pandas_market_calendars>=4.3.1",

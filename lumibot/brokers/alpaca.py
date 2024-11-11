@@ -467,6 +467,19 @@ class Alpaca(Broker):
 
         return order
 
+    def _conform_order(self, order):
+        """Conform an order to Alpaca's requirements
+        See: https://docs.alpaca.markets/docs/orders-at-alpaca
+        """
+        if order.asset.asset_type == "stock" and order.type == "limit":
+            """
+            The minimum price variance exists for limit orders.
+            Orders received in excess of the minimum price variance will be rejected.
+            Limit price >=$1.00: Max Decimals= 2
+            Limit price <$1.00: Max Decimals = 4
+            """
+            order.limit_price = round(order.limit_price, 2) if order.limit_price >= 1.0 else round(order.limit_price, 4)
+
     def cancel_order(self, order):
         """Cancel an order
 

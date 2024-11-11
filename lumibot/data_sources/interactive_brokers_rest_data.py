@@ -286,12 +286,12 @@ class InteractiveBrokersRESTData(DataSource):
 
         if response is not None and "error" in response:
             logging.error(
-            colored(f"Failed to get contract rules: {response['error']}", "red")
+                colored(f"Failed to get contract rules: {response['error']}", "red")
             )
             return None
 
         return response
-    
+
     def get_account_balances(self):
         """
         Retrieves the account balances for a given account ID.
@@ -317,231 +317,299 @@ class InteractiveBrokersRESTData(DataSource):
         return response
 
     def get_from_endpoint(
-        self, endpoint, description, silent=False, return_errors=True, allow_fail=True
+        self, url, description="", silent=False, return_errors=True, allow_fail=True
     ):
         to_return = None
+        retries = 0
         first_run = True
-        retries = 0  # Counter to track the number of retries
 
-        while (not allow_fail) or first_run:
+        while not allow_fail or first_run:
+            if retries == 1:
+                logging.debug(f"First retry for task '{description}'.")
+
             try:
-                # Make the request to the endpoint
-                response = requests.get(endpoint, verify=False)
+                response = requests.get(url, verify=False)
+                status_code = response.status_code
 
-                # Check if the request was successful
-                if response.status_code == 200:
-                    # Parse the JSON response
+                if 200 <= status_code < 300:
+                    # Successful response
                     to_return = response.json()
-
-                    if not first_run:
-                        # Log that the task succeeded after retries
-                        logging.info(
+                    if retries > 0:
+                        logging.debug(
                             colored(
-                                f"success: Task '{description}' succeeded after {retries} retry(ies).",
+                                f"Success: Task '{description}' succeeded after {retries} retry(ies).",
                                 "green",
                             )
                         )
-
                     allow_fail = True
 
-                elif response.status_code == 404:
+                elif status_code == 404:
+                    message = f"Error: {description} endpoint not found."
                     if not silent:
-                        if (not allow_fail) and first_run:
-                            logging.warning(
-                                colored(
-                                    f"error: {description} endpoint not found. Retrying...",
-                                    "yellow",
-                                )
-                            )
+                        if not allow_fail and first_run:
+                            logging.warning(colored(f"{message} Retrying...", "yellow"))
                             time.sleep(1)
-
-                        elif (not allow_fail) and (not first_run):
-                            pass  # quiet
-
-                        elif allow_fail:
-                            logging.error(
-                                colored(
-                                    f"error: {description} endpoint not found.",
-                                    "red",
-                                )
-                            )
-
+                        else:
+                            logging.error(colored(message, "red"))
                     if return_errors:
-                        error_message = f"error: {description} endpoint not found."
-                        to_return = {"error": error_message}
+                        to_return = {"error": message}
                     else:
                         to_return = None
 
-                elif response.status_code == 429:
+                elif status_code == 429:
                     logging.warning(
                         f"You got rate limited for '{description}'. Waiting for 1 second before retrying..."
                     )
                     time.sleep(1)
-                    retries += 1
+
+                elif status_code >= 500:
+                    # Check if response contains "Please query /accounts first"
+                    response_text = response.text
+                    if "Please query /accounts first" in response_text:
+                        self.ping_iserver()
+                        allow_fail = False
+                    else:
+                        # Server error, retry
+                        allow_fail = False
 
                 else:
-                    # Attempt to extract a more readable error message from JSON
                     try:
-                        error_detail = response.json().get('error', response.text)
+                        error_detail = response.json().get("error", response.text)
                     except ValueError:
-                        error_detail = response.text  # Fallback to raw text if JSON parsing fails
-
+                        error_detail = response.text
+                    message = (
+                        f"Error: Task '{description}' failed. "
+                        f"Status code: {status_code}, Response: {error_detail}"
+                    )
                     if not silent:
-                        if (not allow_fail) and first_run:
-                            logging.warning(
-                                colored(
-                                    f"error: Task '{description}' Failed. Status code: {response.status_code}, Response: {error_detail} Retrying...",
-                                    "yellow",
-                                )
-                            )
+                        if not allow_fail and first_run:
+                            logging.warning(colored(f"{message} Retrying...", "yellow"))
                             time.sleep(1)
-
-                        elif (not allow_fail) and (not first_run):
-                            pass  # quiet
-
-                        elif allow_fail:
-                            logging.error(
-                                colored(
-                                    f"error: Task '{description}' Failed. Status code: {response.status_code}, Response: {error_detail}",
-                                    "red",
-                                )
-                            )
-
+                        else:
+                            logging.error(colored(message, "red"))
                     if return_errors:
-                        error_message = f"error: Task '{description}' Failed. Status code: {response.status_code}, Response: {error_detail}"
-                        to_return = {"error": error_message}
+                        to_return = {"error": message}
                     else:
                         to_return = None
 
             except requests.exceptions.RequestException as e:
+                message = f"Error: {description}. Exception: {e}"
                 if not silent:
-                    if (not allow_fail) and first_run:
-                        logging.warning(
-                            colored(f"error: {description}. Retrying...", "yellow")
-                        )
+                    if not allow_fail and first_run:
+                        logging.warning(colored(f"{message} Retrying...", "yellow"))
                         time.sleep(1)
-
-                    elif (not allow_fail) and (not first_run):
-                        pass  # quiet
-
-                    elif allow_fail:
-                        logging.error(colored(f"error: {description}", "red"))
-
+                    else:
+                        logging.error(colored(message, "red"))
                 if return_errors:
-                    error_message = f"error: {description}. Exception: {str(e)}"
-                    to_return = {"error": error_message}
+                    to_return = {"error": message}
                 else:
                     to_return = None
 
             first_run = False
-            retries += 1  # Increment retry counter after each attempt
+            retries += 1
 
         return to_return
 
-
-    def post_to_endpoint(self, url, json: dict, allow_fail=True):
+    def post_to_endpoint(
+        self,
+        url,
+        json: dict,
+        description="",
+        silent=False,
+        return_errors=True,
+        allow_fail=True,
+    ):
         to_return = None
+        retries = 0
         first_run = True
 
-        while (not allow_fail) or first_run:
+        while not allow_fail or first_run:
+            if retries == 1:
+                logging.debug(f"First retry for task '{description}'.")
+
             try:
                 response = requests.post(url, json=json, verify=False)
-                # Check if the request was successful
-                if response.status_code == 200:
-                    # Return the JSON response containing the account balances
+                status_code = response.status_code
+
+                if 200 <= status_code < 300:
+                    # Successful response
                     to_return = response.json()
+                    if retries > 0:
+                        logging.debug(
+                            colored(
+                                f"Success: Task '{description}' succeeded after {retries} retry(ies).",
+                                "green",
+                            )
+                        )
                     allow_fail = True
 
-                elif response.status_code == 404:
-                    logging.error(colored(f"{url} endpoint not found.", "red"))
-                    to_return = None
+                elif status_code == 404:
+                    message = f"Error: {description} endpoint not found."
+                    if not silent:
+                        if not allow_fail and first_run:
+                            logging.warning(colored(f"{message} Retrying...", "yellow"))
+                            time.sleep(1)
+                        else:
+                            logging.error(colored(message, "red"))
+                    if return_errors:
+                        to_return = {"error": message}
+                    else:
+                        to_return = None
 
-                elif response.status_code == 429:
-                    logging.info(
-                        f"You got rate limited {url}. Waiting for 5 seconds..."
+                elif status_code == 429:
+                    logging.warning(
+                        f"You got rate limited for '{description}'. Waiting for 1 second before retrying..."
                     )
-                    time.sleep(5)
-                    return self.post_to_endpoint(url, json, allow_fail=allow_fail)
+                    time.sleep(1)
+
+                elif status_code >= 500:
+                    # Check if response contains "Please query /accounts first"
+                    response_text = response.text
+                    if "Please query /accounts first" in response_text:
+                        self.ping_iserver()
+                        allow_fail = False
+                    else:
+                        # Server error, retry
+                        allow_fail = False
 
                 else:
-                    if allow_fail:
-                        if "error" in response.json():
-                            logging.error(
-                                colored(
-                                    f"Task '{url}' Failed. Error: {response.json()['error']}",
-                                    "red",
-                                )
-                            )
+                    try:
+                        error_detail = response.json().get("error", response.text)
+                    except ValueError:
+                        error_detail = response.text
+                    message = (
+                        f"Error: Task '{description}' failed. "
+                        f"Status code: {status_code}, Response: {error_detail}"
+                    )
+                    if not silent:
+                        if not allow_fail and first_run:
+                            logging.warning(colored(f"{message} Retrying...", "yellow"))
+                            time.sleep(1)
                         else:
-                            logging.error(
-                                colored(
-                                    f"Task '{url}' Failed. Status code: {response.status_code}, "
-                                    f"Response: {response.text}",
-                                    "red",
-                                )
-                            )
-                    to_return = None
+                            logging.error(colored(message, "red"))
+                    if return_errors:
+                        to_return = {"error": message}
+                    else:
+                        to_return = None
 
             except requests.exceptions.RequestException as e:
-                # Log an error message if there was a problem with the request
-                logging.error(colored(f"Error {url}: {e}", "red"))
-                to_return = None
+                message = f"Error: {description}. Exception: {e}"
+                if not silent:
+                    if not allow_fail and first_run:
+                        logging.warning(colored(f"{message} Retrying...", "yellow"))
+                        time.sleep(1)
+                    else:
+                        logging.error(colored(message, "red"))
+                if return_errors:
+                    to_return = {"error": message}
+                else:
+                    to_return = None
 
             first_run = False
+            retries += 1
 
         return to_return
 
-    def delete_to_endpoint(self, url, allow_fail=True):
+    def delete_to_endpoint(
+        self, url, description="", silent=False, return_errors=True, allow_fail=True
+    ):
         to_return = None
+        retries = 0
         first_run = True
-        while (not allow_fail) or first_run:
+
+        while not allow_fail or first_run:
+            if retries == 1:
+                logging.debug(f"First retry for task '{description}'.")
+
             try:
                 response = requests.delete(url, verify=False)
-                # Check if the request was successful
-                if response.status_code == 200:
-                    # Return the JSON response containing the account balances
-                    if (
-                        "error" in response.json()
-                        and "doesn't exist" in response.json()["error"]
-                    ):
-                        logging.warning(
-                            colored(
-                                f"Order ID doesn't exist: {response.json()['error']}",
-                                "yellow",
-                            )
-                        )
-                        to_return = None
+                status_code = response.status_code
+
+                if 200 <= status_code < 300:
+                    # Successful response
+                    to_return = response.json()
+                    if "error" in to_return and "doesn't exist" in to_return["error"]:
+                        message = f"Order ID doesn't exist: {to_return['error']}"
+                        if not silent:
+                            logging.warning(colored(message, "yellow"))
+                        if return_errors:
+                            to_return = {"error": message}
+                        else:
+                            to_return = None
                     else:
-                        to_return = response.json()
+                        if retries > 0:
+                            logging.debug(
+                                colored(
+                                    f"Success: Task '{description}' succeeded after {retries} retry(ies).",
+                                    "green",
+                                )
+                            )
                         allow_fail = True
 
-                elif response.status_code == 404:
-                    logging.error(colored(f"{url} endpoint not found.", "red"))
-                    to_return = None
+                elif status_code == 404:
+                    message = f"Error: {description} endpoint not found."
+                    if not silent:
+                        if not allow_fail and first_run:
+                            logging.warning(colored(f"{message} Retrying...", "yellow"))
+                            time.sleep(1)
+                        else:
+                            logging.error(colored(message, "red"))
+                    if return_errors:
+                        to_return = {"error": message}
+                    else:
+                        to_return = None
 
-                elif response.status_code == 429:
-                    logging.info(
-                        f"You got rate limited {url}. Waiting for 5 seconds..."
+                elif status_code == 429:
+                    logging.warning(
+                        f"You got rate limited for '{description}'. Waiting for 1 second before retrying..."
                     )
-                    time.sleep(5)
-                    return self.delete_to_endpoint(url)
+                    time.sleep(1)
+
+                elif status_code >= 500:
+                    # Check if response contains "Please query /accounts first"
+                    response_text = response.text
+                    if "Please query /accounts first" in response_text:
+                        self.ping_iserver()
+                        allow_fail = False
+                    else:
+                        # Server error, retry
+                        allow_fail = False
 
                 else:
-                    if allow_fail:
-                        logging.error(
-                            colored(
-                                f"Task '{url}' Failed. Status code: {response.status_code}, Response: {response.text}",
-                                "red",
-                            )
-                        )
-                    to_return = None
+                    try:
+                        error_detail = response.json().get("error", response.text)
+                    except ValueError:
+                        error_detail = response.text
+                    message = (
+                        f"Error: Task '{description}' failed. "
+                        f"Status code: {status_code}, Response: {error_detail}"
+                    )
+                    if not silent:
+                        if not allow_fail and first_run:
+                            logging.warning(colored(f"{message} Retrying...", "yellow"))
+                            time.sleep(1)
+                        else:
+                            logging.error(colored(message, "red"))
+                    if return_errors:
+                        to_return = {"error": message}
+                    else:
+                        to_return = None
 
             except requests.exceptions.RequestException as e:
-                # Log an error message if there was a problem with the request
-                logging.error(colored(f"Error {url}: {e}", "red"))
-                to_return = None
+                message = f"Error: {description}. Exception: {e}"
+                if not silent:
+                    if not allow_fail and first_run:
+                        logging.warning(colored(f"{message} Retrying...", "yellow"))
+                        time.sleep(1)
+                    else:
+                        logging.error(colored(message, "red"))
+                if return_errors:
+                    to_return = {"error": message}
+                else:
+                    to_return = None
 
             first_run = False
+            retries += 1
 
         return to_return
 
@@ -641,7 +709,7 @@ class InteractiveBrokersRESTData(DataSource):
         if isinstance(response, list) and "order_id" in response[0]:
             # success
             return response
-        
+
         elif response is not None and "error" in response:
             logging.error(
                 colored(f"Failed to execute order: {response['error']}", "red")
@@ -652,6 +720,8 @@ class InteractiveBrokersRESTData(DataSource):
                 colored(f"Failed to execute order: {response['message']}", "red")
             )
             return None
+        elif response is not None:
+            logging.error(colored(f"Failed to execute order: {response}", "red"))
         else:
             logging.error(colored(f"Failed to execute order: {order_data}", "red"))
 
@@ -879,11 +949,15 @@ class InteractiveBrokersRESTData(DataSource):
         else:
             logging.error(colored(f"Unsupported timestep: {timestep}", "red"))
             return Bars(
-                pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume"]), 
-                self.SOURCE, 
-                asset, 
-                raw=pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume"]), 
-                quote=quote
+                pd.DataFrame(
+                    columns=["timestamp", "open", "high", "low", "close", "volume"]
+                ),
+                self.SOURCE,
+                asset,
+                raw=pd.DataFrame(
+                    columns=["timestamp", "open", "high", "low", "close", "volume"]
+                ),
+                quote=quote,
             )
 
         url = f"{self.base_url}/iserver/marketdata/history?conid={conid}&period={period}&bar={timestep}&outsideRth={include_after_hours}&startTime={start_time}"
@@ -898,11 +972,15 @@ class InteractiveBrokersRESTData(DataSource):
                 colored(f"Error getting historical prices: {result['error']}", "red")
             )
             return Bars(
-                pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume"]), 
-                self.SOURCE, 
-                asset, 
-                raw=pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume"]), 
-                quote=quote
+                pd.DataFrame(
+                    columns=["timestamp", "open", "high", "low", "close", "volume"]
+                ),
+                self.SOURCE,
+                asset,
+                raw=pd.DataFrame(
+                    columns=["timestamp", "open", "high", "low", "close", "volume"]
+                ),
+                quote=quote,
             )
 
         if not result or not result["data"]:
@@ -913,11 +991,15 @@ class InteractiveBrokersRESTData(DataSource):
                 )
             )
             return Bars(
-                pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume"]), 
-                self.SOURCE, 
-                asset, 
-                raw=pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume"]), 
-                quote=quote
+                pd.DataFrame(
+                    columns=["timestamp", "open", "high", "low", "close", "volume"]
+                ),
+                self.SOURCE,
+                asset,
+                raw=pd.DataFrame(
+                    columns=["timestamp", "open", "high", "low", "close", "volume"]
+                ),
+                quote=quote,
             )
 
         # Create a DataFrame from the data
@@ -963,7 +1045,9 @@ class InteractiveBrokersRESTData(DataSource):
                     f"Failed to get {field} for asset {asset.symbol} with strike {asset.strike} and expiration date {asset.expiration}"
                 )
             else:
-                logging.debug(f"Failed to get {field} for asset {asset.symbol} of type {asset.asset_type}")
+                logging.debug(
+                    f"Failed to get {field} for asset {asset.symbol} of type {asset.asset_type}"
+                )
             return None
 
         price = response[field]
@@ -1003,8 +1087,8 @@ class InteractiveBrokersRESTData(DataSource):
                 asset,
                 sec_type="OPT",
                 additional_params={
-                    'right': asset.right,
-                    'strike': asset.strike,
+                    "right": asset.right,
+                    "strike": asset.strike,
                 },
             )
         elif asset.asset_type == "future":
@@ -1013,7 +1097,7 @@ class InteractiveBrokersRESTData(DataSource):
                 asset,
                 sec_type="FUT",
                 additional_params={
-                    'multiplier': asset.multiplier,
+                    "multiplier": asset.multiplier,
                 },
             )
         elif asset.asset_type in ["stock", "forex", "index"]:
@@ -1030,12 +1114,12 @@ class InteractiveBrokersRESTData(DataSource):
         expiration_month = asset.expiration.strftime("%b%y").upper()  # in MMMYY
 
         params = {
-            'conid': underlying_conid,
-            'sectype': sec_type,
-            'month': expiration_month,
+            "conid": underlying_conid,
+            "sectype": sec_type,
+            "month": expiration_month,
         }
         params.update(additional_params)
-        query_string = '&'.join(f'{key}={value}' for key, value in params.items())
+        query_string = "&".join(f"{key}={value}" for key, value in params.items())
 
         url_for_expiry = f"{self.base_url}/iserver/secdef/info?{query_string}"
         contract_info = self.get_from_endpoint(
@@ -1080,7 +1164,7 @@ class InteractiveBrokersRESTData(DataSource):
             "7311": "vega",
             "7310": "theta",
             "7308": "delta",
-            "7309": "gamma"
+            "7309": "gamma",
             # https://www.interactivebrokers.com/campus/ibkr-api-page/webapi-ref/#tag/Trading-Market-Data/paths/~1iserver~1marketdata~1snapshot/get
         }
         self.ping_iserver()

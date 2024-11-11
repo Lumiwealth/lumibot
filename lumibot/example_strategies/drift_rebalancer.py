@@ -285,7 +285,9 @@ class LimitOrderRebalanceLogic:
             time.sleep(self.fill_sleeptime)
             orders = self.strategy.broker._pull_all_orders(self.strategy.name, self.strategy)
             for order in orders:
-                self.strategy.logger.info(f"Order at broker: {order}")
+                msg = f"Submitted order status: {order}"
+                self.strategy.logger.info(msg)
+                self.strategy.log_message(msg, broadcast=True)
 
         # Get current cash position from the broker
         cash_position = self.get_current_cash_position()
@@ -313,7 +315,9 @@ class LimitOrderRebalanceLogic:
             time.sleep(self.fill_sleeptime)
             orders = self.strategy.broker._pull_all_orders(self.strategy.name, self.strategy)
             for order in orders:
-                self.strategy.logger.info(f"Order at broker: {order}")
+                msg = f"Submitted order status: {order}"
+                self.strategy.logger.info(msg)
+                self.strategy.log_message(msg, broadcast=True)
 
     def calculate_limit_price(self, *, last_price: Decimal, side: str) -> Decimal:
         if side == "sell":

@@ -21,13 +21,26 @@ from lumibot.credentials import TRADIER_CONFIG, ALPACA_CONFIG
 
 
 logger = logging.getLogger(__name__)
-print_full_pandas_dataframes()
-set_pandas_float_precision(precision=15)
+# print_full_pandas_dataframes()
+# set_pandas_float_precision(precision=15)
 
 
-class TestBarsContainReturns:
-    """These tests check that the bars from get_historical_prices contain returns for the different data sources."""
+class TestDatasourceDailyBars:
+    """These tests check that the Bars returned from get_historical_prices.
 
+     They test:
+        - the index is a timestamp
+        - they contain returns for the different data sources.
+        - they return the right number of bars
+        - returns are calculated correctly
+        - certain data_sources contain dividends
+
+     """
+
+    length = 30
+    ticker = "SPY"
+    asset = Asset("SPY")
+    timestep = "day"
     expected_df = None
     backtesting_start = datetime(2019, 3, 1)
     backtesting_end = datetime(2019, 3, 31)
@@ -43,15 +56,21 @@ class TestBarsContainReturns:
         df['expected_return'] = df['Adj Close'].pct_change()
         cls.expected_df = df
 
+    # @pytest.mark.skip()
     @pytest.mark.skipif(not ALPACA_CONFIG['API_KEY'], reason="This test requires an alpaca API key")
     @pytest.mark.skipif(ALPACA_CONFIG['API_KEY'] == '<your key here>', reason="This test requires an alpaca API key")
-    def test_alpaca_data_source_generates_simple_returns(self):
+    def test_alpaca_data_source_daily_bars(self):
         """
-        This tests that the alpaca data_source calculates SIMPLE returns for bars. Since we don't get dividends with
-        alpaca, we are not going to check if the returns are adjusted correctly.
+        Among other things, this tests that the alpaca data_source calculates SIMPLE returns for bars.
+        Since we don't get dividends with alpaca, we are not going to check if the returns are adjusted correctly.
         """
         data_source = AlpacaData(ALPACA_CONFIG)
-        prices = data_source.get_historical_prices("SPY", 2, "day")
+        prices = data_source.get_historical_prices(asset=self.asset, length=self.length, timestep=self.timestep)
+
+        assert isinstance(prices.df.index[0], pd.Timestamp)
+        # assert prices.df.index[0].tzinfo.zone == "America/New_York"  # Note, this is different from all others
+        assert prices.df.index[0].tzinfo == pytz.timezone("UTC")
+        assert len(prices.df) == self.length
 
         assert isinstance(prices.df.index[0], pd.Timestamp)
 
@@ -61,7 +80,8 @@ class TestBarsContainReturns:
         # check that there is no dividend column... This test will fail when dividends are added. We hope that's soon.
         assert "dividend" not in prices.df.columns
 
-    def test_yahoo_data_source_generates_adjusted_returns(self):
+    # @pytest.mark.skip()
+    def test_yahoo_data_source_daily_bars(self):
         """
         This tests that the yahoo data_source calculates adjusted returns for bars and that they
         are calculated correctly.
@@ -69,7 +89,11 @@ class TestBarsContainReturns:
         start = self.backtesting_start + timedelta(days=25)
         end = self.backtesting_end + timedelta(days=25)
         data_source = YahooData(datetime_start=start, datetime_end=end)
-        prices = data_source.get_historical_prices("SPY", 25, "day")
+        prices = data_source.get_historical_prices(asset=self.asset, length=self.length, timestep=self.timestep)
+
+        assert isinstance(prices.df.index[0], pd.Timestamp)
+        assert prices.df.index[0].tzinfo.zone == "America/New_York"
+        assert len(prices.df) == self.length
 
         # assert that the last row has a return value
         assert prices.df["return"].iloc[-1] is not None
@@ -106,7 +130,8 @@ class TestBarsContainReturns:
             rtol=0
         )
 
-    def test_pandas_data_source_generates_adjusted_returns(self, pandas_data_fixture):
+    # @pytest.mark.skip()
+    def test_pandas_data_source_daily_bars(self, pandas_data_fixture):
         """
         This tests that the pandas data_source calculates adjusted returns for bars and that they
         are calculated correctly. It assumes that it is provided split adjusted OHLCV and dividend data.
@@ -118,10 +143,10 @@ class TestBarsContainReturns:
             datetime_end=end,
             pandas_data=pandas_data_fixture
         )
-        prices = data_source.get_historical_prices("SPY", 25, "day")
-
+        prices = data_source.get_historical_prices(asset=self.asset, length=self.length, timestep=self.timestep)
         assert isinstance(prices.df.index[0], pd.Timestamp)
-
+        assert prices.df.index[0].tzinfo.zone == "America/New_York"
+        assert len(prices.df) == self.length
         assert prices.df["return"].iloc[-1] is not None
 
         # check that there is a dividend column.
@@ -156,8 +181,9 @@ class TestBarsContainReturns:
             rtol=0
         )
 
+    # @pytest.mark.skip()
     @pytest.mark.skipif(POLYGON_API_KEY == '<your key here>', reason="This test requires a Polygon.io API key")
-    def test_polygon_data_source_generates_simple_returns(self):
+    def test_polygon_data_source_daily_bars(self):
         """
         This tests that the po broker calculates SIMPLE returns for bars. Since we don't get dividends with
         alpaca, we are not going to check if the returns are adjusted correctly.
@@ -172,7 +198,11 @@ class TestBarsContainReturns:
         data_source = PolygonDataBacktesting(
             start, end, api_key=POLYGON_API_KEY
         )
-        prices = data_source.get_historical_prices("SPY", 2, "day")
+        prices = data_source.get_historical_prices(asset=self.asset, length=self.length, timestep=self.timestep)
+
+        assert isinstance(prices.df.index[0], pd.Timestamp)
+        assert prices.df.index[0].tzinfo.zone == "America/New_York"
+        assert len(prices.df) == self.length
 
         # assert that the last row has a return value
         assert prices.df["return"].iloc[-1] is not None
@@ -190,8 +220,12 @@ class TestBarsContainReturns:
                 access_token=TRADIER_CONFIG["ACCESS_TOKEN"],
                 paper=TRADIER_CONFIG["PAPER"],
         )
-        spy_asset = Asset("SPY")
-        prices = data_source.get_historical_prices(spy_asset, 2, "day")
+
+        prices = data_source.get_historical_prices(asset=self.asset, length=self.length, timestep=self.timestep)
+
+        assert isinstance(prices.df.index[0], pd.Timestamp)
+        assert prices.df.index[0].tzinfo.zone == "America/New_York"
+        assert len(prices.df) == self.length
 
         # This shows a bug. The index a datetime.date but should be a timestamp
         # assert isinstance(prices.df.index[0], pd.Timestamp)

@@ -77,22 +77,11 @@ class DriftRebalancer(Strategy):
         self.shorting = self.parameters.get("shorting", False)
         self.drift_df = pd.DataFrame()
 
-        # Sanity checks
-        if self.acceptable_slippage >= self.drift_threshold:
-            raise ValueError("acceptable_slippage must be less than drift_threshold")
-        if self.drift_threshold >= Decimal("1.0"):
-            raise ValueError("drift_threshold must be less than 1.0")
-        for key, target_weight in self.target_weights.items():
-            if self.drift_threshold >= target_weight:
-                self.logger.warning(
-                    f"drift_threshold of {self.drift_threshold} is "
-                    f">= target_weight of {key}: {target_weight}. Drift in this asset will never trigger a rebalance."
-                )
-
         # Load the components
         self.drift_calculation_logic = DriftCalculationLogic(self)
         self.rebalancer_logic = LimitOrderDriftRebalancerLogic(
             strategy=self,
+            drift_threshold=self.drift_threshold,
             fill_sleeptime=self.fill_sleeptime,
             acceptable_slippage=self.acceptable_slippage,
             shorting=self.shorting
@@ -107,17 +96,18 @@ class DriftRebalancer(Strategy):
         self.cancel_open_orders()
 
         if self.cash < 0:
-            self.logger.error(f"Negative cash: {self.cash} but DriftRebalancer does not support short sales or margin yet.")
+            self.logger.error(
+                f"Negative cash: {self.cash} "
+                f"but DriftRebalancer does not support margin yet."
+            )
 
-        drift_df = self.drift_calculation_logic.calculate(target_weights=self.target_weights)
-        rebalance_needed = self.rebalancer_logic.rebalance(df=drift_df)
-
+        self.drift_df = self.drift_calculation_logic.calculate(target_weights=self.target_weights)
+        rebalance_needed = self.rebalancer_logic.rebalance(drift_df=self.drift_df)
 
         if rebalance_needed:
             msg = f"Rebalancing portfolio."
             self.logger.info(msg)
             self.log_message(msg, broadcast=True)
-            self.rebalancer_logic.rebalance(df=self.drift_df)
 
     def on_abrupt_closing(self):
         dt = self.get_datetime()

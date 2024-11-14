@@ -22,6 +22,7 @@ class MockStrategy(Strategy):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.orders = []
+        self.target_weights = {}
         self.rebalancer_logic = LimitOrderDriftRebalancerLogic(strategy=self)
         self.drift_threshold = Decimal("0.05")
 

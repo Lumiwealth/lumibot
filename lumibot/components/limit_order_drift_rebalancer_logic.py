@@ -13,12 +13,14 @@ class LimitOrderDriftRebalancerLogic(DriftRebalancerLogicBase):
             self,
             *,
             strategy: Strategy,
+            drift_threshold: Decimal = Decimal("0.05"),
             fill_sleeptime: int = 15,
             acceptable_slippage: Decimal = Decimal("0.005"),
             shorting: bool = False
     ) -> None:
         super().__init__(
             strategy=strategy,
+            drift_threshold=drift_threshold,
             fill_sleeptime=fill_sleeptime,
             acceptable_slippage=acceptable_slippage,
             shorting=shorting

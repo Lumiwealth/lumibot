@@ -70,7 +70,7 @@ class DriftRebalancer(Strategy):
     def initialize(self, parameters: Any = None) -> None:
         self.set_market(self.parameters.get("market", "NYSE"))
         self.sleeptime = self.parameters.get("sleeptime", "1D")
-        self.drift_threshold = Decimal(self.parameters.get("drift_threshold", "0.20"))
+        self.drift_threshold = Decimal(self.parameters.get("drift_threshold", "0.05"))
         self.acceptable_slippage = Decimal(self.parameters.get("acceptable_slippage", "0.005"))
         self.fill_sleeptime = self.parameters.get("fill_sleeptime", 15)
         self.target_weights = {k: Decimal(v) for k, v in self.parameters["target_weights"].items()}
@@ -109,22 +109,9 @@ class DriftRebalancer(Strategy):
         if self.cash < 0:
             self.logger.error(f"Negative cash: {self.cash} but DriftRebalancer does not support short sales or margin yet.")
 
-        self.drift_df = self.drift_calculation_logic.calculate(target_weights=self.target_weights)
+        drift_df = self.drift_calculation_logic.calculate(target_weights=self.target_weights)
+        rebalance_needed = self.rebalancer_logic.rebalance(df=drift_df)
 
-        # Check if the absolute value of any drift is greater than the threshold
-        rebalance_needed = False
-        for index, row in self.drift_df.iterrows():
-            msg = (
-                f"Symbol: {row['symbol']} current_weight: {row['current_weight']:.2%} "
-                f"target_weight: {row['target_weight']:.2%} drift: {row['drift']:.2%}"
-            )
-            if abs(row["drift"]) > self.drift_threshold:
-                rebalance_needed = True
-                msg += (
-                    f" Absolute drift exceeds threshold of {self.drift_threshold:.2%}. Rebalance needed."
-                )
-            self.logger.info(msg)
-            self.log_message(msg, broadcast=True)
 
         if rebalance_needed:
             msg = f"Rebalancing portfolio."

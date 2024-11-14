@@ -4,9 +4,10 @@ from decimal import Decimal, ROUND_DOWN
 import time
 
 from lumibot.strategies.strategy import Strategy
+from lumibot.components.drift_rebalancer_logic_base import DriftRebalancerLogicBase
 
 
-class LimitOrderDriftRebalancerLogic:
+class LimitOrderDriftRebalancerLogic(DriftRebalancerLogicBase):
     
     def __init__(
             self,
@@ -16,12 +17,14 @@ class LimitOrderDriftRebalancerLogic:
             acceptable_slippage: Decimal = Decimal("0.005"),
             shorting: bool = False
     ) -> None:
-        self.strategy = strategy
-        self.fill_sleeptime = fill_sleeptime
-        self.acceptable_slippage = acceptable_slippage
-        self.shorting = shorting
+        super().__init__(
+            strategy=strategy,
+            fill_sleeptime=fill_sleeptime,
+            acceptable_slippage=acceptable_slippage,
+            shorting=shorting
+        )
 
-    def rebalance(self, df: pd.DataFrame = None) -> None:
+    def _rebalance(self, df: pd.DataFrame = None) -> None:
         if df is None:
             raise ValueError("You must pass in a DataFrame to LimitOrderDriftRebalancerLogic.rebalance()")
         

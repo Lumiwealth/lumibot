@@ -23,6 +23,7 @@ class MockStrategy(Strategy):
         super().__init__(*args, **kwargs)
         self.orders = []
         self.rebalancer_logic = LimitOrderDriftRebalancerLogic(strategy=self)
+        self.drift_threshold = Decimal("0.05")
 
     def get_last_price(
             self,
@@ -53,12 +54,16 @@ class TestLimitOrderDriftRebalancerLogic:
         strategy = MockStrategy(broker=self.backtesting_broker)
         df = pd.DataFrame({
             "symbol": ["AAPL"],
+            "is_quote_asset": False,
             "current_quantity": [Decimal("10")],
             "current_value": [Decimal("1000")],
-            "target_value": [Decimal("0")],
-            "drift": [Decimal("-1")]
+            "current_weight": [Decimal("1.0")],
+            "target_weight": Decimal("0"),
+            "target_value": Decimal("0"),
+            "drift": Decimal("-1")
         })
-        strategy.rebalancer_logic.rebalance(df=df)
+
+        strategy.rebalancer_logic.rebalance(drift_df=df)
         assert len(strategy.orders) == 1
         assert strategy.orders[0].side == "sell"
         assert strategy.orders[0].quantity == Decimal("10")
@@ -67,12 +72,15 @@ class TestLimitOrderDriftRebalancerLogic:
         strategy = MockStrategy(broker=self.backtesting_broker)
         df = pd.DataFrame({
             "symbol": ["AAPL"],
+            "is_quote_asset": False,
             "current_quantity": [Decimal("10")],
             "current_value": [Decimal("1000")],
-            "target_value": [Decimal("500")],
-            "drift": [Decimal("-0.5")]
+            "current_weight": [Decimal("1.0")],
+            "target_weight": Decimal("0.5"),
+            "target_value": Decimal("500"),
+            "drift": Decimal("-0.5")
         })
-        strategy.rebalancer_logic.rebalance(df=df)
+        strategy.rebalancer_logic.rebalance(drift_df=df)
         assert len(strategy.orders) == 1
         assert strategy.orders[0].side == "sell"
         assert strategy.orders[0].quantity == Decimal("5")
@@ -81,63 +89,78 @@ class TestLimitOrderDriftRebalancerLogic:
         strategy = MockStrategy(broker=self.backtesting_broker)
         df = pd.DataFrame({
             "symbol": ["AAPL"],
+            "is_quote_asset": False,
             "current_quantity": [Decimal("0")],
             "current_value": [Decimal("0")],
-            "target_value": [Decimal("-1000")],
-            "drift": [Decimal("-1")]
+            "current_weight": [Decimal("0.0")],
+            "target_weight": Decimal("-1"),
+            "target_value": Decimal("-1000"),
+            "drift": Decimal("-1")
         })
-        strategy.rebalancer_logic.rebalance(df=df)
+        strategy.rebalancer_logic.rebalance(drift_df=df)
         assert len(strategy.orders) == 0
 
     def test_selling_small_short_position_creates_and_order_when_shorting_is_enabled(self):
         strategy = MockStrategy(broker=self.backtesting_broker)
         df = pd.DataFrame({
             "symbol": ["AAPL"],
+            "is_quote_asset": False,
             "current_quantity": [Decimal("0")],
             "current_value": [Decimal("0")],
-            "target_value": [Decimal("-1000")],
-            "drift": [Decimal("-0.25")]
+            "current_weight": [Decimal("0.0")],
+            "target_weight": Decimal("-1"),
+            "target_value": Decimal("-1000"),
+            "drift": Decimal("-0.25")
         })
         strategy.rebalancer_logic = LimitOrderDriftRebalancerLogic(strategy=strategy, shorting=True)
-        strategy.rebalancer_logic.rebalance(df=df)
+        strategy.rebalancer_logic.rebalance(drift_df=df)
         assert len(strategy.orders) == 1
 
     def test_selling_small_short_position_doesnt_creatne_order_when_shorting_is_disabled(self):
         strategy = MockStrategy(broker=self.backtesting_broker)
         df = pd.DataFrame({
             "symbol": ["AAPL"],
+            "is_quote_asset": False,
             "current_quantity": [Decimal("0")],
             "current_value": [Decimal("0")],
-            "target_value": [Decimal("-1000")],
-            "drift": [Decimal("-0.25")]
+            "current_weight": [Decimal("0.0")],
+            "target_weight": Decimal("-1"),
+            "target_value": Decimal("-1000"),
+            "drift": Decimal("-0.25")
         })
         strategy.rebalancer_logic = LimitOrderDriftRebalancerLogic(strategy=strategy, shorting=False)
-        strategy.rebalancer_logic.rebalance(df=df)
+        strategy.rebalancer_logic.rebalance(drift_df=df)
         assert len(strategy.orders) == 0
 
     def test_selling_a_100_percent_short_position_creates_and_order_when_shorting_is_enabled(self):
         strategy = MockStrategy(broker=self.backtesting_broker)
         df = pd.DataFrame({
             "symbol": ["AAPL"],
+            "is_quote_asset": False,
             "current_quantity": [Decimal("0")],
             "current_value": [Decimal("0")],
-            "target_value": [Decimal("-1000")],
-            "drift": [Decimal("-1")]
+            "current_weight": [Decimal("0.0")],
+            "target_weight": Decimal("-1"),
+            "target_value": Decimal("-1000"),
+            "drift": Decimal("-1")
         })
         strategy.rebalancer_logic = LimitOrderDriftRebalancerLogic(strategy=strategy, shorting=True)
-        strategy.rebalancer_logic.rebalance(df=df)
+        strategy.rebalancer_logic.rebalance(drift_df=df)
         assert len(strategy.orders) == 1
 
     def test_buying_something_when_we_have_enough_money_and_there_is_slippage(self):
         strategy = MockStrategy(broker=self.backtesting_broker)
         df = pd.DataFrame({
             "symbol": ["AAPL"],
+            "is_quote_asset": False,
             "current_quantity": [Decimal("0")],
             "current_value": [Decimal("0")],
-            "target_value": [Decimal("1000")],
-            "drift": [Decimal("1")]
+            "current_weight": [Decimal("0.0")],
+            "target_weight": Decimal("1"),
+            "target_value": Decimal("1000"),
+            "drift": Decimal("1")
         })
-        strategy.rebalancer_logic.rebalance(df=df)
+        strategy.rebalancer_logic.rebalance(drift_df=df)
         assert len(strategy.orders) == 1
         assert strategy.orders[0].side == "buy"
         assert strategy.orders[0].quantity == Decimal("9")
@@ -145,15 +168,17 @@ class TestLimitOrderDriftRebalancerLogic:
     def test_buying_something_when_we_dont_have_enough_money_for_everything(self):
         strategy = MockStrategy(broker=self.backtesting_broker)
         strategy._set_cash_position(cash=500.0)
-        # mock the update_broker_balances method
         df = pd.DataFrame({
             "symbol": ["AAPL"],
+            "is_quote_asset": False,
             "current_quantity": [Decimal("0")],
             "current_value": [Decimal("0")],
-            "target_value": [Decimal("1000")],
-            "drift": [Decimal("1")]
+            "current_weight": [Decimal("0.0")],
+            "target_weight": Decimal("1"),
+            "target_value": Decimal("1000"),
+            "drift": Decimal("1")
         })
-        strategy.rebalancer_logic.rebalance(df=df)
+        strategy.rebalancer_logic.rebalance(drift_df=df)
         assert len(strategy.orders) == 1
         assert strategy.orders[0].side == "buy"
         assert strategy.orders[0].quantity == Decimal("4")
@@ -163,40 +188,49 @@ class TestLimitOrderDriftRebalancerLogic:
         strategy._set_cash_position(cash=50.0)
         df = pd.DataFrame({
             "symbol": ["AAPL"],
+            "is_quote_asset": False,
             "current_quantity": [Decimal("0")],
             "current_value": [Decimal("0")],
-            "target_value": [Decimal("1000")],
-            "drift": [Decimal("1")]
+            "current_weight": [Decimal("0.0")],
+            "target_weight": Decimal("1"),
+            "target_value": Decimal("1000"),
+            "drift": Decimal("1")
         })
-        strategy.rebalancer_logic.rebalance(df=df)
+        strategy.rebalancer_logic.rebalance(drift_df=df)
         assert len(strategy.orders) == 0
 
     def test_attempting_to_sell_when_the_amount_we_need_to_sell_is_less_than_the_limit_price_should_not_sell(self):
         strategy = MockStrategy(broker=self.backtesting_broker)
         df = pd.DataFrame({
             "symbol": ["AAPL"],
+            "is_quote_asset": False,
             "current_quantity": [Decimal("1")],
             "current_value": [Decimal("100")],
-            "target_value": [Decimal("10")],
-            "drift": [Decimal("-0.5")]
+            "current_weight": [Decimal("1.0")],
+            "target_weight": Decimal("0.1"),
+            "target_value": Decimal("10"),
+            "drift": Decimal("-0.9")
         })
-        strategy.rebalancer_logic.rebalance(df=df)
+        strategy.rebalancer_logic.rebalance(drift_df=df)
         assert len(strategy.orders) == 0
 
     def test_calculate_limit_price_when_selling(self):
         strategy = MockStrategy(broker=self.backtesting_broker)
         df = pd.DataFrame({
             "symbol": ["AAPL"],
+            "is_quote_asset": False,
             "current_quantity": [Decimal("10")],
             "current_value": [Decimal("1000")],
-            "target_value": [Decimal("0")],
-            "drift": [Decimal("-1")]
+            "current_weight": [Decimal("1.0")],
+            "target_weight": Decimal("0.0"),
+            "target_value": Decimal("0"),
+            "drift": Decimal("-1")
         })
         strategy.rebalancer_logic = LimitOrderDriftRebalancerLogic(
             strategy=strategy,
             acceptable_slippage=Decimal("0.005")
         )
-        strategy.rebalancer_logic.rebalance(df=df)
+        strategy.rebalancer_logic.rebalance(drift_df=df)
         limit_price = strategy.rebalancer_logic.calculate_limit_price(last_price=Decimal("120.00"), side="sell")
         assert limit_price == Decimal("119.4")
 
@@ -204,16 +238,19 @@ class TestLimitOrderDriftRebalancerLogic:
         strategy = MockStrategy(broker=self.backtesting_broker)
         df = pd.DataFrame({
             "symbol": ["AAPL"],
-            "current_quantity": [Decimal("10")],
-            "current_value": [Decimal("1000")],
-            "target_value": [Decimal("0")],
-            "drift": [Decimal("-1")]
+            "is_quote_asset": False,
+            "current_quantity": [Decimal("0")],
+            "current_value": [Decimal("0")],
+            "current_weight": [Decimal("0.0")],
+            "target_weight": Decimal("1.0"),
+            "target_value": Decimal("1000"),
+            "drift": Decimal("1")
         })
         strategy.rebalancer_logic = LimitOrderDriftRebalancerLogic(
             strategy=strategy,
             acceptable_slippage=Decimal("0.005")
         )
-        strategy.rebalancer_logic.rebalance(df=df)
+        strategy.rebalancer_logic.rebalance(drift_df=df)
         limit_price = strategy.rebalancer_logic.calculate_limit_price(last_price=Decimal("120.00"), side="buy")
         assert limit_price == Decimal("120.6")
 

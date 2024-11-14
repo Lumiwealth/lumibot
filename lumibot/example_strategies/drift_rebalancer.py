@@ -4,6 +4,7 @@ from decimal import Decimal, ROUND_DOWN
 import time
 
 from lumibot.strategies.strategy import Strategy
+from lumibot.components import DriftCalculationLogic
 
 """
 The DriftRebalancer strategy is designed to maintain a portfolio's target asset allocation by 
@@ -88,6 +89,9 @@ class DriftRebalancer(Strategy):
                     f">= target_weight of {key}: {target_weight}. Drift in this asset will never trigger a rebalance."
                 )
 
+        # Load the components
+        self.drift_calculation_logic = DriftCalculationLogic(self)
+
     # noinspection PyAttributeOutsideInit
     def on_trading_iteration(self) -> None:
         dt = self.get_datetime()
@@ -99,27 +103,7 @@ class DriftRebalancer(Strategy):
         if self.cash < 0:
             self.logger.error(f"Negative cash: {self.cash} but DriftRebalancer does not support short sales or margin yet.")
 
-        drift_calculator = DriftCalculationLogic(target_weights=self.target_weights)
-
-        # Get all positions and add them to the calculator
-        positions = self.get_positions()
-        for position in positions:
-            symbol = position.symbol
-            current_quantity = Decimal(position.quantity)
-            if position.asset == self.quote_asset:
-                is_quote_asset = True
-                current_value = Decimal(position.quantity)
-            else:
-                is_quote_asset = False
-                current_value = Decimal(self.get_last_price(symbol)) * current_quantity
-            drift_calculator.add_position(
-                symbol=symbol,
-                is_quote_asset=is_quote_asset,
-                current_quantity=current_quantity,
-                current_value=current_value
-            )
-
-        self.drift_df = drift_calculator.calculate()
+        self.drift_df = self.drift_calculation_logic.calculate(target_weights=self.target_weights)
 
         # Check if the absolute value of any drift is greater than the threshold
         rebalance_needed = False
@@ -160,71 +144,6 @@ class DriftRebalancer(Strategy):
         self.logger.info(f"{dt} on_bot_crash called")
         self.log_message(f"Bot crashed with error: {error}", broadcast=True)
         self.cancel_open_orders()
-
-
-class DriftCalculationLogic:
-    def __init__(self, target_weights: Dict[str, Decimal]) -> None:
-        self.df = pd.DataFrame({
-            "symbol": target_weights.keys(),
-            "is_quote_asset": False,
-            "current_quantity": Decimal(0),
-            "current_value": Decimal(0),
-            "current_weight": Decimal(0),
-            "target_weight": [Decimal(weight) for weight in target_weights.values()],
-            "target_value": Decimal(0),
-            "drift": Decimal(0)
-        })
-
-    def add_position(self, *, symbol: str, is_quote_asset: bool, current_quantity: Decimal, current_value: Decimal) -> None:
-        if symbol in self.df["symbol"].values:
-            self.df.loc[self.df["symbol"] == symbol, "is_quote_asset"] = is_quote_asset
-            self.df.loc[self.df["symbol"] == symbol, "current_quantity"] = current_quantity
-            self.df.loc[self.df["symbol"] == symbol, "current_value"] = current_value
-        else:
-            new_row = {
-                "symbol": symbol,
-                "is_quote_asset": is_quote_asset,
-                "current_quantity": current_quantity,
-                "current_value": current_value,
-                "current_weight": Decimal(0),
-                "target_weight": Decimal(0),
-                "target_value": Decimal(0),
-                "drift": Decimal(0)
-            }
-            # Convert the dictionary to a DataFrame
-            new_row_df = pd.DataFrame([new_row])
-
-            # Concatenate the new row to the existing DataFrame
-            self.df = pd.concat([self.df, new_row_df], ignore_index=True)
-
-    def calculate(self) -> pd.DataFrame:
-        """
-        A positive drift means we need to buy more of the asset,
-        a negative drift means we need to sell some of the asset.
-        """
-        total_value = self.df["current_value"].sum()
-        self.df["current_weight"] = self.df["current_value"] / total_value
-        self.df["target_value"] = self.df["target_weight"] * total_value
-
-        def calculate_drift_row(row: pd.Series) -> Decimal:
-            if row["is_quote_asset"]:
-                # We can never buy or sell the quote asset
-                return Decimal(0)
-
-            # Check if we should sell everything
-            elif row["current_quantity"] > Decimal(0) and row["target_weight"] == Decimal(0):
-                return Decimal(-1)
-
-            # Check if we need to buy for the first time
-            elif row["current_quantity"] == Decimal(0) and row["target_weight"] > Decimal(0):
-                return Decimal(1)
-
-            # Otherwise we just need to adjust our holding
-            else:
-                return row["target_weight"] - row["current_weight"]
-
-        self.df["drift"] = self.df.apply(calculate_drift_row, axis=1)
-        return self.df.copy()
 
 
 class LimitOrderRebalanceLogic:

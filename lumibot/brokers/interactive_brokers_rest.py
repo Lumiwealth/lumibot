@@ -975,7 +975,9 @@ class InteractiveBrokersREST(Broker):
             logging.error("Failed to decode JSON message.")
 
     def _handle_order_update(self, orders):
+        logging.info("KKK")
         for order_data in orders:
+            logging.info("llll")
             order_id = order_data.get("orderId")
             status = order_data.get("status")
             filled_quantity = order_data.get("filledQuantity", 0)
@@ -986,6 +988,7 @@ class InteractiveBrokersREST(Broker):
 
     def _update_order_status(self, order_id, status, filled, remaining):
         try:
+            logging.info(order_id)
             order = next((o for o in self._unprocessed_orders if o.identifier == order_id), None)
             if order:
                 order.status = status
@@ -993,21 +996,23 @@ class InteractiveBrokersREST(Broker):
                 order.remaining = remaining
                 self._log_order_status(order, status, success=(status.lower() == "executed"))
                 if status.lower() in ["executed", "cancelled"]:
-                    self._unprocessed_orders.remove(order)  # Add this line
+                    self._unprocessed_orders.remove(order)
         except Exception as e:
             logging.error(colored(f"Failed to update order status for {order_id}: {e}", "red"))
+        
+        logging.info(order.status)
 
     def _on_error(self, ws, error):
         # Handle errors
         logging.error(error)
 
-    def _on_close(self, ws):
+    def _on_close(self, ws, close_status_code, close_msg):
         # Handle connection close
-        logging.info("## CLOSED! ##")
+        logging.info(f"WebSocket Connection Closed")
 
     def _on_open(self, ws):
         # Subscribe to live order updates
-        ws.send("sor+{}")
+        ws.send('sor+{}')
 
     def _get_stream_object(self):
         # Initialize the websocket connection

@@ -133,13 +133,15 @@ class InteractiveBrokersRESTData(DataSource):
         self.fetch_account_id()
 
         logging.info(colored("Connected to Client Portal", "green"))
+        self.suppress_warnings()
 
+    def suppress_warnings(self):
         # Suppress weird server warnings
         url = f"{self.base_url}/iserver/questions/suppress"
         json = {"messageIds": ["o451", "o383", "o354", "o163"]}
 
         self.post_to_endpoint(url, json=json, allow_fail=False)
-
+    
     def fetch_account_id(self):
         if self.account_id is not None:
             return  # Account ID already set
@@ -324,16 +326,24 @@ class InteractiveBrokersRESTData(DataSource):
         first_run = True
 
         while not allow_fail or first_run:
-            
             try:
                 response = requests.get(url, verify=False)
                 status_code = response.status_code
 
-                response_json = response.json()
+                if response.text:
+                    try:
+                        response_json = response.json()
+                    except ValueError:
+                        logging.error(colored(f"Invalid JSON response for {description}.", "red"))
+                        response_json = {}
+                else:
+                    response_json = {}
+
                 if isinstance(response_json, dict):
                     error_message = response_json.get("error", "") or response_json.get("message", "")
                 else:
                     error_message = ""
+                
                 if "no bridge" in error_message.lower() or "not authenticated" in error_message.lower():
                     if not silent:
                         if not allow_fail and first_run:
@@ -344,7 +354,7 @@ class InteractiveBrokersRESTData(DataSource):
                 
                 elif 200 <= status_code < 300:
                     # Successful response
-                    to_return = response.json()
+                    to_return = response_json
 
                     allow_fail = True
 

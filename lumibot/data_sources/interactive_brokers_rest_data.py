@@ -1114,7 +1114,7 @@ class InteractiveBrokersRESTData(DataSource):
 
         url_for_expiry = f"{self.base_url}/iserver/secdef/info?{query_string}"
         contract_info = self.get_from_endpoint(
-            url_for_expiry, f"Getting {sec_type} Contract Info"
+            url_for_expiry, f"Getting {sec_type} Contract Info", silent=True
         )
 
         matching_contract = None

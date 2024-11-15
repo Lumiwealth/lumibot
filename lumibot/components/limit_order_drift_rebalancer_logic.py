@@ -69,11 +69,14 @@ class LimitOrderDriftRebalancerLogic(DriftRebalancerLogicBase):
         if not self.strategy.is_backtesting:
             # Sleep to allow sell orders to fill
             time.sleep(self.fill_sleeptime)
-            orders = self.strategy.broker._pull_all_orders(self.strategy.name, self.strategy)
-            for order in orders:
-                msg = f"Submitted order status: {order}"
-                self.strategy.logger.info(msg)
-                self.strategy.log_message(msg, broadcast=True)
+            try:
+                for order in sell_orders:
+                    pulled_order = self.strategy.broker._pull_order(order.identifier, self.strategy.name, self.strategy)
+                    msg = f"Submitted order status: {pulled_order}"
+                    self.strategy.logger.info(msg)
+                    self.strategy.log_message(msg, broadcast=True)
+            except Exception as e:
+                self.strategy.logger.error(f"Error pulling order: {e}")
 
         # Get current cash position from the broker
         cash_position = self.get_current_cash_position()
@@ -97,13 +100,16 @@ class LimitOrderDriftRebalancerLogic(DriftRebalancerLogicBase):
             self.strategy.logger.info(f"Submitted buy order: {order}")
 
         if not self.strategy.is_backtesting:
-            # Sleep to allow orders to fill
+            # Sleep to allow sell orders to fill
             time.sleep(self.fill_sleeptime)
-            orders = self.strategy.broker._pull_all_orders(self.strategy.name, self.strategy)
-            for order in orders:
-                msg = f"Submitted order status: {order}"
-                self.strategy.logger.info(msg)
-                self.strategy.log_message(msg, broadcast=True)
+            try:
+                for order in buy_orders:
+                    pulled_order = self.strategy.broker._pull_order(order.identifier, self.strategy.name, self.strategy)
+                    msg = f"Submitted order status: {pulled_order}"
+                    self.strategy.logger.info(msg)
+                    self.strategy.log_message(msg, broadcast=True)
+            except Exception as e:
+                self.strategy.logger.error(f"Error pulling order: {e}")
 
     def calculate_limit_price(self, *, last_price: Decimal, side: str) -> Decimal:
         if side == "sell":

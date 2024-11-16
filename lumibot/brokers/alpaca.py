@@ -475,10 +475,18 @@ class Alpaca(Broker):
             """
             The minimum price variance exists for limit orders.
             Orders received in excess of the minimum price variance will be rejected.
-            Limit price >=$1.00: Max Decimals= 2
+            Limit price >=$1.00: Max Decimals = 2
             Limit price <$1.00: Max Decimals = 4
             """
-            order.limit_price = round(order.limit_price, 2) if order.limit_price >= 1.0 else round(order.limit_price, 4)
+            orig_price = order.limit_price
+            if order.limit_price >= 1.0:
+                order.limit_price = round(order.limit_price, 2)
+            else:
+                order.limit_price = round(order.limit_price, 4)
+            logging.warning(
+                f"Order {order} was changed to conform to Alpaca's requirements. "
+                f"The limit price was changed from {orig_price} to {order.limit_price}."
+            )
 
     def cancel_order(self, order):
         """Cancel an order

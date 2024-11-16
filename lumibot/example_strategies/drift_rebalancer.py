@@ -1,10 +1,9 @@
 import pandas as pd
-from typing import Dict, Any
-from decimal import Decimal, ROUND_DOWN
-import time
+from typing import Any
+from decimal import Decimal
 
 from lumibot.strategies.strategy import Strategy
-from lumibot.components import DriftCalculationLogic, LimitOrderDriftRebalancerLogic
+from lumibot.components.drift_rebalancer_logic import DriftRebalancerLogic
 
 """
 The DriftRebalancer strategy is designed to maintain a portfolio's target asset allocation by 
@@ -76,15 +75,12 @@ class DriftRebalancer(Strategy):
         self.target_weights = {k: Decimal(v) for k, v in self.parameters["target_weights"].items()}
         self.shorting = self.parameters.get("shorting", False)
         self.drift_df = pd.DataFrame()
-
-        # Load the components
-        self.drift_calculation_logic = DriftCalculationLogic(self)
-        self.rebalancer_logic = LimitOrderDriftRebalancerLogic(
+        self.drift_rebalancer_logic = DriftRebalancerLogic(
             strategy=self,
             drift_threshold=self.drift_threshold,
-            fill_sleeptime=self.fill_sleeptime,
             acceptable_slippage=self.acceptable_slippage,
-            shorting=self.shorting
+            fill_sleeptime=self.fill_sleeptime,
+            shorting=self.shorting,
         )
 
     # noinspection PyAttributeOutsideInit
@@ -101,8 +97,8 @@ class DriftRebalancer(Strategy):
                 f"but DriftRebalancer does not support margin yet."
             )
 
-        self.drift_df = self.drift_calculation_logic.calculate(target_weights=self.target_weights)
-        rebalance_needed = self.rebalancer_logic.rebalance(drift_df=self.drift_df)
+        self.drift_df = self.drift_rebalancer_logic.calculate(target_weights=self.target_weights)
+        rebalance_needed = self.drift_rebalancer_logic.rebalance(drift_df=self.drift_df)
 
         if rebalance_needed:
             msg = f"Rebalancing portfolio."

@@ -6,37 +6,97 @@ import time
 import pandas as pd
 
 from lumibot.strategies.strategy import Strategy
+from lumibot.entities.order import Order
+
+
+class DriftType:
+    ABSOLUTE = "absolute"
+    RELATIVE = "relative"
 
 
 class DriftRebalancerLogic:
+    """ DriftRebalancerLogic calculates the drift of each asset in a portfolio and rebalances the portfolio.
+
+    The strategy calculates the drift of each asset in the portfolio and triggers a rebalance if the drift exceeds
+    the drift_threshold. The strategy will sell assets if their weights have drifted above the threshold and
+    buy assets whose weights have drifted below the threshold.
+
+    The current version of the DriftRebalancer strategy only supports limit orders and whole share quantities.
+
+    Parameters
+    ----------
+
+    strategy : Strategy
+        The strategy object that will be used to get the current positions and submit orders.
+
+    drift_type : DriftType, optional
+        The type of drift calculation to use. Can be "absolute" or "relative". The default is DriftType.ABSOLUTE.
+
+        If the drift_type is "absolute", the drift is calculated as the difference between the target_weight
+        and the current_weight. For example, if the target_weight is 0.20 and the current_weight is 0.23, the
+        absolute drift would be 0.03.
+
+        If the drift_type is "relative", the drift is calculated as the difference between the target_weight
+        and the current_weight divided by the target_weight. For example, if the target_weight is 0.20 and the
+        current_weight is 0.23, the relative drift would be (0.20 - 0.23) / 0.20 = -0.15.
+
+        Absolute drift is simpler to understand, but relative drift can be useful when the target_weights are
+        small or very different from each other. For example, if one asset has a target_weight of 0.01 and another
+        has a target_weight of 0.99, the absolute drift threshold would need to be very small to trigger a rebalance.
+
+    drift_threshold : Decimal, optional
+        The drift threshold that will trigger a rebalance.
+        The default is Decimal("0.05").
+
+        If the drift_type is absolute, the target_weight of an asset is 0.30 and the drift_threshold is 0.05,
+        then a rebalance will be triggered when the asset's current_weight is less than 0.25 or greater than 0.35.
+
+        If the drift_type is relative, the target_weight of an asset is 0.30 and the drift_threshold is 0.05,
+        then a rebalance will be triggered when the asset's current_weight is less than -0.285 or greater than 0.315.
+
+    order_type : Order.OrderType, optional
+        The type of order to use. Can be Order.OrderType.LIMIT or Order.OrderType.MARKET.
+        The default is Order.OrderType.LIMIT.
+
+    fill_sleeptime : int, optional
+        The amount of time to sleep between the sells and buys to give enough time for the orders to fill.
+        The default is 15.
+
+    acceptable_slippage : Decimal, optional
+        The acceptable slippage that will be used when calculating the number of shares to buy or sell.
+        The default is Decimal("0.005") (50 BPS).
+
+    shorting : bool, optional
+        If you want to allow shorting, set this to True. The default is False.
+
+    """
 
     def __init__(
             self,
             *,
             strategy: Strategy,
+            drift_type: DriftType = DriftType.ABSOLUTE,
             drift_threshold: Decimal = Decimal("0.05"),
-            fill_sleeptime: int = 15,
+            order_type: Order.OrderType = Order.OrderType.LIMIT,
             acceptable_slippage: Decimal = Decimal("0.005"),
+            fill_sleeptime: int = 15,
             shorting: bool = False
     ) -> None:
         self.strategy = strategy
-        self.drift_threshold = drift_threshold
-        self.fill_sleeptime = fill_sleeptime
-        self.acceptable_slippage = acceptable_slippage
-        self.shorting = shorting
-
-        # Load the components
-        self.drift_calculation_logic = DriftCalculationLogic(strategy=strategy)
+        self.calculation_logic = DriftCalculationLogic(
+            strategy=strategy,
+            drift_type=drift_type
+        )
         self.rebalancer_logic = LimitOrderDriftRebalancerLogic(
             strategy=strategy,
-            drift_threshold=self.drift_threshold,
-            fill_sleeptime=self.fill_sleeptime,
-            acceptable_slippage=self.acceptable_slippage,
-            shorting=self.shorting
+            drift_threshold=drift_threshold,
+            fill_sleeptime=fill_sleeptime,
+            acceptable_slippage=acceptable_slippage,
+            shorting=shorting
         )
 
     def calculate(self, target_weights: Dict[str, Decimal]) -> pd.DataFrame:
-        return self.drift_calculation_logic.calculate(target_weights)
+        return self.calculation_logic.calculate(target_weights)
 
     def rebalance(self, drift_df: pd.DataFrame = None) -> bool:
         return self.rebalancer_logic.rebalance(drift_df)
@@ -44,8 +104,9 @@ class DriftRebalancerLogic:
 
 class DriftCalculationLogic:
 
-    def __init__(self, strategy: Strategy) -> None:
+    def __init__(self, strategy: Strategy, drift_type: DriftType = DriftType.ABSOLUTE) -> None:
         self.strategy = strategy
+        self.drift_type = drift_type
         self.df = pd.DataFrame()
 
     def calculate(self, target_weights: Dict[str, Decimal]) -> pd.DataFrame:
@@ -133,9 +194,17 @@ class DriftCalculationLogic:
             elif row["current_quantity"] == Decimal(0) and row["target_weight"] > Decimal(0):
                 return Decimal(1)
 
-            # Otherwise we just need to adjust our holding
+            # Otherwise we just need to adjust our holding. Calculate the drift.
             else:
-                return row["target_weight"] - row["current_weight"]
+                if self.drift_type == DriftType.ABSOLUTE:
+                    return row["target_weight"] - row["current_weight"]
+                elif self.drift_type == DriftType.RELATIVE:
+                    # Relative drift is calculated by: difference / target_weight.
+                    # Example: target_weight=0.20 and current_weight=0.23
+                    # The drift is (0.20 - 0.23) / 0.20 = -0.15
+                    return (row["target_weight"] - row["current_weight"]) / row["target_weight"]
+                else:
+                    raise ValueError(f"Invalid drift_type: {self.drift_type}")
 
         self.df["drift"] = self.df.apply(calculate_drift_row, axis=1)
         return self.df.copy()

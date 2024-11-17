@@ -964,7 +964,10 @@ class InteractiveBrokersREST(Broker):
     # WebSocket event handlers
     def _on_message(self, ws, message):
         # Process incoming messages
-        logging.info(message)
+        if not hasattr(self, "ws_messaged"):
+            ws.send('sor+{}')
+            self.ws_messaged = True
+
         try:
             data = json.loads(message)
             topic = data.get("topic")
@@ -975,18 +978,35 @@ class InteractiveBrokersREST(Broker):
             logging.error("Failed to decode JSON message.")
 
     def _handle_order_update(self, orders):
-        logging.info("KKK")
         for order_data in orders:
-            logging.info("llll")
-            order_id = order_data.get("orderId")
-            status = order_data.get("status")
-            filled_quantity = order_data.get("filledQuantity", 0)
-            remaining_quantity = order_data.get("remainingQuantity", 0)
-            # Update the order in the system
-            self._update_order_status(order_id, status, filled_quantity, remaining_quantity)
-            logging.info(f"Order {order_id} updated: Status={status}, Filled={filled_quantity}, Remaining={remaining_quantity}")
+            order_id = order_data.get("order_id")
+            order_info = self.data_source.get_order_info(order_id)
+            if not order_info:
+                logging.error(f"Order info not found for order ID {order_id}.")
 
-    def _update_order_status(self, order_id, status, filled, remaining):
+            status = order_info.get('order_status', 'unknown').lower()
+            size_and_fills = order_info.get('size_and_fills', '0/0').split('/')
+            filled_quantity = float(size_and_fills[0])
+            total_size = float(order_info.get('total_size', '0.0'))
+            remaining_quantity = total_size - filled_quantity
+            avg_fill_price = order_info.get('avg_fill_price')
+            trade_cost = order_info.get('trade_cost')
+
+            # Update the order in the system
+            self._update_order_status(
+                order_id,
+                status,
+                filled_quantity,
+                remaining_quantity,
+                avg_fill_price=avg_fill_price,
+                trade_cost=trade_cost
+            )
+            logging.info(
+                f"Order {order_id} updated: Status={status}, Filled={filled_quantity}, "
+                f"Remaining={remaining_quantity}, Avg Fill Price={avg_fill_price}, Trade Cost={trade_cost}"
+            )
+
+    def _update_order_status(self, order_id, status, filled, remaining, avg_fill_price=None, trade_cost=None):
         try:
             logging.info(order_id)
             order = next((o for o in self._unprocessed_orders if o.identifier == order_id), None)
@@ -994,14 +1014,20 @@ class InteractiveBrokersREST(Broker):
                 order.status = status
                 order.filled = filled
                 order.remaining = remaining
-                self._log_order_status(order, status, success=(status.lower() == "executed"))
-                if status.lower() in ["executed", "cancelled"]:
+                if avg_fill_price is not None:
+                    order.avg_fill_price = avg_fill_price
+                if trade_cost is not None:
+                    order.trade_cost = trade_cost
+                self._log_order_status(
+                    order,
+                    status,
+                    success=(status.lower() in ["filled", "partially_filled"])
+                )
+                if status.lower() in ["filled", "cancelled"]:
                     self._unprocessed_orders.remove(order)
         except Exception as e:
             logging.error(colored(f"Failed to update order status for {order_id}: {e}", "red"))
-        
-        logging.info(order.status)
-
+    
     def _on_error(self, ws, error):
         # Handle errors
         logging.error(error)
@@ -1011,8 +1037,7 @@ class InteractiveBrokersREST(Broker):
         logging.info(f"WebSocket Connection Closed")
 
     def _on_open(self, ws):
-        # Subscribe to live order updates
-        ws.send('sor+{}')
+        time.sleep(3)
 
     def _get_stream_object(self):
         # Initialize the websocket connection

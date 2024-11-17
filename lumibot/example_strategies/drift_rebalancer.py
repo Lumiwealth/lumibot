@@ -10,12 +10,7 @@ from lumibot.entities import Order
 The DriftRebalancer strategy is designed to maintain a portfolio's target asset allocation by 
 rebalancing assets based on their drift from target weights. The strategy calculates the 
 drift of each asset in the portfolio and triggers a rebalance if the drift exceeds a predefined 
-threshold. It uses limit orders to buy or sell assets to bring the portfolio back to its target allocation.
-
-It basically does the following:
-Calculate Drift: Determine the difference between the current and target weights of each asset in the portfolio.
-Trigger Rebalance: Initiate buy or sell orders when the drift exceeds the threshold.
-Execute Orders: Place limit orders to buy or sell assets based on the calculated drift.
+threshold. Then it places buy or sell assets to bring the portfolio back to its target allocation.
 
 Note: If you run this strategy in a live trading environment, be sure to not make manual trades in the same account.
 This strategy will sell other positions in order to get the account to the target weights. 
@@ -29,8 +24,8 @@ class DriftRebalancer(Strategy):
     the drift_threshold. The strategy will sell assets that have drifted above the threshold and
     buy assets that have drifted below the threshold.
 
-    The current version of the DriftRebalancer strategy only supports limit orders and whole share quantities.
-    Submit an issue if you need market orders or fractional shares. It should be pretty easy to add.
+    The current version of the DriftRebalancer strategy only supports whole share quantities.
+    Submit an issue if you need fractional shares. It should be pretty easy to add.
 
     Example parameters:
 

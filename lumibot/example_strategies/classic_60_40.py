@@ -8,7 +8,7 @@ from lumibot.example_strategies.drift_rebalancer import DriftRebalancer
 """
 Strategy Description
 
-This strategy demonstrates the DriftRebalancerLogic by rebalancing to a classic 60% stocks, 40% bonds portfolio.
+This is an implementation of a classic 60% stocks, 40% bonds portfolio, that demonstration the DriftRebalancer strategy. 
 It rebalances a portfolio of assets to a target weight every time the asset drifts
 by a certain threshold. The strategy will sell the assets that has drifted the most and buy the
 assets that has drifted the least to bring the portfolio back to the target weights.

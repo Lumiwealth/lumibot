@@ -672,7 +672,7 @@ class TestDriftOrderLogic:
         self.data_source = PandasDataBacktesting(date_start, date_end)
         self.backtesting_broker = BacktestingBroker(self.data_source)
 
-    def test_selling_everything(self):
+    def test_selling_everything_with_limit_orders(self):
         strategy = MockStrategyWithOrderLogic(
             broker=self.backtesting_broker,
             order_type=Order.OrderType.LIMIT
@@ -692,8 +692,31 @@ class TestDriftOrderLogic:
         assert len(strategy.orders) == 1
         assert strategy.orders[0].side == "sell"
         assert strategy.orders[0].quantity == Decimal("10")
+        assert strategy.orders[0].type == Order.OrderType.LIMIT
 
-    def test_selling_part_of_a_holding(self):
+    def test_selling_everything_with_market_orders(self):
+        strategy = MockStrategyWithOrderLogic(
+            broker=self.backtesting_broker,
+            order_type=Order.OrderType.MARKET
+        )
+        df = pd.DataFrame({
+            "symbol": ["AAPL"],
+            "is_quote_asset": False,
+            "current_quantity": [Decimal("10")],
+            "current_value": [Decimal("1000")],
+            "current_weight": [Decimal("1.0")],
+            "target_weight": Decimal("0"),
+            "target_value": Decimal("0"),
+            "drift": Decimal("-1")
+        })
+
+        strategy.order_logic.rebalance(drift_df=df)
+        assert len(strategy.orders) == 1
+        assert strategy.orders[0].side == "sell"
+        assert strategy.orders[0].quantity == Decimal("10")
+        assert strategy.orders[0].type == Order.OrderType.MARKET
+
+    def test_selling_part_of_a_holding_with_limit_order(self):
         strategy = MockStrategyWithOrderLogic(
             broker=self.backtesting_broker,
             order_type=Order.OrderType.LIMIT
@@ -712,6 +735,28 @@ class TestDriftOrderLogic:
         assert len(strategy.orders) == 1
         assert strategy.orders[0].side == "sell"
         assert strategy.orders[0].quantity == Decimal("5")
+        assert strategy.orders[0].type == Order.OrderType.LIMIT
+
+    def test_selling_part_of_a_holding_with_market_order(self):
+        strategy = MockStrategyWithOrderLogic(
+            broker=self.backtesting_broker,
+            order_type=Order.OrderType.MARKET
+        )
+        df = pd.DataFrame({
+            "symbol": ["AAPL"],
+            "is_quote_asset": False,
+            "current_quantity": [Decimal("10")],
+            "current_value": [Decimal("1000")],
+            "current_weight": [Decimal("1.0")],
+            "target_weight": Decimal("0.5"),
+            "target_value": Decimal("500"),
+            "drift": Decimal("-0.5")
+        })
+        strategy.order_logic.rebalance(drift_df=df)
+        assert len(strategy.orders) == 1
+        assert strategy.orders[0].side == "sell"
+        assert strategy.orders[0].quantity == Decimal("5")
+        assert strategy.orders[0].type == Order.OrderType.MARKET
 
     def test_selling_short_doesnt_create_and_order_when_shorting_is_disabled(self):
         strategy = MockStrategyWithOrderLogic(
@@ -753,7 +798,7 @@ class TestDriftOrderLogic:
     def test_selling_small_short_position_doesnt_create_order_when_shorting_is_disabled(self):
         strategy = MockStrategyWithOrderLogic(
             broker=self.backtesting_broker,
-            order_type=Order.OrderType.LIMIT,
+            order_type=Order.OrderType.MARKET,
             shorting=False
         )
         df = pd.DataFrame({
@@ -769,7 +814,7 @@ class TestDriftOrderLogic:
         strategy.order_logic.rebalance(drift_df=df)
         assert len(strategy.orders) == 0
 
-    def test_selling_a_100_percent_short_position_creates_and_order_when_shorting_is_enabled(self):
+    def test_selling_a_100_percent_short_position_creates_an_order_when_shorting_is_enabled(self):
         strategy = MockStrategyWithOrderLogic(
             broker=self.backtesting_broker,
             order_type=Order.OrderType.LIMIT,
@@ -801,6 +846,8 @@ class TestDriftOrderLogic:
         strategy.order_logic.rebalance(drift_df=df)
         assert len(strategy.orders) == 1
         assert strategy.orders[0].quantity == Decimal("10")
+        assert strategy.orders[0].side == "sell"
+        assert strategy.orders[0].type == Order.OrderType.LIMIT
 
     def test_buying_something_when_we_have_enough_money_and_there_is_slippage(self):
         strategy = MockStrategyWithOrderLogic(
@@ -822,7 +869,7 @@ class TestDriftOrderLogic:
         assert strategy.orders[0].side == "buy"
         assert strategy.orders[0].quantity == Decimal("9")
 
-    def test_buying_something_when_we_dont_have_enough_money_for_everything(self):
+    def test_limit_buy_when_we_dont_have_enough_money_for_everything(self):
         strategy = MockStrategyWithOrderLogic(
             broker=self.backtesting_broker,
             order_type=Order.OrderType.LIMIT,
@@ -842,6 +889,29 @@ class TestDriftOrderLogic:
         assert len(strategy.orders) == 1
         assert strategy.orders[0].side == "buy"
         assert strategy.orders[0].quantity == Decimal("4")
+        assert strategy.orders[0].type == Order.OrderType.LIMIT
+
+    def test_market_buy_when_we_dont_have_enough_money_for_everything(self):
+        strategy = MockStrategyWithOrderLogic(
+            broker=self.backtesting_broker,
+            order_type=Order.OrderType.MARKET,
+        )
+        strategy._set_cash_position(cash=500.0)
+        df = pd.DataFrame({
+            "symbol": ["AAPL"],
+            "is_quote_asset": False,
+            "current_quantity": [Decimal("0")],
+            "current_value": [Decimal("0")],
+            "current_weight": [Decimal("0.0")],
+            "target_weight": Decimal("1"),
+            "target_value": Decimal("1000"),
+            "drift": Decimal("1")
+        })
+        strategy.order_logic.rebalance(drift_df=df)
+        assert len(strategy.orders) == 1
+        assert strategy.orders[0].side == "buy"
+        assert strategy.orders[0].quantity == Decimal("4")
+        assert strategy.orders[0].type == Order.OrderType.MARKET
 
     def test_attempting_to_buy_when_we_dont_have_enough_money_for_even_one_share(self):
         strategy = MockStrategyWithOrderLogic(

@@ -53,11 +53,11 @@ if __name__ == "__main__":
             backtesting_end,
             benchmark_asset="SPY",
             parameters=parameters,
-            show_plot=False,
+            show_plot=True,
             show_tearsheet=False,
             save_tearsheet=False,
             show_indicators=False,
-            save_logfile=False,
+            save_logfile=True,
             # show_progress_bar=False,
             # quiet_logs=False
         )

@@ -217,6 +217,9 @@ class DriftCalculationLogic:
                 # We can never buy or sell the quote asset
                 return Decimal(0)
 
+            elif row["current_weight"] == Decimal(0) and row["target_weight"] == Decimal(0):
+                return Decimal(0)
+
             # Check if we should sell everything
             elif row["current_quantity"] > Decimal(0) and row["target_weight"] == Decimal(0):
                 return Decimal(-1)

@@ -25,6 +25,11 @@ if __name__ == "__main__":
         parameters = {
             "market": "NYSE",
             "sleeptime": "1D",
+
+            # Pro tip: In live trading rebalance multiple times a day, more buys will be placed after the sells fill.
+            # This will make it really likely that you will complete the rebalance in a single day.
+            # "sleeptime": 60,
+
             "drift_type": DriftType.RELATIVE,
             "drift_threshold": "0.1",
             "order_type": Order.OrderType.MARKET,

@@ -225,6 +225,10 @@ class DriftCalculationLogic:
             elif row["current_quantity"] == Decimal(0) and row["target_weight"] > Decimal(0):
                 return Decimal(1)
 
+            # Check if we need to short everything
+            elif row["current_quantity"] == Decimal(0) and row["target_weight"] == Decimal(-1):
+                return Decimal(-1)
+
             # Otherwise we just need to adjust our holding. Calculate the drift.
             else:
                 if self.drift_type == DriftType.ABSOLUTE:

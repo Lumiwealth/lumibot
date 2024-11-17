@@ -3,7 +3,8 @@ from typing import Any
 from decimal import Decimal
 
 from lumibot.strategies.strategy import Strategy
-from lumibot.components.drift_rebalancer_logic import DriftRebalancerLogic
+from lumibot.components.drift_rebalancer_logic import DriftRebalancerLogic, DriftType
+from lumibot.entities import Order
 
 """
 The DriftRebalancer strategy is designed to maintain a portfolio's target asset allocation by 
@@ -41,27 +42,49 @@ class DriftRebalancer(Strategy):
 
         ### DriftRebalancer parameters
 
-        # This is the drift threshold that will trigger a rebalance. If the target_weight is 0.30 and the
-        # drift_threshold is 0.05, then the rebalance will be triggered when the assets current_weight
-        # is less than 0.25 or greater than 0.35.
-        "drift_threshold": "0.05",
+        "strategy": Strategy,
+        # The strategy object that will be used to get the current positions and submit orders.
 
-        # This is the acceptable slippage that will be used when calculating the number of shares to buy or sell.
-        # The default is 0.005 (50 BPS)
-        "acceptable_slippage": "0.005",  # 50 BPS
+        "drift_type": DriftType.RELATIVE,  # optional
+        # The type of drift calculation to use. Can be "absolute" or "relative". The default is DriftType.ABSOLUTE.
+        # If the drift_type is "absolute", the drift is calculated as the difference between the target_weight
+        # and the current_weight. For example, if the target_weight is 0.20 and the current_weight is 0.23, the
+        # absolute drift would be 0.03.
+        # If the drift_type is "relative", the drift is calculated as the difference between the target_weight
+        # and the current_weight divided by the target_weight. For example, if the target_weight is 0.20 and the
+        # current_weight is 0.23, the relative drift would be (0.20 - 0.23) / 0.20 = -0.15.
+        # Absolute drift is better if you have assets with small weights but don't want changes in small positions to
+        # trigger a rebalance in your portfolio. If your target weights were like below, an absolute drift of 0.05 would
+        # only trigger a rebalance when asset3 or asset4 drifted by 0.05 or more.
+        # {
+        #     "asset1": Decimal("0.025"),
+        #     "asset2": Decimal("0.025"),
+        #     "asset3": Decimal("0.40"),
+        #     "asset4": Decimal("0.55"),
+        # }
+        # Relative drift can be useful when the target_weights are small or very different from each other, and you do
+        # want changes in small positions to trigger a rebalance. If your target weights were like above, a relative drift
+        # of 0.20 would trigger a rebalance when asset1 or asset2 drifted by 0.005 or more.
 
-         # The amount of time to sleep between the sells and buys to give enough time for the orders to fill
-        "fill_sleeptime": 15,
+        "drift_threshold": Decimal("0.05"),  # optional
+        # The drift threshold that will trigger a rebalance. The default is Decimal("0.05").
+        # If the drift_type is absolute, the target_weight of an asset is 0.30 and the drift_threshold is 0.05,
+        # then a rebalance will be triggered when the asset's current_weight is less than 0.25 or greater than 0.35.
+        # If the drift_type is relative, the target_weight of an asset is 0.30 and the drift_threshold is 0.05,
+        # then a rebalance will be triggered when the asset's current_weight is less than -0.285 or greater than 0.315.
 
-        # The target weights for each asset in the portfolio. You can put the quote asset in here (or not).
-        "target_weights": {
-            "SPY": "0.60",
-            "TLT": "0.40",
-            "USD": "0.00",
-        }
+        "order_type": Order.OrderType.LIMIT,  # optional
+        # The type of order to use. Can be Order.OrderType.LIMIT or Order.OrderType.MARKET. The default is Order.OrderType.LIMIT.
 
-        # If you want to allow shorting, set this to True.
-        shorting: False
+        "fill_sleeptime": 15,  # optional
+        # The amount of time to sleep between the sells and buys to give enough time for the orders to fill. The default is 15.
+
+        "acceptable_slippage": Decimal("0.005"),  # optional
+        # The acceptable slippage that will be used when calculating the number of shares to buy or sell. The default is Decimal("0.005") (50 BPS).
+
+        "shorting": False,  # optional
+        # If you want to allow shorting, set this to True. The default is False.
+
     }
     """
 
@@ -69,7 +92,9 @@ class DriftRebalancer(Strategy):
     def initialize(self, parameters: Any = None) -> None:
         self.set_market(self.parameters.get("market", "NYSE"))
         self.sleeptime = self.parameters.get("sleeptime", "1D")
-        self.drift_threshold = Decimal(self.parameters.get("drift_threshold", "0.05"))
+        self.drift_type = self.parameters.get("drift_type", DriftType.RELATIVE)
+        self.drift_threshold = Decimal(self.parameters.get("drift_threshold", "0.10"))
+        self.order_type = self.parameters.get("order_type", Order.OrderType.MARKET)
         self.acceptable_slippage = Decimal(self.parameters.get("acceptable_slippage", "0.005"))
         self.fill_sleeptime = self.parameters.get("fill_sleeptime", 15)
         self.target_weights = {k: Decimal(v) for k, v in self.parameters["target_weights"].items()}
@@ -77,7 +102,9 @@ class DriftRebalancer(Strategy):
         self.drift_df = pd.DataFrame()
         self.drift_rebalancer_logic = DriftRebalancerLogic(
             strategy=self,
+            drift_type=self.drift_type,
             drift_threshold=self.drift_threshold,
+            order_type=self.order_type,
             acceptable_slippage=self.acceptable_slippage,
             fill_sleeptime=self.fill_sleeptime,
             shorting=self.shorting,

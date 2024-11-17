@@ -1,12 +1,14 @@
 from datetime import datetime
 
+from lumibot.components.drift_rebalancer_logic import DriftType
+from lumibot.entities import Order
 from lumibot.credentials import IS_BACKTESTING
 from lumibot.example_strategies.drift_rebalancer import DriftRebalancer
 
 """
 Strategy Description
 
-This strategy demonstrates the DriftRebalancer by rebalancing to a classic 60% stocks, 40% bonds portfolio.
+This strategy demonstrates the DriftRebalancerLogic by rebalancing to a classic 60% stocks, 40% bonds portfolio.
 It rebalances a portfolio of assets to a target weight every time the asset drifts
 by a certain threshold. The strategy will sell the assets that has drifted the most and buy the
 assets that has drifted the least to bring the portfolio back to the target weights.
@@ -23,7 +25,9 @@ if __name__ == "__main__":
         parameters = {
             "market": "NYSE",
             "sleeptime": "1D",
-            "drift_threshold": "0.05",
+            "drift_type": DriftType.RELATIVE,
+            "drift_threshold": "0.1",
+            "order_type": Order.OrderType.MARKET,
             "acceptable_slippage": "0.005",  # 50 BPS
             "fill_sleeptime": 15,
             "target_weights": {

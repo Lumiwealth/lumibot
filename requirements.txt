@@ -37,3 +37,4 @@ uuid
 numpy
 thetadata
 holidays==0.53
+websocket-client

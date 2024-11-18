@@ -7,6 +7,10 @@ import datetime
 from decimal import Decimal
 from math import gcd
 import re
+import websocket
+import ssl
+import time
+import json
 
 TYPE_MAP = dict(
     stock="STK",
@@ -947,21 +951,109 @@ class InteractiveBrokersREST(Broker):
         return {"hourly": None, "daily": None}
 
     def _register_stream_events(self):
-        logging.error(
-            colored("Method '_register_stream_events' is not yet implemented.", "red")
-        )
-        return None
+        # Register the event handlers for the websocket
+        pass  # Handlers are defined below
 
     def _run_stream(self):
-        logging.error(colored("Method '_run_stream' is not yet implemented.", "red"))
-        return None
+        # Start the websocket loop
+        self._stream_established()
+        if self.stream is not None:
+            self.stream.run_forever(sslopt={"cert_reqs": ssl.CERT_NONE})
+
+    # WebSocket event handlers
+    def _on_message(self, ws, message):
+        # Process incoming messages
+        if not hasattr(self, "ws_messaged"):
+            ws.send('sor+{}')
+            self.ws_messaged = True
+
+        try:
+            data = json.loads(message)
+            topic = data.get("topic")
+            if topic == "sor":
+                self._handle_order_update(data.get("args", []))
+            # Handle other topics...
+        except json.JSONDecodeError:
+            logging.error("Failed to decode JSON message.")
+
+    def _handle_order_update(self, orders):
+        for order_data in orders:
+            order_id = order_data.get("order_id")
+            order_info = self.data_source.get_order_info(order_id)
+            if not order_info:
+                logging.error(f"Order info not found for order ID {order_id}.")
+
+            status = order_info.get('order_status', 'unknown').lower()
+            size_and_fills = order_info.get('size_and_fills', '0/0').split('/')
+            filled_quantity = float(size_and_fills[0])
+            total_size = float(order_info.get('total_size', '0.0'))
+            remaining_quantity = total_size - filled_quantity
+            avg_fill_price = order_info.get('avg_fill_price')
+            trade_cost = order_info.get('trade_cost')
+
+            # Update the order in the system
+            self._update_order_status(
+                order_id,
+                status,
+                filled_quantity,
+                remaining_quantity,
+                avg_fill_price=avg_fill_price,
+                trade_cost=trade_cost
+            )
+            logging.info(
+                f"Order {order_id} updated: Status={status}, Filled={filled_quantity}, "
+                f"Remaining={remaining_quantity}, Avg Fill Price={avg_fill_price}, Trade Cost={trade_cost}"
+            )
+
+    def _update_order_status(self, order_id, status, filled, remaining, avg_fill_price=None, trade_cost=None):
+        try:
+            logging.info(order_id)
+            order = next((o for o in self._unprocessed_orders if o.identifier == order_id), None)
+            if order:
+                order.status = status
+                order.filled = filled
+                order.remaining = remaining
+                if avg_fill_price is not None:
+                    order.avg_fill_price = avg_fill_price
+                if trade_cost is not None:
+                    order.trade_cost = trade_cost
+                self._log_order_status(
+                    order,
+                    status,
+                    success=(status.lower() in ["filled", "partially_filled"])
+                )
+                if status.lower() in ["filled", "cancelled"]:
+                    self._unprocessed_orders.remove(order)
+        except Exception as e:
+            logging.error(colored(f"Failed to update order status for {order_id}: {e}", "red"))
+    
+    def _on_error(self, ws, error):
+        # Handle errors
+        logging.error(error)
+
+    def _on_close(self, ws, close_status_code, close_msg):
+        # Handle connection close
+        logging.info(f"WebSocket Connection Closed")
+
+    def _on_open(self, ws):
+        time.sleep(3)
 
     def _get_stream_object(self):
-        logging.warning(
-            colored("Method '_get_stream_object' is not yet implemented.", "yellow")
+        # Initialize the websocket connection
+        ws = websocket.WebSocketApp(
+            url=f"wss://localhost:{self.data_source.port}/v1/api/ws",
+            on_open=self._on_open,
+            on_message=self._on_message,
+            on_error=self._on_error,
+            on_close=self._on_close
         )
-        return None
+        return ws
 
     def _close_connection(self):
         logging.info("Closing connection to the Client Portal...")
+        if self.stream is not None:
+            # Unsubscribe from live order updates before closing
+            self.stream.send("uor+{}")
+            logging.info("Unsubscribed from live order updates.")
+            self.stream.close()
         self.data_source.stop()

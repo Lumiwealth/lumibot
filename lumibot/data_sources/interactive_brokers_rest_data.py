@@ -133,61 +133,31 @@ class InteractiveBrokersRESTData(DataSource):
         self.fetch_account_id()
 
         logging.info(colored("Connected to Client Portal", "green"))
+        self.suppress_warnings()
 
+    def suppress_warnings(self):
         # Suppress weird server warnings
         url = f"{self.base_url}/iserver/questions/suppress"
         json = {"messageIds": ["o451", "o383", "o354", "o163"]}
 
         self.post_to_endpoint(url, json=json, allow_fail=False)
-
+    
     def fetch_account_id(self):
         if self.account_id is not None:
             return  # Account ID already set
 
         url = f"{self.base_url}/portfolio/accounts"
 
-        while self.account_id is None:
-            response = self.get_from_endpoint(
-                url, "Fetching Account ID", allow_fail=False
-            )
-            self.last_portfolio_ping = datetime.now()
-
-            if response:
-                if (
-                    isinstance(response, list)
-                    and len(response) > 0
-                    and isinstance(response[0], dict)
-                    and "id" in response[0]
-                ):
-                    self.account_id = response[0]["id"]
-                    logging.debug(
-                        colored(
-                            f"Retrieved Account ID",
-                            "green",
-                        )
-                    )
-                else:
-                    logging.error(
-                        colored(
-                            "Failed to get Account ID. Response structure is unexpected.",
-                            "red",
-                        )
-                    )
-            else:
-                logging.error(
-                    colored("Failed to get Account ID. Response is None.", "red")
-                )
-
-            if self.account_id is None:
-                logging.info(
-                    colored("Retrying to fetch Account ID in 5 seconds...", "yellow")
-                )
-                time.sleep(5)  # Wait for 5 seconds before retrying
+        response = self.get_from_endpoint(
+            url, "Fetching Account ID", allow_fail=False
+        )
+        self.last_portfolio_ping = datetime.now()
+        self.account_id = response[0]["id"]
 
     def is_authenticated(self):
         url = f"{self.base_url}/iserver/accounts"
         response = self.get_from_endpoint(
-            url, "Auth Check", silent=True
+            url, "Auth Check", silent=True, allow_fail=False
         )
         if response is None or 'error' in response:
             return False
@@ -195,63 +165,23 @@ class InteractiveBrokersRESTData(DataSource):
             return True
 
     def ping_iserver(self):
-        def func() -> bool:
-            url = f"{self.base_url}/iserver/accounts"
-            response = self.get_from_endpoint(
-                url, "Auth Check", silent=True
-            )
+        url = f"{self.base_url}/iserver/accounts"
+        response = self.get_from_endpoint(
+            url, "Auth Check", silent=True, allow_fail=False
+        )
 
-            if response is None or 'error' in response:
-                return False
-            else:
-                return True
-
-        if not hasattr(
-            self, "last_iserver_ping"
-        ) or datetime.now() - self.last_iserver_ping > timedelta(seconds=10):
-            first_run = True
-            while not func():
-                if first_run:
-                    logging.warning(colored("Not Authenticated. Retrying...", "yellow"))
-                    first_run = False
-
-                self.last_iserver_ping = datetime.now()
-                time.sleep(5)
-
-            if not first_run:
-                logging.info(colored("Re-Authenticated Successfully", "green"))
-
-            return True
+        if response is None or 'error' in response:
+            return False
         else:
             return True
 
     def ping_portfolio(self):
-        def func() -> bool:
-            url = f"{self.base_url}/portfolio/accounts"
-            response = self.get_from_endpoint(
-                url, "Auth Check", silent=True
-            )
-            if response is None or 'error' in response:
-                return False
-            else:
-                return True
-
-        if not hasattr(
-            self, "last_portfolio_ping"
-        ) or datetime.now() - self.last_portfolio_ping > timedelta(seconds=10):
-            first_run = True
-            while not func():
-                if first_run:
-                    logging.warning(colored("Not Authenticated. Retrying...", "yellow"))
-                    first_run = False
-
-                self.last_portfolio_ping = datetime.now()
-                time.sleep(5)
-
-            if not first_run:
-                logging.info(colored("Re-Authenticated Successfully", "green"))
-
-            return True
+        url = f"{self.base_url}/portfolio/accounts"
+        response = self.get_from_endpoint(
+            url, "Auth Check", silent=True
+        )
+        if response is None or 'error' in response:
+            return False
         else:
             return True
 
@@ -316,94 +246,100 @@ class InteractiveBrokersRESTData(DataSource):
 
         return response
 
-    def get_from_endpoint(
-        self, url, description="", silent=False, allow_fail=True
-    ):
+    def get_from_endpoint(self, url, description="", silent=False, allow_fail=True):
         to_return = None
         retries = 0
         first_run = True
 
         while not allow_fail or first_run:
-            
+            if not first_run:
+                time.sleep(1)
+
             try:
                 response = requests.get(url, verify=False)
                 status_code = response.status_code
 
-                response_json = response.json()
+                if response.text:
+                    try:
+                        response_json = response.json()
+                        response_text = response.text
+                    except ValueError:
+                        logging.error(
+                            colored(f"Invalid JSON response for {description}.", "red")
+                        )
+                        response_json = {}
+                        response_text = ""
+                else:
+                    response_json = {}
+                    response_text = ""
+
                 if isinstance(response_json, dict):
                     error_message = response_json.get("error", "") or response_json.get("message", "")
                 else:
                     error_message = ""
+
                 if "no bridge" in error_message.lower() or "not authenticated" in error_message.lower():
                     if not silent:
                         if not allow_fail and first_run:
-                            logging.warning(colored(f"Not Authenticated. Retrying...", "yellow"))
-                        time.sleep(1)
-                    
-                    allow_fail=False
-                
-                elif 200 <= status_code < 300:
-                    # Successful response
-                    to_return = response.json()
+                            logging.warning(
+                                colored(f"Not Authenticated. Retrying...", "yellow")
+                            )
+                    allow_fail = False
 
+                elif 200 <= status_code < 300:
+                    to_return = response_json
                     allow_fail = True
 
                 elif status_code == 429:
                     logging.warning(
                         f"You got rate limited for '{description}'. Waiting for 1 second before retrying..."
                     )
-                    time.sleep(1)
 
                 elif status_code == 503:
-                    # Check if response contains "Please query /accounts first"
-                    response_text = response.text
                     if "Please query /accounts first" in response_text:
                         self.ping_iserver()
-                    
-                    # Server error, retry
                     allow_fail = False
 
                 elif status_code == 500:
                     to_return = response_json
                     allow_fail = True
 
+                elif status_code == 410:
+                    allow_fail = False
+
                 elif 400 <= status_code < 500:
-                    response_json = response.json()
-                    error_message = response_json.get("error", "") or response_json.get("message", "")
                     if "no bridge" in error_message.lower() or "not authenticated" in error_message.lower():
                         if not silent:
                             if not allow_fail and first_run:
-                                logging.warning(colored(f"Not Authenticated. Retrying...", "yellow"))
-                            time.sleep(1)
-                        
-                        allow_fail=False
-                        continue
+                                logging.warning(
+                                    colored(f"Not Authenticated. Retrying...", "yellow")
+                                )
+                        allow_fail = False
                     else:
                         try:
-                            error_detail = response_json.get("error", response.text)
+                            error_detail = response_json.get("error", response_text)
                         except ValueError:
-                            error_detail = response.text
+                            error_detail = response_text
                         message = (
                             f"Error: Task '{description}' failed. "
                             f"Status code: {status_code}, Response: {error_detail}"
                         )
                         if not silent:
                             if not allow_fail and first_run:
-                                logging.warning(colored(f"{response_json} Retrying...", "yellow"))
-                            time.sleep(1)
-                        
+                                logging.warning(
+                                    colored(f"{response_json} Retrying...", "yellow")
+                                )
                         to_return = {"error": message}
 
             except requests.exceptions.RequestException as e:
-                message = f"Error: {description}. Exception: {e}"
+                status_code = getattr(e.response, 'status_code', 'N/A')
+                message = f"Error: {description}. Exception: {e}. HTTP Status Code: {status_code}"
                 if not silent:
                     if not allow_fail and first_run:
                         logging.warning(colored(f"{message} Retrying...", "yellow"))
-                        time.sleep(1)
                     else:
                         logging.error(colored(message, "red"))
-
-                    to_return = {"error": message}
+                to_return = {"error": message}
 
             first_run = False
             retries += 1
@@ -411,88 +347,121 @@ class InteractiveBrokersRESTData(DataSource):
         return to_return
 
     def post_to_endpoint(
-        self,
-        url,
-        json: dict,
-        description="",
-        allow_fail=True,
+        self, url, json: dict, description="", silent=False, allow_fail=True
     ):
         to_return = None
         retries = 0
         first_run = True
 
         while not allow_fail or first_run:
-            if retries == 1:
-                logging.debug(f"First retry for task '{description}'.")
-
+            if not first_run:
+                time.sleep(1)
+                        
             try:
                 response = requests.post(url, json=json, verify=False)
                 status_code = response.status_code
 
-                if 200 <= status_code < 300:
-                    # Successful response
-                    to_return = response.json()
-                    if retries > 0:
-                        logging.debug(
-                            colored(
-                                f"Success: Task '{description}' succeeded after {retries} retry(ies).",
-                                "green",
-                            )
+                if response.text:
+                    try:
+                        response_json = response.json()
+                        response_text = response.text
+                    except ValueError:
+                        logging.error(
+                            colored(f"Invalid JSON response for {description}.", "red")
                         )
+                        response_json = {}
+                        response_text = ""
+                else:
+                    response_json = {}
+                    response_text = ""
+
+                # Special handling for order confirmation responses
+                # Check if this is an order confirmation request
+                if isinstance(response_json, list) and len(response_json) > 0 and 'message' in response_json[0] and isinstance(response_json[0]['message'], list) and any("Are you sure you want to submit this order?" in msg for msg in response_json[0]['message']):
+                    orders = []
+                    for order in response_json:
+                        if isinstance(order, dict) and 'id' in order:
+                            confirm_url = f"{self.base_url}/iserver/reply/{order['id']}"
+                            confirm_response = self.post_to_endpoint(
+                                confirm_url, 
+                                {"confirmed": True},
+                                "Confirming order",
+                                silent=silent,
+                                allow_fail=True
+                            )
+                            if confirm_response:
+                                orders.extend(confirm_response)
+                                status_code = 200
+                    response_json = orders
+                    response_text = orders
+
+                if isinstance(response_json, dict):
+                    error_message = response_json.get("error", "") or response_json.get("message", "")
+                else:
+                    error_message = ""
+
+                if "no bridge" in error_message.lower() or "not authenticated" in error_message.lower():
+                    if not silent:
+                        if not allow_fail and first_run:
+                            logging.warning(
+                                colored(f"Not Authenticated. Retrying...", "yellow")
+                            )
+                    allow_fail = False
+
+                elif 200 <= status_code < 300:
+                    to_return = response_json
                     allow_fail = True
 
                 elif status_code == 429:
                     logging.warning(
                         f"You got rate limited for '{description}'. Waiting for 1 second before retrying..."
                     )
-                    time.sleep(1)
 
                 elif status_code == 503:
-                    # Check if response contains "Please query /accounts first"
-                    response_text = response.text
                     if "Please query /accounts first" in response_text:
                         self.ping_iserver()
-                    
-                    # Server error, retry
                     allow_fail = False
 
                 elif status_code == 500:
-                    to_return = response.json()
+                    to_return = response_json
                     allow_fail = True
 
+                elif status_code == 410:
+                    allow_fail = False
+
                 elif 400 <= status_code < 500:
-                    response_json = response.json()
-                    error_message = response_json.get("error", "") or response_json.get("message", "")
                     if "no bridge" in error_message.lower() or "not authenticated" in error_message.lower():
-                        logging.warning("Retrying...")
-                        allow_fail=False
-                        time.sleep(1)
-                        continue
+                        if not silent:
+                            if not allow_fail and first_run:
+                                logging.warning(
+                                    colored(f"Not Authenticated. Retrying...", "yellow")
+                                )
+                        allow_fail = False
+                        
                     else:
                         try:
-                            error_detail = response_json.get("error", response.text)
+                            error_detail = response_json.get("error", response_text)
                         except ValueError:
-                            error_detail = response.text
+                            error_detail = response_text
                         message = (
                             f"Error: Task '{description}' failed. "
                             f"Status code: {status_code}, Response: {error_detail}"
                         )
-                        if not allow_fail and first_run:
-                            logging.warning(colored(f"{message} Retrying...", "yellow"))
-                            time.sleep(1)
-                        else:
-                            logging.error(colored(message, "red"))
-
+                        if not silent:
+                            if not allow_fail and first_run:
+                                logging.warning(
+                                    colored(f"{error_detail} Retrying...", "yellow")
+                                )
                         to_return = {"error": message}
 
             except requests.exceptions.RequestException as e:
-                message = f"Error: {description}. Exception: {e}"
-                if not allow_fail and first_run:
-                    logging.warning(colored(f"{message} Retrying...", "yellow"))
-                    time.sleep(1)
-                else:
-                    logging.error(colored(message, "red"))
-                    
+                status_code = getattr(e.response, 'status_code', 'N/A')
+                message = f"Error: {description}. Exception: {e}. HTTP Status Code: {status_code}"
+                if not silent:
+                    if not allow_fail and first_run:
+                        logging.warning(colored(f"{message} Retrying...", "yellow"))
+                    else:
+                        logging.error(colored(message, "red"))
                 to_return = {"error": message}
 
             first_run = False
@@ -500,95 +469,107 @@ class InteractiveBrokersRESTData(DataSource):
 
         return to_return
 
-    def delete_to_endpoint(
-        self, url, description="", allow_fail=True
-    ):
+    def delete_to_endpoint(self, url, description="", silent=False, allow_fail=True):
         to_return = None
         retries = 0
         first_run = True
 
         while not allow_fail or first_run:
-            if retries == 1:
-                logging.debug(f"First retry for task '{description}'.")
+            if not first_run:
+                time.sleep(1)
 
             try:
                 response = requests.delete(url, verify=False)
                 status_code = response.status_code
 
-                if 200 <= status_code < 300:
-                    # Successful response
-                    to_return = response.json()
-                    if "error" in to_return and "doesn't exist" in to_return["error"]:
+                if response.text:
+                    try:
+                        response_json = response.json()
+                        response_text = response.text
+                    except ValueError:
+                        logging.error(
+                            colored(f"Invalid JSON response for {description}.", "red")
+                        )
+                        response_json = {}
+                        response_text = ""
+                else:
+                    response_json = {}
+                    response_text = ""
+
+                if isinstance(response_json, dict):
+                    error_message = response_json.get("error", "") or response_json.get("message", "")
+                else:
+                    error_message = ""
+
+                if "no bridge" in error_message.lower() or "not authenticated" in error_message.lower():
+                    if not silent:
+                        if not allow_fail and first_run:
+                            logging.warning(
+                                colored(f"Not Authenticated. Retrying...", "yellow")
+                            )
+                    allow_fail = False
+
+                elif 200 <= status_code < 300:
+                    to_return = response_json
+                    if (
+                        "error" in to_return
+                        and "doesn't exist" in to_return["error"]
+                    ):
                         message = f"Order ID doesn't exist: {to_return['error']}"
                         logging.warning(colored(message, "yellow"))
-
                         to_return = {"error": message}
-
-                    else:
-                        if retries > 0:
-                            logging.debug(
-                                colored(
-                                    f"Success: Task '{description}' succeeded after {retries} retry(ies).",
-                                    "green",
-                                )
-                            )
-                        allow_fail = True
+                    allow_fail = True
 
                 elif status_code == 429:
                     logging.warning(
                         f"You got rate limited for '{description}'. Waiting for 1 second before retrying..."
                     )
-                    time.sleep(1)
 
                 elif status_code == 503:
-                    # Check if response contains "Please query /accounts first"
-                    response_text = response.text
                     if "Please query /accounts first" in response_text:
                         self.ping_iserver()
-                    
-                    # Server error, retry
                     allow_fail = False
 
                 elif status_code == 500:
-                    to_return = response.json
+                    to_return = response_json
                     allow_fail = True
 
+                elif status_code == 410:
+                    allow_fail = False
+
                 elif 400 <= status_code < 500:
-                    response_json = response.json()
-                    error_message = response_json.get("error", "") or response_json.get("message", "")
                     if "no bridge" in error_message.lower() or "not authenticated" in error_message.lower():
-                        logging.warning("Retrying...")
-                        allow_fail=False
-                        time.sleep(1)
-                        continue
+                        if not silent:
+                            if not allow_fail and first_run:
+                                logging.warning(
+                                    colored(f"Not Authenticated. Retrying...", "yellow")
+                                )
+                        allow_fail = False
                     else:
                         try:
-                            error_detail = response.json().get("error", response.text)
+                            error_detail = response_json.get("error", response_text)
                         except ValueError:
-                            error_detail = response.text
+                            error_detail = response_text
                         message = (
                             f"Error: Task '{description}' failed. "
                             f"Status code: {status_code}, Response: {error_detail}"
                         )
-                        if not allow_fail and first_run:
-                            logging.warning(colored(f"{message} Retrying...", "yellow"))
-                            time.sleep(1)
-                        else:
-                            logging.error(colored(message, "red"))
-
+                        if not silent:
+                            if not allow_fail and first_run:
+                                logging.warning(
+                                    colored(f"{error_detail} Retrying...", "yellow")
+                                )
                         to_return = {"error": message}
 
-
             except requests.exceptions.RequestException as e:
-                message = f"Error: {description}. Exception: {e}"
-                if not allow_fail and first_run:
-                    logging.warning(colored(f"{message} Retrying...", "yellow"))
-                    time.sleep(1)
-                else:
-                    logging.error(colored(message, "red"))
-
+                status_code = getattr(e.response, 'status_code', 'N/A')
+                message = f"Error: {description}. Exception: {e}. HTTP Status Code: {status_code}"
+                if not silent:
+                    if not allow_fail and first_run:
+                        logging.warning(colored(f"{message} Retrying...", "yellow"))
+                    else:
+                        logging.error(colored(message, "red"))
                 to_return = {"error": message}
-
 
             first_run = False
             retries += 1
@@ -604,56 +585,11 @@ class InteractiveBrokersRESTData(DataSource):
         response = self.get_from_endpoint(url, "Getting open orders")
         """
 
-        def func():
-            # Fetch
-            url = f"{self.base_url}/iserver/account/orders?&accountId={self.account_id}&filters=Submitted,PreSubmitted"
-            response = self.get_from_endpoint(
-                url, "Getting open orders", allow_fail=False
-            )
-
-            # Error handle
-            if response is not None and "error" in response:
-                logging.error(
-                    colored(
-                        f"Couldn't retrieve open orders. Error: {response['error']}",
-                        "red",
-                    )
-                )
-                return None
-
-            if response is None or response == []:
-                logging.error(
-                    colored(
-                        f"Couldn't retrieve open orders. Error: {response['error']}",
-                        "red",
-                    )
-                )
-                return None
-
-            return response
-
-        # Rate limiting
-        if hasattr(self, "last_orders_ping"):
-            if datetime.now() - self.last_orders_ping < timedelta(seconds=5):
-                time_difference = timedelta(seconds=5) - (
-                    datetime.now() - self.last_orders_ping
-                )
-                seconds_to_wait = time_difference.total_seconds()
-                time.sleep(seconds_to_wait)
-
-        first_run = True
-        response = None
-        while response is None:
-            response = func()
-            self.last_orders_ping = datetime.now()
-            if response is None:
-                if first_run:
-                    logging.warning("Failed getting open orders. Retrying ...")
-                    first_run = False
-                time.sleep(5)
-
-        if not first_run:
-            logging.info("Got open orders")
+        # Fetch
+        url = f"{self.base_url}/iserver/account/orders?&accountId={self.account_id}&filters=Submitted,PreSubmitted"
+        response = self.get_from_endpoint(
+            url, "Getting open orders", allow_fail=False
+        )
 
         # Filters don't work, we'll filter on our own
         filtered_orders = []
@@ -675,7 +611,7 @@ class InteractiveBrokersRESTData(DataSource):
         self.ping_iserver()
 
         url = f"{self.base_url}/iserver/account/order/status/{orderid}"
-        response = self.get_from_endpoint(url, "Getting Order Info")
+        response = self.get_from_endpoint(url, "Getting Order Info", allow_fail=False, silent=True)
         return response
 
     def execute_order(self, order_data):
@@ -687,15 +623,6 @@ class InteractiveBrokersRESTData(DataSource):
 
         url = f"{self.base_url}/iserver/account/{self.account_id}/orders"
         response = self.post_to_endpoint(url, order_data)
-        if response is not None:
-            for order in response:
-                if isinstance(order, dict) and 'messageIds' in order and isinstance(order['messageIds'], list):
-                    json = {
-                        "confirmed": True
-                    }
-                    
-                    url = f"{self.base_url}/iserver/reply/{order['id']}"
-                    self.post_to_endpoint(url, json)
                 
         if isinstance(response, list) and "order_id" in response[0]:
             # success
@@ -1114,7 +1041,7 @@ class InteractiveBrokersRESTData(DataSource):
 
         url_for_expiry = f"{self.base_url}/iserver/secdef/info?{query_string}"
         contract_info = self.get_from_endpoint(
-            url_for_expiry, f"Getting {sec_type} Contract Info"
+            url_for_expiry, f"Getting {sec_type} Contract Info", silent=True
         )
 
         matching_contract = None
@@ -1244,7 +1171,7 @@ class InteractiveBrokersRESTData(DataSource):
 
         result["price"] = result.pop("last_price")
 
-        if isinstance(result["price"], str) and result["price"].startswith("C"):
+        if isinstance(result["price"], str) and result["price"].startswith("C "):
             logging.warning(
                 colored(
                     f"Ticker {asset.symbol} of type {asset.asset_type} with strike price {asset.strike} and expiry date {asset.expiration} is not trading currently. Got the last close price instead.",
@@ -1252,9 +1179,6 @@ class InteractiveBrokersRESTData(DataSource):
                 )
             )
             result["price"] = float(result["price"][1:])
-            result["trading"] = False
-        else:
-            result["trading"] = True
 
         if "bid" in result:
             if result["bid"] == -1:

@@ -958,8 +958,13 @@ class Broker(ABC):
         return result
 
     def submit_order(self, order):
-        """Submit an order for an asset"""
+        """Conform an order for an asset to broker constraints and submit it."""
+        self._conform_order(order)
         self._submit_order(order)
+
+    def _conform_order(self, order):
+        """Conform an order to broker constraints. Derived brokers should implement this method."""
+        pass
 
     def submit_orders(self, orders, **kwargs):
         """Submit orders"""

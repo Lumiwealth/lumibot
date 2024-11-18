@@ -66,7 +66,6 @@ class InteractiveBrokersREST(Broker):
     NAME = "InteractiveBrokersREST"
 
     def __init__(self, config, data_source=None):
-        self.config = config  # Add this line to store config
         if data_source is None:
             data_source = InteractiveBrokersRESTData(config)
         super().__init__(name=self.NAME, data_source=data_source, config=config)

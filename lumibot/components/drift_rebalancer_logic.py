@@ -211,41 +211,46 @@ class DriftCalculationLogic:
         total_value = self.df["current_value"].sum()
         self.df["current_weight"] = self.df["current_value"] / total_value
         self.df["target_value"] = self.df["target_weight"] * total_value
-
-        def calculate_drift_row(row: pd.Series) -> Decimal:
-            if row["is_quote_asset"]:
-                # We can never buy or sell the quote asset
-                return Decimal(0)
-
-            elif row["current_weight"] == Decimal(0) and row["target_weight"] == Decimal(0):
-                return Decimal(0)
-
-            # Check if we should sell everything
-            elif row["current_quantity"] > Decimal(0) and row["target_weight"] == Decimal(0):
-                return Decimal(-1)
-
-            # Check if we need to buy for the first time
-            elif row["current_quantity"] == Decimal(0) and row["target_weight"] > Decimal(0):
-                return Decimal(1)
-
-            # Check if we need to short everything
-            elif row["current_quantity"] == Decimal(0) and row["target_weight"] == Decimal(-1):
-                return Decimal(-1)
-
-            # Otherwise we just need to adjust our holding. Calculate the drift.
-            else:
-                if self.drift_type == DriftType.ABSOLUTE:
-                    return row["target_weight"] - row["current_weight"]
-                elif self.drift_type == DriftType.RELATIVE:
-                    # Relative drift is calculated by: difference / target_weight.
-                    # Example: target_weight=0.20 and current_weight=0.23
-                    # The drift is (0.20 - 0.23) / 0.20 = -0.15
-                    return (row["target_weight"] - row["current_weight"]) / row["target_weight"]
-                else:
-                    raise ValueError(f"Invalid drift_type: {self.drift_type}")
-
-        self.df["drift"] = self.df.apply(calculate_drift_row, axis=1)
+        self.df["drift"] = self.df.apply(self._calculate_drift_row, axis=1)
         return self.df.copy()
+
+    def _calculate_drift_row(self, row: pd.Series) -> Decimal:
+
+        if row["is_quote_asset"]:
+            # We can never buy or sell the quote asset
+            return Decimal(0)
+
+        elif row["current_weight"] == Decimal(0) and row["target_weight"] == Decimal(0):
+            # Should nothing change?
+            return Decimal(0)
+
+        elif row["current_quantity"] > Decimal(0) and row["target_weight"] == Decimal(0):
+            # Should we sell everything
+            return Decimal(-1)
+
+        elif row["current_quantity"] == Decimal(0) and row["target_weight"] > Decimal(0):
+            # We don't have any of this asset but we wanna buy some.
+            return Decimal(1)
+
+        elif row["current_quantity"] == Decimal(0) and row["target_weight"] == Decimal(-1):
+            # Should we short everything we have
+            return Decimal(-1)
+
+        elif row["current_quantity"] == Decimal(0) and row["target_weight"] < Decimal(0):
+            # We don't have any of this asset but we wanna short some.
+            return Decimal(-1)
+
+        # Otherwise we just need to adjust our holding. Calculate the drift.
+        else:
+            if self.drift_type == DriftType.ABSOLUTE:
+                return row["target_weight"] - row["current_weight"]
+            elif self.drift_type == DriftType.RELATIVE:
+                # Relative drift is calculated by: difference / target_weight.
+                # Example: target_weight=0.20 and current_weight=0.23
+                # The drift is (0.20 - 0.23) / 0.20 = -0.15
+                return (row["target_weight"] - row["current_weight"]) / row["target_weight"]
+            else:
+                raise ValueError(f"Invalid drift_type: {self.drift_type}")
 
 
 class DriftOrderLogic:

@@ -332,7 +332,8 @@ class InteractiveBrokersRESTData(DataSource):
                         to_return = {"error": message}
 
             except requests.exceptions.RequestException as e:
-                message = f"Error: {description}. Exception: {e}"
+                status_code = getattr(e.response, 'status_code', 'N/A')
+                message = f"Error: {description}. Exception: {e}. HTTP Status Code: {status_code}"
                 if not silent:
                     if not allow_fail and first_run:
                         logging.warning(colored(f"{message} Retrying...", "yellow"))
@@ -454,7 +455,8 @@ class InteractiveBrokersRESTData(DataSource):
                         to_return = {"error": message}
 
             except requests.exceptions.RequestException as e:
-                message = f"Error: {description}. Exception: {e}"
+                status_code = getattr(e.response, 'status_code', 'N/A')
+                message = f"Error: {description}. Exception: {e}. HTTP Status Code: {status_code}"
                 if not silent:
                     if not allow_fail and first_run:
                         logging.warning(colored(f"{message} Retrying...", "yellow"))
@@ -560,7 +562,8 @@ class InteractiveBrokersRESTData(DataSource):
                         to_return = {"error": message}
 
             except requests.exceptions.RequestException as e:
-                message = f"Error: {description}. Exception: {e}"
+                status_code = getattr(e.response, 'status_code', 'N/A')
+                message = f"Error: {description}. Exception: {e}. HTTP Status Code: {status_code}"
                 if not silent:
                     if not allow_fail and first_run:
                         logging.warning(colored(f"{message} Retrying...", "yellow"))

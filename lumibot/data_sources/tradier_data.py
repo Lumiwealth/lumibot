@@ -207,6 +207,8 @@ class TradierData(DataSource):
             # get twice as many days as we need to ensure we get enough bars
             tcal_start_date = end_date - (td * length * 2)
             trading_days = get_trading_days(market='NYSE', start_date=tcal_start_date, end_date=end_date)
+            # Filer out trading days when the market_open is after the end_date
+            trading_days = trading_days[trading_days['market_open'] < end_date]
             # Now, start_date is the length bars before the last trading day
             start_date = trading_days.index[-length]
 

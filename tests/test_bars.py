@@ -228,7 +228,7 @@ class TestDatasourceDailyBars:
         assert len(prices.df) == self.length
 
         # This shows a bug. The index a datetime.date but should be a timestamp
-        # assert isinstance(prices.df.index[0], pd.Timestamp)
+        assert isinstance(prices.df.index[0], pd.Timestamp)
 
         # assert that the last row has a return value
         assert prices.df["return"].iloc[-1] is not None

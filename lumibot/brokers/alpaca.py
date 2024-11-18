@@ -14,6 +14,7 @@ from termcolor import colored
 
 from lumibot.data_sources import AlpacaData
 from lumibot.entities import Asset, Order, Position
+from lumibot.tools.helpers import has_more_than_n_decimal_places
 
 from .broker import Broker
 
@@ -479,14 +480,19 @@ class Alpaca(Broker):
             Limit price <$1.00: Max Decimals = 4
             """
             orig_price = order.limit_price
-            if order.limit_price >= 1.0:
-                order.limit_price = round(order.limit_price, 2)
-            else:
+            conformed = False
+            if order.limit_price >= 1.0 and has_more_than_n_decimal_places(order.limit_price, 2):
+                    order.limit_price = round(order.limit_price, 2)
+                    conformed = True
+            elif order.limit_price < 1.0 and has_more_than_n_decimal_places(order.limit_price, 4):
                 order.limit_price = round(order.limit_price, 4)
-            logging.warning(
-                f"Order {order} was changed to conform to Alpaca's requirements. "
-                f"The limit price was changed from {orig_price} to {order.limit_price}."
-            )
+                conformed = True
+
+            if conformed:
+                logging.warning(
+                    f"Order {order} was changed to conform to Alpaca's requirements. "
+                    f"The limit price was changed from {orig_price} to {order.limit_price}."
+                )
 
     def cancel_order(self, order):
         """Cancel an order

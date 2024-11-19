@@ -56,6 +56,7 @@ setuptools.setup(
         "tabulate",
         "thetadata",
         "holidays",
+        "websocket-client",
         "psutil",
     ],
     classifiers=[

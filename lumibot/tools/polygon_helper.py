@@ -411,6 +411,16 @@ def get_missing_dates(df_all, asset, start, end):
     dates = pd.Series(df_all.index.date).unique()
     missing_dates = sorted(set(trading_dates) - set(dates))
 
+    # Find any dates with nan values in the df_all DataFrame
+    missing_dates += df_all[df_all.isnull().all(axis=1)].index.date.tolist()
+
+    # make sure the dates are unique
+    missing_dates = list(set(missing_dates))
+    missing_dates.sort()
+
+    # finally, filter out any dates that are not in start/end range (inclusive)
+    missing_dates = [d for d in missing_dates if start.date() <= d <= end.date()]
+
     return missing_dates
 
 

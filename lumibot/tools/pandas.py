@@ -55,7 +55,7 @@ def print_full_pandas_dataframes():
     pd.set_option('display.width', 1000)
 
 
-def set_pandas_float_precision(precision: int = 5):
+def set_pandas_float_display_precision(precision: int = 5):
     format_str = '{:.' + str(precision) + 'f}'
     pd.set_option('display.float_format', format_str.format)
 

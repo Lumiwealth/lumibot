@@ -1,6 +1,6 @@
 import logging
 from collections import defaultdict
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 
 import pandas as pd
 import pytz
@@ -204,8 +204,8 @@ class TradierData(DataSource):
 
         if timestep == 'day' and timeshift is None:
             # What we really want is the last n bars, not the bars from the last n days.
-            # get twice as many days as we need to ensure we get enough bars
-            tcal_start_date = end_date - (td * length * 2)
+            # get twice as many days as we need to ensure we get enough bars, then add 3 days for long weekends
+            tcal_start_date = end_date - (td * length * 2 + timedelta(days=3))
             trading_days = get_trading_days(market='NYSE', start_date=tcal_start_date, end_date=end_date)
             # Filer out trading days when the market_open is after the end_date
             trading_days = trading_days[trading_days['market_open'] < end_date]
@@ -242,7 +242,7 @@ class TradierData(DataSource):
 
         # if type of index is date, convert it to timestamp with timezone info of "America/New_York"
         if isinstance(df.index[0], date):
-            df.index = pd.to_datetime(df.index, utc=True).tz_convert("America/New_York")
+            df.index = pd.to_datetime(df.index).tz_localize("America/New_York")
 
         # Convert the dataframe to a Bars object
         bars = Bars(df, self.SOURCE, asset, raw=df, quote=quote)

@@ -16,13 +16,21 @@ BUY = "buy"
 VALID_STATUS = ["unprocessed", "new", "open", "submitted", "fill", "partial_fill", "cancelling", "canceled", "error", "cash_settled"]
 STATUS_ALIAS_MAP = {
     "cancelled": "canceled",
-    "cancel": "canceled",
+    "cancel": "canceled", 
     "cash": "cash_settled",
     "expired": "canceled",  # Alpaca/Tradier status
     "filled": "fill",  # Alpaca/Tradier status
     "partially_filled": "partial_filled",  # Alpaca/Tradier status
     "pending": "open",  # Tradier status
     "presubmitted": "new",  # IBKR status
+    "filled": "fill",  # IBKR status
+    "cancelled": "canceled",  # IBKR status
+    "apicancelled": "canceled",  # IBKR status
+    "pendingcancel": "cancelling",  # IBKR status
+    "inactive": "error",  # IBKR status
+    "pendingsubmit": "new",  # IBKR status 
+    "presubmitted": "new",  # IBKR status
+    "apipending": "new",  # IBKR status
     "rejected": "error",  # Tradier status
     "submit": "submitted",
     "done_for_day": "canceled",  # Alpaca status
@@ -39,7 +47,6 @@ STATUS_ALIAS_MAP = {
     "held": "open",  # Alpaca status
     "expired": "canceled",  # Tradier status
 }
-
 
 class Order:
     Transaction = namedtuple("Transaction", ["quantity", "price"])

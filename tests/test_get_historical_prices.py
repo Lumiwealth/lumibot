@@ -222,6 +222,10 @@ class TestDatasourceGetHistoricalPricesDailyData:
         # TODO: convert the timezones returned by alpaca to America/New_York
         assert bars.df.index[0].tzinfo == pytz.timezone("UTC")
 
+        bars = data_source.get_historical_prices(asset=self.asset, length=1, timestep=self.timestep)
+        check_bars(bars=bars, length=1, check_timezone=False)
+        self.check_date_of_last_bar_is_correct_for_live_data_sources(bars)
+
     # @pytest.mark.skip()
     @pytest.mark.skipif(not TRADIER_CONFIG['ACCESS_TOKEN'], reason="No Tradier credentials provided.")
     def test_tradier_data_source_get_historical_prices_daily_bars(self):

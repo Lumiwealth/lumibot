@@ -174,12 +174,8 @@ class TestDatasourceGetHistoricalPricesDailyData:
     ticker = "SPY"
     asset = Asset("SPY")
     timestep = "day"
-    expected_df = None
     now = datetime.now().astimezone(pytz.timezone("America/New_York"))
     today = now.date()
-    yesterday = today - timedelta(days=1)
-    tomorrow = today + timedelta(days=1)
-    end_date_that_does_not_matter = today + timedelta(days=10)
     trading_days = get_trading_days(market="NYSE", start_date=datetime.now() - timedelta(days=7))
 
     @classmethod
@@ -237,4 +233,8 @@ class TestDatasourceGetHistoricalPricesDailyData:
 
         bars = data_source.get_historical_prices(asset=self.asset, length=self.length, timestep=self.timestep)
         check_bars(bars=bars, length=self.length)
+        self.check_date_of_last_bar_is_correct_for_live_data_sources(bars)
+
+        bars = data_source.get_historical_prices(asset=self.asset, length=1, timestep=self.timestep)
+        check_bars(bars=bars, length=1)
         self.check_date_of_last_bar_is_correct_for_live_data_sources(bars)

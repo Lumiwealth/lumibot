@@ -14,6 +14,7 @@ from termcolor import colored
 
 from lumibot.data_sources import AlpacaData
 from lumibot.entities import Asset, Order, Position
+from lumibot.tools.helpers import has_more_than_n_decimal_places
 
 from .broker import Broker
 
@@ -466,6 +467,32 @@ class Alpaca(Broker):
                 )
 
         return order
+
+    def _conform_order(self, order):
+        """Conform an order to Alpaca's requirements
+        See: https://docs.alpaca.markets/docs/orders-at-alpaca
+        """
+        if order.asset.asset_type == "stock" and order.type == "limit":
+            """
+            The minimum price variance exists for limit orders.
+            Orders received in excess of the minimum price variance will be rejected.
+            Limit price >=$1.00: Max Decimals = 2
+            Limit price <$1.00: Max Decimals = 4
+            """
+            orig_price = order.limit_price
+            conformed = False
+            if order.limit_price >= 1.0 and has_more_than_n_decimal_places(order.limit_price, 2):
+                    order.limit_price = round(order.limit_price, 2)
+                    conformed = True
+            elif order.limit_price < 1.0 and has_more_than_n_decimal_places(order.limit_price, 4):
+                order.limit_price = round(order.limit_price, 4)
+                conformed = True
+
+            if conformed:
+                logging.warning(
+                    f"Order {order} was changed to conform to Alpaca's requirements. "
+                    f"The limit price was changed from {orig_price} to {order.limit_price}."
+                )
 
     def cancel_order(self, order):
         """Cancel an order

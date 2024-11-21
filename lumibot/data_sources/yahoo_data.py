@@ -85,7 +85,7 @@ class YahooData(DataSourceBacktesting):
             data = self._append_data(asset, data)
 
         if timestep == "day":
-            # Get the last minute of self._datetime to get the current bar
+            # Get the previous days bar
             dt = self._datetime.replace(hour=23, minute=59, second=59, microsecond=999999)
             end = dt - timedelta(days=1)
         else:

@@ -44,6 +44,7 @@ class Asset:
         - 'future'
         - 'forex'
         - 'crypto'
+        - 'multileg'
     expiration : datetime.date (required if asset_type is 'option' or 'future')
         Contract expiration dates for futures and options.
     strike : float (required if asset_type is 'option')
@@ -112,6 +113,7 @@ class Asset:
         FOREX = "forex"
         CRYPTO = "crypto"
         INDEX = "index"
+        MULTILEG = "multileg"
 
     symbol: str
     asset_type: str = "stock"

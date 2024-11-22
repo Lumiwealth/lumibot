@@ -837,12 +837,8 @@ class InteractiveBrokersRESTData(DataSource):
     def get_conid_from_asset(self, asset: Asset):
         self.ping_iserver()
         # Get conid of underlying
-        if asset.asset_type == 'future':
-            url = f"{self.base_url}/iserver/secdef/search?symbol={asset.symbol}&secType=IND"
-            response = self.get_from_endpoint(url, "Getting Underlying conid")
-        else:
-            url = f"{self.base_url}/iserver/secdef/search?symbol={asset.symbol}"
-            response = self.get_from_endpoint(url, "Getting Underlying conid")
+        url = f"{self.base_url}/iserver/secdef/search?symbol={asset.symbol}"
+        response = self.get_from_endpoint(url, "Getting Underlying conid")
 
         if (
             isinstance(response, list)
@@ -899,7 +895,7 @@ class InteractiveBrokersRESTData(DataSource):
         asset: Asset,
         sec_type: str,
         additional_params: dict,
-        exchange: str,
+        exchange: str | None,
     ):
         expiration_date = asset.expiration.strftime("%Y%m%d")
         expiration_month = asset.expiration.strftime("%b%y").upper()  # in MMMYY
@@ -911,7 +907,7 @@ class InteractiveBrokersRESTData(DataSource):
             "exchange": exchange
         }
         params.update(additional_params)
-        query_string = "&".join(f"{key}={value}" for key, value in params.items())
+        query_string = "&".join(f"{key}={value}" for key, value in params.items() if value is not None)
 
         url_for_expiry = f"{self.base_url}/iserver/secdef/info?{query_string}"
         contract_info = self.get_from_endpoint(
@@ -964,8 +960,6 @@ class InteractiveBrokersRESTData(DataSource):
         conId = self.get_conid_from_asset(asset)
         if conId is None:
             return None
-        
-        info = self.get_contract_details(conId)
 
         fields_to_get = []
         for identifier, name in all_fields.items():
@@ -977,7 +971,7 @@ class InteractiveBrokersRESTData(DataSource):
         url = f"{self.base_url}/iserver/marketdata/snapshot?conids={conId}&fields={fields_str}"
 
         # If fields are missing, fetch again
-        max_retries = 2
+        max_retries = 500
         retries = 0
         missing_fields = True
 

@@ -837,8 +837,12 @@ class InteractiveBrokersRESTData(DataSource):
     def get_conid_from_asset(self, asset: Asset):
         self.ping_iserver()
         # Get conid of underlying
-        url = f"{self.base_url}/iserver/secdef/search?symbol={asset.symbol}"
-        response = self.get_from_endpoint(url, "Getting Underlying conid")
+        if asset.asset_type == 'future':
+            url = f"{self.base_url}/iserver/secdef/search?symbol={asset.symbol}&secType=IND"
+            response = self.get_from_endpoint(url, "Getting Underlying conid")
+        else:
+            url = f"{self.base_url}/iserver/secdef/search?symbol={asset.symbol}"
+            response = self.get_from_endpoint(url, "Getting Underlying conid")
 
         if (
             isinstance(response, list)
@@ -858,19 +862,29 @@ class InteractiveBrokersRESTData(DataSource):
             return None
 
         if asset.asset_type == "option":
+            exchange = next(
+                (section["exchange"] for section in response[0]["sections"] if section["secType"] == "OPT"),
+                None,
+            )
             return self._get_conid_for_derivative(
                 underlying_conid,
                 asset,
                 sec_type="OPT",
+                exchange=exchange,
                 additional_params={
                     "right": asset.right,
                     "strike": asset.strike,
                 },
             )
         elif asset.asset_type == "future":
+            exchange = next(
+                (section["exchange"] for section in response[0]["sections"] if section["secType"] == "FUT"),
+                None,
+            )
             return self._get_conid_for_derivative(
                 underlying_conid,
                 asset,
+                exchange=exchange,
                 sec_type="FUT",
                 additional_params={
                     "multiplier": asset.multiplier,
@@ -885,6 +899,7 @@ class InteractiveBrokersRESTData(DataSource):
         asset: Asset,
         sec_type: str,
         additional_params: dict,
+        exchange: str,
     ):
         expiration_date = asset.expiration.strftime("%Y%m%d")
         expiration_month = asset.expiration.strftime("%b%y").upper()  # in MMMYY
@@ -893,6 +908,7 @@ class InteractiveBrokersRESTData(DataSource):
             "conid": underlying_conid,
             "sectype": sec_type,
             "month": expiration_month,
+            "exchange": exchange
         }
         params.update(additional_params)
         query_string = "&".join(f"{key}={value}" for key, value in params.items())
@@ -948,6 +964,8 @@ class InteractiveBrokersRESTData(DataSource):
         conId = self.get_conid_from_asset(asset)
         if conId is None:
             return None
+        
+        info = self.get_contract_details(conId)
 
         fields_to_get = []
         for identifier, name in all_fields.items():
@@ -959,7 +977,7 @@ class InteractiveBrokersRESTData(DataSource):
         url = f"{self.base_url}/iserver/marketdata/snapshot?conids={conId}&fields={fields_str}"
 
         # If fields are missing, fetch again
-        max_retries = 500
+        max_retries = 2
         retries = 0
         missing_fields = True
 

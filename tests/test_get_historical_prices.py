@@ -9,7 +9,7 @@ import pytz
 from pandas.testing import assert_series_equal
 
 from lumibot.backtesting import PolygonDataBacktesting, YahooDataBacktesting
-from lumibot.data_sources import AlpacaData, TradierData, YahooData, PandasData
+from lumibot.data_sources import AlpacaData, TradierData, PandasData
 from tests.fixtures import pandas_data_fixture
 from lumibot.tools import print_full_pandas_dataframes, set_pandas_float_display_precision
 from lumibot.entities import Asset, Bars
@@ -58,11 +58,7 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
 
     @classmethod
     def setup_class(cls):
-        backtesting_start = datetime.now() - timedelta(days=90)
-        backtesting_end = datetime.now() - timedelta(days=60)
-        tzinfo = pytz.timezone("America/New_York")
-        cls.backtesting_start = backtesting_start.astimezone(tzinfo)
-        cls.backtesting_end = backtesting_end.astimezone(tzinfo)
+        pass
         
     # noinspection PyMethodMayBeStatic
     def check_date_of_last_bar_is_date_of_last_trading_date_before_backtest_start(
@@ -141,12 +137,14 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
     # @pytest.mark.skip()
     @pytest.mark.skipif(POLYGON_API_KEY == '<your key here>', reason="This test requires a Polygon.io API key")
     def test_polygon_backtesting_data_source_get_historical_prices_daily_bars(self):
+        backtesting_end = datetime.now() - timedelta(days=1)
+        backtesting_start = backtesting_end - timedelta(days=self.length * 2 + 5)
         data_source = PolygonDataBacktesting(
-            self.backtesting_start, self.backtesting_end, api_key=POLYGON_API_KEY
+            backtesting_start, backtesting_end, api_key=POLYGON_API_KEY
         )
         bars = data_source.get_historical_prices(asset=self.asset, length=self.length, timestep=self.timestep)
         check_bars(bars=bars, length=self.length)
-        self.check_date_of_last_bar_is_date_of_last_trading_date_before_backtest_start(bars, backtesting_start=self.backtesting_start)
+        self.check_date_of_last_bar_is_date_of_last_trading_date_before_backtest_start(bars, backtesting_start=backtesting_start)
 
     def test_yahoo_backtesting_data_source_get_historical_prices_daily_bars(self, pandas_data_fixture):
         """

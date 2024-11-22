@@ -222,6 +222,7 @@ class TestDatasourceGetHistoricalPricesDailyData:
         # TODO: convert the timezones returned by alpaca to America/New_York
         assert bars.df.index[0].tzinfo == pytz.timezone("UTC")
 
+        # This simulates what the call to get_yesterday_dividends does (lookback of 1)
         bars = data_source.get_historical_prices(asset=self.asset, length=1, timestep=self.timestep)
         check_bars(bars=bars, length=1, check_timezone=False)
         self.check_date_of_last_bar_is_correct_for_live_data_sources(bars)
@@ -239,6 +240,7 @@ class TestDatasourceGetHistoricalPricesDailyData:
         check_bars(bars=bars, length=self.length)
         self.check_date_of_last_bar_is_correct_for_live_data_sources(bars)
 
+        # This simulates what the call to get_yesterday_dividends does (lookback of 1)
         bars = data_source.get_historical_prices(asset=self.asset, length=1, timestep=self.timestep)
         check_bars(bars=bars, length=1)
         self.check_date_of_last_bar_is_correct_for_live_data_sources(bars)

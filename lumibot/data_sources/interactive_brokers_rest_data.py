@@ -858,19 +858,29 @@ class InteractiveBrokersRESTData(DataSource):
             return None
 
         if asset.asset_type == "option":
+            exchange = next(
+                (section["exchange"] for section in response[0]["sections"] if section["secType"] == "OPT"),
+                None,
+            )
             return self._get_conid_for_derivative(
                 underlying_conid,
                 asset,
                 sec_type="OPT",
+                exchange=exchange,
                 additional_params={
                     "right": asset.right,
                     "strike": asset.strike,
                 },
             )
         elif asset.asset_type == "future":
+            exchange = next(
+                (section["exchange"] for section in response[0]["sections"] if section["secType"] == "FUT"),
+                None,
+            )
             return self._get_conid_for_derivative(
                 underlying_conid,
                 asset,
+                exchange=exchange,
                 sec_type="FUT",
                 additional_params={
                     "multiplier": asset.multiplier,
@@ -885,6 +895,7 @@ class InteractiveBrokersRESTData(DataSource):
         asset: Asset,
         sec_type: str,
         additional_params: dict,
+        exchange: str | None,
     ):
         expiration_date = asset.expiration.strftime("%Y%m%d")
         expiration_month = asset.expiration.strftime("%b%y").upper()  # in MMMYY
@@ -893,9 +904,10 @@ class InteractiveBrokersRESTData(DataSource):
             "conid": underlying_conid,
             "sectype": sec_type,
             "month": expiration_month,
+            "exchange": exchange
         }
         params.update(additional_params)
-        query_string = "&".join(f"{key}={value}" for key, value in params.items())
+        query_string = "&".join(f"{key}={value}" for key, value in params.items() if value is not None)
 
         url_for_expiry = f"{self.base_url}/iserver/secdef/info?{query_string}"
         contract_info = self.get_from_endpoint(

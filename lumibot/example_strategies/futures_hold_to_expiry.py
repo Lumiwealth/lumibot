@@ -2,6 +2,7 @@ from datetime import datetime
 
 from lumibot.entities import Asset
 from lumibot.strategies.strategy import Strategy
+from lumibot.credentials import IS_BACKTESTING
 
 """
 Strategy Description
@@ -23,6 +24,7 @@ class FuturesHoldToExpiry(Strategy):
 
         # Built in Variables
         self.sleeptime = "1D"
+        self.set_market("us_futures")
 
     def on_trading_iteration(self):
         """Buys the self.buy_symbol once, then never again"""
@@ -65,19 +67,7 @@ class FuturesHoldToExpiry(Strategy):
 
 
 if __name__ == "__main__":
-    is_live = True
-
-    if is_live:
-        from lumibot.traders import Trader
-
-        trader = Trader()
-
-        strategy = FuturesHoldToExpiry()
-
-        trader.add_strategy(strategy)
-        strategy_executors = trader.run_all()
-
-    else:
+    if IS_BACKTESTING:
         from lumibot.backtesting import PolygonDataBacktesting
 
         # Backtest this strategy
@@ -91,3 +81,13 @@ if __name__ == "__main__":
             benchmark_asset="SPY",
             polygon_api_key="YOUR_POLYGON_API_KEY_HERE",  # Add your polygon API key here
         )
+
+    else:
+        from lumibot.traders import Trader
+
+        trader = Trader()
+
+        strategy = FuturesHoldToExpiry()
+
+        trader.add_strategy(strategy)
+        strategy_executors = trader.run_all()

@@ -711,11 +711,10 @@ class InteractiveBrokersREST(Broker):
                 self._unprocessed_orders.append(order)
                 self.stream.dispatch(self.NEW_ORDER, order=order)
                 self._log_order_status(order, "executed", success=True)
-                oi = self.data_source.get_order_info(order.identifier)
                 return [order]
 
             else:
-                order_data = self.get_order_data_from_orders([order])
+                order_data = self.get_order_data_from_orders(orders)
                 response = self.data_source.execute_order(order_data)
                 if response is None:
                     for order in orders:

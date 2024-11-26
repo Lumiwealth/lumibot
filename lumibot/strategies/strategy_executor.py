@@ -867,6 +867,8 @@ class StrategyExecutor(Thread):
             if not broker_continue:
                 return
 
+            # TODO: I think we should remove the OR. Pandas data can have dividends.
+            # Especially if it was saved from yahoo.
             if not has_data_source or (has_data_source and self.broker.data_source.SOURCE != "PANDAS"):
                 self.strategy._update_cash_with_dividends()
 

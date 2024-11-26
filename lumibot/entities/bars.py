@@ -44,7 +44,7 @@ class Bars:
     get_last_dividend
         Returns the dividend per share value of the last dataframe row
 
-    get_momentum(start=None, end=None)
+    get_momentum(num_periods=1)
         Calculates the global price momentum of the dataframe.
 
     aggregate_bars(frequency)

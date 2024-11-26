@@ -192,6 +192,7 @@ class InteractiveBrokersREST(Broker):
             order.quantity = totalQuantity
             order.asset = Asset(symbol=response['ticker'], asset_type="multileg")
             order.side = response['side']
+            order.identifier = response['orderId']
 
             order.child_orders = []
 
@@ -205,6 +206,7 @@ class InteractiveBrokersREST(Broker):
                     response=response,
                     quantity=float(ratio) * totalQuantity,
                     conId=leg,
+                    parent_identifier=order.identifier
                 )
                 order.child_orders.append(child_order)
 
@@ -224,7 +226,7 @@ class InteractiveBrokersREST(Broker):
         order.update_raw(response)
         return order
 
-    def _parse_order_object(self, strategy_name, response, quantity, conId):
+    def _parse_order_object(self, strategy_name, response, quantity, conId, parent_identifier=None):
         if quantity < 0:
             side = "SELL"
             quantity = -quantity
@@ -293,6 +295,9 @@ class InteractiveBrokersREST(Broker):
             quote=Asset(symbol=currency, asset_type="forex"),
             avg_fill_price=response["avgPrice"] if "avgPrice" in response else None
         )
+
+        if parent_identifier is not None:
+            order.parent_identifier=parent_identifier
 
         return order
 
@@ -705,8 +710,10 @@ class InteractiveBrokersREST(Broker):
 
                 order = Order(orders[0].strategy)
                 order.order_class = Order.OrderClass.MULTILEG
-                order.child_orders = orders
                 order.identifier = response[0]["order_id"]
+                order.child_orders = orders
+                for child_order in order.child_orders:
+                    child_order.parent_identifier = order.identifier
 
                 self._unprocessed_orders.append(order)
                 self.stream.dispatch(self.NEW_ORDER, order=order)

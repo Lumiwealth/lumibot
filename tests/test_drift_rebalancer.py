@@ -13,11 +13,11 @@ from lumibot.components.drift_rebalancer_logic import DriftCalculationLogic  #, 
 from lumibot.backtesting import BacktestingBroker, YahooDataBacktesting, PandasDataBacktesting
 from lumibot.strategies.strategy import Strategy
 from tests.fixtures import pandas_data_fixture
-from lumibot.tools import print_full_pandas_dataframes, set_pandas_float_precision
+from lumibot.tools import print_full_pandas_dataframes, set_pandas_float_display_precision
 from lumibot.entities import Order
 
 print_full_pandas_dataframes()
-set_pandas_float_precision(precision=5)
+set_pandas_float_display_precision(precision=5)
 
 
 class MockStrategyWithDriftCalculationLogic(Strategy):

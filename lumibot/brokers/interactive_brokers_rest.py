@@ -198,6 +198,7 @@ class InteractiveBrokersREST(Broker):
 
             # Parse the legs of the combo order.
             legs = self.decode_conidex(response["conidex"])
+            n=0
             for leg, ratio in legs.items():
                 # Create the object with just the conId
                 # TODO check if all legs using the same response is an issue; test with covered calls
@@ -206,8 +207,10 @@ class InteractiveBrokersREST(Broker):
                     response=response,
                     quantity=float(ratio) * totalQuantity,
                     conId=leg,
-                    parent_identifier=order.identifier
+                    parent_identifier=order.identifier,
+                    child_order_number=str(n)
                 )
+                n+=1
                 order.child_orders.append(child_order)
 
         else:
@@ -226,7 +229,7 @@ class InteractiveBrokersREST(Broker):
         order.update_raw(response)
         return order
 
-    def _parse_order_object(self, strategy_name, response, quantity, conId, parent_identifier=None):
+    def _parse_order_object(self, strategy_name, response, quantity, conId, parent_identifier=None, child_order_number=None):
         if quantity < 0:
             side = "SELL"
             quantity = -quantity
@@ -288,6 +291,7 @@ class InteractiveBrokersREST(Broker):
             asset,
             quantity=Decimal(quantity),
             side=side.lower(),
+            status=response['status'],
             limit_price=limit_price,
             stop_price=stop_price,
             time_in_force=time_in_force,
@@ -298,6 +302,9 @@ class InteractiveBrokersREST(Broker):
 
         if parent_identifier is not None:
             order.parent_identifier=parent_identifier
+        
+        if child_order_number:
+            order.identifier = f'{parent_identifier}-{child_order_number}'
 
         return order
 
@@ -648,16 +655,19 @@ class InteractiveBrokersREST(Broker):
         try:
             order_data = self.get_order_data_from_orders([order])
             response = self.data_source.execute_order(order_data)
+
             if response is None:
                 self._log_order_status(order, "failed", success=False)
                 msg = "Broker returned no response"
                 self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=msg)
                 return order
-            else:
-                self._log_order_status(order, "executed", success=True)
+            
+            self._log_order_status(order, "executed", success=True)
 
             order.identifier = response[0]["order_id"]
             self._unprocessed_orders.append(order)
+            order.status=Order.OrderStatus.SUBMITTED
+
             self.stream.dispatch(self.NEW_ORDER, order=order)
 
             return order
@@ -711,9 +721,13 @@ class InteractiveBrokersREST(Broker):
                 order = Order(orders[0].strategy)
                 order.order_class = Order.OrderClass.MULTILEG
                 order.identifier = response[0]["order_id"]
+                order.status=Order.OrderStatus.SUBMITTED
+
                 order.child_orders = orders
-                for child_order in order.child_orders:
+                for n, child_order in enumerate(order.child_orders):
+                    child_order.identifier = f'{order.identifier}-{n}'
                     child_order.parent_identifier = order.identifier
+                    order.status=Order.OrderStatus.SUBMITTED
 
                 self._unprocessed_orders.append(order)
                 self.stream.dispatch(self.NEW_ORDER, order=order)
@@ -738,6 +752,8 @@ class InteractiveBrokersREST(Broker):
                     self._unprocessed_orders.append(order)
                     self.stream.dispatch(self.NEW_ORDER, order=order)
                     self._log_order_status(order, "executed", success=True)
+                    order.status=Order.OrderStatus.SUBMITTED
+
                     order_id += 1
 
                 return orders
@@ -938,9 +954,6 @@ class InteractiveBrokersREST(Broker):
                 conidex += ","
             conidex += f"{conid}/{quantity // order_quantity}"
 
-        # Set the side to "BUY" for the multileg order
-        side = "BUY"
-
         if not orders:
             logging.error("Orders list cannot be empty")
 
@@ -1129,7 +1142,9 @@ class InteractiveBrokersREST(Broker):
                     stored_order.quantity = order.quantity
                     stored_children = [stored_orders[o.identifier] if o.identifier in stored_orders else o
                                     for o in order.child_orders]
-                    stored_order.child_orders = stored_children
+                    
+                    if stored_children:
+                        stored_order.child_orders = stored_children
 
                     # Handle status changes
                     if not order.equivalent_status(stored_order):

@@ -288,7 +288,12 @@ class InteractiveBrokersRESTData(DataSource):
                         status_code = 200
             response_json = orders
         
-        if "no bridge" in error_message.lower() or "not authenticated" in error_message.lower():
+        if 'Please query /accounts first' in error_message:
+            self.ping_iserver()
+            retrying = True
+            re_msg = f"Task {description} failed: Lumibot got Deauthenticated"
+
+        elif "no bridge" in error_message.lower() or "not authenticated" in error_message.lower():
             retrying = True
             re_msg = f"Task {description} failed: Not Authenticated"
 
@@ -301,12 +306,7 @@ class InteractiveBrokersRESTData(DataSource):
             re_msg = f"Task {description} failed: You got rate limited"
 
         elif status_code == 503:
-            if any("Please query /accounts first" in str(value) for value in response_json.values()):
-                self.ping_iserver()
-                re_msg = f"Task {description} failed: Lumibot got Deauthenticated"
-            else:
-                re_msg = f"Task {description} failed: Internal server error, should fix itself soon"
-            
+            re_msg = f"Task {description} failed: Internal server error, should fix itself soon"
             retrying = True
 
         elif status_code == 500:
@@ -340,11 +340,11 @@ class InteractiveBrokersRESTData(DataSource):
                 
                 if re_msg is not None:
                     if not silent and retries == 0:
-                        logging.warning(f'{re_msg}. Retrying...')
+                        logging.warning(colored(f'{re_msg}. Retrying...', "yellow"))
 
                 elif is_error:
                     if not silent and retries == 0:
-                        logging.error(f"Task {description} failed: {to_return}")
+                        logging.error(colored(f"Task {description} failed: {to_return}", "red"))
 
                 else:
                     allow_fail = True
@@ -371,11 +371,11 @@ class InteractiveBrokersRESTData(DataSource):
                 
                 if re_msg is not None:
                     if not silent and retries == 0:
-                        logging.warning(f'{re_msg}. Retrying...')
+                        logging.warning(colored(f'{re_msg}. Retrying...', "yellow"))
 
                 elif is_error:
                     if not silent and retries == 0:
-                        logging.error(f"Task {description} failed: {to_return}")
+                        logging.error(colored(f"Task {description} failed: {to_return}", "red"))
 
                 else:
                     allow_fail = True
@@ -402,11 +402,11 @@ class InteractiveBrokersRESTData(DataSource):
                 
                 if re_msg is not None:
                     if not silent and retries == 0:
-                        logging.warning(f'{re_msg}. Retrying...')
+                        logging.warning(colored(f'{re_msg}. Retrying...', "yellow"))
 
                 elif is_error:
                     if not silent and retries == 0:
-                        logging.error(f"Task {description} failed: {to_return}")
+                        logging.error(colored(f"Task {description} failed: {to_return}", "red"))
 
                 else:
                     allow_fail = True

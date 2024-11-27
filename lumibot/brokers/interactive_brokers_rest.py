@@ -722,6 +722,7 @@ class InteractiveBrokersREST(Broker):
                 order.order_class = Order.OrderClass.MULTILEG
                 order.identifier = response[0]["order_id"]
                 order.status=Order.OrderStatus.SUBMITTED
+                order.side = order_data['orders'][0]['side'].lower() if order_data is not None else None
 
                 order.child_orders = orders
                 for n, child_order in enumerate(order.child_orders):

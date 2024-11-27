@@ -364,16 +364,20 @@ class Order:
         )
 
     def is_buy_order(self):
-        return self.side == self.OrderSide.BUY or \
-            self.side == self.OrderSide.BUY_TO_OPEN or \
-            self.side == self.OrderSide.BUY_TO_COVER or \
-            self.side == self.OrderSide.BUY_TO_CLOSE
+        return self.side is not None and (
+            self.side.lower() == self.OrderSide.BUY or
+            self.side.lower() == self.OrderSide.BUY_TO_OPEN or
+            self.side.lower() == self.OrderSide.BUY_TO_COVER or
+            self.side.lower() == self.OrderSide.BUY_TO_CLOSE
+        )
     
     def is_sell_order(self):
-        return self.side == self.OrderSide.SELL or \
-            self.side == self.OrderSide.SELL_SHORT or \
-            self.side == self.OrderSide.SELL_TO_OPEN or \
-            self.side == self.OrderSide.SELL_TO_CLOSE
+        return self.side is not None and (
+            self.side.lower() == self.OrderSide.SELL or
+            self.side.lower() == self.OrderSide.SELL_SHORT or
+            self.side.lower() == self.OrderSide.SELL_TO_OPEN or
+            self.side.lower() == self.OrderSide.SELL_TO_CLOSE
+        )
 
     def is_parent(self) -> bool:
         """

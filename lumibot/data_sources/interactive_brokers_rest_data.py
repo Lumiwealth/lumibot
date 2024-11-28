@@ -140,7 +140,7 @@ class InteractiveBrokersRESTData(DataSource):
         url = f"{self.base_url}/iserver/questions/suppress"
         json = {"messageIds": ["o451", "o383", "o354", "o163"]}
 
-        self.post_to_endpoint(url, json=json, allow_fail=False)
+        self.post_to_endpoint(url, json=json, description="Suppressing server warnings", allow_fail=False)
     
     def fetch_account_id(self):
         if self.account_id is not None:
@@ -246,7 +246,7 @@ class InteractiveBrokersRESTData(DataSource):
 
         return response
 
-    def handle_http_errors(self, response):
+    def handle_http_errors(self, response, description):
         to_return = None
         re_msg = None
         is_error = False
@@ -279,7 +279,7 @@ class InteractiveBrokersRESTData(DataSource):
                     confirm_response = self.post_to_endpoint(
                         confirm_url, 
                         {"confirmed": True},
-                        "Confirming order",
+                        description="Confirming Order",
                         silent=True,
                         allow_fail=True
                     )
@@ -288,9 +288,14 @@ class InteractiveBrokersRESTData(DataSource):
                         status_code = 200
             response_json = orders
         
-        if "no bridge" in error_message.lower() or "not authenticated" in error_message.lower():
+        if 'Please query /accounts first' in error_message:
+            self.ping_iserver()
             retrying = True
-            re_msg = "Not Authenticated"
+            re_msg = f"Task {description} failed: Lumibot got Deauthenticated"
+
+        elif "no bridge" in error_message.lower() or "not authenticated" in error_message.lower():
+            retrying = True
+            re_msg = f"Task {description} failed: Not Authenticated"
 
         elif 200 <= status_code < 300:
             to_return = response_json
@@ -298,15 +303,10 @@ class InteractiveBrokersRESTData(DataSource):
 
         elif status_code == 429:
             retrying = True
-            re_msg = "You got rate limited"
+            re_msg = f"Task {description} failed: You got rate limited"
 
         elif status_code == 503:
-            if any("Please query /accounts first" in str(value) for value in response_json.values()):
-                self.ping_iserver()
-                re_msg = "Lumibot got Deauthenticated"
-            else:
-                re_msg = "Internal server error, should fix itself soon"
-            
+            re_msg = f"Task {description} failed: Internal server error, should fix itself soon"
             retrying = True
 
         elif status_code == 500:
@@ -316,7 +316,7 @@ class InteractiveBrokersRESTData(DataSource):
 
         elif status_code == 410:
             retrying = True
-            re_msg = "The bridge blew up"
+            re_msg = f"Task {description} failed: The bridge blew up"
 
         elif 400 <= status_code < 500:
             to_return = response_json
@@ -336,15 +336,15 @@ class InteractiveBrokersRESTData(DataSource):
         try:
             while retrying or not allow_fail:
                 response = requests.get(url, verify=False)
-                retrying, re_msg, is_error, to_return = self.handle_http_errors(response)
+                retrying, re_msg, is_error, to_return = self.handle_http_errors(response, description)
                 
                 if re_msg is not None:
                     if not silent and retries == 0:
-                        logging.warning(f'{re_msg}. Retrying...')
+                        logging.warning(colored(f'{re_msg}. Retrying...', "yellow"))
 
                 elif is_error:
                     if not silent and retries == 0:
-                        logging.error(f"Task {description} failed: {to_return}")
+                        logging.error(colored(f"Task {description} failed: {to_return}", "red"))
 
                 else:
                     allow_fail = True
@@ -367,15 +367,15 @@ class InteractiveBrokersRESTData(DataSource):
         try:
             while retrying or not allow_fail:
                 response = requests.post(url, json=json, verify=False)
-                retrying, re_msg, is_error, to_return = self.handle_http_errors(response)
+                retrying, re_msg, is_error, to_return = self.handle_http_errors(response, description)
                 
                 if re_msg is not None:
                     if not silent and retries == 0:
-                        logging.warning(f'{re_msg}. Retrying...')
+                        logging.warning(colored(f'{re_msg}. Retrying...', "yellow"))
 
                 elif is_error:
                     if not silent and retries == 0:
-                        logging.error(f"Task {description} failed: {to_return}")
+                        logging.error(colored(f"Task {description} failed: {to_return}", "red"))
 
                 else:
                     allow_fail = True
@@ -398,15 +398,15 @@ class InteractiveBrokersRESTData(DataSource):
         try:
             while retrying or not allow_fail:
                 response = requests.delete(url, verify=False)
-                retrying, re_msg, is_error, to_return = self.handle_http_errors(response)
+                retrying, re_msg, is_error, to_return = self.handle_http_errors(response, description)
                 
                 if re_msg is not None:
                     if not silent and retries == 0:
-                        logging.warning(f'{re_msg}. Retrying...')
+                        logging.warning(colored(f'{re_msg}. Retrying...', "yellow"))
 
                 elif is_error:
                     if not silent and retries == 0:
-                        logging.error(f"Task {description} failed: {to_return}")
+                        logging.error(colored(f"Task {description} failed: {to_return}", "red"))
 
                 else:
                     allow_fail = True
@@ -463,7 +463,10 @@ class InteractiveBrokersRESTData(DataSource):
             url, "Getting open orders", allow_fail=False
         )
 
-        return [order for order in response['orders'] if order.get('totalSize', 0) != 0]
+        if 'orders' in response and isinstance(response['orders'], list):
+            return [order for order in response['orders'] if order.get('totalSize', 0) != 0]
+        
+        return []
 
     def get_order_info(self, orderid):
         self.ping_iserver()
@@ -480,7 +483,7 @@ class InteractiveBrokersRESTData(DataSource):
         self.ping_iserver()
 
         url = f"{self.base_url}/iserver/account/{self.account_id}/orders"
-        response = self.post_to_endpoint(url, order_data)
+        response = self.post_to_endpoint(url, order_data, description="Executing order")
                 
         if isinstance(response, list) and "order_id" in response[0]:
             # success
@@ -505,7 +508,7 @@ class InteractiveBrokersRESTData(DataSource):
         self.ping_iserver()
         orderId = order.identifier
         url = f"{self.base_url}/iserver/account/{self.account_id}/order/{orderId}"
-        status = self.delete_to_endpoint(url)
+        status = self.delete_to_endpoint(url, description=f"Deleting order {orderId}")
         if status:
             logging.info(
                 colored(f"Order with ID {orderId} canceled successfully.", "green")

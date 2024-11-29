@@ -427,7 +427,14 @@ class PandasData(DataSourceBacktesting):
         return start_datetime, ts_unit
 
     def get_historical_prices(
-        self, asset, length, timestep="", timeshift=None, quote=None, exchange=None, include_after_hours=True
+        self, 
+        asset: Asset,
+        length: int,
+        timestep: str = None,
+        timeshift: int = None,
+        quote: Asset = None,
+        exchange: str = None,
+        include_after_hours: bool = True,
     ):
         """Get bars for a given asset"""
         if isinstance(asset, str):

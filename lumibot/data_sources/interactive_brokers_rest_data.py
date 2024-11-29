@@ -288,7 +288,11 @@ class InteractiveBrokersRESTData(DataSource):
                         status_code = 200
             response_json = orders
         
-        if 'Please query /accounts first' in error_message:
+        if 'xcredserv comm failed during getEvents due to Connection refused':
+            retrying = True
+            re_msg = f"Task {description} failed: The server is undergoing maintenance. Should fix itself soon"
+
+        elif 'Please query /accounts first' in error_message:
             self.ping_iserver()
             retrying = True
             re_msg = f"Task {description} failed: Lumibot got Deauthenticated"
@@ -306,7 +310,7 @@ class InteractiveBrokersRESTData(DataSource):
             re_msg = f"Task {description} failed: You got rate limited"
 
         elif status_code == 503:
-            re_msg = f"Task {description} failed: Internal server error, should fix itself soon"
+            re_msg = f"Task {description} failed: Internal server error. Should fix itself soon"
             retrying = True
 
         elif status_code == 500:

@@ -340,8 +340,8 @@ class DriftOrderLogic:
             time.sleep(self.fill_sleeptime)
             try:
                 for order in sell_orders:
-                    pulled_order = self.strategy.broker._pull_order(order.identifier, self.strategy.name, self.strategy)
-                    msg = f"Submitted order status: {pulled_order}"
+                    pulled_order = self.strategy.broker._pull_order(order.identifier, self.strategy.name)
+                    msg = f"Status of submitted sell order: {pulled_order}"
                     self.strategy.logger.info(msg)
                     self.strategy.log_message(msg, broadcast=True)
             except Exception as e:
@@ -375,8 +375,8 @@ class DriftOrderLogic:
             time.sleep(self.fill_sleeptime)
             try:
                 for order in buy_orders:
-                    pulled_order = self.strategy.broker._pull_order(order.identifier, self.strategy.name, self.strategy)
-                    msg = f"Submitted order status: {pulled_order}"
+                    pulled_order = self.strategy.broker._pull_order(order.identifier, self.strategy.name)
+                    msg = f"Status of submitted buy order: {pulled_order}"
                     self.strategy.logger.info(msg)
                     self.strategy.log_message(msg, broadcast=True)
             except Exception as e:

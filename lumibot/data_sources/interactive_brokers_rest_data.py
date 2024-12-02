@@ -344,8 +344,6 @@ class InteractiveBrokersRESTData(DataSource):
         elif is_error:
             if not silent and retries == 0:
                 logging.error(colored(f"Task {description} failed: {to_return}", "red"))
-            elif retries >= 20:
-                logging.info(colored(f"Task {description} failed: {to_return}", "red"))
             else:
                 logging.debug(colored(f"Task {description} failed: {to_return}", "red"))
         

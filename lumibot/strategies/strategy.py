@@ -1257,24 +1257,43 @@ class Strategy(_Strategy):
         asset = self._sanitize_user_asset(asset)
         return self.broker.get_asset_potential_total(self.name, asset)
 
-    def submit_order(self, order):
-        """Submit an order for an asset
+    def submit_order(self, order, **kwargs):
+        """Submit an order or a list of orders for assets
 
-        Submits an order object for processing by the active broker.
+        Submits an order or a list of orders for processing by the active broker.
 
         Parameters
         ---------
-        order : Order object
-            Order object containing the asset and instructions for
-            executing the order.
+        order : Order object or list of Order objects
+            Order object or a list of order objects containing the asset and instructions for executing the order.
+        is_multileg : bool
+            Tradier only.
+            A boolean value to indicate if the orders are part of one multileg order.
+            Currently, this is only available for Tradier.
+        order_type : str
+            Tradier only.
+            The order type for the multileg order. Possible values are:
+            ('market', 'debit', 'credit', 'even'). Default is 'market'.
+        duration : str
+            Tradier only.
+            The duration for the multileg order. Possible values are:
+            ('day', 'gtc', 'pre', 'post'). Default is 'day'.
+        price : float
+            Tradier only.
+            The limit price for the multileg order. Required for 'debit' and 'credit' order types.
+        tag : str
+            Tradier only.
+            A tag for the multileg order.
 
         Returns
         -------
-        Order object
-            Processed order object.
+        Order object or list of Order objects
+            Processed order object(s).
 
-        Example
-        -------
+        Examples
+        --------
+        Submitting a single order:
+
         >>> # For a market buy order
         >>> order = self.create_order("SPY", 100, "buy")
         >>> self.submit_order(order)
@@ -1295,159 +1314,6 @@ class Strategy(_Strategy):
         >>> order = self.create_order("SPY", 100, "sell")
         >>> self.submit_order(order)
 
-        >>> # For a limit sell order
-        >>> order = self.create_order("SPY", 100, "sell", limit_price=100.00)
-        >>> self.submit_order(order)
-
-        >>> # For buying a future
-        >>> from lumibot.entities import Asset
-        >>>
-        >>> asset = Asset(
-        >>>    "ES",
-        >>>    asset_type=Asset.AssetType.FUTURE,
-        >>>    expiration_date="2020-01-01",
-        >>>    multiplier=100)
-        >>> order = self.create_order(asset, 100, "buy")
-        >>> self.submit_order(order)
-
-        >>> # For selling a future
-        >>> from lumibot.entities import Asset
-        >>>
-        >>> asset = Asset(
-        >>>    "ES",
-        >>>    asset_type=Asset.AssetType.FUTURE,
-        >>>    expiration_date="2020-01-01"
-        >>>    multiplier=100)
-        >>> order = self.create_order(asset, 100, "sell")
-        >>> self.submit_order(order)
-
-        >>> # For buying an option
-        >>> from lumibot.entities import Asset
-        >>>
-        >>> asset = Asset(
-        >>>    "SPY",
-        >>>    asset_type=Asset.AssetType.OPTION,
-        >>>    expiration_date="2020-01-01",
-        >>>    strike_price=100.00,
-        >>>    right="call")
-        >>> order = self.create_order(asset, 10, "buy")
-        >>> self.submit_order(order)
-
-        >>> # For selling an option
-        >>> from lumibot.entities import Asset
-        >>>
-        >>> asset = Asset(
-        >>>    "SPY",
-        >>>    asset_type=Asset.AssetType.OPTION,
-        >>>    expiration_date="2020-01-01",
-        >>>    strike_price=100.00,
-        >>>    right="call")
-        >>> order = self.create_order(asset, 10, "sell")
-        >>> self.submit_order(order)
-
-        >>> # For buying a stock
-        >>> asset = Asset("SPY")
-        >>> order = self.create_order(asset, 10, "buy")
-        >>> self.submit_order(order)
-
-        >>> # For selling a stock
-        >>> asset = Asset("SPY")
-        >>> order = self.create_order(asset, 10, "sell")
-        >>> self.submit_order(order)
-
-        >>> # For buying a stock with a limit price
-        >>> asset = Asset("SPY")
-        >>> order = self.create_order(asset, 10, "buy", limit_price=100.00)
-        >>> self.submit_order(order)
-
-        >>> # For selling a stock with a limit price
-        >>> asset = Asset("SPY")
-        >>> order = self.create_order(asset, 10, "sell", limit_price=100.00)
-        >>> self.submit_order(order)
-
-        >>> # For buying a stock with a stop price
-        >>> asset = Asset("SPY")
-        >>> order = self.create_order(asset, 10, "buy", stop_price=100.00)
-        >>> self.submit_order(order)
-
-        >>> # For buying FOREX
-        >>> from lumibot.entities import Asset
-        >>>
-        >>> base_asset = Asset(
-            symbol="GBP,
-            asset_type=Asset.AssetType.FOREX,
-        )
-        >>> quote_asset = Asset(
-            symbol="USD",
-            asset_type=Asset.AssetType.FOREX,
-        )
-        >>> order = self.create_order(asset, 10, "buy", quote=quote_asset)
-        >>> self.submit_order(order)
-
-        >>> # For selling FOREX
-        >>> from lumibot.entities import Asset
-        >>>
-        >>> base_asset = Asset(
-            symbol="EUR",
-            asset_type=Asset.AssetType.FOREX,
-        )
-        >>> quote_asset = Asset(
-            symbol="USD",
-            asset_type=Asset.AssetType.FOREX,
-        )
-        >>> order = self.create_order(asset, 10, "sell", quote=quote_asset)
-        >>> self.submit_order(order)
-
-        >>> # For buying an option with a limit price
-        >>> from lumibot.entities import Asset
-        >>>
-        >>> asset = Asset(
-        >>>    "SPY",
-        >>>    asset_type=Aset.AssetType.OPTION,
-        >>>    expiration_date="2020-01-01",
-        >>>    strike_price=100.00,
-        >>>    right="call")
-        >>> order = self.create_order(asset, 10, "buy", limit_price=100.00)
-        >>> self.submit_order(order)
-
-        >>> # For selling an option with a limit price
-        >>> from lumibot.entities import Asset
-        >>>
-        >>> asset = Asset(
-        >>>    "SPY",
-        >>>    asset_type=Asset.AssetType.OPTION,
-        >>>    expiration_date="2020-01-01",
-        >>>    strike_price=100.00,
-        >>>    right="call")
-        >>> order = self.create_order(asset, 10, "sell", limit_price=100.00)
-        >>> self.submit_order(order)
-
-        >>> # For buying an option with a stop price
-        >>> from lumibot.entities import Asset
-        >>>
-        >>> asset = Asset(
-        >>>    "SPY",
-        >>>    asset_type=Asset.AssetType.OPTION,
-        >>>    expiration_date="2020-01-01",
-        >>>    strike_price=100.00,
-        >>>    right="call")
-        >>> order = self.create_order(asset, 10, "buy", stop_price=100.00)
-
-        >>> # For selling a stock with a stop price
-        >>> asset = Asset("SPY")
-        >>> order = self.create_order(asset, 10, "sell", stop_price=100.00)
-        >>> self.submit_order(order)
-
-        >>> # For buying a stock with a trailing stop price
-        >>> asset = Asset("SPY")
-        >>> order = self.create_order(asset, 10, "buy", trailing_stop_price=100.00)
-        >>> self.submit_order(order)
-
-        >>> # For selling a stock with a trailing stop price
-        >>> asset = Asset("SPY")
-        >>> order = self.create_order(asset, 10, "sell", trailing_stop_price=100.00)
-        >>> self.submit_order(order)
-
         >>> # For buying a crypto with a market price
         >>> from lumibot.entities import Asset
         >>>
@@ -1460,92 +1326,87 @@ class Strategy(_Strategy):
         >>>    asset_type=Asset.AssetType.CRYPTO,
         >>> )
         >>> order = self.create_order(asset_base, 0.1, "buy", quote=asset_quote)
-        >>> or...
+        >>> self.submit_order(order)
+        >>> # or...
         >>> order = self.create_order((asset_base, asset_quote), 0.1, "buy")
         >>> self.submit_order(order)
 
-        >>> # For buying a crypto with a limit price
+        Submitting multiple orders:
+
+        >>> # For 2 market buy orders
+        >>> order1 = self.create_order("SPY", 100, "buy")
+        >>> order2 = self.create_order("TLT", 200, "buy")
+        >>> self.submit_order([order1, order2])
+
+        >>> # For 2 limit buy orders
+        >>> order1 = self.create_order("SPY", 100, "buy", limit_price=100.00)
+        >>> order2 = self.create_order("TLT", 200, "buy", limit_price=100.00)
+        >>> self.submit_order([order1, order2])
+
+        >>> # For 2 CRYPTO buy orders
         >>> from lumibot.entities import Asset
         >>>
-        >>> asset_base = Asset(
+        >>> asset_BTC = Asset(
         >>>    "BTC",
+        >>>    asset_type=Asset.AssetType.CRYPTO,
+        >>> )
+        >>> asset_ETH = Asset(
+        >>>    "ETH",
         >>>    asset_type=Asset.AssetType.CRYPTO,
         >>> )
         >>> asset_quote = Asset(
         >>>    "USD",
-        >>>    asset_type=Asset.AssetType.CRYPTO,
+        >>>    asset_type=Asset.AssetType.FOREX,
         >>> )
-        >>> order = self.create_order(asset_base, 0.1, "buy", limit_price="41250", quote=asset_quote)
-        >>> or...
-        >>> order = self.create_order((asset_base, asset_quote), 0.1, "buy", limit_price="41250")
-        >>> self.submit_order(order)
-
-        >>> # For buying a crypto with a stop limit price
-        >>> from lumibot.entities import Asset
-        >>>
-        >>> asset_base = Asset(
-        >>>    "BTC",
-        >>>    asset_type=Asset.AssetType.CRYPTO,
-        >>> )
-        >>> asset_quote = Asset(
-        >>>    "USD",
-        >>>    asset_type=Asset.AssetType.CRYPTO,
-        >>> )
-        >>> order = self.create_order(asset_base, 0.1, "buy", limit_price="41325", stop_price="41300", quote=asset_quote)
-        >>> or...
-        >>> order = self.create_order((asset_base, asset_quote), 0.1, "buy", limit_price="41325", stop_price="41300",)
-        >>> self.submit_order(order)
-
-        >>> # For an OCO order
-        >>> order = self.create_order(
-        >>>                "SPY",
-        >>>                100,
-        >>>                "sell",
-        >>>                take_profit_price=limit,
-        >>>                stop_loss_price=stop_loss,
-        >>>                type="oco",
-        >>>            )
-        >>> self.submit_order(order)
-
+        >>> order1 = self.create_order(asset_BTC, 0.1, "buy", quote=asset_quote)
+        >>> order2 = self.create_order(asset_ETH, 10, "buy", quote=asset_quote)
+        >>> self.submit_order([order1, order2])
+        >>> # or...
+        >>> order1 = self.create_order((asset_BTC, asset_quote), 0.1, "buy")
+        >>> order2 = self.create_order((asset_ETH, asset_quote), 10, "buy")
+        >>> self.submit_order([order1, order2])
         """
+        
+        if isinstance(order, list):
+            # Submit multiple orders
+            # Validate orders
+            default_multileg = True
 
-        # Check if order is None
-        if order is None:
-            self.logger.error(
-                "Cannot submit a None order, please check to make sure that you have actually created an order before submitting."
-            )
-            return
+            for o in order:
+                if not self._validate_order(o):
+                    return
+                
+                if o.asset.asset_type != "option":
+                    default_multileg = False
+            
+            if 'is_multileg' not in kwargs:
+                kwargs['is_multileg'] = default_multileg
 
-        # Check if the order is an Order object
-        if not isinstance(order, Order):
-            self.logger.error(
-                f"Order must be an Order object. You entered {order}."
-            )
-            return
+            return self.broker.submit_orders(order, **kwargs)
 
-        # Check if the order does not have a quantity of zero
-        if order.quantity == 0:
-            self.logger.error(
-                f"Order quantity cannot be zero. You entered {order.quantity}."
-            )
-            return
+        else:
+            # Submit single order
+            if not self._validate_order(order):
+                return
 
-        return self.broker.submit_order(order)
+            return self.broker.submit_order(order)
 
     def submit_orders(self, orders, **kwargs):
-        """Submit a list of orders
+        """[Deprecated] Submit a list of orders
+
+        This method is deprecated and will be removed in future versions.
+        Please use `submit_order` instead.
 
         Submits a list of orders for processing by the active broker.
 
         Parameters
-        ---------
+        ----------
         orders : list of orders
-            A list of order objects containing the asset and
-            instructions for the orders.
+            A list of order objects containing the asset and instructions for the orders.
         is_multileg : bool
             Tradier only.
             A boolean value to indicate if the orders are part of one multileg order.
-            Currently this is only available for Tradier.
+            Currently, this is only available for Tradier.
         order_type : str
             Tradier only.
             The order type for the multileg order. Possible values are:
@@ -1566,8 +1427,8 @@ class Strategy(_Strategy):
         list of Order objects
             List of processed order objects.
 
-        Example
-        -------
+        Examples
+        --------
         >>> # For 2 market buy orders
         >>> order1 = self.create_order("SPY", 100, "buy")
         >>> order2 = self.create_order("TLT", 200, "buy")
@@ -1578,67 +1439,7 @@ class Strategy(_Strategy):
         >>> order2 = self.create_order("TLT", 200, "buy", limit_price=100.00)
         >>> self.submit_orders([order1, order2])
 
-        >>> # For 2 stop loss orders
-        >>> order1 = self.create_order("SPY", 100, "buy", stop_price=100.00)
-        >>> order2 = self.create_order("TLT", 200, "buy", stop_price=100.00)
-        >>> self.submit_orders([order1, order2])
-
-        >>> # For 2 stop limit orders
-        >>> order1 = self.create_order("SPY", 100, "buy", limit_price=100.00, stop_price=100.00)
-        >>> order2 = self.create_order("TLT", 200, "buy", limit_price=100.00, stop_price=100.00)
-        >>> self.submit_orders([order1, order2])
-
-        >>> # For 2 market sell orders
-        >>> order1 = self.create_order("SPY", 100, "sell")
-        >>> order2 = self.create_order("TLT", 200, "sell")
-        >>> self.submit_orders([order1, order2])
-
-        >>> # For 2 limit sell orders
-        >>> order1 = self.create_order("SPY", 100, "sell", limit_price=100.00)
-        >>> order2 = self.create_order("TLT", 200, "sell", limit_price=100.00)
-        >>> self.submit_orders([order1, order2])
-
-        >>> # For 2 stop loss orders
-        >>> order1 = self.create_order("SPY", 100, "sell", stop_price=100.00)
-        >>> order2 = self.create_order("TLT", 200, "sell", stop_price=100.00)
-        >>> self.submit_orders([order1, order2])
-
-        >>> # For 2 stop limit orders
-        >>> order1 = self.create_order("SPY", 100, "sell", limit_price=100.00, stop_price=100.00)
-        >>> order2 = self.create_order("TLT", 200, "sell", limit_price=100.00, stop_price=100.00)
-        >>> self.submit_orders([order1, order2])
-
-        >>> # For 2 FOREX buy orders
-        >>> from lumibot.entities import Asset
-        >>>
-        >>> base_asset = Asset(
-            symbol="EUR",
-            asset_type=Asset.AssetType.FOREX,
-        )
-        >>> quote_asset = Asset(
-            symbol="USD",
-            asset_type=Asset.AssetType.FOREX,
-        )
-        >>> order1 = self.create_order(base_asset, 100, "buy", quote=quote_asset)
-        >>> order2 = self.create_order(base_asset, 200, "buy", quote=quote_asset)
-        >>> self.submit_orders([order1, order2])
-
-        >>> # For 2 FOREX sell orders
-        >>> from lumibot.entities import Asset
-        >>>
-        >>> base_asset = Asset(
-            symbol="EUR",
-            asset_type=Asset.AssetType.FOREX,
-        )
-        >>> quote_asset = Asset(
-            symbol="USD",
-            asset_type=Asset.AssetType.FOREX,
-        )
-        >>> order1 = self.create_order(base_asset, 100, "sell", quote=quote_asset)
-        >>> order2 = self.create_order(base_asset, 200, "sell", quote=quote_asset)
-        >>> self.submit_orders([order1, order2])
-
-        >>> # For 2 CRYPTO buy orders.
+        >>> # For 2 CRYPTO buy orders
         >>> from lumibot.entities import Asset
         >>>
         >>> asset_BTC = Asset(
@@ -1651,17 +1452,19 @@ class Strategy(_Strategy):
         >>> )
         >>> asset_quote = Asset(
         >>>    "USD",
-        >>>    asset_type=Aset.AssetType.FOREX,
+        >>>    asset_type=Asset.AssetType.FOREX,
         >>> )
         >>> order1 = self.create_order(asset_BTC, 0.1, "buy", quote=asset_quote)
         >>> order2 = self.create_order(asset_ETH, 10, "buy", quote=asset_quote)
-        >>> self.submit_order([order1, order2])
-        >>> or...
+        >>> self.submit_orders([order1, order2])
+        >>> # or...
         >>> order1 = self.create_order((asset_BTC, asset_quote), 0.1, "buy")
         >>> order2 = self.create_order((asset_ETH, asset_quote), 10, "buy")
-        >>> self.submit_order([order1, order2])
+        >>> self.submit_orders([order1, order2])
+
         """
-        return self.broker.submit_orders(orders, **kwargs)
+        #self.log_message("Warning: `submit_orders` is deprecated, please use `submit_order` instead.")
+        return self.submit_order(orders, **kwargs)
 
     def wait_for_order_registration(self, order):
         """Wait for the order to be registered by the broker

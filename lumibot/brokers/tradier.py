@@ -112,7 +112,7 @@ class Tradier(Broker):
         # Cancel the order
         self.tradier.orders.cancel(order.identifier)
 
-    def submit_orders(self, orders, is_multileg=False, order_type=None, duration="day", price=None):
+    def _submit_orders(self, orders, is_multileg=False, order_type=None, duration="day", price=None):
         """
         Submit multiple orders to the broker. This function will submit the orders in the order they are provided.
         If any order fails to submit, the function will stop submitting orders and return the last successful order.
@@ -158,7 +158,7 @@ class Tradier(Broker):
         else:
             # Submit each order
             for order in orders:
-                self.submit_order(order)
+                self._submit_order(order)
 
             return orders
 
@@ -252,14 +252,6 @@ class Tradier(Broker):
         self._unprocessed_orders.append(parent_order)
         self.stream.dispatch(self.NEW_ORDER, order=parent_order)
         return parent_order
-
-    def submit_order(self, order: Order):
-        """
-        Submit an order to the broker. This function will check if the order is valid and then submit it to the broker.
-        """
-
-        # Submit the order
-        return self._submit_order(order)
             
     def _submit_order(self, order: Order):
         """

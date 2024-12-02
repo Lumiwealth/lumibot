@@ -678,7 +678,7 @@ class InteractiveBrokersREST(Broker):
             self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=msg)
             return order
 
-    def submit_orders(
+    def _submit_orders(
         self,
         orders: list[Order],
         is_multileg: bool = False,

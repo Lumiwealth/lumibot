@@ -566,21 +566,6 @@ class Broker(ABC):
 
             self._orders_queue.task_done()
 
-    def _submit_orders(self, orders) -> list[Order]:
-        with ThreadPoolExecutor(
-            max_workers=self.max_workers,
-            thread_name_prefix=f"{self.name}_submitting_orders",
-        ) as executor:
-            tasks = []
-            for order in orders:
-                tasks.append(executor.submit(self._submit_order, order))
-
-            result = []
-            for task in as_completed(tasks):
-                result.append(task.result())
-
-        return result
-
     # =========Internal functions==============
 
     def _set_initial_positions(self, strategy):
@@ -968,7 +953,20 @@ class Broker(ABC):
 
     def submit_orders(self, orders, **kwargs):
         """Submit orders"""
-        self._submit_orders(orders, **kwargs)
+        if hasattr(self, '_submit_orders'):
+            self._submit_orders(orders, **kwargs)
+        else:
+            with ThreadPoolExecutor(
+                max_workers=self.max_workers,
+                thread_name_prefix=f"{self.name}_submitting_orders",
+            ) as executor:
+                tasks = []
+                for order in orders:
+                    tasks.append(executor.submit(self._submit_order, order))
+
+                result = []
+                for task in as_completed(tasks):
+                    result.append(task.result())
 
     def wait_for_order_registration(self, order):
         """Wait for the order to be registered by the broker"""

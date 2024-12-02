@@ -9,7 +9,7 @@ import random
 
 import pandas as pd
 from lumibot.backtesting import BacktestingBroker, PolygonDataBacktesting, ThetaDataBacktesting
-from lumibot.entities import Asset, Position
+from lumibot.entities import Asset, Position, Order
 from lumibot.tools import (
     create_tearsheet,
     day_deduplicate,
@@ -420,6 +420,45 @@ class _Strategy:
                 result[key[1:]] = self.__dict__[key]
 
         return result
+
+    def _validate_order(self, order):
+        """
+        Validates an order to ensure it meets the necessary criteria before submission.
+
+        Parameters:
+        order (Order): The order to be validated.
+
+        Returns:
+        bool: True if the order is valid, False otherwise.
+
+        Validation checks:
+        - The order is not None.
+        - The order is an instance of the Order class.
+        - The order quantity is not zero.
+        """
+
+        # Check if order is None
+        if order is None:
+            self.logger.error(
+                "Cannot submit a None order, please check to make sure that you have actually created an order before submitting."
+            )
+            return False
+
+        # Check if the order is an Order object
+        if not isinstance(order, Order):
+            self.logger.error(
+                f"Order must be an Order object. You entered {order}."
+            )
+            return False
+
+        # Check if the order does not have a quantity of zero
+        if order.quantity == 0:
+            self.logger.error(
+                f"Order quantity cannot be zero. You entered {order.quantity}."
+            )
+            return False
+
+        return True
 
     def _set_cash_position(self, cash: float):
         # Check if cash is in the list of positions yet

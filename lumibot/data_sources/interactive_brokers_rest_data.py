@@ -1,6 +1,6 @@
 import logging
 from termcolor import colored
-from lumibot.entities import Asset, Bars
+from ..entities import Asset, Bars
 
 from .data_source import DataSource
 import subprocess

@@ -1,10 +1,10 @@
 import logging
 from collections import defaultdict, OrderedDict
-from datetime import date, timedelta
+from datetime import timedelta
 
 import pandas as pd
 from lumibot.data_sources import DataSourceBacktesting
-from lumibot.entities import Asset, AssetsMapping, Bars
+from lumibot.entities import Asset, Bars
 
 
 class PandasData(DataSourceBacktesting):

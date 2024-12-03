@@ -3097,6 +3097,16 @@ class Strategy(_Strategy):
         >>> self.log_message(f"Last price of BTC in USD: {last_ohlc['close']}, and the open price was {last_ohlc['open']}")
         """
 
+        # Get that length is type int and if not try to cast it
+        if not isinstance(length, int):
+            try:
+                length = int(length)
+            except Exception as e:
+                raise ValueError(
+                    f"Invalid length parameter in get_historical_prices() method. Length must be an int but instead got {length}, "
+                    f"which is a type {type(length)}."
+                )
+
         if quote is None:
             quote = self.quote_asset
 

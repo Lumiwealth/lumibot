@@ -8,7 +8,7 @@ import os
 import time
 import requests
 import urllib3
-from datetime import datetime, timedelta
+from datetime import datetime
 import pandas as pd
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)

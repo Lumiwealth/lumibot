@@ -9,7 +9,7 @@
 import os
 import sys
 
-from lumibot.brokers import Alpaca, Ccxt, InteractiveBrokers, InteractiveBrokersREST, Tradier
+from .brokers import Alpaca, Ccxt, InteractiveBrokers, InteractiveBrokersREST, Tradier
 import logging
 from dotenv import load_dotenv
 import termcolor

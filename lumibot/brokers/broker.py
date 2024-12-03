@@ -13,9 +13,9 @@ import pandas_market_calendars as mcal
 from dateutil import tz
 from termcolor import colored
 
-from lumibot.data_sources import DataSource
-from lumibot.entities import Asset, Order, Position
-from lumibot.trading_builtins import SafeList
+from ..data_sources import DataSource
+from ..entities import Asset, Order, Position
+from ..trading_builtins import SafeList
 
 
 class CustomLoggerAdapter(logging.LoggerAdapter):

@@ -4,9 +4,8 @@ import time
 from datetime import datetime, timedelta
 
 import pandas as pd
-from alpha_vantage.timeseries import TimeSeries
 
-from lumibot import LUMIBOT_DEFAULT_PYTZ, LUMIBOT_DEFAULT_TIMEZONE
+from lumibot import LUMIBOT_DEFAULT_PYTZ
 from lumibot.data_sources.exceptions import NoDataFound
 from lumibot.entities import Asset, Bars
 

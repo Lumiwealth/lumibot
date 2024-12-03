@@ -2,7 +2,7 @@ import datetime
 import logging
 import random
 import time
-from collections import defaultdict, deque
+from collections import deque
 from decimal import Decimal
 from threading import Thread
 import math

@@ -1,17 +1,14 @@
 import logging
 from termcolor import colored
-from lumibot.brokers import Broker
-from lumibot.entities import Order, Asset, Position
-from lumibot.data_sources import InteractiveBrokersRESTData
+from ..brokers import Broker
+from ..entities import Order, Asset, Position
+from ..data_sources import InteractiveBrokersRESTData
 import datetime
 from decimal import Decimal
 from math import gcd
 import re
-import ssl
-import time
-import json
 import traceback
-from lumibot.trading_builtins import PollingStream
+from ..trading_builtins import PollingStream
 
 TYPE_MAP = dict(
     stock="STK",
@@ -678,7 +675,7 @@ class InteractiveBrokersREST(Broker):
             self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=msg)
             return order
 
-    def submit_orders(
+    def _submit_orders(
         self,
         orders: list[Order],
         is_multileg: bool = False,

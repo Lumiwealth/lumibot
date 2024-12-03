@@ -1,6 +1,6 @@
 import logging
 from termcolor import colored
-from lumibot.entities import Asset, Bars
+from ..entities import Asset, Bars
 
 from .data_source import DataSource
 import subprocess
@@ -8,7 +8,7 @@ import os
 import time
 import requests
 import urllib3
-from datetime import datetime, timedelta
+from datetime import datetime
 import pandas as pd
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -101,6 +101,8 @@ class InteractiveBrokersRESTData(DataSource):
                     "-d",
                     "--name",
                     "lumibot-client-portal",
+                    "--restart",
+                    "always",
                     *env_args,
                     "-p",
                     f"{self.port}:{self.port}",
@@ -246,7 +248,7 @@ class InteractiveBrokersRESTData(DataSource):
 
         return response
 
-    def handle_http_errors(self, response, description):
+    def handle_http_errors(self, response, silent, retries, description):
         to_return = None
         re_msg = None
         is_error = False
@@ -288,18 +290,18 @@ class InteractiveBrokersRESTData(DataSource):
                         status_code = 200
             response_json = orders
         
-        if 'xcredserv comm failed during getEvents due to Connection refused':
+        if 'xcredserv comm failed during getEvents due to Connection refused' in error_message:
             retrying = True
-            re_msg = f"Task {description} failed: The server is undergoing maintenance. Should fix itself soon"
+            re_msg = "The server is undergoing maintenance. Should fix itself soon"
 
         elif 'Please query /accounts first' in error_message:
             self.ping_iserver()
             retrying = True
-            re_msg = f"Task {description} failed: Lumibot got Deauthenticated"
+            re_msg = "Lumibot got Deauthenticated"
 
         elif "no bridge" in error_message.lower() or "not authenticated" in error_message.lower():
             retrying = True
-            re_msg = f"Task {description} failed: Not Authenticated"
+            re_msg = "Not Authenticated"
 
         elif 200 <= status_code < 300:
             to_return = response_json
@@ -307,10 +309,10 @@ class InteractiveBrokersRESTData(DataSource):
 
         elif status_code == 429:
             retrying = True
-            re_msg = f"Task {description} failed: You got rate limited"
+            re_msg = "You got rate limited"
 
         elif status_code == 503:
-            re_msg = f"Task {description} failed: Internal server error. Should fix itself soon"
+            re_msg = "Internal server error. Should fix itself soon"
             retrying = True
 
         elif status_code == 500:
@@ -320,7 +322,7 @@ class InteractiveBrokersRESTData(DataSource):
 
         elif status_code == 410:
             retrying = True
-            re_msg = f"Task {description} failed: The bridge blew up"
+            re_msg = "The bridge blew up"
 
         elif 400 <= status_code < 500:
             to_return = response_json
@@ -329,9 +331,27 @@ class InteractiveBrokersRESTData(DataSource):
         
         else: 
             retrying = False
+        
+
+        if re_msg is not None:
+            if not silent and retries == 0:
+                logging.warning(colored(f"Task {description} failed: {re_msg}. Retrying...", "yellow"))
+            elif retries >= 20:
+                logging.info(colored(f"Task {description} failed: {re_msg}. Retrying...", "yellow"))
+            else:
+                logging.debug(colored(f"Task {description} failed: {re_msg}. Retrying...", "yellow"))
+            
+        elif is_error:
+            if not silent and retries == 0:
+                logging.error(colored(f"Task {description} failed: {to_return}", "red"))
+            else:
+                logging.debug(colored(f"Task {description} failed: {to_return}", "red"))
+        
+        if re_msg is not None:
+            time.sleep(1)
 
         return (retrying, re_msg, is_error, to_return)
-
+        
     def get_from_endpoint(self, url, description="", silent=False, allow_fail=True):
         to_return = None
         retries = 0
@@ -340,25 +360,19 @@ class InteractiveBrokersRESTData(DataSource):
         try:
             while retrying or not allow_fail:
                 response = requests.get(url, verify=False)
-                retrying, re_msg, is_error, to_return = self.handle_http_errors(response, description)
+                retrying, re_msg, is_error, to_return = self.handle_http_errors(response, silent, retries, description)
                 
-                if re_msg is not None:
-                    if not silent and retries == 0:
-                        logging.warning(colored(f'{re_msg}. Retrying...', "yellow"))
+                if re_msg is None and not is_error:
+                    break
 
-                elif is_error:
-                    if not silent and retries == 0:
-                        logging.error(colored(f"Task {description} failed: {to_return}", "red"))
-
-                else:
-                    allow_fail = True
-                
                 retries+=1
 
         except requests.exceptions.RequestException as e:
             message = f"Error: {description}. Exception: {e}"
             if not silent:
                 logging.error(colored(message, "red"))
+            else:
+                logging.debug(colored(message), "red")
             to_return = {"error": message}
 
         return to_return
@@ -371,25 +385,19 @@ class InteractiveBrokersRESTData(DataSource):
         try:
             while retrying or not allow_fail:
                 response = requests.post(url, json=json, verify=False)
-                retrying, re_msg, is_error, to_return = self.handle_http_errors(response, description)
+                retrying, re_msg, is_error, to_return = self.handle_http_errors(response, silent, retries, description)
                 
-                if re_msg is not None:
-                    if not silent and retries == 0:
-                        logging.warning(colored(f'{re_msg}. Retrying...', "yellow"))
-
-                elif is_error:
-                    if not silent and retries == 0:
-                        logging.error(colored(f"Task {description} failed: {to_return}", "red"))
-
-                else:
-                    allow_fail = True
-
-                retries += 1
+                if re_msg is None and not is_error:
+                    break
+                    
+                retries+=1
 
         except requests.exceptions.RequestException as e:
             message = f"Error: {description}. Exception: {e}"
             if not silent:
                 logging.error(colored(message, "red"))
+            else:
+                logging.debug(colored(message), "red")
             to_return = {"error": message}
 
         return to_return
@@ -402,25 +410,19 @@ class InteractiveBrokersRESTData(DataSource):
         try:
             while retrying or not allow_fail:
                 response = requests.delete(url, verify=False)
-                retrying, re_msg, is_error, to_return = self.handle_http_errors(response, description)
+                retrying, re_msg, is_error, to_return = self.handle_http_errors(response, silent, retries, description)
                 
-                if re_msg is not None:
-                    if not silent and retries == 0:
-                        logging.warning(colored(f'{re_msg}. Retrying...', "yellow"))
-
-                elif is_error:
-                    if not silent and retries == 0:
-                        logging.error(colored(f"Task {description} failed: {to_return}", "red"))
-
-                else:
-                    allow_fail = True
-
-                retries += 1
+                if re_msg is None and not is_error:
+                    break
+                    
+                retries+=1
 
         except requests.exceptions.RequestException as e:
             message = f"Error: {description}. Exception: {e}"
             if not silent:
                 logging.error(colored(message, "red"))
+            else:
+                logging.debug(colored(message), "red")
             to_return = {"error": message}
 
         return to_return

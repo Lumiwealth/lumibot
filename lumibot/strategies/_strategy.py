@@ -339,19 +339,19 @@ class _Strategy:
             self.broker._set_initial_positions(self)
         else:
             if budget is None:
-                if self._cash is None:
+                if self.cash is None:
                     # Default to $100,000 if no budget is set.
                     budget = 100000
                     self._set_cash_position(budget)
                 else:
-                    budget = self._cash
+                    budget = self.cash
             else:
                 self._set_cash_position(budget)
 
             # #############################################
             # ## TODO: Should all this just use _update_portfolio_value()?
             # ## START
-            self._portfolio_value = self._cash
+            self._portfolio_value = self.cash
 
             store_assets = list(self.broker.data_source._data_store.keys())
             if len(store_assets) > 0:
@@ -588,7 +588,7 @@ class _Strategy:
 
         with self._executor.lock:
             # Used for traditional brokers, for crypto this could be 0
-            portfolio_value = self._cash
+            portfolio_value = self.cash
 
             positions = self.broker.get_tracked_positions(self._name)
             assets_original = [position.asset for position in positions]
@@ -662,9 +662,9 @@ class _Strategy:
         return portfolio_value
 
     def _update_cash(self, side, quantity, price, multiplier):
-        """update the self._cash"""
+        """update the self.cash"""
         with self._executor.lock:
-            cash = self._cash
+            cash = self.cash
             if cash is None:
                 cash = 0
 
@@ -677,7 +677,7 @@ class _Strategy:
 
             # Todo also update the cash asset in positions?
 
-            return self._cash
+            return self.cash
 
     def _update_cash_with_dividends(self):
         with self._executor.lock:
@@ -693,12 +693,12 @@ class _Strategy:
                 asset = position.asset
                 quantity = position.quantity
                 dividend_per_share = 0 if dividends_per_share is None else dividends_per_share.get(asset, 0)
-                cash = self._cash
+                cash = self.cash
                 if cash is None:
                     cash = 0
                 cash += dividend_per_share * float(quantity)
                 self._set_cash_position(cash)
-            return self._cash
+            return self.cash
 
     # =============Stats functions=====================
 

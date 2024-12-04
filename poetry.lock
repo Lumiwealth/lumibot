@@ -2983,16 +2983,20 @@ name = "polygon-api-client"
 version = "1.14.2"
 description = "Official Polygon.io REST and Websocket client."
 optional = false
-python-versions = "<4.0,>=3.8"
-files = [
-    {file = "polygon_api_client-1.14.2-py3-none-any.whl", hash = "sha256:c5b577697e7cc8eb4d72bf5f93876022c671147aff83e3bef408f1cb9917d3f8"},
-    {file = "polygon_api_client-1.14.2.tar.gz", hash = "sha256:5b0091613e0fd265d2f98e33e6d83b439ee412b3652d4fb6b898136559d60bc9"},
-]
+python-versions = "^3.8"
+files = []
+develop = false
 
 [package.dependencies]
 certifi = ">=2022.5.18,<2025.0.0"
 urllib3 = ">=1.26.9,<3.0.0"
-websockets = ">=10.3,<13.0"
+websockets = ">=10.3,<14.0"
+
+[package.source]
+type = "git"
+url = "https://github.com/jjfantini/client-python.git"
+reference = "feat/websockets"
+resolved_reference = "9cc468365bfc150d6384aa3177970f18e49d44ae"
 
 [[package]]
 name = "prompt-toolkit"
@@ -4786,4 +4790,4 @@ repair = ["scipy (>=1.6.3)"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<4.0"
-content-hash = "80ad977b6271e6441ffd4ae1e2d11ba01f98242568fbc98750ecccfb7832ae73"
+content-hash = "adfdcfd1bdbd0e075583ec7711cd49b0e079346c5c3685f37505ace1c30ae4ab"

@@ -191,7 +191,7 @@ class Ccxt(Broker):
 
         asset = Asset(
             symbol=symbol,
-            asset_type="crypto",
+            asset_type="crypto", # TODO: Make this check if it is a Future or regular crypto
             precision=precision,
         )
 
@@ -289,11 +289,12 @@ class Ccxt(Broker):
         """parse a broker order representation
         to an order object"""
         pair = response["symbol"].split("/")
+
         order = Order(
             strategy_name,
             Asset(
                 symbol=pair[0],
-                asset_type="crypto",
+                asset_type="crypto", # TODO: Check if it is a Future
             ),
             response["amount"],
             response["side"],
@@ -302,7 +303,7 @@ class Ccxt(Broker):
             time_in_force=response["timeInForce"].lower(),
             quote=Asset(
                 symbol=pair[1],
-                asset_type="crypto",
+                asset_type="crypto", # TODO: Check if it is a Future
             ),
             type=response["type"] if "type" in response else None,
         )

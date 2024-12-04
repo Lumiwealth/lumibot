@@ -133,13 +133,14 @@ class DriftCalculationLogic:
     def calculate(self, target_weights: Dict[str, Decimal]) -> pd.DataFrame:
 
         if self.drift_type == DriftType.ABSOLUTE:
-            # Make sure the target_weights are all less than the drift threshold
-            for key, target_weight in target_weights.items():
-                if self.drift_threshold >= target_weight:
-                    self.strategy.logger.warning(
-                        f"drift_threshold of {self.drift_threshold} is "
-                        f">= target_weight of {key}: {target_weight}. Drift in this asset will never trigger a rebalance."
-                    )
+            # The absolute value of all of the weights are less than the drift_threshold
+            # then we will never trigger a rebalance.
+
+            if all([abs(weight) < self.drift_threshold for weight in target_weights.values()]):
+                self.strategy.logger.warning(
+                    f"All target weights are less than the drift_threshold: {self.drift_threshold}. "
+                    f"No rebalance will be triggered."
+                )
 
         self.df = pd.DataFrame({
             "symbol": target_weights.keys(),
@@ -335,9 +336,9 @@ class DriftOrderLogic:
                     )
                     sell_orders.append(order)
 
-        msg = "\nSubmitted sell orders:\n"
+        msg = "\nSubmitted sell orders:"
         for order in sell_orders:
-            msg += f"{order}\n"
+            msg += f"\n{order}"
         if sell_orders:
             self.strategy.logger.info(msg)
             self.strategy.log_message(msg, broadcast=True)
@@ -366,9 +367,9 @@ class DriftOrderLogic:
                     self.strategy.logger.info(
                         f"Ran out of cash to buy {symbol}. Cash: {cash_position} and limit_price: {limit_price:.2f}")
 
-        msg = "\nSubmitted buy orders:\n"
+        msg = "\nSubmitted buy orders:"
         for order in buy_orders:
-            msg += f"{order}\n"
+            msg += f"\n{order}"
         if buy_orders:
             self.strategy.logger.info(msg)
             self.strategy.log_message(msg, broadcast=True)
@@ -405,7 +406,7 @@ class DriftOrderLogic:
         messages = ["\nDriftRebalancer summary:"]
         for index, row in drift_df.iterrows():
             msg = (
-                f"Symbol: {row['symbol']} current_weight: {row['current_weight']:.2%} "
+                f"\nSymbol: {row['symbol']} current_weight: {row['current_weight']:.2%} "
                 f"target_weight: {row['target_weight']:.2%} drift: {row['drift']:.2%}"
             )
             if abs(row["drift"]) > self.drift_threshold:
@@ -415,7 +416,7 @@ class DriftOrderLogic:
                 )
             messages.append(msg)
 
-        joined_messages = "\n".join(messages)
+        joined_messages = "".join(messages)
         self.strategy.logger.info(joined_messages)
         self.strategy.log_message(joined_messages, broadcast=True)
 

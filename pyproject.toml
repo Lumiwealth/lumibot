@@ -5,10 +5,10 @@
 # Runs much faster than running them individually.
 [tool.ruff]
 line-length = 120
+target-version = "py310"
 
-# Assume Python 3.8+ for type annotations
-target-version = "py38"
-
+# Move settings under lint section
+[tool.ruff.lint]
 select = [
   "A",  # prevent using keywords that clobber python builtins
   "B",  # bugbear: security warnings
@@ -20,6 +20,96 @@ select = [
   #  "D",   # pydocstyle
 ]
 
+exclude = [
+    "build",
+    "dist",
+    "docs/conf.py",
+    "sompackage/migrations",
+    "*.egg-info",
+    "venv*",
+    "jupyter",
+    "*pycache*",
+    ".*",
+    "data",
+    "docs",
+    "docsrc"
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 12
+
+[tool.isort]
+profile = "black"
+extend_skip_glob = ["venv*", "jupyter*", "*pycache*", ".*", "data", "docs", "docsrc"]
+
+[tool.pylint]
+max-line-length = 119
+known-third-party = ["lumibot"]
+
+[tool.pytest]
+markers = [
+    "apitest: marks tests as API tests (deselect with '-m \"not apitest\"')"
+]
+filterwarnings = [
+    "ignore::DeprecationWarning:aiohttp.*",
+    "ignore::DeprecationWarning:quantstats.*",
+    "ignore::DeprecationWarning:pandas.*",
+    "ignore::DeprecationWarning:pkg_resources.*",
+    "ignore:backtest:DeprecationWarning:tests.*"
+]
+testpaths = ["tests"]
+norecursedirs = [
+    "docs",
+    ".*",
+    "*.egg*",
+    "appdir",
+    "jupyter",
+    "*pycache*",
+    "venv*",
+    ".cache*",
+    ".coverage*",
+    ".git",
+    "data",
+    "docs",
+    "docsrc"
+]
+
+[tool.coverage.run]
+branch = true
+command_line = "-m pytest -m \"not apitest\""
+omit = [
+    "*__init__.py",
+    "tests/*",
+    "venv*",
+    ".cache/",
+    ".git/",
+    ".cache-directory",
+    ".pytest*",
+    "docs/",
+    "data/",
+    "docsrc/",
+    "example*",
+    "cache*"
+]
+
+[tool.coverage.report]
+precision = 2
+ignore_errors = true
+show_missing = true
+fail_under = 40
+exclude_lines = [
+    "pragma: no coverage",
+    "def __repr__",
+    "if self\\.debug",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:"
+]
+
+[tool.coverage.html]
+directory = ".coverage.html_report"
+
 [tool.poetry]
 name = "lumibot"
 version = "3.8.16"
@@ -28,7 +118,6 @@ authors = ["Robert Grzesik <rob@lumiwealth.com>"]
 readme = "README.md"
 repository = "https://github.com/Lumiwealth/lumibot"
 packages = [{include = "lumibot"}]
-python = ">=3.9"
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
@@ -36,7 +125,7 @@ classifiers = [
 ]
 
 [tool.poetry.dependencies]
-python = ">=3.9"
+python = ">=3.10,<4.0"
 polygon-api-client = ">=1.14.0"
 alpaca-py = ">=0.28.1"
 alpha-vantage = "*"
@@ -44,7 +133,7 @@ ibapi = "9.81.1.post1"
 yfinance = ">=0.2.46"
 matplotlib = ">=3.3.3"
 quandl = "*"
-numpy = ">=1.20.0"
+numpy = ">=1.26.0"
 pandas = ">=2.2.0"
 pandas-datareader = "*"
 pandas-market-calendars = ">=4.3.1"
@@ -60,7 +149,7 @@ email-validator = "*"
 bcrypt = "*"
 pytest = "*"
 scipy = ">=1.13.0"
-ipython = "*"
+ipython = ">=8.22.2"
 quantstats-lumi = ">=0.3.3"
 python-dotenv = "*"
 ccxt = ">=4.3.74"

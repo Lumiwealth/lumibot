@@ -293,6 +293,9 @@ class DriftOrderLogic:
         if df is None:
             raise ValueError("You must pass in a DataFrame to DriftOrderLogic.rebalance()")
 
+        # sort dataframe by the largest absolute value drift first
+        df = df.reindex(df["drift"].abs().sort_values(ascending=False).index)
+
         # Execute sells first
         sell_orders = []
         buy_orders = []
@@ -332,20 +335,16 @@ class DriftOrderLogic:
                     )
                     sell_orders.append(order)
 
+        msg = "\nSubmitted sell orders:\n"
         for order in sell_orders:
-            self.strategy.logger.info(f"Submitted sell order: {order}")
+            msg += f"{order}\n"
+        if sell_orders:
+            self.strategy.logger.info(msg)
+            self.strategy.log_message(msg, broadcast=True)
 
         if not self.strategy.is_backtesting:
             # Sleep to allow sell orders to fill
             time.sleep(self.fill_sleeptime)
-            try:
-                for order in sell_orders:
-                    pulled_order = self.strategy.broker._pull_order(order.identifier, self.strategy.name)
-                    msg = f"Status of submitted sell order: {pulled_order}"
-                    self.strategy.logger.info(msg)
-                    self.strategy.log_message(msg, broadcast=True)
-            except Exception as e:
-                self.strategy.logger.error(f"Error pulling order: {e}")
 
         # Get current cash position from the broker
         cash_position = self.get_current_cash_position()
@@ -367,20 +366,12 @@ class DriftOrderLogic:
                     self.strategy.logger.info(
                         f"Ran out of cash to buy {symbol}. Cash: {cash_position} and limit_price: {limit_price:.2f}")
 
+        msg = "\nSubmitted buy orders:\n"
         for order in buy_orders:
-            self.strategy.logger.info(f"Submitted buy order: {order}")
-
-        if not self.strategy.is_backtesting:
-            # Sleep to allow sell orders to fill
-            time.sleep(self.fill_sleeptime)
-            try:
-                for order in buy_orders:
-                    pulled_order = self.strategy.broker._pull_order(order.identifier, self.strategy.name)
-                    msg = f"Status of submitted buy order: {pulled_order}"
-                    self.strategy.logger.info(msg)
-                    self.strategy.log_message(msg, broadcast=True)
-            except Exception as e:
-                self.strategy.logger.error(f"Error pulling order: {e}")
+            msg += f"{order}\n"
+        if buy_orders:
+            self.strategy.logger.info(msg)
+            self.strategy.log_message(msg, broadcast=True)
 
     def calculate_limit_price(self, *, last_price: Decimal, side: str) -> Decimal:
         if side == "sell":
@@ -411,6 +402,7 @@ class DriftOrderLogic:
     def _check_if_rebalance_needed(self, drift_df: pd.DataFrame) -> bool:
         # Check if the absolute value of any drift is greater than the threshold
         rebalance_needed = False
+        messages = ["\nDriftRebalancer summary:"]
         for index, row in drift_df.iterrows():
             msg = (
                 f"Symbol: {row['symbol']} current_weight: {row['current_weight']:.2%} "
@@ -419,8 +411,12 @@ class DriftOrderLogic:
             if abs(row["drift"]) > self.drift_threshold:
                 rebalance_needed = True
                 msg += (
-                    f" Absolute drift exceeds threshold of {self.drift_threshold:.2%}. Rebalance needed."
+                    f" Drift exceeds threshold."
                 )
-            self.strategy.logger.info(msg)
-            self.strategy.log_message(msg, broadcast=True)
+            messages.append(msg)
+
+        joined_messages = "\n".join(messages)
+        self.strategy.logger.info(joined_messages)
+        self.strategy.log_message(joined_messages, broadcast=True)
+
         return rebalance_needed

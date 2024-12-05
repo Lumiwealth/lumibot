@@ -4369,11 +4369,16 @@ class Strategy(_Strategy):
         # Load the stats dataframe from the database
         stats_df = self.get_stats_from_database(STATS_TABLE_NAME)
 
-        # Only keep the stats for this strategy ID
-        stats_df = stats_df.loc[stats_df["strategy_id"] == self.strategy_id]
+        # Check if stats_df is None or empty before filtering
+        if stats_df is not None and not stats_df.empty:
+            # Only keep the stats for this strategy ID
+            stats_df = stats_df.loc[stats_df["strategy_id"] == self.strategy_id]
 
-        # Convert the datetime column to a datetime
-        stats_df["datetime"] = pd.to_datetime(stats_df["datetime"])  # , utc=True)
+            # Convert the datetime column to a datetime
+            stats_df["datetime"] = pd.to_datetime(stats_df["datetime"])  # , utc=True)
+        else:
+            # Create an empty DataFrame with the required columns
+            stats_df = pd.DataFrame(columns=["datetime", "portfolio_value", "cash", "strategy_id"])
 
         # Check if the datetime column is timezone-aware
         if stats_df['datetime'].dt.tz is None:

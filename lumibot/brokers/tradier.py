@@ -390,6 +390,7 @@ class Tradier(Broker):
         return order
 
     def _get_balances_at_broker(self, quote_asset: Asset, strategy):
+        df = None
         try:
             df = self.tradier.account.get_account_balance()
         except TradierApiError as e:
@@ -410,7 +411,9 @@ class Tradier(Broker):
             # Add traceback to the error message
             logging.error(traceback.format_exc())
             return None
-            
+
+        if df is None:
+            return None
 
         # Get the portfolio value (total_equity) column
         portfolio_value = float(df["total_equity"].iloc[0])

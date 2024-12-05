@@ -1,4 +1,3 @@
-from abc import ABC, abstractmethod
 from typing import Dict, Any
 from decimal import Decimal, ROUND_DOWN
 import time
@@ -7,6 +6,7 @@ import pandas as pd
 
 from lumibot.strategies.strategy import Strategy
 from lumibot.entities.order import Order
+from lumibot.tools.pandas import prettify_dataframe_with_decimals
 
 
 class DriftType:
@@ -123,7 +123,7 @@ class DriftCalculationLogic:
             *,
             strategy: Strategy,
             drift_type: DriftType = DriftType.ABSOLUTE,
-            drift_threshold: Decimal = Decimal("0.05")
+            drift_threshold: Decimal = Decimal("0.05"),
     ) -> None:
         self.strategy = strategy
         self.drift_type = drift_type
@@ -133,7 +133,7 @@ class DriftCalculationLogic:
     def calculate(self, target_weights: Dict[str, Decimal]) -> pd.DataFrame:
 
         if self.drift_type == DriftType.ABSOLUTE:
-            # The absolute value of all of the weights are less than the drift_threshold
+            # The absolute value of all the weights are less than the drift_threshold
             # then we will never trigger a rebalance.
 
             if all([abs(weight) < self.drift_threshold for weight in target_weights.values()]):
@@ -230,7 +230,7 @@ class DriftCalculationLogic:
             return Decimal(-1)
 
         elif row["current_quantity"] == Decimal(0) and row["target_weight"] > Decimal(0):
-            # We don't have any of this asset but we wanna buy some.
+            # We don't have any of this asset, but we want to buy some.
             return Decimal(1)
 
         elif row["current_quantity"] == Decimal(0) and row["target_weight"] == Decimal(-1):
@@ -238,7 +238,7 @@ class DriftCalculationLogic:
             return Decimal(-1)
 
         elif row["current_quantity"] == Decimal(0) and row["target_weight"] < Decimal(0):
-            # We don't have any of this asset but we wanna short some.
+            # We don't have any of this asset, but we want to short some.
             return Decimal(-1)
 
         # Otherwise we just need to adjust our holding. Calculate the drift.
@@ -284,6 +284,10 @@ class DriftOrderLogic:
     def rebalance(self, drift_df: pd.DataFrame = None) -> bool:
         if drift_df is None:
             raise ValueError("You must pass in a DataFrame to DriftOrderLogic.rebalance()")
+
+        # Just print the drift_df to the log but sort it by symbol column
+        drift_df = drift_df.sort_values(by='symbol')
+        self.strategy.logger.info(f"drift_df:\n{prettify_dataframe_with_decimals(df=drift_df)}")
 
         rebalance_needed = self._check_if_rebalance_needed(drift_df)
         if rebalance_needed:
@@ -336,16 +340,12 @@ class DriftOrderLogic:
                     )
                     sell_orders.append(order)
 
-        msg = "\nSubmitted sell orders:"
-        for order in sell_orders:
-            msg += f"\n{order}"
-        if sell_orders:
-            self.strategy.logger.info(msg)
-            self.strategy.log_message(msg, broadcast=True)
-
         if not self.strategy.is_backtesting:
             # Sleep to allow sell orders to fill
             time.sleep(self.fill_sleeptime)
+
+        for order in sell_orders:
+            self.strategy.logger.info(f"Submitted sell order: {order}")
 
         # Get current cash position from the broker
         cash_position = self.get_current_cash_position()
@@ -365,14 +365,12 @@ class DriftOrderLogic:
                     cash_position -= min(order_value, cash_position)
                 else:
                     self.strategy.logger.info(
-                        f"Ran out of cash to buy {symbol}. Cash: {cash_position} and limit_price: {limit_price:.2f}")
+                        f"Ran out of cash to buy {symbol}. "
+                        f"Cash: {cash_position} and limit_price: {limit_price:.2f}"
+                    )
 
-        msg = "\nSubmitted buy orders:"
         for order in buy_orders:
-            msg += f"\n{order}"
-        if buy_orders:
-            self.strategy.logger.info(msg)
-            self.strategy.log_message(msg, broadcast=True)
+            self.strategy.logger.info(f"Submitted buy order: {order}")
 
     def calculate_limit_price(self, *, last_price: Decimal, side: str) -> Decimal:
         if side == "sell":
@@ -398,15 +396,16 @@ class DriftOrderLogic:
                 quantity=quantity,
                 side=side
             )
-        return self.strategy.submit_order(order)
+
+        self.strategy.submit_order(order)
+        return order
 
     def _check_if_rebalance_needed(self, drift_df: pd.DataFrame) -> bool:
         # Check if the absolute value of any drift is greater than the threshold
         rebalance_needed = False
-        messages = ["\nDriftRebalancer summary:"]
         for index, row in drift_df.iterrows():
             msg = (
-                f"\nSymbol: {row['symbol']} current_weight: {row['current_weight']:.2%} "
+                f"Symbol: {row['symbol']} current_weight: {row['current_weight']:.2%} "
                 f"target_weight: {row['target_weight']:.2%} drift: {row['drift']:.2%}"
             )
             if abs(row["drift"]) > self.drift_threshold:
@@ -414,10 +413,6 @@ class DriftOrderLogic:
                 msg += (
                     f" Drift exceeds threshold."
                 )
-            messages.append(msg)
-
-        joined_messages = "".join(messages)
-        self.strategy.logger.info(joined_messages)
-        self.strategy.log_message(joined_messages, broadcast=True)
+            self.strategy.logger.info(msg)
 
         return rebalance_needed

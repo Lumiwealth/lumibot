@@ -94,6 +94,7 @@ class DriftRebalancer(Strategy):
         self.fill_sleeptime = self.parameters.get("fill_sleeptime", 15)
         self.target_weights = {k: Decimal(v) for k, v in self.parameters["target_weights"].items()}
         self.shorting = self.parameters.get("shorting", False)
+        self.verbose = self.parameters.get("verbose", False)
         self.drift_df = pd.DataFrame()
         self.drift_rebalancer_logic = DriftRebalancerLogic(
             strategy=self,
@@ -108,9 +109,7 @@ class DriftRebalancer(Strategy):
     # noinspection PyAttributeOutsideInit
     def on_trading_iteration(self) -> None:
         dt = self.get_datetime()
-        msg = f"{dt} on_trading_iteration called"
-        self.logger.info(msg)
-        self.log_message(msg, broadcast=True)
+        self.logger.info(f"{dt} on_trading_iteration called")
         self.cancel_open_orders()
 
         if self.cash < 0:
@@ -120,22 +119,14 @@ class DriftRebalancer(Strategy):
             )
 
         self.drift_df = self.drift_rebalancer_logic.calculate(target_weights=self.target_weights)
-        rebalance_needed = self.drift_rebalancer_logic.rebalance(drift_df=self.drift_df)
-
-        if rebalance_needed:
-            msg = f"Rebalancing portfolio."
-            self.logger.info(msg)
-            self.log_message(msg, broadcast=True)
+        self.drift_rebalancer_logic.rebalance(drift_df=self.drift_df)
 
     def on_abrupt_closing(self):
-        dt = self.get_datetime()
-        self.logger.info(f"{dt} on_abrupt_closing called")
-        self.log_message("On abrupt closing called.", broadcast=True)
         self.cancel_open_orders()
+        self.logger.error(f"on_abrupt_closing called")
 
     def on_bot_crash(self, error):
-        dt = self.get_datetime()
-        self.logger.info(f"{dt} on_bot_crash called")
-        self.log_message(f"Bot crashed with error: {error}", broadcast=True)
         self.cancel_open_orders()
+        self.logger.error(f"on_bot_crash called with error: {error}")
+
 

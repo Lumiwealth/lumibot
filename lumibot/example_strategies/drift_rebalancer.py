@@ -120,13 +120,4 @@ class DriftRebalancer(Strategy):
 
         self.drift_df = self.drift_rebalancer_logic.calculate(target_weights=self.target_weights)
         self.drift_rebalancer_logic.rebalance(drift_df=self.drift_df)
-
-    def on_abrupt_closing(self):
-        self.cancel_open_orders()
-        self.logger.error(f"on_abrupt_closing called")
-
-    def on_bot_crash(self, error):
-        self.cancel_open_orders()
-        self.logger.error(f"on_bot_crash called with error: {error}")
-
-
+        

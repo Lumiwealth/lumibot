@@ -46,3 +46,8 @@ data/SRNE_Minute.csv
 .vscode/**
 *.tmp
 .env
+
+.menv/
+menv/
+menv
+

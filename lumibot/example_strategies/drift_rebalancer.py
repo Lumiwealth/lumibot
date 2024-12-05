@@ -126,16 +126,3 @@ class DriftRebalancer(Strategy):
             msg = f"Rebalancing portfolio."
             self.logger.info(msg)
             self.log_message(msg, broadcast=True)
-
-    def on_abrupt_closing(self):
-        dt = self.get_datetime()
-        self.logger.info(f"{dt} on_abrupt_closing called")
-        self.log_message("On abrupt closing called.", broadcast=True)
-        self.cancel_open_orders()
-
-    def on_bot_crash(self, error):
-        dt = self.get_datetime()
-        self.logger.info(f"{dt} on_bot_crash called")
-        self.log_message(f"Bot crashed with error: {error}", broadcast=True)
-        self.cancel_open_orders()
-

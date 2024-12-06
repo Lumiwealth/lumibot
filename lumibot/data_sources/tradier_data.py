@@ -267,20 +267,26 @@ class TradierData(DataSource):
            Price of the asset
         """
 
-        if asset.asset_type == "option":
-            symbol = create_options_symbol(
-                asset.symbol,
-                asset.expiration,
-                asset.right,
-                asset.strike,
-            )
-        elif asset.asset_type == "index":
-            symbol = f"I:{asset.symbol}"
-        else:
-            symbol = asset.symbol
+        symbol = None
+        try:
+            if asset.asset_type == "option":
+                symbol = create_options_symbol(
+                    asset.symbol,
+                    asset.expiration,
+                    asset.right,
+                    asset.strike,
+                )
+            elif asset.asset_type == "index":
+                symbol = f"I:{asset.symbol}"
+            else:
+                symbol = asset.symbol
 
-        price = self.tradier.market.get_last_price(symbol)
-        return price
+            price = self.tradier.market.get_last_price(symbol)
+            return price
+
+        except Exception as e:
+            logging.error(f"Error getting last price for {symbol or asset.symbol}: {e}")
+            return None
 
     def get_quote(self, asset, quote=None, exchange=None):
         """

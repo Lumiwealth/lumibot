@@ -215,6 +215,11 @@ class _Strategy:
         self.save_logfile = save_logfile
         self.broker = broker
 
+        # initialize cash variables
+        self._cash = None
+        self._position_value = None
+        self._portfolio_value = None
+
         if name is not None:
             self._name = name
 

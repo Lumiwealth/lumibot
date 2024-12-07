@@ -248,7 +248,16 @@ class InteractiveBrokersRESTData(DataSource):
 
         return response
 
-    def handle_http_errors(self, response, silent, retries, description):
+    def handle_http_errors(self, response, silent, retries, description, allow_fail):
+        def show_error(retries, allow_fail):
+            if not allow_fail:
+                if retries%60 == 0:
+                    return True
+            else:
+                return True
+            
+            return False
+
         to_return = None
         re_msg = None
         is_error = False
@@ -332,23 +341,21 @@ class InteractiveBrokersRESTData(DataSource):
         else: 
             retrying = False
         
-
         if re_msg is not None:
-            if not silent and retries == 0:
+            if not silent and retries%60 == 0:
                 logging.warning(colored(f"Task {description} failed: {re_msg}. Retrying...", "yellow"))
-            elif retries >= 20:
-                logging.info(colored(f"Task {description} failed: {re_msg}. Retrying...", "yellow"))
             else:
                 logging.debug(colored(f"Task {description} failed: {re_msg}. Retrying...", "yellow"))
             
         elif is_error:
-            if not silent and retries == 0:
+            if not silent and show_error(retries, allow_fail):
                 logging.error(colored(f"Task {description} failed: {to_return}", "red"))
             else:
                 logging.debug(colored(f"Task {description} failed: {to_return}", "red"))
         
         if re_msg is not None:
             time.sleep(1)
+
 
         return (retrying, re_msg, is_error, to_return)
         
@@ -360,7 +367,7 @@ class InteractiveBrokersRESTData(DataSource):
         try:
             while retrying or not allow_fail:
                 response = requests.get(url, verify=False)
-                retrying, re_msg, is_error, to_return = self.handle_http_errors(response, silent, retries, description)
+                retrying, re_msg, is_error, to_return = self.handle_http_errors(response, silent, retries, description, allow_fail)
                 
                 if re_msg is None and not is_error:
                     break
@@ -385,7 +392,7 @@ class InteractiveBrokersRESTData(DataSource):
         try:
             while retrying or not allow_fail:
                 response = requests.post(url, json=json, verify=False)
-                retrying, re_msg, is_error, to_return = self.handle_http_errors(response, silent, retries, description)
+                retrying, re_msg, is_error, to_return = self.handle_http_errors(response, silent, retries, description, allow_fail)
                 
                 if re_msg is None and not is_error:
                     break
@@ -410,7 +417,7 @@ class InteractiveBrokersRESTData(DataSource):
         try:
             while retrying or not allow_fail:
                 response = requests.delete(url, verify=False)
-                retrying, re_msg, is_error, to_return = self.handle_http_errors(response, silent, retries, description)
+                retrying, re_msg, is_error, to_return = self.handle_http_errors(response, silent, retries, description, allow_fail)
                 
                 if re_msg is None and not is_error:
                     break

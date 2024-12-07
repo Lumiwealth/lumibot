@@ -40,6 +40,8 @@ To run this example strategy, click on the `Deploy to Render` button below to de
 
 If you want to contribute to Lumibot, you can check how to get started below. We are always looking for contributors to help us out!
 
+Here's a video to help you get started with contributing to Lumibot: [Contributing to Lumibot](https://youtu.be/Huz6VxqafZs)
+
 **Steps to contribute:**
 
 1. Clone the repository to your local machine

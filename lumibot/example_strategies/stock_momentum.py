@@ -153,16 +153,11 @@ if __name__ == "__main__":
     if is_live:
         from lumibot.credentials import ALPACA_CONFIG
         from lumibot.brokers import Alpaca
-        from lumibot.traders import Trader
-
-        trader = Trader()
 
         broker = Alpaca(ALPACA_CONFIG)
 
         strategy = Momentum(broker=broker)
-
-        trader.add_strategy(strategy)
-        strategy_executors = trader.run_all()
+        strategy.run_live()
 
     else:
         from lumibot.backtesting import YahooDataBacktesting

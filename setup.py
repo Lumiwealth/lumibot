@@ -14,7 +14,7 @@ setuptools.setup(
     url="https://github.com/Lumiwealth/lumibot",
     packages=setuptools.find_packages(),
     install_requires=[
-        "polygon-api-client>=1.13.3",
+        "polygon-api-client>=1.14.0",
         "alpaca-py>=0.28.1",
         "alpha_vantage",
         "ibapi==9.81.1.post1",

@@ -24,34 +24,41 @@ jobs:
       THETADATA_PASSWORD: ${{secrets.THETADATA_PASSWORD}} 
     steps:
       - uses: actions/checkout@v3
+      
       - name: Set up Python 3.11
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-version: 3.11
-          cache: pip
+          python-version: "3.11"
+          cache: "poetry"
+      
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: latest
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+      
       - name: Install dependencies
         run: |
-          echo "Set AIOHTTP_NO_EXTENSIONS=$AIOHTTP_NO_EXTENSIONS so that aiohttp doesn't try to install C extensions"
-          python -m pip install --upgrade pip
-          pip install requests
-          pip install -r requirements_dev.txt
-          # Setup.py was not working for some reason, reverted to using requirements.txt again
-          # python setup.py install
+          poetry install --with dev
+          
       - name: Run Linter
         run: |
-          # Remove -e flag to fail the run if issues are found
-          ruff check . -e
+          poetry run ruff check .
+          
       - name: Run Unit Tests
         run: |
-          coverage run
-          coverage report
-          coverage html
-      #     coverage xml -o coverage.xml 
-      # - name: Verify Coverage File
-      #   run: ls -l coverage.xml
-      # - name: Python Coverage Comment
-      #   uses: py-cov-action/python-coverage-comment-action@v3.23
-      #   with:
-      #     GITHUB_TOKEN: ${{ github.token }}
-      #     coverage_path: coverage.xml
+          poetry run coverage run
+          poetry run coverage report
+          poetry run coverage html
+          poetry run coverage xml -o coverage.xml
+          
+      - name: Verify Coverage File
+        run: ls -l coverage.xml
+        
+      - name: Python Coverage Comment
+        uses: py-cov-action/python-coverage-comment-action@v3.23
+        with:
+          GITHUB_TOKEN: ${{ github.token }}
+          coverage_path: coverage.xml
             

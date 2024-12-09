@@ -1,4 +1,3 @@
-from abc import ABC, abstractmethod
 from typing import Dict, Any
 from decimal import Decimal, ROUND_DOWN
 import time
@@ -7,6 +6,7 @@ import pandas as pd
 
 from lumibot.strategies.strategy import Strategy
 from lumibot.entities.order import Order
+from lumibot.tools.pandas import prettify_dataframe_with_decimals
 
 
 class DriftType:
@@ -123,7 +123,7 @@ class DriftCalculationLogic:
             *,
             strategy: Strategy,
             drift_type: DriftType = DriftType.ABSOLUTE,
-            drift_threshold: Decimal = Decimal("0.05")
+            drift_threshold: Decimal = Decimal("0.05"),
     ) -> None:
         self.strategy = strategy
         self.drift_type = drift_type
@@ -133,13 +133,14 @@ class DriftCalculationLogic:
     def calculate(self, target_weights: Dict[str, Decimal]) -> pd.DataFrame:
 
         if self.drift_type == DriftType.ABSOLUTE:
-            # Make sure the target_weights are all less than the drift threshold
-            for key, target_weight in target_weights.items():
-                if self.drift_threshold >= target_weight:
-                    self.strategy.logger.warning(
-                        f"drift_threshold of {self.drift_threshold} is "
-                        f">= target_weight of {key}: {target_weight}. Drift in this asset will never trigger a rebalance."
-                    )
+            # The absolute value of all the weights are less than the drift_threshold
+            # then we will never trigger a rebalance.
+
+            if all([abs(weight) < self.drift_threshold for weight in target_weights.values()]):
+                self.strategy.logger.warning(
+                    f"All target weights are less than the drift_threshold: {self.drift_threshold}. "
+                    f"No rebalance will be triggered."
+                )
 
         self.df = pd.DataFrame({
             "symbol": target_weights.keys(),
@@ -229,7 +230,7 @@ class DriftCalculationLogic:
             return Decimal(-1)
 
         elif row["current_quantity"] == Decimal(0) and row["target_weight"] > Decimal(0):
-            # We don't have any of this asset but we wanna buy some.
+            # We don't have any of this asset, but we want to buy some.
             return Decimal(1)
 
         elif row["current_quantity"] == Decimal(0) and row["target_weight"] == Decimal(-1):
@@ -237,7 +238,7 @@ class DriftCalculationLogic:
             return Decimal(-1)
 
         elif row["current_quantity"] == Decimal(0) and row["target_weight"] < Decimal(0):
-            # We don't have any of this asset but we wanna short some.
+            # We don't have any of this asset, but we want to short some.
             return Decimal(-1)
 
         # Otherwise we just need to adjust our holding. Calculate the drift.
@@ -284,6 +285,10 @@ class DriftOrderLogic:
         if drift_df is None:
             raise ValueError("You must pass in a DataFrame to DriftOrderLogic.rebalance()")
 
+        # Just print the drift_df to the log but sort it by symbol column
+        drift_df = drift_df.sort_values(by='symbol')
+        self.strategy.logger.info(f"drift_df:\n{prettify_dataframe_with_decimals(df=drift_df)}")
+
         rebalance_needed = self._check_if_rebalance_needed(drift_df)
         if rebalance_needed:
             self._rebalance(drift_df)
@@ -292,6 +297,9 @@ class DriftOrderLogic:
     def _rebalance(self, df: pd.DataFrame = None) -> None:
         if df is None:
             raise ValueError("You must pass in a DataFrame to DriftOrderLogic.rebalance()")
+
+        # sort dataframe by the largest absolute value drift first
+        df = df.reindex(df["drift"].abs().sort_values(ascending=False).index)
 
         # Execute sells first
         sell_orders = []
@@ -332,20 +340,12 @@ class DriftOrderLogic:
                     )
                     sell_orders.append(order)
 
-        for order in sell_orders:
-            self.strategy.logger.info(f"Submitted sell order: {order}")
-
         if not self.strategy.is_backtesting:
             # Sleep to allow sell orders to fill
             time.sleep(self.fill_sleeptime)
-            try:
-                for order in sell_orders:
-                    pulled_order = self.strategy.broker._pull_order(order.identifier, self.strategy.name, self.strategy)
-                    msg = f"Submitted order status: {pulled_order}"
-                    self.strategy.logger.info(msg)
-                    self.strategy.log_message(msg, broadcast=True)
-            except Exception as e:
-                self.strategy.logger.error(f"Error pulling order: {e}")
+
+        for order in sell_orders:
+            self.strategy.logger.info(f"Submitted sell order: {order}")
 
         # Get current cash position from the broker
         cash_position = self.get_current_cash_position()
@@ -365,22 +365,12 @@ class DriftOrderLogic:
                     cash_position -= min(order_value, cash_position)
                 else:
                     self.strategy.logger.info(
-                        f"Ran out of cash to buy {symbol}. Cash: {cash_position} and limit_price: {limit_price:.2f}")
+                        f"Ran out of cash to buy {symbol}. "
+                        f"Cash: {cash_position} and limit_price: {limit_price:.2f}"
+                    )
 
         for order in buy_orders:
             self.strategy.logger.info(f"Submitted buy order: {order}")
-
-        if not self.strategy.is_backtesting:
-            # Sleep to allow sell orders to fill
-            time.sleep(self.fill_sleeptime)
-            try:
-                for order in buy_orders:
-                    pulled_order = self.strategy.broker._pull_order(order.identifier, self.strategy.name, self.strategy)
-                    msg = f"Submitted order status: {pulled_order}"
-                    self.strategy.logger.info(msg)
-                    self.strategy.log_message(msg, broadcast=True)
-            except Exception as e:
-                self.strategy.logger.error(f"Error pulling order: {e}")
 
     def calculate_limit_price(self, *, last_price: Decimal, side: str) -> Decimal:
         if side == "sell":
@@ -406,7 +396,9 @@ class DriftOrderLogic:
                 quantity=quantity,
                 side=side
             )
-        return self.strategy.submit_order(order)
+
+        self.strategy.submit_order(order)
+        return order
 
     def _check_if_rebalance_needed(self, drift_df: pd.DataFrame) -> bool:
         # Check if the absolute value of any drift is greater than the threshold
@@ -419,8 +411,8 @@ class DriftOrderLogic:
             if abs(row["drift"]) > self.drift_threshold:
                 rebalance_needed = True
                 msg += (
-                    f" Absolute drift exceeds threshold of {self.drift_threshold:.2%}. Rebalance needed."
+                    f" Drift exceeds threshold."
                 )
             self.strategy.logger.info(msg)
-            self.strategy.log_message(msg, broadcast=True)
+
         return rebalance_needed

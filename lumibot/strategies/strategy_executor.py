@@ -953,7 +953,7 @@ class StrategyExecutor(Thread):
                     break
                 
                 # Send data to cloud every minute. Ensure not being in a trading iteration currently as it can cause an incomplete data sync
-                if ((not hasattr(self, '_last_updated_cloud')) or (datetime.now() - self._last_updated_cloud >= timedelta(minutes=1))) and (not self._in_trading_iteration):
+                if (not hasattr(self, '_last_updated_cloud')) or (datetime.now() - self._last_updated_cloud >= timedelta(minutes=1)):
                     self.strategy.send_update_to_cloud()
                     self._last_updated_cloud = datetime.now()
                 

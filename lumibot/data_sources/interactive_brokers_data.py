@@ -1,7 +1,5 @@
 import datetime
 import math
-from ibapi.contract import Contract
-import time
 
 import pandas as pd
 

@@ -1,6 +1,6 @@
 import logging
 from termcolor import colored
-from lumibot.entities import Asset, Bars
+from ..entities import Asset, Bars
 
 from .data_source import DataSource
 import subprocess
@@ -8,7 +8,7 @@ import os
 import time
 import requests
 import urllib3
-from datetime import datetime, timedelta
+from datetime import datetime
 import pandas as pd
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -101,6 +101,8 @@ class InteractiveBrokersRESTData(DataSource):
                     "-d",
                     "--name",
                     "lumibot-client-portal",
+                    "--restart",
+                    "always",
                     *env_args,
                     "-p",
                     f"{self.port}:{self.port}",
@@ -140,7 +142,7 @@ class InteractiveBrokersRESTData(DataSource):
         url = f"{self.base_url}/iserver/questions/suppress"
         json = {"messageIds": ["o451", "o383", "o354", "o163"]}
 
-        self.post_to_endpoint(url, json=json, allow_fail=False)
+        self.post_to_endpoint(url, json=json, description="Suppressing server warnings", allow_fail=False)
     
     def fetch_account_id(self):
         if self.account_id is not None:
@@ -246,7 +248,16 @@ class InteractiveBrokersRESTData(DataSource):
 
         return response
 
-    def handle_http_errors(self, response):
+    def handle_http_errors(self, response, silent, retries, description, allow_fail):
+        def show_error(retries, allow_fail):
+            if not allow_fail:
+                if retries%60 == 0:
+                    return True
+            else:
+                return True
+            
+            return False
+
         to_return = None
         re_msg = None
         is_error = False
@@ -279,7 +290,7 @@ class InteractiveBrokersRESTData(DataSource):
                     confirm_response = self.post_to_endpoint(
                         confirm_url, 
                         {"confirmed": True},
-                        "Confirming order",
+                        description="Confirming Order",
                         silent=True,
                         allow_fail=True
                     )
@@ -288,7 +299,16 @@ class InteractiveBrokersRESTData(DataSource):
                         status_code = 200
             response_json = orders
         
-        if "no bridge" in error_message.lower() or "not authenticated" in error_message.lower():
+        if 'xcredserv comm failed during getEvents due to Connection refused' in error_message:
+            retrying = True
+            re_msg = "The server is undergoing maintenance. Should fix itself soon"
+
+        elif 'Please query /accounts first' in error_message:
+            self.ping_iserver()
+            retrying = True
+            re_msg = "Lumibot got Deauthenticated"
+
+        elif "no bridge" in error_message.lower() or "not authenticated" in error_message.lower():
             retrying = True
             re_msg = "Not Authenticated"
 
@@ -301,12 +321,7 @@ class InteractiveBrokersRESTData(DataSource):
             re_msg = "You got rate limited"
 
         elif status_code == 503:
-            if any("Please query /accounts first" in str(value) for value in response_json.values()):
-                self.ping_iserver()
-                re_msg = "Lumibot got Deauthenticated"
-            else:
-                re_msg = "Internal server error, should fix itself soon"
-            
+            re_msg = "Internal server error. Should fix itself soon"
             retrying = True
 
         elif status_code == 500:
@@ -325,9 +340,25 @@ class InteractiveBrokersRESTData(DataSource):
         
         else: 
             retrying = False
+        
+        if re_msg is not None:
+            if not silent and retries%60 == 0:
+                logging.warning(colored(f"Task {description} failed: {re_msg}. Retrying...", "yellow"))
+            else:
+                logging.debug(colored(f"Task {description} failed: {re_msg}. Retrying...", "yellow"))
+            
+        elif is_error:
+            if not silent and show_error(retries, allow_fail):
+                logging.error(colored(f"Task {description} failed: {to_return}", "red"))
+            else:
+                logging.debug(colored(f"Task {description} failed: {to_return}", "red"))
+        
+        if re_msg is not None:
+            time.sleep(1)
+
 
         return (retrying, re_msg, is_error, to_return)
-
+        
     def get_from_endpoint(self, url, description="", silent=False, allow_fail=True):
         to_return = None
         retries = 0
@@ -336,25 +367,19 @@ class InteractiveBrokersRESTData(DataSource):
         try:
             while retrying or not allow_fail:
                 response = requests.get(url, verify=False)
-                retrying, re_msg, is_error, to_return = self.handle_http_errors(response)
+                retrying, re_msg, is_error, to_return = self.handle_http_errors(response, silent, retries, description, allow_fail)
                 
-                if re_msg is not None:
-                    if not silent and retries == 0:
-                        logging.warning(f'{re_msg}. Retrying...')
+                if re_msg is None and not is_error:
+                    break
 
-                elif is_error:
-                    if not silent and retries == 0:
-                        logging.error(f"Task {description} failed: {to_return}")
-
-                else:
-                    allow_fail = True
-                
                 retries+=1
 
         except requests.exceptions.RequestException as e:
             message = f"Error: {description}. Exception: {e}"
             if not silent:
                 logging.error(colored(message, "red"))
+            else:
+                logging.debug(colored(message), "red")
             to_return = {"error": message}
 
         return to_return
@@ -367,25 +392,19 @@ class InteractiveBrokersRESTData(DataSource):
         try:
             while retrying or not allow_fail:
                 response = requests.post(url, json=json, verify=False)
-                retrying, re_msg, is_error, to_return = self.handle_http_errors(response)
+                retrying, re_msg, is_error, to_return = self.handle_http_errors(response, silent, retries, description, allow_fail)
                 
-                if re_msg is not None:
-                    if not silent and retries == 0:
-                        logging.warning(f'{re_msg}. Retrying...')
-
-                elif is_error:
-                    if not silent and retries == 0:
-                        logging.error(f"Task {description} failed: {to_return}")
-
-                else:
-                    allow_fail = True
-
-                retries += 1
+                if re_msg is None and not is_error:
+                    break
+                    
+                retries+=1
 
         except requests.exceptions.RequestException as e:
             message = f"Error: {description}. Exception: {e}"
             if not silent:
                 logging.error(colored(message, "red"))
+            else:
+                logging.debug(colored(message), "red")
             to_return = {"error": message}
 
         return to_return
@@ -398,25 +417,19 @@ class InteractiveBrokersRESTData(DataSource):
         try:
             while retrying or not allow_fail:
                 response = requests.delete(url, verify=False)
-                retrying, re_msg, is_error, to_return = self.handle_http_errors(response)
+                retrying, re_msg, is_error, to_return = self.handle_http_errors(response, silent, retries, description, allow_fail)
                 
-                if re_msg is not None:
-                    if not silent and retries == 0:
-                        logging.warning(f'{re_msg}. Retrying...')
-
-                elif is_error:
-                    if not silent and retries == 0:
-                        logging.error(f"Task {description} failed: {to_return}")
-
-                else:
-                    allow_fail = True
-
-                retries += 1
+                if re_msg is None and not is_error:
+                    break
+                    
+                retries+=1
 
         except requests.exceptions.RequestException as e:
             message = f"Error: {description}. Exception: {e}"
             if not silent:
                 logging.error(colored(message, "red"))
+            else:
+                logging.debug(colored(message), "red")
             to_return = {"error": message}
 
         return to_return
@@ -463,7 +476,10 @@ class InteractiveBrokersRESTData(DataSource):
             url, "Getting open orders", allow_fail=False
         )
 
-        return [order for order in response['orders'] if order.get('totalSize', 0) != 0]
+        if 'orders' in response and isinstance(response['orders'], list):
+            return [order for order in response['orders'] if order.get('totalSize', 0) != 0]
+        
+        return []
 
     def get_order_info(self, orderid):
         self.ping_iserver()
@@ -480,7 +496,7 @@ class InteractiveBrokersRESTData(DataSource):
         self.ping_iserver()
 
         url = f"{self.base_url}/iserver/account/{self.account_id}/orders"
-        response = self.post_to_endpoint(url, order_data)
+        response = self.post_to_endpoint(url, order_data, description="Executing order")
                 
         if isinstance(response, list) and "order_id" in response[0]:
             # success
@@ -505,7 +521,7 @@ class InteractiveBrokersRESTData(DataSource):
         self.ping_iserver()
         orderId = order.identifier
         url = f"{self.base_url}/iserver/account/{self.account_id}/order/{orderId}"
-        status = self.delete_to_endpoint(url)
+        status = self.delete_to_endpoint(url, description=f"Deleting order {orderId}")
         if status:
             logging.info(
                 colored(f"Order with ID {orderId} canceled successfully.", "green")

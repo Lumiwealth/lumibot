@@ -2,7 +2,7 @@ import datetime
 import logging
 import random
 import time
-from collections import defaultdict, deque
+from collections import deque
 from decimal import Decimal
 from threading import Thread
 import math
@@ -316,7 +316,7 @@ class InteractiveBrokers(Broker):
         """Not used for Interactive Brokers. Just returns the orders."""
         return orders
     
-    def submit_orders(self, orders, is_multileg=False, duration="day", price=None, **kwargs):
+    def _submit_orders(self, orders, is_multileg=False, duration="day", price=None, **kwargs):
         if is_multileg:
             multileg_order = OrderLum(orders[0].strategy)
             multileg_order.order_class = OrderLum.OrderClass.MULTILEG
@@ -331,8 +331,10 @@ class InteractiveBrokers(Broker):
 
             # Submit the multileg order.
             self._orders_queue.put(multileg_order)
+            return multileg_order
         else:
             self._orders_queue.put(orders)
+            return orders
 
     def _submit_order(self, order):
         """Submit an order for an asset"""

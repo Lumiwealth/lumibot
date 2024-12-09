@@ -6,7 +6,6 @@ from alpaca.data.historical import CryptoHistoricalDataClient, StockHistoricalDa
 from alpaca.data.requests import (
     CryptoBarsRequest,
     CryptoLatestQuoteRequest,
-    CryptoLatestTradeRequest,
     StockBarsRequest,
     StockLatestTradeRequest,
 )

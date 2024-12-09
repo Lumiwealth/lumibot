@@ -59,14 +59,8 @@ if __name__ == "__main__":
     is_live = True
 
     if is_live:
-        from lumibot.traders import Trader
-
-        trader = Trader()
-
         strategy = FuturesHoldToExpiry()
-
-        trader.add_strategy(strategy)
-        strategy_executors = trader.run_all()
+        strategy.run_live()
 
     else:
         from lumibot.backtesting import PolygonDataBacktesting

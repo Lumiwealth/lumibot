@@ -68,16 +68,12 @@ if __name__ == "__main__":
         from credentials import ALPACA_CONFIG
 
         from lumibot.brokers import Alpaca
-        from lumibot.traders import Trader
-
-        trader = Trader()
 
         broker = Alpaca(ALPACA_CONFIG)
 
         strategy = LimitAndTrailingStop(broker=broker)
 
-        trader.add_strategy(strategy)
-        strategy_executors = trader.run_all()
+        strategy.run_live()
 
     else:
         from lumibot.backtesting import YahooDataBacktesting

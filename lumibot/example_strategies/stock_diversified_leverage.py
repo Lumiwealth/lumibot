@@ -4,7 +4,6 @@ from lumibot.backtesting import YahooDataBacktesting
 from lumibot.brokers import Alpaca
 from lumibot.entities import TradingFee
 from lumibot.strategies.strategy import Strategy
-from lumibot.traders import Trader
 
 """
 Strategy Description
@@ -127,11 +126,9 @@ if __name__ == "__main__":
         ####
         from credentials import ALPACA_CONFIG
 
-        trader = Trader()
         broker = Alpaca(ALPACA_CONFIG)
         strategy = DiversifiedLeverage(broker=broker)
-        trader.add_strategy(strategy)
-        trader.run_all()
+        strategy.run_live()
 
     else:
         ####

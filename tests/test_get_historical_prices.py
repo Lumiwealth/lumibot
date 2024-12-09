@@ -16,9 +16,7 @@ from lumibot.entities import Asset, Bars
 from lumibot.tools import get_trading_days
 
 # Global parameters
-# API Key for testing Polygon.io
-from lumibot.credentials import POLYGON_API_KEY
-from lumibot.credentials import TRADIER_CONFIG, ALPACA_CONFIG
+from lumibot.credentials import TRADIER_CONFIG, ALPACA_CONFIG, POLYGON_CONFIG
 
 
 logger = logging.getLogger(__name__)
@@ -134,13 +132,13 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
         self.check_date_of_last_bar_is_date_of_last_trading_date_before_backtest_start(bars, backtesting_start=backtesting_start)
         self.check_dividends_and_adjusted_returns(bars)
 
-    @pytest.mark.skip(reason="This test exposes a possible bug in data.py that we have not investigated yet.")
-    @pytest.mark.skipif(POLYGON_API_KEY == '<your key here>', reason="This test requires a Polygon.io API key")
+    @pytest.mark.skipif(not POLYGON_CONFIG["API_KEY"], reason="This test requires a Polygon.io API key")
+    @pytest.mark.skipif(not POLYGON_CONFIG["IS_PAID_SUBSCRIPTION"], reason="This test requires a paid Polygon.io API key")
     def test_polygon_backtesting_data_source_get_historical_prices_daily_bars(self):
-        backtesting_end = datetime.now() - timedelta(days=1)
-        backtesting_start = backtesting_end - timedelta(days=self.length * 2 + 5)
+        backtesting_start = datetime(2019, 3, 25)
+        backtesting_end = datetime(2019, 4, 25)
         data_source = PolygonDataBacktesting(
-            backtesting_start, backtesting_end, api_key=POLYGON_API_KEY
+            backtesting_start, backtesting_end, api_key=POLYGON_CONFIG["API_KEY"]
         )
         bars = data_source.get_historical_prices(asset=self.asset, length=self.length, timestep=self.timestep)
         check_bars(bars=bars, length=self.length)
@@ -164,7 +162,6 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
         self.check_date_of_last_bar_is_date_of_last_trading_date_before_backtest_start(bars, backtesting_start=backtesting_start)
 
 
-# @pytest.mark.skip()
 class TestDatasourceGetHistoricalPricesDailyData:
     """These tests check the daily Bars returned from get_historical_prices for live data sources."""
 
@@ -202,7 +199,6 @@ class TestDatasourceGetHistoricalPricesDailyData:
             # if it's not a trading day, the last bar the bar should from the last trading day
             assert bars.df.index[-1].date() == self.trading_days.index[-1].date()
 
-    # @pytest.mark.skip()
     @pytest.mark.skipif(not ALPACA_CONFIG['API_KEY'], reason="This test requires an alpaca API key")
     @pytest.mark.skipif(
         ALPACA_CONFIG['API_KEY'] == '<your key here>',
@@ -225,7 +221,6 @@ class TestDatasourceGetHistoricalPricesDailyData:
         check_bars(bars=bars, length=1, check_timezone=False)
         self.check_date_of_last_bar_is_correct_for_live_data_sources(bars)
 
-    # @pytest.mark.skip()
     @pytest.mark.skipif(not TRADIER_CONFIG['ACCESS_TOKEN'], reason="No Tradier credentials provided.")
     def test_tradier_data_source_get_historical_prices_daily_bars(self):
         data_source = TradierData(

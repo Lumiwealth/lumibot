@@ -447,6 +447,7 @@ class Alpaca(Broker):
             order.set_identifier(response.id)
             order.status = response.status
             order.update_raw(response)
+            self._unprocessed_orders.append(order)
 
         except Exception as e:
             order.set_error(e)

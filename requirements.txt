@@ -26,3 +26,4 @@ duckdb
 tabulate
 thetadata
 psutil
+pyarrow

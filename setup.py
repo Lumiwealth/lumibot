@@ -42,6 +42,7 @@ setuptools.setup(
         "tabulate",
         "thetadata",
         "psutil",
+        "pyarrow"
     ],
     classifiers=[
         "Programming Language :: Python :: 3",

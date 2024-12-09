@@ -596,7 +596,7 @@ class Data:
 
         # The original df_result may include more rows when timestep is day and self.timestep is minute.
         # In this case, we only want to return the last n rows.
-        df_result = df_result.tail(n=num_periods)
+        df_result = df_result.tail(n=int(num_periods))
 
         return df_result
 

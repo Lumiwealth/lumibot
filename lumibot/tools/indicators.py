@@ -258,6 +258,9 @@ def plot_indicators(
             marker_size = marker_df["size"].iloc[0]
             marker_size = marker_size if marker_size else 25
 
+            # If color is not set, set it to black
+            marker_df.loc[:, "color"] = marker_df["color"].fillna("white")
+
             # Create a new trace for this marker name
             fig.add_trace(
                 go.Scatter(

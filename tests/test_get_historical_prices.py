@@ -129,7 +129,10 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
         )
         bars = data_source.get_historical_prices(asset=self.asset, length=self.length, timestep=self.timestep)
         check_bars(bars=bars, length=self.length)
-        self.check_date_of_last_bar_is_date_of_last_trading_date_before_backtest_start(bars, backtesting_start=backtesting_start)
+        self.check_date_of_last_bar_is_date_of_last_trading_date_before_backtest_start(
+            bars,
+            backtesting_start=backtesting_start
+        )
         self.check_dividends_and_adjusted_returns(bars)
 
         # First trading day after Thanksgiving test
@@ -142,29 +145,48 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
         )
         bars = data_source.get_historical_prices(asset=self.asset, length=self.length, timestep=self.timestep)
         check_bars(bars=bars, length=self.length)
-        self.check_date_of_last_bar_is_date_of_last_trading_date_before_backtest_start(bars, backtesting_start=backtesting_start)
+        self.check_date_of_last_bar_is_date_of_last_trading_date_before_backtest_start(
+            bars,
+            backtesting_start=backtesting_start
+        )
 
-    @pytest.mark.skipif(not POLYGON_CONFIG["API_KEY"], reason="This test requires a Polygon.io API key")
-    @pytest.mark.skipif(not POLYGON_CONFIG["IS_PAID_SUBSCRIPTION"], reason="This test requires a paid Polygon.io API key")
+    @pytest.mark.skipif(
+        not POLYGON_CONFIG["API_KEY"],
+        reason="This test requires a Polygon.io API key"
+    )
+    @pytest.mark.skipif(
+        POLYGON_CONFIG['API_KEY'] == '<your key here>',
+        reason="This test requires a Polygon.io API key"
+    )
+    @pytest.mark.skipif(
+        not POLYGON_CONFIG["IS_PAID_SUBSCRIPTION"],
+        reason="This test requires a paid Polygon.io API key"
+    )
     def test_polygon_backtesting_data_source_get_historical_prices_daily_bars(self):
-        backtesting_start = datetime(2019, 3, 25)
-        backtesting_end = datetime(2019, 4, 25)
+        backtesting_start = datetime(2024, 3, 25)
+        backtesting_end = datetime(2024, 4, 25)
         data_source = PolygonDataBacktesting(
             backtesting_start, backtesting_end, api_key=POLYGON_CONFIG["API_KEY"]
         )
         bars = data_source.get_historical_prices(asset=self.asset, length=self.length, timestep=self.timestep)
         check_bars(bars=bars, length=self.length)
-        self.check_date_of_last_bar_is_date_of_last_trading_date_before_backtest_start(bars, backtesting_start=backtesting_start)
+        self.check_date_of_last_bar_is_date_of_last_trading_date_before_backtest_start(
+            bars,
+            backtesting_start=backtesting_start
+        )
 
         # First trading day after Thanksgiving test
-        backtesting_start = datetime(2019, 3, 25)
-        backtesting_end = datetime(2019, 4, 25)
+        backtesting_start = datetime(2024, 11, 2)
+        backtesting_end = datetime(2024, 12, 2)
         data_source = PolygonDataBacktesting(
             backtesting_start, backtesting_end, api_key=POLYGON_CONFIG["API_KEY"]
         )
         bars = data_source.get_historical_prices(asset=self.asset, length=self.length, timestep=self.timestep)
         check_bars(bars=bars, length=self.length)
-        self.check_date_of_last_bar_is_date_of_last_trading_date_before_backtest_start(bars, backtesting_start=backtesting_start)
+        self.check_date_of_last_bar_is_date_of_last_trading_date_before_backtest_start(
+            bars,
+            backtesting_start=backtesting_start
+        )
 
     def test_yahoo_backtesting_data_source_get_historical_prices_daily_bars(self, pandas_data_fixture):
         """
@@ -181,11 +203,14 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
         bars = data_source.get_historical_prices(asset=self.asset, length=self.length, timestep=self.timestep)
         check_bars(bars=bars, length=self.length)
         self.check_dividends_and_adjusted_returns(bars)
-        self.check_date_of_last_bar_is_date_of_last_trading_date_before_backtest_start(bars, backtesting_start=backtesting_start)
+        self.check_date_of_last_bar_is_date_of_last_trading_date_before_backtest_start(
+            bars,
+            backtesting_start=backtesting_start
+        )
 
         # First trading day after Thanksgiving test
-        backtesting_start = datetime(2019, 3, 25)
-        backtesting_end = datetime(2019, 4, 25)
+        backtesting_start = datetime(2019, 11, 2)
+        backtesting_end = datetime(2019, 12, 2)
         data_source = YahooDataBacktesting(
             datetime_start=backtesting_start,
             datetime_end=backtesting_end,
@@ -193,7 +218,10 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
         )
         bars = data_source.get_historical_prices(asset=self.asset, length=self.length, timestep=self.timestep)
         check_bars(bars=bars, length=self.length)
-        self.check_date_of_last_bar_is_date_of_last_trading_date_before_backtest_start(bars, backtesting_start=backtesting_start)
+        self.check_date_of_last_bar_is_date_of_last_trading_date_before_backtest_start(
+            bars,
+            backtesting_start=backtesting_start
+        )
 
 
 class TestDatasourceGetHistoricalPricesDailyData:
@@ -233,7 +261,10 @@ class TestDatasourceGetHistoricalPricesDailyData:
             # if it's not a trading day, the last bar the bar should from the last trading day
             assert bars.df.index[-1].date() == self.trading_days.index[-1].date()
 
-    @pytest.mark.skipif(not ALPACA_CONFIG['API_KEY'], reason="This test requires an alpaca API key")
+    @pytest.mark.skipif(
+        not ALPACA_CONFIG['API_KEY'],
+        reason="This test requires an alpaca API key"
+    )
     @pytest.mark.skipif(
         ALPACA_CONFIG['API_KEY'] == '<your key here>',
         reason="This test requires an alpaca API key"

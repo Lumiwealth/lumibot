@@ -307,6 +307,10 @@ class InteractiveBrokersRESTData(DataSource):
             self.ping_iserver()
             retrying = True
             re_msg = "Lumibot got Deauthenticated"
+        
+        elif 'There was an error processing the request. Please try again.' in error_message:
+            retrying = True
+            re_msg = "Something went wrong."
 
         elif "no bridge" in error_message.lower() or "not authenticated" in error_message.lower():
             retrying = True

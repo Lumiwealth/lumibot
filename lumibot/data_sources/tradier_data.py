@@ -240,9 +240,12 @@ class TradierData(DataSource):
         if "timestamp" in df.columns:
             df = df.drop(columns=["timestamp"])
 
-        # if type of index is date, convert it to timestamp with timezone info of "America/New_York"
-        if isinstance(df.index[0], date):
-            df.index = pd.to_datetime(df.index).tz_localize("America/New_York")
+        # Check if the index contains dates and handle timezone
+        if isinstance(df.index[0], date):  # Check if index contains date objects
+            if df.index.tz is None:  # Check if the index is timezone-naive
+                df.index = pd.to_datetime(df.index).tz_localize("America/New_York")
+            else:  # If the index is already timezone-aware
+                df.index = df.index.tz_convert("America/New_York")
 
         # Convert the dataframe to a Bars object
         bars = Bars(df, self.SOURCE, asset, raw=df, quote=quote)

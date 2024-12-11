@@ -412,8 +412,11 @@ class PandasData(DataSourceBacktesting):
         # Convert timestep string to timedelta and get start datetime
         td, ts_unit = self.convert_timestep_str_to_timedelta(timestep)
 
-        # Multiply td by length to get the end datetime
-        td *= length
+        if ts_unit == "day":
+            # Multiply td * length * 1.5 to get the end datetime with overflow + 3 days for long weekends
+            td = (td * length * 1.5) + timedelta(days=3)
+        else:
+            td *= length
 
         if start_dt is not None:
             start_datetime = start_dt - td

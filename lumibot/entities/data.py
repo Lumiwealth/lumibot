@@ -480,6 +480,11 @@ class Data:
 
         # Get bars.
         end_row = self.get_iter_count(dt) - timeshift
+        if self.df.index[end_row] != dt:
+            # If dt is not in the dataframe, get_iter_count will return the last bar before dt.
+            # Since the data is not complete, we need to get the last bar, which is the end_row.
+            # And since the selection at the end is exclusive of end_row, we need to add 1 to end_row here.
+            end_row += 1
         start_row = end_row - length
 
         if start_row < 0:

@@ -83,11 +83,5 @@ if __name__ == "__main__":
         )
 
     else:
-        from lumibot.traders import Trader
-
-        trader = Trader()
-
         strategy = FuturesHoldToExpiry()
-
-        trader.add_strategy(strategy)
-        strategy_executors = trader.run_all()
+        strategy.run_live()

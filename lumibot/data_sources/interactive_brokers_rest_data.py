@@ -1,8 +1,10 @@
 import logging
 from termcolor import colored
-from ..entities import Asset, Bars
 
+from lumibot import LUMIBOT_DEFAULT_PYTZ
+from ..entities import Asset, Bars
 from .data_source import DataSource
+
 import subprocess
 import os
 import time
@@ -813,7 +815,7 @@ class InteractiveBrokersRESTData(DataSource):
         # Convert timestamp to datetime and set as index
         df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
         df["timestamp"] = (
-            df["timestamp"].dt.tz_localize("UTC").dt.tz_convert("America/New_York")
+            df["timestamp"].dt.tz_localize("UTC").dt.tz_convert(LUMIBOT_DEFAULT_PYTZ)
         )
         df.set_index("timestamp", inplace=True)
 

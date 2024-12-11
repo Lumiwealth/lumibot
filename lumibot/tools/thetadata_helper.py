@@ -8,7 +8,7 @@ import pytz
 import pandas as pd
 import pandas_market_calendars as mcal
 import requests
-from lumibot import LUMIBOT_CACHE_FOLDER
+from lumibot import LUMIBOT_CACHE_FOLDER, LUMIBOT_DEFAULT_PYTZ
 from lumibot.entities import Asset
 from thetadata import ThetaClient
 from tqdm import tqdm
@@ -295,7 +295,7 @@ def update_df(df_all, result):
                 ],
             }
     """
-    ny_tz = pytz.timezone('America/New_York')
+    ny_tz = LUMIBOT_DEFAULT_PYTZ
     df = pd.DataFrame(result)
     if not df.empty:
         if "datetime" not in df.index.names:

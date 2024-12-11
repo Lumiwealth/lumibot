@@ -12,8 +12,10 @@ from lumiwealth_tradier import Tradier
 
 from .data_source import DataSource
 
+
 class TradierAPIError(Exception):
     pass
+
 
 class TradierData(DataSource):
 

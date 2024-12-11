@@ -21,6 +21,7 @@ import io
 from sqlalchemy import create_engine, inspect, text
 
 import pandas as pd
+from lumibot import LUMIBOT_DEFAULT_PYTZ
 from ..backtesting import BacktestingBroker, PolygonDataBacktesting, ThetaDataBacktesting
 from ..entities import Asset, Position, Order
 from ..tools import (
@@ -1791,7 +1792,7 @@ class _Strategy:
         cash = self.get_cash()
 
         # # Get the datetime
-        now = pd.Timestamp(datetime.datetime.now()).tz_localize("America/New_York")
+        now = pd.Timestamp(datetime.datetime.now()).tz_localize(LUMIBOT_DEFAULT_PYTZ)
 
         # Get the returns
         returns_text, stats_df = self.calculate_returns()
@@ -1820,7 +1821,7 @@ class _Strategy:
                     self.logger.info(f"Table {stats_table_name} does not exist. Creating it now.")
 
                     # Get the current time in New York
-                    ny_tz = pytz.timezone("America/New_York")
+                    ny_tz = LUMIBOT_DEFAULT_PYTZ
                     now = datetime.datetime.now(ny_tz)
 
                     # Create an empty stats dataframe
@@ -1884,7 +1885,7 @@ class _Strategy:
             self.db_engine = create_engine(self.db_connection_str)
 
         # Get the current time in New York
-        ny_tz = pytz.timezone("America/New_York")
+        ny_tz = LUMIBOT_DEFAULT_PYTZ
         now = datetime.datetime.now(ny_tz)
 
         if not inspect(self.db_engine).has_table(self.backup_table_name):
@@ -2008,7 +2009,7 @@ class _Strategy:
         # Calculate the return over the past 24 hours, 7 days, and 30 days using the stats dataframe
 
         # Get the current time in New York
-        ny_tz = pytz.timezone("America/New_York")
+        ny_tz = LUMIBOT_DEFAULT_PYTZ
 
         # Get the datetime
         now = datetime.datetime.now(ny_tz)
@@ -2025,11 +2026,11 @@ class _Strategy:
         # Check if the datetime column is timezone-aware
         if stats_df['datetime'].dt.tz is None:
             # If the datetime is timezone-naive, directly localize it to "America/New_York"
-            stats_df["datetime"] = stats_df["datetime"].dt.tz_localize("America/New_York", ambiguous='infer')
+            stats_df["datetime"] = stats_df["datetime"].dt.tz_localize(LUMIBOT_DEFAULT_PYTZ, ambiguous='infer')
         else:
             # If the datetime is already timezone-aware, first remove timezone and then localize
             stats_df["datetime"] = stats_df["datetime"].dt.tz_localize(None)
-            stats_df["datetime"] = stats_df["datetime"].dt.tz_localize("America/New_York", ambiguous='infer')
+            stats_df["datetime"] = stats_df["datetime"].dt.tz_localize(LUMIBOT_DEFAULT_PYTZ, ambiguous='infer')
 
         # Get the stats
         stats_new = pd.DataFrame(
@@ -2049,7 +2050,7 @@ class _Strategy:
         stats_df = pd.concat([stats_df, stats_new])
 
         # # Convert the datetime column to eastern time
-        stats_df["datetime"] = stats_df["datetime"].dt.tz_convert("America/New_York")
+        stats_df["datetime"] = stats_df["datetime"].dt.tz_convert(LUMIBOT_DEFAULT_PYTZ)
 
         # Remove any duplicate rows
         stats_df = stats_df[~stats_df["datetime"].duplicated(keep="last")]

@@ -817,7 +817,21 @@ class Order:
             return True
         else:
             return False
+    
+    @classmethod
+    def is_equivalent_status(cls, status1, status2) -> bool:
+        """Returns if the 2 statuses passed are equivalent."""
 
+        if not status1 or not status2:
+            return False
+        elif status1.lower() in [status2.lower(), STATUS_ALIAS_MAP.get(status2.lower(), "")]:
+            return True
+        # open/new status is equivalent
+        elif {status1.lower(), status2.lower()}.issubset({"open", "new"}):
+            return True
+        else:
+            return False
+    
     def set_error(self, error):
         self.status = "error"
         self._error = error

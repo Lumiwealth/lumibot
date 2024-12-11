@@ -57,7 +57,20 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
     @classmethod
     def setup_class(cls):
         pass
-        
+
+    # noinspection PyMethodMayBeStatic
+    def get_first_trading_day_after_thanksgiving(self, year):
+        # Thanksgiving is the fourth Thursday in November
+        thanksgiving = datetime(year, 11, 1) + timedelta(days=(3 - datetime(year, 11, 1).weekday() + 28) % 7 + 21)
+        # The first trading day after Thanksgiving is the next business day
+        first_trading_day = thanksgiving + timedelta(days=1)
+
+        # Check if the first trading day is a weekend and adjust accordingly
+        if first_trading_day.weekday() >= 5:  # 5 = Saturday, 6 = Sunday
+            first_trading_day += timedelta(days=(7 - first_trading_day.weekday()))
+
+        return first_trading_day
+
     # noinspection PyMethodMayBeStatic
     def check_date_of_last_bar_is_date_of_last_trading_date_before_backtest_start(
             self, bars: Bars,
@@ -115,6 +128,13 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
             rtol=0
         )
 
+    def test_get_first_trading_day_after_thanksgiving(self):
+        first_trading_day_after_thanksgiving = self.get_first_trading_day_after_thanksgiving(2019)
+        assert first_trading_day_after_thanksgiving == datetime(2019, 11, 29)
+
+        first_trading_day_after_thanksgiving = self.get_first_trading_day_after_thanksgiving(2023)
+        assert first_trading_day_after_thanksgiving == datetime(2023, 11, 24)
+
     def test_pandas_backtesting_data_source_get_historical_prices_daily_bars(self, pandas_data_fixture):
         """
         This tests that the pandas data_source calculates adjusted returns for bars and that they
@@ -137,7 +157,7 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
 
         # First trading day after Thanksgiving test
         backtesting_start = datetime(2019, 11, 2)
-        backtesting_end = datetime(2019, 12, 2)
+        backtesting_end = self.get_first_trading_day_after_thanksgiving(2019)
         data_source = PandasData(
             datetime_start=backtesting_start,
             datetime_end=backtesting_end,
@@ -163,8 +183,9 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
         reason="This test requires a paid Polygon.io API key"
     )
     def test_polygon_backtesting_data_source_get_historical_prices_daily_bars(self):
-        backtesting_start = datetime(2024, 3, 25)
-        backtesting_end = datetime(2024, 4, 25)
+        last_year = datetime.now().year - 1
+        backtesting_start = datetime(last_year, 3, 25)
+        backtesting_end = datetime(last_year, 4, 25)
         data_source = PolygonDataBacktesting(
             backtesting_start, backtesting_end, api_key=POLYGON_CONFIG["API_KEY"]
         )
@@ -176,8 +197,8 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
         )
 
         # First trading day after Thanksgiving test
-        backtesting_start = datetime(2024, 11, 2)
-        backtesting_end = datetime(2024, 12, 2)
+        backtesting_start = datetime(last_year, 11, 2)
+        backtesting_end = self.get_first_trading_day_after_thanksgiving(last_year)
         data_source = PolygonDataBacktesting(
             backtesting_start, backtesting_end, api_key=POLYGON_CONFIG["API_KEY"]
         )
@@ -210,7 +231,7 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
 
         # First trading day after Thanksgiving test
         backtesting_start = datetime(2019, 11, 2)
-        backtesting_end = datetime(2019, 12, 2)
+        backtesting_end = self.get_first_trading_day_after_thanksgiving(2019)
         data_source = YahooDataBacktesting(
             datetime_start=backtesting_start,
             datetime_end=backtesting_end,

@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="lumibot",
-    version="3.8.19",
+    version="3.8.20",
     author="Robert Grzesik",
     author_email="rob@lumiwealth.com",
     description="Backtesting and Trading Library, Made by Lumiwealth",
@@ -42,7 +42,8 @@ setuptools.setup(
         "tabulate",
         "thetadata",
         "psutil",
-        "pyarrow"
+        "pyarrow",
+        "psycopg2-binary",
     ],
     classifiers=[
         "Programming Language :: Python :: 3",

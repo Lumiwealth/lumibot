@@ -1204,21 +1204,21 @@ class Broker(ABC):
             except ValueError:
                 raise error
 
-        if type_event == self.NEW_ORDER:
+        if Order.is_equivalent_status(type_event, self.NEW_ORDER):
             stored_order = self._process_new_order(stored_order)
             self._on_new_order(stored_order)
-        elif type_event == self.CANCELED_ORDER:
+        elif Order.is_equivalent_status(type_event, self.CANCELED_ORDER):
             # Do not cancel or re-cancel already completed orders
             if stored_order.is_active():
                 stored_order = self._process_canceled_order(stored_order)
                 self._on_canceled_order(stored_order)
-        elif type_event == self.PARTIALLY_FILLED_ORDER:
+        elif Order.is_equivalent_status(type_event, self.PARTIALLY_FILLED_ORDER):
             stored_order, position = self._process_partially_filled_order(stored_order, price, filled_quantity)
             self._on_partially_filled_order(position, stored_order, price, filled_quantity, multiplier)
-        elif type_event == self.FILLED_ORDER:
+        elif Order.is_equivalent_status(type_event, self.FILLED_ORDER):
             position = self._process_filled_order(stored_order, price, filled_quantity)
             self._on_filled_order(position, stored_order, price, filled_quantity, multiplier)
-        elif type_event == self.CASH_SETTLED:
+        elif Order.is_equivalent_status(type_event, self.CASH_SETTLED):
             self._process_cash_settlement(stored_order, price, filled_quantity)
             stored_order.type = self.CASH_SETTLED
         else:

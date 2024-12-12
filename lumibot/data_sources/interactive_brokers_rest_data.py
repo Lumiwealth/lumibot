@@ -1,8 +1,10 @@
 import logging
 from termcolor import colored
-from ..entities import Asset, Bars
 
+from lumibot import LUMIBOT_DEFAULT_PYTZ
+from ..entities import Asset, Bars
 from .data_source import DataSource
+
 import subprocess
 import os
 import time
@@ -307,6 +309,10 @@ class InteractiveBrokersRESTData(DataSource):
             self.ping_iserver()
             retrying = True
             re_msg = "Lumibot got Deauthenticated"
+        
+        elif 'There was an error processing the request. Please try again.' in error_message:
+            retrying = True
+            re_msg = "Something went wrong."
 
         elif "no bridge" in error_message.lower() or "not authenticated" in error_message.lower():
             retrying = True
@@ -813,7 +819,7 @@ class InteractiveBrokersRESTData(DataSource):
         # Convert timestamp to datetime and set as index
         df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
         df["timestamp"] = (
-            df["timestamp"].dt.tz_localize("UTC").dt.tz_convert("America/New_York")
+            df["timestamp"].dt.tz_localize("UTC").dt.tz_convert(LUMIBOT_DEFAULT_PYTZ)
         )
         df.set_index("timestamp", inplace=True)
 

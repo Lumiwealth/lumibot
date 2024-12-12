@@ -1,12 +1,6 @@
-from datetime import date, datetime
-from decimal import Decimal
-
 import logging
-from lumibot.brokers import InteractiveBrokers, Tradier, InteractiveBrokersREST, ExampleBroker
 from lumibot.entities import Asset, Order
 from lumibot.strategies.strategy import Strategy
-from lumibot.traders import Trader
-import yfinance as yf
 from datetime import timedelta
 
 # from lumiwealth_tradier import Tradier as _Tradier
@@ -132,8 +126,5 @@ if __name__ == "__main__":
     # broker = ExampleBroker()
 
     strategy = BrokerTest()
+    strategy.run_live()
 
-    trader = Trader()
-
-    trader.add_strategy(strategy)
-    strategy_executors = trader.run_all()

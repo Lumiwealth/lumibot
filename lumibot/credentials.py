@@ -148,9 +148,7 @@ ALPACA_CONFIG = {  # Paper trading!
     # Add ALPACA_API_KEY, ALPACA_API_SECRET, and ALPACA_IS_PAPER to your .env file or set them as secrets
     "API_KEY": os.environ.get("ALPACA_API_KEY"),
     "API_SECRET": os.environ.get("ALPACA_API_SECRET"),
-    "PAPER": os.environ.get("ALPACA_IS_PAPER").lower() == "true"
-    if os.environ.get("ALPACA_IS_PAPER")
-    else True,
+    "PAPER": os.environ.get("ALPACA_IS_PAPER").lower() == "true" if os.environ.get("ALPACA_IS_PAPER") else True,
 }
 
 # Tradier Configuration

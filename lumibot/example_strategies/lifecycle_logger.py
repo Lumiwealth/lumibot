@@ -62,10 +62,7 @@ if __name__ == "__main__":
     else:
         from lumibot.credentials import ALPACA_CONFIG
         from lumibot.brokers import Alpaca
-        from lumibot.traders import Trader
 
-        trader = Trader()
         broker = Alpaca(ALPACA_CONFIG)
         strategy = LifecycleLogger(broker=broker)
-        trader.add_strategy(strategy)
-        strategy_executors = trader.run_all()
+        strategy.run_live()

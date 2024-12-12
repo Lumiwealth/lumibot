@@ -4,17 +4,15 @@ from datetime import datetime, date, timedelta
 
 import pandas as pd
 
-from lumibot import LUMIBOT_DEFAULT_PYTZ
+from lumibot import LUMIBOT_DEFAULT_PYTZ, LUMIBOT_DEFAULT_TIMEZONE
 from lumibot.entities import Asset, Bars
 from lumibot.tools.helpers import create_options_symbol, parse_timestep_qty_and_unit, get_trading_days
 from lumiwealth_tradier import Tradier
 
 from .data_source import DataSource
 
-
 class TradierAPIError(Exception):
     pass
-
 
 class TradierData(DataSource):
 
@@ -240,9 +238,15 @@ class TradierData(DataSource):
         if "timestamp" in df.columns:
             df = df.drop(columns=["timestamp"])
 
-        # if type of index is date, convert it to timestamp with timezone info of "America/New_York"
-        if isinstance(df.index[0], date):
-            df.index = pd.to_datetime(df.index).tz_localize(LUMIBOT_DEFAULT_PYTZ)
+        # If the index contains date objects, convert and handle timezone
+        if isinstance(df.index[0], date):  # Check if the index contains date objects
+            df.index = pd.to_datetime(df.index)  # Always ensure it's a DatetimeIndex
+
+            # Check if the index is timezone-naive or already timezone-aware
+            if df.index.tz is None:  # Naive index, localize to America/New_York
+                df.index = df.index.tz_localize(LUMIBOT_DEFAULT_TIMEZONE)
+            else:  # Already timezone-aware, convert to America/New_York
+                df.index = df.index.tz_convert(LUMIBOT_DEFAULT_TIMEZONE)
 
         # Convert the dataframe to a Bars object
         bars = Bars(df, self.SOURCE, asset, raw=df, quote=quote)

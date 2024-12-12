@@ -3,8 +3,6 @@ import datetime
 from lumibot.brokers import Ccxt
 from lumibot.entities import Asset
 from lumibot.strategies.strategy import Strategy
-from lumibot.traders import Trader
-
 
 class ImportantFunctions(Strategy):
     def initialize(self):
@@ -123,8 +121,6 @@ class ImportantFunctions(Strategy):
 
 
 if __name__ == "__main__":
-    trader = Trader()
-
     KRAKEN_CONFIG = {
         "exchange_id": "kraken",
         "apiKey": "YOUR_API_KEY",
@@ -145,5 +141,4 @@ if __name__ == "__main__":
         broker=broker,
     )
 
-    trader.add_strategy(strategy)
-    strategy_executors = trader.run_all()
+    strategy.run_live()

@@ -379,8 +379,9 @@ class TestPolygonBacktestFull:
             mocked_get_price_data.assert_called_once()
             call_args = mocked_get_price_data.call_args
 
+            extra_padding_days = (length // 5) * 3
             expected_start_date = polygon_data_backtesting.datetime_start - \
-                datetime.timedelta(days=length) - START_BUFFER
+                datetime.timedelta(days=length + extra_padding_days) - START_BUFFER
 
             assert call_args[0][0] == polygon_data_backtesting._api_key
             assert call_args[0][1] == asset

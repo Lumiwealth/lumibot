@@ -3,9 +3,8 @@ from collections import defaultdict
 from datetime import datetime, date, timedelta
 
 import pandas as pd
-import pytz
 
-from lumibot import LUMIBOT_DEFAULT_TIMEZONE
+from lumibot import LUMIBOT_DEFAULT_PYTZ, LUMIBOT_DEFAULT_TIMEZONE
 from lumibot.entities import Asset, Bars
 from lumibot.tools.helpers import create_options_symbol, parse_timestep_qty_and_unit, get_trading_days
 from lumiwealth_tradier import Tradier
@@ -190,7 +189,7 @@ class TradierData(DataSource):
         end_date = datetime.now()
 
         # Use pytz to get the US/Eastern timezone
-        eastern = pytz.timezone("US/Eastern")
+        eastern = LUMIBOT_DEFAULT_PYTZ
 
         # Convert datetime object to US/Eastern timezone
         end_date = end_date.astimezone(eastern)

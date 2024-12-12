@@ -413,8 +413,9 @@ class PandasData(DataSourceBacktesting):
         td, ts_unit = self.convert_timestep_str_to_timedelta(timestep)
 
         if ts_unit == "day":
-            # Multiply td * length * 1.5 to get the end datetime with overflow + 3 days for long weekends
-            td = (td * length * 1.5) + timedelta(days=3)
+            weeks_requested = length // 5  # Full trading week is 5 days
+            extra_padding_days = weeks_requested * 3  # to account for 3day weekends
+            td = timedelta(days=length + extra_padding_days)
         else:
             td *= length
 

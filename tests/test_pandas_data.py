@@ -34,6 +34,7 @@ class TestPandasData:
             start,
             start_buffer=timedelta(days=0)  # just test our math
         )
-        expected_datetime = datetime(2023, 3, 25) - timedelta(days=(length*1.5+3))
+        extra_padding_days = (length // 5) * 3
+        expected_datetime = datetime(2023, 3, 25) - timedelta(days=length + extra_padding_days)
         assert start_datetime == expected_datetime
 

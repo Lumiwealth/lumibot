@@ -299,7 +299,7 @@ class Ccxt(Broker):
             response["side"],
             limit_price=response["price"],
             stop_price=response["stopPrice"],
-            time_in_force=response["timeInForce"].lower(),
+            time_in_force=response["timeInForce"].lower() if response["timeInForce"] else None,
             quote=Asset(
                 symbol=pair[1],
                 asset_type="crypto",
@@ -324,7 +324,10 @@ class Ccxt(Broker):
     def _pull_broker_closed_orders(self):
         params = {}
 
-        if self.is_margin_enabled():
+        if self.api.id == "kraken":  # Check if the exchange is Kraken
+            logging.info("Detected Kraken exchange. Not sending params for closed orders.")
+            params = None  # Ensure no parameters are sent
+        elif self.is_margin_enabled():
             params["tradeType"] = "MARGIN_TRADE"
 
         closed_orders = self.api.fetch_closed_orders(params)

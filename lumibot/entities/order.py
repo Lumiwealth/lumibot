@@ -799,7 +799,7 @@ class Order:
         """
         if self.position_filled:
             return True
-        elif self.status.lower() in ["filled", "fill"]:
+        elif self.status.lower() in ["filled", "fill", "cash_settled"]:
             return True
         else:
             return False

@@ -736,8 +736,8 @@ class InteractiveBrokersRESTData(DataSource):
             timestep_value = 1
 
         if "minute" in timestep:
-            period = f"{length * timestep_value}mins"
-            timestep = f"{timestep_value}mins"
+            period = f"{length * timestep_value}min"
+            timestep = f"{timestep_value}min"
         elif "hour" in timestep:
             period = f"{length * timestep_value}h"
             timestep = f"{timestep_value}h"

@@ -56,32 +56,44 @@ class InteractiveBrokersRESTData(DataSource):
 
         self.start(config["IB_USERNAME"], config["IB_PASSWORD"])
 
+
     def start(self, ib_username, ib_password):
         if not self.running_on_server:
-            # Run the Docker image with the specified environment variables and port mapping
-            if (
-                not subprocess.run(
-                    ["docker", "--version"],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                ).returncode
-                == 0
-            ):
-                logging.error(colored("Docker is not installed.", "red"))
-                return
-            # Color the text green
-            logging.info(
-                colored("Connecting to Interactive Brokers REST API...", "green")
+            # Check if Docker is installed
+            docker_version_check = subprocess.run(
+                ["docker", "--version"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
             )
+            if docker_version_check.returncode != 0:
+                logging.error(colored("Error: Docker is not installed on this system. Please install Docker and try again.", "red"))
+                exit(1)
+
+            # Check if Docker daemon is running by attempting a `docker ps`
+            docker_ps_check = subprocess.run(
+                ["docker", "ps"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                text=True
+            )
+            if docker_ps_check.returncode != 0:
+                error_output = docker_ps_check.stderr.strip()
+                logging.error(colored("Error: Unable to connect to the Docker daemon.", "red"))
+                logging.error(colored(f"Details: {error_output}", "yellow"))
+                logging.error(colored("Please ensure Docker is installed and running.", "red"))
+                exit(1)
+
+            # If we reach this point, Docker is installed and running
+            logging.info(colored("Connecting to Interactive Brokers REST API...", "green"))
 
             inputs_dir = "/srv/clientportal.gw/root/conf.yaml"
             env_variables = {
                 "IBEAM_ACCOUNT": ib_username,
                 "IBEAM_PASSWORD": ib_password,
                 "IBEAM_GATEWAY_BASE_URL": f"https://localhost:{self.port}",
-                "IBEAM_LOG_TO_FILE": False,
-                "IBEAM_REQUEST_RETRIES": 1,
-                "IBEAM_PAGE_LOAD_TIMEOUT": 30,
+                "IBEAM_LOG_TO_FILE": "False",
+                "IBEAM_REQUEST_RETRIES": "1",
+                "IBEAM_PAGE_LOAD_TIMEOUT": "30",
                 "IBEAM_INPUTS_DIR": inputs_dir,
             }
 
@@ -91,11 +103,14 @@ class InteractiveBrokersRESTData(DataSource):
             )
             volume_mount = f"{conf_path}:{inputs_dir}"
 
+            # Remove any existing container with the same name
             subprocess.run(
                 ["docker", "rm", "-f", "lumibot-client-portal"],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
+
+            # Start the container
             subprocess.run(
                 [
                     "docker",
@@ -113,12 +128,14 @@ class InteractiveBrokersRESTData(DataSource):
                     "voyz/ibeam",
                 ],
                 stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
                 text=True,
             )
 
-            # check if authenticated
+            # Wait for the gateway to initialize
             time.sleep(15)
 
+        # Wait until authenticated
         while not self.is_authenticated():
             logging.info(
                 colored(
@@ -128,12 +145,13 @@ class InteractiveBrokersRESTData(DataSource):
             )
             logging.info(
                 colored(
-                    "Waiting for another 10 seconds before checking again...", "yellow"
+                    "Waiting for another 10 seconds before checking again...",
+                    "yellow",
                 )
             )
             time.sleep(10)
 
-        # Set self.account_id
+        # Set self.account_id once authenticated
         self.fetch_account_id()
 
         logging.info(colored("Connected to the Interactive Brokers API", "green"))
@@ -370,23 +388,20 @@ class InteractiveBrokersRESTData(DataSource):
         retries = 0
         retrying = True
 
-        try:
-            while retrying or not allow_fail:
+        while retrying or not allow_fail:
+            try:
                 response = requests.get(url, verify=False)
-                retrying, re_msg, is_error, to_return = self.handle_http_errors(response, silent, retries, description, allow_fail)
+            except requests.exceptions.RequestException as e:
+                response = requests.Response()
+                response.status_code = 503
+                response._content = str.encode(f'{{"error": "{e}"}}')
+
+            retrying, re_msg, is_error, to_return = self.handle_http_errors(response, silent, retries, description, allow_fail)
+            
+            if re_msg is None and not is_error:
+                break
                 
-                if re_msg is None and not is_error:
-                    break
-
-                retries+=1
-
-        except requests.exceptions.RequestException as e:
-            message = f"Error: {description}. Exception: {e}"
-            if not silent:
-                logging.error(colored(message, "red"))
-            else:
-                logging.debug(colored(message), "red")
-            to_return = {"error": message}
+            retries+=1
 
         return to_return
 
@@ -395,23 +410,20 @@ class InteractiveBrokersRESTData(DataSource):
         retries = 0
         retrying = True
 
-        try:
-            while retrying or not allow_fail:
+        while retrying or not allow_fail:
+            try:
                 response = requests.post(url, json=json, verify=False)
-                retrying, re_msg, is_error, to_return = self.handle_http_errors(response, silent, retries, description, allow_fail)
-                
-                if re_msg is None and not is_error:
-                    break
-                    
-                retries+=1
+            except requests.exceptions.RequestException as e:
+                response = requests.Response()
+                response.status_code = 503
+                response._content = str.encode(f'{{"error": "{e}"}}')
 
-        except requests.exceptions.RequestException as e:
-            message = f"Error: {description}. Exception: {e}"
-            if not silent:
-                logging.error(colored(message, "red"))
-            else:
-                logging.debug(colored(message), "red")
-            to_return = {"error": message}
+            retrying, re_msg, is_error, to_return = self.handle_http_errors(response, silent, retries, description, allow_fail)
+            
+            if re_msg is None and not is_error:
+                break
+                
+            retries+=1
 
         return to_return
 
@@ -420,23 +432,20 @@ class InteractiveBrokersRESTData(DataSource):
         retries = 0
         retrying = True
 
-        try:
-            while retrying or not allow_fail:
+        while retrying or not allow_fail:
+            try:
                 response = requests.delete(url, verify=False)
-                retrying, re_msg, is_error, to_return = self.handle_http_errors(response, silent, retries, description, allow_fail)
-                
-                if re_msg is None and not is_error:
-                    break
-                    
-                retries+=1
+            except requests.exceptions.RequestException as e:
+                response = requests.Response()
+                response.status_code = 503
+                response._content = str.encode(f'{{"error": "{e}"}}')
 
-        except requests.exceptions.RequestException as e:
-            message = f"Error: {description}. Exception: {e}"
-            if not silent:
-                logging.error(colored(message, "red"))
-            else:
-                logging.debug(colored(message), "red")
-            to_return = {"error": message}
+            retrying, re_msg, is_error, to_return = self.handle_http_errors(response, silent, retries, description, allow_fail)
+            
+            if re_msg is None and not is_error:
+                break
+                
+            retries+=1
 
         return to_return
 

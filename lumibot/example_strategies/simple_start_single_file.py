@@ -5,8 +5,6 @@ from credentials import AlpacaConfig
 from lumibot.backtesting import YahooDataBacktesting
 from lumibot.brokers import Alpaca
 from lumibot.strategies.strategy import Strategy
-from lumibot.traders import Trader
-
 
 class MyStrategy(Strategy):
     def initialize(self, symbol=""):
@@ -26,7 +24,6 @@ class MyStrategy(Strategy):
 if __name__ == "__main__":
     live = True
 
-    trader = Trader()
     broker = Alpaca(AlpacaConfig)
     strategy = MyStrategy(broker, symbol="SPY")
 
@@ -42,5 +39,4 @@ if __name__ == "__main__":
         )
     else:
         # Run the strategy live
-        trader.add_strategy(strategy)
-        trader.run_all()
+        strategy.run_live()

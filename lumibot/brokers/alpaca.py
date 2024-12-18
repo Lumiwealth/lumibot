@@ -447,6 +447,7 @@ class Alpaca(Broker):
             order.set_identifier(response.id)
             order.status = response.status
             order.update_raw(response)
+            self._unprocessed_orders.append(order)
 
         except Exception as e:
             order.set_error(e)
@@ -547,14 +548,13 @@ class Alpaca(Broker):
         """
 
         async def _trade_update(trade_update):
-            self._orders_queue.join()
             try:
                 logged_order = trade_update.order
                 type_event = trade_update.event
                 identifier = logged_order.id
                 stored_order = self.get_tracked_order(identifier)
                 if stored_order is None:
-                    logging.info(f"Untracked order {identifier} was logged by broker {self.name}")
+                    logging.debug(f"Untracked order {identifier} was logged by broker {self.name}")
                     return False
 
                 price = trade_update.price

@@ -3,8 +3,7 @@ import logging
 import time
 from itertools import cycle
 
-import pandas as pd
-from yfinance import Ticker, download
+from yfinance import Ticker
 
 from lumibot.strategies.strategy import Strategy
 

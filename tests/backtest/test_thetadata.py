@@ -316,10 +316,12 @@ class TestThetaDataBacktestFull:
         )
         assert "fill" not in theta_strat_obj.order_time_tracker[stoploss_order_id]
 
-    @pytest.mark.skipif(
-        secrets_not_found,
-        reason="Skipping test because ThetaData API credentials not found in environment variables",
-    )
+    # @pytest.mark.skipif(
+    #     secrets_not_found,
+    #     reason="Skipping test because ThetaData API credentials not found in environment variables",
+    # )
+    @pytest.mark.skip("Skipping test because ThetaData API credentials not found in Github Pipeline "
+                      "environment variables")
     def test_thetadata_restclient(self):
         """
         Test ThetaDataBacktesting with Lumibot Backtesting and real API calls to ThetaData. Using the Amazon stock

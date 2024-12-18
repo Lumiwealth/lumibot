@@ -1434,7 +1434,7 @@ class _Strategy:
 
         try:
             # Send the data to the cloud
-            json_data = json.dumps(data)
+            json_data = json.dumps(data, default=str)
             response = requests.post(LUMIWEALTH_URL, headers=headers, data=json_data)
         except Exception as e:
             self.logger.error(f"Failed to send update to the cloud because of lumibot error. Error: {e}")

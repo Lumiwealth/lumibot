@@ -1983,7 +1983,7 @@ class _Strategy:
             df = pd.read_sql_query(query, self.db_engine, params=params)
 
             if df.empty:
-                logger.warning("No data found in the backup")
+                logger.debug("No data found in the backup")
             else:
                 # Parse the JSON data
                 json_data = df['variables'].iloc[0]

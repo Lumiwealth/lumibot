@@ -412,8 +412,12 @@ class PandasData(DataSourceBacktesting):
         # Convert timestep string to timedelta and get start datetime
         td, ts_unit = self.convert_timestep_str_to_timedelta(timestep)
 
-        # Multiply td by length to get the end datetime
-        td *= length
+        if ts_unit == "day":
+            weeks_requested = length // 5  # Full trading week is 5 days
+            extra_padding_days = weeks_requested * 3  # to account for 3day weekends
+            td = timedelta(days=length + extra_padding_days)
+        else:
+            td *= length
 
         if start_dt is not None:
             start_datetime = start_dt - td

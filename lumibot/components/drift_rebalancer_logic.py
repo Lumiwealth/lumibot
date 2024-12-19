@@ -222,19 +222,23 @@ class DriftCalculationLogic:
             return Decimal(0)
 
         elif row["current_weight"] == Decimal(0) and row["target_weight"] == Decimal(0):
-            # Should nothing change?
+            # Do nothing
             return Decimal(0)
 
         elif row["current_quantity"] > Decimal(0) and row["target_weight"] == Decimal(0):
-            # Should we sell everything
+            # Sell everything
             return Decimal(-1)
+
+        elif row["current_quantity"] < Decimal(0) and row["target_weight"] == Decimal(0):
+            # Cover our short position
+            return Decimal(1)
 
         elif row["current_quantity"] == Decimal(0) and row["target_weight"] > Decimal(0):
             # We don't have any of this asset, but we want to buy some.
             return Decimal(1)
 
         elif row["current_quantity"] == Decimal(0) and row["target_weight"] == Decimal(-1):
-            # Should we short everything we have
+            # Short everything we have
             return Decimal(-1)
 
         elif row["current_quantity"] == Decimal(0) and row["target_weight"] < Decimal(0):

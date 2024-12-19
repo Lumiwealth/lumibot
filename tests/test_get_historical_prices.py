@@ -59,16 +59,21 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
         pass
 
     # noinspection PyMethodMayBeStatic
-    def get_first_trading_day_after_thanksgiving(self, year):
-        # Thanksgiving is the fourth Thursday in November
-        thanksgiving = datetime(year, 11, 1) + timedelta(days=(3 - datetime(year, 11, 1).weekday() + 28) % 7 + 21)
-        # The first trading day after Thanksgiving is the next business day
-        first_trading_day = thanksgiving + timedelta(days=1)
+    def get_mlk_day(self, year):
+        # Start from January 1st of the given year
+        mlk_date = datetime(year, 1, 1)
+        # Find the first Monday of January
+        while mlk_date.weekday() != 0:  # 0 = Monday
+            mlk_date += timedelta(days=1)
+        # Add 14 days to get to the third Monday
+        mlk_date += timedelta(days=14)
+        return mlk_date
 
-        # Check if the first trading day is a weekend and adjust accordingly
-        if first_trading_day.weekday() >= 5:  # 5 = Saturday, 6 = Sunday
-            first_trading_day += timedelta(days=(7 - first_trading_day.weekday()))
-
+    # noinspection PyMethodMayBeStatic
+    def get_first_trading_day_after_long_weekend(self, year):
+        # Martin Luther King Jr. Day is observed on the third Monday of January each year.
+        mlk_date = self.get_mlk_day(year)
+        first_trading_day = mlk_date + timedelta(days=1)
         return first_trading_day
 
     # noinspection PyMethodMayBeStatic
@@ -77,14 +82,35 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
             backtesting_start: datetime
     ):
         # The current behavior of the backtesting data sources is to return the data for the
-        # last trading day before now. In this case, "now" is the backtesting_start date.
-        # So based on the backtesting_start date, the last bar should be the bar from the previous trading day.
-        previous_trading_day_date = get_trading_days(
+        # last trading day before now.
+        # To simulate this, we set backtesting_start date to what we want "now" to be.
+        # So based on the backtesting_start date, the last bar should be the bar from the previous trading day
+        # before the backtesting_start date.
+
+        # Get trading days around the backtesting_start date
+        trading_days = get_trading_days(
             market="NYSE",
             start_date=backtesting_start - timedelta(days=5),
-            end_date=backtesting_start - timedelta(days=1)
-        ).index[-1].date()
+            end_date=backtesting_start + timedelta(days=5)
+        )
+
+        # find the index of the backtesting_start date in the trading_days
+        backtesting_start_index = trading_days.index.get_loc(backtesting_start)
+
+        # get the date of the last trading day before the backtesting_start date
+        previous_trading_day_date = trading_days.index[backtesting_start_index - 1].date()
         assert bars.df.index[-1].date() == previous_trading_day_date
+
+    # noinspection PyMethodMayBeStatic
+    def check_date_of_first_bar_backtesting_start(
+            self,
+            bars: Bars,
+            backtesting_start: datetime
+    ):
+        # The backtesting broker needs to look into the future to fill orders.
+        # To simulate this, we set backtesting_start date to what we want "now" to be.
+        # So the first bar should be the backtesting_start date.
+        assert bars.df.index[0].date() == backtesting_start.date()
 
     # noinspection PyMethodMayBeStatic
     def check_dividends_and_adjusted_returns(self, bars):
@@ -128,14 +154,14 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
             rtol=0
         )
 
-    def test_get_first_trading_day_after_thanksgiving(self):
-        first_trading_day_after_thanksgiving = self.get_first_trading_day_after_thanksgiving(2019)
-        assert first_trading_day_after_thanksgiving == datetime(2019, 11, 29)
+    def test_get_first_trading_day_after_long_weekend(self):
+        first_trading_day_after_mlk = self.get_first_trading_day_after_long_weekend(2019)
+        assert first_trading_day_after_mlk == datetime(2019, 1, 22)
 
-        first_trading_day_after_thanksgiving = self.get_first_trading_day_after_thanksgiving(2023)
-        assert first_trading_day_after_thanksgiving == datetime(2023, 11, 24)
+        first_trading_day_after_mlk = self.get_first_trading_day_after_long_weekend(2023)
+        assert first_trading_day_after_mlk == datetime(2023, 1, 17)
 
-    def test_pandas_backtesting_data_source_get_historical_prices_daily_bars(self, pandas_data_fixture):
+    def test_pandas_backtesting_data_source_get_historical_prices_daily_bars_dividends_and_adj_returns(self, pandas_data_fixture):
         """
         This tests that the pandas data_source calculates adjusted returns for bars and that they
         are calculated correctly. It assumes that it is provided split adjusted OHLCV and dividend data.
@@ -155,16 +181,53 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
         )
         self.check_dividends_and_adjusted_returns(bars)
 
-        # First trading day after Thanksgiving test
-        backtesting_start = datetime(2019, 11, 2)
-        backtesting_end = self.get_first_trading_day_after_thanksgiving(2019)
+    def test_pandas_backtesting_data_source_get_historical_prices_daily_bars_for_backtesting_broker(
+            self,
+            pandas_data_fixture
+    ):
+        # Test getting 2 bars into the future (which is what the backtesting does when trying to fill orders
+        # for the next trading day)
+        backtesting_start = datetime(2019, 3, 26)
+        backtesting_end = datetime(2019, 4, 25)
+        length = 2
         data_source = PandasData(
             datetime_start=backtesting_start,
             datetime_end=backtesting_end,
             pandas_data=pandas_data_fixture
         )
-        bars = data_source.get_historical_prices(asset=self.asset, length=self.length, timestep=self.timestep)
-        check_bars(bars=bars, length=self.length)
+        timeshift = -length  # negative length gets future bars
+        bars = data_source.get_historical_prices(
+            asset=self.asset,
+            length=length,
+            timeshift=timeshift,
+            timestep=self.timestep
+        )
+        check_bars(bars=bars, length=length)
+        self.check_date_of_first_bar_backtesting_start(
+            bars,
+            backtesting_start=backtesting_start
+        )
+
+    def test_pandas_backtesting_data_source_get_historical_prices_daily_bars_over_long_weekend(
+            self,
+            pandas_data_fixture
+    ):
+        # Get MLK day in 2019
+        mlk_day = self.get_mlk_day(2019)
+
+        # First trading day after MLK day
+        backtesting_start = mlk_day + timedelta(days=1)
+        backtesting_end = datetime(2019, 2, 22)
+
+        # get 10 bars starting from backtesting_start (going back in time)
+        length = 10
+        data_source = PandasData(
+            datetime_start=backtesting_start,
+            datetime_end=backtesting_end,
+            pandas_data=pandas_data_fixture
+        )
+        bars = data_source.get_historical_prices(asset=self.asset, length=length, timestep=self.timestep)
+        check_bars(bars=bars, length=length)
         self.check_date_of_last_bar_is_date_of_last_trading_date_before_backtest_start(
             bars,
             backtesting_start=backtesting_start
@@ -182,23 +245,54 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
         not POLYGON_CONFIG["IS_PAID_SUBSCRIPTION"],
         reason="This test requires a paid Polygon.io API key"
     )
-    def test_polygon_backtesting_data_source_get_historical_prices_daily_bars(self):
+    def test_polygon_backtesting_data_source_get_historical_prices_daily_bars_for_backtesting_broker(self):
+        # Test getting 2 bars into the future (which is what the backtesting does when trying to fill orders
+        # for the next trading day)
         last_year = datetime.now().year - 1
         backtesting_start = datetime(last_year, 3, 25)
         backtesting_end = datetime(last_year, 4, 25)
         data_source = PolygonDataBacktesting(
             backtesting_start, backtesting_end, api_key=POLYGON_CONFIG["API_KEY"]
         )
-        bars = data_source.get_historical_prices(asset=self.asset, length=self.length, timestep=self.timestep)
-        check_bars(bars=bars, length=self.length)
-        self.check_date_of_last_bar_is_date_of_last_trading_date_before_backtest_start(
+        
+        length = 2
+        timeshift = -length  # negative length gets future bars
+        bars = data_source.get_historical_prices(
+            asset=self.asset,
+            length=length,
+            timeshift=timeshift,
+            timestep=self.timestep
+        )
+        
+        check_bars(bars=bars, length=length)
+        self.check_date_of_first_bar_backtesting_start(
             bars,
             backtesting_start=backtesting_start
         )
 
-        # First trading day after Thanksgiving test
-        backtesting_start = datetime(last_year, 11, 2)
-        backtesting_end = self.get_first_trading_day_after_thanksgiving(last_year)
+    @pytest.mark.skipif(
+        not POLYGON_CONFIG["API_KEY"],
+        reason="This test requires a Polygon.io API key"
+    )
+    @pytest.mark.skipif(
+        POLYGON_CONFIG['API_KEY'] == '<your key here>',
+        reason="This test requires a Polygon.io API key"
+    )
+    @pytest.mark.skipif(
+        not POLYGON_CONFIG["IS_PAID_SUBSCRIPTION"],
+        reason="This test requires a paid Polygon.io API key"
+    )
+    def test_polygon_backtesting_data_source_get_historical_prices_daily_bars_over_long_weekend(self):
+        # Get MLK day for last year
+        last_year = datetime.now().year - 1
+        mlk_day = self.get_mlk_day(last_year)
+
+        # First trading day after MLK day
+        backtesting_start = mlk_day + timedelta(days=1)
+        backtesting_end = datetime(last_year, 2, 22)
+
+        # get 10 bars starting from backtesting_start (going back in time)
+        length = 10
         data_source = PolygonDataBacktesting(
             backtesting_start, backtesting_end, api_key=POLYGON_CONFIG["API_KEY"]
         )
@@ -209,7 +303,10 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
             backtesting_start=backtesting_start
         )
 
-    def test_yahoo_backtesting_data_source_get_historical_prices_daily_bars(self, pandas_data_fixture):
+    def test_yahoo_backtesting_data_source_get_historical_prices_daily_bars_dividends_and_adj_returns(
+            self,
+            pandas_data_fixture
+    ):
         """
         This tests that the yahoo data_source calculates adjusted returns for bars and that they
         are calculated correctly. It assumes that it is provided split adjusted OHLCV and dividend data.
@@ -229,9 +326,48 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
             backtesting_start=backtesting_start
         )
 
-        # First trading day after Thanksgiving test
-        backtesting_start = datetime(2019, 11, 2)
-        backtesting_end = self.get_first_trading_day_after_thanksgiving(2019)
+    def test_yahoo_backtesting_data_source_get_historical_prices_daily_bars_for_backtesting_broker(
+            self,
+            pandas_data_fixture
+    ):
+        # Test getting 2 bars into the future (which is what the backtesting does when trying to fill orders
+        # for the next trading day)
+        backtesting_start = datetime(2019, 3, 25)
+        backtesting_end = datetime(2019, 4, 25)
+        data_source = YahooDataBacktesting(
+            datetime_start=backtesting_start,
+            datetime_end=backtesting_end,
+            pandas_data=pandas_data_fixture
+        )
+
+        length = 2
+        timeshift = -length  # negative length gets future bars
+        bars = data_source.get_historical_prices(
+            asset=self.asset,
+            length=length,
+            timeshift=timeshift,
+            timestep=self.timestep
+        )
+
+        check_bars(bars=bars, length=length)
+        self.check_date_of_first_bar_backtesting_start(
+            bars,
+            backtesting_start=backtesting_start
+        )
+
+    def test_yahoo_backtesting_data_source_get_historical_prices_daily_bars_over_long_weekend(
+            self,
+            pandas_data_fixture
+    ):
+        # Get MLK day in 2019
+        mlk_day = self.get_mlk_day(2019)
+
+        # First trading day after MLK day
+        backtesting_start = mlk_day + timedelta(days=1)
+        backtesting_end = datetime(2019, 2, 22)
+
+        # get 10 bars starting from backtesting_start (going back in time)
+        length = 10
         data_source = YahooDataBacktesting(
             datetime_start=backtesting_start,
             datetime_end=backtesting_end,

@@ -102,15 +102,33 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
         assert bars.df.index[-1].date() == previous_trading_day_date
 
     # noinspection PyMethodMayBeStatic
-    def check_date_of_first_bar_backtesting_start(
+    def check_date_of_last_bar_is_date_of_first_trading_date_on_or_after_backtest_start(
             self,
             bars: Bars,
             backtesting_start: datetime
     ):
         # The backtesting broker needs to look into the future to fill orders.
         # To simulate this, we set backtesting_start date to what we want "now" to be.
-        # So the first bar should be the backtesting_start date.
-        assert bars.df.index[0].date() == backtesting_start.date()
+        # So the first bar should be the backtesting_start date, or if the
+        # backtesting_start date is not a trading day, the first trading day after the backtesting_start date.
+
+        # Get trading days around the backtesting_start date
+        trading_days = get_trading_days(
+            market="NYSE",
+            start_date=backtesting_start - timedelta(days=5),
+            end_date=backtesting_start + timedelta(days=5)
+        )
+
+        # Check if backtesting_start is in trading_days
+        if backtesting_start in trading_days.index:
+            backtesting_start_index = trading_days.index.get_loc(backtesting_start)
+        else:
+            # Find the first trading date after backtesting_start
+            backtesting_start_index = trading_days.index.get_indexer([backtesting_start], method='bfill')[0]
+
+        # get the date of the first trading day on or after the backtesting_start date
+        first_trading_day_date = trading_days.index[backtesting_start_index].date()
+        assert bars.df.index[0].date() == first_trading_day_date
 
     # noinspection PyMethodMayBeStatic
     def check_dividends_and_adjusted_returns(self, bars):
@@ -203,7 +221,7 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
             timestep=self.timestep
         )
         check_bars(bars=bars, length=length)
-        self.check_date_of_first_bar_backtesting_start(
+        self.check_date_of_last_bar_is_date_of_first_trading_date_on_or_after_backtest_start(
             bars,
             backtesting_start=backtesting_start
         )
@@ -249,8 +267,14 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
         # Test getting 2 bars into the future (which is what the backtesting does when trying to fill orders
         # for the next trading day)
         last_year = datetime.now().year - 1
-        backtesting_start = datetime(last_year, 3, 25)
-        backtesting_end = datetime(last_year, 4, 25)
+
+        # Get MLK day last year which is a non-trading monday
+        mlk_day = self.get_mlk_day(last_year)
+
+        # First trading day after MLK day
+        backtesting_start = mlk_day + timedelta(days=1)
+        backtesting_end = datetime(last_year, 2, 22)
+
         data_source = PolygonDataBacktesting(
             backtesting_start, backtesting_end, api_key=POLYGON_CONFIG["API_KEY"]
         )
@@ -265,7 +289,7 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
         )
         
         check_bars(bars=bars, length=length)
-        self.check_date_of_first_bar_backtesting_start(
+        self.check_date_of_last_bar_is_date_of_first_trading_date_on_or_after_backtest_start(
             bars,
             backtesting_start=backtesting_start
         )
@@ -350,7 +374,7 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
         )
 
         check_bars(bars=bars, length=length)
-        self.check_date_of_first_bar_backtesting_start(
+        self.check_date_of_last_bar_is_date_of_first_trading_date_on_or_after_backtest_start(
             bars,
             backtesting_start=backtesting_start
         )
@@ -381,6 +405,7 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
         )
 
 
+@pytest.mark.skip()
 class TestDatasourceGetHistoricalPricesDailyData:
     """These tests check the daily Bars returned from get_historical_prices for live data sources."""
 

@@ -1417,6 +1417,7 @@ class _Strategy:
             "positions": [position.to_dict() for position in positions],
             "orders": [order.to_dict() for order in orders],
             "strategy_name": self._name,
+            "broker_name": self.broker.name,
         }
 
         # Helper function to recursively replace NaN in dictionaries

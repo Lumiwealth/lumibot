@@ -47,6 +47,7 @@ setuptools.setup(
         "thetadata",
         "holidays",
         "psutil",
+        "websocket-client"
     ],
     classifiers=[
         "Programming Language :: Python :: 3",

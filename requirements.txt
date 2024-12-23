@@ -31,3 +31,4 @@ tabulate
 thetadata
 holidays
 psutil
+websocket-client

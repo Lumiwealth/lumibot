@@ -356,7 +356,17 @@ class DriftOrderLogic:
 
         # Execute buys
         for index, row in df.iterrows():
-            if row["drift"] > 0:
+            if row["drift"] == 1 and row['current_quantity'] < 0 and self.shorting:
+                # Cover our short position
+                symbol = row["symbol"]
+                quantity = abs(row["current_quantity"])
+                last_price = Decimal(self.strategy.get_last_price(symbol))
+                limit_price = self.calculate_limit_price(last_price=last_price, side="buy")
+                order = self.place_order(symbol=symbol, quantity=quantity, limit_price=limit_price, side="buy")
+                buy_orders.append(order)
+                cash_position -= quantity * limit_price
+
+            elif row["drift"] > 0:
                 symbol = row["symbol"]
                 last_price = Decimal(self.strategy.get_last_price(symbol))
                 limit_price = self.calculate_limit_price(last_price=last_price, side="buy")

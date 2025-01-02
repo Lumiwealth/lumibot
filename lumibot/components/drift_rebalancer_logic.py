@@ -132,16 +132,6 @@ class DriftCalculationLogic:
 
     def calculate(self, target_weights: Dict[str, Decimal]) -> pd.DataFrame:
 
-        if self.drift_type == DriftType.ABSOLUTE:
-            # The absolute value of all the weights are less than the drift_threshold
-            # then we will never trigger a rebalance.
-
-            if all([abs(weight) < self.drift_threshold for weight in target_weights.values()]):
-                self.strategy.logger.warning(
-                    f"All target weights are less than the drift_threshold: {self.drift_threshold}. "
-                    f"No rebalance will be triggered."
-                )
-
         self.df = pd.DataFrame({
             "symbol": target_weights.keys(),
             "is_quote_asset": False,

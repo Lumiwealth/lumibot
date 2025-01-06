@@ -8,8 +8,8 @@ class TestConfigsHelper:
     def test_get_classic_60_40_config(self):
         """Test getting the classic 60/40 configuration"""
 
-        configs_helper = ConfigsHelper()
-        config = configs_helper.load_config("classic_60_40")
+        configs_helper = ConfigsHelper(configs_folder="example_strategies")
+        config = configs_helper.load_config("classic_60_40_config")
         assert config is not None
 
         assert config["market"] == "NYSE"

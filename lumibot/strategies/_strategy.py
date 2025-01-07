@@ -906,8 +906,8 @@ class _Strategy:
     def run_backtest(
         self,
         datasource_class,
-        backtesting_start,
-        backtesting_end,
+        backtesting_start: datetime,
+        backtesting_end: datetime,
         minutes_before_closing=5,
         minutes_before_opening=60,
         sleeptime=1,

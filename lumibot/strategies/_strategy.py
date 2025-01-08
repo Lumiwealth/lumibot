@@ -1416,6 +1416,8 @@ class _Strategy:
             "cash": cash,
             "positions": [position.to_dict() for position in positions],
             "orders": [order.to_dict() for order in orders],
+            "strategy_name": self._name,
+            "broker_name": self.broker.name,
         }
 
         # Helper function to recursively replace NaN in dictionaries
@@ -1434,7 +1436,7 @@ class _Strategy:
 
         try:
             # Send the data to the cloud
-            json_data = json.dumps(data)
+            json_data = json.dumps(data, default=str)
             response = requests.post(LUMIWEALTH_URL, headers=headers, data=json_data)
         except Exception as e:
             self.logger.error(f"Failed to send update to the cloud because of lumibot error. Error: {e}")
@@ -1983,7 +1985,7 @@ class _Strategy:
             df = pd.read_sql_query(query, self.db_engine, params=params)
 
             if df.empty:
-                logger.warning("No data found in the backup")
+                logger.debug("No data found in the backup")
             else:
                 # Parse the JSON data
                 json_data = df['variables'].iloc[0]

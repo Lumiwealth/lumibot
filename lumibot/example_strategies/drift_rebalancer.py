@@ -3,18 +3,8 @@ from typing import Any
 from decimal import Decimal
 
 from lumibot.strategies.strategy import Strategy
-from lumibot.components.drift_rebalancer_logic import DriftRebalancerLogic, DriftType
+from lumibot.components.drift_rebalancer_logic import DriftRebalancerLogic, DriftType, FractionalType
 from lumibot.entities import Order
-
-"""
-The DriftRebalancer strategy is designed to maintain a portfolio's target asset allocation by 
-rebalancing assets based on their drift from target weights. The strategy calculates the 
-drift of each asset in the portfolio and triggers a rebalance if the drift exceeds a predefined 
-threshold. Then it places buy or sell assets to bring the portfolio back to its target allocation.
-
-Note: If you run this strategy in a live trading environment, be sure to not make manual trades in the same account.
-This strategy will sell other positions in order to get the account to the target weights. 
-"""
 
 
 class DriftRebalancer(Strategy):
@@ -24,8 +14,8 @@ class DriftRebalancer(Strategy):
     the drift_threshold. The strategy will sell assets that have drifted above the threshold and
     buy assets that have drifted below the threshold.
 
-    The current version of the DriftRebalancer strategy only supports whole share quantities.
-    Submit an issue if you need fractional shares. It should be pretty easy to add.
+    Note: If you run this strategy in a live trading environment, be sure to not make manual trades in the same account.
+    This strategy will sell other positions in order to get the account to the target weights.
 
     Example parameters:
 
@@ -80,6 +70,11 @@ class DriftRebalancer(Strategy):
         "shorting": False,  # optional
         # If you want to allow shorting, set this to True. The default is False.
 
+        "fractional_type": FractionalType.WHOLE_SHARES,  # default
+        # The type of fractional shares to use. Can be FractionalType.WHOLE_SHARES or FractionalType.FRACTIONAL_SHARES
+        # or FractionalType.FRACTIONAL_SHARES_FOR_CRYPTO_ONLY. When set to FRACTIONAL_FOR_CRYPTO_ONLY, the strategy will
+        # only use fractional shares for crypto assets.
+
     }
     """
 
@@ -95,6 +90,7 @@ class DriftRebalancer(Strategy):
         self.target_weights = {k: Decimal(v) for k, v in self.parameters["target_weights"].items()}
         self.shorting = self.parameters.get("shorting", False)
         self.verbose = self.parameters.get("verbose", False)
+        self.fractional_type = self.parameters.get("fractional_type", FractionalType.WHOLE_SHARES)
         self.drift_df = pd.DataFrame()
         self.drift_rebalancer_logic = DriftRebalancerLogic(
             strategy=self,
@@ -104,6 +100,7 @@ class DriftRebalancer(Strategy):
             acceptable_slippage=self.acceptable_slippage,
             fill_sleeptime=self.fill_sleeptime,
             shorting=self.shorting,
+            fractional_type=self.fractional_type,
         )
 
     # noinspection PyAttributeOutsideInit

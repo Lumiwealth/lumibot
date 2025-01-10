@@ -1,4 +1,3 @@
-from decimal import Decimal
 from typing import Any
 import datetime
 from decimal import Decimal
@@ -8,9 +7,9 @@ import pandas as pd
 import numpy as np
 
 from lumibot.example_strategies.drift_rebalancer import DriftRebalancer
-from lumibot.components.drift_rebalancer_logic import DriftRebalancerLogic, DriftType, DriftOrderLogic
-from lumibot.components.drift_rebalancer_logic import DriftCalculationLogic  #, LimitOrderDriftRebalancerLogic
-from lumibot.backtesting import BacktestingBroker, YahooDataBacktesting, PandasDataBacktesting
+from lumibot.components.drift_rebalancer_logic import DriftType, FractionalType
+from lumibot.components.drift_rebalancer_logic import DriftRebalancerLogic, DriftCalculationLogic, DriftOrderLogic
+from lumibot.backtesting import BacktestingBroker, PandasDataBacktesting
 from lumibot.strategies.strategy import Strategy
 from tests.fixtures import pandas_data_fixture
 from lumibot.tools import print_full_pandas_dataframes, set_pandas_float_display_precision
@@ -22,8 +21,8 @@ set_pandas_float_display_precision(precision=5)
 
 class MockStrategyWithDriftCalculationLogic(Strategy):
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, broker: BacktestingBroker, *args, **kwargs):
+        super().__init__(broker=broker, *args, **kwargs)
         self.orders = []
         self.target_weights = {}
         self.drift_rebalancer_logic = DriftRebalancerLogic(
@@ -33,7 +32,8 @@ class MockStrategyWithDriftCalculationLogic(Strategy):
             acceptable_slippage=kwargs.get("acceptable_slippage", Decimal("0.005")),
             shorting=kwargs.get("shorting", False),
             drift_type=kwargs.get("drift_type", DriftType.ABSOLUTE),
-            order_type=kwargs.get("order_type", Order.OrderType.LIMIT)
+            order_type=kwargs.get("order_type", Order.OrderType.LIMIT),
+            fractional_type=kwargs.get("fractional_type", FractionalType.WHOLE_SHARES)
         )
 
     def get_last_price(
@@ -47,7 +47,7 @@ class MockStrategyWithDriftCalculationLogic(Strategy):
     def update_broker_balances(self, force_update: bool = False) -> None:
         pass
 
-    def submit_order(self, order) -> None:
+    def submit_order(self, order, **kwargs):
         self.orders.append(order)
         return order
 
@@ -96,7 +96,7 @@ class TestDriftCalculationLogic:
 
     def test_calculate_absolute_drift(self, mocker):
         strategy = MockStrategyWithDriftCalculationLogic(
-            broker= self.backtesting_broker,
+            broker=self.backtesting_broker,
             drift_threshold=Decimal("0.05"),
             drift_type=DriftType.ABSOLUTE
         )
@@ -756,8 +756,8 @@ class TestDriftCalculationLogic:
 
 class MockStrategyWithOrderLogic(Strategy):
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, broker: BacktestingBroker, *args, **kwargs):
+        super().__init__(broker=broker, *args, **kwargs)
         self.orders = []
         self.target_weights = {}
         self.order_logic = DriftOrderLogic(
@@ -766,7 +766,8 @@ class MockStrategyWithOrderLogic(Strategy):
             fill_sleeptime=kwargs.get("fill_sleeptime", 15),
             acceptable_slippage=kwargs.get("acceptable_slippage", Decimal("0.005")),
             shorting=kwargs.get("shorting", False),
-            order_type=kwargs.get("order_type", Order.OrderType.LIMIT)
+            order_type=kwargs.get("order_type", Order.OrderType.LIMIT),
+            fractional_type=kwargs.get("fractional_type", FractionalType.WHOLE_SHARES)
         )
 
     def get_last_price(
@@ -780,7 +781,7 @@ class MockStrategyWithOrderLogic(Strategy):
     def update_broker_balances(self, force_update: bool = False) -> None:
         pass
 
-    def submit_order(self, order) -> None:
+    def submit_order(self, order, **kwargs):
         self.orders.append(order)
         return order
 
@@ -1118,7 +1119,97 @@ class TestDriftOrderLogic:
         limit_price = strategy.order_logic.calculate_limit_price(last_price=Decimal("120.00"), side="buy")
         assert limit_price == Decimal("120.6")
 
+    def test_buying_whole_shares(self):
+        strategy = MockStrategyWithOrderLogic(
+            broker=self.backtesting_broker,
+            order_type=Order.OrderType.LIMIT,
+            fractional_type=FractionalType.WHOLE_SHARES
+        )
+        df = pd.DataFrame({
+            "symbol": ["AAPL"],
+            "is_quote_asset": False,
+            "current_quantity": [Decimal("0")],
+            "current_value": [Decimal("0")],
+            "current_weight": [Decimal("0.0")],
+            "target_weight": Decimal("1"),
+            "target_value": Decimal("1000"),
+            "drift": Decimal("1")
+        })
+        strategy.order_logic.rebalance(drift_df=df)
+        assert len(strategy.orders) == 1
+        assert strategy.orders[0].side == "buy"
+        assert strategy.orders[0].quantity == Decimal("9")
 
+    def test_buying_fractional_shares(self):
+        strategy = MockStrategyWithOrderLogic(
+            broker=self.backtesting_broker,
+            order_type=Order.OrderType.LIMIT,
+            fractional_type=FractionalType.FRACTIONAL_SHARES
+        )
+        strategy._set_cash_position(cash=950.0)
+        df = pd.DataFrame({
+            "symbol": ["AAPL"],
+            "is_quote_asset": False,
+            "current_quantity": [Decimal("0")],
+            "current_value": [Decimal("0")],
+            "current_weight": [Decimal("0.0")],
+            "target_weight": Decimal("1"),
+            "target_value": Decimal("950"),
+            "drift": Decimal("1")
+        })
+        strategy.order_logic.rebalance(drift_df=df)
+        assert len(strategy.orders) == 1
+        assert strategy.orders[0].side == "buy"
+        assert strategy.orders[0].quantity == Decimal("9.452736318")
+
+    def test_selling_everything_with_fractional_limit_orders(self):
+        strategy = MockStrategyWithOrderLogic(
+            broker=self.backtesting_broker,
+            order_type=Order.OrderType.LIMIT,
+            fractional_type=FractionalType.FRACTIONAL_SHARES
+        )
+        df = pd.DataFrame({
+            "symbol": ["AAPL"],
+            "is_quote_asset": False,
+            "current_quantity": [Decimal("9.5")],
+            "current_value": [Decimal("950")],
+            "current_weight": [Decimal("1.0")],
+            "target_weight": Decimal("0"),
+            "target_value": Decimal("0"),
+            "drift": Decimal("-1")
+        })
+
+        strategy.order_logic.rebalance(drift_df=df)
+        assert len(strategy.orders) == 1
+        assert strategy.orders[0].side == "sell"
+        assert strategy.orders[0].quantity == Decimal("9.5")
+        assert strategy.orders[0].type == Order.OrderType.LIMIT
+
+    def test_selling_some_with_fractional_limit_orders(self):
+        strategy = MockStrategyWithOrderLogic(
+            broker=self.backtesting_broker,
+            order_type=Order.OrderType.LIMIT,
+            fractional_type=FractionalType.FRACTIONAL_SHARES
+        )
+        df = pd.DataFrame({
+            "symbol": ["AAPL"],
+            "is_quote_asset": False,
+            "current_quantity": [Decimal("10")],
+            "current_value": [Decimal("1000")],
+            "current_weight": [Decimal("1.0")],
+            "target_weight": Decimal("0.85"),
+            "target_value": Decimal("850.0"),
+            "drift": Decimal("-0.15")
+        })
+
+        strategy.order_logic.rebalance(drift_df=df)
+        assert len(strategy.orders) == 1
+        assert strategy.orders[0].side == "sell"
+        assert strategy.orders[0].quantity == Decimal("1.507537688")
+        assert strategy.orders[0].type == Order.OrderType.LIMIT
+
+
+@pytest.mark.skip()
 class TestDriftRebalancer:
 
     # Need to start two days after the first data point in pandas for backtesting

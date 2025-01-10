@@ -52,6 +52,7 @@ class MockStrategyWithDriftCalculationLogic(Strategy):
         return order
 
 
+# @pytest.mark.skip()
 class TestDriftCalculationLogic:
 
     def setup_method(self):
@@ -786,6 +787,7 @@ class MockStrategyWithOrderLogic(Strategy):
         return order
 
 
+# @pytest.mark.skip()
 class TestDriftOrderLogic:
 
     def setup_method(self):
@@ -1209,12 +1211,12 @@ class TestDriftOrderLogic:
         assert strategy.orders[0].type == Order.OrderType.LIMIT
 
 
-@pytest.mark.skip()
+# @pytest.mark.skip()
 class TestDriftRebalancer:
 
     # Need to start two days after the first data point in pandas for backtesting
     backtesting_start = datetime.datetime(2019, 1, 2)
-    backtesting_end = datetime.datetime(2019, 12, 31)
+    backtesting_end = datetime.datetime(2019, 2, 28)
 
     def test_classic_60_60(self, pandas_data_fixture):
 
@@ -1249,11 +1251,76 @@ class TestDriftRebalancer:
         )
 
         assert results is not None
-        assert np.isclose(results["cagr"], 0.22076538945204272, atol=1e-4)
-        assert np.isclose(results["volatility"], 0.06740737779031068, atol=1e-4)
-        assert np.isclose(results["sharpe"], 3.051823053251843, atol=1e-4)
-        assert np.isclose(results["max_drawdown"]["drawdown"], 0.025697778711759052, atol=1e-4)
+        # assert np.isclose(results["cagr"], 0.22076538945204272, atol=1e-4)
+        # assert np.isclose(results["volatility"], 0.06740737779031068, atol=1e-4)
+        # assert np.isclose(results["sharpe"], 3.051823053251843, atol=1e-4)
+        # assert np.isclose(results["max_drawdown"]["drawdown"], 0.025697778711759052, atol=1e-4)
 
-    def test_with_shorting(self):
-        # TODO
-        pass
+        trades_df = strat_obj.broker._trade_event_log_df
+
+        # Get all the filled limit orders
+        filled_orders = trades_df[(trades_df["status"] == "fill")]
+
+        assert filled_orders.iloc[0]["type"] == "limit"
+        assert filled_orders.iloc[0]["side"] == "buy"
+        assert filled_orders.iloc[0]["symbol"] == "SPY"
+        assert filled_orders.iloc[0]["filled_quantity"] == 238.0
+
+        assert filled_orders.iloc[2]["type"] == "limit"
+        assert filled_orders.iloc[2]["side"] == "sell"
+        assert filled_orders.iloc[2]["symbol"] == "SPY"
+        assert filled_orders.iloc[2]["filled_quantity"] == 7.0
+
+    def test_classic_60_60_with_fractional(self, pandas_data_fixture):
+
+        parameters = {
+            "market": "NYSE",
+            "sleeptime": "1D",
+            "drift_type": DriftType.ABSOLUTE,
+            "drift_threshold": "0.03",
+            "order_type": Order.OrderType.LIMIT,
+            "acceptable_slippage": "0.005",
+            "fill_sleeptime": 15,
+            "target_weights": {
+                "SPY": "0.60",
+                "TLT": "0.40"
+            },
+            "shorting": False,
+            "fractional_type": FractionalType.FRACTIONAL_SHARES
+        }
+
+        results, strat_obj = DriftRebalancer.run_backtest(
+            datasource_class=PandasDataBacktesting,
+            backtesting_start=self.backtesting_start,
+            backtesting_end=self.backtesting_end,
+            pandas_data=list(pandas_data_fixture.values()),
+            parameters=parameters,
+            show_plot=False,
+            show_tearsheet=False,
+            save_tearsheet=False,
+            show_indicators=False,
+            save_logfile=False,
+            show_progress_bar=False,
+            # quiet_logs=False,
+        )
+
+        assert results is not None
+        # assert np.isclose(results["cagr"], 0.22076538945204272, atol=1e-4)
+        # assert np.isclose(results["volatility"], 0.06740737779031068, atol=1e-4)
+        # assert np.isclose(results["sharpe"], 3.051823053251843, atol=1e-4)
+        # assert np.isclose(results["max_drawdown"]["drawdown"], 0.025697778711759052, atol=1e-4)
+
+        trades_df = strat_obj.broker._trade_event_log_df
+
+        # Get all the filled limit orders
+        filled_orders = trades_df[(trades_df["status"] == "fill")]
+
+        assert filled_orders.iloc[0]["type"] == "limit"
+        assert filled_orders.iloc[0]["side"] == "buy"
+        assert filled_orders.iloc[0]["symbol"] == "SPY"
+        assert filled_orders.iloc[0]["filled_quantity"] == 238.634160545
+
+        assert filled_orders.iloc[2]["type"] == "limit"
+        assert filled_orders.iloc[2]["side"] == "sell"
+        assert filled_orders.iloc[2]["symbol"] == "SPY"
+        assert filled_orders.iloc[2]["filled_quantity"] == 8.346738268

@@ -14,12 +14,6 @@ class DriftType:
     RELATIVE = "relative"
 
 
-class FractionalType:
-    WHOLE_SHARES = "whole_shares"
-    FRACTIONAL_SHARES = "fractional_shares"
-    FRACTIONAL_SHARES_FOR_CRYPTO_ONLY = "fractional_shares_for_crypto_only"
-
-
 class DriftRebalancerLogic:
     """ DriftRebalancerLogic calculates the drift of each asset in a portfolio and rebalances the portfolio.
 
@@ -28,8 +22,6 @@ class DriftRebalancerLogic:
     buy assets whose weights have drifted below the threshold.
 
     The current version of the DriftRebalancer strategy only supports market and limit orders.
-    The current version of the DriftRebalancer strategy only supports whole share quantities.
-    Upvote an issue if you need fractional shares.
 
     Parameters
     ----------
@@ -87,10 +79,9 @@ class DriftRebalancerLogic:
     shorting : bool, optional
         If you want to allow shorting, set this to True. The default is False.
 
-    fractional_type : FractionalType, optional
-        The type of fractional shares to use. Can be FractionalType.WHOLE_SHARES or FractionalType.FRACTIONAL_SHARES
-        or FractionalType.FRACTIONAL_SHARES_FOR_CRYPTO_ONLY. When set to FRACTIONAL_FOR_CRYPTO_ONLY, the strategy will
-        only use fractional shares for crypto assets. The default is FractionalType.WHOLE_SHARES.
+    fractional_shares : bool, optional
+        When set to True, the strategy will only use fractional shares. The default is False, which means
+        the strategy will only use whole shares.
 
     """
 
@@ -104,7 +95,7 @@ class DriftRebalancerLogic:
             acceptable_slippage: Decimal = Decimal("0.005"),
             fill_sleeptime: int = 15,
             shorting: bool = False,
-            fractional_type: FractionalType = FractionalType.WHOLE_SHARES
+            fractional_shares: bool = False
     ) -> None:
         self.strategy = strategy
         self.calculation_logic = DriftCalculationLogic(
@@ -119,7 +110,7 @@ class DriftRebalancerLogic:
             acceptable_slippage=acceptable_slippage,
             shorting=shorting,
             order_type=order_type,
-            fractional_type=fractional_type
+            fractional_shares=fractional_shares
         )
 
     def calculate(self, target_weights: Dict[str, Decimal]) -> pd.DataFrame:
@@ -278,7 +269,7 @@ class DriftOrderLogic:
             acceptable_slippage: Decimal = Decimal("0.005"),
             shorting: bool = False,
             order_type: Order.OrderType = Order.OrderType.LIMIT,
-            fractional_type: FractionalType = FractionalType.WHOLE_SHARES
+            fractional_shares: bool = False
     ) -> None:
         self.strategy = strategy
         self.drift_threshold = drift_threshold
@@ -286,7 +277,7 @@ class DriftOrderLogic:
         self.acceptable_slippage = acceptable_slippage
         self.shorting = shorting
         self.order_type = order_type
-        self.fractional_type = fractional_type
+        self.fractional_shares = fractional_shares
 
         # Sanity checks
         if self.acceptable_slippage >= self.drift_threshold:
@@ -329,11 +320,11 @@ class DriftOrderLogic:
                 if quantity == 0 and self.shorting:
                     # Create a 100% short position.
                     total_value = df["current_value"].sum()
-                    if self.fractional_type == FractionalType.WHOLE_SHARES:
-                        quantity = total_value // limit_price
-                    else:
+                    if self.fractional_shares:
                         quantity = total_value / limit_price
                         quantity = quantity.quantize(Decimal('1.000000000'))
+                    else:
+                        quantity = total_value // limit_price
                 if quantity > 0:
                     order = self.place_order(
                         symbol=symbol,
@@ -348,11 +339,10 @@ class DriftOrderLogic:
                 last_price = Decimal(self.strategy.get_last_price(symbol))
                 limit_price = self.calculate_limit_price(last_price=last_price, side="sell")
                 quantity = (row["current_value"] - row["target_value"]) / limit_price
-                if self.fractional_type == FractionalType.WHOLE_SHARES:
-                    quantity = quantity.quantize(Decimal('1'), rounding=ROUND_DOWN)
-                else:
-                    # round to max 9 decimals
+                if self.fractional_shares:
                     quantity = quantity.quantize(Decimal('1.000000000'))
+                else:
+                    quantity = quantity.quantize(Decimal('1'), rounding=ROUND_DOWN)
 
                 if (0 < quantity < row["current_quantity"]) or (quantity > 0 and self.shorting):
                     # If we are not shorting, we can only sell what we have.
@@ -382,11 +372,11 @@ class DriftOrderLogic:
                 limit_price = self.calculate_limit_price(last_price=last_price, side="buy")
                 order_value = row["target_value"] - row["current_value"]
                 quantity = min(order_value, cash_position) / limit_price
-                if self.fractional_type == FractionalType.WHOLE_SHARES:
-                    quantity = quantity.quantize(Decimal('1'), rounding=ROUND_DOWN)
-                else:
-                    # round to max 9 decimals
+                if self.fractional_shares:
                     quantity = quantity.quantize(Decimal('1.000000000'))
+                else:
+                    quantity = quantity.quantize(Decimal('1'), rounding=ROUND_DOWN)
+
                 if quantity > 0:
                     order = self.place_order(symbol=symbol, quantity=quantity, limit_price=limit_price,
                                              side="buy")

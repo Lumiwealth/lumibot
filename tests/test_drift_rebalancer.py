@@ -7,7 +7,7 @@ import pandas as pd
 import numpy as np
 
 from lumibot.example_strategies.drift_rebalancer import DriftRebalancer
-from lumibot.components.drift_rebalancer_logic import DriftType, FractionalType
+from lumibot.components.drift_rebalancer_logic import DriftType
 from lumibot.components.drift_rebalancer_logic import DriftRebalancerLogic, DriftCalculationLogic, DriftOrderLogic
 from lumibot.backtesting import BacktestingBroker, PandasDataBacktesting
 from lumibot.strategies.strategy import Strategy
@@ -21,19 +21,27 @@ set_pandas_float_display_precision(precision=5)
 
 class MockStrategyWithDriftCalculationLogic(Strategy):
 
-    def __init__(self, broker: BacktestingBroker, *args, **kwargs):
-        super().__init__(broker=broker, *args, **kwargs)
+    def __init__(
+            self,
+            broker: BacktestingBroker,
+            drift_threshold: Decimal = Decimal("0.05"),
+            drift_type: DriftType = DriftType.ABSOLUTE,
+            order_type: Order.OrderType = Order.OrderType.LIMIT,
+            shorting: bool = False,
+            fractional_shares: bool = False,
+    ):
+        super().__init__(broker)
         self.orders = []
         self.target_weights = {}
         self.drift_rebalancer_logic = DriftRebalancerLogic(
             strategy=self,
-            drift_threshold=kwargs.get("drift_threshold", Decimal("0.05")),
-            fill_sleeptime=kwargs.get("fill_sleeptime", 15),
-            acceptable_slippage=kwargs.get("acceptable_slippage", Decimal("0.005")),
-            shorting=kwargs.get("shorting", False),
-            drift_type=kwargs.get("drift_type", DriftType.ABSOLUTE),
-            order_type=kwargs.get("order_type", Order.OrderType.LIMIT),
-            fractional_type=kwargs.get("fractional_type", FractionalType.WHOLE_SHARES)
+            drift_threshold=drift_threshold,
+            fill_sleeptime=15,
+            acceptable_slippage=Decimal("0.005"),
+            shorting=shorting,
+            drift_type=drift_type,
+            order_type=order_type,
+            fractional_shares=fractional_shares
         )
 
     def get_last_price(
@@ -69,20 +77,20 @@ class TestDriftCalculationLogic:
             "MSFT": Decimal("0.2")
         }
 
-        def mock_add_positions(self):
-            self._add_position(
+        def mock_add_positions(mock_self):
+            mock_self._add_position(
                 symbol="AAPL",
                 is_quote_asset=False,
                 current_quantity=Decimal("10"),
                 current_value=Decimal("1500")
             )
-            self._add_position(
+            mock_self._add_position(
                 symbol="GOOGL",
                 is_quote_asset=False,
                 current_quantity=Decimal("5"),
                 current_value=Decimal("1000")
             )
-            self._add_position(
+            mock_self._add_position(
                 symbol="MSFT",
                 is_quote_asset=False,
                 current_quantity=Decimal("8"),
@@ -107,20 +115,20 @@ class TestDriftCalculationLogic:
             "MSFT": Decimal("0.2")
         }
 
-        def mock_add_positions(self):
-            self._add_position(
+        def mock_add_positions(mock_self):
+            mock_self._add_position(
                 symbol="AAPL",
                 is_quote_asset=False,
                 current_quantity=Decimal("10"),
                 current_value=Decimal("1500")
             )
-            self._add_position(
+            mock_self._add_position(
                 symbol="GOOGL",
                 is_quote_asset=False,
                 current_quantity=Decimal("5"),
                 current_value=Decimal("1000")
             )
-            self._add_position(
+            mock_self._add_position(
                 symbol="MSFT",
                 is_quote_asset=False,
                 current_quantity=Decimal("8"),
@@ -165,20 +173,20 @@ class TestDriftCalculationLogic:
             "MSFT": Decimal("0.10")
         }
 
-        def mock_add_positions(self):
-            self._add_position(
+        def mock_add_positions(mock_self):
+            mock_self._add_position(
                 symbol="AAPL",
                 is_quote_asset=False,
                 current_quantity=Decimal("4"),
                 current_value=Decimal("400")
             )
-            self._add_position(
+            mock_self._add_position(
                 symbol="GOOGL",
                 is_quote_asset=False,
                 current_quantity=Decimal("4"),
                 current_value=Decimal("400")
             )
-            self._add_position(
+            mock_self._add_position(
                 symbol="MSFT",
                 is_quote_asset=False,
                 current_quantity=Decimal("2"),
@@ -223,20 +231,20 @@ class TestDriftCalculationLogic:
             "MSFT": Decimal("0.0")
         }
 
-        def mock_add_positions(self):
-            self._add_position(
+        def mock_add_positions(mock_self):
+            mock_self._add_position(
                 symbol="AAPL",
                 is_quote_asset=False,
                 current_quantity=Decimal("10"),
                 current_value=Decimal("1500")
             )
-            self._add_position(
+            mock_self._add_position(
                 symbol="GOOGL",
                 is_quote_asset=False,
                 current_quantity=Decimal("5"),
                 current_value=Decimal("1000")
             )
-            self._add_position(
+            mock_self._add_position(
                 symbol="MSFT",
                 is_quote_asset=False,
                 current_quantity=Decimal("8"),
@@ -281,20 +289,20 @@ class TestDriftCalculationLogic:
             "AMZN": Decimal("0.25")
         }
 
-        def mock_add_positions(self):
-            self._add_position(
+        def mock_add_positions(mock_self):
+            mock_self._add_position(
                 symbol="AAPL",
                 is_quote_asset=False,
                 current_quantity=Decimal("10"),
                 current_value=Decimal("1500")
             )
-            self._add_position(
+            mock_self._add_position(
                 symbol="GOOGL",
                 is_quote_asset=False,
                 current_quantity=Decimal("5"),
                 current_value=Decimal("1000")
             )
-            self._add_position(
+            mock_self._add_position(
                 symbol="MSFT",
                 is_quote_asset=False,
                 current_quantity=Decimal("8"),
@@ -342,20 +350,20 @@ class TestDriftCalculationLogic:
             "AMZN": Decimal("-0.25")
         }
 
-        def mock_add_positions(self):
-            self._add_position(
+        def mock_add_positions(mock_self):
+            mock_self._add_position(
                 symbol="AAPL",
                 is_quote_asset=False,
                 current_quantity=Decimal("10"),
                 current_value=Decimal("1500")
             )
-            self._add_position(
+            mock_self._add_position(
                 symbol="GOOGL",
                 is_quote_asset=False,
                 current_quantity=Decimal("5"),
                 current_value=Decimal("1000")
             )
-            self._add_position(
+            mock_self._add_position(
                 symbol="MSFT",
                 is_quote_asset=False,
                 current_quantity=Decimal("8"),
@@ -389,7 +397,6 @@ class TestDriftCalculationLogic:
             check_names=False
         )
 
-
     def test_drift_is_zero_when_current_weight_and_target_weight_are_zero(self, mocker):
         strategy = MockStrategyWithDriftCalculationLogic(
             broker=self.backtesting_broker,
@@ -403,20 +410,20 @@ class TestDriftCalculationLogic:
             "AMZN": Decimal("0.0")
         }
 
-        def mock_add_positions(self):
-            self._add_position(
+        def mock_add_positions(mock_self):
+            mock_self._add_position(
                 symbol="AAPL",
                 is_quote_asset=False,
                 current_quantity=Decimal("10"),
                 current_value=Decimal("1500")
             )
-            self._add_position(
+            mock_self._add_position(
                 symbol="GOOGL",
                 is_quote_asset=False,
                 current_quantity=Decimal("5"),
                 current_value=Decimal("1000")
             )
-            self._add_position(
+            mock_self._add_position(
                 symbol="MSFT",
                 is_quote_asset=False,
                 current_quantity=Decimal("8"),
@@ -462,26 +469,26 @@ class TestDriftCalculationLogic:
             "MSFT": Decimal("0.2")
         }
 
-        def mock_add_positions(self):
-            self._add_position(
+        def mock_add_positions(mock_self):
+            mock_self._add_position(
                 symbol="USD",
                 is_quote_asset=True,
                 current_quantity=Decimal("1000"),
                 current_value=Decimal("1000")
             )
-            self._add_position(
+            mock_self._add_position(
                 symbol="AAPL",
                 is_quote_asset=False,
                 current_quantity=Decimal("10"),
                 current_value=Decimal("1500")
             )
-            self._add_position(
+            mock_self._add_position(
                 symbol="GOOGL",
                 is_quote_asset=False,
                 current_quantity=Decimal("5"),
                 current_value=Decimal("1000")
             )
-            self._add_position(
+            mock_self._add_position(
                 symbol="MSFT",
                 is_quote_asset=False,
                 current_quantity=Decimal("8"),
@@ -527,26 +534,26 @@ class TestDriftCalculationLogic:
             "MSFT": Decimal("0.2")
         }
 
-        def mock_add_positions(self):
-            self._add_position(
+        def mock_add_positions(mock_self):
+            mock_self._add_position(
                 symbol="USD",
                 is_quote_asset=True,
                 current_quantity=Decimal("1000"),
                 current_value=Decimal("1000")
             )
-            self._add_position(
+            mock_self._add_position(
                 symbol="AAPL",
                 is_quote_asset=False,
                 current_quantity=Decimal("10"),
                 current_value=Decimal("1500")
             )
-            self._add_position(
+            mock_self._add_position(
                 symbol="GOOGL",
                 is_quote_asset=False,
                 current_quantity=Decimal("5"),
                 current_value=Decimal("1000")
             )
-            self._add_position(
+            mock_self._add_position(
                 symbol="MSFT",
                 is_quote_asset=False,
                 current_quantity=Decimal("8"),
@@ -592,20 +599,20 @@ class TestDriftCalculationLogic:
             "USD": Decimal("0.50")
         }
 
-        def mock_add_positions(self):
-            self._add_position(
+        def mock_add_positions(mock_self):
+            mock_self._add_position(
                 symbol="USD",
                 is_quote_asset=True,
                 current_quantity=Decimal("0"),
                 current_value=Decimal("0")
             )
-            self._add_position(
+            mock_self._add_position(
                 symbol="AAPL",
                 is_quote_asset=False,
                 current_quantity=Decimal("5"),
                 current_value=Decimal("500")
             )
-            self._add_position(
+            mock_self._add_position(
                 symbol="GOOGL",
                 is_quote_asset=False,
                 current_quantity=Decimal("10"),
@@ -630,14 +637,14 @@ class TestDriftCalculationLogic:
             "USD": Decimal("0.50")
         }
 
-        def mock_add_positions(self):
-            self._add_position(
+        def mock_add_positions(mock_self):
+            mock_self._add_position(
                 symbol="USD",
                 is_quote_asset=True,
                 current_quantity=Decimal("1000"),
                 current_value=Decimal("1000")
             )
-            self._add_position(
+            mock_self._add_position(
                 symbol="AAPL",
                 is_quote_asset=False,
                 current_quantity=Decimal("0"),
@@ -663,20 +670,20 @@ class TestDriftCalculationLogic:
             "USD": Decimal("0.50")
         }
 
-        def mock_add_positions(self):
-            self._add_position(
+        def mock_add_positions(mock_self):
+            mock_self._add_position(
                 symbol="USD",
                 is_quote_asset=True,
                 current_quantity=Decimal("0"),
                 current_value=Decimal("0")
             )
-            self._add_position(
+            mock_self._add_position(
                 symbol="AAPL",
                 is_quote_asset=False,
                 current_quantity=Decimal("5"),
                 current_value=Decimal("500")
             )
-            self._add_position(
+            mock_self._add_position(
                 symbol="GOOGL",
                 is_quote_asset=False,
                 current_quantity=Decimal("10"),
@@ -701,14 +708,14 @@ class TestDriftCalculationLogic:
             "USD": Decimal("0.0")
         }
 
-        def mock_add_positions(self):
-            self._add_position(
+        def mock_add_positions(mock_self):
+            mock_self._add_position(
                 symbol="USD",
                 is_quote_asset=True,
                 current_quantity=Decimal("1000"),
                 current_value=Decimal("1000")
             )
-            self._add_position(
+            mock_self._add_position(
                 symbol="AAPL",
                 is_quote_asset=False,
                 current_quantity=Decimal("0"),
@@ -733,14 +740,14 @@ class TestDriftCalculationLogic:
             "USD": Decimal("0.0")
         }
 
-        def mock_add_positions(self):
-            self._add_position(
+        def mock_add_positions(mock_self):
+            mock_self._add_position(
                 symbol="USD",
                 is_quote_asset=True,
                 current_quantity=Decimal("1000"),
                 current_value=Decimal("1000")
             )
-            self._add_position(
+            mock_self._add_position(
                 symbol="AAPL",
                 is_quote_asset=False,
                 current_quantity=Decimal("0"),
@@ -757,18 +764,25 @@ class TestDriftCalculationLogic:
 
 class MockStrategyWithOrderLogic(Strategy):
 
-    def __init__(self, broker: BacktestingBroker, *args, **kwargs):
-        super().__init__(broker=broker, *args, **kwargs)
+    def __init__(
+            self,
+            broker: BacktestingBroker,
+            drift_threshold: Decimal = Decimal("0.05"),
+            shorting: bool = False,
+            order_type: Order.OrderType = Order.OrderType.LIMIT,
+            fractional_shares: bool = False,
+    ):
+        super().__init__(broker)
         self.orders = []
         self.target_weights = {}
         self.order_logic = DriftOrderLogic(
             strategy=self,
-            drift_threshold=kwargs.get("drift_threshold", Decimal("0.05")),
-            fill_sleeptime=kwargs.get("fill_sleeptime", 15),
-            acceptable_slippage=kwargs.get("acceptable_slippage", Decimal("0.005")),
-            shorting=kwargs.get("shorting", False),
-            order_type=kwargs.get("order_type", Order.OrderType.LIMIT),
-            fractional_type=kwargs.get("fractional_type", FractionalType.WHOLE_SHARES)
+            drift_threshold=drift_threshold,
+            fill_sleeptime=15,
+            acceptable_slippage=Decimal("0.005"),
+            shorting=shorting,
+            order_type=order_type,
+            fractional_shares=fractional_shares
         )
 
     def get_last_price(
@@ -941,7 +955,7 @@ class TestDriftOrderLogic:
 
     def test_selling_a_100_percent_short_position_creates_an_order_when_shorting_is_enabled(self):
         strategy = MockStrategyWithOrderLogic(
-            broker=self.backtesting_broker,
+            self.backtesting_broker,
             order_type=Order.OrderType.LIMIT,
             shorting=True
         )
@@ -1125,7 +1139,7 @@ class TestDriftOrderLogic:
         strategy = MockStrategyWithOrderLogic(
             broker=self.backtesting_broker,
             order_type=Order.OrderType.LIMIT,
-            fractional_type=FractionalType.WHOLE_SHARES
+            fractional_shares=False
         )
         df = pd.DataFrame({
             "symbol": ["AAPL"],
@@ -1146,7 +1160,7 @@ class TestDriftOrderLogic:
         strategy = MockStrategyWithOrderLogic(
             broker=self.backtesting_broker,
             order_type=Order.OrderType.LIMIT,
-            fractional_type=FractionalType.FRACTIONAL_SHARES
+            fractional_shares=True
         )
         strategy._set_cash_position(cash=950.0)
         df = pd.DataFrame({
@@ -1168,7 +1182,7 @@ class TestDriftOrderLogic:
         strategy = MockStrategyWithOrderLogic(
             broker=self.backtesting_broker,
             order_type=Order.OrderType.LIMIT,
-            fractional_type=FractionalType.FRACTIONAL_SHARES
+            fractional_shares=True
         )
         df = pd.DataFrame({
             "symbol": ["AAPL"],
@@ -1191,7 +1205,7 @@ class TestDriftOrderLogic:
         strategy = MockStrategyWithOrderLogic(
             broker=self.backtesting_broker,
             order_type=Order.OrderType.LIMIT,
-            fractional_type=FractionalType.FRACTIONAL_SHARES
+            fractional_shares=True
         )
         df = pd.DataFrame({
             "symbol": ["AAPL"],
@@ -1235,6 +1249,7 @@ class TestDriftRebalancer:
             "shorting": False
         }
 
+        strat_obj: Strategy
         results, strat_obj = DriftRebalancer.run_backtest(
             datasource_class=PandasDataBacktesting,
             backtesting_start=self.backtesting_start,
@@ -1249,12 +1264,6 @@ class TestDriftRebalancer:
             show_progress_bar=False,
             # quiet_logs=False,
         )
-
-        assert results is not None
-        # assert np.isclose(results["cagr"], 0.22076538945204272, atol=1e-4)
-        # assert np.isclose(results["volatility"], 0.06740737779031068, atol=1e-4)
-        # assert np.isclose(results["sharpe"], 3.051823053251843, atol=1e-4)
-        # assert np.isclose(results["max_drawdown"]["drawdown"], 0.025697778711759052, atol=1e-4)
 
         trades_df = strat_obj.broker._trade_event_log_df
 
@@ -1286,9 +1295,10 @@ class TestDriftRebalancer:
                 "TLT": "0.40"
             },
             "shorting": False,
-            "fractional_type": FractionalType.FRACTIONAL_SHARES
+            "fractional_shares": True
         }
 
+        strat_obj: Strategy
         results, strat_obj = DriftRebalancer.run_backtest(
             datasource_class=PandasDataBacktesting,
             backtesting_start=self.backtesting_start,

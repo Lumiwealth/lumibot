@@ -3,7 +3,7 @@ import os
 import time
 from asyncio.log import logger
 from decimal import Decimal
-from typing import Union
+from typing import Union, List, Type
 
 import jsonpickle
 import matplotlib
@@ -12,9 +12,10 @@ import pandas as pd
 import pandas_market_calendars as mcal
 from termcolor import colored
 
-from ..entities import Asset, Order
+from ..entities import Asset, Order, Position, Data, TradingFee
 from ..tools import get_risk_free_rate
 from ..traders import Trader
+from ..data_sources import DataSource
 
 from ._strategy import _Strategy
 
@@ -338,7 +339,7 @@ class Strategy(_Strategy):
 
     # ======= Helper Methods =======================
 
-    def log_message(self, message, color=None, broadcast=False):
+    def log_message(self, message: str, color: str = None, broadcast: bool = False):
         """Logs an info message prefixed with the strategy name.
 
         Uses python logging to log the message at the `info` level.
@@ -385,24 +386,24 @@ class Strategy(_Strategy):
 
     def create_order(
         self,
-        asset,
-        quantity,
-        side,
-        limit_price=None,
-        stop_price=None,
-        time_in_force="gtc",
-        good_till_date=None,
-        take_profit_price=None,
-        stop_loss_price=None,
-        stop_loss_limit_price=None,
-        trail_price=None,
-        trail_percent=None,
-        position_filled=False,
-        exchange=None,
-        quote=None,
-        pair=None,
-        type=None,
-        custom_params={},
+        asset: Union[str, Asset],
+        quantity: Union[int, str, Decimal],
+        side: str,
+        limit_price: float = None,
+        stop_price: float = None,
+        time_in_force: str = "gtc",
+        good_till_date: datetime.datetime = None,
+        take_profit_price: float = None,
+        stop_loss_price: float = None,
+        stop_loss_limit_price: float = None,
+        trail_price: float = None,
+        trail_percent: float = None,
+        position_filled: float = None,
+        exchange: str = None,
+        quote: Asset = None,
+        pair: str = None,
+        type: str = None,
+        custom_params: dict = None,
     ):
         # noinspection PyShadowingNames,PyUnresolvedReferences
         """Creates a new order for this specific strategy. Once created, an order must still be submitted.
@@ -692,7 +693,7 @@ class Strategy(_Strategy):
 
     # ======= Broker Methods ============
 
-    def sleep(self, sleeptime, process_pending_orders=True):
+    def sleep(self, sleeptime: float, process_pending_orders: bool = True):
         """Sleep for sleeptime seconds.
 
         Use to pause the execution of the program. This should be used instead of `time.sleep` within the strategy. Also processes pending orders in the meantime.
@@ -720,7 +721,7 @@ class Strategy(_Strategy):
 
         return self.broker.sleep(sleeptime)
 
-    def get_selling_order(self, position):
+    def get_selling_order(self, position: Position):
         """Get the selling order for a position.
 
         Parameters
@@ -750,7 +751,7 @@ class Strategy(_Strategy):
         else:
             return None
 
-    def set_market(self, market):
+    def set_market(self, market: str):
         """Set the market for trading hours.
 
         Setting the market will determine the trading hours for live
@@ -916,7 +917,7 @@ class Strategy(_Strategy):
 
         self.broker.market = market
 
-    def await_market_to_open(self, timedelta=None):
+    def await_market_to_open(self, timedelta: int = None):
         """Executes infinite loop until market opens
 
         If the market is closed, pauses code execution until
@@ -946,7 +947,7 @@ class Strategy(_Strategy):
             timedelta = self.minutes_before_opening
         return self.broker._await_market_to_open(timedelta, strategy=self)
 
-    def await_market_to_close(self, timedelta=None):
+    def await_market_to_close(self, timedelta: int = None):
         """Sleep until market closes.
 
         If the market is open, pauses code execution until market is
@@ -975,19 +976,19 @@ class Strategy(_Strategy):
         return self.broker._await_market_to_close(timedelta, strategy=self)
 
     @staticmethod
-    def crypto_assets_to_tuple(base, quote):
+    def crypto_assets_to_tuple(base, quote: Asset):
         """Check for crypto quote, convert to tuple"""
         if isinstance(base, Asset) and base.asset_type == "crypto" and isinstance(quote, Asset):
             return (base, quote)
         return base
 
-    def get_tracked_position(self, asset):
+    def get_tracked_position(self, asset: Union[str, Asset]):
         """Deprecated, will be removed in the future. Please use `get_position()` instead."""
 
         self.log_message("Warning: get_tracked_position() is deprecated, please use get_position() instead.")
         self.get_position(asset)
 
-    def get_position(self, asset):
+    def get_position(self, asset: Union[str, Asset]):
         """Get a tracked position given an asset for the current
         strategy.
 
@@ -1105,7 +1106,7 @@ class Strategy(_Strategy):
     def positions(self):
         return self.get_tracked_positions()
 
-    def _get_contract_details(self, asset):
+    def _get_contract_details(self, asset: Asset):
         """Convert an asset into a IB Contract.
 
         Used internally to create an IB Contract from an asset. Used
@@ -1126,13 +1127,13 @@ class Strategy(_Strategy):
         asset = self._sanitize_user_asset(asset)
         return self.broker.get_contract_details(asset)
 
-    def get_tracked_order(self, identifier):
+    def get_tracked_order(self, identifier: str):
         """Deprecated, will be removed in the future. Please use `get_order()` instead."""
 
         self.log_message("Warning: get_tracked_order() is deprecated, please use get_order() instead.")
         return self.get_order(identifier)
 
-    def get_order(self, identifier):
+    def get_order(self, identifier: str):
         """Get a tracked order given an identifier. Check the details of the order including status, etc.
 
         Returns
@@ -1152,7 +1153,7 @@ class Strategy(_Strategy):
             return order
         return None
 
-    def get_tracked_orders(self, identifier):
+    def get_tracked_orders(self):
         """Deprecated, will be removed in the future. Please use `get_orders()` instead."""
 
         self.log_message("Warning: get_tracked_orders() is deprecated, please use get_orders() instead.")
@@ -1210,7 +1211,7 @@ class Strategy(_Strategy):
         """
         return self.broker.get_tracked_assets(self.name)
 
-    def get_asset_potential_total(self, asset):
+    def get_asset_potential_total(self, asset: Asset):
         """Get the potential total for the asset (orders + positions).
 
         Parameters
@@ -1242,7 +1243,7 @@ class Strategy(_Strategy):
         asset = self._sanitize_user_asset(asset)
         return self.broker.get_asset_potential_total(self.name, asset)
 
-    def submit_order(self, order, **kwargs):
+    def submit_order(self, order: Order, **kwargs):
         """Submit an order or a list of orders for assets
 
         Submits an order or a list of orders for processing by the active broker.
@@ -1376,7 +1377,7 @@ class Strategy(_Strategy):
 
             return self.broker.submit_order(order)
 
-    def submit_orders(self, orders, **kwargs):
+    def submit_orders(self, orders: List[Order], **kwargs):
         """[Deprecated] Submit a list of orders
 
         This method is deprecated and will be removed in future versions.
@@ -1451,7 +1452,7 @@ class Strategy(_Strategy):
         #self.log_message("Warning: `submit_orders` is deprecated, please use `submit_order` instead.")
         return self.submit_order(orders, **kwargs)
 
-    def wait_for_order_registration(self, order):
+    def wait_for_order_registration(self, order: Order):
         """Wait for the order to be registered by the broker
 
         Parameters
@@ -1479,7 +1480,7 @@ class Strategy(_Strategy):
         """
         return self.broker.wait_for_order_registration(order)
 
-    def wait_for_order_execution(self, order):
+    def wait_for_order_execution(self, order: Order):
         """Wait for one specific order to be executed or canceled by the broker
 
         Parameters
@@ -1502,7 +1503,7 @@ class Strategy(_Strategy):
         """
         return self.broker.wait_for_order_execution(order)
 
-    def wait_for_orders_registration(self, orders):
+    def wait_for_orders_registration(self, orders: List[Order]):
         """Wait for the orders to be registered by the broker
 
         Parameters
@@ -1524,7 +1525,7 @@ class Strategy(_Strategy):
         """
         return self.broker.wait_for_orders_registration(orders)
 
-    def wait_for_orders_execution(self, orders):
+    def wait_for_orders_execution(self, orders: List[Order]):
         """Wait for a list of orders to be executed or canceled by the broker
 
         Parameters
@@ -1546,7 +1547,7 @@ class Strategy(_Strategy):
         """
         return self.broker.wait_for_orders_execution(orders)
 
-    def cancel_order(self, order):
+    def cancel_order(self, order: Order):
         """Cancel an order.
 
         Cancels a single open order provided.
@@ -1573,7 +1574,7 @@ class Strategy(_Strategy):
         # Cancel the order
         return self.broker.cancel_order(order)
 
-    def cancel_orders(self, orders):
+    def cancel_orders(self, orders: List[Order]):
         """Cancel orders in all strategies.
 
         Cancels all open orders provided in any of the running
@@ -1622,7 +1623,7 @@ class Strategy(_Strategy):
         """
         return self.broker.cancel_open_orders(self.name)
 
-    def sell_all(self, cancel_open_orders=True, is_multileg=False):
+    def sell_all(self, cancel_open_orders: bool = True, is_multileg: bool = False):
         """Sell all strategy positions.
 
         The system will generate closing market orders for each open
@@ -1650,7 +1651,7 @@ class Strategy(_Strategy):
         """
         self.broker.sell_all(self.name, cancel_open_orders=cancel_open_orders, strategy=self, is_multileg=is_multileg)
 
-    def get_last_price(self, asset, quote=None, exchange=None, should_use_last_close=True):
+    def get_last_price(self, asset: Union[Asset, str], quote=None, exchange=None):
         """Takes an asset and returns the last known price
 
         Makes an active call to the market to retrieve the last price.
@@ -1738,7 +1739,7 @@ class Strategy(_Strategy):
             self.log_message(f"{e}")
             return None
 
-    def get_quote(self, asset):
+    def get_quote(self, asset: Asset):
         """Get a quote for the asset.
 
         NOTE: This currently only works with Tradier and IB REST. It does not work with backtetsing or other brokers.
@@ -1766,13 +1767,13 @@ class Strategy(_Strategy):
         else:
             return self.broker.data_source.get_quote(asset)
 
-    def get_tick(self, asset):
+    def get_tick(self, asset: Union[Asset, str]):
         """Takes an Asset and returns the last known price"""
         # TODO: Should this function be depricated? This appears to be an IBKR-only thing.
         asset = self._sanitize_user_asset(asset)
         return self.broker._get_tick(asset)
 
-    def get_last_prices(self, assets, quote=None, exchange=None):
+    def get_last_prices(self, assets: List[Asset], quote=None, exchange=None):
         """Takes a list of assets and returns the last known prices
 
         Makes an active call to the market to retrieve the last price. In backtesting will provide the close of the last complete bar.
@@ -1810,7 +1811,7 @@ class Strategy(_Strategy):
             return asset_prices
 
     # ======= Broker Methods  ============
-    def options_expiry_to_datetime_date(self, date):
+    def options_expiry_to_datetime_date(self, date: datetime.date):
         """Converts an IB Options expiry to datetime.date.
 
         Parameters
@@ -1831,7 +1832,7 @@ class Strategy(_Strategy):
         """
         return datetime.datetime.strptime(date, "%Y%m%d").date()
 
-    def get_chains(self, asset):
+    def get_chains(self, asset: Asset):
         """Returns option chains.
 
         Obtains option chain information for the asset (stock) from each
@@ -1864,15 +1865,19 @@ class Strategy(_Strategy):
         asset = self._sanitize_user_asset(asset)
         return self.broker.get_chains(asset)
 
-    def get_next_trading_day(self, date, exchange='NYSE'):
+    def get_next_trading_day(self, date: str, exchange="NYSE"):
         """
         Finds the next trading day for the given date and exchange.
 
-        Parameters:
-            date (str): The date from which to find the next trading day, in 'YYYY-MM-DD' format.
-            exchange (str): The exchange calendar to use, default is 'NYSE'.
+        Parameters
+        ----------
+        date : str
+            The date from which to find the next trading day, in 'YYYY-MM-DD' format.
+        exchange : str
+            The exchange calendar to use, default is 'NYSE'.
 
-        Returns:
+        Returns
+        -------
             next_trading_day (datetime.date): The next trading day after the given date.
         """
 
@@ -1892,7 +1897,7 @@ class Strategy(_Strategy):
 
         return next_trading_day
 
-    def get_chain(self, chains, exchange="SMART"):
+    def get_chain(self, chains: dict, exchange: str = "SMART"):
         """Returns option chain for a particular exchange.
 
         Takes in a full set of chains for all the exchanges and returns
@@ -1926,8 +1931,16 @@ class Strategy(_Strategy):
         """
         return self.broker.get_chain(chains)
 
-    def get_chain_full_info(self, asset, expiry, chains=None, underlying_price=None,
-                            risk_free_rate=None, strike_min=None, strike_max=None) -> pd.DataFrame:
+    def get_chain_full_info(
+            self, 
+            asset: Asset,
+            expiry: Union[str, datetime.datetime, datetime.date], 
+            chains: dict = None, 
+            underlying_price: float = None,
+            risk_free_rate: float = None,
+            strike_min: float = None,
+            strike_max: float = None
+            ) -> pd.DataFrame:
         """Returns full option chain information for a given asset and expiry. This will include all known broker
         option information for each strike price, including: greeks, bid, ask, volume, open_interest etc. Not all
         Lumibot brokers provide all of this data and tick-style data like bid/ask/open_interest are not available
@@ -1991,7 +2004,7 @@ class Strategy(_Strategy):
                                                risk_free_rate=risk_free_rate, strike_min=strike_min,
                                                strike_max=strike_max)
 
-    def get_expiration(self, chains):
+    def get_expiration(self, chains: dict):
         """Returns expiration dates for an option chain for a particular
         exchange.
 
@@ -2003,9 +2016,6 @@ class Strategy(_Strategy):
         ---------
         chains : dictionary of dictionaries
             The chains dictionary created by `get_chains` method.
-
-        exchange : str optional
-            The exchange such as `SMART`, `CBOE`. Default is `SMART`.
 
         Returns
         -------
@@ -2020,7 +2030,7 @@ class Strategy(_Strategy):
         """
         return self.broker.get_expiration(chains)
 
-    def get_multiplier(self, chains, exchange="SMART"):
+    def get_multiplier(self, chains: dict, exchange: str = "SMART"):
         """Returns option chain for a particular exchange.
 
         Using the `chains` dictionary obtained from `get_chains` finds
@@ -2049,7 +2059,7 @@ class Strategy(_Strategy):
 
         return self.broker.get_multiplier(chains, exchange=exchange)
 
-    def get_strikes(self, asset, chains=None):
+    def get_strikes(self, asset: Asset, chains: dict = None):
         """Returns a list of strikes for a give underlying asset.
 
         Using the `chains` dictionary obtained from `get_chains` finds
@@ -2080,7 +2090,20 @@ class Strategy(_Strategy):
         asset = self._sanitize_user_asset(asset)
         return self.broker.get_strikes(asset, chains)
 
-    def find_first_friday(self, timestamp):
+    def find_first_friday(self, timestamp: Union[datetime.datetime, pd.Timestamp]):
+        """Finds the first Friday of the month for a given timestamp.
+
+        Parameters
+        ----------
+        timestamp : datetime.datetime | pd.Timestamp
+            The timestamp for which the first Friday of the month is
+            needed.
+        
+        Returns
+        -------
+        datetime.datetime
+            The first Friday of the month.
+        """
         # Convert the timestamp to a datetime object if it's not already one
         if isinstance(timestamp, pd.Timestamp):
             timestamp = timestamp.to_pydatetime()
@@ -2167,11 +2190,11 @@ class Strategy(_Strategy):
 
     def get_greeks(
         self,
-        asset,
-        asset_price=None,
-        underlying_price=None,
-        risk_free_rate=None,
-        query_greeks=False,
+        asset: Asset,
+        asset_price: float = None,
+        underlying_price: float = None,
+        risk_free_rate: float = None,
+        query_greeks: bool = False,
     ):
         """Returns the greeks for the option asset at the current
         bar.
@@ -2292,8 +2315,13 @@ class Strategy(_Strategy):
         """
         return self.broker.data_source.DEFAULT_PYTZ
 
-    def get_datetime(self, adjust_for_delay=False):
+    def get_datetime(self, adjust_for_delay: bool = False):
         """Returns the current datetime according to the data source. In a backtest this will be the current bar's datetime. In live trading this will be the current datetime on the exchange.
+
+        Parameters
+        ----------
+        adjust_for_delay : bool
+            If True, will adjust the datetime for any delay in the data source.
 
         Returns
         -------
@@ -2324,7 +2352,7 @@ class Strategy(_Strategy):
         """
         return self.broker.data_source.get_timestamp()
 
-    def get_round_minute(self, timeshift=0):
+    def get_round_minute(self, timeshif: int = 0):
         """Returns the current minute rounded to the nearest minute. In a backtest this will be the current bar's timestamp. In live trading this will be the current timestamp on the exchange.
 
         Parameters
@@ -2361,7 +2389,7 @@ class Strategy(_Strategy):
         """
         return self.broker.data_source.get_last_minute()
 
-    def get_round_day(self, timeshift=0):
+    def get_round_day(self, timeshift: int = 0):
         """Returns the current day rounded to the nearest day. In a backtest this will be the current bar's timestamp. In live trading this will be the current timestamp on the exchange.
 
         Parameters
@@ -2398,7 +2426,7 @@ class Strategy(_Strategy):
         """
         return self.broker.data_source.get_last_day()
 
-    def get_datetime_range(self, length, timestep="minute", timeshift=None):
+    def get_datetime_range(self, length: int, timestep: str = "minute", timeshift: int = None):
         """Returns a list of datetimes for the given length and timestep.
 
         Parameters
@@ -2465,7 +2493,7 @@ class Strategy(_Strategy):
         """
         return self.broker.data_source.to_default_timezone(dt)
 
-    def load_pandas(self, asset, df):
+    def load_pandas(self, asset: Union[Asset, str], df: pd.DataFrame):
         asset = self._sanitize_user_asset(asset)
         self.broker.data_source.load_pandas(asset, df)
 
@@ -2558,7 +2586,16 @@ class Strategy(_Strategy):
             multiplier=multiplier,
         )
 
-    def add_marker(self, name, value=None, color=None, symbol="circle", size=None, detail_text=None, dt=None):
+    def add_marker(
+            self, 
+            name: str, 
+            value: float = None,
+            color: str = "blue", 
+            symbol: str = "circle",
+            size: int = None,
+            detail_text: str = None,
+            dt: Union[datetime.datetime, pd.Timestamp] = None
+            ):
         """Adds a marker to the indicators plot that loads after a backtest. This can be used to mark important events on the graph, such as price crossing a certain value, marking a support level, marking a resistance level, etc.
 
         Parameters
@@ -2670,7 +2707,16 @@ class Strategy(_Strategy):
 
         return df
 
-    def add_line(self, name, value, color=None, style="solid", width=None, detail_text=None, dt=None):
+    def add_line(
+            self, 
+            name: str, 
+            value: float, 
+            color: str = None,
+            style: str = "solid",
+            width: int = None,
+            detail_text: str = None,
+            dt: Union[datetime.datetime, pd.Timestamp] = None
+            ):
         """Adds a line data point to the indicator chart. This can be used to add lines such as bollinger bands, prices for specific assets, or any other line you want to add to the chart.
 
         Parameters
@@ -2769,7 +2815,24 @@ class Strategy(_Strategy):
 
         return df
 
-    def write_backtest_settings(self, settings_file):
+    def write_backtest_settings(self, settings_file: str):
+        """Writes the backtest settings to a file.
+        
+        Parameters
+        ----------
+        settings_file : str
+            The file path to write the settings to.
+            
+        Returns
+        -------
+        None
+
+        Example
+        -------
+        >>> # Will write the backtest settings to a file
+        >>> self.write_backtest_settings("backtest_settings.json")
+
+        """
         datasource = self.broker.data_source
         auto_adjust = datasource.auto_adjust if hasattr(datasource, "auto_adjust") else False
         settings = {
@@ -2928,12 +2991,12 @@ class Strategy(_Strategy):
 
     def get_symbol_bars(
         self,
-        asset,
-        length,
-        timestep="",
-        timeshift=None,
-        quote=None,
-        exchange=None,
+        asset: Union[Asset, str],
+        length: int,
+        timestep: str = "",
+        timeshift: datetime.timedelta = None,
+        quote: Asset = None,
+        exchange: str = None,
     ):
         """
         This method is deprecated and will be removed in a future version.
@@ -2955,14 +3018,14 @@ class Strategy(_Strategy):
 
     def get_historical_prices_for_assets(
         self,
-        assets,
-        length,
-        timestep="minute",
-        timeshift=None,
-        chunk_size=100,
-        max_workers=200,
-        exchange=None,
-        include_after_hours=True,
+        assets: List[Union[Asset, str]],
+        length: int,
+        timestep: str = "minute",
+        timeshift: datetime.timedelta = None,
+        chunk_size: int = 100,
+        max_workers: int = 200,
+        exchange: str = None,
+        include_after_hours: bool = True,
     ):
         """Get historical pricing data for the list of assets.
 
@@ -3037,13 +3100,13 @@ class Strategy(_Strategy):
 
     def get_bars(
         self,
-        assets,
-        length,
-        timestep="minute",
-        timeshift=None,
-        chunk_size=100,
-        max_workers=200,
-        exchange=None,
+        assets: List[Union[Asset, str]],
+        length: int,
+        timestep: str = "minute",
+        timeshift: datetime.timedelta = None,
+        chunk_size: int = 100,
+        max_workers: int = 200,
+        exchange: str = None,
     ):
         """
         This method is deprecated and will be removed in a future version.
@@ -3063,7 +3126,7 @@ class Strategy(_Strategy):
             exchange=exchange,
         )
 
-    def start_realtime_bars(self, asset, keep_bars=30):
+    def start_realtime_bars(self, asset: Asset, keep_bars: int = 30):
         """Starts a real time stream of tickers for Interactive Broker
         only.
 
@@ -3097,7 +3160,7 @@ class Strategy(_Strategy):
         """
         self.broker._start_realtime_bars(asset=asset, keep_bars=keep_bars)
 
-    def get_realtime_bars(self, asset):
+    def get_realtime_bars(self, asset: Asset):
         """Retrieve the real time bars as dataframe.
 
         Returns the current set of real time bars as a dataframe.
@@ -3140,7 +3203,7 @@ class Strategy(_Strategy):
             return pd.DataFrame(rtb).set_index("datetime")
         return rtb
 
-    def cancel_realtime_bars(self, asset):
+    def cancel_realtime_bars(self, asset: Asset):
         """Cancels a stream of real time bars for a given asset.
 
         Cancels the real time bars for the given asset.
@@ -3163,7 +3226,7 @@ class Strategy(_Strategy):
         """
         self.broker._cancel_realtime_bars(asset)
 
-    def get_yesterday_dividend(self, asset):
+    def get_yesterday_dividend(self, asset: Asset):
         """Get the dividend for the previous day.
 
         Parameters
@@ -3187,7 +3250,7 @@ class Strategy(_Strategy):
         asset = self._sanitize_user_asset(asset)
         return self.broker.data_source.get_yesterday_dividend(asset)
 
-    def get_yesterday_dividends(self, assets):
+    def get_yesterday_dividends(self, assets: List[Asset]):
         """Get the dividends for the previous day.
 
         Parameters
@@ -3215,7 +3278,7 @@ class Strategy(_Strategy):
             self.log_message("Broker or data source is not available.")
             return None
 
-    def update_parameters(self, parameters):
+    def update_parameters(self, parameters: dict):
         """Update the parameters of the strategy.
 
         Parameters
@@ -3242,7 +3305,7 @@ class Strategy(_Strategy):
         """
         return self.parameters
 
-    def set_parameters(self, parameters):
+    def set_parameters(self, parameters: dict):
         """Set the default parameters of the strategy.
 
         Parameters
@@ -3265,7 +3328,7 @@ class Strategy(_Strategy):
 
         return self.parameters
 
-    def set_parameter_defaults(self, parameters):
+    def set_parameter_defaults(self, parameters: dict):
         """Set the default parameters of the strategy.
 
         Parameters
@@ -3289,7 +3352,7 @@ class Strategy(_Strategy):
 
     # ======= Lifecycle Methods ====================
 
-    def initialize(self, parameters=None):
+    def initialize(self, parameters: dict = None):
         """Initialize the strategy. Use this lifecycle method to initialize parameters.
 
         This method is called once before the first time the strategy is run.
@@ -3386,7 +3449,7 @@ class Strategy(_Strategy):
         """
         pass
 
-    def trace_stats(self, context, snapshot_before):
+    def trace_stats(self, context: dict, snapshot_before: dict):
         """Lifecycle method that will be executed after
         on_trading_iteration. context is a dictionary containing
         on_trading_iteration locals() in last call. Use this
@@ -3484,7 +3547,7 @@ class Strategy(_Strategy):
 
     # ====== Events Methods ========================
 
-    def on_bot_crash(self, error):
+    def on_bot_crash(self, error: Exception):
         """Use this lifecycle event to execute code
         when an exception is raised and the bot crashes
 
@@ -3529,7 +3592,7 @@ class Strategy(_Strategy):
         """
         pass
 
-    def on_new_order(self, order):
+    def on_new_order(self, order: Order):
         """Use this lifecycle event to execute code
         when a new order is being processed by the broker
 
@@ -3550,7 +3613,7 @@ class Strategy(_Strategy):
         """
         pass
 
-    def on_canceled_order(self, order):
+    def on_canceled_order(self, order: Order):
         """Use this lifecycle event to execute code when an order is canceled.
 
         Parameters
@@ -3570,7 +3633,14 @@ class Strategy(_Strategy):
         """
         pass
 
-    def on_partially_filled_order(self, position, order, price, quantity, multiplier):
+    def on_partially_filled_order(
+            self, 
+            position: Position, 
+            order: Order, 
+            price: float, 
+            quantity: Union[float, int],
+            multiplier: float
+            ):
         """Use this lifecycle event to execute code
         when an order has been partially filled by the broker
 
@@ -3585,7 +3655,7 @@ class Strategy(_Strategy):
         price : float
             The price of the fill.
 
-        quantity : int
+        quantity : float or int
             The quantity of the fill.
 
         multiplier : float
@@ -3604,7 +3674,14 @@ class Strategy(_Strategy):
         """
         pass
 
-    def on_filled_order(self, position, order, price, quantity, multiplier):
+    def on_filled_order(
+            self,
+            position: Position,
+            order: Order,
+            price: float,
+            quantity: Union[float, int],
+            multiplier: float
+            ):
         """Use this lifecycle event to execute code when an order has been filled by the broker.
 
         Parameters
@@ -3618,7 +3695,7 @@ class Strategy(_Strategy):
         price : float
             The price of the fill.
 
-        quantity : float
+        quantity : float or int
             The quantity of the fill.
 
         multiplier : float
@@ -3644,7 +3721,7 @@ class Strategy(_Strategy):
         """
         pass
 
-    def on_parameters_updated(self, parameters):
+    def on_parameters_updated(self, parameters: dict):
         """Use this lifecycle event to execute code when the parameters are updated.
 
         Parameters
@@ -3678,43 +3755,43 @@ class Strategy(_Strategy):
     @classmethod
     def backtest(
         self,
-        datasource_class,
+        datasource_class: Type[DataSource],
         backtesting_start: datetime.datetime,
         backtesting_end: datetime.datetime,
-        minutes_before_closing=1,
-        minutes_before_opening=60,
-        sleeptime=1,
-        stats_file=None,
-        risk_free_rate=None,
-        logfile=None,
-        config=None,
-        auto_adjust=False,
-        name=None,
-        budget=None,
-        benchmark_asset="SPY",
-        plot_file_html=None,
-        trades_file=None,
-        settings_file=None,
-        pandas_data=None,
-        quote_asset=Asset(symbol="USD", asset_type="forex"),
-        starting_positions=None,
-        show_plot=None,
-        tearsheet_file=None,
-        save_tearsheet=True,
-        show_tearsheet=None,
-        parameters={},
-        buy_trading_fees=[],
-        sell_trading_fees=[],
-        polygon_api_key=None,
-        indicators_file=None,
-        show_indicators=None,
-        save_logfile=False,
-        thetadata_username=None,
-        thetadata_password=None,
-        use_quote_data=False,
-        show_progress_bar=True,
-        quiet_logs=True,
-        trader_class=Trader,
+        minutes_before_closing: int = 1,
+        minutes_before_opening: int = 60,
+        sleeptime: int = 1,
+        stats_file: str = None,
+        risk_free_rate: float = None,
+        logfile: str = None,
+        config: dict = None,
+        auto_adjust: bool = False,
+        name: str = None,
+        budget: float = None,
+        benchmark_asset: Union[str, Asset] = "SPY",
+        plot_file_html: str = None,
+        trades_file: str = None,
+        settings_file: str = None,
+        pandas_data: List[Data] = None,
+        quote_asset: Asset = Asset(symbol="USD", asset_type="forex"),
+        starting_positions: dict = None,
+        show_plot: bool = True,
+        tearsheet_file: str = None,
+        save_tearsheet: bool = True,
+        show_tearsheet: bool = True,
+        parameters: dict = {},
+        buy_trading_fees: List[TradingFee] = [],
+        sell_trading_fees: List[TradingFee] = [],
+        polygon_api_key: str = None,
+        indicators_file: str = None,
+        show_indicators: bool = True,
+        save_logfile: bool = False,
+        thetadata_username: str = None,
+        thetadata_password: str = None,
+        use_quote_data: bool = False,
+        show_progress_bar: bool = True,
+        quiet_logs: bool = True,
+        trader_class: Type[Trader] = Trader,
         **kwargs,
     ):
         """Backtest a strategy.
@@ -3724,9 +3801,9 @@ class Strategy(_Strategy):
         datasource_class : class
             The datasource class to use. For example, if you want to use the yahoo finance datasource, then you
             would pass YahooDataBacktesting as the datasource_class.
-        backtesting_start : datetime
+        backtesting_start : datetime.datetime
             The start date of the backtesting period.
-        backtesting_end : datetime
+        backtesting_end : datetime.datetime
             The end date of the backtesting period.
         minutes_before_closing : int
             The number of minutes before closing that the minutes_before_closing strategy method will be called.
@@ -3755,7 +3832,9 @@ class Strategy(_Strategy):
             The file to write the plot html to.
         trades_file : str
             The file to write the trades to.
-        pandas_data : list
+        settings_file : str
+            The file to write the settings to.
+        pandas_data : list of Data
             A list of Data objects that are used when the datasource_class object is set to PandasDataBacktesting.
             This contains all the data that will be used in backtesting.
         quote_asset : Asset (crypto)

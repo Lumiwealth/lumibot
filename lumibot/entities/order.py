@@ -16,13 +16,21 @@ BUY = "buy"
 VALID_STATUS = ["unprocessed", "new", "open", "submitted", "fill", "partial_fill", "cancelling", "canceled", "error", "cash_settled"]
 STATUS_ALIAS_MAP = {
     "cancelled": "canceled",
-    "cancel": "canceled",
+    "cancel": "canceled", 
     "cash": "cash_settled",
     "expired": "canceled",  # Alpaca/Tradier status
     "filled": "fill",  # Alpaca/Tradier status
     "partially_filled": "partial_filled",  # Alpaca/Tradier status
     "pending": "open",  # Tradier status
     "presubmitted": "new",  # IBKR status
+    "filled": "fill",  # IBKR status
+    "cancelled": "canceled",  # IBKR status
+    "apicancelled": "canceled",  # IBKR status
+    "pendingcancel": "cancelling",  # IBKR status
+    "inactive": "error",  # IBKR status
+    "pendingsubmit": "new",  # IBKR status 
+    "presubmitted": "new",  # IBKR status
+    "apipending": "new",  # IBKR status
     "rejected": "error",  # Tradier status
     "submit": "submitted",
     "done_for_day": "canceled",  # Alpaca status
@@ -39,7 +47,6 @@ STATUS_ALIAS_MAP = {
     "held": "open",  # Alpaca status
     "expired": "canceled",  # Tradier status
 }
-
 
 class Order:
     Transaction = namedtuple("Transaction", ["quantity", "price"])
@@ -357,16 +364,20 @@ class Order:
         )
 
     def is_buy_order(self):
-        return self.side == self.OrderSide.BUY or \
-            self.side == self.OrderSide.BUY_TO_OPEN or \
-            self.side == self.OrderSide.BUY_TO_COVER or \
-            self.side == self.OrderSide.BUY_TO_CLOSE
+        return self.side is not None and (
+            self.side.lower() == self.OrderSide.BUY or
+            self.side.lower() == self.OrderSide.BUY_TO_OPEN or
+            self.side.lower() == self.OrderSide.BUY_TO_COVER or
+            self.side.lower() == self.OrderSide.BUY_TO_CLOSE
+        )
     
     def is_sell_order(self):
-        return self.side == self.OrderSide.SELL or \
-            self.side == self.OrderSide.SELL_SHORT or \
-            self.side == self.OrderSide.SELL_TO_OPEN or \
-            self.side == self.OrderSide.SELL_TO_CLOSE
+        return self.side is not None and (
+            self.side.lower() == self.OrderSide.SELL or
+            self.side.lower() == self.OrderSide.SELL_SHORT or
+            self.side.lower() == self.OrderSide.SELL_TO_OPEN or
+            self.side.lower() == self.OrderSide.SELL_TO_CLOSE
+        )
 
     def is_parent(self) -> bool:
         """
@@ -788,7 +799,7 @@ class Order:
         """
         if self.position_filled:
             return True
-        elif self.status.lower() in ["filled", "fill"]:
+        elif self.status.lower() in ["filled", "fill", "cash_settled"]:
             return True
         else:
             return False
@@ -806,7 +817,21 @@ class Order:
             return True
         else:
             return False
+    
+    @classmethod
+    def is_equivalent_status(cls, status1, status2) -> bool:
+        """Returns if the 2 statuses passed are equivalent."""
 
+        if not status1 or not status2:
+            return False
+        elif status1.lower() in [status2.lower(), STATUS_ALIAS_MAP.get(status2.lower(), "")]:
+            return True
+        # open/new status is equivalent
+        elif {status1.lower(), status2.lower()}.issubset({"open", "new"}):
+            return True
+        else:
+            return False
+    
     def set_error(self, error):
         self.status = "error"
         self._error = error

@@ -867,6 +867,8 @@ class StrategyExecutor(Thread):
             if not broker_continue:
                 return
 
+            # TODO: I think we should remove the OR. Pandas data can have dividends.
+            # Especially if it was saved from yahoo.
             if not has_data_source or (has_data_source and self.broker.data_source.SOURCE != "PANDAS"):
                 self.strategy._update_cash_with_dividends()
 
@@ -951,7 +953,7 @@ class StrategyExecutor(Thread):
                     break
                 
                 # Send data to cloud every minute. Ensure not being in a trading iteration currently as it can cause an incomplete data sync
-                if ((not hasattr(self, '_last_updated_cloud')) or (datetime.now() - self._last_updated_cloud >= timedelta(minutes=1))) and (not self._in_trading_iteration):
+                if (not hasattr(self, '_last_updated_cloud')) or (datetime.now() - self._last_updated_cloud >= timedelta(minutes=1)):
                     self.strategy.send_update_to_cloud()
                     self._last_updated_cloud = datetime.now()
                 

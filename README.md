@@ -40,8 +40,11 @@ To run this example strategy, click on the `Deploy to Render` button below to de
 
 If you want to contribute to Lumibot, you can check how to get started below. We are always looking for contributors to help us out!
 
+Here's a video to help you get started with contributing to Lumibot: [Watch The Video](https://youtu.be/Huz6VxqafZs)
+
 **Steps to contribute:**
 
+0. Watch the video: [Watch The Video](https://youtu.be/Huz6VxqafZs)
 1. Clone the repository to your local machine
 2. Create a new branch for your feature
 3. Run `pip install -r requirements_dev.txt` to install the developer dependencies

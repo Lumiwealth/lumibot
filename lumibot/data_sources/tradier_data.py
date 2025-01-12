@@ -1,12 +1,12 @@
 import logging
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, date, timedelta
 
 import pandas as pd
-import pytz
 
+from lumibot import LUMIBOT_DEFAULT_PYTZ, LUMIBOT_DEFAULT_TIMEZONE
 from lumibot.entities import Asset, Bars
-from lumibot.tools.helpers import create_options_symbol, parse_timestep_qty_and_unit
+from lumibot.tools.helpers import create_options_symbol, parse_timestep_qty_and_unit, get_trading_days
 from lumiwealth_tradier import Tradier
 
 from .data_source import DataSource
@@ -189,7 +189,7 @@ class TradierData(DataSource):
         end_date = datetime.now()
 
         # Use pytz to get the US/Eastern timezone
-        eastern = pytz.timezone("US/Eastern")
+        eastern = LUMIBOT_DEFAULT_PYTZ
 
         # Convert datetime object to US/Eastern timezone
         end_date = end_date.astimezone(eastern)
@@ -201,6 +201,16 @@ class TradierData(DataSource):
         # Calculate the start date
         td, _ = self.convert_timestep_str_to_timedelta(timestep)
         start_date = end_date - (td * length)
+
+        if timestep == 'day' and timeshift is None:
+            # What we really want is the last n bars, not the bars from the last n days.
+            # get twice as many days as we need to ensure we get enough bars, then add 3 days for long weekends
+            tcal_start_date = end_date - (td * length * 2 + timedelta(days=3))
+            trading_days = get_trading_days(market='NYSE', start_date=tcal_start_date, end_date=end_date)
+            # Filer out trading days when the market_open is after the end_date
+            trading_days = trading_days[trading_days['market_open'] < end_date]
+            # Now, start_date is the length bars before the last trading day
+            start_date = trading_days.index[-length]
 
         # Check what timestep we are using, different endpoints are required for different timesteps
         try:
@@ -230,6 +240,16 @@ class TradierData(DataSource):
         if "timestamp" in df.columns:
             df = df.drop(columns=["timestamp"])
 
+        # If the index contains date objects, convert and handle timezone
+        if isinstance(df.index[0], date):  # Check if the index contains date objects
+            df.index = pd.to_datetime(df.index)  # Always ensure it's a DatetimeIndex
+
+            # Check if the index is timezone-naive or already timezone-aware
+            if df.index.tz is None:  # Naive index, localize to America/New_York
+                df.index = df.index.tz_localize(LUMIBOT_DEFAULT_TIMEZONE)
+            else:  # Already timezone-aware, convert to America/New_York
+                df.index = df.index.tz_convert(LUMIBOT_DEFAULT_TIMEZONE)
+
         # Convert the dataframe to a Bars object
         bars = Bars(df, self.SOURCE, asset, raw=df, quote=quote)
 
@@ -253,20 +273,26 @@ class TradierData(DataSource):
            Price of the asset
         """
 
-        if asset.asset_type == "option":
-            symbol = create_options_symbol(
-                asset.symbol,
-                asset.expiration,
-                asset.right,
-                asset.strike,
-            )
-        elif asset.asset_type == "index":
-            symbol = f"I:{asset.symbol}"
-        else:
-            symbol = asset.symbol
+        symbol = None
+        try:
+            if asset.asset_type == "option":
+                symbol = create_options_symbol(
+                    asset.symbol,
+                    asset.expiration,
+                    asset.right,
+                    asset.strike,
+                )
+            elif asset.asset_type == "index":
+                symbol = f"I:{asset.symbol}"
+            else:
+                symbol = asset.symbol
 
-        price = self.tradier.market.get_last_price(symbol)
-        return price
+            price = self.tradier.market.get_last_price(symbol)
+            return price
+
+        except Exception as e:
+            logging.error(f"Error getting last price for {symbol or asset.symbol}: {e}")
+            return None
 
     def get_quote(self, asset, quote=None, exchange=None):
         """

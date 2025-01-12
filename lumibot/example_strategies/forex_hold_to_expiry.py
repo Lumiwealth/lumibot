@@ -6,14 +6,13 @@ from lumibot.strategies.strategy import Strategy
 """
 Strategy Description
 
-An example strategy for buying an option and holding it to expiry.
+An example strategy for buying a future and holding it to expiry.
 """
 
 
-class OptionsHoldToExpiry(Strategy):
+class FuturesHoldToExpiry(Strategy):
     parameters = {
-        "buy_symbol": "SPY",
-        "expiry": datetime(2023, 10, 20),
+        "buy_symbol": "GBP",
     }
 
     # =====Overloading lifecycle methods=============
@@ -28,23 +27,18 @@ class OptionsHoldToExpiry(Strategy):
         """Buys the self.buy_symbol once, then never again"""
 
         buy_symbol = self.parameters["buy_symbol"]
-        expiry = self.parameters["expiry"]
 
         # What to do each iteration
-        underlying_price = self.get_last_price(buy_symbol)
-        self.log_message(f"The value of {buy_symbol} is {underlying_price}")
+        #underlying_price = self.get_last_price(underlying_asset)
+        #self.log_message(f"The value of {buy_symbol} is {underlying_price}")
 
         if self.first_iteration:
             # Calculate the strike price (round to nearest 1)
-            strike = round(underlying_price)
 
-            # Create options asset
+            # Create futures asset
             asset = Asset(
                 symbol=buy_symbol,
-                asset_type="option",
-                expiration=expiry,
-                strike=strike,
-                right="call",
+                asset_type="forex",
             )
 
             # Create order
@@ -62,16 +56,10 @@ class OptionsHoldToExpiry(Strategy):
 
 
 if __name__ == "__main__":
-    is_live = False
+    is_live = True
 
     if is_live:
-        from credentials import INTERACTIVE_BROKERS_CONFIG
-
-        from lumibot.brokers import InteractiveBrokers
-
-        broker = InteractiveBrokers(INTERACTIVE_BROKERS_CONFIG)
-        strategy = OptionsHoldToExpiry(broker=broker)
-
+        strategy = FuturesHoldToExpiry()
         strategy.run_live()
 
     else:
@@ -81,7 +69,7 @@ if __name__ == "__main__":
         backtesting_start = datetime(2023, 10, 19)
         backtesting_end = datetime(2023, 10, 24)
 
-        results = OptionsHoldToExpiry.backtest(
+        results = FuturesHoldToExpiry.backtest(
             PolygonDataBacktesting,
             backtesting_start,
             backtesting_end,

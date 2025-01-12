@@ -70,7 +70,9 @@ class DataSource(ABC):
         self, asset, length, timestep="", timeshift=None, quote=None, exchange=None, include_after_hours=True
     ) -> Bars:
         """
-        Get bars for a given asset
+        Get bars for a given asset, going back in time from now, getting length number of bars by timestep.
+        For example, with a length of 10 and a timestep of "1day", and now timeshift, this
+        would return the last 10 daily bars.
 
         Parameters
         ----------

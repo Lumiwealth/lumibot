@@ -4,7 +4,7 @@ from datetime import timedelta
 from decimal import Decimal
 from functools import wraps
 
-import pandas as pd
+import pytz
 
 from lumibot.brokers import Broker
 from lumibot.data_sources import DataSourceBacktesting
@@ -88,6 +88,8 @@ class BacktestingBroker(Broker):
     def _update_datetime(self, update_dt, cash=None, portfolio_value=None):
         """Works with either timedelta or datetime input
         and updates the datetime of the broker"""
+        tz = self.datetime.tzinfo
+        is_pytz = isinstance(tz, (pytz.tzinfo.StaticTzInfo, pytz.tzinfo.DstTzInfo))
 
         if isinstance(update_dt, timedelta):
             new_datetime = self.datetime + update_dt
@@ -95,6 +97,10 @@ class BacktestingBroker(Broker):
             new_datetime = self.datetime + timedelta(seconds=update_dt)
         else:
             new_datetime = update_dt
+
+        # This is needed to handle Daylight Savings Time changes
+        new_datetime = tz.normalize(new_datetime) if is_pytz else new_datetime
+
         self.data_source._update_datetime(new_datetime, cash=cash, portfolio_value=portfolio_value)
         if self.option_source:
             self.option_source._update_datetime(new_datetime, cash=cash, portfolio_value=portfolio_value)
@@ -386,6 +392,8 @@ class BacktestingBroker(Broker):
 
     def submit_order(self, order):
         """Submit an order for an asset"""
+        self._conform_order(order)
+
         # NOTE: This code is to address Tradier API requirements, they want is as "to_open" or "to_close" instead of just "buy" or "sell"
         # If the order has a "buy_to_open" or "buy_to_close" side, then we should change it to "buy"
         if order.is_buy_order():

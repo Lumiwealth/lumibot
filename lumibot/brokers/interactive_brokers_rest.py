@@ -1,12 +1,14 @@
 import logging
 from termcolor import colored
-from lumibot.brokers import Broker
-from lumibot.entities import Order, Asset, Position
-from lumibot.data_sources import InteractiveBrokersRESTData
+from ..brokers import Broker
+from ..entities import Order, Asset, Position
+from ..data_sources import InteractiveBrokersRESTData
 import datetime
 from decimal import Decimal
 from math import gcd
 import re
+import traceback
+from ..trading_builtins import PollingStream
 
 TYPE_MAP = dict(
     stock="STK",
@@ -59,14 +61,22 @@ class InteractiveBrokersREST(Broker):
     Broker that connects to the Interactive Brokers REST API.
     """
 
+    POLL_EVENT = PollingStream.POLL_EVENT
     NAME = "InteractiveBrokersREST"
 
-    def __init__(self, config, data_source=None):
+    def __init__(self, config, data_source=None, poll_interval=5.0):
+        # Set polling_interval before super().__init__() since it's needed in _get_stream_object
+        self.polling_interval = poll_interval
+        self.market = "NYSE"  # The default market is NYSE.
+
         if data_source is None:
             data_source = InteractiveBrokersRESTData(config)
-        super().__init__(name=self.NAME, data_source=data_source, config=config)
 
-        self.market = "NYSE"  # The default market is NYSE.
+        super().__init__(
+            name=self.NAME, 
+            data_source=data_source, 
+            config=config
+        )
 
     # --------------------------------------------------------------
     # Broker methods
@@ -175,10 +185,17 @@ class InteractiveBrokersREST(Broker):
             # Create a multileg order.
             order = Order(strategy_name)
             order.order_class = Order.OrderClass.MULTILEG
+            order.avg_fill_price=response["avgPrice"] if "avgPrice" in response else None
+            order.quantity = totalQuantity
+            order.asset = Asset(symbol=response['ticker'], asset_type="multileg")
+            order.side = response['side']
+            order.identifier = response['orderId']
+
             order.child_orders = []
 
             # Parse the legs of the combo order.
             legs = self.decode_conidex(response["conidex"])
+            n=0
             for leg, ratio in legs.items():
                 # Create the object with just the conId
                 # TODO check if all legs using the same response is an issue; test with covered calls
@@ -187,7 +204,10 @@ class InteractiveBrokersREST(Broker):
                     response=response,
                     quantity=float(ratio) * totalQuantity,
                     conId=leg,
+                    parent_identifier=order.identifier,
+                    child_order_number=str(n)
                 )
+                n+=1
                 order.child_orders.append(child_order)
 
         else:
@@ -200,11 +220,13 @@ class InteractiveBrokersREST(Broker):
 
         order._transmitted = True
         order.set_identifier(response["orderId"])
-        order.status = (response["status"],)
+        # Map IB order status to Lumibot status
+        order.status = response["status"].lower()
+
         order.update_raw(response)
         return order
 
-    def _parse_order_object(self, strategy_name, response, quantity, conId):
+    def _parse_order_object(self, strategy_name, response, quantity, conId, parent_identifier=None, child_order_number=None):
         if quantity < 0:
             side = "SELL"
             quantity = -quantity
@@ -266,25 +288,33 @@ class InteractiveBrokersREST(Broker):
             asset,
             quantity=Decimal(quantity),
             side=side.lower(),
+            status=response['status'],
             limit_price=limit_price,
             stop_price=stop_price,
             time_in_force=time_in_force,
             good_till_date=good_till_date,
             quote=Asset(symbol=currency, asset_type="forex"),
+            avg_fill_price=response["avgPrice"] if "avgPrice" in response else None
         )
+
+        if parent_identifier is not None:
+            order.parent_identifier=parent_identifier
+        
+        if child_order_number:
+            order.identifier = f'{parent_identifier}-{child_order_number}'
 
         return order
 
     def _pull_broker_all_orders(self):
         """Get the broker open orders"""
-        orders = self.data_source.get_open_orders()
+        orders = self.data_source.get_broker_all_orders()
         return orders
 
     def _pull_broker_order(self, identifier: str) -> Order:
         """Get a broker order representation by its id"""
         pull_order = [
             order
-            for order in self.data_source.get_open_orders()
+            for order in self.data_source.get_broker_all_orders()
             if order.orderId == identifier
         ]
         response = pull_order[0] if len(pull_order) > 0 else None
@@ -400,10 +430,9 @@ class InteractiveBrokersREST(Broker):
         for position in positions:
             # Create the Asset object for the position
             symbol = position["contractDesc"]
-            if symbol.startswith("C"):
+            if symbol.startswith("C "):
                 symbol = symbol[1:].replace(" ", "")
             asset_class = ASSET_CLASS_MAPPING[position["assetClass"]]
-
 
             # If asset class is stock, create a stock asset
             if asset_class == Asset.AssetType.STOCK:
@@ -415,6 +444,7 @@ class InteractiveBrokersREST(Broker):
                 #   - Expiry and strike in human-readable format (e.g., "NOV2024 562 P")
                 #   - Option details within square brackets (e.g., "[SPY   241105P00562000 100]"),
                 #     where "241105P00562000" holds the expiry (YYMMDD), option type (C/P), and strike price
+                contract_details = self.data_source.get_contract_details(position['conid'])
 
                 contract_desc = position.get("contractDesc", "").strip()
 
@@ -495,15 +525,15 @@ class InteractiveBrokersREST(Broker):
 
                 except Exception as e:
                     logging.error(f"Error processing contract '{contract_desc}': {e}")
+                    
             elif asset_class == Asset.AssetType.FUTURE:
-                #contract_details = self.data_source.get_contract_details(position['conid'])
-                expiry = position["expiry"]
-                multiplier = position["multiplier"]
+                contract_details = self.data_source.get_contract_details(position['conid'])
+
                 asset = Asset(
-                    symbol=symbol,
+                    symbol=contract_details["symbol"],
                     asset_type=asset_class,
-                    expiration=expiry,
-                    multiplier=multiplier,
+                    expiration=datetime.datetime.strptime(contract_details["maturity_date"], "%Y%m%d").date(),
+                    multiplier=int(contract_details["multiplier"])
                 )
             else:
                 logging.warning(
@@ -622,28 +652,30 @@ class InteractiveBrokersREST(Broker):
         try:
             order_data = self.get_order_data_from_orders([order])
             response = self.data_source.execute_order(order_data)
+
             if response is None:
                 self._log_order_status(order, "failed", success=False)
+                msg = "Broker returned no response"
+                self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=msg)
                 return order
-            else:
-                self._log_order_status(order, "executed", success=True)
+            
+            self._log_order_status(order, "executed", success=True)
 
             order.identifier = response[0]["order_id"]
-            order.status = "submitted"
             self._unprocessed_orders.append(order)
+            order.status=Order.OrderStatus.SUBMITTED
+
+            self.stream.dispatch(self.NEW_ORDER, order=order)
 
             return order
 
         except Exception as e:
-            logging.error(
-                colored(
-                    f"An error occurred while submitting the order: {str(e)}", "red"
-                )
-            )
+            msg = colored(f"Error submitting order {order}: {e}", color="red")            
             logging.error(colored(f"Error details:", "red"), exc_info=True)
+            self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=msg)
             return order
 
-    def submit_orders(
+    def _submit_orders(
         self,
         orders: list[Order],
         is_multileg: bool = False,
@@ -675,36 +707,51 @@ class InteractiveBrokersREST(Broker):
                     orders, order_type=order_type, duration=duration, price=price
                 )
                 response = self.data_source.execute_order(order_data)
+
                 if response is None:
                     for order in orders:
                         self._log_order_status(order, "failed", success=False)
+                        msg = "Broker returned no response"
+                        self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=msg)
                     return None
 
                 order = Order(orders[0].strategy)
                 order.order_class = Order.OrderClass.MULTILEG
-                order.child_orders = orders
-                order.status = "submitted"
                 order.identifier = response[0]["order_id"]
+                order.status=Order.OrderStatus.SUBMITTED
+                order.side = order_data['orders'][0]['side'].lower() if order_data is not None else None
+
+                order.child_orders = orders
+                for n, child_order in enumerate(order.child_orders):
+                    child_order.identifier = f'{order.identifier}-{n}'
+                    child_order.parent_identifier = order.identifier
+                    order.status=Order.OrderStatus.SUBMITTED
 
                 self._unprocessed_orders.append(order)
+                self.stream.dispatch(self.NEW_ORDER, order=order)
                 self._log_order_status(order, "executed", success=True)
                 return [order]
 
             else:
-                order_data = self.get_order_data_from_orders([order])
+                order_data = self.get_order_data_from_orders(orders)
                 response = self.data_source.execute_order(order_data)
                 if response is None:
                     for order in orders:
                         self._log_order_status(order, "failed", success=False)
+                        msg = 'Broker returned no response'
+                        self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=msg)
+
                     return None
 
                 # TODO Could be a problematic system
                 order_id = 0
                 for order in orders:
-                    order.status = "submitted"
                     order.identifier = response[order_id]["order_id"]
                     self._unprocessed_orders.append(order)
+                    self.stream.dispatch(self.NEW_ORDER, order=order)
                     self._log_order_status(order, "executed", success=True)
+                    order.status=Order.OrderStatus.SUBMITTED
+
                     order_id += 1
 
                 return orders
@@ -715,6 +762,10 @@ class InteractiveBrokersREST(Broker):
                     f"An error occurred while submitting the order: {str(e)}", "red"
                 )
             )
+
+            for order in orders:
+                self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=e)
+
             logging.error(colored(f"Error details:", "red"), exc_info=True)
 
     def cancel_order(self, order: Order) -> None:
@@ -901,9 +952,6 @@ class InteractiveBrokersREST(Broker):
                 conidex += ","
             conidex += f"{conid}/{quantity // order_quantity}"
 
-        # Set the side to "BUY" for the multileg order
-        side = "BUY"
-
         if not orders:
             logging.error("Orders list cannot be empty")
 
@@ -947,21 +995,199 @@ class InteractiveBrokersREST(Broker):
         return {"hourly": None, "daily": None}
 
     def _register_stream_events(self):
-        logging.error(
-            colored("Method '_register_stream_events' is not yet implemented.", "red")
-        )
-        return None
+        """Register the function on_trade_event
+        to be executed on each trade_update event"""
+        broker = self
+
+        @broker.stream.add_action(broker.POLL_EVENT)
+        def on_trade_event_poll():
+            self.do_polling()
+
+        @broker.stream.add_action(broker.NEW_ORDER)
+        def on_trade_event_new(order):
+            # Log that the order was submitted
+            logging.info(f"Processing action for new order {order}")
+
+            try:
+                broker._process_trade_event(
+                    order,
+                    broker.NEW_ORDER,
+                )
+                return True
+            except:
+                logging.error(traceback.format_exc())
+
+        @broker.stream.add_action(broker.FILLED_ORDER)
+        def on_trade_event_fill(order, price, filled_quantity):
+            # Log that the order was filled
+            logging.info(f"Processing action for filled order {order} | {price} | {filled_quantity}")
+
+            try:
+                broker._process_trade_event(
+                    order,
+                    broker.FILLED_ORDER,
+                    price=price,
+                    filled_quantity=filled_quantity,
+                    multiplier=order.asset.multiplier,
+                )
+                return True
+            except:
+                logging.error(traceback.format_exc())
+
+        @broker.stream.add_action(broker.CANCELED_ORDER)
+        def on_trade_event_cancel(order):
+            # Log that the order was cancelled
+            logging.info(f"Processing action for cancelled order {order}")
+
+            try:
+                broker._process_trade_event(
+                    order,
+                    broker.CANCELED_ORDER,
+                )
+            except:
+                logging.error(traceback.format_exc())
+
+        @broker.stream.add_action(broker.CASH_SETTLED)
+        def on_trade_event_cash(order, price, filled_quantity):
+            # Log that the order was cash settled
+            logging.info(f"Processing action for cash settled order {order} | {price} | {filled_quantity}")
+
+            try:
+                broker._process_trade_event(
+                    order,
+                    broker.CASH_SETTLED,
+                    price=price,
+                    filled_quantity=filled_quantity,
+                    multiplier=order.asset.multiplier,
+                )
+            except:
+                logging.error(traceback.format_exc())
+
+        @broker.stream.add_action(broker.ERROR_ORDER)
+        def on_trade_event_error(order, error_msg):
+            # Log that the order had an error
+            logging.error(f"Processing action for error order {order} | {error_msg}")
+                                                                         
+            try:
+                if order.is_active():
+                    broker._process_trade_event(
+                        order,
+                        broker.CANCELED_ORDER,
+                    )
+                logging.error(error_msg)
+                order.set_error(error_msg)
+            except:
+                logging.error(traceback.format_exc())
+
 
     def _run_stream(self):
-        logging.error(colored("Method '_run_stream' is not yet implemented.", "red"))
-        return None
+        """Start the polling loop"""
+        self._stream_established()
+        if self.stream:
+            self.stream._run()
 
     def _get_stream_object(self):
-        logging.error(
-            colored("Method '_get_stream_object' is not yet implemented.", "red")
-        )
-        return None
+        """Create polling stream"""
+        return PollingStream(self.polling_interval)
 
     def _close_connection(self):
-        logging.info("Closing connection to the Client Portal...")
+        """Clean up polling connection"""
         self.data_source.stop()
+
+    def do_polling(self):
+        """
+        Poll for updates to orders and positions.
+        """
+        # Pull the current IB positions and sync them with Lumibot's positions
+        self.sync_positions(None)
+
+        # Get current orders from IB and dispatch them to the stream for processing
+        raw_orders = self.data_source.get_broker_all_orders()
+        stored_orders = {x.identifier: x for x in self.get_all_orders()}
+
+        for order_raw in raw_orders:
+            order = self._parse_broker_order(order_raw, self._strategy_name)
+            
+            # Process child orders first so they are tracked in the Lumi system
+            all_orders = [child for child in order.child_orders] + [order]
+
+            # Process all parent and child orders
+            for order in all_orders:
+                # First time seeing this order
+                if order.identifier not in stored_orders:
+                    if self._first_iteration:
+                        # Process existing orders on first poll
+                        if order.status == Order.OrderStatus.FILLED:
+                            self._process_new_order(order)
+                            self._process_filled_order(order, order.avg_fill_price, order.quantity)
+                        elif order.status == Order.OrderStatus.CANCELED:
+                            self._process_new_order(order)
+                            self._process_canceled_order(order)
+                        elif order.status == Order.OrderStatus.PARTIALLY_FILLED:
+                            self._process_new_order(order)
+                            self._process_partially_filled_order(order, order.avg_fill_price, order.quantity)
+                        elif order.status == Order.OrderStatus.NEW:
+                            self._process_new_order(order)
+                        elif order.status == Order.OrderStatus.ERROR:
+                            self._process_new_order(order)
+                            self._process_error_order(order, order.error_message)
+                    else:
+                        # Add to orders in lumibot
+                        self._process_new_order(order)
+                else:
+                    # Update existing order
+                    stored_order = stored_orders[order.identifier]
+                    stored_order.quantity = order.quantity
+                    stored_children = [stored_orders[o.identifier] if o.identifier in stored_orders else o
+                                    for o in order.child_orders]
+                    
+                    if stored_children:
+                        stored_order.child_orders = stored_children
+
+                    # Handle status changes
+                    if not order.equivalent_status(stored_order):
+                        match order.status.lower():
+                            case "submitted" | "open":
+                                self.stream.dispatch(self.NEW_ORDER, order=stored_order)
+                            case "fill":
+                                self.stream.dispatch(
+                                    self.FILLED_ORDER,
+                                    order=stored_order,
+                                    price=order.avg_fill_price,
+                                    filled_quantity=order.quantity
+                                )
+                            case "canceled":
+                                self.stream.dispatch(self.CANCELED_ORDER, order=stored_order)
+                            case "error":
+                                msg = f"IB encountered an error with order {order.identifier}"
+                                self.stream.dispatch(self.ERROR_ORDER, order=stored_order, error_msg=msg)
+                    else:
+                        stored_order.status = order.status
+
+        # Check for disappeared orders
+        tracked_orders = {x.identifier: x for x in self.get_tracked_orders()}
+        broker_ids = self._get_broker_id_from_raw_orders(raw_orders)
+        for order_id, order in tracked_orders.items():
+            if order_id not in broker_ids:
+                logging.debug(
+                    f"Poll Update: {self.name} no longer has order {order}, but Lumibot does. "
+                    f"Dispatching as cancelled."
+                )
+                # Only dispatch orders that have not been filled or cancelled. Likely the broker has simply
+                # stopped tracking them. This is particularly true with Paper Trading where orders are not tracked
+                # overnight.
+                if order.is_active():
+                    #self.stream.dispatch(self.CANCELED_ORDER, order=order)
+                    pass
+
+    def _get_broker_id_from_raw_orders(self, raw_orders):
+        """Extract all order IDs from raw orders including child orders"""
+        ids = []
+        for o in raw_orders:
+            if "orderId" in o:
+                ids.append(str(o["orderId"]))
+            if "leg" in o and isinstance(o["leg"], list):
+                for leg in o["leg"]:
+                    if "orderId" in leg:
+                        ids.append(str(leg["orderId"]))
+        return ids

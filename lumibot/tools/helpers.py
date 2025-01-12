@@ -239,3 +239,18 @@ def parse_timestep_qty_and_unit(timestep):
         unit = m.group(2).rstrip("s")  # remove trailing 's' if any
 
     return quantity, unit
+
+
+def has_more_than_n_decimal_places(number: float, n: int) -> bool:
+    """Return True if the number has more than n decimal places, False otherwise."""
+
+    # Convert the number to a string
+    number_str = str(number)
+
+    # Split the string at the decimal point
+    if '.' in number_str:
+        decimal_part = number_str.split('.')[1]
+        # Check if the length of the decimal part is greater than n
+        return len(decimal_part) > n
+    else:
+        return False

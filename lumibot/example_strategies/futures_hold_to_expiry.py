@@ -2,18 +2,19 @@ from datetime import datetime
 
 from lumibot.entities import Asset
 from lumibot.strategies.strategy import Strategy
+from lumibot.credentials import IS_BACKTESTING
 
 """
 Strategy Description
 
-An example strategy for buying an option and holding it to expiry.
+An example strategy for buying a future and holding it to expiry.
 """
 
 
-class OptionsHoldToExpiry(Strategy):
+class FuturesHoldToExpiry(Strategy):
     parameters = {
-        "buy_symbol": "SPY",
-        "expiry": datetime(2023, 10, 20),
+        "buy_symbol": "ES",
+        "expiry": datetime(2025, 3, 21),
     }
 
     # =====Overloading lifecycle methods=============
@@ -23,6 +24,7 @@ class OptionsHoldToExpiry(Strategy):
 
         # Built in Variables
         self.sleeptime = "1D"
+        self.set_market("us_futures")
 
     def on_trading_iteration(self):
         """Buys the self.buy_symbol once, then never again"""
@@ -30,27 +32,30 @@ class OptionsHoldToExpiry(Strategy):
         buy_symbol = self.parameters["buy_symbol"]
         expiry = self.parameters["expiry"]
 
+        underlying_asset = Asset(
+            symbol=buy_symbol,
+            asset_type="index"
+        )
+
         # What to do each iteration
-        underlying_price = self.get_last_price(buy_symbol)
-        self.log_message(f"The value of {buy_symbol} is {underlying_price}")
+        #underlying_price = self.get_last_price(underlying_asset)
+        #self.log_message(f"The value of {buy_symbol} is {underlying_price}")
 
         if self.first_iteration:
             # Calculate the strike price (round to nearest 1)
-            strike = round(underlying_price)
 
-            # Create options asset
+            # Create futures asset
             asset = Asset(
                 symbol=buy_symbol,
-                asset_type="option",
+                asset_type="future",
                 expiration=expiry,
-                strike=strike,
-                right="call",
+                multiplier=50
             )
 
             # Create order
             order = self.create_order(
                 asset,
-                10,
+                1,
                 "buy_to_open",
             )
             
@@ -62,29 +67,21 @@ class OptionsHoldToExpiry(Strategy):
 
 
 if __name__ == "__main__":
-    is_live = False
-
-    if is_live:
-        from credentials import INTERACTIVE_BROKERS_CONFIG
-
-        from lumibot.brokers import InteractiveBrokers
-
-        broker = InteractiveBrokers(INTERACTIVE_BROKERS_CONFIG)
-        strategy = OptionsHoldToExpiry(broker=broker)
-
-        strategy.run_live()
-
-    else:
+    if IS_BACKTESTING:
         from lumibot.backtesting import PolygonDataBacktesting
 
         # Backtest this strategy
         backtesting_start = datetime(2023, 10, 19)
         backtesting_end = datetime(2023, 10, 24)
 
-        results = OptionsHoldToExpiry.backtest(
+        results = FuturesHoldToExpiry.backtest(
             PolygonDataBacktesting,
             backtesting_start,
             backtesting_end,
             benchmark_asset="SPY",
             polygon_api_key="YOUR_POLYGON_API_KEY_HERE",  # Add your polygon API key here
         )
+
+    else:
+        strategy = FuturesHoldToExpiry()
+        strategy.run_live()

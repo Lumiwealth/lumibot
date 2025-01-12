@@ -13,9 +13,9 @@ import pandas_market_calendars as mcal
 from dateutil import tz
 from termcolor import colored
 
-from lumibot.data_sources import DataSource
-from lumibot.entities import Asset, Order, Position
-from lumibot.trading_builtins import SafeList
+from ..data_sources import DataSource
+from ..entities import Asset, Order, Position
+from ..trading_builtins import SafeList
 
 
 class CustomLoggerAdapter(logging.LoggerAdapter):
@@ -287,7 +287,7 @@ class Broker(ABC):
             else:
                 # Add to positions in lumibot, position does not exist
                 # in lumibot.
-                if position.quantity != 0:
+                if position.quantity != 0.0:
                     self._filled_positions.append(position)
 
         # Now iterate through lumibot positions.
@@ -566,28 +566,14 @@ class Broker(ABC):
 
             self._orders_queue.task_done()
 
-    def _submit_orders(self, orders) -> list[Order]:
-        with ThreadPoolExecutor(
-            max_workers=self.max_workers,
-            thread_name_prefix=f"{self.name}_submitting_orders",
-        ) as executor:
-            tasks = []
-            for order in orders:
-                tasks.append(executor.submit(self._submit_order, order))
-
-            result = []
-            for task in as_completed(tasks):
-                result.append(task.result())
-
-        return result
-
     # =========Internal functions==============
 
     def _set_initial_positions(self, strategy):
         """Set initial positions"""
         positions = self._pull_positions(strategy)
         for pos in positions:
-            self._filled_positions.append(pos)
+            if pos.quantity != 0.0:
+                self._filled_positions.append(pos)
 
     def _process_new_order(self, order):
         # Check if this order already exists in self._new_orders based on the identifier
@@ -957,12 +943,30 @@ class Broker(ABC):
         return result
 
     def submit_order(self, order):
-        """Submit an order for an asset"""
+        """Conform an order for an asset to broker constraints and submit it."""
+        self._conform_order(order)
         self._submit_order(order)
+
+    def _conform_order(self, order):
+        """Conform an order to broker constraints. Derived brokers should implement this method."""
+        pass
 
     def submit_orders(self, orders, **kwargs):
         """Submit orders"""
-        self._submit_orders(orders, **kwargs)
+        if hasattr(self, '_submit_orders'):
+            self._submit_orders(orders, **kwargs)
+        else:
+            with ThreadPoolExecutor(
+                max_workers=self.max_workers,
+                thread_name_prefix=f"{self.name}_submitting_orders",
+            ) as executor:
+                tasks = []
+                for order in orders:
+                    tasks.append(executor.submit(self._submit_order, order))
+
+                result = []
+                for task in as_completed(tasks):
+                    result.append(task.result())
 
     def wait_for_order_registration(self, order):
         """Wait for the order to be registered by the broker"""
@@ -1200,21 +1204,21 @@ class Broker(ABC):
             except ValueError:
                 raise error
 
-        if type_event == self.NEW_ORDER:
+        if Order.is_equivalent_status(type_event, self.NEW_ORDER):
             stored_order = self._process_new_order(stored_order)
             self._on_new_order(stored_order)
-        elif type_event == self.CANCELED_ORDER:
+        elif Order.is_equivalent_status(type_event, self.CANCELED_ORDER):
             # Do not cancel or re-cancel already completed orders
             if stored_order.is_active():
                 stored_order = self._process_canceled_order(stored_order)
                 self._on_canceled_order(stored_order)
-        elif type_event == self.PARTIALLY_FILLED_ORDER:
+        elif Order.is_equivalent_status(type_event, self.PARTIALLY_FILLED_ORDER):
             stored_order, position = self._process_partially_filled_order(stored_order, price, filled_quantity)
             self._on_partially_filled_order(position, stored_order, price, filled_quantity, multiplier)
-        elif type_event == self.FILLED_ORDER:
+        elif Order.is_equivalent_status(type_event, self.FILLED_ORDER):
             position = self._process_filled_order(stored_order, price, filled_quantity)
             self._on_filled_order(position, stored_order, price, filled_quantity, multiplier)
-        elif type_event == self.CASH_SETTLED:
+        elif Order.is_equivalent_status(type_event, self.CASH_SETTLED):
             self._process_cash_settlement(stored_order, price, filled_quantity)
             stored_order.type = self.CASH_SETTLED
         else:

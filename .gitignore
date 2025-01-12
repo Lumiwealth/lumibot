@@ -25,6 +25,7 @@ test_bot.py
 lumi_tradier
 lumiwealth_tradier
 ThetaTerminal.jar
+pytest.ini
 
 # Pypi deployment
 build

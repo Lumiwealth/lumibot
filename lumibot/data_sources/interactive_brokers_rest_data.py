@@ -1,14 +1,16 @@
 import logging
 from termcolor import colored
-from lumibot.entities import Asset, Bars
 
+from lumibot import LUMIBOT_DEFAULT_PYTZ
+from ..entities import Asset, Bars
 from .data_source import DataSource
+
 import subprocess
 import os
 import time
 import requests
 import urllib3
-from datetime import datetime, timedelta
+from datetime import datetime
 import pandas as pd
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -54,32 +56,44 @@ class InteractiveBrokersRESTData(DataSource):
 
         self.start(config["IB_USERNAME"], config["IB_PASSWORD"])
 
+
     def start(self, ib_username, ib_password):
         if not self.running_on_server:
-            # Run the Docker image with the specified environment variables and port mapping
-            if (
-                not subprocess.run(
-                    ["docker", "--version"],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                ).returncode
-                == 0
-            ):
-                logging.error(colored("Docker is not installed.", "red"))
-                return
-            # Color the text green
-            logging.info(
-                colored("Connecting to Interactive Brokers REST API...", "green")
+            # Check if Docker is installed
+            docker_version_check = subprocess.run(
+                ["docker", "--version"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
             )
+            if docker_version_check.returncode != 0:
+                logging.error(colored("Error: Docker is not installed on this system. Please install Docker and try again.", "red"))
+                exit(1)
+
+            # Check if Docker daemon is running by attempting a `docker ps`
+            docker_ps_check = subprocess.run(
+                ["docker", "ps"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                text=True
+            )
+            if docker_ps_check.returncode != 0:
+                error_output = docker_ps_check.stderr.strip()
+                logging.error(colored("Error: Unable to connect to the Docker daemon.", "red"))
+                logging.error(colored(f"Details: {error_output}", "yellow"))
+                logging.error(colored("Please ensure Docker is installed and running.", "red"))
+                exit(1)
+
+            # If we reach this point, Docker is installed and running
+            logging.info(colored("Connecting to Interactive Brokers REST API...", "green"))
 
             inputs_dir = "/srv/clientportal.gw/root/conf.yaml"
             env_variables = {
                 "IBEAM_ACCOUNT": ib_username,
                 "IBEAM_PASSWORD": ib_password,
                 "IBEAM_GATEWAY_BASE_URL": f"https://localhost:{self.port}",
-                "IBEAM_LOG_TO_FILE": False,
-                "IBEAM_REQUEST_RETRIES": 1,
-                "IBEAM_PAGE_LOAD_TIMEOUT": 30,
+                "IBEAM_LOG_TO_FILE": "False",
+                "IBEAM_REQUEST_RETRIES": "1",
+                "IBEAM_PAGE_LOAD_TIMEOUT": "30",
                 "IBEAM_INPUTS_DIR": inputs_dir,
             }
 
@@ -89,11 +103,14 @@ class InteractiveBrokersRESTData(DataSource):
             )
             volume_mount = f"{conf_path}:{inputs_dir}"
 
+            # Remove any existing container with the same name
             subprocess.run(
                 ["docker", "rm", "-f", "lumibot-client-portal"],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
+
+            # Start the container
             subprocess.run(
                 [
                     "docker",
@@ -101,6 +118,8 @@ class InteractiveBrokersRESTData(DataSource):
                     "-d",
                     "--name",
                     "lumibot-client-portal",
+                    "--restart",
+                    "always",
                     *env_args,
                     "-p",
                     f"{self.port}:{self.port}",
@@ -109,12 +128,14 @@ class InteractiveBrokersRESTData(DataSource):
                     "voyz/ibeam",
                 ],
                 stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
                 text=True,
             )
 
-            # check if authenticated
-            time.sleep(10)
+            # Wait for the gateway to initialize
+            time.sleep(15)
 
+        # Wait until authenticated
         while not self.is_authenticated():
             logging.info(
                 colored(
@@ -124,134 +145,65 @@ class InteractiveBrokersRESTData(DataSource):
             )
             logging.info(
                 colored(
-                    "Waiting for another 10 seconds before checking again...", "yellow"
+                    "Waiting for another 10 seconds before checking again...",
+                    "yellow",
                 )
             )
             time.sleep(10)
 
-        # Set self.account_id
+        # Set self.account_id once authenticated
         self.fetch_account_id()
 
-        logging.info(colored("Connected to Client Portal", "green"))
+        logging.info(colored("Connected to the Interactive Brokers API", "green"))
+        self.suppress_warnings()
 
+    def suppress_warnings(self):
         # Suppress weird server warnings
         url = f"{self.base_url}/iserver/questions/suppress"
         json = {"messageIds": ["o451", "o383", "o354", "o163"]}
 
-        self.post_to_endpoint(url, json=json, allow_fail=False)
-
+        self.post_to_endpoint(url, json=json, description="Suppressing server warnings", allow_fail=False)
+    
     def fetch_account_id(self):
         if self.account_id is not None:
             return  # Account ID already set
 
         url = f"{self.base_url}/portfolio/accounts"
 
-        while self.account_id is None:
-            response = self.get_from_endpoint(
-                url, "Fetching Account ID", allow_fail=False
-            )
-            self.last_portfolio_ping = datetime.now()
-
-            if response:
-                if (
-                    isinstance(response, list)
-                    and len(response) > 0
-                    and isinstance(response[0], dict)
-                    and "id" in response[0]
-                ):
-                    self.account_id = response[0]["id"]
-                    logging.debug(
-                        colored(
-                            f"Retrieved Account ID",
-                            "green",
-                        )
-                    )
-                else:
-                    logging.error(
-                        colored(
-                            "Failed to get Account ID. Response structure is unexpected.",
-                            "red",
-                        )
-                    )
-            else:
-                logging.error(
-                    colored("Failed to get Account ID. Response is None.", "red")
-                )
-
-            if self.account_id is None:
-                logging.info(
-                    colored("Retrying to fetch Account ID in 5 seconds...", "yellow")
-                )
-                time.sleep(5)  # Wait for 5 seconds before retrying
+        response = self.get_from_endpoint(
+            url, "Fetching Account ID", allow_fail=False
+        )
+        self.last_portfolio_ping = datetime.now()
+        self.account_id = response[0]["id"]
 
     def is_authenticated(self):
         url = f"{self.base_url}/iserver/accounts"
         response = self.get_from_endpoint(
-            url, "Auth Check", silent=True, return_errors=False
+            url, "Auth Check", silent=True, allow_fail=False
         )
-        if response is not None:
-            return True
-        else:
+        if response is None or 'error' in response:
             return False
+        else:
+            return True
 
     def ping_iserver(self):
-        def func() -> bool:
-            url = f"{self.base_url}/iserver/accounts"
-            response = self.get_from_endpoint(
-                url, "Auth Check", silent=True, return_errors=False
-            )
+        url = f"{self.base_url}/iserver/accounts"
+        response = self.get_from_endpoint(
+            url, "Auth Check", silent=True, allow_fail=False
+        )
 
-            if response is not None:
-                return True
-            else:
-                return False
-
-        if not hasattr(
-            self, "last_iserver_ping"
-        ) or datetime.now() - self.last_iserver_ping > timedelta(seconds=10):
-            first_run = True
-            while not func():
-                if first_run:
-                    logging.warning(colored("Not Authenticated. Retrying...", "yellow"))
-                    first_run = False
-
-                self.last_iserver_ping = datetime.now()
-                time.sleep(5)
-
-            if not first_run:
-                logging.info(colored("Re-Authenticated Successfully", "green"))
-
-            return True
+        if response is None or 'error' in response:
+            return False
         else:
             return True
 
     def ping_portfolio(self):
-        def func() -> bool:
-            url = f"{self.base_url}/portfolio/accounts"
-            response = self.get_from_endpoint(
-                url, "Auth Check", silent=True, return_errors=False
-            )
-            if response is not None:
-                return True
-            else:
-                return False
-
-        if not hasattr(
-            self, "last_portfolio_ping"
-        ) or datetime.now() - self.last_portfolio_ping > timedelta(seconds=10):
-            first_run = True
-            while not func():
-                if first_run:
-                    logging.warning(colored("Not Authenticated. Retrying...", "yellow"))
-                    first_run = False
-
-                self.last_portfolio_ping = datetime.now()
-                time.sleep(5)
-
-            if not first_run:
-                logging.info(colored("Re-Authenticated Successfully", "green"))
-
-            return True
+        url = f"{self.base_url}/portfolio/accounts"
+        response = self.get_from_endpoint(
+            url, "Auth Check", silent=True
+        )
+        if response is None or 'error' in response:
+            return False
         else:
             return True
 
@@ -286,12 +238,12 @@ class InteractiveBrokersRESTData(DataSource):
 
         if response is not None and "error" in response:
             logging.error(
-            colored(f"Failed to get contract rules: {response['error']}", "red")
+                colored(f"Failed to get contract rules: {response['error']}", "red")
             )
             return None
 
         return response
-    
+
     def get_account_balances(self):
         """
         Retrieves the account balances for a given account ID.
@@ -316,294 +268,199 @@ class InteractiveBrokersRESTData(DataSource):
 
         return response
 
-    def get_from_endpoint(
-        self, endpoint, description, silent=False, return_errors=True, allow_fail=True
-    ):
+    def handle_http_errors(self, response, silent, retries, description, allow_fail):
+        def show_error(retries, allow_fail):
+            if not allow_fail:
+                if retries%60 == 0:
+                    return True
+            else:
+                return True
+            
+            return False
+
         to_return = None
-        first_run = True
-        retries = 0  # Counter to track the number of retries
+        re_msg = None
+        is_error = False
 
-        while (not allow_fail) or first_run:
+        if response.text:
             try:
-                # Make the request to the endpoint
-                response = requests.get(endpoint, verify=False)
+                response_json = response.json()
+            except ValueError:
+                logging.error(
+                    colored(f"Invalid JSON response", "red")
+                )
+                response_json = {}
+        else:
+            response_json = {}
 
-                # Check if the request was successful
-                if response.status_code == 200:
-                    # Parse the JSON response
-                    to_return = response.json()
+        status_code = response.status_code
 
-                    if not first_run:
-                        # Log that the task succeeded after retries
-                        logging.info(
-                            colored(
-                                f"success: Task '{description}' succeeded after {retries} retry(ies).",
-                                "green",
-                            )
-                        )
-
-                    allow_fail = True
-
-                elif response.status_code == 404:
-                    if not silent:
-                        if (not allow_fail) and first_run:
-                            logging.warning(
-                                colored(
-                                    f"error: {description} endpoint not found. Retrying...",
-                                    "yellow",
-                                )
-                            )
-                            time.sleep(1)
-
-                        elif (not allow_fail) and (not first_run):
-                            pass  # quiet
-
-                        elif allow_fail:
-                            logging.error(
-                                colored(
-                                    f"error: {description} endpoint not found.",
-                                    "red",
-                                )
-                            )
-
-                    if return_errors:
-                        error_message = f"error: {description} endpoint not found."
-                        to_return = {"error": error_message}
-                    else:
-                        to_return = None
-
-                elif response.status_code == 429:
-                    logging.warning(
-                        f"You got rate limited for '{description}'. Waiting for 1 second before retrying..."
+        if isinstance(response_json, dict): 
+            error_message = response_json.get("error", "") or response_json.get("message", "")
+        else:
+            error_message = ""
+        
+        # Check if this is an order confirmation request
+        if "Are you sure you want to submit this order?" in response.text:
+            response_json = response.json()
+            orders = []
+            for order in response_json:
+                if isinstance(order, dict) and 'id' in order:
+                    confirm_url = f"{self.base_url}/iserver/reply/{order['id']}"
+                    confirm_response = self.post_to_endpoint(
+                        confirm_url, 
+                        {"confirmed": True},
+                        description="Confirming Order",
+                        silent=True,
+                        allow_fail=True
                     )
-                    time.sleep(1)
-                    retries += 1
+                    if confirm_response:
+                        orders.extend(confirm_response)
+                        status_code = 200
+            response_json = orders
+        
+        if 'xcredserv comm failed during getEvents due to Connection refused' in error_message:
+            retrying = True
+            re_msg = "The server is undergoing maintenance. Should fix itself soon"
 
-                else:
-                    # Attempt to extract a more readable error message from JSON
-                    try:
-                        error_detail = response.json().get('error', response.text)
-                    except ValueError:
-                        error_detail = response.text  # Fallback to raw text if JSON parsing fails
+        elif 'Please query /accounts first' in error_message:
+            self.ping_iserver()
+            retrying = True
+            re_msg = "Lumibot got Deauthenticated"
+        
+        elif 'There was an error processing the request. Please try again.' in error_message:
+            retrying = True
+            re_msg = "Something went wrong."
 
-                    if not silent:
-                        if (not allow_fail) and first_run:
-                            logging.warning(
-                                colored(
-                                    f"error: Task '{description}' Failed. Status code: {response.status_code}, Response: {error_detail} Retrying...",
-                                    "yellow",
-                                )
-                            )
-                            time.sleep(1)
+        elif "no bridge" in error_message.lower() or "not authenticated" in error_message.lower():
+            retrying = True
+            re_msg = "Not Authenticated"
 
-                        elif (not allow_fail) and (not first_run):
-                            pass  # quiet
+        elif 200 <= status_code < 300:
+            to_return = response_json
+            retrying = False
 
-                        elif allow_fail:
-                            logging.error(
-                                colored(
-                                    f"error: Task '{description}' Failed. Status code: {response.status_code}, Response: {error_detail}",
-                                    "red",
-                                )
-                            )
+        elif status_code == 429:
+            retrying = True
+            re_msg = "You got rate limited"
 
-                    if return_errors:
-                        error_message = f"error: Task '{description}' Failed. Status code: {response.status_code}, Response: {error_detail}"
-                        to_return = {"error": error_message}
-                    else:
-                        to_return = None
+        elif status_code == 503:
+            re_msg = "Internal server error. Should fix itself soon"
+            retrying = True
 
+        elif status_code == 500:
+            to_return = response_json
+            is_error = True
+            retrying = False
+
+        elif status_code == 410:
+            retrying = True
+            re_msg = "The bridge blew up"
+
+        elif 400 <= status_code < 500:
+            to_return = response_json
+            is_error = True
+            retrying = False
+        
+        else: 
+            retrying = False
+        
+        if re_msg is not None:
+            if not silent and retries%60 == 0:
+                logging.warning(colored(f"Task {description} failed: {re_msg}. Retrying...", "yellow"))
+            else:
+                logging.debug(colored(f"Task {description} failed: {re_msg}. Retrying...", "yellow"))
+            
+        elif is_error:
+            if not silent and show_error(retries, allow_fail):
+                logging.error(colored(f"Task {description} failed: {to_return}", "red"))
+            else:
+                logging.debug(colored(f"Task {description} failed: {to_return}", "red"))
+        
+        if re_msg is not None:
+            time.sleep(1)
+
+
+        return (retrying, re_msg, is_error, to_return)
+        
+    def get_from_endpoint(self, url, description="", silent=False, allow_fail=True):
+        to_return = None
+        retries = 0
+        retrying = True
+
+        while retrying or not allow_fail:
+            try:
+                response = requests.get(url, verify=False)
             except requests.exceptions.RequestException as e:
-                if not silent:
-                    if (not allow_fail) and first_run:
-                        logging.warning(
-                            colored(f"error: {description}. Retrying...", "yellow")
-                        )
-                        time.sleep(1)
+                response = requests.Response()
+                response.status_code = 503
+                response._content = str.encode(f'{{"error": "{e}"}}')
 
-                    elif (not allow_fail) and (not first_run):
-                        pass  # quiet
-
-                    elif allow_fail:
-                        logging.error(colored(f"error: {description}", "red"))
-
-                if return_errors:
-                    error_message = f"error: {description}. Exception: {str(e)}"
-                    to_return = {"error": error_message}
-                else:
-                    to_return = None
-
-            first_run = False
-            retries += 1  # Increment retry counter after each attempt
+            retrying, re_msg, is_error, to_return = self.handle_http_errors(response, silent, retries, description, allow_fail)
+            
+            if re_msg is None and not is_error:
+                break
+                
+            retries+=1
 
         return to_return
 
-
-    def post_to_endpoint(self, url, json: dict, allow_fail=True):
+    def post_to_endpoint(self, url, json: dict, description="", silent=False, allow_fail=True):
         to_return = None
-        first_run = True
+        retries = 0
+        retrying = True
 
-        while (not allow_fail) or first_run:
+        while retrying or not allow_fail:
             try:
                 response = requests.post(url, json=json, verify=False)
-                # Check if the request was successful
-                if response.status_code == 200:
-                    # Return the JSON response containing the account balances
-                    to_return = response.json()
-                    allow_fail = True
-
-                elif response.status_code == 404:
-                    logging.error(colored(f"{url} endpoint not found.", "red"))
-                    to_return = None
-
-                elif response.status_code == 429:
-                    logging.info(
-                        f"You got rate limited {url}. Waiting for 5 seconds..."
-                    )
-                    time.sleep(5)
-                    return self.post_to_endpoint(url, json, allow_fail=allow_fail)
-
-                else:
-                    if allow_fail:
-                        if "error" in response.json():
-                            logging.error(
-                                colored(
-                                    f"Task '{url}' Failed. Error: {response.json()['error']}",
-                                    "red",
-                                )
-                            )
-                        else:
-                            logging.error(
-                                colored(
-                                    f"Task '{url}' Failed. Status code: {response.status_code}, "
-                                    f"Response: {response.text}",
-                                    "red",
-                                )
-                            )
-                    to_return = None
-
             except requests.exceptions.RequestException as e:
-                # Log an error message if there was a problem with the request
-                logging.error(colored(f"Error {url}: {e}", "red"))
-                to_return = None
+                response = requests.Response()
+                response.status_code = 503
+                response._content = str.encode(f'{{"error": "{e}"}}')
 
-            first_run = False
+            retrying, re_msg, is_error, to_return = self.handle_http_errors(response, silent, retries, description, allow_fail)
+            
+            if re_msg is None and not is_error:
+                break
+                
+            retries+=1
 
         return to_return
 
-    def delete_to_endpoint(self, url, allow_fail=True):
+    def delete_to_endpoint(self, url, description="", silent=False, allow_fail=True):
         to_return = None
-        first_run = True
-        while (not allow_fail) or first_run:
+        retries = 0
+        retrying = True
+
+        while retrying or not allow_fail:
             try:
                 response = requests.delete(url, verify=False)
-                # Check if the request was successful
-                if response.status_code == 200:
-                    # Return the JSON response containing the account balances
-                    if (
-                        "error" in response.json()
-                        and "doesn't exist" in response.json()["error"]
-                    ):
-                        logging.warning(
-                            colored(
-                                f"Order ID doesn't exist: {response.json()['error']}",
-                                "yellow",
-                            )
-                        )
-                        to_return = None
-                    else:
-                        to_return = response.json()
-                        allow_fail = True
-
-                elif response.status_code == 404:
-                    logging.error(colored(f"{url} endpoint not found.", "red"))
-                    to_return = None
-
-                elif response.status_code == 429:
-                    logging.info(
-                        f"You got rate limited {url}. Waiting for 5 seconds..."
-                    )
-                    time.sleep(5)
-                    return self.delete_to_endpoint(url)
-
-                else:
-                    if allow_fail:
-                        logging.error(
-                            colored(
-                                f"Task '{url}' Failed. Status code: {response.status_code}, Response: {response.text}",
-                                "red",
-                            )
-                        )
-                    to_return = None
-
             except requests.exceptions.RequestException as e:
-                # Log an error message if there was a problem with the request
-                logging.error(colored(f"Error {url}: {e}", "red"))
-                to_return = None
+                response = requests.Response()
+                response.status_code = 503
+                response._content = str.encode(f'{{"error": "{e}"}}')
 
-            first_run = False
+            retrying, re_msg, is_error, to_return = self.handle_http_errors(response, silent, retries, description, allow_fail)
+            
+            if re_msg is None and not is_error:
+                break
+                
+            retries+=1
 
         return to_return
 
     def get_open_orders(self):
         self.ping_iserver()
 
-        # Clear cache with force=true TODO may be useless
-        """
+        # Clear cache with force=true
         url = f"{self.base_url}/iserver/account/orders?force=true"
-        response = self.get_from_endpoint(url, "Getting open orders")
-        """
-
-        def func():
-            # Fetch
-            url = f"{self.base_url}/iserver/account/orders?&accountId={self.account_id}&filters=Submitted,PreSubmitted"
-            response = self.get_from_endpoint(
-                url, "Getting open orders", allow_fail=False
-            )
-
-            # Error handle
-            if response is not None and "error" in response:
-                logging.error(
-                    colored(
-                        f"Couldn't retrieve open orders. Error: {response['error']}",
-                        "red",
-                    )
-                )
-                return None
-
-            if response is None or response == []:
-                logging.error(
-                    colored(
-                        f"Couldn't retrieve open orders. Error: {response['error']}",
-                        "red",
-                    )
-                )
-                return None
-
-            return response
-
-        # Rate limiting
-        if hasattr(self, "last_orders_ping"):
-            if datetime.now() - self.last_orders_ping < timedelta(seconds=5):
-                time_difference = timedelta(seconds=5) - (
-                    datetime.now() - self.last_orders_ping
-                )
-                seconds_to_wait = time_difference.total_seconds()
-                time.sleep(seconds_to_wait)
-
-        first_run = True
-        response = None
-        while response is None:
-            response = func()
-            self.last_orders_ping = datetime.now()
-            if response is None:
-                if first_run:
-                    logging.warning("Failed getting open orders. Retrying ...")
-                    first_run = False
-                time.sleep(5)
-
-        if not first_run:
-            logging.info("Got open orders")
+        response = self.get_from_endpoint(url, "Getting open orders", allow_fail=False)
+        
+        # Fetch
+        url = f"{self.base_url}/iserver/account/orders?&accountId={self.account_id}&filters=Submitted,PreSubmitted"
+        response = self.get_from_endpoint(
+            url, "Getting open orders", allow_fail=False
+        )
 
         # Filters don't work, we'll filter on our own
         filtered_orders = []
@@ -621,11 +478,29 @@ class InteractiveBrokersRESTData(DataSource):
 
         return filtered_orders
 
+    def get_broker_all_orders(self):
+        self.ping_iserver()
+
+        # Clear cache with force=true
+        url = f"{self.base_url}/iserver/account/orders?force=true"
+        response = self.get_from_endpoint(url, "Getting open orders", allow_fail=False)
+
+        # Fetch
+        url = f"{self.base_url}/iserver/account/orders?&accountId={self.account_id}"
+        response = self.get_from_endpoint(
+            url, "Getting open orders", allow_fail=False
+        )
+
+        if 'orders' in response and isinstance(response['orders'], list):
+            return [order for order in response['orders'] if order.get('totalSize', 0) != 0]
+        
+        return []
+
     def get_order_info(self, orderid):
         self.ping_iserver()
 
         url = f"{self.base_url}/iserver/account/order/status/{orderid}"
-        response = self.get_from_endpoint(url, "Getting Order Info")
+        response = self.get_from_endpoint(url, "Getting Order Info", allow_fail=False, silent=True)
         return response
 
     def execute_order(self, order_data):
@@ -636,17 +511,12 @@ class InteractiveBrokersRESTData(DataSource):
         self.ping_iserver()
 
         url = f"{self.base_url}/iserver/account/{self.account_id}/orders"
-        response = self.post_to_endpoint(url, order_data)
-
+        response = self.post_to_endpoint(url, order_data, description="Executing order")
+                
         if isinstance(response, list) and "order_id" in response[0]:
             # success
             return response
 
-            """         
-            elif "orders" in response: # TODO could be useless?
-            logging.info("Order executed successfully")
-            return response.get('orders') 
-            """
         elif response is not None and "error" in response:
             logging.error(
                 colored(f"Failed to execute order: {response['error']}", "red")
@@ -657,6 +527,8 @@ class InteractiveBrokersRESTData(DataSource):
                 colored(f"Failed to execute order: {response['message']}", "red")
             )
             return None
+        elif response is not None:
+            logging.error(colored(f"Failed to execute order: {response}", "red"))
         else:
             logging.error(colored(f"Failed to execute order: {order_data}", "red"))
 
@@ -664,7 +536,7 @@ class InteractiveBrokersRESTData(DataSource):
         self.ping_iserver()
         orderId = order.identifier
         url = f"{self.base_url}/iserver/account/{self.account_id}/order/{orderId}"
-        status = self.delete_to_endpoint(url)
+        status = self.delete_to_endpoint(url, description=f"Deleting order {orderId}")
         if status:
             logging.info(
                 colored(f"Order with ID {orderId} canceled successfully.", "green")
@@ -864,8 +736,8 @@ class InteractiveBrokersRESTData(DataSource):
             timestep_value = 1
 
         if "minute" in timestep:
-            period = f"{length * timestep_value}mins"
-            timestep = f"{timestep_value}mins"
+            period = f"{length * timestep_value}min"
+            timestep = f"{timestep_value}min"
         elif "hour" in timestep:
             period = f"{length * timestep_value}h"
             timestep = f"{timestep_value}h"
@@ -884,11 +756,15 @@ class InteractiveBrokersRESTData(DataSource):
         else:
             logging.error(colored(f"Unsupported timestep: {timestep}", "red"))
             return Bars(
-                pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume"]), 
-                self.SOURCE, 
-                asset, 
-                raw=pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume"]), 
-                quote=quote
+                pd.DataFrame(
+                    columns=["timestamp", "open", "high", "low", "close", "volume"]
+                ),
+                self.SOURCE,
+                asset,
+                raw=pd.DataFrame(
+                    columns=["timestamp", "open", "high", "low", "close", "volume"]
+                ),
+                quote=quote,
             )
 
         url = f"{self.base_url}/iserver/marketdata/history?conid={conid}&period={period}&bar={timestep}&outsideRth={include_after_hours}&startTime={start_time}"
@@ -903,11 +779,15 @@ class InteractiveBrokersRESTData(DataSource):
                 colored(f"Error getting historical prices: {result['error']}", "red")
             )
             return Bars(
-                pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume"]), 
-                self.SOURCE, 
-                asset, 
-                raw=pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume"]), 
-                quote=quote
+                pd.DataFrame(
+                    columns=["timestamp", "open", "high", "low", "close", "volume"]
+                ),
+                self.SOURCE,
+                asset,
+                raw=pd.DataFrame(
+                    columns=["timestamp", "open", "high", "low", "close", "volume"]
+                ),
+                quote=quote,
             )
 
         if not result or not result["data"]:
@@ -918,11 +798,15 @@ class InteractiveBrokersRESTData(DataSource):
                 )
             )
             return Bars(
-                pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume"]), 
-                self.SOURCE, 
-                asset, 
-                raw=pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume"]), 
-                quote=quote
+                pd.DataFrame(
+                    columns=["timestamp", "open", "high", "low", "close", "volume"]
+                ),
+                self.SOURCE,
+                asset,
+                raw=pd.DataFrame(
+                    columns=["timestamp", "open", "high", "low", "close", "volume"]
+                ),
+                quote=quote,
             )
 
         # Create a DataFrame from the data
@@ -944,7 +828,7 @@ class InteractiveBrokersRESTData(DataSource):
         # Convert timestamp to datetime and set as index
         df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
         df["timestamp"] = (
-            df["timestamp"].dt.tz_localize("UTC").dt.tz_convert("America/New_York")
+            df["timestamp"].dt.tz_localize("UTC").dt.tz_convert(LUMIBOT_DEFAULT_PYTZ)
         )
         df.set_index("timestamp", inplace=True)
 
@@ -968,7 +852,9 @@ class InteractiveBrokersRESTData(DataSource):
                     f"Failed to get {field} for asset {asset.symbol} with strike {asset.strike} and expiration date {asset.expiration}"
                 )
             else:
-                logging.debug(f"Failed to get {field} for asset {asset.symbol} of type {asset.asset_type}")
+                logging.debug(
+                    f"Failed to get {field} for asset {asset.symbol} of type {asset.asset_type}"
+                )
             return None
 
         price = response[field]
@@ -979,7 +865,7 @@ class InteractiveBrokersRESTData(DataSource):
 
         return float(price)
 
-    def get_conid_from_asset(self, asset: Asset):  # TODO futures
+    def get_conid_from_asset(self, asset: Asset):
         self.ping_iserver()
         # Get conid of underlying
         url = f"{self.base_url}/iserver/secdef/search?symbol={asset.symbol}"
@@ -991,7 +877,7 @@ class InteractiveBrokersRESTData(DataSource):
             and isinstance(response[0], dict)
             and "conid" in response[0]
         ):
-            conid = int(response[0]["conid"])
+            underlying_conid = int(response[0]["conid"])
         else:
             logging.error(
                 colored(
@@ -1003,41 +889,84 @@ class InteractiveBrokersRESTData(DataSource):
             return None
 
         if asset.asset_type == "option":
-            expiration_date = asset.expiration.strftime("%Y%m%d")
-            expiration_month = asset.expiration.strftime("%b%y").upper()  # in MMMYY
-            strike = asset.strike
-            right = asset.right
+            exchange = next(
+                (section["exchange"] for section in response[0]["sections"] if section["secType"] == "OPT"),
+                None,
+            )
+            return self._get_conid_for_derivative(
+                underlying_conid,
+                asset,
+                sec_type="OPT",
+                exchange=exchange,
+                additional_params={
+                    "right": asset.right,
+                    "strike": asset.strike,
+                },
+            )
+        elif asset.asset_type == "future":
+            exchange = next(
+                (section["exchange"] for section in response[0]["sections"] if section["secType"] == "FUT"),
+                None,
+            )
+            return self._get_conid_for_derivative(
+                underlying_conid,
+                asset,
+                exchange=exchange,
+                sec_type="FUT",
+                additional_params={
+                    "multiplier": asset.multiplier,
+                },
+            )
+        elif asset.asset_type in ["stock", "forex", "index"]:
+            return underlying_conid
 
-            url_for_expiry = f"{self.base_url}/iserver/secdef/info?conid={conid}&sectype=OPT&month={expiration_month}&right={right}&strike={strike}"
-            contract_info = self.get_from_endpoint(
-                url_for_expiry, "Getting expiration Date"
+    def _get_conid_for_derivative(
+        self,
+        underlying_conid: int,
+        asset: Asset,
+        sec_type: str,
+        additional_params: dict,
+        exchange: str | None,
+    ):
+        expiration_date = asset.expiration.strftime("%Y%m%d")
+        expiration_month = asset.expiration.strftime("%b%y").upper()  # in MMMYY
+
+        params = {
+            "conid": underlying_conid,
+            "sectype": sec_type,
+            "month": expiration_month,
+            "exchange": exchange
+        }
+        params.update(additional_params)
+        query_string = "&".join(f"{key}={value}" for key, value in params.items() if value is not None)
+
+        url_for_expiry = f"{self.base_url}/iserver/secdef/info?{query_string}"
+        contract_info = self.get_from_endpoint(
+            url_for_expiry, f"Getting {sec_type} Contract Info", silent=True
+        )
+
+        matching_contract = None
+        if contract_info:
+            matching_contract = next(
+                (
+                    contract
+                    for contract in contract_info
+                    if isinstance(contract, dict)
+                    and contract.get("maturityDate") == expiration_date
+                ),
+                None,
             )
 
-            matching_contract = None
-            if contract_info:
-                matching_contract = next(
-                    (
-                        contract
-                        for contract in contract_info
-                        if isinstance(contract, dict)
-                        and contract.get("maturityDate") == expiration_date
-                    ),
-                    None,
+        if matching_contract is None:
+            logging.debug(
+                colored(
+                    f"No matching contract found for asset: {asset.symbol} with expiration date {expiration_date}",
+                    "red",
                 )
+            )
+            return None
 
-            if matching_contract is None:
-                logging.debug(
-                    colored(
-                        f"No matching contract found for asset: {asset.symbol} with expiration date {expiration_date} and strike {strike}",
-                        "red",
-                    )
-                )
-                return None
-
-            return matching_contract["conid"]
-
-        elif asset.asset_type in ["stock", "forex", "index"]:
-            return conid
+        return matching_contract["conid"]
 
     def query_greeks(self, asset: Asset) -> dict:
         greeks = self.get_market_snapshot(asset, ["vega", "theta", "gamma", "delta"])
@@ -1054,7 +983,7 @@ class InteractiveBrokersRESTData(DataSource):
             "7311": "vega",
             "7310": "theta",
             "7308": "delta",
-            "7309": "gamma"
+            "7309": "gamma",
             # https://www.interactivebrokers.com/campus/ibkr-api-page/webapi-ref/#tag/Trading-Market-Data/paths/~1iserver~1marketdata~1snapshot/get
         }
         self.ping_iserver()
@@ -1143,7 +1072,7 @@ class InteractiveBrokersRESTData(DataSource):
 
         result["price"] = result.pop("last_price")
 
-        if isinstance(result["price"], str) and result["price"].startswith("C"):
+        if isinstance(result["price"], str) and result["price"].startswith("C "):
             logging.warning(
                 colored(
                     f"Ticker {asset.symbol} of type {asset.asset_type} with strike price {asset.strike} and expiry date {asset.expiration} is not trading currently. Got the last close price instead.",
@@ -1151,13 +1080,17 @@ class InteractiveBrokersRESTData(DataSource):
                 )
             )
             result["price"] = float(result["price"][1:])
-            result["trading"] = False
+
+        if "bid" in result:
+            if result["bid"] == -1:
+                result["bid"] = None
         else:
-            result["trading"] = True
-
-        if result["bid"] == -1:
             result["bid"] = None
-        if result["ask"] == -1:
-            result["ask"] = None
 
+        if "ask" in result:
+            if result["ask"] == -1:
+                result["ask"] = None
+        else:
+            result["ask"] = None
+        
         return result

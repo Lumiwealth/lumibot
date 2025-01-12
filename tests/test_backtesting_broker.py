@@ -1,7 +1,9 @@
 import datetime
+from unittest.mock import MagicMock
 
 from lumibot.backtesting import BacktestingBroker
 from lumibot.data_sources import PandasData
+from lumibot.entities import Asset, Order
 
 
 class TestBacktestingBroker:
@@ -56,3 +58,15 @@ class TestBacktestingBroker:
         # Stop not triggered
         stop_price = 80
         assert not broker.stop_order(stop_price, 'sell', open_=100, high=110, low=90)
+
+    def test_submit_order_calls_conform_order(self):
+        start = datetime.datetime(2023, 8, 1)
+        end = datetime.datetime(2023, 8, 2)
+        data_source = PandasData(datetime_start=start, datetime_end=end, pandas_data={})
+        broker = BacktestingBroker(data_source=data_source)
+
+        # mock _conform_order method
+        broker._conform_order = MagicMock()
+        Order(asset=Asset("SPY"), quantity=10, side="buy", strategy='abc')
+        broker.submit_order(Order(asset=Asset("SPY"), quantity=10, side="buy", strategy='abc'))
+        broker._conform_order.assert_called_once()

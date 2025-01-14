@@ -22,8 +22,8 @@ set_pandas_float_display_precision(precision=5)
 
 class MockStrategyWithDriftCalculationLogic(Strategy):
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, broker: BacktestingBroker, *args, **kwargs):
+        super().__init__(broker=broker, *args, **kwargs)
         self.orders = []
         self.target_weights = {}
         self.drift_rebalancer_logic = DriftRebalancerLogic(
@@ -96,7 +96,7 @@ class TestDriftCalculationLogic:
 
     def test_calculate_absolute_drift(self, mocker):
         strategy = MockStrategyWithDriftCalculationLogic(
-            broker= self.backtesting_broker,
+            broker=self.backtesting_broker,
             drift_threshold=Decimal("0.05"),
             drift_type=DriftType.ABSOLUTE
         )
@@ -649,6 +649,41 @@ class TestDriftCalculationLogic:
         assert df["current_weight"].tolist() == [Decimal("0.0"), Decimal("1.0")]
         assert df["target_value"].tolist() == [Decimal("-500"), Decimal("500")]
         assert df["drift"].tolist() == [Decimal("-1.0"), Decimal("0")]
+
+    def test_shorting_more_when_price_goes_up_short_something(self, mocker):
+        strategy = MockStrategyWithDriftCalculationLogic(
+            broker=self.backtesting_broker,
+            drift_threshold=Decimal("0.05"),
+            drift_type=DriftType.ABSOLUTE
+        )
+        # patch the strategy so get_last_price returns 110
+        mocker.patch.object(strategy, "get_last_price", return_value=110.0)
+
+        target_weights = {
+            "AAPL": Decimal("-0.50"),
+            "USD": Decimal("0.50")
+        }
+
+        def mock_add_positions(self):
+            self._add_position(
+                symbol="USD",
+                is_quote_asset=True,
+                current_quantity=Decimal("1500"),  # original $1000 plus $500 from the short
+                current_value=Decimal("1500")
+            )
+            self._add_position(
+                symbol="AAPL",
+                is_quote_asset=False,
+                current_quantity=Decimal("-5"),
+                current_value=Decimal("-550")
+            )
+
+        mocker.patch.object(DriftCalculationLogic, "_add_positions", mock_add_positions)
+        df = strategy.drift_rebalancer_logic.calculate(target_weights=target_weights)
+
+        assert df["current_weight"].tolist() == [Decimal('-0.5789473684210526315789473684'), Decimal('1.578947368421052631578947368')]
+        assert df["target_value"].tolist() == [Decimal("-475"), Decimal("475")]
+        assert df["drift"].tolist() == [Decimal('0.0789473684210526315789473684'), Decimal('0')]
 
     def test_calculate_absolute_drift_when_we_want_a_100_percent_short_position(self, mocker):
         strategy = MockStrategyWithDriftCalculationLogic(

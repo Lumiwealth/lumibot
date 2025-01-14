@@ -49,8 +49,6 @@ def pandas_data_fixture() -> Dict[Asset, Data]:
             parse_dates=True,
             index_col=0,
             header=0,
-            usecols=[0, 1, 2, 3, 4, 6, 7],
-            names=["Date", "Open", "High", "Low", "Close", "Volume", "Dividends"],
         )
         df = df.rename(
             columns={

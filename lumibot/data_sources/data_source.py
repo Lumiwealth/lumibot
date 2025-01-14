@@ -2,6 +2,7 @@ import logging
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
+import traceback
 import time
 
 import pandas as pd
@@ -307,8 +308,8 @@ class DataSource(ABC):
         length,
         timestep="minute",
         timeshift=None,
-        chunk_size=10,
-        max_workers=200,
+        chunk_size=2,
+        max_workers=2,
         quote=None,
         exchange=None,
         include_after_hours=True,
@@ -316,33 +317,38 @@ class DataSource(ABC):
         """Get bars for the list of assets"""
 
         def process_chunk(chunk):
-            """Process a chunk of assets."""
             chunk_result = {}
             for asset in chunk:
-                chunk_result[asset] = self.get_historical_prices(
-                    asset,
-                    length,
-                    timestep=timestep,
-                    timeshift=timeshift,
-                    quote=quote,
-                    exchange=exchange,
-                    include_after_hours=include_after_hours,
-                )
+                try:
+                    chunk_result[asset] = self.get_historical_prices(
+                        asset,
+                        length,
+                        timestep=timestep,
+                        timeshift=timeshift,
+                        quote=quote,
+                        exchange=exchange,
+                        include_after_hours=include_after_hours,
+                    )
+
+                    # Sleep to prevent rate limiting
+                    time.sleep(0.1)
+                except Exception as e:
+                    # Log once per asset to avoid spamming with a huge traceback
+                    logging.warning(f"Error retrieving data for {asset.symbol}: {e}")
+                    tb = traceback.format_exc()
+                    logging.warning(tb)  # This prints the traceback
+                    chunk_result[asset] = None
             return chunk_result
 
         # Convert strings to Asset objects
         assets = [Asset(symbol=a) if isinstance(a, str) else a for a in assets]
 
-        # Chunking the assets
+        # Chunk the assets
         chunks = [assets[i : i + chunk_size] for i in range(0, len(assets), chunk_size)]
 
-        # Initialize ThreadPoolExecutor
         results = {}
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            # Submit tasks
             futures = [executor.submit(process_chunk, chunk) for chunk in chunks]
-
-            # Collect results as they complete
             for future in as_completed(futures):
                 results.update(future.result())
 

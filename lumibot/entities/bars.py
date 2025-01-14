@@ -112,11 +112,11 @@ class Bars:
         self._raw = raw
 
         if "dividend" in df.columns:
-            df["price_change"] = df["close"].pct_change()
-            df["dividend_yield"] = df["dividend"] / df["close"]
-            df["return"] = df["dividend_yield"] + df["price_change"]
+            df.loc[:, "price_change"] = df["close"].pct_change()
+            df.loc[:, "dividend_yield"] = df["dividend"] / df["close"]
+            df.loc[:, "return"] = df["dividend_yield"] + df["price_change"]
         else:
-            df["return"] = df["close"].pct_change()
+            df.loc[:, "return"] = df["close"].pct_change()
 
         self.df = df
 

@@ -81,6 +81,7 @@ class PolygonBacktestStrat(Strategy):
         underlying_asset = Asset(self.parameters["symbol"])
         self.market_opens_called = True
         self.chains = self.get_chains(underlying_asset)
+        self.log_message(f"PolygonBacktestStrat: Market Opens: {self.get_datetime()}")
 
     def after_market_closes(self):
         orders = self.get_orders()

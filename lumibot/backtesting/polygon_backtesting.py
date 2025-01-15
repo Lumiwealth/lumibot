@@ -229,7 +229,7 @@ class PolygonDataBacktesting(PandasData):
     def get_chains(self, asset: Asset, quote: Asset = None, exchange: str = None):
         """
         Integrates the Polygon client library into the LumiBot backtest for Options Data in the same
-        structure as Interactive Brokers options chain data
+        structure as Interactive Brokers options chain data, but now includes file-based caching.
 
         Parameters
         ----------
@@ -242,55 +242,33 @@ class PolygonDataBacktesting(PandasData):
 
         Returns
         -------
-        dictionary of dictionary
+        dict
             Format:
-            - `Multiplier` (str) eg: `100`
-            - 'Chains' - paired Expiration/Strke info to guarentee that the stikes are valid for the specific
-                         expiration date.
-                         Format:
-                           chains['Chains']['CALL'][exp_date] = [strike1, strike2, ...]
-                         Expiration Date Format: 2023-07-31
+            - `Multiplier` (str) e.g. `100`
+            - `Exchange` (str) e.g. "NYSE"
+            - 'Chains' - a dictionary with "CALL" and "PUT" subkeys, each holding
+              expiration-date-to-strike-lists. For example:
+                {
+                  "Multiplier": 100,
+                  "Exchange": "NYSE",
+                  "Chains": {
+                     "CALL": {
+                        "2023-02-15": [...],
+                        "2023-02-17": [...],
+                     },
+                     "PUT": {
+                        "2023-02-15": [...],
+                        ...
+                     }
+                  }
+                }
         """
+        # Instead of doing all the logic here, call a helper function that implements file-based caching.
+        from lumibot.tools.polygon_helper import get_option_chains_with_cache
 
-        # All Option Contracts | get_chains matching IBKR |
-        # {'Multiplier': 100, 'Exchange': "NYSE",
-        #      'Chains': {'CALL': {<date1>: [100.00, 101.00]}}, 'PUT': defaultdict(list)}}
-        option_contracts = {
-            "Multiplier": None,
-            "Exchange": None,
-            "Chains": {"CALL": defaultdict(list), "PUT": defaultdict(list)},
-        }
-        today = self.get_datetime().date()
-        real_today = date.today()
-
-        # All Contracts | to match lumitbot, more inputs required from get_chains()
-        # If the strategy is using a recent backtest date, some contracts might not be expired yet, query those too
-        expired_list = [True, False] if real_today - today <= timedelta(days=31) else [True]
-        polygon_contracts = []
-        for expired in expired_list:
-            polygon_contracts.extend(
-                list(
-                    self.polygon_client.list_options_contracts(
-                        underlying_ticker=asset.symbol,
-                        expiration_date_gte=today,
-                        expired=expired,  # Needed so BackTest can look at old contracts to find the expirations/strikes
-                        limit=1000,
-                    )
-                )
-            )
-
-        for polygon_contract in polygon_contracts:
-            # Return to Loop and Skip if Multipler is not 100 because non-standard contracts are not supported
-            if polygon_contract.shares_per_contract != 100:
-                continue
-
-            # Contract Data | Attributes
-            exchange = polygon_contract.primary_exchange
-            right = polygon_contract.contract_type.upper()
-            exp_date = polygon_contract.expiration_date  # Format: '2023-08-04'
-            strike = polygon_contract.strike_price
-            option_contracts["Multiplier"] = polygon_contract.shares_per_contract
-            option_contracts["Exchange"] = exchange
-            option_contracts["Chains"][right][exp_date].append(strike)
-
-        return option_contracts
+        # We pass in the polygon_client, the asset, and the current date (for logic about expired vs. not expired).
+        return get_option_chains_with_cache(
+            polygon_client=self.polygon_client,
+            asset=asset,
+            current_date=self.get_datetime().date()
+        )

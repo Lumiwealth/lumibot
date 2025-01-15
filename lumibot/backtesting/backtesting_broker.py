@@ -416,7 +416,7 @@ class BacktestingBroker(Broker):
         # Check that orders is a list and not zero
         if not orders or not isinstance(orders, list) or len(orders) == 0:
             # Log an error and return an empty list
-            logging.error("No orders to submit to broker when calling submit_orders")
+            logger.error("No orders to submit to broker when calling submit_orders")
             return []
 
         results = []

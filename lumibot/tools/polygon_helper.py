@@ -1,4 +1,3 @@
-# This file contains helper functions for getting data from Polygon.io
 import logging
 import time
 from datetime import date, datetime, timedelta
@@ -18,10 +17,9 @@ from typing import Iterator
 from termcolor import colored
 from tqdm import tqdm
 
-from lumibot import LUMIBOT_CACHE_FOLDER
-from lumibot.entities import Asset
 from lumibot import LUMIBOT_DEFAULT_PYTZ
 from lumibot.credentials import POLYGON_API_KEY
+from collections import defaultdict  # <-- Make sure we import defaultdict
 
 MAX_POLYGON_DAYS = 30
 
@@ -52,8 +50,10 @@ def get_cached_schedule(cal, start_date, end_date, buffer_days=30):
         buffered_schedule = buffered_schedules[cal.name]
         # Check if the current buffered schedule covers the required range
         if buffered_schedule.index.min() <= start_timestamp and buffered_schedule.index.max() >= end_timestamp:
-            filtered_schedule = buffered_schedule[(buffered_schedule.index >= start_timestamp) & (
-                buffered_schedule.index <= end_timestamp)]
+            filtered_schedule = buffered_schedule[
+                (buffered_schedule.index >= start_timestamp) & 
+                (buffered_schedule.index <= end_timestamp)
+            ]
             schedule_cache[cache_key] = filtered_schedule
             return filtered_schedule
 
@@ -62,8 +62,10 @@ def get_cached_schedule(cal, start_date, end_date, buffer_days=30):
     buffered_schedules[cal.name] = buffered_schedule  # Store the buffered schedule for this calendar
 
     # Filter the schedule to only include the requested date range
-    filtered_schedule = buffered_schedule[(buffered_schedule.index >= start_timestamp)
-                                          & (buffered_schedule.index <= end_timestamp)]
+    filtered_schedule = buffered_schedule[
+        (buffered_schedule.index >= start_timestamp) & 
+        (buffered_schedule.index <= end_timestamp)
+    ]
 
     # Cache the filtered schedule for quick lookup
     schedule_cache[cache_key] = filtered_schedule
@@ -106,12 +108,13 @@ def get_price_data_from_polygon(
         "month", "quarter"
     quote_asset : Asset
         The quote asset for the asset we are getting data for. This is only needed for Forex assets.
+    force_cache_update : bool
+        If True, ignore and overwrite existing cache.
 
     Returns
     -------
     pd.DataFrame
         A DataFrame with the pricing data for the asset
-
     """
 
     # Check if we already have data for this asset in the feather file
@@ -130,69 +133,52 @@ def get_price_data_from_polygon(
     if not missing_dates:
         # TODO: Do this upstream so we don't repeatedly call for known-to-be-missing bars.
         # Drop the rows with all NaN values that were added to the feather for symbols that have missing bars.
-        df_all.dropna(how="all", inplace=True)
+        if df_all is not None:
+            df_all.dropna(how="all", inplace=True)
         return df_all
 
-    # print(f"\nGetting pricing data for {asset} / {quote_asset} with '{timespan}' timespan from Polygon...")
-
-    # RESTClient connection for Polygon Stock-Equity API; traded_asset is standard
-    # Add "trace=True" to see the API calls printed to the console for debugging
+    # RESTClient connection for Polygon Stock-Equity API
     polygon_client = PolygonClient.create(api_key=api_key)
-    symbol = get_polygon_symbol(asset, polygon_client, quote_asset)  # Will do a Polygon query for option contracts
+    symbol = get_polygon_symbol(asset, polygon_client, quote_asset)  # Might do a Polygon query for option contracts
 
     # Check if symbol is None, which means we couldn't find the option contract
     if symbol is None:
         return None
 
-    # To reduce calls to Polygon, we call on full date ranges instead of including hours/minutes
-    # get the full range of data we need in one call and ensure that there won't be any intraday gaps in the data.
-    # Option data won't have any extended hours data so the padding is extra important for those.
-    poly_start = missing_dates[0]  # Data will start at 8am UTC (4am EST)
-    poly_end = missing_dates[-1]  # Data will end at 23:59 UTC (7:59pm EST)
+    # Polygon only returns 50k results per query (~30 days of 1-minute bars) so we might need multiple queries
+    poly_start = missing_dates[0]
+    poly_end = missing_dates[-1]
 
-    # Initialize tqdm progress bar
-    total_days = (missing_dates[-1] - missing_dates[0]).days + 1
+    total_days = (poly_end - poly_start).days + 1
     total_queries = (total_days // MAX_POLYGON_DAYS) + 1
     description = f"\nDownloading data for {asset} / {quote_asset} '{timespan}' from Polygon..."
     pbar = tqdm(total=total_queries, desc=description, dynamic_ncols=True)
 
-    # Polygon only returns 50k results per query (~30days of 24hr 1min-candles) so we need to break up the query into
-    # multiple queries if we are requesting more than 30 days of data
     delta = timedelta(days=MAX_POLYGON_DAYS)
-    while poly_start <= missing_dates[-1]:
-        if poly_end > (poly_start + delta):
-            poly_end = poly_start + delta
+    while poly_start <= poly_end:
+        chunk_end = min(poly_start + delta, poly_end)
 
         result = polygon_client.get_aggs(
             ticker=symbol,
-            from_=poly_start,  # polygon-api-client docs say 'from' but that is a reserved word in python
-            to=poly_end,
-            # In Polygon, multiplier is the number of "timespans" in each candle, so if you want 5min candles
-            # returned you would set multiplier=5 and timespan="minute". This is very different from the
-            # asset.multiplier setting for option contracts.
+            from_=poly_start,
+            to=chunk_end,
             multiplier=1,
             timespan=timespan,
-            limit=50000,  # Max limit for Polygon
+            limit=50000,
         )
-
-        # Update progress bar after each query
         pbar.update(1)
 
         if result:
             df_all = update_polygon_data(df_all, result)
 
-        poly_start = poly_end + timedelta(days=1)
-        poly_end = poly_start + delta
+        poly_start = chunk_end + timedelta(days=1)
 
-    # Close the progress bar when done
     pbar.close()
 
     # Recheck for missing dates so they can be added in the feather update.
     missing_dates = get_missing_dates(df_all, asset, start, end)
     update_cache(cache_file, df_all, missing_dates)
 
-    # TODO: Do this upstream so we don't have to reload feather repeatedly for known-to-be-missing bars.
-    # Drop the rows with all NaN values that were added to the feather for symbols that have missing bars.
     if df_all is not None:
         df_all.dropna(how="all", inplace=True)
 
@@ -224,7 +210,6 @@ def validate_cache(force_cache_update: bool, asset: Asset, cache_file: Path, api
             # Convert the generator to a list so DataFrame will make a row per item.
             splits_df = pd.DataFrame(list(splits))
             if splits_file_path.exists() and cached_splits.eq(splits_df).all().all():
-                # No need to rewrite contents.  Just update the timestamp.
                 splits_file_path.touch()
             else:
                 logging.info(f"Invalidating cache for {asset.symbol} because its splits have changed.")
@@ -252,30 +237,23 @@ def get_trading_dates(asset: Asset, start: datetime, end: datetime):
 
     Returns
     -------
-
+    list of datetime.date
+        The list of valid trading days
     """
-    # Crypto Asset Calendar
     if asset.asset_type == Asset.AssetType.CRYPTO:
         # Crypto trades every day, 24/7 so we don't need to check the calendar
         return [start.date() + timedelta(days=x) for x in range((end.date() - start.date()).days + 1)]
-
-    # Stock/Option Asset for Backtesting - Assuming NYSE trading days
     elif (
         asset.asset_type == Asset.AssetType.INDEX
         or asset.asset_type == Asset.AssetType.STOCK
         or asset.asset_type == Asset.AssetType.OPTION
     ):
         cal = mcal.get_calendar("NYSE")
-
-    # Forex Asset for Backtesting - Forex trades weekdays, 24hrs starting Sunday 5pm EST
-    # Calendar: "CME_FX"
     elif asset.asset_type == Asset.AssetType.FOREX:
         cal = mcal.get_calendar("CME_FX")
-
     else:
         raise ValueError(f"Unsupported asset type for polygon: {asset.asset_type}")
 
-    # Get the trading days between the start and end dates
     df = get_cached_schedule(cal, start.date(), end.date())
     trading_days = df.index.date.tolist()
     return trading_days
@@ -298,27 +276,17 @@ def get_polygon_symbol(asset, polygon_client, quote_asset=None):
     str
         The symbol for the asset in a format that Polygon will understand
     """
-    # Crypto Asset for Backtesting
     if asset.asset_type == Asset.AssetType.CRYPTO:
         quote_asset_symbol = quote_asset.symbol if quote_asset else "USD"
         symbol = f"X:{asset.symbol}{quote_asset_symbol}"
-
-    # Stock-Equity Asset for Backtesting
     elif asset.asset_type == Asset.AssetType.STOCK:
         symbol = asset.symbol
-
     elif asset.asset_type == Asset.AssetType.INDEX:
         symbol = f"I:{asset.symbol}"
-
-    # Forex Asset for Backtesting
     elif asset.asset_type == Asset.AssetType.FOREX:
-        # If quote_asset is None, throw an error
         if quote_asset is None:
             raise ValueError(f"quote_asset is required for asset type {asset.asset_type}")
-
         symbol = f"C:{asset.symbol}{quote_asset.symbol}"
-
-    # Option Asset for Backtesting - Do a query to Polygon to get the ticker
     elif asset.asset_type == Asset.AssetType.OPTION:
         # Needed so BackTest both old and existing contracts
         real_today = date.today()
@@ -335,18 +303,13 @@ def get_polygon_symbol(asset, polygon_client, quote_asset=None):
                 limit=10,
             )
         )
-
         if len(contracts) == 0:
             text = colored(f"Unable to find option contract for {asset}", "red")
             logging.debug(text)
             return
-
-        # Example: O:SPY230802C00457000
         symbol = contracts[0].ticker
-
     elif asset.asset_type == Asset.AssetType.INDEX:
         symbol = f"I:{asset.symbol}"
-
     else:
         raise ValueError(f"Unsupported asset type for polygon: {asset.asset_type}")
 
@@ -406,25 +369,10 @@ def get_missing_dates(df_all, asset, start, end):
         return trading_dates
 
     # It is possible to have full day gap in the data if previous queries were far apart
-    # Example: Query for 8/1/2023, then 8/31/2023, then 8/7/2023
-    # Whole days are easy to check for because we can just check the dates in the index
     dates = pd.Series(df_all.index.date).unique()
     missing_dates = sorted(set(trading_dates) - set(dates))
 
-    # TODO: This code works AFAIK, But when i enable it the tests for "test_polygon_missing_day_caching" and
-    # i don't know why nor how to fix this code or the tests. So im leaving it disabled for now. If you have problems
-    # with NANs in cached polygon data, you can try to enable this code and fix the tests.
-
-    # # Find any dates with nan values in the df_all DataFrame
-    # missing_dates += df_all[df_all.isnull().all(axis=1)].index.date.tolist()
-    #
-    # # make sure the dates are unique
-    # missing_dates = list(set(missing_dates))
-    # missing_dates.sort()
-    #
-    # # finally, filter out any dates that are not in start/end range (inclusive)
-    # missing_dates = [d for d in missing_dates if start.date() <= d <= end.date()]
-
+    # Additional logic about NaN rows is disabled for now (see comments)
     return missing_dates
 
 
@@ -459,7 +407,8 @@ def update_cache(cache_file, df_all, missing_dates=None):
     df_all : pd.DataFrame
         The DataFrame with the data we want to cache
     missing_dates : list[datetime.date]
-        A list of dates that are missing bars from Polygon"""
+        A list of dates that are missing bars from Polygon
+    """
 
     if df_all is None:
         df_all = pd.DataFrame()
@@ -478,7 +427,6 @@ def update_cache(cache_file, df_all, missing_dates=None):
             if df_all.index.duplicated().any():
                 logging.warn("The duplicate index entries were already in df_all")
         else:
-            # All good, persist with the missing dates added
             df_all = df_concat
 
     if len(df_all) > 0:
@@ -500,7 +448,7 @@ def update_polygon_data(df_all, result):
     df_all : pd.DataFrame
         A DataFrame with the data we already have
     result : list
-        A List of dictionaries with the new data from Polygon
+        A list of dictionaries with the new data from Polygon
         Format: [{'o': 1.0, 'h': 2.0, 'l': 3.0, 'c': 4.0, 'v': 5.0, 't': 116120000000}]
     """
     df = pd.DataFrame(result)
@@ -595,3 +543,170 @@ class PolygonClient(RESTClient):
                 logging.error(colored_message)
                 logging.debug(f"Error: {e}")
                 time.sleep(PolygonClient.WAIT_SECONDS_RETRY)
+
+
+# -------------------------------------------------------------------------
+# NEW FUNCTION: get_option_chains_with_cache
+# This function is a slightly modified version of the old get_chains code,
+# ensuring both CALL and PUT data is returned. We store them in a dictionary
+# structure under "Chains": {"CALL": {...}, "PUT": {...}}.
+# -------------------------------------------------------------------------
+def get_option_chains_with_cache(polygon_client: RESTClient, asset: Asset, current_date: date):
+    """
+    Integrates the Polygon client library into the LumiBot backtest for Options Data, returning
+    the same structure as Interactive Brokers option chain data, but with file-based caching.
+
+    The returned dictionary has the format:
+      {
+          "Multiplier": 100,
+          "Exchange": "NYSE",
+          "Chains": {
+              "CALL": { "2023-02-15": [strike1, ...], ... },
+              "PUT":  { "2023-02-15": [strike9, ...], ... }
+          }
+      }
+
+    Parameters
+    ----------
+    polygon_client : RESTClient
+        The RESTClient (PolygonClient) instance used to fetch data from Polygon.
+    asset : Asset
+        The underlying asset to get data for.
+    current_date : date
+        The current date in the backtest to determine expired vs. not expired.
+
+    Returns
+    -------
+    dict
+        A nested dictionary with "Multiplier", "Exchange", and "Chains" keys.
+        "Chains" is further broken down into "CALL" and "PUT" keys, each mapping
+        expiration dates to lists of strikes.
+    """
+    # 1) Build a chain cache filename for this asset
+    cache_file = _build_chain_filename(asset)
+
+    # 2) Attempt to load cached data
+    df_cached = _load_cached_chains(cache_file)
+    if df_cached is not None and not df_cached.empty:
+        # Convert DF back to the nested dict
+        dict_cached = _df_to_chain_dict(df_cached)
+        if dict_cached["Chains"]:
+            logging.debug(f"[CHAIN CACHE] Loaded option chains for {asset.symbol} from {cache_file}")
+            return dict_cached
+
+    # 3) If cache was empty, do the original chain-fetch logic
+    option_contracts = {
+        "Multiplier": None,
+        "Exchange": None,
+        "Chains": {"CALL": defaultdict(list), "PUT": defaultdict(list)},
+    }
+
+    real_today = date.today()
+    # If the strategy is using a recent backtest date, some contracts might not be expired yet
+    expired_list = [True, False] if real_today - current_date <= timedelta(days=31) else [True]
+    polygon_contracts_list = []
+    for expired in expired_list:
+        polygon_contracts_list.extend(
+            list(
+                polygon_client.list_options_contracts(
+                    underlying_ticker=asset.symbol,
+                    expiration_date_gte=current_date,
+                    expired=expired,  # old + new contracts
+                    limit=1000,
+                )
+            )
+        )
+
+    for pc in polygon_contracts_list:
+        # Return to loop and skip if shares_per_contract != 100 (non-standard)
+        if pc.shares_per_contract != 100:
+            continue
+
+        exchange = pc.primary_exchange
+        right = pc.contract_type.upper()   # "CALL" or "PUT"
+        exp_date = pc.expiration_date      # e.g. "2023-08-04"
+        strike = pc.strike_price
+
+        option_contracts["Multiplier"] = pc.shares_per_contract
+        option_contracts["Exchange"] = exchange
+        option_contracts["Chains"][right][exp_date].append(strike)
+
+    # 4) Save newly fetched chains to the cache
+    df_new = _chain_dict_to_df(option_contracts)
+    if not df_new.empty:
+        _save_cached_chains(cache_file, df_new)
+        logging.debug(f"[CHAIN CACHE] Saved new option chains for {asset.symbol} to {cache_file}")
+
+    return option_contracts
+
+
+# ------------------------------ HELPER FUNCS FOR CHAIN CACHING ------------------------------
+def _build_chain_filename(asset: Asset) -> Path:
+    """
+    Build a cache filename for the chain data, e.g.:
+    ~/.lumibot_cache/polygon_chains/option_chains_SPY.feather
+    """
+    chain_folder = Path(LUMIBOT_CACHE_FOLDER) / "polygon_chains"
+    chain_folder.mkdir(parents=True, exist_ok=True)
+    file_name = f"option_chains_{asset.symbol}.feather"
+    return chain_folder / file_name
+
+
+def _load_cached_chains(cache_file: Path) -> pd.DataFrame:
+    """Load chain data from Feather, or return empty DataFrame if not present."""
+    if not cache_file.exists():
+        return pd.DataFrame()
+    return pd.read_feather(cache_file)
+
+
+def _save_cached_chains(cache_file: Path, df: pd.DataFrame):
+    """Save chain data to Feather."""
+    df.reset_index(drop=True, inplace=True)
+    cache_file.parent.mkdir(parents=True, exist_ok=True)
+    df.to_feather(cache_file)
+
+
+def _chain_dict_to_df(chain_dict: dict) -> pd.DataFrame:
+    """
+    Flatten the nested chain dict structure into a DataFrame:
+      [Multiplier, Exchange, ContractType, Expiration, Strike]
+    """
+    rows = []
+    mult = chain_dict["Multiplier"]
+    exch = chain_dict["Exchange"]
+    for ctype, exp_dict in chain_dict["Chains"].items():
+        for exp_date, strike_list in exp_dict.items():
+            for s in strike_list:
+                rows.append({
+                    "Multiplier": mult,
+                    "Exchange": exch,
+                    "ContractType": ctype,
+                    "Expiration": exp_date,
+                    "Strike": s
+                })
+    return pd.DataFrame(rows)
+
+
+def _df_to_chain_dict(df: pd.DataFrame) -> dict:
+    """
+    Rebuild the chain dictionary from a DataFrame with columns:
+      [Multiplier, Exchange, ContractType, Expiration, Strike]
+    """
+    chain_dict = {
+        "Multiplier": None,
+        "Exchange": None,
+        "Chains": {"CALL": defaultdict(list), "PUT": defaultdict(list)},
+    }
+    if df.empty:
+        return chain_dict
+
+    chain_dict["Multiplier"] = df["Multiplier"].iloc[0]
+    chain_dict["Exchange"] = df["Exchange"].iloc[0]
+
+    for row in df.itertuples(index=False):
+        ctype = row.ContractType   # "CALL" or "PUT"
+        exp_date = row.Expiration
+        strike = row.Strike
+        chain_dict["Chains"][ctype][exp_date].append(strike)
+
+    return chain_dict

@@ -642,7 +642,7 @@ def _store_placeholder_day(asset: Asset, timespan: str, single_date: date):
             close_eastern = datetime(single_date.year, single_date.month, single_date.day, 16, 0)
             from_date = pd.Timestamp(open_eastern, tz="America/New_York").tz_convert("UTC")
             to_date = pd.Timestamp(close_eastern, tz="America/New_York").tz_convert("UTC")
-            rng = pd.date_range(start=from_date, end=to_date, freq="T", tz="UTC")
+            rng = pd.date_range(start=from_date, end=to_date, freq="min", tz="UTC")
         else:
             rng = pd.date_range(start=day_start, end=day_end, freq="min", tz="UTC")
     except Exception as e:

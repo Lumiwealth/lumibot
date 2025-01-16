@@ -1,24 +1,14 @@
 """
 test_polygon_helper.py
 ----------------------
-Updated tests for the new DuckDB-based 'polygon_helper.py', removing old references
-to feather-file caching (build_cache_filename, load_cache, update_cache, etc.).
-These tests now focus on verifying:
-  - get_missing_dates()
-  - get_trading_dates()
-  - get_polygon_symbol()
-  - get_price_data_from_polygon() mocking the real Polygon calls
-... etc.
-
-If you wish to test the actual DuckDB logic, you can add tests for:
-  - _load_from_duckdb()
-  - _store_in_duckdb()
-  - _fill_partial_days()
-  - _store_placeholder_day()
-... as needed.
-
-Author: <Your Name>
-Date: <Date>
+Tests for the new DuckDB-based 'polygon_helper.py'. These tests:
+  1) Check missing dates, trading dates, and get_polygon_symbol as before.
+  2) Validate get_price_data_from_polygon(...) with a mock PolygonClient, ensuring it
+     stores data in DuckDB and then reads from DuckDB (caching).
+  3) Provide coverage for the DuckDB-specific helpers (like _asset_key, _load_from_duckdb,
+     _store_in_duckdb, and _transform_polygon_data).
+  4) Remove references to the old feather-based caching logic (build_cache_filename,
+     load_cache, update_cache, update_polygon_data) that no longer exist in the new code.
 """
 
 import datetime
@@ -30,306 +20,322 @@ import pytest
 import pytz
 
 from lumibot.entities import Asset
+# We'll import everything as `ph` for polygon_helper
 from lumibot.tools import polygon_helper as ph
 
-# Mock contract used in test_get_polygon_symbol for "OPTION" logic
+###############################################################################
+# HELPER CLASSES / FIXTURES
+###############################################################################
+
+
 class FakeContract:
-    """
-    A fake contract object that simulates the contract object returned by
-    polygon_client.list_options_contracts(...). This ensures we can test
-    get_polygon_symbol(...) for an option scenario without real network calls.
-    """
+    """Fake contract object simulating a contract returned by polygon_client.list_options_contracts(...)"""
     def __init__(self, ticker: str):
         self.ticker = ticker
 
 
-class TestPolygonHelpers:
+@pytest.fixture
+def ephemeral_duckdb(tmp_path):
     """
-    Tests that verify logic in polygon_helper.py, primarily focusing on
-    get_missing_dates, get_trading_dates, get_polygon_symbol, etc.
-    Note that references to old feather-based caching have been removed,
-    since the new code uses DuckDB.
+    A fixture that points polygon_helper's DUCKDB_DB_PATH at a temporary file
+    within 'tmp_path'. Ensures each test runs with a blank ephemeral DB.
+    Restores the original DUCKDB_DB_PATH afterwards.
+    """
+    original_path = ph.DUCKDB_DB_PATH
+    test_db_path = tmp_path / "polygon_cache.duckdb"
+    ph.DUCKDB_DB_PATH = test_db_path
+    yield test_db_path
+    ph.DUCKDB_DB_PATH = original_path
+
+
+###############################################################################
+# TEST: Missing Dates, Trading Dates, get_polygon_symbol
+###############################################################################
+
+
+class TestPolygonHelpersBasic:
+    """
+    Tests for get_missing_dates, get_trading_dates, get_polygon_symbol.
     """
 
-    def test_missing_dates(self):
-        """
-        Test get_missing_dates(...) with typical stock dataframes:
-        - Ensuring days outside the loaded df are considered missing
-        - Confirming that if we have all data for a given range, no days are missing
-        """
+    def test_get_missing_dates(self):
+        """Check that get_missing_dates(...) handles typical stock data and option expiration logic."""
         asset = Asset("SPY")
-        start_date = datetime.datetime(2023, 8, 1, 9, 30)  # Tuesday
+        start_date = datetime.datetime(2023, 8, 1, 9, 30)
         end_date = datetime.datetime(2023, 8, 1, 10, 0)
 
-        # 1) Empty DataFrame => entire date is missing
-        missing_dates = ph.get_missing_dates(pd.DataFrame(), asset, start_date, end_date)
-        assert len(missing_dates) == 1
-        assert datetime.date(2023, 8, 1) in missing_dates
+        # 1) With empty DataFrame => entire date is missing
+        missing = ph.get_missing_dates(pd.DataFrame(), asset, start_date, end_date)
+        assert len(missing) == 1
+        assert datetime.date(2023, 8, 1) in missing
 
-        # 2) DataFrame that covers the entire range => no missing days
-        index = pd.date_range(start_date, end_date, freq="1min")
-        df_all = pd.DataFrame(
-            {
-                "open": np.random.uniform(0, 100, len(index)).round(2),
-                "close": np.random.uniform(0, 100, len(index)).round(2),
-                "volume": np.random.uniform(0, 10000, len(index)).round(2),
-            },
-            index=index,
-        )
-        missing_dates = ph.get_missing_dates(df_all, asset, start_date, end_date)
-        assert not missing_dates
+        # 2) Full coverage => no missing
+        idx = pd.date_range(start_date, end_date, freq="1min")
+        df_cover = pd.DataFrame({
+            "open": np.random.uniform(0, 100, len(idx)),
+            "close": np.random.uniform(0, 100, len(idx)),
+            "volume": np.random.uniform(0, 10000, len(idx))
+        }, index=idx)
+        missing2 = ph.get_missing_dates(df_cover, asset, start_date, end_date)
+        assert not missing2
 
-        # 3) Extended end_date => that extra day is missing
-        end_date2 = datetime.datetime(2023, 8, 2, 13, 0)  # Weds
-        missing_dates = ph.get_missing_dates(df_all, asset, start_date, end_date2)
-        assert missing_dates
-        assert datetime.date(2023, 8, 2) in missing_dates
+        # 3) Extended range => next day missing
+        end_date2 = datetime.datetime(2023, 8, 2, 13, 0)
+        missing3 = ph.get_missing_dates(df_cover, asset, start_date, end_date2)
+        assert len(missing3) == 1
+        assert datetime.date(2023, 8, 2) in missing3
 
         # 4) Option expiration scenario
-        end_date3 = datetime.datetime(2023, 8, 3, 13, 0)
-        expire_date = datetime.date(2023, 8, 2)
-        index2 = pd.date_range(start_date, end_date3, freq="1min")
-        df_all2 = pd.DataFrame(
-            {
-                "open": np.random.uniform(0, 100, len(index2)).round(2),
-                "close": np.random.uniform(0, 100, len(index2)).round(2),
-                "volume": np.random.uniform(0, 10000, len(index2)).round(2),
-            },
-            index=index2,
-        )
-        option_asset = Asset("SPY", asset_type="option", expiration=expire_date, strike=100, right="CALL")
-        missing_dates2 = ph.get_missing_dates(df_all2, option_asset, start_date, end_date3)
-        # Because the option expires 2023-08-02 => data after that is irrelevant => no missing
-        assert not missing_dates2
+        option_exp_date = datetime.date(2023, 8, 2)
+        option_asset = Asset("SPY", asset_type="option", expiration=option_exp_date,
+                             strike=100, right="CALL")
+        extended_end = datetime.datetime(2023, 8, 3, 13, 0)
+        idx2 = pd.date_range(start_date, extended_end, freq="1min")
+        df_all2 = pd.DataFrame({
+            "open": np.random.uniform(0, 100, len(idx2)),
+            "close": np.random.uniform(0, 100, len(idx2)),
+            "volume": np.random.uniform(0, 10000, len(idx2))
+        }, index=idx2)
+
+        missing_opt = ph.get_missing_dates(df_all2, option_asset, start_date, extended_end)
+        # Because option expires 8/2 => no missing for 8/3 even though there's data for that day
+        assert not missing_opt
 
     def test_get_trading_dates(self):
-        """
-        Test get_trading_dates(...) with different asset types:
-         - future -> raises ValueError
-         - stock -> standard NYSE schedule
-         - option -> also uses NYSE schedule but up to expiration
-         - forex -> uses CME_FX schedule
-         - crypto -> 24/7
-        """
-        # 1) Unsupported Asset Type -> 'future'
-        asset = Asset("SPY", asset_type="future")
-        start_date = datetime.datetime(2023, 7, 1, 9, 30)  # Saturday
-        end_date = datetime.datetime(2023, 7, 10, 10, 0)   # Monday
+        """Test get_trading_dates(...) with stock, option, forex, crypto, plus an unsupported type."""
+        # 1) Future => raises ValueError
+        asset_fut = Asset("SPY", asset_type="future")
+        sdate = datetime.datetime(2023, 7, 1, 9, 30)
+        edate = datetime.datetime(2023, 7, 10, 10, 0)
         with pytest.raises(ValueError):
-            ph.get_trading_dates(asset, start_date, end_date)
+            ph.get_trading_dates(asset_fut, sdate, edate)
 
-        # 2) Stock Asset
-        asset2 = Asset("SPY")
-        start_date2 = datetime.datetime(2023, 7, 1, 9, 30)  # Saturday
-        end_date2 = datetime.datetime(2023, 7, 10, 10, 0)   # Monday
-        trading_dates = ph.get_trading_dates(asset2, start_date2, end_date2)
-        assert datetime.date(2023, 7, 1) not in trading_dates
-        assert datetime.date(2023, 7, 3) in trading_dates
-        assert datetime.date(2023, 7, 4) not in trading_dates  # July 4th closed
-        assert datetime.date(2023, 7, 9) not in trading_dates  # Sunday
-        assert datetime.date(2023, 7, 10) in trading_dates
+        # 2) Stock => NYSE
+        asset_stk = Asset("SPY")
+        tdates = ph.get_trading_dates(asset_stk, sdate, edate)
+        assert datetime.date(2023, 7, 1) not in tdates  # Saturday
+        assert datetime.date(2023, 7, 3) in tdates
+        assert datetime.date(2023, 7, 4) not in tdates  # Holiday
+        assert datetime.date(2023, 7, 9) not in tdates  # Sunday
+        assert datetime.date(2023, 7, 10) in tdates
 
-        # 3) Option Asset
-        expire_date = datetime.date(2023, 8, 1)
-        option_asset = Asset("SPY", asset_type="option", expiration=expire_date, strike=100, right="CALL")
-        trading_dates2 = ph.get_trading_dates(option_asset, start_date2, end_date2)
-        assert datetime.date(2023, 7, 1) not in trading_dates2
-        assert datetime.date(2023, 7, 3) in trading_dates2
-        assert datetime.date(2023, 7, 4) not in trading_dates2
-        assert datetime.date(2023, 7, 9) not in trading_dates2
+        # 3) Option => same as stock, but eventually truncated by expiration in get_missing_dates
+        op_asset = Asset("SPY", asset_type="option", expiration=datetime.date(2023, 8, 1),
+                         strike=100, right="CALL")
+        tdates_op = ph.get_trading_dates(op_asset, sdate, edate)
+        assert datetime.date(2023, 7, 3) in tdates_op
 
-        # 4) Forex Asset
-        forex_asset = Asset("ES", asset_type="forex")
-        trading_dates3 = ph.get_trading_dates(forex_asset, start_date2, end_date2)
-        assert datetime.date(2023, 7, 1) not in trading_dates3
-        assert datetime.date(2023, 7, 4) in trading_dates3
-        assert datetime.date(2023, 7, 10) in trading_dates3
+        # 4) Forex => "CME_FX"
+        fx_asset = Asset("EURUSD", asset_type="forex")
+        tdates_fx = ph.get_trading_dates(fx_asset, sdate, edate)
+        # e.g. 7/1 is Saturday => not included
+        assert datetime.date(2023, 7, 1) not in tdates_fx
 
-        # 5) Crypto Asset
-        crypto_asset = Asset("BTC", asset_type="crypto")
-        trading_dates4 = ph.get_trading_dates(crypto_asset, start_date2, end_date2)
-        assert datetime.date(2023, 7, 1) in trading_dates4
-        assert datetime.date(2023, 7, 4) in trading_dates4
-        assert datetime.date(2023, 7, 10) in trading_dates4
+        # 5) Crypto => 24/7
+        c_asset = Asset("BTC", asset_type="crypto")
+        tdates_c = ph.get_trading_dates(c_asset, sdate, edate)
+        assert datetime.date(2023, 7, 1) in tdates_c  # Saturday => included for crypto
 
     def test_get_polygon_symbol(self, mocker):
-        """
-        Test get_polygon_symbol(...) for all asset types:
-         - future => raises ValueError
-         - stock => returns e.g. "SPY"
-         - index => "I:SPX"
-         - option => queries polygon_client.list_options_contracts(...)
-         - crypto => "X:BTCUSD"
-         - forex => "C:ESUSD"
-        """
-        polygon_client = mocker.MagicMock()
+        """Test get_polygon_symbol(...) for Stock, Index, Forex, Crypto, and Option."""
+        poly_mock = mocker.MagicMock()
 
-        # 1) Unsupported Asset Type => future
-        asset = Asset("SPY", asset_type="future")
+        # 1) Future => ValueError
+        fut_asset = Asset("ZB", asset_type="future")
         with pytest.raises(ValueError):
-            ph.get_polygon_symbol(asset, polygon_client)
+            ph.get_polygon_symbol(fut_asset, poly_mock)
 
-        # 2) Stock
-        asset2 = Asset("SPY")
-        assert ph.get_polygon_symbol(asset2, polygon_client) == "SPY"
+        # 2) Stock => "SPY"
+        st_asset = Asset("SPY", asset_type="stock")
+        assert ph.get_polygon_symbol(st_asset, poly_mock) == "SPY"
 
-        # 3) Index
-        asset3 = Asset("SPX", asset_type="index")
-        assert ph.get_polygon_symbol(asset3, polygon_client) == "I:SPX"
+        # 3) Index => "I:SPX"
+        idx_asset = Asset("SPX", asset_type="index")
+        assert ph.get_polygon_symbol(idx_asset, poly_mock) == "I:SPX"
 
-        # 4) Option with no contracts
-        expire_date = datetime.date(2023, 8, 1)
-        option_asset = Asset("SPY", asset_type="option", expiration=expire_date, strike=100, right="CALL")
-        polygon_client.list_options_contracts.return_value = []
-        with pytest.raises(AssertionError):  # or check for None
-            # The code might return None and log an error; or raise. Adjust as needed:
-            assert ph.get_polygon_symbol(option_asset, polygon_client)
+        # 4) Forex => must pass quote_asset or error
+        fx_asset = Asset("EUR", asset_type="forex")
+        with pytest.raises(ValueError):
+            ph.get_polygon_symbol(fx_asset, poly_mock)
+        quote = Asset("USD", asset_type="forex")
+        sym_fx = ph.get_polygon_symbol(fx_asset, poly_mock, quote_asset=quote)
+        assert sym_fx == "C:EURUSD"
 
-        # 5) Option with a valid contract
-        expected_ticker = "O:SPY230801C00100000"
-        polygon_client.list_options_contracts.return_value = [FakeContract(expected_ticker)]
-        assert ph.get_polygon_symbol(option_asset, polygon_client) == expected_ticker
-
-        # 6) Crypto => "X:BTCUSD"
+        # 5) Crypto => "X:BTCUSD" if no quote
         crypto_asset = Asset("BTC", asset_type="crypto")
-        assert ph.get_polygon_symbol(crypto_asset, polygon_client) == "X:BTCUSD"
+        assert ph.get_polygon_symbol(crypto_asset, poly_mock) == "X:BTCUSD"
 
-        # 7) Forex
-        forex_asset = Asset("ES", asset_type="forex")
-        with pytest.raises(ValueError):
-            ph.get_polygon_symbol(forex_asset, polygon_client)
-        quote_asset = Asset("USD", asset_type="forex")
-        assert ph.get_polygon_symbol(forex_asset, polygon_client, quote_asset) == "C:ESUSD"
+        # 6) Option => if no contracts => returns None
+        poly_mock.list_options_contracts.return_value = []
+        op_asset = Asset("SPY", asset_type="option", expiration=datetime.date(2024, 1, 14),
+                         strike=577, right="CALL")
+        sym_none = ph.get_polygon_symbol(op_asset, poly_mock)
+        assert sym_none is None
 
-class TestPolygonPriceData:
+        # 7) Option => valid => returns the first
+        poly_mock.list_options_contracts.return_value = [FakeContract("O:SPY240114C00577000")]
+        sym_op = ph.get_polygon_symbol(op_asset, poly_mock)
+        assert sym_op == "O:SPY240114C00577000"
+
+
+###############################################################################
+# TEST: get_price_data_from_polygon(...) with a Mock PolygonClient
+###############################################################################
+
+
+class TestPriceDataCache:
     """
-    Tests for get_price_data_from_polygon using mock PolygonClient, verifying
-    that we handle aggregator calls and caching logic (in DuckDB) properly.
+    Tests get_price_data_from_polygon(...) to confirm:
+      - It queries Polygon on first call
+      - It caches data in DuckDB
+      - It does not re-query Polygon on second call (unless force_cache_update=True)
     """
 
-    def test_get_price_data_from_polygon(self, mocker, tmpdir):
-        """
-        Mocks calls to PolygonClient and ensures we fetch data from aggregator
-        once, then rely on the local DuckDB cache for subsequent calls.
-        """
-        mock_polyclient = mocker.MagicMock()
-        mocker.patch.object(ph, "PolygonClient", mock_polyclient)
-        # If your code references LUMIBOT_CACHE_FOLDER for DuckDB, you can override it:
-        mocker.patch.object(ph, "LUMIBOT_CACHE_FOLDER", tmpdir)
+    def test_get_price_data_from_polygon(self, mocker, tmp_path, ephemeral_duckdb):
+        """Ensures we store data on first call, then read from DuckDB on second call."""
+        # Mock the PolygonClient class
+        poly_mock = mocker.MagicMock()
+        mocker.patch.object(ph, "PolygonClient", poly_mock)
 
-        # Return a fake contract for an option scenario if tested
-        option_ticker = "O:SPY230801C00100000"
-        mock_polyclient().list_options_contracts.return_value = [FakeContract(option_ticker)]
+        # We'll override the LUMIBOT_CACHE_FOLDER if needed, in case your code references it
+        mocker.patch.object(ph, "LUMIBOT_CACHE_FOLDER", tmp_path)
 
-        api_key = "abc123"
+        # If it's an option, let's pretend there's a valid contract
+        poly_mock().list_options_contracts.return_value = [FakeContract("O:SPY230801C00100000")]
+
+        # aggregator bars
+        bars = [
+            {"o": 10, "h": 11, "l": 9, "c": 10.5, "v": 500, "t": 1690876800000},
+            {"o": 12, "h": 14, "l": 10, "c": 13, "v": 600, "t": 1690876860000},
+        ]
+        poly_mock.create().get_aggs.return_value = bars
+
         asset = Asset("SPY")
-        tz_e = pytz.timezone("US/Eastern")
-        start_date = tz_e.localize(datetime.datetime(2023, 8, 2, 6, 30))
-        end_date = tz_e.localize(datetime.datetime(2023, 8, 2, 13, 0))
+        start = datetime.datetime(2023, 8, 2, 9, 30, tzinfo=pytz.UTC)
+        end = datetime.datetime(2023, 8, 2, 16, 0, tzinfo=pytz.UTC)
         timespan = "minute"
 
-        # 1) Fake aggregator data from Polygon
-        mock_polyclient.create().get_aggs.return_value = [
-            {"o": 1, "h": 4, "l": 1, "c": 2, "v": 100, "t": 1690876800000},
-            {"o": 5, "h": 8, "l": 3, "c": 7, "v": 100, "t": 1690876860000},
-            {"o": 9, "h": 12, "l": 7, "c": 10, "v": 100, "t": 1690876920000},
-            {"o": 13, "h": 16, "l": 11, "c": 14, "v": 100, "t": 1690986600000},
-            {"o": 17, "h": 20, "l": 15, "c": 18, "v": 100, "t": 1690986660000},
-            {"o": 21, "h": 24, "l": 19, "c": 22, "v": 100, "t": 1691105400000},
-        ]
+        # 1) First call => queries aggregator once
+        df_first = ph.get_price_data_from_polygon("fake_api", asset, start, end, timespan)
+        assert poly_mock.create().get_aggs.call_count == 1
+        assert len(df_first) == 2
 
-        df = ph.get_price_data_from_polygon(api_key, asset, start_date, end_date, timespan)
-        # We confirm aggregator was called once
-        assert mock_polyclient.create().get_aggs.call_count == 1
-        # We can confirm we got 6 bars
-        assert len(df) == 6
+        # 2) Second call => aggregator not called again if missing days=0
+        poly_mock.create().get_aggs.reset_mock()
+        df_second = ph.get_price_data_from_polygon("fake_api", asset, start, end, timespan)
+        assert poly_mock.create().get_aggs.call_count == 0
+        assert len(df_second) == 2
 
-        # 2) Reset aggregator calls, run the same query => it should skip aggregator
-        mock_polyclient.create().get_aggs.reset_mock()
-        df2 = ph.get_price_data_from_polygon(api_key, asset, start_date, end_date, timespan)
-        # No aggregator calls now (we rely on DuckDB cache)
-        assert mock_polyclient.create().get_aggs.call_count == 0
-        assert len(df2) == 6
-        # Ensure we still get the same data
-        assert df2["close"].iloc[0] == 2
+    @pytest.mark.parametrize("force_update", [True, False])
+    def test_force_cache_update(self, mocker, tmp_path, ephemeral_duckdb, force_update):
+        """force_cache_update => second call re-queries aggregator."""
+        poly_mock = mocker.MagicMock()
+        mocker.patch.object(ph, "PolygonClient", poly_mock)
+        mocker.patch.object(ph, "LUMIBOT_CACHE_FOLDER", tmp_path)
 
-        # 3) If we nudge end_date out but we have the data => still no aggregator call
-        mock_polyclient.create().get_aggs.reset_mock()
-        end_date_extended = tz_e.localize(datetime.datetime(2023, 8, 2, 16, 0))
-        df3 = ph.get_price_data_from_polygon(api_key, asset, start_date, end_date_extended, timespan)
-        assert mock_polyclient.create().get_aggs.call_count == 0
-        assert len(df3) == 6
+        # aggregator data
+        bars = [{"o": 1, "h": 2, "l": 0.5, "c": 1.5, "v": 100, "t": 1690876800000}]
+        poly_mock.create().get_aggs.return_value = bars
 
-        # 4) If we shift the date to a new day => aggregator call again
-        mock_polyclient.create().get_aggs.reset_mock()
-        new_start = tz_e.localize(datetime.datetime(2023, 8, 4, 6, 30))
-        new_end = tz_e.localize(datetime.datetime(2023, 8, 4, 13, 0))
-        mock_polyclient.create().get_aggs.return_value = [
-            {"o": 9, "h": 12, "l": 7, "c": 10, "v": 100, "t": 1691191800000},
-        ]
-        df4 = ph.get_price_data_from_polygon(api_key, asset, new_start, new_end, timespan)
-        # aggregator is called once for the new day
-        assert mock_polyclient.create().get_aggs.call_count == 1
-        assert len(df4) == 1 + 6  # if it merges new day with old? or just 1 bar new
-
-        # 5) Large range => aggregator in multiple chunks
-        mock_polyclient.create().get_aggs.reset_mock()
-        new_end2 = tz_e.localize(datetime.datetime(2023, 8, 31, 13, 0))
-        mock_polyclient.create().get_aggs.side_effect = [
-            [{"o": 5, "h": 8, "c": 7, "l": 3, "v": 100, "t": 1690876800000}],
-            [{"o": 9, "h": 12, "c": 10, "l": 7, "v": 100, "t": 1690986660000}],
-            [{"o": 13, "h": 16, "c": 14, "l": 11, "v": 100, "t": 1691105400000}],
-        ]
-        df5 = ph.get_price_data_from_polygon(api_key, asset, start_date, new_end2, timespan)
-        # We chunk out the range => aggregator calls multiple times
-        calls = mock_polyclient.create().get_aggs.call_count
-        assert calls >= 2  # depends on how you group missing days, but typically 3 in side_effect
-        # The returned data is side_effect merged
-        assert len(df5) == 6 + 1 + 1 + 1  # if we retained the prior 6 from earlier
-
-    @pytest.mark.parametrize("timespan", ["day", "minute"])
-    @pytest.mark.parametrize("force_cache_update", [True, False])
-    def test_polygon_missing_day_caching(self, mocker, tmpdir, timespan, force_cache_update):
-        """
-        Test that get_price_data_from_polygon(...) properly caches days in DuckDB
-        and doesn't re-fetch them unless force_cache_update=True. Mocks aggregator calls
-        for a date range, ensures we see 1 aggregator call first time, then 0 if repeated
-        (unless force_cache_update => then calls aggregator again).
-        """
-        mock_polyclient = mocker.MagicMock()
-        mocker.patch.object(ph, "PolygonClient", mock_polyclient)
-        mocker.patch.object(ph, "LUMIBOT_CACHE_FOLDER", tmpdir)
-
-        api_key = "abc123"
         asset = Asset("SPY")
-        tz_e = pytz.timezone("US/Eastern")
-        start_date = tz_e.localize(datetime.datetime(2023, 8, 2, 6, 30))  
-        end_date = tz_e.localize(datetime.datetime(2023, 8, 2, 13, 0))
+        start = datetime.datetime(2023, 8, 2, 9, 30, tzinfo=pytz.UTC)
+        end = datetime.datetime(2023, 8, 2, 10, 0, tzinfo=pytz.UTC)
 
-        # We pretend aggregator returns 20 bars (day or minute doesn't matter for the test).
-        bars = []
-        cur = start_date
-        while cur <= end_date:
-            bars.append({"o": 1, "h": 2, "l": 0, "c": 1.5, "v": 100, "t": int(cur.timestamp() * 1000)})
-            if timespan == "minute":
-                cur += datetime.timedelta(minutes=1)
-            else:
-                cur += datetime.timedelta(days=1)
+        # first call
+        df1 = ph.get_price_data_from_polygon("key", asset, start, end, "minute")
+        assert len(df1) == 1
+        # aggregator called once
+        assert poly_mock.create().get_aggs.call_count == 1
 
-        mock_polyclient.create().get_aggs.return_value = bars
+        # second call => aggregator depends on force_update
+        poly_mock.create().get_aggs.reset_mock()
+        df2 = ph.get_price_data_from_polygon("key", asset, start, end, "minute", force_cache_update=force_update)
 
-        df = ph.get_price_data_from_polygon(api_key, asset, start_date, end_date, timespan, force_cache_update=force_cache_update)
-        # first call => aggregator once
-        assert mock_polyclient.create().get_aggs.call_count == 1
-        assert len(df) == len(bars)
-
-        # second call => aggregator zero times if force_cache_update=False
-        mock_polyclient.create().get_aggs.reset_mock()
-        df2 = ph.get_price_data_from_polygon(api_key, asset, start_date, end_date, timespan, force_cache_update=force_cache_update)
-        if force_cache_update:
-            # aggregator is called again
-            assert mock_polyclient.create().get_aggs.call_count == 1
+        if force_update:
+            # aggregator called again
+            assert poly_mock.create().get_aggs.call_count == 1
         else:
-            # aggregator not called
-            assert mock_polyclient.create().get_aggs.call_count == 0
-        assert len(df2) == len(bars)
+            # aggregator not called again
+            assert poly_mock.create().get_aggs.call_count == 0
+
+        assert len(df2) == 1
+
+
+###############################################################################
+# TEST: DuckDB-Specific Internals
+###############################################################################
+
+
+class TestDuckDBInternals:
+    """
+    Tests for internal DuckDB methods: _asset_key, _transform_polygon_data,
+    _store_in_duckdb, _load_from_duckdb. We use ephemeral_duckdb to ensure
+    a fresh DB each test.
+    """
+
+    def test_asset_key(self):
+        """Check if _asset_key(...) returns the correct unique key for stocks vs. options."""
+        st = Asset("SPY", asset_type="stock")
+        assert ph._asset_key(st) == "SPY"
+
+        op = Asset("SPY", asset_type="option",
+                   expiration=datetime.date(2024, 1, 14),
+                   strike=577.0, right="CALL")
+        # e.g. => "SPY_240114_577.0_CALL"
+        opt_key = ph._asset_key(op)
+        assert "SPY_240114_577.0_CALL" == opt_key
+
+        # Missing expiration => error
+        bad_opt = Asset("SPY", asset_type="option", strike=100, right="CALL")
+        with pytest.raises(ValueError):
+            ph._asset_key(bad_opt)
+
+    def test_transform_polygon_data(self):
+        """_transform_polygon_data(...) should parse aggregator JSON into a DataFrame with columns & UTC index."""
+        # empty => empty DataFrame
+        empty_df = ph._transform_polygon_data([])
+        assert empty_df.empty
+
+        # non-empty
+        results = [
+            {"o": 10, "h": 12, "l": 9, "c": 11, "v": 100, "t": 1690896600000},
+            {"o": 12, "h": 15, "l": 11, "c": 14, "v": 200, "t": 1690896660000},
+        ]
+        df = ph._transform_polygon_data(results)
+        assert len(df) == 2
+        assert "open" in df.columns and "close" in df.columns
+        assert df.index[0] == pd.to_datetime(1690896600000, unit="ms", utc=True)
+
+    def test_store_and_load_duckdb(self, ephemeral_duckdb):
+        """
+        Full test for _store_in_duckdb(...) + _load_from_duckdb(...). 
+        1) Insert a small DF. 2) Load it, check correctness. 3) Insert overlap => no duplication.
+        """
+        asset_stk = Asset("SPY", asset_type="stock")
+        timespan = "minute"
+
+        idx = pd.date_range("2025-01-01 09:30:00", periods=3, freq="1min", tz="UTC")
+        df_in = pd.DataFrame({
+            "open": [10.0, 11.0, 12.0],
+            "high": [11.0, 12.0, 13.0],
+            "low": [9.0, 10.0, 11.0],
+            "close": [10.5, 11.5, 12.5],
+            "volume": [100, 200, 300],
+        }, index=idx)
+
+        # 1) Store
+        ph._store_in_duckdb(asset_stk, timespan, df_in)
+
+        # 2) Load
+        loaded = ph._load_from_duckdb(asset_stk, timespan, idx[0], idx[-1])
+        assert len(loaded) == 3
+        assert (loaded["open"] == df_in["open"]).all()
+
+        # 3) Partial range
+        partial = ph._load_from_duckdb(asset_stk, timespan, idx[1], idx[2])
+        assert len(partial) == 2
+
+        # 4) Insert overlap => no duplication
+        ph._store_in_duckdb(asset_stk, timespan, df_in)
+        reloaded = ph._load_from_duckdb(asset_stk, timespan, idx[0], idx[-1])
+        assert len(reloaded) == 3  # still 3

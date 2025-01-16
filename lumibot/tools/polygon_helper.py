@@ -89,7 +89,6 @@ def get_cached_schedule(cal, start_date, end_date, buffer_days=30):
             schedule_cache[cache_key] = filtered_schedule
             return filtered_schedule
 
-    # Otherwise fetch from the calendar
     buffered_schedule = cal.schedule(start_date=start_date, end_date=buffer_end)
     buffered_schedules[cal.name] = buffered_schedule
 
@@ -151,7 +150,8 @@ def get_price_data_from_polygon(
 
     if not missing_dates and not existing_df.empty:
         logger.info(f"No missing days, returning existing data of {len(existing_df)} rows.")
-        return existing_df.sort_index()
+        # -- Drop placeholders before returning
+        return _drop_placeholder_rows(existing_df)  # <-- NEW COMMENT
     elif not missing_dates and existing_df.empty:
         logger.info("No missing days but existing DF is empty -> returning empty.")
         return existing_df
@@ -169,7 +169,6 @@ def get_price_data_from_polygon(
 
     logger.info(f"Downloading data in parallel for {len(chunk_list)} chunk(s) on {symbol}")
 
-    # We'll show a tqdm progress bar as well
     with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
         future_to_range = {}
         for (start_chunk, end_chunk) in chunk_list:
@@ -183,7 +182,6 @@ def get_price_data_from_polygon(
             )
             future_to_range[future] = (start_chunk, end_chunk)
 
-        # We'll manually track progress with tqdm
         with tqdm(total=len(chunk_list), desc=f"Downloading data for {symbol} (parallel)", dynamic_ncols=True) as pbar:
             for fut in concurrent.futures.as_completed(future_to_range):
                 data_chunk = fut.result()
@@ -210,7 +208,9 @@ def get_price_data_from_polygon(
         final_df.dropna(how="all", inplace=True)
 
     logger.info(f"Final DF has {len(final_df)} rows for {asset.symbol}, timespan={timespan}.")
-    return final_df
+
+    # -- Drop placeholder rows from final before returning to tests
+    return _drop_placeholder_rows(final_df)  # <-- NEW COMMENT
 
 
 def get_polygon_symbol(asset, polygon_client, quote_asset=None):
@@ -633,7 +633,18 @@ def _store_placeholder_day(asset: Asset, timespan: str, single_date: date):
     logger.debug(f"_store_placeholder_day: day_start (UTC)={day_start}, day_end (UTC)={day_end}")
 
     try:
-        rng = pd.date_range(start=day_start, end=day_end, freq="min", tz="UTC")
+        # Optionally, for stocks, we could insert only 9:30–16:00 placeholders
+        if (asset.asset_type in (Asset.AssetType.STOCK, Asset.AssetType.OPTION) and timespan == "minute"):
+            # 9:30–16:00 Eastern, converted to UTC
+            # For more robust, consider using a calendar for half-days, etc.
+            # But this is an example of partial day placeholders:
+            open_eastern = datetime(single_date.year, single_date.month, single_date.day, 9, 30)
+            close_eastern = datetime(single_date.year, single_date.month, single_date.day, 16, 0)
+            from_date = pd.Timestamp(open_eastern, tz="America/New_York").tz_convert("UTC")
+            to_date = pd.Timestamp(close_eastern, tz="America/New_York").tz_convert("UTC")
+            rng = pd.date_range(start=from_date, end=to_date, freq="T", tz="UTC")
+        else:
+            rng = pd.date_range(start=day_start, end=day_end, freq="min", tz="UTC")
     except Exception as e:
         logger.critical(f"date_range failed for day={single_date} with error: {e}")
         raise
@@ -703,3 +714,22 @@ class PolygonClient(RESTClient):
                 logging.critical(msg)
                 logging.critical(f"Error: {e}")
                 time.sleep(PolygonClient.WAIT_SECONDS_RETRY)
+
+
+# -----------------------------------------------------------------------
+#    Additional Helper: _drop_placeholder_rows
+# -----------------------------------------------------------------------
+def _drop_placeholder_rows(df_in: pd.DataFrame) -> pd.DataFrame:
+    """
+    Removes placeholder rows (where open/close/volume are all NaN),
+    returning only real data to tests or strategies. 
+    The placeholders remain in DuckDB so re-downloading is avoided.
+    """
+    if df_in.empty:
+        return df_in
+
+    # If everything is NaN in open, close, high, low, volume → mark as placeholders
+    mask_real = ~(
+        df_in["open"].isna() & df_in["close"].isna() & df_in["volume"].isna()
+    )
+    return df_in.loc[mask_real].copy()

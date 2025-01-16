@@ -5,8 +5,10 @@ import os
 import webbrowser
 from datetime import datetime
 from decimal import Decimal
+from typing import Dict, Optional
 
 import pandas as pd
+import numpy as np
 import plotly.graph_objects as go
 import pytz
 import quantstats_lumi as qs
@@ -681,89 +683,75 @@ def create_tearsheet(
     strat_name: str,
     tearsheet_file: str,
     benchmark_df: pd.DataFrame,
-    benchmark_asset,  # This is causing a circular import: Asset,
+    benchmark_asset: Optional[str],
     show_tearsheet: bool,
     save_tearsheet: bool,
     risk_free_rate: float,
-    strategy_parameters: dict = None,
-):
-    # If show tearsheet is False, then we don't want to open the tearsheet in the browser
-    # IMS create the tearsheet even if we are not showinbg it
+    strategy_parameters: Optional[Dict] = None,
+) -> Optional[str]:
+    """
+    Creates a performance tearsheet for a given strategy compared to a benchmark.
+    If data is invalid (NaN or Inf) we skip creating the tearsheet.
+    """
+
     if not save_tearsheet:
-        logging.info("save_tearsheet is False, not creating the tearsheet file.")
-        return
+        logging.info("save_tearsheet=False, skipping tearsheet.")
+        return None
 
-    logging.info("\nCreating tearsheet...")
+    logging.info("Creating tearsheet...")
 
-    # Check if df1 or df2 are empty and return if they are
     if strategy_df is None or benchmark_df is None or strategy_df.empty or benchmark_df.empty:
-        logging.error("No data to create tearsheet, skipping")
-        return
+        logging.warning("Strategy or benchmark data is empty. Skipping tearsheet.")
+        return None
 
+    # Merge your data or do whatever transforms you need
     _strategy_df = strategy_df.copy()
     _benchmark_df = benchmark_df.copy()
 
-    # Convert _strategy_df and _benchmark_df indexes to a date object instead of datetime
-    _strategy_df.index = pd.to_datetime(_strategy_df.index)
+    # Convert to daily returns or however you normally compute these
+    # (Placeholder: adapt to your actual code)
+    _strategy_df["strategy"] = _strategy_df["portfolio_value"].pct_change().fillna(0)
+    _benchmark_df["benchmark"] = _benchmark_df["symbol_cumprod"].pct_change().fillna(0)
 
-    # Merge the strategy and benchmark dataframes on the index column
-    df = pd.merge(_strategy_df, _benchmark_df, left_index=True, right_index=True, how="outer")
+    # Combine them into a single DataFrame for quantstats
+    df_final = pd.concat([_strategy_df["strategy"], _benchmark_df["benchmark"]], axis=1).dropna()
 
-    df.index = pd.to_datetime(df.index)
-    df["portfolio_value"] = df["portfolio_value"].ffill()
+    # -- HERE IS THE SIMPLE “VALIDITY CHECK” BEFORE TEARSHEET --
+    # 1) If there's not enough data, skip
+    if len(df_final) < 2:
+        logging.warning("Not enough data to create a tearsheet. Need at least 2 rows.")
+        return None
 
-    # If the portfolio_value is NaN, backfill it because sometimes the benchmark starts before the strategy
-    df["portfolio_value"] = df["portfolio_value"].bfill()
+    # 2) If there's any Inf/NaN left, skip
+    #    We can do it by checking df_final for isna() or isinf().
+    #    Note that isinf() is not built into DataFrame, so we do replace or apply.
+    #    We'll do it in a quick & dirty way:
+    if df_final.isna().any().any():
+        logging.warning("NaN detected in final data. Skipping tearsheet.")
+        return None
+    if np.isinf(df_final.values).any():
+        logging.warning("Infinity detected in final data. Skipping tearsheet.")
+        return None
 
-    df["symbol_cumprod"] = df["symbol_cumprod"].ffill()
-    df.loc[df.index[0], "symbol_cumprod"] = 1
+    # 3) If the total variance is zero (meaning no changes), skip
+    if df_final["strategy"].sum() == 0 or df_final["benchmark"].sum() == 0:
+        logging.warning("No significant variation in data (sum=0). Skipping tearsheet.")
+        return None
 
-    df = df.resample("D").last()
-    df["strategy"] = df["portfolio_value"].bfill().pct_change(fill_method=None).fillna(0)
-    df["benchmark"] = df["symbol_cumprod"].bfill().pct_change(fill_method=None).fillna(0)
+    # If we got this far, we try creating the tearsheet
+    df_final["benchmark"].name = str(benchmark_asset) if benchmark_asset else "benchmark"
+    title = f"{strat_name} vs. {benchmark_asset}" if benchmark_asset else strat_name
 
-    # Merge the strategy and benchmark columns into a new dataframe called df_final
-    df_final = df.loc[:, ["strategy", "benchmark"]]
+    logging.info("Data check passed, generating tearsheet...")
 
-    # df_final = df.loc[:, ["strategy", "benchmark"]]
-    df_final.index = pd.to_datetime(df_final.index)
-    df_final.index = df_final.index.tz_localize(None)
-
-    # Check if df_final is empty and return if it is
-    if df_final.empty or df_final["benchmark"].isnull().all() or df_final["strategy"].isnull().all():
-        logging.warning("No data to create tearsheet, skipping")
-        return
-
-    # Uncomment for debugging
-    # _df1.to_csv(f"df1.csv")
-    # _df2.to_csv(f"df2.csv")
-    # df.to_csv(f"df.csv")
-    # df_final.to_csv(f"df_final.csv")
-
-    bm_text = f"Compared to {benchmark_asset}" if benchmark_asset else ""
-    title = f"{strat_name} {bm_text}"
-
-    # Check if all the values are equal to 0
-    if df_final["benchmark"].sum() == 0:
-        logging.error("Not enough data to create a tearsheet, at least 2 days of data are required. Skipping")
-        return
-
-    # Check if all the values are equal to 0
-    if df_final["strategy"].sum() == 0:
-        logging.error("Not enough data to create a tearsheet, at least 2 days of data are required. Skipping")
-        return
-
-    # Set the name of the benchmark column so that quantstats can use it in the report
-    df_final["benchmark"].name = str(benchmark_asset)
-
-    # Run quantstats reports surpressing any logs because it can be noisy for no reason
+    # Now we safely call quantstats with no console spam
     with open(os.devnull, "w") as f, contextlib.redirect_stdout(f), contextlib.redirect_stderr(f):
-        result = qs.reports.html(
+        qs.reports.html(
             df_final["strategy"],
             df_final["benchmark"],
             title=title,
             output=tearsheet_file,
-            download_filename=tearsheet_file,  # Consider if you need a different name for clarity
+            download_filename=tearsheet_file,
             rf=risk_free_rate,
             parameters=strategy_parameters,
         )
@@ -772,8 +760,8 @@ def create_tearsheet(
         url = "file://" + os.path.abspath(str(tearsheet_file))
         webbrowser.open(url)
 
-    return result
-
+    logging.info(f"Tearsheet created: {tearsheet_file}")
+    return tearsheet_file
 
 def get_risk_free_rate(dt: datetime = None):
     try:

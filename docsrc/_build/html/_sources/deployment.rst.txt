@@ -414,6 +414,9 @@ In addition to broker-specific secrets, the following environment variables are 
    * - **Secret**
      - **Description**
      - **Example**
+   * - LUMIWEALTH_API_KEY
+     - Your API key from the BotSpot.trade website so that you can track your bot's performance. To get this API key, visit the `BotSpot.trade <https://botspot.trade/>`_ website and add/create a bot. After creating the bot, you will receive an API key.
+     - 694rr2c8d9234b43a40fab494a79f5634ghd4f39d44ccf2e
    * - LIVE_CONFIG
      - Your live config file, only needed for strategies that have multiple configurations (there will be a folder named "configurations" in the src/ folder) and if you are running the strategy live.
      - paper_1

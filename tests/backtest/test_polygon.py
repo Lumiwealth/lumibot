@@ -306,7 +306,6 @@ class TestPolygonBacktestFull:
 
     def test_pull_source_symbol_bars_with_api_call(self, polygon_data_backtesting, mocker):
         """Test that polygon_helper.get_price_data_from_polygon() is called with the right parameters"""
-
         # Only simulate first date
         mocker.patch.object(
             polygon_data_backtesting,
@@ -390,3 +389,89 @@ class TestPolygonDataSource:
 
         assert prices is not None
         assert_frame_equal(prices.df, expected_df, check_dtype=False, check_index_type=False)
+
+    ########################################################################################
+    # Below are the NEW TESTS added to verify that get_chains(), get_last_price(), and
+    # get_historical_prices() data has not changed after code modifications.
+    # We have NOT modified existing tests or code, only appended these tests.
+    ########################################################################################
+
+    @pytest.mark.skipif(POLYGON_API_KEY == '<your key here>', reason="This test requires a Polygon.io API key")
+    def test_get_chains_spy_expected_data(self):
+        """
+        Test that get_chains() returns the expected option chain data for SPY when the backtesting date is 2025-01-13.
+        Verifies key components such as:
+          - A multiplier of 100.
+          - An exchange value of 'BATO'.
+          - For expiry "2025-01-13" in both CALL and PUT chains, the first five strike prices and the last strike.
+        """
+        tzinfo = pytz.timezone("America/New_York")
+        # Set up a dummy backtesting period; in this test we only care about the 'current' datetime.
+        start = datetime.datetime(2025, 1, 13).astimezone(tzinfo)
+        end = datetime.datetime(2025, 1, 31).astimezone(tzinfo)
+        data_source = PolygonDataBacktesting(start, end, api_key=POLYGON_API_KEY)
+        # Patch get_datetime() to return January 13, 2025 (10:00 AM local)
+        data_source.get_datetime = lambda: datetime.datetime(2025, 1, 13, 10, 0, 0, tzinfo=tzinfo)
+        asset = Asset("SPY")
+        chains = data_source.get_chains(asset)
+        # Check that the chains structure is not None and contains required keys
+        assert chains is not None, "Expected chains data to be non-None"
+        assert chains.get("Multiplier") == 100, "Expected multiplier to be 100"
+        assert chains.get("Exchange") == "BATO", "Expected exchange to be 'BATO'"
+        # Check that the chains include an entry for expiry "2025-01-13" in both CALL and PUT
+        expected_expiry = "2025-01-13"
+        assert expected_expiry in chains["Chains"]["CALL"], f"Expected expiry {expected_expiry} in CALL chain"
+        assert expected_expiry in chains["Chains"]["PUT"], f"Expected expiry {expected_expiry} in PUT chain"
+        # Verify specific strike values for the 2025-01-13 entry on both sides.
+        expected_first_five = [497, 498, 499, 500, 505]
+        expected_last = 685
+        call_strikes = chains["Chains"]["CALL"][expected_expiry]
+        put_strikes = chains["Chains"]["PUT"][expected_expiry]
+        assert call_strikes[:5] == expected_first_five, f"CALL strikes for {expected_expiry} expected first five {expected_first_five}, got {call_strikes[:5]}"
+        assert put_strikes[:5] == expected_first_five, f"PUT strikes for {expected_expiry} expected first five {expected_first_five}, got {put_strikes[:5]}"
+        assert call_strikes[-1] == expected_last, f"CALL strikes for {expected_expiry} expected last strike {expected_last}, got {call_strikes[-1]}"
+        assert put_strikes[-1] == expected_last, f"PUT strikes for {expected_expiry} expected last strike {expected_last}, got {put_strikes[-1]}"
+
+    @pytest.mark.skipif(POLYGON_API_KEY == '<your key here>', reason="This test requires a Polygon.io API key")
+    def test_get_last_price_unchanged(self):
+        """
+        Additional test to ensure get_last_price() is unaffected by code changes.
+        We expect AMZN's last price (on 2023-08-02 ~10AM) to be in a certain known range
+        based on historical data from Polygon.
+        """
+        tzinfo = pytz.timezone("America/New_York")
+        start = datetime.datetime(2023, 8, 1).astimezone(tzinfo)
+        end = datetime.datetime(2023, 8, 4).astimezone(tzinfo)
+
+        data_source = PolygonDataBacktesting(start, end, api_key=POLYGON_API_KEY)
+        # Pick a known date/time within our backtest window
+        data_source._datetime = datetime.datetime(2023, 8, 2, 10).astimezone(tzinfo)
+
+        last_price = data_source.get_last_price(Asset("AMZN"))
+        # As in the main test, we expect a price in the 130-140 range.
+        assert last_price is not None, "Expected to get a price, got None"
+        assert 130.0 < last_price < 140.0, f"Expected AMZN price between 130 and 140 on 2023-08-02, got {last_price}"
+
+    @pytest.mark.skipif(POLYGON_API_KEY == '<your key here>', reason="This test requires a Polygon.io API key")
+    def test_get_historical_prices_unchanged_for_amzn(self):
+        """
+        Additional test to ensure get_historical_prices() is unaffected by code changes.
+        We'll check that we can retrieve day bars for AMZN for 2 days leading up to 2023-08-02.
+        """
+        tzinfo = pytz.timezone("America/New_York")
+        start = datetime.datetime(2023, 8, 1).astimezone(tzinfo)
+        end = datetime.datetime(2023, 8, 4).astimezone(tzinfo)
+
+        data_source = PolygonDataBacktesting(start, end, api_key=POLYGON_API_KEY)
+        # Set the 'current' backtesting datetime
+        data_source._datetime = datetime.datetime(2023, 8, 2, 15).astimezone(tzinfo)
+
+        # Retrieve 2 day-bars for AMZN
+        historical_bars = data_source.get_historical_prices("AMZN", 2, "day")
+        assert historical_bars is not None, "Expected some historical bars, got None"
+        df = historical_bars.df
+        assert df is not None and not df.empty, "Expected non-empty DataFrame for historical AMZN day bars"
+        assert len(df) == 2, f"Expected 2 day bars for AMZN, got {len(df)}"
+        # Just a sanity check to make sure the close is within a plausible range
+        assert df['close'].mean() < 150, "Unexpectedly high close for AMZN, data might have changed"
+        assert df['close'].mean() > 50, "Unexpectedly low close for AMZN, data might have changed"

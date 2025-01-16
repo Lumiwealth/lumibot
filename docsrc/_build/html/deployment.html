@@ -855,35 +855,39 @@
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p>LIVE_CONFIG</p></td>
+<tr class="row-even"><td><p>LUMIWEALTH_API_KEY</p></td>
+<td><p>Your API key from the BotSpot.trade website so that you can track your bot’s performance. To get this API key, visit the <a class="reference external" href="https://botspot.trade/">BotSpot.trade</a> website and add/create a bot. After creating the bot, you will receive an API key.</p></td>
+<td><p>694rr2c8d9234b43a40fab494a79f5634ghd4f39d44ccf2e</p></td>
+</tr>
+<tr class="row-odd"><td><p>LIVE_CONFIG</p></td>
 <td><p>Your live config file, only needed for strategies that have multiple configurations (there will be a folder named “configurations” in the src/ folder) and if you are running the strategy live.</p></td>
 <td><p>paper_1</p></td>
 </tr>
-<tr class="row-odd"><td><p>IS_BACKTESTING</p></td>
+<tr class="row-even"><td><p>IS_BACKTESTING</p></td>
 <td><p><strong>(Optional)</strong> Set to <strong>“True”</strong> to run the strategy in backtesting mode, set to <strong>“False”</strong> to run the strategy live (defaults to False).</p></td>
 <td><p>False</p></td>
 </tr>
-<tr class="row-even"><td><p>POLYGON_API_KEY</p></td>
+<tr class="row-odd"><td><p>POLYGON_API_KEY</p></td>
 <td><p><strong>(Optional)</strong> Your API key from your Polygon account, only needed if you are backtesting.</p></td>
 <td><p>a7py0zIdhxde6QkX8OjjKNp7cD87hwKU</p></td>
 </tr>
-<tr class="row-odd"><td><p>DISCORD_WEBHOOK_URL</p></td>
+<tr class="row-even"><td><p>DISCORD_WEBHOOK_URL</p></td>
 <td><p><strong>(Optional)</strong> Your Discord webhook URL, only needed if you want to send notifications to Discord. Learn how to get a Discord webhook URL here: <a class="reference external" href="https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks">Discord Webhooks</a></p></td>
 <td><p><a class="reference external" href="https://discord.com/api/webhooks/123456789/">https://discord.com/api/webhooks/123456789/</a></p></td>
 </tr>
-<tr class="row-even"><td><p>DB_CONNECTION_STR</p></td>
+<tr class="row-odd"><td><p>DB_CONNECTION_STR</p></td>
 <td><p><strong>(Optional)</strong> Your connection string to your account history database, only needed if you want to save your account history to a database.</p></td>
 <td><p>sqlite:///account_history.db</p></td>
 </tr>
-<tr class="row-odd"><td><p>STRATEGY_NAME</p></td>
+<tr class="row-even"><td><p>STRATEGY_NAME</p></td>
 <td><p><strong>(Optional)</strong> The name of the strategy. This will change the strategy_id in the database and in the Discord messages.</p></td>
 <td><p>My Strategy</p></td>
 </tr>
-<tr class="row-even"><td><p>MARKET</p></td>
+<tr class="row-odd"><td><p>MARKET</p></td>
 <td><p><strong>(Optional)</strong> The market you want the bot to think it is. Eg. “24/7” will make the bot think it is trading in a 24/7 market.</p></td>
 <td><p>24/7</p></td>
 </tr>
-<tr class="row-odd"><td><p>POLYGON_MAX_MEMORY_BYTES</p></td>
+<tr class="row-even"><td><p>POLYGON_MAX_MEMORY_BYTES</p></td>
 <td><p><strong>(Optional)</strong> The maximum memory in bytes that the Polygon API can use. This is useful for limiting memory usage during backtesting.</p></td>
 <td><p>512000000</p></td>
 </tr>

@@ -1,6 +1,7 @@
 import logging
 import os
 import pickle
+import time
 from datetime import datetime, timedelta
 
 import pandas as pd
@@ -11,6 +12,7 @@ from lumibot import LUMIBOT_CACHE_FOLDER, LUMIBOT_DEFAULT_PYTZ
 from .helpers import get_lumibot_datetime
 
 INFO_DATA = "info"
+INVALID_SYMBOLS = set()
 
 
 class _YahooData:
@@ -91,6 +93,10 @@ class YahooHelper:
 
     @staticmethod
     def format_df(df, auto_adjust):
+        # Check if df is empty
+        if df is None or df.empty:
+            return df
+        
         if auto_adjust:
             del df["Adj Ratio"]
             del df["Close"]
@@ -169,41 +175,104 @@ class YahooHelper:
 
         return df["Close"].iloc[-1]
 
-    @staticmethod
     def download_symbol_data(symbol, interval="1d"):
-        ticker = yf.Ticker(symbol)
-        try:
-            if interval == "1m":
-                # Yahoo only supports 1 minute interval for past 7 days
-                df = ticker.history(interval=interval, start=get_lumibot_datetime() - timedelta(days=7), auto_adjust=False)
-            elif interval == "15m":
-                # Yahoo only supports 15 minute interval for past 60 days
-                df = ticker.history(interval=interval, start=get_lumibot_datetime() - timedelta(days=60), auto_adjust=False)
-            else:
-                df = ticker.history(interval=interval, period="max", auto_adjust=False)
-        except Exception as e:
-            logging.debug(f"Error while downloading symbol day data for {symbol}, returning empty dataframe for now.")
-            logging.debug(e)
+        """
+        Attempts to download historical data from yfinance for the specified symbol and interval.
+        Retries on empty/None data in case of transient rate limits.
+        If all attempts fail, marks the symbol as invalid (added to INVALID_SYMBOLS) to skip it in future.
+        If symbol info is unavailable, we just skip timezone adjustments (do not return None).
+        """
+
+        # If we've already marked this symbol invalid, skip further calls
+        if symbol in INVALID_SYMBOLS:
+            logging.debug(f"{symbol} is already marked invalid. Skipping yfinance calls.")
             return None
 
-        # Adjust the time when we are getting daily stock data to the beginning of the day
-        # This way the times line up when backtesting daily data
-        info = YahooHelper.get_symbol_info(symbol)
-        if info.get("info") and info.get("info").get("market") == "us_market":
-            # Check if the timezone is already set, if not set it to the default timezone
-            if df.index.tzinfo is None:
-                df.index = df.index.tz_localize(info.get("info").get("exchangeTimezoneName"))
-            else:
-                df.index = df.index.tz_convert(info.get("info").get("exchangeTimezoneName"))
-            df.index = df.index.map(lambda t: t.replace(hour=16, minute=0))
-        elif info.get("info") and info.get("info").get("market") == "ccc_market":
-            # Check if the timezone is already set, if not set it to the default timezone
-            if df.index.tzinfo is None:
-                df.index = df.index.tz_localize(info.get("info").get("exchangeTimezoneName"))
-            else:
-                df.index = df.index.tz_convert(info.get("info").get("exchangeTimezoneName"))
-            df.index = df.index.map(lambda t: t.replace(hour=23, minute=59))
+        ticker = yf.Ticker(symbol)
 
+        # --- HISTORICAL DATA RETRY LOGIC ---
+        max_retries = 3
+        sleep_sec = 1
+        df = None
+
+        for attempt in range(1, max_retries + 1):
+            try:
+                if interval == "1m":
+                    df = ticker.history(
+                        interval=interval,
+                        start=get_lumibot_datetime() - timedelta(days=7),
+                        auto_adjust=False
+                    )
+                elif interval == "15m":
+                    df = ticker.history(
+                        interval=interval,
+                        start=get_lumibot_datetime() - timedelta(days=60),
+                        auto_adjust=False
+                    )
+                else:
+                    df = ticker.history(
+                        interval=interval,
+                        period="max",
+                        auto_adjust=False
+                    )
+            except Exception as e:
+                logging.debug(f"{symbol}: Exception from ticker.history(): {e}")
+                if attempt < max_retries:
+                    logging.debug(f"{symbol}: Attempt {attempt} failed. Sleeping {sleep_sec}s, then retry.")
+                    time.sleep(sleep_sec)
+                    sleep_sec *= 2
+                    continue
+                else:
+                    logging.debug(f"{symbol}: All {max_retries} attempts failed. Marking invalid.")
+                    INVALID_SYMBOLS.add(symbol)
+                    return None
+
+            if df is None or df.empty:
+                logging.debug(f"{symbol}: Attempt {attempt} returned empty or None data.")
+                if attempt < max_retries:
+                    logging.debug(f"{symbol}: Sleeping {sleep_sec}s, then retry.")
+                    time.sleep(sleep_sec)
+                    sleep_sec *= 2
+                else:
+                    logging.debug(f"{symbol}: Data still empty after {max_retries} attempts. Marking invalid.")
+                    INVALID_SYMBOLS.add(symbol)
+                    return None
+            else:
+                # Successfully got data, so break out of the loop
+                break
+
+        # --- SYMBOL INFO (OPTIONAL) ---
+        info = None
+        try:
+            info = YahooHelper.get_symbol_info(symbol)
+        except Exception as e:
+            logging.debug(f"{symbol}: Exception from get_symbol_info(): {e}")
+
+        # If we have valid info, handle timezone adjustments.
+        # Using sub_info to avoid accessing .get() on None.
+        if info and isinstance(info, dict):
+            sub_info = info.get("info", {})
+            if isinstance(sub_info, dict):
+                market = sub_info.get("market", "")
+                tz_name = sub_info.get("exchangeTimezoneName", None)
+
+                # US market
+                if market == "us_market" and tz_name:
+                    if df.index.tzinfo is None:
+                        df.index = df.index.tz_localize(tz_name)
+                    else:
+                        df.index = df.index.tz_convert(tz_name)
+                    df.index = df.index.map(lambda t: t.replace(hour=16, minute=0))
+
+                # Crypto/CCC market
+                elif market == "ccc_market" and tz_name:
+                    if df.index.tzinfo is None:
+                        df.index = df.index.tz_localize(tz_name)
+                    else:
+                        df.index = df.index.tz_convert(tz_name)
+                    df.index = df.index.map(lambda t: t.replace(hour=23, minute=59))
+
+        # Finally, run any custom DataFrame processing
         df = YahooHelper.process_df(df, asset_info=info)
         return df
 

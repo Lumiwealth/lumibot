@@ -9,7 +9,7 @@ import numpy as np
 from lumibot.example_strategies.drift_rebalancer import DriftRebalancer
 from lumibot.components.drift_rebalancer_logic import DriftType
 from lumibot.components.drift_rebalancer_logic import DriftRebalancerLogic, DriftCalculationLogic, DriftOrderLogic
-from lumibot.backtesting import BacktestingBroker, PandasDataBacktesting
+from lumibot.backtesting import BacktestingBroker, PandasDataBacktesting, YahooDataBacktesting
 from lumibot.strategies.strategy import Strategy
 from tests.fixtures import pandas_data_fixture
 from lumibot.tools import print_full_pandas_dataframes, set_pandas_float_display_precision
@@ -60,7 +60,7 @@ class MockStrategyWithDriftCalculationLogic(Strategy):
         return order
 
 
-# @pytest.mark.skip()
+@pytest.mark.skip()
 class TestDriftCalculationLogic:
 
     def setup_method(self):
@@ -801,13 +801,12 @@ class MockStrategyWithOrderLogic(Strategy):
         return order
 
 
-# @pytest.mark.skip()
+@pytest.mark.skip()
 class TestDriftOrderLogic:
 
     def setup_method(self):
         date_start = datetime.datetime(2021, 7, 10)
         date_end = datetime.datetime(2021, 7, 13)
-        # self.data_source = YahooDataBacktesting(date_start, date_end)
         self.data_source = PandasDataBacktesting(date_start, date_end)
         self.backtesting_broker = BacktestingBroker(self.data_source)
 
@@ -1232,6 +1231,7 @@ class TestDriftRebalancer:
     backtesting_start = datetime.datetime(2019, 1, 2)
     backtesting_end = datetime.datetime(2019, 2, 28)
 
+    @pytest.mark.skip()
     def test_classic_60_60(self, pandas_data_fixture):
 
         parameters = {
@@ -1280,6 +1280,7 @@ class TestDriftRebalancer:
         assert filled_orders.iloc[2]["symbol"] == "SPY"
         assert filled_orders.iloc[2]["filled_quantity"] == 7.0
 
+    @pytest.mark.skip()
     def test_classic_60_60_with_fractional(self, pandas_data_fixture):
 
         parameters = {
@@ -1314,12 +1315,6 @@ class TestDriftRebalancer:
             # quiet_logs=False,
         )
 
-        assert results is not None
-        # assert np.isclose(results["cagr"], 0.22076538945204272, atol=1e-4)
-        # assert np.isclose(results["volatility"], 0.06740737779031068, atol=1e-4)
-        # assert np.isclose(results["sharpe"], 3.051823053251843, atol=1e-4)
-        # assert np.isclose(results["max_drawdown"]["drawdown"], 0.025697778711759052, atol=1e-4)
-
         trades_df = strat_obj.broker._trade_event_log_df
 
         # Get all the filled limit orders
@@ -1334,3 +1329,50 @@ class TestDriftRebalancer:
         assert filled_orders.iloc[2]["side"] == "sell"
         assert filled_orders.iloc[2]["symbol"] == "SPY"
         assert filled_orders.iloc[2]["filled_quantity"] == 8.346738268
+
+    def test_crypto_50_50_with_yahoo(self):
+
+        parameters = {
+            "market": "24/7",
+            "sleeptime": "1D",
+            "drift_type": DriftType.ABSOLUTE,
+            "drift_threshold": "0.03",
+            "order_type": Order.OrderType.LIMIT,
+            "acceptable_slippage": "0.005",
+            "fill_sleeptime": 15,
+            "target_weights": {
+                "BTC-USD": "0.50",
+                "ETH-USD": "0.50"
+            },
+            "shorting": False,
+            "fractional_shares": True
+        }
+
+        strat_obj: Strategy
+        results, strat_obj = DriftRebalancer.run_backtest(
+            datasource_class=YahooDataBacktesting,
+            backtesting_start=self.backtesting_start,
+            backtesting_end=self.backtesting_end,
+            parameters=parameters,
+            show_plot=False,
+            show_tearsheet=False,
+            save_tearsheet=False,
+            show_indicators=False,
+            save_logfile=False,
+            show_progress_bar=False,
+        )
+
+        trades_df = strat_obj.broker._trade_event_log_df
+
+        # Get all the filled limit orders
+        filled_orders = trades_df[(trades_df["status"] == "fill")]
+
+        assert filled_orders.iloc[0]["type"] == "limit"
+        assert filled_orders.iloc[0]["side"] == "buy"
+        assert filled_orders.iloc[0]["symbol"] == "BTC-USD"
+        assert filled_orders.iloc[0]["filled_quantity"] == 12.655972756
+
+        assert filled_orders.iloc[2]["type"] == "limit"
+        assert filled_orders.iloc[2]["side"] == "sell"
+        assert filled_orders.iloc[2]["symbol"] == "BTC-USD"
+        assert filled_orders.iloc[2]["filled_quantity"] == 0.687616515

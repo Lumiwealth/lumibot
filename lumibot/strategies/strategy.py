@@ -1695,7 +1695,7 @@ class Strategy(_Strategy):
         >>> base = Asset(symbol="BTC", asset_type="crypto")
         >>> quote = Asset(symbol="USD", asset_type="forex")
         >>> last_price = self.get_last_price(base, quote=quote)
-        >>> self.log_message(f"Last price for BTC/USDT is {last_price}")
+        >>> self.log_message(f"Last price for BTC/USD is {last_price}")
 
         >>> # Will return the last price for a futures asset
         >>> self.base = Asset(

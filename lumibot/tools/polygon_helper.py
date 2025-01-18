@@ -3,9 +3,10 @@ import logging
 import time
 from datetime import date, datetime, timedelta
 from pathlib import Path
-import os
 from urllib3.exceptions import MaxRetryError
 from urllib.parse import urlparse, urlunparse
+from collections import defaultdict
+from typing import Optional
 
 import pandas as pd
 import pandas_market_calendars as mcal
@@ -23,6 +24,11 @@ from lumibot.entities import Asset
 from lumibot import LUMIBOT_DEFAULT_PYTZ
 from lumibot.credentials import POLYGON_API_KEY
 
+# Adjust as desired, in days. We'll reuse any existing chain file
+# that is not older than RECENT_FILE_TOLERANCE_DAYS.
+RECENT_FILE_TOLERANCE_DAYS = 7
+
+# Maximum number of days to query in a single call to Polygon
 MAX_POLYGON_DAYS = 30
 
 # Define a cache dictionary to store schedules and a global dictionary for buffered schedules
@@ -444,7 +450,6 @@ def load_cache(cache_file):
 
     return df_feather
 
-
 def update_cache(cache_file, df_all, missing_dates=None):
     """Update the cache file with the new data.  Missing dates are added as empty (all NaN) 
     rows before it is saved to the cache file.
@@ -528,6 +533,161 @@ def update_polygon_data(df_all, result):
             df_all = df_all[~df_all.index.duplicated(keep="first")]  # Remove any duplicate rows
 
     return df_all
+
+def get_chains_cached(
+    api_key: str,
+    asset: Asset,
+    quote: Asset = None,
+    exchange: str = None,
+    current_date: date = None,
+    polygon_client: Optional["PolygonClient"] = None,
+) -> dict:
+    """
+    Retrieve an option chain for a given asset and historical date using Polygon, 
+    with caching to reduce repeated downloads during backtests.
+
+    Parameters
+    ----------
+    api_key : str
+        Polygon.io API key.
+    asset : Asset
+        The underlying asset for which to retrieve options data (e.g., Asset("NVDA")).
+    quote : Asset, optional
+        The quote asset, typically unused for stock options.
+    exchange : str, optional
+        The exchange to consider (e.g., "NYSE").
+    current_date : datetime.date, optional
+        The *historical* date of interest (e.g., 2022-01-08). If omitted, this function 
+        will return None immediately (no chain is fetched).
+    polygon_client : PolygonClient, optional
+        A reusable PolygonClient instance; if None, one will be created using the 
+        given api_key.
+
+    Returns
+    -------
+    dict or None
+        A dictionary matching the LumiBot "option chain" structure:
+        {
+            "Multiplier": int,              # typically 100
+            "Exchange": str,                # e.g., "NYSE"
+            "Chains": {
+                "CALL": {
+                    "YYYY-MM-DD": [strike1, strike2, ...],
+                    ...
+                },
+                "PUT": {
+                    "YYYY-MM-DD": [...],
+                    ...
+                }
+            }
+        }
+        If no current_date is specified, returns None instead.
+
+    Notes
+    -----
+    1) We do *not* use the real system date in this function because it is purely 
+       historical/backtest-oriented.
+    2) If a suitable chain file from within RECENT_FILE_TOLERANCE_DAYS of current_date 
+       exists, it is reused directly.
+    3) Otherwise, the function downloads fresh data from Polygon, then saves it under 
+       `LUMIBOT_CACHE_FOLDER/polygon/option_chains/{symbol}_{date}.feather`.
+    4) By default, we fetch both 'expired=True' and 'expired=False', so you get 
+       historical + near-future options for your specified date.
+    """
+    logging.debug(f"get_chains_cached called for {asset.symbol} on {current_date}")
+
+    # 1) If current_date is None => bail out (no real date to query).
+    if current_date is None:
+        logging.debug("No current_date provided; returning None.")
+        return None
+
+    # 2) Ensure we have a PolygonClient
+    if polygon_client is None:
+        logging.debug("No polygon_client provided; creating a new one.")
+        polygon_client = PolygonClient.create(api_key=api_key)
+
+    # 3) Build the chain folder path and create if not present
+    chain_folder = Path(LUMIBOT_CACHE_FOLDER) / "polygon" / "option_chains"
+    chain_folder.mkdir(parents=True, exist_ok=True)
+
+    # 4) Attempt to find a suitable recent file (reuse it if found)
+    earliest_okay_date = current_date - timedelta(days=RECENT_FILE_TOLERANCE_DAYS)
+    pattern = f"{asset.symbol}_*.feather"
+    potential_files = sorted(chain_folder.glob(pattern), reverse=True)
+
+    for fpath in potential_files:
+        fname = fpath.stem  # e.g. "NVDA_2022-01-06"
+        parts = fname.split("_", maxsplit=1)
+        if len(parts) != 2:
+            continue
+        file_symbol, date_str = parts
+        if file_symbol != asset.symbol:
+            continue
+
+        try:
+            file_date = date.fromisoformat(date_str)
+        except ValueError:
+            continue
+
+        # If file_date is recent enough, reuse it
+        if earliest_okay_date <= file_date <= current_date:
+            logging.debug(
+                f"Reusing chain file {fpath} (file_date={file_date}), "
+                f"within {RECENT_FILE_TOLERANCE_DAYS} days of {current_date}."
+            )
+            df_cached = pd.read_feather(fpath)
+            return df_cached["data"][0]
+
+    # 5) No suitable file => must fetch from Polygon
+    logging.debug(
+        f"No suitable recent file found for {asset.symbol} on {current_date}. "
+        "Downloading from Polygon..."
+    )
+
+    option_contracts = {
+        "Multiplier": None,
+        "Exchange": None,
+        "Chains": {"CALL": defaultdict(list), "PUT": defaultdict(list)},
+    }
+
+    # 6) We do not use real "today" at all. By default, let's fetch both expired & unexpired 
+    #    to ensure we get all relevant strikes near that historical date.
+    expired_list = [True, False]
+
+    polygon_contracts = []
+    for expired in expired_list:
+        contracts_gen = polygon_client.list_options_contracts(
+            underlying_ticker=asset.symbol,
+            expiration_date_gte=current_date,
+            expired=expired,
+            limit=1000,
+        )
+        polygon_contracts.extend(list(contracts_gen))
+
+    # 7) Build the dictionary
+    for c in polygon_contracts:
+        if c.shares_per_contract != 100:
+            continue
+
+        exg = c.primary_exchange
+        right = c.contract_type.upper()  # "CALL" or "PUT"
+        exp_date = c.expiration_date     # "YYYY-MM-DD"
+        strike = c.strike_price
+
+        option_contracts["Multiplier"] = c.shares_per_contract
+        option_contracts["Exchange"] = exg
+        option_contracts["Chains"][right][exp_date].append(strike)
+
+    # 8) Save to a new file for future reuse
+    cache_file = chain_folder / f"{asset.symbol}_{current_date.isoformat()}.feather"
+    df_to_cache = pd.DataFrame({"data": [option_contracts]})
+    df_to_cache.to_feather(cache_file)
+    logging.debug(
+        f"Download complete for {asset.symbol} on {current_date}. "
+        f"Saved chain file to {cache_file}"
+    )
+
+    return option_contracts
 
 
 class PolygonClient(RESTClient):

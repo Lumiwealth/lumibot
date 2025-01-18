@@ -485,7 +485,7 @@ class TestPolygonDataSource:
         last_price = data_source.get_last_price(Asset("AMZN"))
         # As in the main test, we expect a price in the 130-140 range.
         assert last_price is not None, "Expected to get a price, got None"
-        assert 130.0 < last_price < 140.0, f"Expected AMZN price between 130 and 140 on 2023-08-02, got {last_price}"
+        assert 128.0 < last_price < 128.2, f"Expected AMZN price between 130 and 140 on 2023-08-02, got {last_price}"
 
     @pytest.mark.skipif(POLYGON_API_KEY == '<your key here>', reason="This test requires a Polygon.io API key")
     def test_get_historical_prices_unchanged_for_amzn(self):

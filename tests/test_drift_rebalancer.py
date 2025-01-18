@@ -915,7 +915,7 @@ class TestDriftOrderLogic:
         assert strategy.orders[0].quantity == Decimal("5")
         assert strategy.orders[0].type == Order.OrderType.MARKET
 
-    def test_selling_short_doesnt_create_and_order_when_shorting_is_disabled(self):
+    def test_selling_short_doesnt_create_an_order_when_shorting_is_disabled(self):
         strategy = MockStrategyWithOrderLogic(
             broker=self.backtesting_broker,
             order_type=Order.OrderType.LIMIT
@@ -933,7 +933,7 @@ class TestDriftOrderLogic:
         strategy.order_logic.rebalance(drift_df=df)
         assert len(strategy.orders) == 0
 
-    def test_selling_small_short_position_creates_and_order_when_shorting_is_enabled(self):
+    def test_selling_small_short_position_creates_an_order_when_shorting_is_enabled(self):
         strategy = MockStrategyWithOrderLogic(
             broker=self.backtesting_broker,
             order_type=Order.OrderType.LIMIT,
@@ -1004,6 +1004,76 @@ class TestDriftOrderLogic:
         assert len(strategy.orders) == 1
         assert strategy.orders[0].quantity == Decimal("10")
         assert strategy.orders[0].side == "sell"
+        assert strategy.orders[0].type == Order.OrderType.LIMIT
+
+    def test_covering_a_100_percent_short_position_creates_the_right_quantity(self):
+        strategy = MockStrategyWithOrderLogic(
+            broker=self.backtesting_broker,
+            order_type=Order.OrderType.LIMIT,
+            shorting=True
+        )
+        df = pd.DataFrame([
+            {
+                "symbol": "AAPL",
+                "is_quote_asset": False,
+                "current_quantity": Decimal("-10"),
+                "current_value": Decimal("-1000"),
+                "current_weight": Decimal("-1.0"),
+                "target_weight": Decimal("0"),
+                "target_value": Decimal("0.0"),
+                "drift": Decimal("1")
+            },
+            {
+                "symbol": "USD",
+                "is_quote_asset": True,
+                "current_quantity": Decimal("2000"),
+                "current_value": Decimal("2000"),
+                "current_weight": Decimal("2.0"),
+                "target_weight": Decimal("0.0"),
+                "target_value": Decimal("0"),
+                "drift": Decimal("0")
+            }
+        ])
+
+        strategy.order_logic.rebalance(drift_df=df)
+        assert len(strategy.orders) == 1
+        assert strategy.orders[0].quantity == Decimal("10")
+        assert strategy.orders[0].side == "buy"
+        assert strategy.orders[0].type == Order.OrderType.LIMIT
+
+    def test_covering_a_short_position_creates_the_right_quantity(self):
+        strategy = MockStrategyWithOrderLogic(
+            broker=self.backtesting_broker,
+            order_type=Order.OrderType.LIMIT,
+            shorting=True
+        )
+        df = pd.DataFrame([
+            {
+                "symbol": "AAPL",
+                "is_quote_asset": False,
+                "current_quantity": Decimal("-5"),
+                "current_value": Decimal("-500"),
+                "current_weight": Decimal("-0.5"),
+                "target_weight": Decimal("0"),
+                "target_value": Decimal("0.0"),
+                "drift": Decimal("1")
+            },
+            {
+                "symbol": "USD",
+                "is_quote_asset": True,
+                "current_quantity": Decimal("1500"),
+                "current_value": Decimal("1500"),
+                "current_weight": Decimal("1.5"),
+                "target_weight": Decimal("0.0"),
+                "target_value": Decimal("0"),
+                "drift": Decimal("0")
+            }
+        ])
+
+        strategy.order_logic.rebalance(drift_df=df)
+        assert len(strategy.orders) == 1
+        assert strategy.orders[0].quantity == Decimal("5")
+        assert strategy.orders[0].side == "buy"
         assert strategy.orders[0].type == Order.OrderType.LIMIT
 
     def test_buying_something_when_we_have_enough_money_and_there_is_slippage(self):

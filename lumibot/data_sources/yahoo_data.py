@@ -92,6 +92,9 @@ class YahooData(DataSourceBacktesting):
             end = self._datetime.replace(second=59, microsecond=999999)
 
         if timeshift:
+            # Ensure timeshift is a timedelta object
+            if isinstance(timeshift, int):
+                timeshift = timedelta(days=timeshift)
             end = end - timeshift
 
         end = self.to_default_timezone(end)

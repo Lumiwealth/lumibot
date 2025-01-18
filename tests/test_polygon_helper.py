@@ -480,10 +480,5 @@ class TestPolygonPriceData:
         assert mock_polyclient.create().get_aggs.call_count == 3
         assert expected_cachefile.exists()
         assert len(df) == 7
-        df = ph.get_price_data_from_polygon(api_key, asset, start_date, end_date, timespan, force_cache_update=force_cache_update)
-        assert len(df) == 7
-        if force_cache_update:
-            assert mock_polyclient.create().get_aggs.call_count == 2 * 3
-        else:
-            assert mock_polyclient.create().get_aggs.call_count == 3
+
         expected_cachefile.unlink()

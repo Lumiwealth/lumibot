@@ -20,8 +20,7 @@ from unittest.mock import MagicMock, patch
 from datetime import timedelta
 
 # Global parameters
-# API Key for testing Polygon.io
-from lumibot.credentials import POLYGON_API_KEY
+from lumibot.credentials import POLYGON_CONFIG
 
 
 class PolygonBacktestStrat(Strategy):
@@ -204,7 +203,18 @@ class TestPolygonBacktestFull:
         )
         assert "fill" not in poly_strat_obj.order_time_tracker[stoploss_order_id]
 
-    @pytest.mark.skipif(POLYGON_API_KEY == '<your key here>', reason="This test requires a Polygon.io API key")
+    @pytest.mark.skipif(
+        not POLYGON_CONFIG["API_KEY"],
+        reason="This test requires a Polygon.io API key"
+    )
+    @pytest.mark.skipif(
+        POLYGON_CONFIG['API_KEY'] == '<your key here>',
+        reason="This test requires a Polygon.io API key"
+    )
+    @pytest.mark.skipif(
+        not POLYGON_CONFIG["IS_PAID_SUBSCRIPTION"],
+        reason="This test requires a paid Polygon.io API key"
+    )
     def test_polygon_restclient(self):
         """
         Test Polygon REST Client with Lumibot Backtesting and real API calls to Polygon. Using the Amazon stock
@@ -219,7 +229,7 @@ class TestPolygonBacktestFull:
         data_source = PolygonDataBacktesting(
             datetime_start=backtesting_start,
             datetime_end=backtesting_end,
-            api_key=POLYGON_API_KEY,
+            api_key=POLYGON_CONFIG['API_KEY'],
         )
         broker = BacktestingBroker(data_source=data_source)
         poly_strat_obj = PolygonBacktestStrat(
@@ -232,7 +242,18 @@ class TestPolygonBacktestFull:
         assert results
         self.verify_backtest_results(poly_strat_obj)
 
-    @pytest.mark.skipif(POLYGON_API_KEY == '<your key here>', reason="This test requires a Polygon.io API key")
+    @pytest.mark.skipif(
+        not POLYGON_CONFIG["API_KEY"],
+        reason="This test requires a Polygon.io API key"
+    )
+    @pytest.mark.skipif(
+        POLYGON_CONFIG['API_KEY'] == '<your key here>',
+        reason="This test requires a Polygon.io API key"
+    )
+    @pytest.mark.skipif(
+        not POLYGON_CONFIG["IS_PAID_SUBSCRIPTION"],
+        reason="This test requires a paid Polygon.io API key"
+    )
     def test_intraday_daterange(self):
         tzinfo = pytz.timezone("America/New_York")
         backtesting_start = datetime.datetime(2024, 2, 7).astimezone(tzinfo)
@@ -241,7 +262,7 @@ class TestPolygonBacktestFull:
         data_source = PolygonDataBacktesting(
             datetime_start=backtesting_start,
             datetime_end=backtesting_end,
-            api_key=POLYGON_API_KEY,
+            api_key=POLYGON_CONFIG['API_KEY'],
         )
         broker = BacktestingBroker(data_source=data_source)
         poly_strat_obj = PolygonBacktestStrat(
@@ -256,7 +277,18 @@ class TestPolygonBacktestFull:
         # Assert the end datetime is before the market open of the next trading day.
         assert broker.datetime == datetime.datetime.fromisoformat("2024-02-12 08:30:00-05:00")
 
-    @pytest.mark.skipif(POLYGON_API_KEY == '<your key here>', reason="This test requires a Polygon.io API key")
+    @pytest.mark.skipif(
+        not POLYGON_CONFIG["API_KEY"],
+        reason="This test requires a Polygon.io API key"
+    )
+    @pytest.mark.skipif(
+        POLYGON_CONFIG['API_KEY'] == '<your key here>',
+        reason="This test requires a Polygon.io API key"
+    )
+    @pytest.mark.skipif(
+        not POLYGON_CONFIG["IS_PAID_SUBSCRIPTION"],
+        reason="This test requires a paid Polygon.io API key"
+    )
     def test_polygon_legacy_backtest(self):
         """
         Do the same backtest as test_polygon_restclient() but using the legacy backtest() function call instead of
@@ -283,7 +315,18 @@ class TestPolygonBacktestFull:
         assert results
         self.verify_backtest_results(poly_strat_obj)
 
-    @pytest.mark.skipif(POLYGON_API_KEY == '<your key here>', reason="This test requires a Polygon.io API key")
+    @pytest.mark.skipif(
+        not POLYGON_CONFIG["API_KEY"],
+        reason="This test requires a Polygon.io API key"
+    )
+    @pytest.mark.skipif(
+        POLYGON_CONFIG['API_KEY'] == '<your key here>',
+        reason="This test requires a Polygon.io API key"
+    )
+    @pytest.mark.skipif(
+        not POLYGON_CONFIG["IS_PAID_SUBSCRIPTION"],
+        reason="This test requires a paid Polygon.io API key"
+    )
     def test_polygon_legacy_backtest2(self):
         """Test that the legacy backtest() function call works without returning the startegy object"""
         # Parameters: True = Live Trading | False = Backtest
@@ -300,7 +343,7 @@ class TestPolygonBacktestFull:
             show_plot=False,
             show_tearsheet=False,
             save_tearsheet=False,
-            polygon_api_key=POLYGON_API_KEY,  # Testing the legacy parameter name while DeprecationWarning is active
+            polygon_api_key=POLYGON_CONFIG['API_KEY'],  # Testing the legacy parameter name while DeprecationWarning is active
         )
         assert results
 
@@ -335,8 +378,9 @@ class TestPolygonBacktestFull:
             mocked_get_price_data.assert_called_once()
             call_args = mocked_get_price_data.call_args
 
+            extra_padding_days = (length // 5) * 3
             expected_start_date = polygon_data_backtesting.datetime_start - \
-                datetime.timedelta(days=length) - START_BUFFER
+                datetime.timedelta(days=length + extra_padding_days) - START_BUFFER
 
             assert call_args[0][0] == polygon_data_backtesting._api_key
             assert call_args[0][1] == asset
@@ -348,14 +392,25 @@ class TestPolygonBacktestFull:
 
 class TestPolygonDataSource:
 
-    @pytest.mark.skipif(POLYGON_API_KEY == '<your key here>', reason="This test requires a Polygon.io API key")
+    @pytest.mark.skipif(
+        not POLYGON_CONFIG["API_KEY"],
+        reason="This test requires a Polygon.io API key"
+    )
+    @pytest.mark.skipif(
+        POLYGON_CONFIG['API_KEY'] == '<your key here>',
+        reason="This test requires a Polygon.io API key"
+    )
+    @pytest.mark.skipif(
+        not POLYGON_CONFIG["IS_PAID_SUBSCRIPTION"],
+        reason="This test requires a paid Polygon.io API key"
+    )
     def test_get_historical_prices(self):
         tzinfo = pytz.timezone("America/New_York")
         start = datetime.datetime(2024, 2, 5).astimezone(tzinfo)
         end = datetime.datetime(2024, 2, 10).astimezone(tzinfo)
 
         data_source = PolygonDataBacktesting(
-            start, end, api_key=POLYGON_API_KEY
+            start, end, api_key=POLYGON_CONFIG['API_KEY']
         )
         data_source._datetime = datetime.datetime(2024, 2, 7, 10).astimezone(tzinfo)
         # This call will set make the data source use minute bars.

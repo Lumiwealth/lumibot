@@ -132,16 +132,6 @@ class DriftCalculationLogic:
 
     def calculate(self, target_weights: Dict[str, Decimal]) -> pd.DataFrame:
 
-        if self.drift_type == DriftType.ABSOLUTE:
-            # The absolute value of all the weights are less than the drift_threshold
-            # then we will never trigger a rebalance.
-
-            if all([abs(weight) < self.drift_threshold for weight in target_weights.values()]):
-                self.strategy.logger.warning(
-                    f"All target weights are less than the drift_threshold: {self.drift_threshold}. "
-                    f"No rebalance will be triggered."
-                )
-
         self.df = pd.DataFrame({
             "symbol": target_weights.keys(),
             "is_quote_asset": False,
@@ -222,19 +212,23 @@ class DriftCalculationLogic:
             return Decimal(0)
 
         elif row["current_weight"] == Decimal(0) and row["target_weight"] == Decimal(0):
-            # Should nothing change?
+            # Do nothing
             return Decimal(0)
 
         elif row["current_quantity"] > Decimal(0) and row["target_weight"] == Decimal(0):
-            # Should we sell everything
+            # Sell everything
             return Decimal(-1)
+
+        elif row["current_quantity"] < Decimal(0) and row["target_weight"] == Decimal(0):
+            # Cover our short position
+            return Decimal(1)
 
         elif row["current_quantity"] == Decimal(0) and row["target_weight"] > Decimal(0):
             # We don't have any of this asset, but we want to buy some.
             return Decimal(1)
 
         elif row["current_quantity"] == Decimal(0) and row["target_weight"] == Decimal(-1):
-            # Should we short everything we have
+            # Short everything we have
             return Decimal(-1)
 
         elif row["current_quantity"] == Decimal(0) and row["target_weight"] < Decimal(0):
@@ -352,7 +346,17 @@ class DriftOrderLogic:
 
         # Execute buys
         for index, row in df.iterrows():
-            if row["drift"] > 0:
+            if row["drift"] == 1 and row['current_quantity'] < 0 and self.shorting:
+                # Cover our short position
+                symbol = row["symbol"]
+                quantity = abs(row["current_quantity"])
+                last_price = Decimal(self.strategy.get_last_price(symbol))
+                limit_price = self.calculate_limit_price(last_price=last_price, side="buy")
+                order = self.place_order(symbol=symbol, quantity=quantity, limit_price=limit_price, side="buy")
+                buy_orders.append(order)
+                cash_position -= quantity * limit_price
+
+            elif row["drift"] > 0:
                 symbol = row["symbol"]
                 last_price = Decimal(self.strategy.get_last_price(symbol))
                 limit_price = self.calculate_limit_price(last_price=last_price, side="buy")

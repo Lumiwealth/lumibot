@@ -27,7 +27,7 @@ from lumibot.credentials import POLYGON_API_KEY
 
 # Adjust as desired, in days. We'll reuse any existing chain file
 # that is not older than RECENT_FILE_TOLERANCE_DAYS.
-RECENT_FILE_TOLERANCE_DAYS = 7
+RECENT_FILE_TOLERANCE_DAYS = 14
 
 # Maximum number of days to query in a single call to Polygon
 MAX_POLYGON_DAYS = 30

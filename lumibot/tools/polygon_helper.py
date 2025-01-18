@@ -173,7 +173,7 @@ def get_price_data_from_polygon(
         s_date = e_date + timedelta(days=1)
 
     # 7) Prepare a progress bar
-    desc_text = f"\nDownloading data for {asset} / {quote_asset.symbol if quote_asset else ''} '{timespan}'..."
+    desc_text = f"\nDownloading data for {asset} / {quote_asset.symbol if quote_asset else ''} '{timespan}'. This will be cached for future use so it will be significantly faster the next time you run a backtest."
     pbar = tqdm(total=total_queries, desc=desc_text, dynamic_ncols=True)
 
     # Helper function for each chunk
@@ -656,6 +656,7 @@ def get_chains_cached(
         f"No suitable recent file found for {asset.symbol} on {current_date}. "
         "Downloading from Polygon..."
     )
+    print(f"\nDownloading option chain for {asset} on {current_date}. This will be cached for future use so it will be significantly faster the next time you run a backtest.")
 
     option_contracts = {
         "Multiplier": None,

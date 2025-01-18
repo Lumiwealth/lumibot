@@ -173,7 +173,7 @@ def get_price_data_from_polygon(
         s_date = e_date + timedelta(days=1)
 
     # 7) Prepare a progress bar
-    desc_text = f"\nDownloading data for {asset.symbol} / {quote_asset.symbol if quote_asset else ''} '{timespan}'..."
+    desc_text = f"\nDownloading data for {asset} / {quote_asset.symbol if quote_asset else ''} '{timespan}'..."
     pbar = tqdm(total=total_queries, desc=desc_text, dynamic_ncols=True)
 
     # Helper function for each chunk
@@ -708,6 +708,14 @@ class PolygonClient(RESTClient):
 
     WAIT_SECONDS_RETRY = 60
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # Time of last "rate limit reached" log (epoch time).
+        self._last_rate_limit_log_time = 0.0
+        # Only log once every 300s (5 minutes); tweak as you see fit.
+        self._rate_limit_log_cooldown = 300.0
+
     @classmethod
     def create(cls, *args, **kwargs) -> RESTClient:
         """
@@ -744,24 +752,43 @@ class PolygonClient(RESTClient):
         return cls(*args, **kwargs)
 
     def _get(self, *args, **kwargs):
+        """
+        Override to handle rate-limits by sleeping 60s, but *throttle*
+        the log message so it isn't repeated too frequently.
+        """
         while True:
             try:
+                # Normal get from polygon-api-client
                 return super()._get(*args, **kwargs)
 
             except MaxRetryError as e:
+                # We interpret MaxRetryError as a rate-limit or server rejection
                 url = urlunparse(urlparse(kwargs['path'])._replace(query=""))
 
-                message = (
-                    "Polygon rate limit reached.\n\n"
-                    f"REST API call affected: {url}\n\n"
-                    f"Sleeping for {PolygonClient.WAIT_SECONDS_RETRY} seconds seconds before trying again.\n\n"
-                    "If you want to avoid this, consider a paid subscription with Polygon at https://polygon.io/?utm_source=affiliate&utm_campaign=lumi10\n"
-                    "Please use the full link to give us credit for the sale, it helps support this project.\n"
-                    "You can use the coupon code 'LUMI10' for 10% off."
-                )
+                # Check if we've logged a rate-limit message recently
+                now = time.time()
+                time_since_last_log = now - self._last_rate_limit_log_time
+                if time_since_last_log > self._rate_limit_log_cooldown:
+                    # It's been long enough => log
+                    message = (
+                        "Polygon rate limit reached. "
+                        f"Sleeping for {PolygonClient.WAIT_SECONDS_RETRY} seconds "
+                        "before trying again.\n\n"
+                        "If you want to avoid this, consider a paid subscription "
+                        "with Polygon at https://polygon.io/?utm_source=affiliate&utm_campaign=lumi10\n"
+                        "Please use the full link to give us credit for the sale, "
+                        "it helps support this project.\n"
+                        "You can use the coupon code 'LUMI10' for 10% off."
+                    )
+                    colored_message = colored(message, "red")
+                    logging.error(colored_message)
+                    logging.debug(f"Error: {e}")
 
-                colored_message = colored(message, "red")
+                    # Update our last log time
+                    self._last_rate_limit_log_time = now
+                else:
+                    # If it's too soon, skip logging again
+                    pass
 
-                logging.error(colored_message)
-                logging.debug(f"Error: {e}")
+                # Sleep for WAIT_SECONDS_RETRY, then try again
                 time.sleep(PolygonClient.WAIT_SECONDS_RETRY)

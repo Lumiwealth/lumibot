@@ -2,13 +2,12 @@ import logging
 import uuid
 from collections import namedtuple
 from decimal import Decimal
-import threading    
 from threading import Event
 import datetime
-import copy
+from typing import Union
 
 import lumibot.entities as entities
-from lumibot.tools.types import check_positive, check_price, check_quantity
+from lumibot.tools.types import check_positive, check_price
 
 SELL = "sell"
 BUY = "buy"
@@ -93,33 +92,33 @@ class Order:
     def __init__(
         self,
         strategy,
-        asset = None,
-        quantity = None,
-        side = None,
-        limit_price = None,
-        stop_price = None,
-        take_profit_price = None,
-        stop_loss_price = None,
-        stop_loss_limit_price = None,
-        trail_price = None,
-        trail_percent = None,
-        time_in_force = "day",
-        good_till_date = None,
-        exchange = None,
-        position_filled = False,
-        quote = None,
-        pair = None,
-        date_created = None,
-        type = None,
-        order_class = None,
+        asset: Union[str, "Asset"] = None,
+        quantity: float = None,
+        side: OrderSide = None,
+        limit_price: float = None,
+        stop_price: float = None,
+        take_profit_price: float = None,
+        stop_loss_price: float = None,
+        stop_loss_limit_price: float = None,
+        trail_price: float = None,
+        trail_percent: float = None,
+        time_in_force: str = "day",
+        good_till_date: datetime.datetime = None,
+        exchange: str = None,
+        position_filled: bool = False,
+        quote: "Asset" = None,
+        pair: str = None,
+        date_created: datetime.datetime = None,
+        type: str = None,
+        order_class: OrderClass = None,
         trade_cost: float = None,
-        custom_params = {},
-        identifier = None,
-        avg_fill_price = None,
-        error_message = None,
-        child_orders = None,
-        tag = "",
-        status = "unprocessed",
+        custom_params: dict = None,
+        identifier: str = None,
+        avg_fill_price: float = None,
+        error_message: str = None,
+        child_orders: list = [],
+        tag: str = "",
+        status: str = "unprocessed",
     ):
         """Order class for managing individual orders.
 

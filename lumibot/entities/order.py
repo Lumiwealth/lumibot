@@ -286,7 +286,7 @@ class Order:
         self.strategy = strategy
 
         # If quantity is negative, then make sure it is positive
-        if quantity < 0:
+        if quantity is not None and quantity < 0:
             # Warn the user that the quantity is negative
             logging.warning(
                 f"Quantity for order {identifier} is negative ({quantity}). Changing to positive because quantity must always be positive for orders."

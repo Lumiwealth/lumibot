@@ -7,6 +7,7 @@ from urllib3.exceptions import MaxRetryError
 from urllib.parse import urlparse, urlunparse
 from collections import defaultdict
 from typing import Optional
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import pandas as pd
 import pandas_market_calendars as mcal
@@ -83,125 +84,137 @@ def get_price_data_from_polygon(
     start: datetime,
     end: datetime,
     timespan: str = "minute",
-    quote_asset: Asset = None,
+    quote_asset: Optional[Asset] = None,
     force_cache_update: bool = False,
+    max_workers: int = 10,
 ):
     """
-    Queries Polygon.io for pricing data for the given asset and returns a DataFrame with the data. Data will be
-    cached in the LUMIBOT_CACHE_FOLDER/polygon folder so that it can be reused later and we don't have to query
-    Polygon.io every time we run a backtest.
+    Queries Polygon.io for pricing data for the given asset in parallel and returns 
+    a DataFrame with the data. It relies on the custom PolygonClient for rate-limit 
+    handling (which sleeps 60 seconds if we hit MaxRetryError).
 
-    If the Polygon response has missing bars for a date, the missing bars will be added as empty (all NaN) rows
-    to the cache file to avoid querying Polygon for the same missing bars in the future.  Note that means if
-    a request is for a future time then we won't make a request to Polygon for it later when that data might
-    be available.  That should result in an error rather than missing data from Polygon, but just in case a
-    problem occurs and you want to ensure that the data is up to date, you can set force_cache_update=True.
+    Data is cached in LUMIBOT_CACHE_FOLDER/polygon so we don't redownload the same data
+    on subsequent runs.
 
     Parameters
     ----------
     api_key : str
-        The API key for Polygon.io
+        The API key for Polygon.io.
     asset : Asset
-        The asset we are getting data for
+        The asset we want data for (e.g., Asset("SPY")).
     start : datetime
-        The start date/time for the data we want
+        The start datetime for the requested data.
     end : datetime
-        The end date/time for the data we want
-    timespan : str
-        The timespan for the data we want. Default is "minute" but can also be "second", "hour", "day", "week",
-        "month", "quarter"
-    quote_asset : Asset
-        The quote asset for the asset we are getting data for. This is only needed for Forex assets.
+        The end datetime for the requested data.
+    timespan : str, default "minute"
+        The timespan for the returned candles (e.g., "minute", "day").
+    quote_asset : Asset, optional
+        If needed, e.g. for Forex pairs. Usually None for stocks.
+    force_cache_update : bool, default False
+        If True, forces re-downloading data even if it’s in cache (e.g. if we suspect 
+        splits or want the latest bars).
+    max_workers : int, default 5
+        The number of parallel threads for chunked downloads.
 
     Returns
     -------
-    pd.DataFrame
-        A DataFrame with the pricing data for the asset
+    pd.DataFrame or None
+        The DataFrame of historical data for the given asset and timeframe, or None 
+        if symbol not found.
 
+    Notes
+    -----
+    - The built-in `PolygonClient._get()` method in your codebase catches rate-limit 
+      errors (MaxRetryError) and sleeps 60 seconds before retrying.
+    - If you are on a free plan (5 calls/min), consider reducing `max_workers` 
+      to avoid multiple simultaneous sleeps.
     """
-
-    # Check if we already have data for this asset in the feather file
+    # 1) Decide where to cache the data (based on asset & timespan).
     cache_file = build_cache_filename(asset, timespan)
-    # Check whether it might be stale because of splits.
+
+    # 2) Possibly invalidate the cache if we detect changed splits, etc.
     force_cache_update = validate_cache(force_cache_update, asset, cache_file, api_key)
 
     df_all = None
-    # Load from the cache file if it exists.
+    # 3) Load from the cache if it exists and we're not forcing a re-download.
     if cache_file.exists() and not force_cache_update:
         logging.debug(f"Loading pricing data for {asset} / {quote_asset} with '{timespan}' timespan from cache file...")
         df_all = load_cache(cache_file)
 
-    # Check if we need to get more data
+    # 4) Figure out which dates are missing
     missing_dates = get_missing_dates(df_all, asset, start, end)
     if not missing_dates:
-        # TODO: Do this upstream so we don't repeatedly call for known-to-be-missing bars.
-        # Drop the rows with all NaN values that were added to the feather for symbols that have missing bars.
-        df_all.dropna(how="all", inplace=True)
+        # If none are missing, just drop known empty rows and return
+        if df_all is not None:
+            df_all.dropna(how="all", inplace=True)
         return df_all
 
-    # print(f"\nGetting pricing data for {asset} / {quote_asset} with '{timespan}' timespan from Polygon...")
-
-    # RESTClient connection for Polygon Stock-Equity API; traded_asset is standard
-    # Add "trace=True" to see the API calls printed to the console for debugging
+    # 5) Create a PolygonClient (already includes a rate-limit loop in _get())
     polygon_client = PolygonClient.create(api_key=api_key)
-    symbol = get_polygon_symbol(asset, polygon_client, quote_asset)  # Will do a Polygon query for option contracts
-
-    # Check if symbol is None, which means we couldn't find the option contract
+    symbol = get_polygon_symbol(asset, polygon_client, quote_asset)
     if symbol is None:
         return None
 
-    # To reduce calls to Polygon, we call on full date ranges instead of including hours/minutes
-    # get the full range of data we need in one call and ensure that there won't be any intraday gaps in the data.
-    # Option data won't have any extended hours data so the padding is extra important for those.
-    poly_start = missing_dates[0]  # Data will start at 8am UTC (4am EST)
-    poly_end = missing_dates[-1]  # Data will end at 23:59 UTC (7:59pm EST)
+    # 6) Identify a date range from the earliest missing date to the latest
+    poly_start = missing_dates[0]
+    poly_end = missing_dates[-1]
 
-    # Initialize tqdm progress bar
-    total_days = (missing_dates[-1] - missing_dates[0]).days + 1
+    # We'll break this into multiple ~30-day chunks to avoid the 50k limit
+    total_days = (poly_end - poly_start).days + 1
     total_queries = (total_days // MAX_POLYGON_DAYS) + 1
-    description = f"\nDownloading data for {asset} / {quote_asset} '{timespan}' from Polygon..."
-    pbar = tqdm(total=total_queries, desc=description, dynamic_ncols=True)
 
-    # Polygon only returns 50k results per query (~30days of 24hr 1min-candles) so we need to break up the query into
-    # multiple queries if we are requesting more than 30 days of data
+    # Build the chunk list
+    chunks = []
     delta = timedelta(days=MAX_POLYGON_DAYS)
-    while poly_start <= missing_dates[-1]:
-        if poly_end > (poly_start + delta):
-            poly_end = poly_start + delta
+    s_date = poly_start
+    while s_date <= poly_end:
+        e_date = min(poly_end, s_date + delta)
+        chunks.append((s_date, e_date))
+        s_date = e_date + timedelta(days=1)
 
-        result = polygon_client.get_aggs(
+    # 7) Prepare a progress bar
+    desc_text = f"\nDownloading data for {asset.symbol} / {quote_asset.symbol if quote_asset else ''} '{timespan}'..."
+    pbar = tqdm(total=total_queries, desc=desc_text, dynamic_ncols=True)
+
+    # Helper function for each chunk
+    def fetch_chunk(start_date, end_date):
+        # This call may trigger the built-in rate-limit logic in polygon_client._get()
+        return polygon_client.get_aggs(
             ticker=symbol,
-            from_=poly_start,  # polygon-api-client docs say 'from' but that is a reserved word in python
-            to=poly_end,
-            # In Polygon, multiplier is the number of "timespans" in each candle, so if you want 5min candles
-            # returned you would set multiplier=5 and timespan="minute". This is very different from the
-            # asset.multiplier setting for option contracts.
-            multiplier=1,
+            from_=start_date,
+            to=end_date,
+            multiplier=1,  # e.g. 1 "minute"
             timespan=timespan,
-            limit=50000,  # Max limit for Polygon
+            limit=50000,
         )
 
-        # Update progress bar after each query
-        pbar.update(1)
+    # 8) Download chunks in parallel
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_range = {
+            executor.submit(fetch_chunk, cstart, cend): (cstart, cend)
+            for (cstart, cend) in chunks
+        }
 
-        if result:
-            df_all = update_polygon_data(df_all, result)
+        for future in as_completed(future_to_range):
+            cstart, cend = future_to_range[future]
+            try:
+                result = future.result()
+                if result:
+                    df_all = update_polygon_data(df_all, result)
+            except Exception as exc:
+                logging.error(f"Failed to fetch chunk {cstart} to {cend}: {exc}")
+            finally:
+                pbar.update(1)
 
-        poly_start = poly_end + timedelta(days=1)
-        poly_end = poly_start + delta
-
-    # Close the progress bar when done
     pbar.close()
 
-    # Recheck for missing dates so they can be added in the feather update.
+    # 9) Re-check for missing data (some bars might be 0 or partial) and update cache
     missing_dates = get_missing_dates(df_all, asset, start, end)
     update_cache(cache_file, df_all, missing_dates)
 
-    # TODO: Do this upstream so we don't have to reload feather repeatedly for known-to-be-missing bars.
-    # Drop the rows with all NaN values that were added to the feather for symbols that have missing bars.
+    # Clean up empty rows and return
     if df_all is not None:
         df_all.dropna(how="all", inplace=True)
-
     return df_all
 
 

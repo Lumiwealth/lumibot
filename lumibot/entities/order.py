@@ -109,16 +109,16 @@ class Order:
         quote: "Asset" = None,
         pair: str = None,
         date_created: datetime.datetime = None,
-        type: str = None,
+        type: OrderType = None,
         order_class: OrderClass = None,
         trade_cost: float = None,
-        custom_params: dict = None,
+        custom_params: dict = {},
         identifier: str = None,
         avg_fill_price: float = None,
         error_message: str = None,
-        child_orders: list = [],
+        child_orders: list = None,
         tag: str = "",
-        status: str = "unprocessed",
+        status: OrderStatus = "unprocessed",
     ):
         """Order class for managing individual orders.
 

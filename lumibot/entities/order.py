@@ -285,6 +285,14 @@ class Order:
         # Initialization default values
         self.strategy = strategy
 
+        # If quantity is negative, then make sure it is positive
+        if quantity < 0:
+            # Warn the user that the quantity is negative
+            logging.warning(
+                f"Quantity for order {identifier} is negative ({quantity}). Changing to positive because quantity must always be positive for orders."
+            )
+            quantity = abs(quantity)
+
         # It is possible for crypto currencies to arrive as a tuple of
         # two assets.
         if isinstance(asset, tuple) and asset[0].asset_type == "crypto":

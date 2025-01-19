@@ -85,7 +85,7 @@ class DriftRebalancer(Strategy):
         self.order_type = self.parameters.get("order_type", Order.OrderType.MARKET)
         self.acceptable_slippage = Decimal(self.parameters.get("acceptable_slippage", "0.005"))
         self.fill_sleeptime = self.parameters.get("fill_sleeptime", 15)
-        self.target_weights = {k: Decimal(v) for k, v in self.parameters["target_weights"].items()}
+        self.portfolio_weights = self.parameters.get("portfolio_weights", {})
         self.shorting = self.parameters.get("shorting", False)
         self.verbose = self.parameters.get("verbose", False)
         self.fractional_shares = self.parameters.get("fractional_shares", False)
@@ -113,6 +113,6 @@ class DriftRebalancer(Strategy):
                 f"but DriftRebalancer does not support margin yet."
             )
 
-        self.drift_df = self.drift_rebalancer_logic.calculate(target_weights=self.target_weights)
+        self.drift_df = self.drift_rebalancer_logic.calculate(portfolio_weights=self.portfolio_weights)
         self.drift_rebalancer_logic.rebalance(drift_df=self.drift_df)
         

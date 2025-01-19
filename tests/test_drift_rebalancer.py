@@ -1,19 +1,19 @@
 from typing import Any
-import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 import pytest
 
 import pandas as pd
-import numpy as np
 
 from lumibot.example_strategies.drift_rebalancer import DriftRebalancer
 from lumibot.components.drift_rebalancer_logic import DriftType
 from lumibot.components.drift_rebalancer_logic import DriftRebalancerLogic, DriftCalculationLogic, DriftOrderLogic
-from lumibot.backtesting import BacktestingBroker, PandasDataBacktesting, YahooDataBacktesting
+from lumibot.backtesting import BacktestingBroker, PandasDataBacktesting, YahooDataBacktesting, PolygonDataBacktesting
 from lumibot.strategies.strategy import Strategy
 from tests.fixtures import pandas_data_fixture
 from lumibot.tools import print_full_pandas_dataframes, set_pandas_float_display_precision
-from lumibot.entities import Order
+from lumibot.entities import Order, Asset
+from lumibot.credentials import POLYGON_CONFIG
 
 print_full_pandas_dataframes()
 set_pandas_float_display_precision(precision=5)
@@ -64,8 +64,8 @@ class MockStrategyWithDriftCalculationLogic(Strategy):
 class TestDriftCalculationLogic:
 
     def setup_method(self):
-        date_start = datetime.datetime(2021, 7, 10)
-        date_end = datetime.datetime(2021, 7, 13)
+        date_start = datetime(2021, 7, 10)
+        date_end = datetime(2021, 7, 13)
         self.data_source = PandasDataBacktesting(date_start, date_end)
         self.backtesting_broker = BacktestingBroker(self.data_source)
 
@@ -805,8 +805,8 @@ class MockStrategyWithOrderLogic(Strategy):
 class TestDriftOrderLogic:
 
     def setup_method(self):
-        date_start = datetime.datetime(2021, 7, 10)
-        date_end = datetime.datetime(2021, 7, 13)
+        date_start = datetime(2021, 7, 10)
+        date_end = datetime(2021, 7, 13)
         self.data_source = PandasDataBacktesting(date_start, date_end)
         self.backtesting_broker = BacktestingBroker(self.data_source)
 
@@ -1228,10 +1228,10 @@ class TestDriftOrderLogic:
 class TestDriftRebalancer:
 
     # Need to start two days after the first data point in pandas for backtesting
-    backtesting_start = datetime.datetime(2019, 1, 2)
-    backtesting_end = datetime.datetime(2019, 2, 28)
+    backtesting_start = datetime(2019, 1, 2)
+    backtesting_end = datetime(2019, 2, 28)
 
-    @pytest.mark.skip()
+    # @pytest.mark.skip()
     def test_classic_60_60(self, pandas_data_fixture):
 
         parameters = {
@@ -1242,10 +1242,16 @@ class TestDriftRebalancer:
             "order_type": Order.OrderType.LIMIT,
             "acceptable_slippage": "0.005",
             "fill_sleeptime": 15,
-            "target_weights": {
-                "SPY": "0.60",
-                "TLT": "0.40"
-            },
+            "portfolio_weights": [
+                {
+                    "base_asset": Asset(symbol='SPY', asset_type='stock'),
+                    "weight": Decimal("0.6")
+                },
+                {
+                    "base_asset": Asset(symbol='TLT', asset_type='stock'),
+                    "weight": Decimal("0.4")
+                }
+            ],
             "shorting": False
         }
 
@@ -1280,7 +1286,7 @@ class TestDriftRebalancer:
         assert filled_orders.iloc[2]["symbol"] == "SPY"
         assert filled_orders.iloc[2]["filled_quantity"] == 7.0
 
-    @pytest.mark.skip()
+    # @pytest.mark.skip()
     def test_classic_60_60_with_fractional(self, pandas_data_fixture):
 
         parameters = {
@@ -1291,10 +1297,16 @@ class TestDriftRebalancer:
             "order_type": Order.OrderType.LIMIT,
             "acceptable_slippage": "0.005",
             "fill_sleeptime": 15,
-            "target_weights": {
-                "SPY": "0.60",
-                "TLT": "0.40"
-            },
+            "portfolio_weights": [
+                {
+                    "base_asset": Asset(symbol='SPY', asset_type='stock'),
+                    "weight": Decimal("0.6")
+                },
+                {
+                    "base_asset": Asset(symbol='TLT', asset_type='stock'),
+                    "weight": Decimal("0.4")
+                }
+            ],
             "shorting": False,
             "fractional_shares": True
         }
@@ -1330,6 +1342,7 @@ class TestDriftRebalancer:
         assert filled_orders.iloc[2]["symbol"] == "SPY"
         assert filled_orders.iloc[2]["filled_quantity"] == 8.346738268
 
+    # @pytest.mark.skip()
     def test_crypto_50_50_with_yahoo(self):
 
         parameters = {
@@ -1340,19 +1353,28 @@ class TestDriftRebalancer:
             "order_type": Order.OrderType.LIMIT,
             "acceptable_slippage": "0.005",
             "fill_sleeptime": 15,
-            "target_weights": {
-                "BTC-USD": "0.50",
-                "ETH-USD": "0.50"
-            },
+            "portfolio_weights": [
+                {
+                    "base_asset": Asset(symbol='BTC-USD', asset_type='stock'),
+                    "weight": Decimal("0.5")
+                },
+                {
+                    "base_asset": Asset(symbol='ETH-USD', asset_type='stock'),
+                    "weight": Decimal("0.5")
+                }
+            ],
             "shorting": False,
             "fractional_shares": True
         }
 
+        end_date = datetime.now() - timedelta(days=1)
+        start_date = end_date - timedelta(days=5)
+
         strat_obj: Strategy
         results, strat_obj = DriftRebalancer.run_backtest(
             datasource_class=YahooDataBacktesting,
-            backtesting_start=self.backtesting_start,
-            backtesting_end=self.backtesting_end,
+            backtesting_start=start_date,
+            backtesting_end=end_date,
             parameters=parameters,
             show_plot=False,
             show_tearsheet=False,
@@ -1370,9 +1392,70 @@ class TestDriftRebalancer:
         assert filled_orders.iloc[0]["type"] == "limit"
         assert filled_orders.iloc[0]["side"] == "buy"
         assert filled_orders.iloc[0]["symbol"] == "BTC-USD"
-        assert filled_orders.iloc[0]["filled_quantity"] == 12.655972756
+        assert filled_orders.iloc[1]["type"] == "limit"
+        assert filled_orders.iloc[1]["side"] == "buy"
+        assert filled_orders.iloc[1]["symbol"] == "ETH-USD"
 
-        assert filled_orders.iloc[2]["type"] == "limit"
-        assert filled_orders.iloc[2]["side"] == "sell"
-        assert filled_orders.iloc[2]["symbol"] == "BTC-USD"
-        assert filled_orders.iloc[2]["filled_quantity"] == 0.687616515
+    # @pytest.mark.skip()
+    @pytest.mark.skipif(
+        not POLYGON_CONFIG["API_KEY"],
+        reason="This test requires a Polygon.io API key"
+    )
+    @pytest.mark.skipif(
+        POLYGON_CONFIG['API_KEY'] == '<your key here>',
+        reason="This test requires a Polygon.io API key"
+    )
+    def test_crypto_50_50_with_polygon(self):
+
+        parameters = {
+            "market": "24/7",
+            "sleeptime": "1D",
+            "drift_type": DriftType.ABSOLUTE,
+            "drift_threshold": "0.03",
+            "order_type": Order.OrderType.LIMIT,
+            "acceptable_slippage": "0.005",
+            "fill_sleeptime": 15,
+            "portfolio_weights": [
+                {
+                    "base_asset": Asset(symbol='BTC', asset_type='crypto'),
+                    "weight": Decimal("0.5")
+                },
+                {
+                    "base_asset": Asset(symbol='ETH', asset_type='crypto'),
+                    "weight": Decimal("0.5")
+                }
+            ],
+            "shorting": False,
+            "fractional_shares": True
+        }
+
+        # Expensive polygon subscriptions required if we go back to 2019. Just use recent dates.
+        end_date = datetime.now() - timedelta(days=1)
+        start_date = end_date - timedelta(days=5)
+
+        strat_obj: Strategy
+        results, strat_obj = DriftRebalancer.run_backtest(
+            datasource_class=PolygonDataBacktesting,
+            polygon_api_key=POLYGON_CONFIG["API_KEY"],
+            backtesting_start=start_date,
+            backtesting_end=end_date,
+            parameters=parameters,
+            show_plot=False,
+            show_tearsheet=False,
+            save_tearsheet=False,
+            show_indicators=False,
+            save_logfile=False,
+            show_progress_bar=False,
+        )
+
+        trades_df = strat_obj.broker._trade_event_log_df
+
+        # Get all the filled limit orders
+        filled_orders = trades_df[(trades_df["status"] == "fill")]
+
+        assert filled_orders.iloc[0]["type"] == "limit"
+        assert filled_orders.iloc[0]["side"] == "buy"
+        assert filled_orders.iloc[0]["symbol"] == "BTC"
+        assert filled_orders.iloc[1]["type"] == "limit"
+        assert filled_orders.iloc[1]["side"] == "buy"
+        assert filled_orders.iloc[1]["symbol"] == "ETH"

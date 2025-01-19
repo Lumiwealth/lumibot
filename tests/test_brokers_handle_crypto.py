@@ -1,16 +1,11 @@
 import pytest
 from datetime import datetime, timedelta
 from typing import assert_type
-from unittest.mock import MagicMock
 
-from lumibot.backtesting import BacktestingBroker
-from lumibot.data_sources import PandasData
 from lumibot.entities import Asset, Order, Bars
 from lumibot.backtesting import BacktestingBroker, PolygonDataBacktesting, YahooDataBacktesting
 from lumibot.brokers.alpaca import Alpaca
-
-# Global parameters
-from lumibot.credentials import TRADIER_CONFIG, ALPACA_CONFIG, POLYGON_CONFIG
+from lumibot.credentials import ALPACA_CONFIG, POLYGON_CONFIG
 
 
 class TestBrokerHandlesCrypto:
@@ -171,10 +166,6 @@ class TestBrokerHandlesCrypto:
         reason="This test requires an alpaca API key"
     )
     def test_alpaca_broker_with_base_and_quote(self):
-        # Expensive polygon subscriptions required if we go back to 2019. Just use recent dates.
-        # start = datetime.now() - timedelta(days=4)
-        # end = datetime.now() - timedelta(days=2)
-
         broker = Alpaca(ALPACA_CONFIG)
 
         # test_get_last_price

@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Union
 from datetime import datetime, timedelta
 from decimal import Decimal
 import pytest
@@ -44,13 +44,8 @@ class MockStrategyWithDriftCalculationLogic(Strategy):
             fractional_shares=fractional_shares
         )
 
-    def get_last_price(
-            self,
-            asset: Any,
-            quote: Any = None,
-            exchange: str = None,
-            should_use_last_close: bool = True) -> float | None:
-        return 100.0  # Mock price
+    def get_last_price(self, asset: Union[Asset, str], quote=None, exchange=None):
+        return Decimal(100.0)  # Mock price
 
     def update_broker_balances(self, force_update: bool = False) -> None:
         pass
@@ -785,13 +780,8 @@ class MockStrategyWithOrderLogic(Strategy):
             fractional_shares=fractional_shares
         )
 
-    def get_last_price(
-            self,
-            asset: Any,
-            quote: Any = None,
-            exchange: str = None,
-            should_use_last_close: bool = True) -> float | None:
-        return 100.0  # Mock price
+    def get_last_price(self, asset: Union[Asset, str], quote=None, exchange=None):
+        return Decimal(100.0)  # Mock price
 
     def update_broker_balances(self, force_update: bool = False) -> None:
         pass
@@ -801,7 +791,7 @@ class MockStrategyWithOrderLogic(Strategy):
         return order
 
 
-@pytest.mark.skip()
+# @pytest.mark.skip()
 class TestDriftOrderLogic:
 
     def setup_method(self):
@@ -817,6 +807,7 @@ class TestDriftOrderLogic:
         )
         df = pd.DataFrame({
             "symbol": ["AAPL"],
+            "base_asset": [Asset("AAPL", "stock")],
             "is_quote_asset": False,
             "current_quantity": [Decimal("10")],
             "current_value": [Decimal("1000")],
@@ -839,6 +830,7 @@ class TestDriftOrderLogic:
         )
         df = pd.DataFrame({
             "symbol": ["AAPL"],
+            "base_asset": [Asset("AAPL", "stock")],
             "is_quote_asset": False,
             "current_quantity": [Decimal("10")],
             "current_value": [Decimal("1000")],
@@ -861,6 +853,7 @@ class TestDriftOrderLogic:
         )
         df = pd.DataFrame({
             "symbol": ["AAPL"],
+            "base_asset": [Asset("AAPL", "stock")],
             "is_quote_asset": False,
             "current_quantity": [Decimal("10")],
             "current_value": [Decimal("1000")],
@@ -882,6 +875,7 @@ class TestDriftOrderLogic:
         )
         df = pd.DataFrame({
             "symbol": ["AAPL"],
+            "base_asset": [Asset("AAPL", "stock")],
             "is_quote_asset": False,
             "current_quantity": [Decimal("10")],
             "current_value": [Decimal("1000")],
@@ -903,6 +897,7 @@ class TestDriftOrderLogic:
         )
         df = pd.DataFrame({
             "symbol": ["AAPL"],
+            "base_asset": [Asset("AAPL", "stock")],
             "is_quote_asset": False,
             "current_quantity": [Decimal("0")],
             "current_value": [Decimal("0")],
@@ -922,6 +917,7 @@ class TestDriftOrderLogic:
         )
         df = pd.DataFrame({
             "symbol": ["AAPL"],
+            "base_asset": [Asset("AAPL", "stock")],
             "is_quote_asset": False,
             "current_quantity": [Decimal("0")],
             "current_value": [Decimal("0")],
@@ -941,6 +937,7 @@ class TestDriftOrderLogic:
         )
         df = pd.DataFrame({
             "symbol": ["AAPL"],
+            "base_asset": [Asset("AAPL", "stock")],
             "is_quote_asset": False,
             "current_quantity": [Decimal("0")],
             "current_value": [Decimal("0")],
@@ -961,6 +958,7 @@ class TestDriftOrderLogic:
         df = pd.DataFrame([
             {
                 "symbol": "AAPL",
+                "base_asset": Asset("AAPL", "stock"),
                 "is_quote_asset": False,
                 "current_quantity": Decimal("0"),
                 "current_value": Decimal("0"),
@@ -971,6 +969,7 @@ class TestDriftOrderLogic:
             },
             {
                 "symbol": "USD",
+                "base_asset": Asset("USD", "forex"),
                 "is_quote_asset": True,
                 "current_quantity": Decimal("1000"),
                 "current_value": Decimal("1000"),
@@ -994,6 +993,7 @@ class TestDriftOrderLogic:
         )
         df = pd.DataFrame({
             "symbol": ["AAPL"],
+            "base_asset": [Asset("AAPL", "stock")],
             "is_quote_asset": False,
             "current_quantity": [Decimal("0")],
             "current_value": [Decimal("0")],
@@ -1015,6 +1015,7 @@ class TestDriftOrderLogic:
         strategy._set_cash_position(cash=500.0)
         df = pd.DataFrame({
             "symbol": ["AAPL"],
+            "base_asset": [Asset("AAPL", "stock")],
             "is_quote_asset": False,
             "current_quantity": [Decimal("0")],
             "current_value": [Decimal("0")],
@@ -1037,6 +1038,7 @@ class TestDriftOrderLogic:
         strategy._set_cash_position(cash=500.0)
         df = pd.DataFrame({
             "symbol": ["AAPL"],
+            "base_asset": [Asset("AAPL", "stock")],
             "is_quote_asset": False,
             "current_quantity": [Decimal("0")],
             "current_value": [Decimal("0")],
@@ -1059,6 +1061,7 @@ class TestDriftOrderLogic:
         strategy._set_cash_position(cash=50.0)
         df = pd.DataFrame({
             "symbol": ["AAPL"],
+            "base_asset": [Asset("AAPL", "stock")],
             "is_quote_asset": False,
             "current_quantity": [Decimal("0")],
             "current_value": [Decimal("0")],
@@ -1077,6 +1080,7 @@ class TestDriftOrderLogic:
         )
         df = pd.DataFrame({
             "symbol": ["AAPL"],
+            "base_asset": [Asset("AAPL", "stock")],
             "is_quote_asset": False,
             "current_quantity": [Decimal("1")],
             "current_value": [Decimal("100")],
@@ -1095,6 +1099,7 @@ class TestDriftOrderLogic:
         )
         df = pd.DataFrame({
             "symbol": ["AAPL"],
+            "base_asset": [Asset("AAPL", "stock")],
             "is_quote_asset": False,
             "current_quantity": [Decimal("10")],
             "current_value": [Decimal("1000")],
@@ -1118,6 +1123,7 @@ class TestDriftOrderLogic:
         )
         df = pd.DataFrame({
             "symbol": ["AAPL"],
+            "base_asset": [Asset("AAPL", "stock")],
             "is_quote_asset": False,
             "current_quantity": [Decimal("0")],
             "current_value": [Decimal("0")],
@@ -1142,6 +1148,7 @@ class TestDriftOrderLogic:
         )
         df = pd.DataFrame({
             "symbol": ["AAPL"],
+            "base_asset": [Asset("AAPL", "stock")],
             "is_quote_asset": False,
             "current_quantity": [Decimal("0")],
             "current_value": [Decimal("0")],
@@ -1164,6 +1171,7 @@ class TestDriftOrderLogic:
         strategy._set_cash_position(cash=950.0)
         df = pd.DataFrame({
             "symbol": ["AAPL"],
+            "base_asset": [Asset("AAPL", "stock")],
             "is_quote_asset": False,
             "current_quantity": [Decimal("0")],
             "current_value": [Decimal("0")],
@@ -1185,6 +1193,7 @@ class TestDriftOrderLogic:
         )
         df = pd.DataFrame({
             "symbol": ["AAPL"],
+            "base_asset": [Asset("AAPL", "stock")],
             "is_quote_asset": False,
             "current_quantity": [Decimal("9.5")],
             "current_value": [Decimal("950")],
@@ -1208,6 +1217,7 @@ class TestDriftOrderLogic:
         )
         df = pd.DataFrame({
             "symbol": ["AAPL"],
+            "base_asset": [Asset("AAPL", "stock")],
             "is_quote_asset": False,
             "current_quantity": [Decimal("10")],
             "current_value": [Decimal("1000")],

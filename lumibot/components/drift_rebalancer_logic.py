@@ -171,7 +171,7 @@ class DriftCalculationLogic:
                 current_value = Decimal(position.quantity)
             else:
                 is_quote_asset = False
-                last_price = self.get_last_price(position.asset)
+                last_price = self.strategy.get_last_price(position.asset)
                 current_value = current_quantity * last_price
             self._add_position(
                 symbol=symbol,
@@ -211,10 +211,6 @@ class DriftCalculationLogic:
             new_row_df = pd.DataFrame([new_row])
             # Concatenate the new row to the existing DataFrame
             self.df = pd.concat([self.df, new_row_df], ignore_index=True)
-
-    def get_last_price(self, base_asset: Asset) -> Decimal:
-        quote_asset = self.strategy.quote_asset or Asset(symbol="USD", asset_type="forex")
-        return Decimal(self.strategy.get_last_price(asset=base_asset, quote=quote_asset))
 
     def _calculate_drift(self) -> pd.DataFrame:
         """
@@ -323,7 +319,7 @@ class DriftOrderLogic:
                 # Sell everything (or create 100% short position)
                 base_asset = row["base_asset"]
                 quantity = row["current_quantity"]
-                last_price = self.get_last_price(base_asset)
+                last_price = self.strategy.get_last_price(base_asset)
                 limit_price = self.calculate_limit_price(last_price=last_price, side="sell")
                 if quantity == 0 and self.shorting:
                     # Create a 100% short position.
@@ -344,7 +340,7 @@ class DriftOrderLogic:
 
             elif row["drift"] < 0:
                 base_asset = row["base_asset"]
-                last_price = self.get_last_price(base_asset)
+                last_price = self.strategy.get_last_price(base_asset)
                 limit_price = self.calculate_limit_price(last_price=last_price, side="sell")
                 quantity = (row["current_value"] - row["target_value"]) / limit_price
                 if self.fractional_shares:
@@ -376,7 +372,7 @@ class DriftOrderLogic:
         for index, row in df.iterrows():
             if row["drift"] > 0:
                 base_asset = row["base_asset"]
-                last_price = self.get_last_price(base_asset)
+                last_price = self.strategy.get_last_price(base_asset)
                 limit_price = self.calculate_limit_price(last_price=last_price, side="buy")
                 order_value = row["target_value"] - row["current_value"]
                 quantity = min(order_value, cash_position) / limit_price
@@ -402,10 +398,6 @@ class DriftOrderLogic:
 
         for order in buy_orders:
             self.strategy.logger.info(f"Submitted buy order: {order}")
-
-    def get_last_price(self, base_asset: Asset) -> Decimal:
-        quote_asset = self.strategy.quote_asset or Asset(symbol="USD", asset_type="forex")
-        return Decimal(self.strategy.get_last_price(asset=base_asset, quote=quote_asset))
 
     def calculate_limit_price(self, *, last_price: Decimal, side: str) -> Decimal:
         if side == "sell":

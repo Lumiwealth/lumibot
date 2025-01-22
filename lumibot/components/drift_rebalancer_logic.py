@@ -115,6 +115,41 @@ class DriftRebalancerLogic:
         )
 
     def calculate(self, portfolio_weights: List[Dict[str, Any]]) -> pd.DataFrame:
+        """Return a dataframe with the drift of each asset in the portfolio.
+
+        Parameters
+        ----------
+
+        portfolio_weights : List[Dict[str, Any]]
+            A list of dictionaries with the target weights for each asset in the portfolio.
+            Each dictionary should have the following keys:
+            - base_asset: Asset
+            - weight: Decimal
+
+        Returns
+        -------
+
+        pd.DataFrame
+            A DataFrame with the drift of each asset in the portfolio.
+
+
+        Examples
+        --------
+
+        # Stock example
+        portfolio_weights = [
+            {"base_asset": Asset(symbol="AAPL"), "weight": Decimal("0.20")},
+            {"base_asset": Asset(symbol="MSFT"), "weight": Decimal("0.30")},
+            {"base_asset": Asset(symbol="GOOGL"), "weight": Decimal("0.50")}
+        ]
+
+        # Crypto example
+        portfolio_weights = [
+            {"base_asset": Asset(symbol="BTC", asset_type="crypto"), "weight": Decimal("0.60")},
+            {"base_asset": Asset(symbol="ETH", asset_type="crypto"), "weight": Decimal("0.40")}
+        ]
+
+        """
         return self.calculation_logic.calculate(portfolio_weights)
 
     def rebalance(self, drift_df: pd.DataFrame = None) -> bool:

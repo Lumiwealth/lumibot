@@ -55,7 +55,7 @@ class MockStrategyWithDriftCalculationLogic(Strategy):
         return order
 
 
-@pytest.mark.skip()
+# @pytest.mark.skip()
 class TestDriftCalculationLogic:
 
     def setup_method(self):
@@ -66,34 +66,37 @@ class TestDriftCalculationLogic:
 
     def test_add_position(self, mocker):
         strategy = MockStrategyWithDriftCalculationLogic(broker=self.backtesting_broker)
-        target_weights = {
-            "AAPL": Decimal("0.5"),
-            "GOOGL": Decimal("0.3"),
-            "MSFT": Decimal("0.2")
-        }
+        portfolio_weights = [
+            {"base_asset": Asset(symbol="AAPL", asset_type="stock"), "weight": Decimal("0.5")},
+            {"base_asset": Asset(symbol="GOOGL", asset_type="stock"), "weight": Decimal("0.3")},
+            {"base_asset": Asset(symbol="MSFT", asset_type="stock"), "weight": Decimal("0.2")}
+        ]
 
         def mock_add_positions(mock_self):
             mock_self._add_position(
                 symbol="AAPL",
+                base_asset=Asset(symbol="AAPL", asset_type="stock"),
                 is_quote_asset=False,
                 current_quantity=Decimal("10"),
                 current_value=Decimal("1500")
             )
             mock_self._add_position(
                 symbol="GOOGL",
+                base_asset=Asset(symbol="GOOGL", asset_type="stock"),
                 is_quote_asset=False,
                 current_quantity=Decimal("5"),
                 current_value=Decimal("1000")
             )
             mock_self._add_position(
                 symbol="MSFT",
+                base_asset=Asset(symbol="MSFT", asset_type="stock"),
                 is_quote_asset=False,
                 current_quantity=Decimal("8"),
                 current_value=Decimal("800")
             )
 
         mocker.patch.object(DriftCalculationLogic, "_add_positions", mock_add_positions)
-        df = strategy.drift_rebalancer_logic.calculate(target_weights=target_weights)
+        df = strategy.drift_rebalancer_logic.calculate(portfolio_weights=portfolio_weights)
         assert df["symbol"].tolist() == ["AAPL", "GOOGL", "MSFT"]
         assert df["current_quantity"].tolist() == [Decimal("10"), Decimal("5"), Decimal("8")]
         assert df["current_value"].tolist() == [Decimal("1500"), Decimal("1000"), Decimal("800")]
@@ -104,34 +107,37 @@ class TestDriftCalculationLogic:
             drift_threshold=Decimal("0.05"),
             drift_type=DriftType.ABSOLUTE
         )
-        target_weights = {
-            "AAPL": Decimal("0.5"),
-            "GOOGL": Decimal("0.3"),
-            "MSFT": Decimal("0.2")
-        }
+        portfolio_weights = [
+            {"base_asset": Asset(symbol="AAPL", asset_type="stock"), "weight": Decimal("0.5")},
+            {"base_asset": Asset(symbol="GOOGL", asset_type="stock"), "weight": Decimal("0.3")},
+            {"base_asset": Asset(symbol="MSFT", asset_type="stock"), "weight": Decimal("0.2")}
+        ]
 
         def mock_add_positions(mock_self):
             mock_self._add_position(
                 symbol="AAPL",
+                base_asset=Asset(symbol="AAPL", asset_type="stock"),
                 is_quote_asset=False,
                 current_quantity=Decimal("10"),
                 current_value=Decimal("1500")
             )
             mock_self._add_position(
                 symbol="GOOGL",
+                base_asset=Asset(symbol="GOOGL", asset_type="stock"),
                 is_quote_asset=False,
                 current_quantity=Decimal("5"),
                 current_value=Decimal("1000")
             )
             mock_self._add_position(
                 symbol="MSFT",
+                base_asset=Asset(symbol="MSFT", asset_type="stock"),
                 is_quote_asset=False,
                 current_quantity=Decimal("8"),
                 current_value=Decimal("800")
             )
 
         mocker.patch.object(DriftCalculationLogic, "_add_positions", mock_add_positions)
-        df = strategy.drift_rebalancer_logic.calculate(target_weights=target_weights)
+        df = strategy.drift_rebalancer_logic.calculate(portfolio_weights=portfolio_weights)
 
         pd.testing.assert_series_equal(
             df["current_weight"],
@@ -162,34 +168,37 @@ class TestDriftCalculationLogic:
             drift_type=DriftType.RELATIVE
         )
 
-        target_weights = {
-            "AAPL": Decimal("0.60"),
-            "GOOGL": Decimal("0.30"),
-            "MSFT": Decimal("0.10")
-        }
+        portfolio_weights = [
+            {"base_asset": Asset(symbol="AAPL", asset_type="stock"), "weight": Decimal("0.60")},
+            {"base_asset": Asset(symbol="GOOGL", asset_type="stock"), "weight": Decimal("0.30")},
+            {"base_asset": Asset(symbol="MSFT", asset_type="stock"), "weight": Decimal("0.10")}
+        ]
 
         def mock_add_positions(mock_self):
             mock_self._add_position(
                 symbol="AAPL",
+                base_asset=Asset(symbol="AAPL", asset_type="stock"),
                 is_quote_asset=False,
                 current_quantity=Decimal("4"),
                 current_value=Decimal("400")
             )
             mock_self._add_position(
                 symbol="GOOGL",
+                base_asset=Asset(symbol="GOOGL", asset_type="stock"),
                 is_quote_asset=False,
                 current_quantity=Decimal("4"),
                 current_value=Decimal("400")
             )
             mock_self._add_position(
                 symbol="MSFT",
+                base_asset=Asset(symbol="MSFT", asset_type="stock"),
                 is_quote_asset=False,
                 current_quantity=Decimal("2"),
                 current_value=Decimal("200")
             )
 
         mocker.patch.object(DriftCalculationLogic, "_add_positions", mock_add_positions)
-        df = strategy.drift_rebalancer_logic.calculate(target_weights=target_weights)
+        df = strategy.drift_rebalancer_logic.calculate(portfolio_weights=portfolio_weights)
         # print(f"/n{df[['symbol', 'current_weight', 'target_weight', 'drift']]}")
 
         pd.testing.assert_series_equal(
@@ -220,34 +229,37 @@ class TestDriftCalculationLogic:
             drift_threshold=Decimal("0.05"),
             drift_type=DriftType.ABSOLUTE
         )
-        target_weights = {
-            "AAPL": Decimal("0.5"),
-            "GOOGL": Decimal("0.3"),
-            "MSFT": Decimal("0.0")
-        }
+        portfolio_weights = [
+            {"base_asset": Asset(symbol="AAPL", asset_type="stock"), "weight": Decimal("0.5")},
+            {"base_asset": Asset(symbol="GOOGL", asset_type="stock"), "weight": Decimal("0.3")},
+            {"base_asset": Asset(symbol="MSFT", asset_type="stock"), "weight": Decimal("0.0")}
+        ]
 
         def mock_add_positions(mock_self):
             mock_self._add_position(
                 symbol="AAPL",
+                base_asset=Asset(symbol="AAPL", asset_type="stock"),
                 is_quote_asset=False,
                 current_quantity=Decimal("10"),
                 current_value=Decimal("1500")
             )
             mock_self._add_position(
                 symbol="GOOGL",
+                base_asset=Asset(symbol="GOOGL", asset_type="stock"),
                 is_quote_asset=False,
                 current_quantity=Decimal("5"),
                 current_value=Decimal("1000")
             )
             mock_self._add_position(
                 symbol="MSFT",
+                base_asset=Asset(symbol="MSFT", asset_type="stock"),
                 is_quote_asset=False,
                 current_quantity=Decimal("8"),
                 current_value=Decimal("800")
             )
 
         mocker.patch.object(DriftCalculationLogic, "_add_positions", mock_add_positions)
-        df = strategy.drift_rebalancer_logic.calculate(target_weights=target_weights)
+        df = strategy.drift_rebalancer_logic.calculate(portfolio_weights=portfolio_weights)
 
         pd.testing.assert_series_equal(
             df["current_weight"],
@@ -277,35 +289,38 @@ class TestDriftCalculationLogic:
             drift_threshold=Decimal("0.05"),
             drift_type=DriftType.ABSOLUTE
         )
-        target_weights = {
-            "AAPL": Decimal("0.25"),
-            "GOOGL": Decimal("0.25"),
-            "MSFT": Decimal("0.25"),
-            "AMZN": Decimal("0.25")
-        }
+        portfolio_weights = [
+            {"base_asset": Asset(symbol="AAPL", asset_type="stock"), "weight": Decimal("0.25")},
+            {"base_asset": Asset(symbol="GOOGL", asset_type="stock"), "weight": Decimal("0.25")},
+            {"base_asset": Asset(symbol="MSFT", asset_type="stock"), "weight": Decimal("0.25")},
+            {"base_asset": Asset(symbol="AMZN", asset_type="stock"), "weight": Decimal("0.25")}
+        ]
 
         def mock_add_positions(mock_self):
             mock_self._add_position(
                 symbol="AAPL",
+                base_asset=Asset(symbol="AAPL", asset_type="stock"),
                 is_quote_asset=False,
                 current_quantity=Decimal("10"),
                 current_value=Decimal("1500")
             )
             mock_self._add_position(
                 symbol="GOOGL",
+                base_asset=Asset(symbol="GOOGL", asset_type="stock"),
                 is_quote_asset=False,
                 current_quantity=Decimal("5"),
                 current_value=Decimal("1000")
             )
             mock_self._add_position(
                 symbol="MSFT",
+                base_asset=Asset(symbol="MSFT", asset_type="stock"),
                 is_quote_asset=False,
                 current_quantity=Decimal("8"),
                 current_value=Decimal("800")
             )
 
         mocker.patch.object(DriftCalculationLogic, "_add_positions", mock_add_positions)
-        df = strategy.drift_rebalancer_logic.calculate(target_weights=target_weights)
+        df = strategy.drift_rebalancer_logic.calculate(portfolio_weights=portfolio_weights)
 
         pd.testing.assert_series_equal(
             df["current_weight"],
@@ -338,35 +353,38 @@ class TestDriftCalculationLogic:
             drift_type=DriftType.ABSOLUTE,
             shorting=True
         )
-        target_weights = {
-            "AAPL": Decimal("0.25"),
-            "GOOGL": Decimal("0.25"),
-            "MSFT": Decimal("0.25"),
-            "AMZN": Decimal("-0.25")
-        }
+        portfolio_weights = [
+            {"base_asset": Asset(symbol="AAPL", asset_type="stock"), "weight": Decimal("0.25")},
+            {"base_asset": Asset(symbol="GOOGL", asset_type="stock"), "weight": Decimal("0.25")},
+            {"base_asset": Asset(symbol="MSFT", asset_type="stock"), "weight": Decimal("0.25")},
+            {"base_asset": Asset(symbol="AMZN", asset_type="stock"), "weight": Decimal("-0.25")}
+        ]
 
         def mock_add_positions(mock_self):
             mock_self._add_position(
                 symbol="AAPL",
+                base_asset=Asset(symbol="AAPL", asset_type="stock"),
                 is_quote_asset=False,
                 current_quantity=Decimal("10"),
                 current_value=Decimal("1500")
             )
             mock_self._add_position(
                 symbol="GOOGL",
+                base_asset=Asset(symbol="GOOGL", asset_type="stock"),
                 is_quote_asset=False,
                 current_quantity=Decimal("5"),
                 current_value=Decimal("1000")
             )
             mock_self._add_position(
                 symbol="MSFT",
+                base_asset=Asset(symbol="MSFT", asset_type="stock"),
                 is_quote_asset=False,
                 current_quantity=Decimal("8"),
                 current_value=Decimal("800")
             )
 
         mocker.patch.object(DriftCalculationLogic, "_add_positions", mock_add_positions)
-        df = strategy.drift_rebalancer_logic.calculate(target_weights=target_weights)
+        df = strategy.drift_rebalancer_logic.calculate(portfolio_weights=portfolio_weights)
 
         pd.testing.assert_series_equal(
             df["current_weight"],
@@ -398,35 +416,38 @@ class TestDriftCalculationLogic:
             drift_threshold=Decimal("0.05"),
             drift_type=DriftType.ABSOLUTE
         )
-        target_weights = {
-            "AAPL": Decimal("0.25"),
-            "GOOGL": Decimal("0.25"),
-            "MSFT": Decimal("0.25"),
-            "AMZN": Decimal("0.0")
-        }
+        portfolio_weights = [
+            {"base_asset": Asset(symbol="AAPL", asset_type="stock"), "weight": Decimal("0.25")},
+            {"base_asset": Asset(symbol="GOOGL", asset_type="stock"), "weight": Decimal("0.25")},
+            {"base_asset": Asset(symbol="MSFT", asset_type="stock"), "weight": Decimal("0.25")},
+            {"base_asset": Asset(symbol="AMZN", asset_type="stock"), "weight": Decimal("0.0")}
+        ]
 
         def mock_add_positions(mock_self):
             mock_self._add_position(
                 symbol="AAPL",
+                base_asset=Asset(symbol="AAPL", asset_type="stock"),
                 is_quote_asset=False,
                 current_quantity=Decimal("10"),
                 current_value=Decimal("1500")
             )
             mock_self._add_position(
                 symbol="GOOGL",
+                base_asset=Asset(symbol="GOOGL", asset_type="stock"),
                 is_quote_asset=False,
                 current_quantity=Decimal("5"),
                 current_value=Decimal("1000")
             )
             mock_self._add_position(
                 symbol="MSFT",
+                base_asset=Asset(symbol="MSFT", asset_type="stock"),
                 is_quote_asset=False,
                 current_quantity=Decimal("8"),
                 current_value=Decimal("800")
             )
 
         mocker.patch.object(DriftCalculationLogic, "_add_positions", mock_add_positions)
-        df = strategy.drift_rebalancer_logic.calculate(target_weights=target_weights)
+        df = strategy.drift_rebalancer_logic.calculate(portfolio_weights=portfolio_weights)
 
         pd.testing.assert_series_equal(
             df["current_weight"],
@@ -458,40 +479,44 @@ class TestDriftCalculationLogic:
             drift_threshold=Decimal("0.05"),
             drift_type=DriftType.ABSOLUTE
         )
-        target_weights = {
-            "AAPL": Decimal("0.5"),
-            "GOOGL": Decimal("0.3"),
-            "MSFT": Decimal("0.2")
-        }
+        portfolio_weights = [
+            {"base_asset": Asset(symbol="AAPL", asset_type="stock"), "weight": Decimal("0.5")},
+            {"base_asset": Asset(symbol="GOOGL", asset_type="stock"), "weight": Decimal("0.3")},
+            {"base_asset": Asset(symbol="MSFT", asset_type="stock"), "weight": Decimal("0.2")}
+        ]
 
         def mock_add_positions(mock_self):
             mock_self._add_position(
                 symbol="USD",
+                base_asset=Asset(symbol="USD", asset_type="forex"),
                 is_quote_asset=True,
                 current_quantity=Decimal("1000"),
                 current_value=Decimal("1000")
             )
             mock_self._add_position(
                 symbol="AAPL",
+                base_asset=Asset(symbol="AAPL", asset_type="stock"),
                 is_quote_asset=False,
                 current_quantity=Decimal("10"),
                 current_value=Decimal("1500")
             )
             mock_self._add_position(
                 symbol="GOOGL",
+                base_asset=Asset(symbol="GOOGL", asset_type="stock"),
                 is_quote_asset=False,
                 current_quantity=Decimal("5"),
                 current_value=Decimal("1000")
             )
             mock_self._add_position(
                 symbol="MSFT",
+                base_asset=Asset(symbol="MSFT", asset_type="stock"),
                 is_quote_asset=False,
                 current_quantity=Decimal("8"),
                 current_value=Decimal("800")
             )
 
         mocker.patch.object(DriftCalculationLogic, "_add_positions", mock_add_positions)
-        df = strategy.drift_rebalancer_logic.calculate(target_weights=target_weights)
+        df = strategy.drift_rebalancer_logic.calculate(portfolio_weights=portfolio_weights)
 
         pd.testing.assert_series_equal(
             df["current_weight"],
@@ -523,40 +548,45 @@ class TestDriftCalculationLogic:
             drift_threshold=Decimal("0.20"),
             drift_type=DriftType.RELATIVE
         )
-        target_weights = {
-            "AAPL": Decimal("0.5"),
-            "GOOGL": Decimal("0.3"),
-            "MSFT": Decimal("0.2")
-        }
+        
+        portfolio_weights = [
+            {"base_asset": Asset(symbol="AAPL", asset_type="stock"), "weight": Decimal("0.5")},
+            {"base_asset": Asset(symbol="GOOGL", asset_type="stock"), "weight": Decimal("0.3")},
+            {"base_asset": Asset(symbol="MSFT", asset_type="stock"), "weight": Decimal("0.2")}
+        ]
 
         def mock_add_positions(mock_self):
             mock_self._add_position(
                 symbol="USD",
+                base_asset=Asset(symbol="USD", asset_type="forex"),
                 is_quote_asset=True,
                 current_quantity=Decimal("1000"),
                 current_value=Decimal("1000")
             )
             mock_self._add_position(
                 symbol="AAPL",
+                base_asset=Asset(symbol="AAPL", asset_type="stock"),
                 is_quote_asset=False,
                 current_quantity=Decimal("10"),
                 current_value=Decimal("1500")
             )
             mock_self._add_position(
                 symbol="GOOGL",
+                base_asset=Asset(symbol="GOOGL", asset_type="stock"),
                 is_quote_asset=False,
                 current_quantity=Decimal("5"),
                 current_value=Decimal("1000")
             )
             mock_self._add_position(
                 symbol="MSFT",
+                base_asset=Asset(symbol="MSFT", asset_type="stock"),
                 is_quote_asset=False,
                 current_quantity=Decimal("8"),
                 current_value=Decimal("800")
             )
 
         mocker.patch.object(DriftCalculationLogic, "_add_positions", mock_add_positions)
-        df = strategy.drift_rebalancer_logic.calculate(target_weights=target_weights)
+        df = strategy.drift_rebalancer_logic.calculate(portfolio_weights=portfolio_weights)
 
         pd.testing.assert_series_equal(
             df["current_weight"],
@@ -588,34 +618,38 @@ class TestDriftCalculationLogic:
             drift_threshold=Decimal("0.05"),
             drift_type=DriftType.ABSOLUTE
         )
-        target_weights = {
-            "AAPL": Decimal("0.25"),
-            "GOOGL": Decimal("0.25"),
-            "USD": Decimal("0.50")
-        }
+        
+        portfolio_weights = [
+            {"base_asset": Asset(symbol="AAPL", asset_type="stock"), "weight": Decimal("0.25")},
+            {"base_asset": Asset(symbol="GOOGL", asset_type="stock"), "weight": Decimal("0.25")},
+            {"base_asset": Asset(symbol="USD", asset_type="forex"), "weight": Decimal("0.5")}
+        ]
 
         def mock_add_positions(mock_self):
             mock_self._add_position(
                 symbol="USD",
+                base_asset=Asset(symbol="USD", asset_type="forex"),
                 is_quote_asset=True,
                 current_quantity=Decimal("0"),
                 current_value=Decimal("0")
             )
             mock_self._add_position(
                 symbol="AAPL",
+                base_asset=Asset(symbol="AAPL", asset_type="stock"),
                 is_quote_asset=False,
                 current_quantity=Decimal("5"),
                 current_value=Decimal("500")
             )
             mock_self._add_position(
                 symbol="GOOGL",
+                base_asset=Asset(symbol="GOOGL", asset_type="stock"),
                 is_quote_asset=False,
                 current_quantity=Decimal("10"),
                 current_value=Decimal("500")
             )
 
         mocker.patch.object(DriftCalculationLogic, "_add_positions", mock_add_positions)
-        df = strategy.drift_rebalancer_logic.calculate(target_weights=target_weights)
+        df = strategy.drift_rebalancer_logic.calculate(portfolio_weights=portfolio_weights)
 
         assert df["current_weight"].tolist() == [Decimal("0.5"), Decimal("0.5"), Decimal("0.0")]
         assert df["target_value"].tolist() == [Decimal("250"), Decimal("250"), Decimal("500")]
@@ -627,27 +661,30 @@ class TestDriftCalculationLogic:
             drift_threshold=Decimal("0.05"),
             drift_type=DriftType.ABSOLUTE
         )
-        target_weights = {
-            "AAPL": Decimal("-0.50"),
-            "USD": Decimal("0.50")
-        }
+
+        portfolio_weights = [
+            {"base_asset": Asset(symbol="AAPL", asset_type="stock"), "weight": Decimal("-0.5")},
+            {"base_asset": Asset(symbol="USD", asset_type="forex"), "weight": Decimal("0.5")}
+        ]
 
         def mock_add_positions(mock_self):
             mock_self._add_position(
                 symbol="USD",
+                base_asset=Asset(symbol="USD", asset_type="forex"),
                 is_quote_asset=True,
                 current_quantity=Decimal("1000"),
                 current_value=Decimal("1000")
             )
             mock_self._add_position(
                 symbol="AAPL",
+                base_asset=Asset(symbol="AAPL", asset_type="stock"),
                 is_quote_asset=False,
                 current_quantity=Decimal("0"),
                 current_value=Decimal("0")
             )
 
         mocker.patch.object(DriftCalculationLogic, "_add_positions", mock_add_positions)
-        df = strategy.drift_rebalancer_logic.calculate(target_weights=target_weights)
+        df = strategy.drift_rebalancer_logic.calculate(portfolio_weights=portfolio_weights)
 
         assert df["current_weight"].tolist() == [Decimal("0.0"), Decimal("1.0")]
         assert df["target_value"].tolist() == [Decimal("-500"), Decimal("500")]
@@ -659,34 +696,38 @@ class TestDriftCalculationLogic:
             drift_threshold=Decimal("0.05"),
             drift_type=DriftType.ABSOLUTE
         )
-        target_weights = {
-            "AAPL": Decimal("0.25"),
-            "GOOGL": Decimal("0.25"),
-            "USD": Decimal("0.50")
-        }
+
+        portfolio_weights = [
+            {"base_asset": Asset(symbol="AAPL", asset_type="stock"), "weight": Decimal("0.25")},
+            {"base_asset": Asset(symbol="GOOGL", asset_type="stock"), "weight": Decimal("0.25")},
+            {"base_asset": Asset(symbol="USD", asset_type="forex"), "weight": Decimal("0.5")}
+        ]
 
         def mock_add_positions(mock_self):
             mock_self._add_position(
                 symbol="USD",
+                base_asset=Asset(symbol="USD", asset_type="forex"),
                 is_quote_asset=True,
                 current_quantity=Decimal("0"),
                 current_value=Decimal("0")
             )
             mock_self._add_position(
                 symbol="AAPL",
+                base_asset=Asset(symbol="AAPL", asset_type="stock"),
                 is_quote_asset=False,
                 current_quantity=Decimal("5"),
                 current_value=Decimal("500")
             )
             mock_self._add_position(
                 symbol="GOOGL",
+                base_asset=Asset(symbol="GOOGL", asset_type="stock"),
                 is_quote_asset=False,
                 current_quantity=Decimal("10"),
                 current_value=Decimal("500")
             )
 
         mocker.patch.object(DriftCalculationLogic, "_add_positions", mock_add_positions)
-        df = strategy.drift_rebalancer_logic.calculate(target_weights=target_weights)
+        df = strategy.drift_rebalancer_logic.calculate(portfolio_weights=portfolio_weights)
 
         assert df["current_weight"].tolist() == [Decimal("0.5"), Decimal("0.5"), Decimal("0.0")]
         assert df["target_value"].tolist() == [Decimal("250"), Decimal("250"), Decimal("500")]
@@ -698,27 +739,30 @@ class TestDriftCalculationLogic:
             drift_threshold=Decimal("0.05"),
             drift_type=DriftType.ABSOLUTE
         )
-        target_weights = {
-            "AAPL": Decimal("-1.0"),
-            "USD": Decimal("0.0")
-        }
+        
+        portfolio_weights = [
+            {"base_asset": Asset(symbol="AAPL", asset_type="stock"), "weight": Decimal("-1.0")},
+            {"base_asset": Asset(symbol="USD", asset_type="forex"), "weight": Decimal("0.0")}
+        ]
 
         def mock_add_positions(mock_self):
             mock_self._add_position(
                 symbol="USD",
+                base_asset=Asset(symbol="USD", asset_type="forex"),
                 is_quote_asset=True,
                 current_quantity=Decimal("1000"),
                 current_value=Decimal("1000")
             )
             mock_self._add_position(
                 symbol="AAPL",
+                base_asset=Asset(symbol="AAPL", asset_type="stock"),
                 is_quote_asset=False,
                 current_quantity=Decimal("0"),
                 current_value=Decimal("0")
             )
 
         mocker.patch.object(DriftCalculationLogic, "_add_positions", mock_add_positions)
-        df = strategy.drift_rebalancer_logic.calculate(target_weights=target_weights)
+        df = strategy.drift_rebalancer_logic.calculate(portfolio_weights=portfolio_weights)
 
         assert df["current_weight"].tolist() == [Decimal("0.0"), Decimal("1.0")]
         assert df["target_value"].tolist() == [Decimal("-1000"), Decimal("0")]
@@ -730,27 +774,30 @@ class TestDriftCalculationLogic:
             drift_threshold=Decimal("0.05"),
             drift_type=DriftType.RELATIVE
         )
-        target_weights = {
-            "AAPL": Decimal("-1.0"),
-            "USD": Decimal("0.0")
-        }
+
+        portfolio_weights = [
+            {"base_asset": Asset(symbol="AAPL", asset_type="stock"), "weight": Decimal("-1.0")},
+            {"base_asset": Asset(symbol="USD", asset_type="forex"), "weight": Decimal("0.0")}
+        ]
 
         def mock_add_positions(mock_self):
             mock_self._add_position(
                 symbol="USD",
+                base_asset=Asset(symbol="USD", asset_type="forex"),
                 is_quote_asset=True,
                 current_quantity=Decimal("1000"),
                 current_value=Decimal("1000")
             )
             mock_self._add_position(
                 symbol="AAPL",
+                base_asset=Asset(symbol="AAPL", asset_type="stock"),
                 is_quote_asset=False,
                 current_quantity=Decimal("0"),
                 current_value=Decimal("0")
             )
 
         mocker.patch.object(DriftCalculationLogic, "_add_positions", mock_add_positions)
-        df = strategy.drift_rebalancer_logic.calculate(target_weights=target_weights)
+        df = strategy.drift_rebalancer_logic.calculate(portfolio_weights=portfolio_weights)
 
         assert df["current_weight"].tolist() == [Decimal("0.0"), Decimal("1.0")]
         assert df["target_value"].tolist() == [Decimal("-1000"), Decimal("0")]

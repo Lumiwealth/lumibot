@@ -133,7 +133,7 @@ class Asset:
     def __init__(
         self,
         symbol: str,
-        asset_type: str = "stock",
+        asset_type: str = AssetType.STOCK,
         expiration: date = None,
         strike: float = 0.0,
         right: str = None,
@@ -141,6 +141,40 @@ class Asset:
         precision: str = None,
         underlying_asset: "Asset" = None,
     ):
+        """
+        Parameters
+        ----------
+        symbol : str
+            Symbol of the stock or underlying in case of futures/options.
+        asset_type : str
+            Type of the asset. Asset types are only 'stock', 'option', 'future', 'forex', 'crypto'
+            default : 'stock'
+        expiration : datetime.date
+            Option or futures expiration.
+            The datetime.date will be converted to broker specific formats.
+            IB Format: for options "YYYYMMDD", for futures "YYYYMM"
+        strike : str
+            Options strike as string.
+        right : str
+            'CALL' or 'PUT'
+            default : ""
+        multiplier : int
+            Price multiplier.
+            default : 1
+        underlying_asset : Asset
+            Underlying asset for options.
+
+        Raises
+        ------
+        ValueError
+            If the asset type is not one of the accepted types.
+        ValueError
+            If the right is not one of the accepted types.
+
+        Returns
+        -------
+        None
+        """
         # Capitalize the symbol because some brokers require it
         self.symbol = symbol.upper() if symbol is not None else None
         self.asset_type = asset_type

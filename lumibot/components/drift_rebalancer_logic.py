@@ -1,10 +1,9 @@
-from typing import Dict, Any, List
+from typing import Dict, Any
 from decimal import Decimal, ROUND_DOWN
 import time
 
 import pandas as pd
 
-from lumibot.entities import Asset
 from lumibot.strategies.strategy import Strategy
 from lumibot.entities.order import Order
 from lumibot.tools.pandas import prettify_dataframe_with_decimals
@@ -23,6 +22,8 @@ class DriftRebalancerLogic:
     buy assets whose weights have drifted below the threshold.
 
     The current version of the DriftRebalancer strategy only supports market and limit orders.
+    The current version of the DriftRebalancer strategy only supports whole share quantities.
+    Upvote an issue if you need fractional shares.
 
     Parameters
     ----------
@@ -80,10 +81,6 @@ class DriftRebalancerLogic:
     shorting : bool, optional
         If you want to allow shorting, set this to True. The default is False.
 
-    fractional_shares : bool, optional
-        When set to True, the strategy will only use fractional shares. The default is False, which means
-        the strategy will only use whole shares.
-
     """
 
     def __init__(
@@ -95,8 +92,7 @@ class DriftRebalancerLogic:
             order_type: Order.OrderType = Order.OrderType.LIMIT,
             acceptable_slippage: Decimal = Decimal("0.005"),
             fill_sleeptime: int = 15,
-            shorting: bool = False,
-            fractional_shares: bool = False
+            shorting: bool = False
     ) -> None:
         self.strategy = strategy
         self.calculation_logic = DriftCalculationLogic(
@@ -110,47 +106,11 @@ class DriftRebalancerLogic:
             fill_sleeptime=fill_sleeptime,
             acceptable_slippage=acceptable_slippage,
             shorting=shorting,
-            order_type=order_type,
-            fractional_shares=fractional_shares
+            order_type=order_type
         )
 
-    def calculate(self, portfolio_weights: List[Dict[str, Any]]) -> pd.DataFrame:
-        """Return a dataframe with the drift of each asset in the portfolio.
-
-        Parameters
-        ----------
-
-        portfolio_weights : List[Dict[str, Any]]
-            A list of dictionaries with the target weights for each asset in the portfolio.
-            Each dictionary should have the following keys:
-            - base_asset: Asset
-            - weight: Decimal
-
-        Returns
-        -------
-
-        pd.DataFrame
-            A DataFrame with the drift of each asset in the portfolio.
-
-
-        Examples
-        --------
-
-        # Stock example
-        portfolio_weights = [
-            {"base_asset": Asset(symbol="AAPL"), "weight": Decimal("0.20")},
-            {"base_asset": Asset(symbol="MSFT"), "weight": Decimal("0.30")},
-            {"base_asset": Asset(symbol="GOOGL"), "weight": Decimal("0.50")}
-        ]
-
-        # Crypto example
-        portfolio_weights = [
-            {"base_asset": Asset(symbol="BTC", asset_type="crypto"), "weight": Decimal("0.60")},
-            {"base_asset": Asset(symbol="ETH", asset_type="crypto"), "weight": Decimal("0.40")}
-        ]
-
-        """
-        return self.calculation_logic.calculate(portfolio_weights)
+    def calculate(self, target_weights: Dict[str, Decimal]) -> pd.DataFrame:
+        return self.calculation_logic.calculate(target_weights)
 
     def rebalance(self, drift_df: pd.DataFrame = None) -> bool:
         return self.order_logic.rebalance(drift_df)
@@ -170,25 +130,15 @@ class DriftCalculationLogic:
         self.drift_threshold = drift_threshold
         self.df = pd.DataFrame()
 
-    def calculate(self, portfolio_weights: List[Dict[str, Any]]) -> pd.DataFrame:
-
-        if self.drift_type == DriftType.ABSOLUTE:
-            # The absolute value of all the weights are less than the drift_threshold
-            # then we will never trigger a rebalance.
-            if all([abs(item['weight']) < self.drift_threshold for item in portfolio_weights]):
-                self.strategy.logger.warning(
-                    f"All target weights are less than the drift_threshold: {self.drift_threshold}. "
-                    f"No rebalance will be triggered."
-                )
+    def calculate(self, target_weights: Dict[str, Decimal]) -> pd.DataFrame:
 
         self.df = pd.DataFrame({
-            "symbol": [item['base_asset'].symbol for item in portfolio_weights],
-            "base_asset": [item['base_asset'] for item in portfolio_weights],
+            "symbol": target_weights.keys(),
             "is_quote_asset": False,
             "current_quantity": Decimal(0),
             "current_value": Decimal(0),
             "current_weight": Decimal(0),
-            "target_weight": [Decimal(item['weight']) for item in portfolio_weights],
+            "target_weight": [Decimal(weight) for weight in target_weights.values()],
             "target_value": Decimal(0),
             "drift": Decimal(0)
         })
@@ -197,6 +147,7 @@ class DriftCalculationLogic:
         return self._calculate_drift().copy()
 
     def _add_positions(self) -> None:
+        # Get all positions and add them to the calculator
         positions = self.strategy.get_positions()
         for position in positions:
             symbol = position.symbol
@@ -206,11 +157,9 @@ class DriftCalculationLogic:
                 current_value = Decimal(position.quantity)
             else:
                 is_quote_asset = False
-                last_price = self.strategy.get_last_price(position.asset)
-                current_value = current_quantity * last_price
+                current_value = Decimal(self.strategy.get_last_price(symbol)) * current_quantity
             self._add_position(
                 symbol=symbol,
-                base_asset=position.asset,
                 is_quote_asset=is_quote_asset,
                 current_quantity=current_quantity,
                 current_value=current_value
@@ -220,20 +169,17 @@ class DriftCalculationLogic:
             self,
             *,
             symbol: str,
-            base_asset: Asset,
             is_quote_asset: bool,
             current_quantity: Decimal,
             current_value: Decimal
     ) -> None:
         if symbol in self.df["symbol"].values:
-            self.df.loc[self.df["symbol"] == symbol, "base_asset"] = base_asset
             self.df.loc[self.df["symbol"] == symbol, "is_quote_asset"] = is_quote_asset
             self.df.loc[self.df["symbol"] == symbol, "current_quantity"] = current_quantity
             self.df.loc[self.df["symbol"] == symbol, "current_value"] = current_value
         else:
             new_row = {
                 "symbol": symbol,
-                "base_asset": base_asset,
                 "is_quote_asset": is_quote_asset,
                 "current_quantity": current_quantity,
                 "current_value": current_value,
@@ -244,6 +190,7 @@ class DriftCalculationLogic:
             }
             # Convert the dictionary to a DataFrame
             new_row_df = pd.DataFrame([new_row])
+
             # Concatenate the new row to the existing DataFrame
             self.df = pd.concat([self.df, new_row_df], ignore_index=True)
 
@@ -307,8 +254,7 @@ class DriftOrderLogic:
             fill_sleeptime: int = 15,
             acceptable_slippage: Decimal = Decimal("0.005"),
             shorting: bool = False,
-            order_type: Order.OrderType = Order.OrderType.LIMIT,
-            fractional_shares: bool = False
+            order_type: Order.OrderType = Order.OrderType.LIMIT
     ) -> None:
         self.strategy = strategy
         self.drift_threshold = drift_threshold
@@ -316,7 +262,6 @@ class DriftOrderLogic:
         self.acceptable_slippage = acceptable_slippage
         self.shorting = shorting
         self.order_type = order_type
-        self.fractional_shares = fractional_shares
 
         # Sanity checks
         if self.acceptable_slippage >= self.drift_threshold:
@@ -352,21 +297,16 @@ class DriftOrderLogic:
         for index, row in df.iterrows():
             if row["drift"] == -1:
                 # Sell everything (or create 100% short position)
-                base_asset = row["base_asset"]
+                symbol = row["symbol"]
                 quantity = row["current_quantity"]
-                last_price = self.strategy.get_last_price(base_asset)
+                last_price = Decimal(self.strategy.get_last_price(symbol))
                 limit_price = self.calculate_limit_price(last_price=last_price, side="sell")
                 if quantity == 0 and self.shorting:
-                    # Create a 100% short position.
                     total_value = df["current_value"].sum()
-                    if self.fractional_shares:
-                        quantity = total_value / limit_price
-                        quantity = quantity.quantize(Decimal('1.000000000'))
-                    else:
-                        quantity = total_value // limit_price
+                    quantity = total_value // limit_price
                 if quantity > 0:
                     order = self.place_order(
-                        base_asset=base_asset,
+                        symbol=symbol,
                         quantity=quantity,
                         limit_price=limit_price,
                         side="sell"
@@ -374,19 +314,16 @@ class DriftOrderLogic:
                     sell_orders.append(order)
 
             elif row["drift"] < 0:
-                base_asset = row["base_asset"]
-                last_price = self.strategy.get_last_price(base_asset)
+                symbol = row["symbol"]
+                last_price = Decimal(self.strategy.get_last_price(symbol))
                 limit_price = self.calculate_limit_price(last_price=last_price, side="sell")
-                quantity = (row["current_value"] - row["target_value"]) / limit_price
-                if self.fractional_shares:
-                    quantity = quantity.quantize(Decimal('1.000000000'))
-                else:
-                    quantity = quantity.quantize(Decimal('1'), rounding=ROUND_DOWN)
-
+                quantity = (
+                        (row["current_value"] - row["target_value"]) / limit_price
+                ).quantize(Decimal('1'), rounding=ROUND_DOWN)
                 if (0 < quantity < row["current_quantity"]) or (quantity > 0 and self.shorting):
                     # If we are not shorting, we can only sell what we have.
                     order = self.place_order(
-                        base_asset=base_asset,
+                        symbol=symbol,
                         quantity=quantity,
                         limit_price=limit_price,
                         side="sell"
@@ -405,29 +342,30 @@ class DriftOrderLogic:
 
         # Execute buys
         for index, row in df.iterrows():
-            if row["drift"] > 0:
-                base_asset = row["base_asset"]
-                last_price = self.strategy.get_last_price(base_asset)
+            if row["drift"] == 1 and row['current_quantity'] < 0 and self.shorting:
+                # Cover our short position
+                symbol = row["symbol"]
+                quantity = abs(row["current_quantity"])
+                last_price = Decimal(self.strategy.get_last_price(symbol))
+                limit_price = self.calculate_limit_price(last_price=last_price, side="buy")
+                order = self.place_order(symbol=symbol, quantity=quantity, limit_price=limit_price, side="buy")
+                buy_orders.append(order)
+                cash_position -= quantity * limit_price
+
+            elif row["drift"] > 0:
+                symbol = row["symbol"]
+                last_price = Decimal(self.strategy.get_last_price(symbol))
                 limit_price = self.calculate_limit_price(last_price=last_price, side="buy")
                 order_value = row["target_value"] - row["current_value"]
-                quantity = min(order_value, cash_position) / limit_price
-                if self.fractional_shares:
-                    quantity = quantity.quantize(Decimal('1.000000000'))
-                else:
-                    quantity = quantity.quantize(Decimal('1'), rounding=ROUND_DOWN)
-
+                quantity = (min(order_value, cash_position) / limit_price).quantize(Decimal('1'), rounding=ROUND_DOWN)
                 if quantity > 0:
-                    order = self.place_order(
-                        base_asset=base_asset,
-                        quantity=quantity,
-                        limit_price=limit_price,
-                        side="buy"
-                    )
+                    order = self.place_order(symbol=symbol, quantity=quantity, limit_price=limit_price,
+                                             side="buy")
                     buy_orders.append(order)
-                    cash_position -= quantity * limit_price
+                    cash_position -= min(order_value, cash_position)
                 else:
                     self.strategy.logger.info(
-                        f"Ran out of cash to buy {quantity} of {base_asset.symbol}. "
+                        f"Ran out of cash to buy {symbol}. "
                         f"Cash: {cash_position} and limit_price: {limit_price:.2f}"
                     )
 
@@ -444,28 +382,19 @@ class DriftOrderLogic:
         self.strategy.update_broker_balances(force_update=True)
         return Decimal(self.strategy.cash)
 
-    def place_order(
-            self,
-            base_asset: Asset,
-            quantity: Decimal,
-            limit_price: Decimal,
-            side: str
-    ) -> Order:
-        quote_asset = self.strategy.quote_asset or Asset(symbol="USD", asset_type="forex")
+    def place_order(self, *, symbol: str, quantity: Decimal, limit_price: Decimal, side: str) -> Any:
         if self.order_type == Order.OrderType.LIMIT:
             order = self.strategy.create_order(
-                asset=base_asset,
+                asset=symbol,
                 quantity=quantity,
                 side=side,
-                limit_price=float(limit_price),
-                quote=quote_asset
+                limit_price=float(limit_price)
             )
         else:
             order = self.strategy.create_order(
-                asset=base_asset,
+                asset=symbol,
                 quantity=quantity,
-                side=side,
-                quote=quote_asset
+                side=side
             )
 
         self.strategy.submit_order(order)

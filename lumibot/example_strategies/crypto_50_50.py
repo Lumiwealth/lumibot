@@ -1,7 +1,6 @@
 from datetime import datetime
 import logging
-
-from peewee import quote
+from decimal import Decimal
 
 from lumibot.credentials import broker
 from lumibot.backtesting import YahooDataBacktesting
@@ -13,7 +12,7 @@ from lumibot.entities import Order, Asset
 logger = logging.getLogger(__name__)
 
 if __name__ == "__main__":
-    is_live = True
+    is_live = False
 
     parameters = {
         "market": "24/7",
@@ -31,10 +30,18 @@ if __name__ == "__main__":
         # Backtest this strategy
         backtesting_start = datetime(2023, 1, 1)
         backtesting_end = datetime(2023, 8, 1)
-        parameters["target_weights"] = {
-            "BTC-USD": "0.5",
-            "ETH-USD": "0.5"
-        }
+
+        # Backtesting crypto using yahoo means we need to use stock assets.
+        parameters["portfolio_weights"] = [
+            {
+                "base_asset": Asset(symbol='BTC-USD', asset_type='stock'),
+                "weight": Decimal("0.6")
+            },
+            {
+                "base_asset": Asset(symbol='ETH-USD', asset_type='stock'),
+                "weight": Decimal("0.4")
+            }
+        ]
         results = DriftRebalancer.backtest(
             YahooDataBacktesting,
             backtesting_start,
@@ -52,10 +59,17 @@ if __name__ == "__main__":
     elif isinstance(broker, Alpaca):
         # Run the strategy live
         logger.info("Running the strategy live with alpaca.")
-        parameters["target_weights"] = {
-            "BTCUSD": "0.5",
-            "ETHUSD": "0.5"
-        }
+
+        # Trading crypto live means we need to use crypto assets.
+        parameters["portfolio_weights"] = [
+            {
+                "base_asset": Asset(symbol='BTC', asset_type='crypto'),
+                "weight": Decimal("0.6")
+            },
+            {
+                "base_asset": Asset(symbol='ETH', asset_type='crypto'),
+                "weight": Decimal("0.4")
+            }
+        ]
         strategy = DriftRebalancer(broker, parameters=parameters)
-        print(broker.get_last_price(Asset(symbol="BTC", asset_type='crypto')))
-        # strategy.run_live()
+        strategy.run_live()

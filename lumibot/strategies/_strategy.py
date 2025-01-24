@@ -782,7 +782,7 @@ class _Strategy:
                 df = bars.df
 
                 # Add returns column
-                df["return"] = df["close"].pct_change()
+                df["return"] = df["close"].pct_change(fill_method=None)
 
                 # Add the symbol_cumprod column
                 df["symbol_cumprod"] = (1 + df["return"]).cumprod()

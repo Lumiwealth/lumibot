@@ -125,7 +125,7 @@ class BacktestingBroker(Broker):
 
         # Check that the index is not out of bounds
         if idx >= len(self._trading_days):
-            logging.error("Cannot predict future")
+            logging.info("Cannot predict future")
             return False
 
         # The index of the trading_day is used as the market close time
@@ -141,7 +141,7 @@ class BacktestingBroker(Broker):
         now = self.datetime
         search = self._trading_days[now < self._trading_days.market_open]
         if search.empty:
-            logging.error("Cannot predict future")
+            logging.info("Cannot predict future")
 
         return search.market_open[0].to_pydatetime()
 
@@ -151,7 +151,7 @@ class BacktestingBroker(Broker):
 
         search = self._trading_days[now < self._trading_days.index]
         if search.empty:
-            logging.error("Cannot predict future")
+            logging.info("Cannot predict future")
             return 0
 
         trading_day = search.iloc[0]
@@ -178,7 +178,7 @@ class BacktestingBroker(Broker):
         idx = self._trading_days.index.searchsorted(now, side='left')
 
         if idx >= len(self._trading_days):
-            logging.error("Cannot predict future")
+            logging.info("Cannot predict future")
             return 0
 
         # Directly access the data needed using more efficient methods

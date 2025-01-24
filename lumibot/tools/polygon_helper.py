@@ -649,7 +649,14 @@ def get_chains_cached(
                 f"within {RECENT_FILE_TOLERANCE_DAYS} days of {current_date}."
             )
             df_cached = pd.read_feather(fpath)
-            return df_cached["data"][0]
+
+            # Convert the data back to a dictionary of lists instead of NP arrays to match original return types
+            data = df_cached["data"][0]
+            for right in data["Chains"]:
+                for exp_date in data["Chains"][right]:
+                    data["Chains"][right][exp_date] = list(data["Chains"][right][exp_date])
+
+            return data
 
     # 5) No suitable file => must fetch from Polygon
     logging.debug(

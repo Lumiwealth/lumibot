@@ -248,8 +248,8 @@ class TestPolygonBacktestFull:
     )
     def test_intraday_daterange(self):
         tzinfo = pytz.timezone("America/New_York")
-        backtesting_start = datetime.datetime(2024, 2, 7).astimezone(tzinfo)
-        backtesting_end = datetime.datetime(2024, 2, 10).astimezone(tzinfo)
+        backtesting_start = tzinfo.localize(datetime.datetime(2024, 2, 7))
+        backtesting_end = tzinfo.localize(datetime.datetime(2024, 2, 10))
 
         data_source = PolygonDataBacktesting(
             datetime_start=backtesting_start,
@@ -386,13 +386,13 @@ class TestPolygonDataSource:
     )
     def test_get_historical_prices(self):
         tzinfo = pytz.timezone("America/New_York")
-        start = datetime.datetime(2024, 2, 5).astimezone(tzinfo)
-        end = datetime.datetime(2024, 2, 10).astimezone(tzinfo)
+        start = tzinfo.localize(datetime.datetime(2024, 2, 5))
+        end = tzinfo.localize(datetime.datetime(2024, 2, 10))
 
         data_source = PolygonDataBacktesting(
             start, end, api_key=POLYGON_API_KEY
         )
-        data_source._datetime = datetime.datetime(2024, 2, 7, 10).astimezone(tzinfo)
+        data_source._datetime = tzinfo.localize(datetime.datetime(2024, 2, 7, 10))
         # This call will set make the data source use minute bars.
         prices = data_source.get_historical_prices("SPY", 2, "minute")
         # The data source will aggregate day bars from the minute bars.
@@ -442,8 +442,8 @@ class TestPolygonDataSource:
         """
         tzinfo = pytz.timezone("America/New_York")
         # Set up a dummy backtesting period; in this test we only care about the 'current' datetime.
-        start = datetime.datetime(2025, 1, 13).astimezone(tzinfo)
-        end = datetime.datetime(2025, 1, 31).astimezone(tzinfo)
+        start = tzinfo.localize(datetime.datetime(2025, 1, 13))
+        end = tzinfo.localize(datetime.datetime(2025, 1, 31))
         data_source = PolygonDataBacktesting(start, end, api_key=POLYGON_API_KEY)
         # Patch get_datetime() to return January 13, 2025 (10:00 AM local)
         data_source.get_datetime = lambda: datetime.datetime(2025, 1, 13, 10, 0, 0, tzinfo=tzinfo)
@@ -462,8 +462,8 @@ class TestPolygonDataSource:
         expected_last = 685
         call_strikes = chains["Chains"]["CALL"][expected_expiry]
         put_strikes = chains["Chains"]["PUT"][expected_expiry]
-        assert call_strikes[:5] == expected_first_five, f"CALL strikes for {expected_expiry} expected first five {expected_first_five}, got {call_strikes[:5]}"
-        assert put_strikes[:5] == expected_first_five, f"PUT strikes for {expected_expiry} expected first five {expected_first_five}, got {put_strikes[:5]}"
+        assert list(call_strikes[:5]) == expected_first_five, f"CALL strikes for {expected_expiry} expected first five {expected_first_five}, got {call_strikes[:5]}"
+        assert list(put_strikes[:5]) == expected_first_five, f"PUT strikes for {expected_expiry} expected first five {expected_first_five}, got {put_strikes[:5]}"
         assert call_strikes[-1] == expected_last, f"CALL strikes for {expected_expiry} expected last strike {expected_last}, got {call_strikes[-1]}"
         assert put_strikes[-1] == expected_last, f"PUT strikes for {expected_expiry} expected last strike {expected_last}, got {put_strikes[-1]}"
 
@@ -475,19 +475,19 @@ class TestPolygonDataSource:
         based on historical data from Polygon.
         """
         tzinfo = pytz.timezone("America/New_York")
-        start = datetime.datetime(2023, 8, 1).astimezone(tzinfo)
-        end = datetime.datetime(2023, 8, 4).astimezone(tzinfo)
+        start = tzinfo.localize(datetime.datetime(2023, 8, 1))
+        end = tzinfo.localize(datetime.datetime(2023, 8, 4))
 
         data_source = PolygonDataBacktesting(start, end, api_key=POLYGON_API_KEY)
         # Pick a known date/time within our backtest window
-        data_source._datetime = datetime.datetime(2023, 8, 2, 10).astimezone(tzinfo)
+        data_source._datetime = tzinfo.localize(datetime.datetime(2023, 8, 2, 10))
 
         last_price = data_source.get_last_price(Asset("AMZN"))
         # As in the main test, we expect a price in the 130-140 range.
         assert last_price is not None, "Expected to get a price, got None"
-        # TODO: Rob: This fails on my local computer and gives me a price of 128.1 instead. Currently in Texas and it's Jan 17, 2024. 
-        # Timezone issue? DST issue? I'm not sure. I'm going to skip this test for now on my local machine but it's worth investigating.
-        assert 130 < last_price < 131, f"Expected AMZN price between 130 and 140 on 2023-08-02, got {last_price}"
+
+        # Open: $129.11, Close: $128.85 at 10am Eastern -- Looked up on TradingView (DavidM)
+        assert 128.80 < last_price < 129.20, f"Expected AMZN price between 128 and 130 on 2023-08-02, got {last_price}"
 
     @pytest.mark.skipif(POLYGON_API_KEY == '<your key here>', reason="This test requires a Polygon.io API key")
     def test_get_historical_prices_unchanged_for_amzn(self):

@@ -173,7 +173,7 @@ def get_price_data_from_polygon(
         s_date = e_date + timedelta(days=1)
 
     # 7) Prepare a progress bar
-    desc_text = f"\nDownloading data for {asset} / {quote_asset.symbol if quote_asset else ''} '{timespan}'. This will be cached for future use so it will be significantly faster the next time you run a backtest."
+    desc_text = f"\nDownloading and caching {asset} / {quote_asset.symbol if quote_asset else ''} '{timespan}'. This will be much faster next time"
     pbar = tqdm(total=total_queries, desc=desc_text, dynamic_ncols=True)
 
     # Helper function for each chunk

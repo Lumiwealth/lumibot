@@ -206,7 +206,7 @@ class DriftCalculationLogic:
                 current_value = Decimal(position.quantity)
             else:
                 is_quote_asset = False
-                last_price = self.strategy.get_last_price(position.asset)
+                last_price = Decimal(self.strategy.get_last_price(position.asset))
                 current_value = current_quantity * last_price
             self._add_position(
                 symbol=symbol,
@@ -359,7 +359,7 @@ class DriftOrderLogic:
                 # Sell everything (or create 100% short position)
                 base_asset = row["base_asset"]
                 quantity = row["current_quantity"]
-                last_price = self.strategy.get_last_price(base_asset)
+                last_price = Decimal(self.strategy.get_last_price(base_asset))
                 limit_price = self.calculate_limit_price(last_price=last_price, side="sell")
                 if quantity == 0 and self.shorting:
                     # Create a 100% short position.
@@ -380,7 +380,7 @@ class DriftOrderLogic:
 
             elif row["drift"] < 0:
                 base_asset = row["base_asset"]
-                last_price = self.strategy.get_last_price(base_asset)
+                last_price = Decimal(self.strategy.get_last_price(base_asset))
                 limit_price = self.calculate_limit_price(last_price=last_price, side="sell")
                 quantity = (row["current_value"] - row["target_value"]) / limit_price
                 if self.fractional_shares:
@@ -414,7 +414,7 @@ class DriftOrderLogic:
                 # Cover our short position
                 base_asset = row["base_asset"]
                 quantity = abs(row["current_quantity"])
-                last_price = self.strategy.get_last_price(base_asset)
+                last_price = Decimal(self.strategy.get_last_price(base_asset))
                 limit_price = self.calculate_limit_price(last_price=last_price, side="buy")
                 order = self.place_order(
                     base_asset=base_asset,
@@ -427,7 +427,7 @@ class DriftOrderLogic:
 
             elif row["drift"] > 0:
                 base_asset = row["base_asset"]
-                last_price = self.strategy.get_last_price(base_asset)
+                last_price = Decimal(self.strategy.get_last_price(base_asset))
                 limit_price = self.calculate_limit_price(last_price=last_price, side="buy")
                 order_value = row["target_value"] - row["current_value"]
                 quantity = min(order_value, cash_position) / limit_price

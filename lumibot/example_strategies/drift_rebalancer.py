@@ -120,9 +120,3 @@ class DriftRebalancer(Strategy):
 
         self.drift_df = self.drift_rebalancer_logic.calculate(portfolio_weights=self.portfolio_weights)
         self.drift_rebalancer_logic.rebalance(drift_df=self.drift_df)
-
-    def get_last_price(self, asset: Union[Asset, str], quote=None, exchange=None):
-        """Override get_last_price to use the strategy's quote asset and return a decimal."""
-        quote_asset = self.quote_asset or Asset(symbol="USD", asset_type="forex")
-        return Decimal(super().get_last_price(asset=asset, quote=quote_asset))
-        

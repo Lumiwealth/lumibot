@@ -35,11 +35,11 @@ if __name__ == "__main__":
         parameters["portfolio_weights"] = [
             {
                 "base_asset": Asset(symbol='BTC-USD', asset_type='stock'),
-                "weight": Decimal("0.6")
+                "weight": Decimal("0.5")
             },
             {
                 "base_asset": Asset(symbol='ETH-USD', asset_type='stock'),
-                "weight": Decimal("0.4")
+                "weight": Decimal("0.5")
             }
         ]
         results = DriftRebalancer.backtest(
@@ -64,11 +64,11 @@ if __name__ == "__main__":
         parameters["portfolio_weights"] = [
             {
                 "base_asset": Asset(symbol='BTC', asset_type='crypto'),
-                "weight": Decimal("0.6")
+                "weight": Decimal("0.5")
             },
             {
                 "base_asset": Asset(symbol='ETH', asset_type='crypto'),
-                "weight": Decimal("0.4")
+                "weight": Decimal("0.5")
             }
         ]
         strategy = DriftRebalancer(broker, parameters=parameters)

@@ -13,6 +13,7 @@ from .brokers import Alpaca, Ccxt, InteractiveBrokers, InteractiveBrokersREST, T
 import logging
 from dotenv import load_dotenv
 import termcolor
+import datetime
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -64,6 +65,26 @@ else:
     colored_message = termcolor.colored(f"IS_BACKTESTING must be set to 'true' or 'false'. Got '{is_backtesting}'. Defaulting to False.", "yellow")
     logger.warning(colored_message)
     IS_BACKTESTING = False
+
+# Get the backtesting start and end dates
+backtesting_start = os.environ.get("BACKTESTING_START")
+backtesting_end = os.environ.get("BACKTESTING_END")
+
+# Check if backtesting is enabled but no start and end dates are provided
+if IS_BACKTESTING and (not backtesting_start or not backtesting_end):
+    # Warn the user that backtesting is enabled but no start and end dates are provided
+    colored_message = termcolor.colored("Backtesting is enabled but no start and end dates are provided. Defaulting to the last year.", "yellow")
+    logger.warning(colored_message)
+
+    # Set a default start and end date for backtesting
+    BACKTESTING_START = datetime.datetime.now() - datetime.timedelta(days=365)
+    BACKTESTING_END = datetime.datetime.now()
+else:
+    # Convert the start and end dates to datetime objects in a way thats very forgiving
+    from dateutil import parser
+
+    BACKTESTING_START = parser.parse(backtesting_start)
+    BACKTESTING_END = parser.parse(backtesting_end)
 
 # Check if we should hide trades
 hide_trades = os.environ.get("HIDE_TRADES")

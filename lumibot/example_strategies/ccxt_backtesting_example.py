@@ -28,7 +28,7 @@ class CcxtBacktestingExampleStrategy(Strategy):
         return cash, last_price, quantity
 
     def _get_historical_prices(self):
-        return self.get_historical_prices(asset=self.asset,length=None,
+        return self.get_historical_prices(asset=self.asset,length=self.window,
                                     timestep="day",quote=self.quote).df
 
     def _get_bbands(self,history_df:DataFrame):

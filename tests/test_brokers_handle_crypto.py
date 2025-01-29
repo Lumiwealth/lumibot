@@ -212,7 +212,6 @@ class TestBrokerHandlesCrypto:
             # "max_data_download_limit":10000, # optional
             "exchange_id": "kraken"  #"kucoin" #"bybit" #"okx" #"bitmex" # "binance"
         }
-
         data_source = CcxtBacktesting(
             datetime_start=start,
             datetime_end=end,

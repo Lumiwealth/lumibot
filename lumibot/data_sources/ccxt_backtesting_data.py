@@ -12,7 +12,8 @@ from lumibot.entities import Asset, Bars
 from lumibot.tools import CcxtCacheDB
 from pandas import DataFrame
 
-from typing import Union,Any
+from typing import Union, Any, Dict
+
 
 class CcxtBacktestingData(DataSourceBacktesting):
     """Use CcxtCacheDB to download and cache data.
@@ -107,7 +108,7 @@ class CcxtBacktestingData(DataSourceBacktesting):
             data = self._data_store[symbol_timestep]
         else:
             data = self._pull_source_bars([asset],length,timestep,timeshift,quote,include_after_hours)
-            if data is None or len(data) == 0:
+            if data is None or data[symbol] is None or data[symbol].empty:
                 message = f"{self.SOURCE} did not return data for asset {symbol}. Make sure this symbol is valid."
                 logging.error(message)
                 return None
@@ -125,10 +126,15 @@ class CcxtBacktestingData(DataSourceBacktesting):
 
         return result_data.tail(length)
 
-
-    def _pull_source_bars(self, assets:tuple[Asset,Asset], length:int, timestep:str=MIN_TIMESTEP,
-        timeshift:int=None, quote:Asset=None, include_after_hours:bool=False
-    )->DataFrame:
+    def _pull_source_bars(
+            self,
+            assets: tuple[Asset,Asset],
+            length: int,
+            timestep: str = MIN_TIMESTEP,
+            timeshift: int = None,
+            quote: Asset = None,
+            include_after_hours: bool = False
+    ) -> Dict:
         """pull broker bars for a list assets"""
         parsed_timestep = self._parse_source_timestep(timestep, reverse=True)
 
@@ -150,16 +156,17 @@ class CcxtBacktestingData(DataSourceBacktesting):
             else:
                 start_dt = start_dt - timedelta(minutes=self._download_start_dt_prebuffer)
 
+            data = self.cache_db.download_ohlcv(
+                symbol,parsed_timestep,
+                start_dt,
+                end_dt
+            )
 
-            data = self.cache_db.download_ohlcv(symbol,parsed_timestep,
-                                                start_dt,end_dt)
-
-            data.index  = data.index.tz_localize("UTC")
+            data.index = data.index.tz_localize("UTC")
             data.index = data.index.tz_convert(LUMIBOT_DEFAULT_PYTZ)
             result[symbol] = data
 
         return result
-
 
     def get_historical_prices(self, asset:tuple[Asset,Asset], length:int, timestep:str=None,
             timeshift:int=None, quote:Asset=None, exchange:Any=None, include_after_hours:bool=True

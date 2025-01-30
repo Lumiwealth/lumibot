@@ -1,11 +1,5 @@
-import os
 from datetime import datetime, timedelta
-import logging
 
-import pytest
-
-import pandas as pd
-import pytz
 from pandas.testing import assert_series_equal
 
 from lumibot.backtesting import PolygonDataBacktesting, YahooDataBacktesting
@@ -18,6 +12,12 @@ from lumibot.tools import get_trading_days
 # Global parameters
 from lumibot.credentials import TRADIER_CONFIG, ALPACA_CONFIG, POLYGON_CONFIG
 
+import os
+import logging
+import pytest
+import math
+import pandas as pd
+import pytz
 
 logger = logging.getLogger(__name__)
 print_full_pandas_dataframes()
@@ -454,6 +454,37 @@ class TestDatasourceGetHistoricalPricesDailyData:
     def test_alpaca_data_source_get_historical_prices_daily_bars(self):
         data_source = AlpacaData(ALPACA_CONFIG)
         bars = data_source.get_historical_prices(asset=self.asset, length=self.length, timestep=self.timestep)
+
+        # Alpaca's time zone is UTC. We should probably convert it to America/New_York
+        # Alpaca data source does not provide dividends
+        check_bars(bars=bars, length=self.length, check_timezone=False)
+        self.check_date_of_last_bar_is_correct_for_live_data_sources(bars)
+
+        # TODO: convert the timezones returned by alpaca to America/New_York
+        assert bars.df.index[0].tzinfo == pytz.timezone("UTC")
+
+        # This simulates what the call to get_yesterday_dividends does (lookback of 1)
+        bars = data_source.get_historical_prices(asset=self.asset, length=1, timestep=self.timestep)
+        check_bars(bars=bars, length=1, check_timezone=False)
+        self.check_date_of_last_bar_is_correct_for_live_data_sources(bars)
+
+    @pytest.mark.skipif(
+        not ALPACA_CONFIG['API_KEY'],
+        reason="This test requires an alpaca API key"
+    )
+    @pytest.mark.skipif(
+        ALPACA_CONFIG['API_KEY'] == '<your key here>',
+        reason="This test requires an alpaca API key"
+    )
+    def test_alpaca_data_source_get_historical_option_prices(self):
+        data_source = AlpacaData(ALPACA_CONFIG)
+
+        # Get a 0dte option
+        dte = datetime.now()
+        spy_price = data_source.get_last_price(asset=self.ticker)
+        o_asset = Asset(self.ticker, Asset.AssetType.OPTION, expiration=dte, strike=math.floor(spy_price), right='CALL')
+
+        bars = data_source.get_historical_prices(asset=o_asset, length=self.length, timestep=self.timestep)
 
         # Alpaca's time zone is UTC. We should probably convert it to America/New_York
         # Alpaca data source does not provide dividends

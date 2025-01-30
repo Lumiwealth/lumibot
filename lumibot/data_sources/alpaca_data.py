@@ -2,12 +2,15 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 import pandas as pd
-from alpaca.data.historical import CryptoHistoricalDataClient, StockHistoricalDataClient
+import re
+from alpaca.data.historical import CryptoHistoricalDataClient, StockHistoricalDataClient, OptionHistoricalDataClient
 from alpaca.data.requests import (
     CryptoBarsRequest,
     CryptoLatestQuoteRequest,
     StockBarsRequest,
     StockLatestTradeRequest,
+    OptionLatestTradeRequest,
+    OptionBarsRequest
 )
 from alpaca.data.timeframe import TimeFrame
 
@@ -144,18 +147,24 @@ class AlpacaData(DataSource):
     def get_last_price(self, asset, quote=None, exchange=None, **kwargs):
         if quote is not None:
             # If the quote is not None, we use it even if the asset is a tuple
-            if type(asset) == Asset and asset.asset_type == "stock":
+            if type(asset) == Asset and asset.asset_type == Asset.AssetType.STOCK:
                 symbol = asset.symbol
             elif isinstance(asset, tuple):
                 symbol = f"{asset[0].symbol}/{quote.symbol}"
             else:
                 symbol = f"{asset.symbol}/{quote.symbol}"
+        elif type(asset) == Asset and asset.asset_type == Asset.AssetType.OPTION:
+            strike_formatted = f"{asset.strike:08.3f}".replace('.', '').rjust(8, '0')
+            date = asset.expiration.strftime("%y%m%d")
+            symbol = f"{asset.symbol}{date}{asset.right[0]}{strike_formatted}"
         elif isinstance(asset, tuple):
             symbol = f"{asset[0].symbol}/{asset[1].symbol}"
+        elif isinstance(asset, str):
+            symbol = asset
         else:
             symbol = asset.symbol
 
-        if isinstance(asset, tuple) and asset[0].asset_type == "crypto":
+        if (isinstance(asset, tuple) and asset[0].asset_type == Asset.AssetType.CRYPTO) or (isinstance(asset, Asset) and asset.asset_type == Asset.AssetType.CRYPTO):
             client = CryptoHistoricalDataClient()
             quote_params = CryptoLatestQuoteRequest(symbol_or_symbols=symbol)
             quote = client.get_crypto_latest_quote(quote_params)
@@ -165,17 +174,13 @@ class AlpacaData(DataSource):
 
             # The price is the average of the bid and ask
             price = (quote.bid_price + quote.ask_price) / 2
-
-        elif isinstance(asset, Asset) and asset.asset_type == "crypto":
-            client = CryptoHistoricalDataClient()
-            quote_params = CryptoLatestQuoteRequest(symbol_or_symbols=symbol)
-            quote = client.get_crypto_latest_quote(quote_params)
-
-            # Get the first item in the dictionary
-            quote = quote[list(quote.keys())[0]]
-
-            # The price is the average of the bid and ask
-            price = (quote.bid_price + quote.ask_price) / 2
+        elif (isinstance(asset, tuple) and asset[0].asset_type == Asset.AssetType.OPTION) or (isinstance(asset, Asset) and asset.asset_type == Asset.AssetType.OPTION):
+            logging.info(f"Getting {asset} option price")
+            client = OptionHistoricalDataClient(self.api_key, self.api_secret)
+            params = OptionLatestTradeRequest(symbol_or_symbols=symbol)
+            trade = client.get_option_latest_trade(params)
+            print(f'This {trade} {symbol}')
+            price = trade[symbol].price
         else:
             # Stocks
             client = StockHistoricalDataClient(self.api_key, self.api_secret)
@@ -190,7 +195,12 @@ class AlpacaData(DataSource):
     ):
         """Get bars for a given asset"""
         if isinstance(asset, str):
-            asset = Asset(symbol=asset)
+            # Check if the string matches an option contract
+            pattern = r'^[A-Z]{1,5}\d{6,7}[CP]\d{8}$'
+            if re.match(pattern, asset) is not None:
+                asset = Asset(symbol=asset, asset_type=Asset.AssetType.OPTION)
+            else:
+                asset = Asset(symbol=asset)
 
         if not timestep:
             timestep = self.get_timestep()
@@ -257,13 +267,26 @@ class AlpacaData(DataSource):
             elif str(freq) == "1Day":
                 start = end - timedelta(days=loop_limit)
 
-            if asset.asset_type == "crypto":
+            if asset.asset_type == Asset.AssetType.CRYPTO:
                 symbol = f"{asset.symbol}/{quote.symbol}"
 
                 client = CryptoHistoricalDataClient()
                 params = CryptoBarsRequest(symbol_or_symbols=symbol, timeframe=freq, start=start, end=end)
                 barset = client.get_crypto_bars(params)
 
+            elif asset.asset_type == Asset.AssetType.OPTION:
+                strike_formatted = f"{asset.strike:08.3f}".replace('.', '').rjust(8, '0')
+                date = asset.expiration.strftime("%y%m%d")
+                symbol = f"{asset.symbol}{date}{asset.right[0]}{strike_formatted}"
+
+                client = OptionHistoricalDataClient(self.api_key, self.api_secret)
+                params = OptionBarsRequest(symbol_or_symbols=symbol, timeframe=freq, start=start, end=end)
+
+                try:
+                    barset = client.get_option_bars(params)
+                except Exception as e:
+                    logging.error(f"Could not get option pricing data from Alpaca for {symbol} with the following error: {e}")
+                    return None
             else:
                 symbol = asset.symbol
 

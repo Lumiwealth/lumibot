@@ -53,6 +53,9 @@ class Position:
         self.hold = hold
         self.available = available
 
+        # This applies only to Crypto Perpetual Swap contracts (COIN-M Futures)
+        self.liquidation_price = 0.0
+
         # internal variables
         self._raw = None
 
@@ -118,6 +121,19 @@ class Position:
             return 0
         else:
             self._available = Decimal("0")
+
+    # TODO: Create the logic to calculate this value each time the position is queried.
+    @property
+    def liquidation_price(self):
+        pass
+
+    @liquidation_price.setter
+    def liquidation_price(self):
+        pass
+
+    @liquidation_price.deleter
+    def liquidation_price(self):
+        pass
 
     def value_type(self, value):
         # Used to check the number types for hold and available.

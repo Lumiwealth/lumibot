@@ -1,6 +1,8 @@
 import datetime
 import logging
 import time
+from decimal import Decimal
+from typing import Union
 
 import ccxt
 import pandas as pd
@@ -209,7 +211,7 @@ class CcxtData(DataSource):
         bars = Bars(response, self.SOURCE, asset, quote=quote, raw=response)
         return bars
 
-    def get_last_price(self, asset, quote=None, exchange=None, **kwargs):
+    def get_last_price(self, asset, quote=None, exchange=None, **kwargs) -> Union[float, Decimal, None]:
         if quote is not None:
             symbol = f"{asset.symbol}/{quote.symbol}"
         else:

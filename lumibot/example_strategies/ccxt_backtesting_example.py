@@ -24,11 +24,13 @@ class CcxtBacktestingExampleStrategy(Strategy):
     def _position_sizing(self):
         cash = self.get_cash()
         last_price = self.get_last_price(asset=self.asset,quote=self.quote)
+        if last_price is None:
+            return cash, last_price, 0.0
         quantity = round(cash * self.cash_at_risk / last_price,0)
         return cash, last_price, quantity
 
     def _get_historical_prices(self):
-        return self.get_historical_prices(asset=self.asset,length=None,
+        return self.get_historical_prices(asset=self.asset,length=self.window,
                                     timestep="day",quote=self.quote).df
 
     def _get_bbands(self,history_df:DataFrame):

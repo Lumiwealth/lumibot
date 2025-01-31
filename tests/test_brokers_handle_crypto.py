@@ -2,8 +2,9 @@ import pytest
 from datetime import datetime, timedelta
 from typing import assert_type
 
+import pytz
 from lumibot.entities import Asset, Order, Bars
-from lumibot.backtesting import BacktestingBroker, PolygonDataBacktesting, YahooDataBacktesting
+from lumibot.backtesting import BacktestingBroker, PolygonDataBacktesting, YahooDataBacktesting, CcxtBacktesting
 from lumibot.brokers.alpaca import Alpaca
 from lumibot.credentials import ALPACA_CONFIG, POLYGON_CONFIG
 
@@ -48,7 +49,7 @@ class TestBrokerHandlesCrypto:
             strategy="test",
             asset=asset,
             quantity=1,
-            side="buy",
+            side=Order.OrderSide.BUY,
             limit_price=limit_price,
         )
         assert order.status == "unprocessed"
@@ -88,7 +89,7 @@ class TestBrokerHandlesCrypto:
             strategy="test",
             asset=self.base,
             quantity=1,
-            side="buy",
+            side=Order.OrderSide.BUY,
             limit_price=limit_price,
             quote=self.quote
         )
@@ -148,7 +149,7 @@ class TestBrokerHandlesCrypto:
             strategy="test",
             asset=self.base,
             quantity=1,
-            side="buy",
+            side=Order.OrderSide.BUY,
             limit_price=limit_price,
             quote=self.quote
         )
@@ -195,7 +196,57 @@ class TestBrokerHandlesCrypto:
             strategy="test",
             asset=self.base,
             quantity=1,
-            side="buy",
+            side=Order.OrderSide.BUY,
+            limit_price=limit_price,
+            quote=self.quote
+        )
+        assert order.status == "unprocessed"
+        broker.submit_order(order)
+        assert order.status == "new"
+        broker.cancel_order(order)
+
+    def test_ccxt_backtesting_with_base_and_quote(self):
+        start = (datetime.now() - timedelta(days=4)).replace(hour=0, minute=0, second=0, microsecond=0)
+        end = (datetime.now() - timedelta(days=2)).replace(hour=0, minute=0, second=0, microsecond=0)
+        kwargs = {
+            # "max_data_download_limit":10000, # optional
+            "exchange_id": "kraken"  #"kucoin" #"bybit" #"okx" #"bitmex" # "binance"
+        }
+        data_source = CcxtBacktesting(
+            datetime_start=start,
+            datetime_end=end,
+            **kwargs
+        )
+        broker = BacktestingBroker(data_source=data_source)
+
+        # test_get_last_price
+        last_price = broker.data_source.get_last_price(asset=self.base, quote=self.quote)
+        assert_type(last_price, float)
+        assert last_price > 0.0
+
+        # test_get_historical_prices
+        bars = broker.data_source.get_historical_prices(
+            asset=self.base,
+            length=self.length,
+            timestep=self.timestep,
+            quote=self.quote
+        )
+
+        assert_type(bars, Bars)
+        assert len(bars.df) == self.length
+        # get the date of the last bar, which should be the day before the start date
+        last_date = bars.df.index[-1]
+        assert last_date.date() == (start - timedelta(days=1)).date()
+        last_price = bars.df['close'].iloc[-1]
+        assert last_price > 0.0
+
+        # test_submit_limit_order
+        limit_price = 1.0  # Make sure we never hit this price
+        order = Order(
+            strategy="test",
+            asset=self.base,
+            quantity=1,
+            side=Order.OrderSide.BUY,
             limit_price=limit_price,
             quote=self.quote
         )

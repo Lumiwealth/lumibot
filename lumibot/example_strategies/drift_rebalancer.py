@@ -41,7 +41,9 @@ class DriftRebalancer(Strategy):
                 "weight": Decimal("0.4")
             }
         ],
-        "shorting": False
+        "shorting": False,
+        "fractional_shares": False,
+        "only_rebalance_drifted_assets": False,
     }
 
     Description of parameters:
@@ -79,6 +81,7 @@ class DriftRebalancer(Strategy):
     - portfolio_weights: A list of dictionaries containing the base_asset and weight of each asset in the portfolio.
     - shorting: If you want to allow shorting, set this to True. Default is False.
     - fractional_shares: If you want to allow fractional shares, set this to True. Default is False.
+    - only_rebalance_drifted_assets: If you want to only rebalance assets that have drifted, set this to True. Default is False.
 
     """
 
@@ -94,6 +97,7 @@ class DriftRebalancer(Strategy):
         self.portfolio_weights = self.parameters.get("portfolio_weights", {})
         self.shorting = self.parameters.get("shorting", False)
         self.fractional_shares = self.parameters.get("fractional_shares", False)
+        self.only_rebalance_drifted_assets = self.parameters.get("only_rebalance_drifted_assets", False)
         self.drift_df = pd.DataFrame()
         self.drift_rebalancer_logic = DriftRebalancerLogic(
             strategy=self,
@@ -104,6 +108,7 @@ class DriftRebalancer(Strategy):
             fill_sleeptime=self.fill_sleeptime,
             shorting=self.shorting,
             fractional_shares=self.fractional_shares,
+            only_rebalance_drifted_assets=self.only_rebalance_drifted_assets,
         )
 
     # noinspection PyAttributeOutsideInit

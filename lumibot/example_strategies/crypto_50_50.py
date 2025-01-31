@@ -23,7 +23,8 @@ if __name__ == "__main__":
         "acceptable_slippage": "0.005",  # 50 BPS
         "fill_sleeptime": 15,
         "shorting": False,
-        "fractional_shares": True
+        "fractional_shares": True,
+        "only_rebalance_drifted_assets": False,
     }
 
     if not is_live:

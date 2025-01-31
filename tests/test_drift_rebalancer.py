@@ -954,6 +954,49 @@ class TestDriftOrderLogic:
         assert strategy.orders[0].quantity == Decimal("5")
         assert strategy.orders[0].type == Order.OrderType.LIMIT
 
+    def test_selling_with_only_rebalance_drifted_assets_when_over_drift_threshold(self):
+        strategy = MockStrategyWithOrderLogic(
+            broker=self.backtesting_broker,
+            order_type=Order.OrderType.LIMIT
+        )
+        df = pd.DataFrame({
+            "symbol": ["AAPL"],
+            "base_asset": [Asset("AAPL", "stock")],
+            "is_quote_asset": False,
+            "current_quantity": [Decimal("10")],
+            "current_value": [Decimal("1000")],
+            "current_weight": [Decimal("1.0")],
+            "target_weight": Decimal("0.5"),
+            "target_value": Decimal("500"),
+            "drift": Decimal("-0.5")
+        })
+        strategy.order_logic.only_rebalance_drifted_assets = True
+        strategy.order_logic.rebalance(drift_df=df)
+        assert len(strategy.orders) == 1
+        assert strategy.orders[0].side == "sell"
+        assert strategy.orders[0].quantity == Decimal("5")
+        assert strategy.orders[0].type == Order.OrderType.LIMIT
+
+    def test_selling_with_only_rebalance_drifted_assets_when_not_over_drift_threshold(self):
+        strategy = MockStrategyWithOrderLogic(
+            broker=self.backtesting_broker,
+            order_type=Order.OrderType.LIMIT
+        )
+        df = pd.DataFrame({
+            "symbol": ["AAPL"],
+            "base_asset": [Asset("AAPL", "stock")],
+            "is_quote_asset": False,
+            "current_quantity": [Decimal("10")],
+            "current_value": [Decimal("1000")],
+            "current_weight": [Decimal("1.0")],
+            "target_weight": Decimal("0.5"),
+            "target_value": Decimal("500"),
+            "drift": Decimal("-0.001")  # make drift small
+        })
+        strategy.order_logic.only_rebalance_drifted_assets = True
+        strategy.order_logic.rebalance(drift_df=df)
+        assert len(strategy.orders) == 0
+
     def test_selling_part_of_a_holding_with_market_order(self):
         strategy = MockStrategyWithOrderLogic(
             broker=self.backtesting_broker,
@@ -1318,6 +1361,49 @@ class TestDriftOrderLogic:
         assert strategy.orders[0].side == "sell"
         assert strategy.orders[0].quantity == Decimal("1.507537688")
         assert strategy.orders[0].type == Order.OrderType.LIMIT
+
+    def test_buying_with_only_rebalance_drifted_assets_when_over_drift_threshold(self):
+        strategy = MockStrategyWithOrderLogic(
+            broker=self.backtesting_broker,
+            order_type=Order.OrderType.LIMIT
+        )
+        df = pd.DataFrame({
+            "symbol": ["AAPL"],
+            "base_asset": [Asset("AAPL", "stock")],
+            "is_quote_asset": False,
+            "current_quantity": [Decimal("0")],
+            "current_value": [Decimal("0")],
+            "current_weight": [Decimal("0.0")],
+            "target_weight": Decimal("0.5"),
+            "target_value": Decimal("500"),
+            "drift": Decimal("0.5")
+        })
+        strategy.order_logic.only_rebalance_drifted_assets = True
+        strategy.order_logic.rebalance(drift_df=df)
+        assert len(strategy.orders) == 1
+        assert strategy.orders[0].side == "buy"
+        assert strategy.orders[0].quantity == Decimal("4.0")  #
+        assert strategy.orders[0].type == Order.OrderType.LIMIT
+
+    def test_buying_with_only_rebalance_drifted_assets_when_not_over_drift_threshold(self):
+        strategy = MockStrategyWithOrderLogic(
+            broker=self.backtesting_broker,
+            order_type=Order.OrderType.LIMIT
+        )
+        df = pd.DataFrame({
+            "symbol": ["AAPL"],
+            "base_asset": [Asset("AAPL", "stock")],
+            "is_quote_asset": False,
+            "current_quantity": [Decimal("0")],
+            "current_value": [Decimal("0")],
+            "current_weight": [Decimal("0.0")],
+            "target_weight": Decimal("0.5"),
+            "target_value": Decimal("500"),
+            "drift": Decimal("0.001")  # make drift small
+        })
+        strategy.order_logic.only_rebalance_drifted_assets = True
+        strategy.order_logic.rebalance(drift_df=df)
+        assert len(strategy.orders) == 0
 
 
 # @pytest.mark.skip()

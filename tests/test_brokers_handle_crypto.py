@@ -2,6 +2,7 @@ import pytest
 from datetime import datetime, timedelta
 from typing import assert_type
 
+import pytz
 from lumibot.entities import Asset, Order, Bars
 from lumibot.backtesting import BacktestingBroker, PolygonDataBacktesting, YahooDataBacktesting, CcxtBacktesting
 from lumibot.brokers.alpaca import Alpaca
@@ -205,9 +206,8 @@ class TestBrokerHandlesCrypto:
         broker.cancel_order(order)
 
     def test_ccxt_backtesting_with_base_and_quote(self):
-        # Expensive polygon subscriptions required if we go back to 2019. Just use recent dates.
-        start = datetime.now() - timedelta(days=4)
-        end = datetime.now() - timedelta(days=2)
+        start = (datetime.now() - timedelta(days=4)).replace(hour=0, minute=0, second=0, microsecond=0)
+        end = (datetime.now() - timedelta(days=2)).replace(hour=0, minute=0, second=0, microsecond=0)
         kwargs = {
             # "max_data_download_limit":10000, # optional
             "exchange_id": "kraken"  #"kucoin" #"bybit" #"okx" #"bitmex" # "binance"

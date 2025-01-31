@@ -1,5 +1,7 @@
 import logging
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
+from typing import Union
 
 import pandas as pd
 from alpaca.data.historical import CryptoHistoricalDataClient, StockHistoricalDataClient
@@ -141,7 +143,7 @@ class AlpacaData(DataSource):
             "feature, please use a different data source."
         )
 
-    def get_last_price(self, asset, quote=None, exchange=None, **kwargs):
+    def get_last_price(self, asset, quote=None, exchange=None, **kwargs) -> Union[float, Decimal, None]:
         if quote is not None:
             # If the quote is not None, we use it even if the asset is a tuple
             if type(asset) == Asset and asset.asset_type == "stock":

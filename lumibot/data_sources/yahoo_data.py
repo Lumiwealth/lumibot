@@ -1,6 +1,7 @@
 import logging
 from datetime import timedelta
 from decimal import Decimal
+from typing import Union
 
 import numpy
 
@@ -131,7 +132,7 @@ class YahooData(DataSourceBacktesting):
         bars = Bars(response, self.SOURCE, asset, raw=response)
         return bars
 
-    def get_last_price(self, asset, timestep=None, quote=None, exchange=None, **kwargs):
+    def get_last_price(self, asset, timestep=None, quote=None, exchange=None, **kwargs) -> Union[float, Decimal, None]:
         """Takes an asset and returns the last known price"""
         if timestep is None:
             timestep = self.get_timestep()

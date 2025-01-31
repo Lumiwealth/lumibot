@@ -238,8 +238,7 @@ class CcxtBacktestingData(DataSourceBacktesting):
         bars = Bars(response, self.SOURCE, asset, quote=quote, raw=response)
         return bars
 
-
-    def get_last_price(self, asset, timestep=None, quote=None, exchange=None, **kwargs):
+    def get_last_price(self, asset, timestep=None, quote=None, exchange=None, **kwargs) -> Union[float, Decimal, None]:
         """Takes an asset and returns the last known price of close"""
         if timestep is None:
             timestep = self.get_timestep()

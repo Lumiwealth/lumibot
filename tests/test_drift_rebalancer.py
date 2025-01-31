@@ -44,7 +44,7 @@ class MockStrategyWithDriftCalculationLogic(Strategy):
             fractional_shares=fractional_shares
         )
 
-    def get_last_price(self, asset: Union[Asset, str], quote=None, exchange=None):
+    def get_last_price(self, asset: Union[Asset, str], quote=None, exchange=None) -> Union[float, Decimal, None]:
         return Decimal(100.0)  # Mock price
 
     def update_broker_balances(self, force_update: bool = False) -> None:
@@ -866,7 +866,7 @@ class MockStrategyWithOrderLogic(Strategy):
             fractional_shares=fractional_shares
         )
 
-    def get_last_price(self, asset: Union[Asset, str], quote=None, exchange=None):
+    def get_last_price(self, asset: Union[Asset, str], quote=None, exchange=None) -> Union[float, Decimal, None]:
         return Decimal(100.0)  # Mock price
 
     def update_broker_balances(self, force_update: bool = False) -> None:

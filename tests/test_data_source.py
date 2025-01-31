@@ -1,3 +1,6 @@
+from decimal import Decimal
+from typing import Union
+
 from lumibot.data_sources.data_source import DataSource
 from lumibot.entities import Asset
 
@@ -9,7 +12,7 @@ class DataSourceTestable(DataSource):
     def get_chains(self, asset: Asset, quote: Asset = None) -> dict:
         return {}
 
-    def get_last_price(self, asset, quote=None, exchange=None):
+    def get_last_price(self, asset, quote=None, exchange=None) -> Union[float, Decimal, None]:
         return 0.0
 
     def get_historical_prices(

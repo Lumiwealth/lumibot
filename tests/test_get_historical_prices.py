@@ -8,7 +8,7 @@ import pandas as pd
 import pytz
 from pandas.testing import assert_series_equal
 
-from lumibot.backtesting import PolygonDataBacktesting, YahooDataBacktesting
+from lumibot.backtesting import PolygonDataBacktesting, YahooDataBacktesting, CcxtBacktesting
 from lumibot.data_sources import AlpacaData, TradierData, PandasData
 from tests.fixtures import pandas_data_fixture
 from lumibot.tools import print_full_pandas_dataframes, set_pandas_float_display_precision
@@ -75,6 +75,21 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
         mlk_date = self.get_mlk_day(year)
         first_trading_day = mlk_date + timedelta(days=1)
         return first_trading_day
+
+    # noinspection PyMethodMayBeStatic
+    def check_date_of_last_bar_is_date_of_day_before_backtest_start_for_crypto(
+            self, bars: Bars,
+            backtesting_start: datetime
+    ):
+        # The current behavior of the backtesting data sources is to return the data for the
+        # last trading day before now.
+        # To simulate this, we set backtesting_start date to what we want "now" to be.
+        # So based on the backtesting_start date, the last bar should be the bar from the previous day
+        # before the backtesting_start date. Since this is crypto and it trades 24/7, we don't care about
+        # trading days.
+
+        previous_day_date = backtesting_start - timedelta(days=1)
+        assert bars.df.index[-1].date() == previous_day_date.date()
 
     # noinspection PyMethodMayBeStatic
     def check_date_of_last_bar_is_date_of_last_trading_date_before_backtest_start(
@@ -179,6 +194,7 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
         first_trading_day_after_mlk = self.get_first_trading_day_after_long_weekend(2023)
         assert first_trading_day_after_mlk == datetime(2023, 1, 17)
 
+    # @pytest.mark.skip()
     def test_pandas_backtesting_data_source_get_historical_prices_daily_bars_dividends_and_adj_returns(self, pandas_data_fixture):
         """
         This tests that the pandas data_source calculates adjusted returns for bars and that they
@@ -199,6 +215,7 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
         )
         self.check_dividends_and_adjusted_returns(bars)
 
+    # @pytest.mark.skip()
     def test_pandas_backtesting_data_source_get_historical_prices_daily_bars_for_backtesting_broker(
             self,
             pandas_data_fixture
@@ -226,6 +243,7 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
             backtesting_start=backtesting_start
         )
 
+    # @pytest.mark.skip()
     def test_pandas_backtesting_data_source_get_historical_prices_daily_bars_over_long_weekend(
             self,
             pandas_data_fixture
@@ -327,6 +345,7 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
             backtesting_start=backtesting_start
         )
 
+    # @pytest.mark.skip()
     def test_yahoo_backtesting_data_source_get_historical_prices_daily_bars_dividends_and_adj_returns(
             self,
             pandas_data_fixture
@@ -350,6 +369,7 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
             backtesting_start=backtesting_start
         )
 
+    # @pytest.mark.skip()
     def test_yahoo_backtesting_data_source_get_historical_prices_daily_bars_for_backtesting_broker(
             self,
             pandas_data_fixture
@@ -379,6 +399,7 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
             backtesting_start=backtesting_start
         )
 
+    # @pytest.mark.skip()
     def test_yahoo_backtesting_data_source_get_historical_prices_daily_bars_over_long_weekend(
             self,
             pandas_data_fixture
@@ -404,8 +425,39 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
             backtesting_start=backtesting_start
         )
 
+    def test_kraken_ccxt_backtesting_data_source_get_historical_prices_daily_bars(
+            self
+    ):
+        """
+        This tests that the kraken ccxt data_source gets the right bars
+        """
+        backtesting_start = (datetime.now() - timedelta(days=4)).replace(hour=0, minute=0, second=0, microsecond=0)
+        backtesting_end = (datetime.now() - timedelta(days=2)).replace(hour=0, minute=0, second=0, microsecond=0)
+        base = Asset(symbol='BTC', asset_type='crypto')
+        quote = Asset(symbol='USD', asset_type='forex')
+        timestep = "day"
+        kwargs = {
+            # "max_data_download_limit":10000, # optional
+            "exchange_id": "kraken"  # "kucoin" #"bybit" #"okx" #"bitmex" # "binance"
+        }
+        data_source = CcxtBacktesting(
+            datetime_start=backtesting_start,
+            datetime_end=backtesting_end,
+            **kwargs
+        )
+        bars = data_source.get_historical_prices(
+            asset=(base,quote),
+            length=self.length,
+            timestep=self.timestep
+        )
+        check_bars(bars=bars, length=self.length)
+        self.check_date_of_last_bar_is_date_of_day_before_backtest_start_for_crypto(
+            bars,
+            backtesting_start=backtesting_start
+        )
 
-@pytest.mark.skip()
+
+# @pytest.mark.skip()
 class TestDatasourceGetHistoricalPricesDailyData:
     """These tests check the daily Bars returned from get_historical_prices for live data sources."""
 

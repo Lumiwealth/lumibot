@@ -55,6 +55,34 @@ from ..credentials import (
 # Set the stats table name for when storing stats in a database, defined by db_connection_str
 STATS_TABLE_NAME = "strategy_tracker"
 
+class SafeJSONEncoder(json.JSONEncoder):
+    """Custom JSON encoder for Lumibot objects.
+    
+    Handles:
+    - Objects with to_dict() method -> dictionary 
+    - datetime.date and datetime.datetime -> ISO format string
+    - Decimal -> float
+    - Sets -> list
+    """
+    def default(self, obj):
+        # Handle objects with to_dict method (Asset, Order, Position etc)
+        if hasattr(obj, 'to_dict'):
+            return obj.to_dict()
+            
+        # Handle dates and times
+        if isinstance(obj, (datetime.date, datetime.datetime)):
+            return obj.isoformat()
+            
+        # Handle Decimal
+        if isinstance(obj, Decimal):
+            return float(obj)
+
+        # Handle sets
+        if isinstance(obj, set):
+            return list(obj)
+            
+        return super().default(obj)
+
 class CustomLoggerAdapter(logging.LoggerAdapter):
     def __init__(self, logger, extra):
         super().__init__(logger, extra)
@@ -1910,7 +1938,7 @@ class _Strategy:
             # Create the table by saving this empty DataFrame to the database
             stats_new.to_sql(self.backup_table_name, self.db_engine, if_exists='replace', index=True)
 
-        current_state = json.dumps(self.vars.all(), sort_keys=True)
+        current_state = json.dumps(self.vars.all(), sort_keys=True, cls=SafeJSONEncoder)
         if current_state == self._last_backup_state:
             self.logger.info("No variables changed. Not backing up.")
             return
@@ -1918,7 +1946,7 @@ class _Strategy:
         try:
             data_to_save = self.vars.all()
             if data_to_save:
-                json_data_to_save = json.dumps(data_to_save)
+                json_data_to_save = json.dumps(data_to_save, cls=SafeJSONEncoder)
                 with self.db_engine.connect() as connection:
                     with connection.begin():
                         # Check if the row exists
@@ -1985,17 +2013,24 @@ class _Strategy:
             df = pd.read_sql_query(query, self.db_engine, params=params)
 
             if df.empty:
-                logger.debug("No data found in the backup")
+                logger.debug("No data found in the backup") 
             else:
                 # Parse the JSON data
                 json_data = df['variables'].iloc[0]
-                data = json.loads(json_data)
+                # Decode any special types we stored using our SafeJSONEncoder
+                data = json.loads(json_data, object_hook=lambda d: {
+                    k: (
+                        datetime.datetime.fromisoformat(v) if isinstance(v, str) and 'T' in v
+                        else datetime.datetime.strptime(v, '%Y-%m-%d').date() if isinstance(v, str) and '-' in v
+                        else v
+                    ) for k, v in d.items()
+                })
 
                 # Update self.vars dictionary
                 for key, value in data.items():
                     self.vars.set(key, value)
 
-                current_state = json.dumps(self.vars.all(), sort_keys=True)
+                current_state = json.dumps(self.vars.all(), sort_keys=True, cls=SafeJSONEncoder)
                 self._last_backup_state = current_state
 
                 logger.info("Variables loaded successfully from database")

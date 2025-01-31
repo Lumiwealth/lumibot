@@ -83,8 +83,10 @@ else:
     # Convert the start and end dates to datetime objects in a way thats very forgiving
     from dateutil import parser
 
-    BACKTESTING_START = parser.parse(backtesting_start)
-    BACKTESTING_END = parser.parse(backtesting_end)
+    # Check if the dates are not None and not empty strings before parsing
+    if backtesting_start and backtesting_end:
+        BACKTESTING_START = parser.parse(backtesting_start)
+        BACKTESTING_END = parser.parse(backtesting_end)
 
 # Check if we should hide trades
 hide_trades = os.environ.get("HIDE_TRADES")

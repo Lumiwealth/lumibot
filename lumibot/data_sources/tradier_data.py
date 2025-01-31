@@ -1,6 +1,8 @@
 import logging
 from collections import defaultdict
 from datetime import datetime, date, timedelta
+from decimal import Decimal
+from typing import Union
 
 import pandas as pd
 
@@ -255,7 +257,7 @@ class TradierData(DataSource):
 
         return bars
 
-    def get_last_price(self, asset, quote=None, exchange=None):
+    def get_last_price(self, asset, quote=None, exchange=None) -> Union[float, Decimal, None]:
         """
         This function returns the last price of an asset.
         Parameters
@@ -269,7 +271,7 @@ class TradierData(DataSource):
 
         Returns
         -------
-        float
+        float or Decimal or none
            Price of the asset
         """
 

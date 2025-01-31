@@ -1,6 +1,8 @@
 import datetime
 import logging
 import re
+from decimal import Decimal
+from typing import Union
 
 import pandas as pd
 from lumibot import LUMIBOT_DEFAULT_PYTZ as DEFAULT_PYTZ
@@ -383,7 +385,7 @@ class Data:
         return checker
 
     @check_data
-    def get_last_price(self, dt, length=1, timeshift=0):
+    def get_last_price(self, dt, length=1, timeshift=0) -> Union[float, Decimal, None]:
         """Returns the last known price of the data.
 
         Parameters
@@ -399,7 +401,7 @@ class Data:
 
         Returns
         -------
-        float
+        float or Decimal or None
         """
         iter_count = self.get_iter_count(dt)
         open_price = self.datalines["open"].dataline[iter_count]

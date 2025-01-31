@@ -2,6 +2,8 @@ import logging
 import traceback
 from collections import OrderedDict, defaultdict
 from datetime import date, timedelta
+from decimal import Decimal
+from typing import Union
 
 from polygon.exceptions import BadResponse
 from termcolor import colored
@@ -216,7 +218,7 @@ class PolygonDataBacktesting(PandasData):
         bars = self._parse_source_symbol_bars(response, asset, quote=quote)
         return bars
 
-    def get_last_price(self, asset, timestep="minute", quote=None, exchange=None, **kwargs):
+    def get_last_price(self, asset, timestep="minute", quote=None, exchange=None, **kwargs) -> Union[float, Decimal, None]:
         try:
             dt = self.get_datetime()
             self._update_pandas_data(asset, quote, 1, timestep, dt)

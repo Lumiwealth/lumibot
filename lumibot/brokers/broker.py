@@ -304,7 +304,7 @@ class Broker(ABC):
 
     # =========Market functions=======================
 
-    def get_last_price(self, asset: Asset, quote=None, exchange=None) -> float:
+    def get_last_price(self, asset: Asset, quote=None, exchange=None) -> Union[float, Decimal, None]:
         """
         Takes an asset and returns the last known price
 
@@ -319,7 +319,7 @@ class Broker(ABC):
 
         Returns
         -------
-        float
+        float or Decimal or None
             The last known price of the asset.
         """
         if self.option_source and asset.asset_type == "option":

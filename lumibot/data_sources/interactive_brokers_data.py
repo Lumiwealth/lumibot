@@ -1,5 +1,7 @@
 import datetime
 import math
+from decimal import Decimal
+from typing import Union
 
 import pandas as pd
 
@@ -340,7 +342,7 @@ class InteractiveBrokersData(DataSource):
         bars = self._parse_source_symbol_bars(response, asset, quote=quote, length=length)
         return bars
 
-    def get_last_price(self, asset, timestep=None, quote=None, exchange=None, **kwargs):
+    def get_last_price(self, asset, timestep=None, quote=None, exchange=None, **kwargs) -> Union[float, Decimal, None]:
         if exchange is None:
             exchange = "SMART"
 

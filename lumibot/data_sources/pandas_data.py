@@ -1,6 +1,8 @@
 import logging
 from collections import defaultdict, OrderedDict
 from datetime import timedelta
+from decimal import Decimal
+from typing import Union
 
 import pandas as pd
 from lumibot.data_sources import DataSourceBacktesting
@@ -178,7 +180,7 @@ class PandasData(DataSourceBacktesting):
 
         return dt_index
 
-    def get_last_price(self, asset, quote=None, exchange=None):
+    def get_last_price(self, asset, quote=None, exchange=None) -> Union[float, Decimal, None]:
         # Takes an asset and returns the last known price
         tuple_to_find = self.find_asset_in_data_store(asset, quote)
 

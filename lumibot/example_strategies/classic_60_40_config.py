@@ -22,5 +22,7 @@ parameters = {
             "weight": Decimal("0.4")
         }
     ],
-    "shorting": False
+    "shorting": False,
+    "fractional_shares": False,
+    "only_rebalance_drifted_assets": False,
 }

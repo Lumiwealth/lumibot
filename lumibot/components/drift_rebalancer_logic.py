@@ -84,6 +84,10 @@ class DriftRebalancerLogic:
         When set to True, the strategy will only use fractional shares. The default is False, which means
         the strategy will only use whole shares.
 
+    only_rebalance_drifted_assets : bool, optional
+        If True, the strategy will only rebalance assets whose drift exceeds the drift_threshold.
+        The default is False, which means the strategy will rebalance all assets in the portfolio.
+
     """
 
     def __init__(
@@ -96,7 +100,8 @@ class DriftRebalancerLogic:
             acceptable_slippage: Decimal = Decimal("0.005"),
             fill_sleeptime: int = 15,
             shorting: bool = False,
-            fractional_shares: bool = False
+            fractional_shares: bool = False,
+            only_rebalance_drifted_assets: bool = False
     ) -> None:
         self.strategy = strategy
         self.calculation_logic = DriftCalculationLogic(
@@ -111,7 +116,8 @@ class DriftRebalancerLogic:
             acceptable_slippage=acceptable_slippage,
             shorting=shorting,
             order_type=order_type,
-            fractional_shares=fractional_shares
+            fractional_shares=fractional_shares,
+            only_rebalance_drifted_assets=only_rebalance_drifted_assets
         )
 
     def calculate(self, portfolio_weights: List[Dict[str, Any]]) -> pd.DataFrame:
@@ -313,7 +319,8 @@ class DriftOrderLogic:
             acceptable_slippage: Decimal = Decimal("0.005"),
             shorting: bool = False,
             order_type: Order.OrderType = Order.OrderType.LIMIT,
-            fractional_shares: bool = False
+            fractional_shares: bool = False,
+            only_rebalance_drifted_assets: bool = False
     ) -> None:
         self.strategy = strategy
         self.drift_threshold = drift_threshold
@@ -322,6 +329,7 @@ class DriftOrderLogic:
         self.shorting = shorting
         self.order_type = order_type
         self.fractional_shares = fractional_shares
+        self.only_rebalance_drifted_assets = only_rebalance_drifted_assets
 
         # Sanity checks
         if self.acceptable_slippage >= self.drift_threshold:
@@ -379,6 +387,10 @@ class DriftOrderLogic:
                     sell_orders.append(order)
 
             elif row["drift"] < 0:
+
+                if self.only_rebalance_drifted_assets and abs(row["drift"]) < self.drift_threshold:
+                    continue
+
                 base_asset = row["base_asset"]
                 last_price = Decimal(self.strategy.get_last_price(base_asset))
                 limit_price = self.calculate_limit_price(last_price=last_price, side="sell")
@@ -426,6 +438,10 @@ class DriftOrderLogic:
                 cash_position -= quantity * limit_price
 
             elif row["drift"] > 0:
+
+                if self.only_rebalance_drifted_assets and abs(row["drift"]) < self.drift_threshold:
+                    continue
+
                 base_asset = row["base_asset"]
                 last_price = Decimal(self.strategy.get_last_price(base_asset))
                 limit_price = self.calculate_limit_price(last_price=last_price, side="buy")

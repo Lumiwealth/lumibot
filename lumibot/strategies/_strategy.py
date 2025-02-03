@@ -1135,13 +1135,6 @@ class _Strategy:
         if show_indicators is None:
             show_indicators = SHOW_INDICATORS
 
-        # Log a warning for polygon_has_paid_subscription as it is deprecated
-        if polygon_has_paid_subscription:
-            self.logger.warning(
-                "polygon_has_paid_subscription is deprecated and will be removed in future versions. "
-                "Please remove it from your code."
-            )
-
         # check if datasource_class is a class or a dictionary
         if isinstance(datasource_class, dict):
             optionsource_class = datasource_class["OPTION"]

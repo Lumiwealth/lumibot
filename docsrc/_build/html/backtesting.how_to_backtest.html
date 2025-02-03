@@ -471,14 +471,83 @@
 
 <span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
     <span class="n">polygon_api_key</span> <span class="o">=</span> <span class="s2">&quot;YOUR_POLYGON_API_KEY&quot;</span>  <span class="c1"># Replace with your actual Polygon.io API key</span>
-    <span class="n">backtesting_start</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">2023</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
-    <span class="n">backtesting_end</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">2023</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">backtesting_start</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">2025</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">backtesting_end</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">2025</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
     <span class="n">result</span> <span class="o">=</span> <span class="n">MyStrategy</span><span class="o">.</span><span class="n">run_backtest</span><span class="p">(</span>
         <span class="n">PolygonDataBacktesting</span><span class="p">,</span>
         <span class="n">backtesting_start</span><span class="p">,</span>
         <span class="n">backtesting_end</span><span class="p">,</span>
         <span class="n">benchmark_asset</span><span class="o">=</span><span class="s2">&quot;SPY&quot;</span><span class="p">,</span>
         <span class="n">polygon_api_key</span><span class="o">=</span><span class="n">polygon_api_key</span>  <span class="c1"># Pass the Polygon.io API key here</span>
+    <span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="optional-using-environment-variables-for-backtest-dates">
+<h2>Optional: Using Environment Variables for Backtest Dates<a class="headerlink" href="#optional-using-environment-variables-for-backtest-dates" title="Link to this heading">#</a></h2>
+<p>Instead of specifying <cite>backtesting_start</cite> and <cite>backtesting_end</cite> in your code, you can set these environment variables:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">IS_BACKTESTING</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">BACKTESTING_START</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">BACKTESTING_END</span></code></p></li>
+</ul>
+<p>If they are set, LumiBot will automatically pick them up. For example:</p>
+<div class="table-wrapper colwidths-given docutils container">
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 20.0%" />
+<col style="width: 60.0%" />
+<col style="width: 20.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p><strong>Variable</strong></p></th>
+<th class="head"><p><strong>Description</strong></p></th>
+<th class="head"><p><strong>Example</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>IS_BACKTESTING</p></td>
+<td><p>Set to <strong>“True”</strong> to run in backtesting mode, or <strong>“False”</strong> for live (defaults to False).</p></td>
+<td><p>False</p></td>
+</tr>
+<tr class="row-odd"><td><p>BACKTESTING_START</p></td>
+<td><p>Start date in the format “YYYY-MM-DD”.</p></td>
+<td><p>2025-01-01</p></td>
+</tr>
+<tr class="row-even"><td><p>BACKTESTING_END</p></td>
+<td><p>End date in the format “YYYY-MM-DD”.</p></td>
+<td><p>2025-05-01</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Below is a short example showing how you might rely <em>entirely</em> on environment variables and <strong>omit</strong> any explicit date definitions in code. The same <cite>polygon_api_key</cite> parameter is still required if you are using Polygon.io:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">lumibot.backtesting</span> <span class="kn">import</span> <span class="n">PolygonDataBacktesting</span>
+<span class="kn">from</span> <span class="nn">lumibot.strategies</span> <span class="kn">import</span> <span class="n">Strategy</span>
+
+<span class="k">class</span> <span class="nc">MyStrategy</span><span class="p">(</span><span class="n">Strategy</span><span class="p">):</span>
+    <span class="n">parameters</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">&quot;symbol&quot;</span><span class="p">:</span> <span class="s2">&quot;AAPL&quot;</span><span class="p">,</span>
+    <span class="p">}</span>
+
+    <span class="k">def</span> <span class="nf">initialize</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sleeptime</span> <span class="o">=</span> <span class="s2">&quot;1D&quot;</span>
+
+    <span class="k">def</span> <span class="nf">on_trading_iteration</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">first_iteration</span><span class="p">:</span>
+            <span class="n">symbol</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">[</span><span class="s2">&quot;symbol&quot;</span><span class="p">]</span>
+            <span class="n">price</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_last_price</span><span class="p">(</span><span class="n">symbol</span><span class="p">)</span>
+            <span class="n">qty</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">portfolio_value</span> <span class="o">/</span> <span class="n">price</span>
+            <span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">symbol</span><span class="p">,</span> <span class="n">quantity</span><span class="o">=</span><span class="n">qty</span><span class="p">,</span> <span class="n">side</span><span class="o">=</span><span class="s2">&quot;buy&quot;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+    <span class="c1"># If BACKTESTING_START/BACKTESTING_END are set in the environment,</span>
+    <span class="c1"># LumiBot will pick them up automatically.</span>
+    <span class="n">polygon_api_key</span> <span class="o">=</span> <span class="s2">&quot;YOUR_POLYGON_API_KEY&quot;</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">MyStrategy</span><span class="o">.</span><span class="n">run_backtest</span><span class="p">(</span>
+        <span class="n">PolygonDataBacktesting</span><span class="p">,</span>
+        <span class="n">polygon_api_key</span><span class="o">=</span><span class="n">polygon_api_key</span>
     <span class="p">)</span>
 </pre></div>
 </div>
@@ -581,6 +650,7 @@
 <li><a class="reference internal" href="#installing-lumibot">Installing LumiBot</a></li>
 <li><a class="reference internal" href="#choosing-a-data-source">Choosing a Data Source</a></li>
 <li><a class="reference internal" href="#running-a-backtest-with-polygon-io">Running a Backtest with Polygon.io</a></li>
+<li><a class="reference internal" href="#optional-using-environment-variables-for-backtest-dates">Optional: Using Environment Variables for Backtest Dates</a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#files-generated-from-backtesting">Files Generated from Backtesting</a><ul>

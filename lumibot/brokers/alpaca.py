@@ -102,7 +102,7 @@ class Alpaca(Broker):
 
     ASSET_TYPE_MAP = dict(
         stock=["us_equity"],
-        option=[],
+        option=["us_option"],
         future=[],
         forex=[],
     )
@@ -266,6 +266,11 @@ class Alpaca(Broker):
                 symbol=position.symbol.replace("USD", ""),
                 asset_type="crypto",
             )
+        elif position.asset_class == "option":
+            asset = Asset(
+                symbol=position.symbol,
+                asset_type="option",
+            )
         else:
             asset = Asset(
                 symbol=position.symbol,
@@ -345,7 +350,7 @@ class Alpaca(Broker):
             strategy_name,
             Asset(
                 symbol=symbol,
-                asset_type=response.asset_class,
+                asset_type=self.map_asset_type(response.asset_class),
             ),
             Decimal(response.qty),
             response.side,
@@ -387,14 +392,21 @@ class Alpaca(Broker):
 
         # For Alpaca, only "gtc" and "ioc" orders are supported for crypto
         # TODO: change this if Alpaca allows new order types for crypto
-        if order.asset.asset_type == "crypto":
+        if order.asset.asset_type == Asset.AssetType.CRYPTO:
             if order.time_in_force != "gtc" or "ioc":
                 order.time_in_force = "gtc"
+        # For Alpaca, only "day" is supported for option orders
+        elif order.asset.asset_type == Asset.AssetType.OPTION:
+            order.time_in_force = "day"
 
         qty = str(order.quantity)
 
-        if order.asset.asset_type == "crypto":
+        if order.asset.asset_type == Asset.AssetType.CRYPTO:
             trade_symbol = f"{order.asset.symbol}/{order.quote.symbol}"
+        elif order.asset.asset_type == Asset.AssetType.OPTION:
+            strike_formatted = f"{order.asset.strike:08.3f}".replace('.', '').rjust(8, '0')
+            date = order.asset.expiration.strftime("%y%m%d")
+            trade_symbol = f"{order.asset.symbol}{date}{order.asset.right[0]}{strike_formatted}"
         else:
             trade_symbol = order.asset.symbol
 

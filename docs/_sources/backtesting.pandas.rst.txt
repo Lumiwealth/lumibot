@@ -7,9 +7,9 @@ Pandas (CSV or other data)
 
 Pandas backtester is named after the python dataframe library because the user must provide a strictly formatted dataframe. You can use any csv, parquet, database data, etc that you wish, but Lumibot will only accept one format of dataframe.
 
-Pandas backtester allows for intra-day and inter-day backtesting. Time frames for raw data are 1 minute and 1 day. 
+Pandas backtester allows for intra-day and inter-day backtesting. Time frames for raw data are 1 minute and 1 day.
 
-Additionally, with Pandas backtester, it is possible to backtest stocks, stock-like securities, futures contracts, crypto and FOREX. 
+Additionally, with Pandas backtester, it is possible to backtest stocks, stock-like securities, futures contracts, crypto and FOREX.
 
 Pandas backtester is the most flexible backtester in Lumibot, but it is also the most difficult to use. It is intended for advanced users who have their own data and want to use it with Lumibot.
 
@@ -139,7 +139,7 @@ In Summary
 
 Putting all of this together, and adding in budget and strategy information, the code would look like the following:
 
-Getting the data would look something like this (this is using yfinance to download the data, but you can use any data source you wish):
+Getting the data would look something like this (using yfinance to download, but you can use any data source you wish):
 
 .. code-block:: python
 
@@ -151,7 +151,7 @@ Getting the data would look something like this (this is using yfinance to downl
     # Save the data to a CSV file
     data.to_csv("AAPL.csv")
 
-Then, the startegy and backtesting code would look something like this:
+Then, the strategy and backtesting code might look like this:
 
 .. code-block:: python
 
@@ -160,31 +160,24 @@ Then, the startegy and backtesting code would look something like this:
     from lumibot.entities import Asset, Data
     from lumibot.strategies import Strategy
 
-    # A simple strategy that buys SPY on the first day
+    # A simple strategy that buys AAPL on the first day
     class MyStrategy(Strategy):
         def on_trading_iteration(self):
             if self.first_iteration:
                 order = self.create_order("AAPL", 100, "buy")
                 self.submit_order(order)
 
-
     # Read the data from the CSV file (in this example you must have a file named "AAPL.csv"
     # in a folder named "data" in the same directory as this script)
     df = pd.read_csv("AAPL.csv")
-    asset = Asset(
-        symbol="AAPL",
-        asset_type=Asset.AssetType.STOCK,
-    )
-    pandas_data = {}
-    pandas_data[asset] = Data(
-        asset,
-        df,
-        timestep="minute",
-    )
+    asset = Asset(symbol="AAPL", asset_type=Asset.AssetType.STOCK)
 
-    # Pick the date range you want to backtest
-    backtesting_start = pandas_data[asset].datetime_start
-    backtesting_end = pandas_data[asset].datetime_end
+    pandas_data = {
+        asset: Data(asset, df, timestep="minute"),
+    }
+
+    backtesting_start = pandas_data[asset].datetime_start  # or datetime(2025, 1, 1)
+    backtesting_end = pandas_data[asset].datetime_end      # or datetime(2025, 1, 31)
 
     # Run the backtest
     result = MyStrategy.run_backtest(
@@ -194,3 +187,52 @@ Then, the startegy and backtesting code would look something like this:
         pandas_data=pandas_data,
     )
 
+Optional: Environment Variables
+-------------------------------
+If you prefer not to specify `backtesting_start` and `backtesting_end` in code, you can set the following environment variables, and LumiBot will automatically detect them:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 60 20
+
+   * - **Variable**
+     - **Description**
+     - **Example**
+   * - IS_BACKTESTING
+     - (Optional) **"True"** to run in backtesting mode, **"False"** for live.
+     - False
+   * - BACKTESTING_START
+     - (Optional) Start date (YYYY-MM-DD).
+     - 2025-01-01
+   * - BACKTESTING_END
+     - (Optional) End date (YYYY-MM-DD).
+     - 2025-01-31
+
+Below is **the full code** that relies *entirely on environment variables*:
+
+.. code-block:: python
+
+    import pandas as pd
+    from lumibot.backtesting import BacktestingBroker, PandasDataBacktesting
+    from lumibot.entities import Asset, Data
+    from lumibot.strategies import Strategy
+
+    class MyStrategy(Strategy):
+        def on_trading_iteration(self):
+            if self.first_iteration:
+                order = self.create_order("AAPL", 100, "buy")
+                self.submit_order(order)
+
+    if __name__ == "__main__":
+        df = pd.read_csv("AAPL.csv")
+        asset = Asset(symbol="AAPL", asset_type=Asset.AssetType.STOCK)
+        pandas_data = {
+            asset: Data(asset, df, timestep="minute"),
+        }
+
+        # We do not specify any backtesting_start or backtesting_end here.
+        # LumiBot will look for them in environment variables (BACKTESTING_START, BACKTESTING_END).
+        result = MyStrategy.run_backtest(
+            PandasDataBacktesting,
+            pandas_data=pandas_data
+        )

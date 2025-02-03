@@ -3,7 +3,7 @@ ThetaData Backtesting
 
 .. important::
    
-   **You can get an username and password at** `thetadata.net <https://www.thetadata.net/>`_. **Please use the full link to give us credit for the sale (https://www.thetadata.net), it helps support this project. You can use the coupon code 'LUMI' for 10% off.**
+   **You can get a username and password at** `thetadata.net <https://www.thetadata.net/>`_. **Please use the full link to give us credit for the sale (https://www.thetadata.net), it helps support this project. You can use the coupon code 'LUMI' for 10% off.**
 
 ThetaData backtester allows for flexible and robust backtesting. It uses the thetadata API to fetch pricing data for stocks, options, forex, and cryptocurrencies. This backtester simplifies the process of getting pricing data; simply use the thetadata DataSource and it will automatically fetch pricing data when you call `get_last_price()` or `get_historical_prices()`.
 
@@ -23,7 +23,7 @@ Start by importing the ThetaDataBacktesting, BacktestingBroker and other necessa
     from lumibot.strategies import Strategy
     from lumibot.traders import Trader
 
-Next, create a strategy class that inherits from the Strategy class. This class will be used to define the strategy that will be backtested. In this example, we will create a simple strategy that buys a stock on the first iteration and holds it until the end of the backtest. The strategy will be initialized with a symbol parameter that will be used to determine which stock to buy. The initialize method will be used to set the sleeptime to 1 day. The on_trading_iteration method will be used to buy the stock on the first iteration. The strategy will be run from 2023-01-01 to 2023-05-01.
+Next, create a strategy class that inherits from the Strategy class. This class will be used to define the strategy that will be backtested. In this example, we will create a simple strategy that buys a stock on the first iteration and holds it until the end of the backtest. The strategy will be initialized with a symbol parameter that will be used to determine which stock to buy. The initialize method will be used to set the sleeptime to 1 day. The on_trading_iteration method will be used to buy the stock on the first iteration. The strategy will be run from 2025-01-01 to 2025-01-31.
 
 .. code-block:: python
     
@@ -47,8 +47,8 @@ Set the start and end dates for the backtest:
 
 .. code-block:: python
 
-    backtesting_start = datetime.datetime(2023, 1, 1)
-    backtesting_end = datetime.datetime(2023, 5, 1)
+    backtesting_start = datetime(2025, 1, 1)
+    backtesting_end = datetime(2025, 1, 31)
 
 Finally, run the backtest:
 
@@ -72,7 +72,8 @@ In this example, we are using thetadata for both stock and option data.
         backtesting_end,
         benchmark_asset="SPY")
 
-Here's the full code:
+Here's the full code (with explicit dates):
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **Make sure to replace the `THETADATA_USERNAME` and `THETADATA_PASSWORD` (it's free)**
 
@@ -83,7 +84,6 @@ Here's the full code:
     from lumibot.backtesting import BacktestingBroker, ThetaDataBacktesting
     from lumibot.strategies import Strategy
     from lumibot.traders import Trader
-
 
     class MyStrategy(Strategy):
         parameters = {
@@ -101,18 +101,70 @@ Here's the full code:
                 order = self.create_order(symbol, quantity=qty, side="buy")
                 self.submit_order(order)
 
-
     if __name__ == "__main__":
-        backtesting_start = datetime(2023, 1, 1)
-        backtesting_end = datetime(2023, 5, 1)
+        backtesting_start = datetime(2025, 1, 1)
+        backtesting_end = datetime(2025, 1, 31)
         result = MyStrategy.run_backtest(
             ThetaDataBacktesting,
             backtesting_start,
             backtesting_end,
-            benchmark_asset="SPY")
+            benchmark_asset="SPY"
+        )
 
 .. important::
    
-   **You can get an username and password at** `thetadata.net <https://www.thetadata.net/>`_. **Please use the full link to give us credit for the sale (https://www.thetadata.net), it helps support this project. You can use the coupon code 'LUMI' for 10% off.**
+   **You can get a username and password at** `thetadata.net <https://www.thetadata.net/>`_. **Please use the full link to give us credit for the sale (https://www.thetadata.net), it helps support this project. You can use the coupon code 'LUMI' for 10% off.**
+
+Optional: Environment Variables
+-------------------------------
+Instead of specifying `backtesting_start` and `backtesting_end` in code, you can set these environment variables (along with `IS_BACKTESTING`). LumiBot will detect them automatically:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 60 20
+
+   * - **Variable**
+     - **Description**
+     - **Example**
+   * - IS_BACKTESTING
+     - (Optional) **"True"** to enable backtesting, **"False"** for live trading.
+     - False
+   * - BACKTESTING_START
+     - (Optional) Start date (YYYY-MM-DD).
+     - 2025-01-01
+   * - BACKTESTING_END
+     - (Optional) End date (YYYY-MM-DD).
+     - 2025-01-31
+
+Below is **the full code** that relies *entirely on environment variables*:
+
+.. code-block:: python
+
+    from lumibot.backtesting import BacktestingBroker, ThetaDataBacktesting
+    from lumibot.strategies import Strategy
+    from lumibot.traders import Trader
+
+    class MyStrategy(Strategy):
+        parameters = {
+            "symbol": "AAPL",
+        }
+
+        def initialize(self):
+            self.sleeptime = "1D"
+
+        def on_trading_iteration(self):
+            if self.first_iteration:
+                symbol = self.parameters["symbol"]
+                price = self.get_last_price(symbol)
+                qty = self.portfolio_value / price
+                order = self.create_order(symbol, quantity=qty, side="buy")
+                self.submit_order(order)
+
+    if __name__ == "__main__":
+        # No start/end in code. We rely on environment variables for backtesting dates.
+        result = MyStrategy.run_backtest(
+            ThetaDataBacktesting,
+            benchmark_asset="SPY"
+        )
 
 In summary, the ThetaData backtester is a powerful tool for fetching pricing data for backtesting various strategies. With its capability to cache data for faster subsequent backtesting and its easy integration with thetadata API, it is a versatile choice for any backtesting needs.

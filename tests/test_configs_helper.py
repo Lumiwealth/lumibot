@@ -1,6 +1,8 @@
+from decimal import Decimal
+
 from lumibot.components.configs_helper import ConfigsHelper
 from lumibot.components.drift_rebalancer_logic import DriftType
-from lumibot.entities import Order
+from lumibot.entities import Order, Asset
 
 
 class TestConfigsHelper:
@@ -19,8 +21,14 @@ class TestConfigsHelper:
         assert config["order_type"] == Order.OrderType.MARKET
         assert config["acceptable_slippage"] == "0.005"
         assert config["fill_sleeptime"] == 15
-        assert config["target_weights"] == {
-            "SPY": "0.60",
-            "TLT": "0.40"
-        }
-        assert config["shorting"] == False
+        assert config["portfolio_weights"] == [
+            {
+                "base_asset": Asset(symbol='SPY', asset_type='stock'),
+                "weight": Decimal("0.6")
+            },
+            {
+                "base_asset": Asset(symbol='TLT', asset_type='stock'),
+                "weight": Decimal("0.4")
+            }
+        ]
+        assert config["shorting"] is False

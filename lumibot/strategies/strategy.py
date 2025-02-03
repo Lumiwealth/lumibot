@@ -1651,7 +1651,7 @@ class Strategy(_Strategy):
         """
         self.broker.sell_all(self.name, cancel_open_orders=cancel_open_orders, strategy=self, is_multileg=is_multileg)
 
-    def get_last_price(self, asset: Union[Asset, str], quote=None, exchange=None):
+    def get_last_price(self, asset: Union[Asset, str], quote=None, exchange=None) -> Union[float, Decimal, None]:
         """Takes an asset and returns the last known price
 
         Makes an active call to the market to retrieve the last price.
@@ -1695,7 +1695,7 @@ class Strategy(_Strategy):
         >>> base = Asset(symbol="BTC", asset_type="crypto")
         >>> quote = Asset(symbol="USD", asset_type="forex")
         >>> last_price = self.get_last_price(base, quote=quote)
-        >>> self.log_message(f"Last price for BTC/USDT is {last_price}")
+        >>> self.log_message(f"Last price for BTC/USD is {last_price}")
 
         >>> # Will return the last price for a futures asset
         >>> self.base = Asset(
@@ -2553,29 +2553,6 @@ class Strategy(_Strategy):
         >>> asset = self.create(symbol="EUR", asset_type="crypto"),
         >>> asset = self.create(symbol="ETH", asset_type="crypto"),
         """
-        # If backtesting,  return existing asset if in store.
-        if self.is_backtesting and asset_type != "crypto":
-            # Check for existing asset.
-            for asset in self.broker.data_source._data_store:
-                is_symbol = asset.symbol == symbol
-                is_asset_type = asset.asset_type == asset_type
-                is_expiration = asset.expiration == expiration
-                if asset.strike != "" and strike != "":
-                    is_strike = float(asset.strike) == float(strike)
-                else:
-                    is_strike = asset.strike == strike
-                is_right = asset.right == right
-                is_multiplier = asset.multiplier == multiplier
-                if asset_type == "stock" and (is_symbol and is_asset_type and is_multiplier):
-                    return asset
-                elif asset_type == "future" and (is_symbol and is_asset_type and is_expiration and is_multiplier):
-                    return asset
-                elif asset_type == "option" and (
-                    is_symbol and is_asset_type and is_expiration and is_right and is_strike and is_multiplier
-                ):
-                    return asset
-                else:
-                    pass
 
         return Asset(
             symbol=symbol,
@@ -3756,8 +3733,8 @@ class Strategy(_Strategy):
     def backtest(
         self,
         datasource_class: Type[DataSource],
-        backtesting_start: datetime.datetime,
-        backtesting_end: datetime.datetime,
+        backtesting_start: datetime.datetime = None,
+        backtesting_end: datetime.datetime = None,
         minutes_before_closing: int = 1,
         minutes_before_opening: int = 60,
         sleeptime: int = 1,

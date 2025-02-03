@@ -13,6 +13,7 @@ from .brokers import Alpaca, Ccxt, InteractiveBrokers, InteractiveBrokersREST, T
 import logging
 from dotenv import load_dotenv
 import termcolor
+from dateutil import parser
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -64,6 +65,18 @@ else:
     colored_message = termcolor.colored(f"IS_BACKTESTING must be set to 'true' or 'false'. Got '{is_backtesting}'. Defaulting to False.", "yellow")
     logger.warning(colored_message)
     IS_BACKTESTING = False
+
+# Get the backtesting start and end dates
+backtesting_start = os.environ.get("BACKTESTING_START")
+backtesting_end = os.environ.get("BACKTESTING_END")
+
+# Check if the dates are not None and not empty strings before parsing
+BACKTESTING_START = None
+if backtesting_start:
+    BACKTESTING_START = parser.parse(backtesting_start)
+BACKTESTING_END = None
+if backtesting_end:
+    BACKTESTING_END = parser.parse(backtesting_end)
 
 # Check if we should hide trades
 hide_trades = os.environ.get("HIDE_TRADES")

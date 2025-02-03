@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from queue import Queue
 from threading import RLock, Thread
+from typing import Union
 
 import pandas as pd
 import pandas_market_calendars as mcal
@@ -303,7 +304,7 @@ class Broker(ABC):
 
     # =========Market functions=======================
 
-    def get_last_price(self, asset: Asset, quote=None, exchange=None) -> float:
+    def get_last_price(self, asset: Asset, quote=None, exchange=None) -> Union[float, Decimal, None]:
         """
         Takes an asset and returns the last known price
 
@@ -318,7 +319,7 @@ class Broker(ABC):
 
         Returns
         -------
-        float
+        float or Decimal or None
             The last known price of the asset.
         """
         if self.option_source and asset.asset_type == "option":
@@ -942,19 +943,19 @@ class Broker(ABC):
         result = self._parse_broker_orders(response, strategy_name, strategy_object=strategy_object)
         return result
 
-    def submit_order(self, order):
+    def submit_order(self, order) -> Order:
         """Conform an order for an asset to broker constraints and submit it."""
         self._conform_order(order)
-        self._submit_order(order)
+        return self._submit_order(order)
 
     def _conform_order(self, order):
         """Conform an order to broker constraints. Derived brokers should implement this method."""
         pass
 
-    def submit_orders(self, orders, **kwargs):
+    def submit_orders(self, orders, **kwargs) -> Union[Order, list[Order]]:
         """Submit orders"""
         if hasattr(self, '_submit_orders'):
-            self._submit_orders(orders, **kwargs)
+            return self._submit_orders(orders, **kwargs)
         else:
             with ThreadPoolExecutor(
                 max_workers=self.max_workers,
@@ -967,6 +968,7 @@ class Broker(ABC):
                 result = []
                 for task in as_completed(tasks):
                     result.append(task.result())
+                return result
 
     def wait_for_order_registration(self, order):
         """Wait for the order to be registered by the broker"""

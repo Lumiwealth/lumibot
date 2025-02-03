@@ -65,10 +65,6 @@ class BacktestingBroker(Broker):
     def datetime(self):
         return self.data_source.get_datetime()
 
-    def _submit_order(self, order):
-        """TODO: Why is this not used for Backtesting, but it is used for real brokers?"""
-        pass
-
     def _get_balances_at_broker(self, quote_asset, strategy):
         """
         Get the balances of the broker
@@ -129,7 +125,7 @@ class BacktestingBroker(Broker):
 
         # Check that the index is not out of bounds
         if idx >= len(self._trading_days):
-            logging.error("Cannot predict future")
+            logging.info("Cannot predict future")
             return False
 
         # The index of the trading_day is used as the market close time
@@ -145,7 +141,7 @@ class BacktestingBroker(Broker):
         now = self.datetime
         search = self._trading_days[now < self._trading_days.market_open]
         if search.empty:
-            logging.error("Cannot predict future")
+            logging.info("Cannot predict future")
 
         return search.market_open[0].to_pydatetime()
 
@@ -155,7 +151,7 @@ class BacktestingBroker(Broker):
 
         search = self._trading_days[now < self._trading_days.index]
         if search.empty:
-            logging.error("Cannot predict future")
+            logging.info("Cannot predict future")
             return 0
 
         trading_day = search.iloc[0]
@@ -182,7 +178,7 @@ class BacktestingBroker(Broker):
         idx = self._trading_days.index.searchsorted(now, side='left')
 
         if idx >= len(self._trading_days):
-            logging.error("Cannot predict future")
+            logging.info("Cannot predict future")
             return 0
 
         # Directly access the data needed using more efficient methods
@@ -390,9 +386,8 @@ class BacktestingBroker(Broker):
                 logger.info("Position %r liquidated" % existing_position)
                 self._filled_positions.remove(existing_position)
 
-    def submit_order(self, order):
+    def _submit_order(self, order):
         """Submit an order for an asset"""
-        self._conform_order(order)
 
         # NOTE: This code is to address Tradier API requirements, they want is as "to_open" or "to_close" instead of just "buy" or "sell"
         # If the order has a "buy_to_open" or "buy_to_close" side, then we should change it to "buy"
@@ -410,7 +405,7 @@ class BacktestingBroker(Broker):
         )
         return order
 
-    def submit_orders(self, orders, is_multileg=False, **kwargs):
+    def _submit_orders(self, orders, is_multileg=False, **kwargs):
         """Submit multiple orders for an asset"""
 
         # Check that orders is a list and not zero

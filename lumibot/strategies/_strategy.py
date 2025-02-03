@@ -51,9 +51,39 @@ from ..credentials import (
     SHOW_TEARSHEET,
     LIVE_CONFIG,
     POLYGON_MAX_MEMORY_BYTES,
+    BACKTESTING_START,
+    BACKTESTING_END,
 )
 # Set the stats table name for when storing stats in a database, defined by db_connection_str
 STATS_TABLE_NAME = "strategy_tracker"
+
+class SafeJSONEncoder(json.JSONEncoder):
+    """Custom JSON encoder for Lumibot objects.
+    
+    Handles:
+    - Objects with to_dict() method -> dictionary 
+    - datetime.date and datetime.datetime -> ISO format string
+    - Decimal -> float
+    - Sets -> list
+    """
+    def default(self, obj):
+        # Handle objects with to_dict method (Asset, Order, Position etc)
+        if hasattr(obj, 'to_dict'):
+            return obj.to_dict()
+            
+        # Handle dates and times
+        if isinstance(obj, (datetime.date, datetime.datetime)):
+            return obj.isoformat()
+            
+        # Handle Decimal
+        if isinstance(obj, Decimal):
+            return float(obj)
+
+        # Handle sets
+        if isinstance(obj, set):
+            return list(obj)
+            
+        return super().default(obj)
 
 class CustomLoggerAdapter(logging.LoggerAdapter):
     def __init__(self, logger, extra):
@@ -782,7 +812,7 @@ class _Strategy:
                 df = bars.df
 
                 # Add returns column
-                df["return"] = df["close"].pct_change()
+                df["return"] = df["close"].pct_change(fill_method=None)
 
                 # Add the symbol_cumprod column
                 df["symbol_cumprod"] = (1 + df["return"]).cumprod()
@@ -906,44 +936,43 @@ class _Strategy:
     def run_backtest(
         self,
         datasource_class,
-        backtesting_start: datetime,
-        backtesting_end: datetime,
-        minutes_before_closing=5,
-        minutes_before_opening=60,
-        sleeptime=1,
-        stats_file=None,
-        risk_free_rate=None,
-        logfile=None,
-        config=None,
-        auto_adjust=False,
-        name=None,
-        budget=None,
-        benchmark_asset="SPY",
-        plot_file_html=None,
-        trades_file=None,
-        settings_file=None,
-        pandas_data=None,
-        quote_asset=Asset(symbol="USD", asset_type="forex"),
-        starting_positions=None,
-        show_plot=None,
-        tearsheet_file=None,
-        save_tearsheet=True,
-        show_tearsheet=None,
-        parameters={},
-        buy_trading_fees=[],
-        sell_trading_fees=[],
-        polygon_api_key=None,
-        polygon_has_paid_subscription=False, # Deprecated, will be removed in future versions
-        use_other_option_source=False,
-        thetadata_username=None,
-        thetadata_password=None,
-        indicators_file=None,
-        show_indicators=None,
-        save_logfile=False,
-        use_quote_data=False,
-        show_progress_bar=True,
-        quiet_logs=False,
-        trader_class=Trader,
+        backtesting_start: datetime = None,
+        backtesting_end: datetime = None,
+        minutes_before_closing = 5,
+        minutes_before_opening = 60,
+        sleeptime = 1,
+        stats_file = None,
+        risk_free_rate = None,
+        logfile = None,
+        config = None,
+        auto_adjust = False,
+        name = None,
+        budget = None,
+        benchmark_asset = "SPY",
+        plot_file_html = None,
+        trades_file = None,
+        settings_file = None,
+        pandas_data = None,
+        quote_asset = Asset(symbol="USD", asset_type="forex"),
+        starting_positions = None,
+        show_plot = None,
+        tearsheet_file = None,
+        save_tearsheet = True,
+        show_tearsheet = None,
+        parameters = {},
+        buy_trading_fees = [],
+        sell_trading_fees = [],
+        polygon_api_key = None,
+        use_other_option_source = False,
+        thetadata_username = None,
+        thetadata_password = None,
+        indicators_file = None,
+        show_indicators = None,
+        save_logfile = False,
+        use_quote_data = False,
+        show_progress_bar = True,
+        quiet_logs = False,
+        trader_class = Trader,
         **kwargs,
     ):
         """Backtest a strategy.
@@ -1067,6 +1096,28 @@ class _Strategy:
             name = self.__name__
 
         self._name = name
+
+        # If backtesting_start is None, then check the BACKTESTING_START environment variable
+        if backtesting_start is None and BACKTESTING_START is not None:
+            backtesting_start = BACKTESTING_START
+        # If backtesting_start is None, and BACKTESTING_START is not set, then set it to one year ago by default
+        elif backtesting_start is None:
+            backtesting_start = datetime.datetime.now() - datetime.timedelta(days=365)
+            # Warn the user that the backtesting_start is set to one year ago
+            logging.warning(
+                colored(f"backtesting_start is set to one year ago by default. You can set it to a specific date by passing in the backtesting_start parameter or by setting the BACKTESTING_START environment variable.", "yellow")
+            )
+
+        # If backtesting_end is None, then check the BACKTESTING_END environment variable
+        if backtesting_end is None and BACKTESTING_END is not None:
+            backtesting_end = BACKTESTING_END
+        # If backtesting_end is None, and BACKTESTING_END is not set, then set it to the current date by default
+        elif backtesting_end is None:
+            backtesting_end = datetime.datetime.now()
+            # Warn the user that the backtesting_end is set to the current date
+            logging.warning(
+                colored(f"backtesting_end is set to the current date by default. You can set it to a specific date by passing in the backtesting_end parameter or by setting the BACKTESTING_END environment variable.", "yellow")
+            )
 
         # Create an adapter with 'strategy_name' set to the instance's name
         if not hasattr(self, "logger") or self.logger is None:
@@ -1910,7 +1961,7 @@ class _Strategy:
             # Create the table by saving this empty DataFrame to the database
             stats_new.to_sql(self.backup_table_name, self.db_engine, if_exists='replace', index=True)
 
-        current_state = json.dumps(self.vars.all(), sort_keys=True)
+        current_state = json.dumps(self.vars.all(), sort_keys=True, cls=SafeJSONEncoder)
         if current_state == self._last_backup_state:
             self.logger.info("No variables changed. Not backing up.")
             return
@@ -1918,7 +1969,7 @@ class _Strategy:
         try:
             data_to_save = self.vars.all()
             if data_to_save:
-                json_data_to_save = json.dumps(data_to_save)
+                json_data_to_save = json.dumps(data_to_save, cls=SafeJSONEncoder)
                 with self.db_engine.connect() as connection:
                     with connection.begin():
                         # Check if the row exists
@@ -1985,17 +2036,24 @@ class _Strategy:
             df = pd.read_sql_query(query, self.db_engine, params=params)
 
             if df.empty:
-                logger.debug("No data found in the backup")
+                logger.debug("No data found in the backup") 
             else:
                 # Parse the JSON data
                 json_data = df['variables'].iloc[0]
-                data = json.loads(json_data)
+                # Decode any special types we stored using our SafeJSONEncoder
+                data = json.loads(json_data, object_hook=lambda d: {
+                    k: (
+                        datetime.datetime.fromisoformat(v) if isinstance(v, str) and 'T' in v
+                        else datetime.datetime.strptime(v, '%Y-%m-%d').date() if isinstance(v, str) and '-' in v
+                        else v
+                    ) for k, v in d.items()
+                })
 
                 # Update self.vars dictionary
                 for key, value in data.items():
                     self.vars.set(key, value)
 
-                current_state = json.dumps(self.vars.all(), sort_keys=True)
+                current_state = json.dumps(self.vars.all(), sort_keys=True, cls=SafeJSONEncoder)
                 self._last_backup_state = current_state
 
                 logger.info("Variables loaded successfully from database")

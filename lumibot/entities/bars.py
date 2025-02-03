@@ -1,5 +1,7 @@
 import logging
 from datetime import datetime
+from decimal import Decimal
+from typing import Union
 
 import pandas as pd
 
@@ -112,11 +114,11 @@ class Bars:
         self._raw = raw
 
         if "dividend" in df.columns:
-            df.loc[:, "price_change"] = df["close"].pct_change()
+            df.loc[:, "price_change"] = df["close"].pct_change(fill_method=None)
             df.loc[:, "dividend_yield"] = df["dividend"] / df["close"]
             df.loc[:, "return"] = df["dividend_yield"] + df["price_change"]
         else:
-            df.loc[:, "return"] = df["close"].pct_change()
+            df.loc[:, "return"] = df["close"].pct_change(fill_method=None)
 
         self.df = df
 
@@ -168,7 +170,7 @@ class Bars:
 
         return result
 
-    def get_last_price(self):
+    def get_last_price(self) -> Union[float, Decimal, None]:
         """Return the last price of the last bar
 
         Parameters
@@ -177,7 +179,7 @@ class Bars:
 
         Returns
         -------
-        float
+        float, Decimal or None
 
         """
         return self.df["close"].iloc[-1]

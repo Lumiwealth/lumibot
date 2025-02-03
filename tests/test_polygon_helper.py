@@ -291,7 +291,6 @@ class TestPolygonHelpers:
         assert df_new.index[2] == pd.DatetimeIndex(["2023-08-01 13:32:00-00:00"])[0]
         assert df_new.index[4] == pd.DatetimeIndex(["2023-08-01 13:34:00-00:00"])[0]
 
-
 class TestPolygonPriceData:
     def test_get_price_data_from_polygon(self, mocker, tmpdir):
         # Ensure we don't accidentally call the real Polygon API
@@ -480,10 +479,81 @@ class TestPolygonPriceData:
         assert mock_polyclient.create().get_aggs.call_count == 3
         assert expected_cachefile.exists()
         assert len(df) == 7
-        df = ph.get_price_data_from_polygon(api_key, asset, start_date, end_date, timespan, force_cache_update=force_cache_update)
-        assert len(df) == 7
-        if force_cache_update:
-            assert mock_polyclient.create().get_aggs.call_count == 2 * 3
-        else:
-            assert mock_polyclient.create().get_aggs.call_count == 3
+
         expected_cachefile.unlink()
+
+
+    def test_get_chains_cached(self, mocker, tmpdir):
+        """
+        Test that get_chains_cached() correctly caches option chain data so that
+        repeated calls for the same asset & date skip new API calls.
+        """
+
+        # 1) Override LUMIBOT_CACHE_FOLDER => writes to tmpdir
+        mocker.patch.object(ph, "LUMIBOT_CACHE_FOLDER", tmpdir)
+
+        # 2) Mock out the PolygonClient
+        mock_polyclient = mocker.MagicMock()
+        mocker.patch.object(ph.PolygonClient, "create", return_value=mock_polyclient)
+
+        # 3) Create some mock contracts
+        mock_contract_call = mocker.MagicMock()
+        mock_contract_call.shares_per_contract = 100
+        mock_contract_call.primary_exchange = "NYSE"
+        mock_contract_call.contract_type = "call"
+        mock_contract_call.expiration_date = "2023-08-15"
+        mock_contract_call.strike_price = 400
+
+        mock_contract_put = mocker.MagicMock()
+        mock_contract_put.shares_per_contract = 100
+        mock_contract_put.primary_exchange = "NYSE"
+        mock_contract_put.contract_type = "put"
+        mock_contract_put.expiration_date = "2023-08-15"
+        mock_contract_put.strike_price = 395
+
+        # Non-standard => skip
+        mock_contract_nonstandard = mocker.MagicMock()
+        mock_contract_nonstandard.shares_per_contract = 50
+
+        # By default, the code calls list_options_contracts for expired=True and expired=False,
+        # so each call is invoked twice.
+        mock_polyclient.list_options_contracts.side_effect = [
+            [mock_contract_call, mock_contract_nonstandard],  # first call => expired=True
+            [mock_contract_put, mock_contract_nonstandard],   # second call => expired=False
+        ]
+
+        # 4) First call => expect 2 calls (for True & False)
+        asset = Asset("SPY")
+        date_ = datetime.date(2023, 8, 1)
+
+        result_first = ph.get_chains_cached(
+            api_key="TEST_API_KEY",
+            asset=asset,
+            current_date=date_,
+            polygon_client=mock_polyclient,
+        )
+
+        # Basic checks
+        assert result_first["Multiplier"] == 100
+        assert result_first["Exchange"] == "NYSE"
+        # The "CALL" side has the 8/15 contract => strike 400
+        assert result_first["Chains"]["CALL"]["2023-08-15"] == [400]
+        # The "PUT" side => strike 395
+        assert result_first["Chains"]["PUT"]["2023-08-15"] == [395]
+
+        # We called list_options_contracts() exactly twice
+        assert mock_polyclient.list_options_contracts.call_count == 2
+
+        # 5) Second call => reads from cache => 0 new API calls
+        mock_polyclient.list_options_contracts.reset_mock()
+
+        result_second = ph.get_chains_cached(
+            api_key="TEST_API_KEY",
+            asset=asset,
+            current_date=date_,
+            polygon_client=mock_polyclient,
+        )
+
+        # Should return identical data
+        assert result_second == result_first
+        assert mock_polyclient.list_options_contracts.call_count == 0

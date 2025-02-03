@@ -1,4 +1,7 @@
 import logging
+from decimal import Decimal
+from typing import Union
+
 from termcolor import colored
 
 from lumibot import LUMIBOT_DEFAULT_PYTZ
@@ -842,7 +845,7 @@ class InteractiveBrokersRESTData(DataSource):
 
         return bars
 
-    def get_last_price(self, asset, quote=None, exchange=None) -> float | None:
+    def get_last_price(self, asset, quote=None, exchange=None) -> Union[float, Decimal, None]:
         field = "last_price"
         response = self.get_market_snapshot(asset, [field])  # TODO add exchange
 

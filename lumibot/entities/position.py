@@ -28,7 +28,16 @@ class Position:
         The average fill price of the position.
     """
 
-    def __init__(self, strategy, asset, quantity, orders=None, hold=0, available=0, avg_fill_price=None):
+    def __init__(
+            self, 
+            strategy, 
+            asset, 
+            quantity, 
+            orders=None, 
+            hold=0, 
+            available=0, 
+            avg_fill_price=None
+        ):
         self.strategy = strategy
         self.asset = asset
         self.symbol = self.asset.symbol

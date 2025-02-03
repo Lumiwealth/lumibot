@@ -1,6 +1,8 @@
 import logging
 from collections import defaultdict, OrderedDict
 from datetime import timedelta
+from decimal import Decimal
+from typing import Union
 
 import pandas as pd
 from lumibot.data_sources import DataSourceBacktesting
@@ -178,7 +180,7 @@ class PandasData(DataSourceBacktesting):
 
         return dt_index
 
-    def get_last_price(self, asset, quote=None, exchange=None):
+    def get_last_price(self, asset, quote=None, exchange=None) -> Union[float, Decimal, None]:
         # Takes an asset and returns the last known price
         tuple_to_find = self.find_asset_in_data_store(asset, quote)
 
@@ -412,8 +414,12 @@ class PandasData(DataSourceBacktesting):
         # Convert timestep string to timedelta and get start datetime
         td, ts_unit = self.convert_timestep_str_to_timedelta(timestep)
 
-        # Multiply td by length to get the end datetime
-        td *= length
+        if ts_unit == "day":
+            weeks_requested = length // 5  # Full trading week is 5 days
+            extra_padding_days = weeks_requested * 3  # to account for 3day weekends
+            td = timedelta(days=length + extra_padding_days)
+        else:
+            td *= length
 
         if start_dt is not None:
             start_datetime = start_dt - td

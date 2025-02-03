@@ -1,5 +1,7 @@
 import logging
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
+from typing import Union
 
 import pandas as pd
 from alpaca.data.historical import CryptoHistoricalDataClient, StockHistoricalDataClient
@@ -141,7 +143,7 @@ class AlpacaData(DataSource):
             "feature, please use a different data source."
         )
 
-    def get_last_price(self, asset, quote=None, exchange=None, **kwargs):
+    def get_last_price(self, asset, quote=None, exchange=None, **kwargs) -> Union[float, Decimal, None]:
         if quote is not None:
             # If the quote is not None, we use it even if the asset is a tuple
             if type(asset) == Asset and asset.asset_type == "stock":
@@ -243,10 +245,9 @@ class AlpacaData(DataSource):
                     loop_limit = limit
 
             elif str(freq) == "1Day":
-                loop_limit = limit * 1.5  # number almost perfect for normal weeks where only weekends are off
-
-                # Add 3 days to the start date to make sure we get enough data on extra long weekends (like Thanksgiving)
-                loop_limit += 3
+                weeks_requested = limit // 5  # Full trading week is 5 days
+                extra_padding_days = weeks_requested * 3  # to account for 3day weekends
+                loop_limit = max(5, limit + extra_padding_days)  # Get at least 5 days
 
         df = []  # to use len(df) below without an error
 

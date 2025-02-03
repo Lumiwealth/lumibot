@@ -17,9 +17,7 @@ from lumibot.entities import Asset
 
 # Global parameters
 # API Key for testing Polygon.io
-POLYGON_API_KEY = os.environ.get("POLYGON_API_KEY")
-POLYGON_IS_PAID_SUBSCRIPTION = os.getenv("POLYGON_IS_PAID_SUBSCRIPTION", "true").lower() not in {'false', '0', 'f', 'n', 'no'}
-
+from lumibot.credentials import POLYGON_CONFIG
 
 class TestExampleStrategies:
     def test_stock_bracket(self):
@@ -208,7 +206,14 @@ class TestExampleStrategies:
         assert round(results["total_return"] * 100, 1) >= 0.7
         assert round(results["max_drawdown"]["drawdown"] * 100, 1) <= 0.2
 
-    @pytest.mark.skipif(POLYGON_API_KEY == '<your key here>', reason="This test requires a Polygon.io API key")
+    @pytest.mark.skipif(
+        not POLYGON_CONFIG["API_KEY"],
+        reason="This test requires a Polygon.io API key"
+    )
+    @pytest.mark.skipif(
+        POLYGON_CONFIG['API_KEY'] == '<your key here>',
+        reason="This test requires a Polygon.io API key"
+    )
     def test_options_hold_to_expiry(self):
         """
         Test the example strategy OptionsHoldToExpiry by running a backtest and checking that the strategy object is
@@ -227,7 +232,7 @@ class TestExampleStrategies:
             show_plot=False,
             show_tearsheet=False,
             save_tearsheet=False,
-            polygon_api_key=POLYGON_API_KEY,
+            polygon_api_key=POLYGON_CONFIG["API_KEY"],
         )
 
         trades_df = strat_obj.broker._trade_event_log_df
@@ -240,8 +245,7 @@ class TestExampleStrategies:
         assert round(cash_settled_orders.iloc[0]["price"], 0) == 0
         assert cash_settled_orders.iloc[0]["filled_quantity"] == 10
 
-    @pytest.mark.skip(reason="This test is skipped because the CCXTBackTesting data source is not currently "
-                             "returning data for this date range.")
+    @pytest.mark.skip()  # Skip this test; it works locally but i can't get it to work on github actions
     def test_ccxt_backtesting(self):
         """
         Test the example strategy StockBracket by running a backtest and checking that the strategy object is returned

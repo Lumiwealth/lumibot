@@ -750,7 +750,8 @@ class StrategyExecutor(Thread):
                 self.strategy.logger.warning(
                     f"The strategy will run at {kwargs['hour']}:{kwargs['minute']}:{kwargs['second']} every day. "
                     f"If instead you want to start right now and run every {time_raw} days then set "
-                    f"force_start_immediately=True in the strategy's initialization."
+                    f"force_start_immediately=True in the strategy's class initialization code. Or set "
+                    f"the `MARKET` environment variable/secret to '24/7' to run the strategy continuously."
                 )
 
         # Return a CronTrigger object with the calculated settings.

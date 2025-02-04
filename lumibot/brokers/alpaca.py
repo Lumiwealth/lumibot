@@ -9,6 +9,7 @@ from decimal import Decimal
 import pandas_market_calendars as mcal
 from alpaca.trading.client import TradingClient
 from alpaca.trading.stream import TradingStream
+from alpaca.trading.requests import GetOrdersRequest
 from dateutil import tz
 from termcolor import colored
 
@@ -266,10 +267,25 @@ class Alpaca(Broker):
                 symbol=position.symbol.replace("USD", ""),
                 asset_type="crypto",
             )
-        elif position.asset_class == "option":
+        elif position.asset_class == "us_option":
+            underlying = ''.join([char for char in position.symbol[:-9] if not char.isdigit()])
+
+            year = int('20' + position.symbol[len(position.symbol)-15:len(position.symbol)-13])
+            month = int(position.symbol[len(position.symbol)-13:len(position.symbol)-11])
+            day = int(position.symbol[len(position.symbol)-11:len(position.symbol)-9])
+            exp = datetime.datetime(year, month, day).date()
+
+            right = 'CALL' if position.symbol[-9] == 'C' else 'PUT'
+
+            strike_price = position.symbol[-8:-3]
+            strike_price = float(strike_price)
+
             asset = Asset(
-                symbol=position.symbol,
+                symbol=underlying,
                 asset_type="option",
+                expiration=exp,
+                strike=strike_price,
+                right=right
             )
         else:
             asset = Asset(
@@ -346,20 +362,57 @@ class Alpaca(Broker):
         else:
             symbol = response.symbol
 
-        order = Order(
-            strategy_name,
-            Asset(
-                symbol=symbol,
-                asset_type=self.map_asset_type(response.asset_class),
-            ),
-            Decimal(response.qty),
-            response.side,
-            limit_price=response.limit_price,
-            stop_price=response.stop_price,
-            time_in_force=response.time_in_force,
-            # TODO: remove hardcoding in case Alpaca allows crypto to crypto trading
-            quote=Asset(symbol="USD", asset_type="forex"),
-        )
+        asset_type = self.map_asset_type(response.asset_class)
+
+        qty = Decimal(response.qty) if response.qty != None else Decimal(response.filled_qty)
+        fill_price = Decimal(response.filled_avg_price) if response.filled_avg_price != None else 0
+
+        if asset_type == Asset.AssetType.OPTION:
+            underlying = ''.join([char for char in symbol[:-9] if not char.isdigit()])
+
+            year = int('20' + symbol[len(symbol)-15:len(symbol)-13])
+            month = int(symbol[len(symbol)-13:len(symbol)-11])
+            day = int(symbol[len(symbol)-11:len(symbol)-9])
+            exp = datetime.datetime(year, month, day).date()
+
+            right = 'CALL' if symbol[-9] == 'C' else 'PUT'
+
+            strike_price = symbol[-8:-3]
+            strike_price = float(strike_price)
+
+            asset = Asset(
+                symbol=underlying,
+                asset_type=Asset.AssetType.OPTION,
+                expiration=exp,
+                strike=strike_price,
+                right=right
+            )
+            order = Order(
+                strategy_name,
+                asset,
+                qty,
+                response.side,
+                limit_price=response.limit_price,
+                stop_price=response.stop_price,
+                time_in_force=response.time_in_force,
+                avg_fill_price=fill_price
+            )
+        else:
+            order = Order(
+                strategy_name,
+                Asset(
+                    symbol=symbol,
+                    asset_type=asset_type,
+                ),
+                qty,
+                response.side,
+                limit_price=response.limit_price,
+                stop_price=response.stop_price,
+                time_in_force=response.time_in_force,
+                avg_fill_price=fill_price,
+                # TODO: remove hardcoding in case Alpaca allows crypto to crypto trading
+                quote=Asset(symbol="USD", asset_type="forex"),
+            )
         order.set_identifier(response.id)
         order.status = response.status
         order.update_raw(response)
@@ -372,7 +425,8 @@ class Alpaca(Broker):
 
     def _pull_broker_all_orders(self):
         """Get the broker orders"""
-        return self.api.get_orders()
+        orders = self.api.get_orders(GetOrdersRequest(status='all'))
+        return orders
 
     def _flatten_order(self, order):
         """Some submitted orders may trigger other orders.

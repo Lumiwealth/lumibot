@@ -863,6 +863,7 @@ class Order:
             self.asset,
             position_qty,
             orders=[self],
+            avg_fill_price=self.avg_fill_price
         )
         return position
 

@@ -42,7 +42,16 @@ class GrokNewsHelper:
             The xAI API key (required).
         """
         if not api_key:
-            raise ValueError("API key is required for GrokNewsHelper. Get one from x.ai.")
+            # Try to get the API key from the environment if not provided
+            import os
+
+            # Might be called GROK_API_KEY or XAI_API_KEY
+            api_key = os.getenv("GROK_API_KEY")
+            if not api_key:
+                api_key = os.getenv("XAI_API_KEY")
+
+            if not api_key:
+                raise ValueError("API key is required for GrokNewsHelper. Get one from x.ai and set it as GROK_API_KEY or XAI_API_KEY in your secrets, environment variables, .env file or directly in the code.")
         
         self.api_key = api_key
 

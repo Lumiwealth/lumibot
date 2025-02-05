@@ -9,6 +9,9 @@ from math import gcd
 import re
 import traceback
 from ..trading_builtins import PollingStream
+import threading
+import json
+import websocket
 
 TYPE_MAP = dict(
     stock="STK",
@@ -1191,3 +1194,107 @@ class InteractiveBrokersREST(Broker):
                     if "orderId" in leg:
                         ids.append(str(leg["orderId"]))
         return ids
+    
+    def subscribe_to_realtime_bars(self, conid, callback, fields=None):
+        base_url = self.data_source.base_url
+        if base_url.startswith("https://"):
+            ws_url = base_url.replace("https", "wss", 1)
+        else:
+            ws_url = base_url.replace("http", "ws", 1)
+
+        try:
+            if not hasattr(self, "wsc") or self.wsc is None:
+                self.wsc = IBKRWebSocketClient(f"{ws_url}/ws")
+                self.wsc.connect()
+
+            self.wsc.subscribe_to_realtime_bars(conid, callback, fields)
+        except Exception as e:
+            logging.error(f"Error subscribing to realtime bars: {e}", exc_info=True)
+
+    def unsubscribe_from_realtime_bars(self, conid):
+        try:
+            self.wsc.unsubscribe_from_realtime_bars(conid)
+        except Exception as e:
+            logging.error(f"Error unsubscribing from realtime bars: {e}", exc_info=True)
+
+class IBKRWebSocketClient:
+    def __init__(self, url):
+        self.url = url
+        self.ws = None
+        self.ws_thread = None
+        self.subscriptions = set()
+        self.callbacks = {}
+        self.lock = threading.Lock()
+
+    def connect(self):
+        if not self.ws:
+            try:
+                self.ws = websocket.WebSocketApp(
+                    self.url,
+                    on_message=self.on_message,
+                    on_error=self.on_error,
+                    on_close=self.on_close,
+                    on_open=self.on_open,
+                )
+                self.ws_thread = threading.Thread(target=self.ws.run_forever, daemon=True)
+                self.ws_thread.start()
+            except Exception as e:
+                logging.error(f"Error establishing WebSocket connection: {e}", exc_info=True)
+
+    def on_open(self, ws):
+        logging.info("WebSocket connection opened.")
+
+    def on_message(self, ws, message):
+        try:
+            data = json.loads(message)
+            topic = data.get("topic")
+            if topic and topic.startswith("smd+"):
+                conid = topic.split("+")[1]
+                if conid in self.callbacks:
+                    self.callbacks[conid](data)
+            else:
+                logging.debug(f"Received message: {data}")
+        except json.JSONDecodeError:
+            logging.info("Received invalid JSON message.")
+        except Exception as e:
+            logging.error(f"Error processing WebSocket message: {e}", exc_info=True)
+
+    def on_error(self, ws, error):
+        logging.info(f"WebSocket error: {error}")
+
+    def on_close(self, ws, close_status_code, close_msg):
+        logging.info("WebSocket connection closed.")
+        with self.lock:
+            self.ws = None
+
+    def subscribe_to_realtime_bars(self, conid, callback, fields=None):
+        with self.lock:
+            try:
+                self.subscriptions.add(conid)
+                self.callbacks[conid] = callback
+                fields = fields or []
+                msg = f"smd+{conid}+{{\"fields\": {json.dumps(fields)}}}"
+                if self.ws:
+                    self.ws.send(msg)
+                    logging.info(f"Subscribed to conid: {conid} with fields={fields}")
+                else:
+                    logging.error("WebSocket is not connected.")
+            except Exception as e:
+                logging.error(f"Error in subscribe_to_realtime_bars: {e}", exc_info=True)
+
+    def unsubscribe_from_realtime_bars(self, conid):
+        with self.lock:
+            try:
+                if conid in self.subscriptions:
+                    self.subscriptions.remove(conid)
+                    self.callbacks.pop(conid, None)
+                    if self.ws:
+                        msg = f"umd+{conid}+{{}}"
+                        self.ws.send(msg)
+                        logging.info(f"Unsubscribed from conid: {conid}")
+                    else:
+                        logging.error("WebSocket is not connected.")
+                else:
+                    logging.info(f"Conid {conid} is not subscribed.")
+            except Exception as e:
+                logging.error(f"Error in unsubscribe_from_realtime_bars: {e}", exc_info=True)

@@ -169,7 +169,8 @@ class StrategyExecutor(Thread):
                     order_attrs = [
                         # "position_filled",
                         # "status",
-                        "limit_price"
+                        "limit_price",
+                        "stop_price",
                     ]
                     for order_attr in order_attrs:
                         olumi = getattr(order_lumi, order_attr)

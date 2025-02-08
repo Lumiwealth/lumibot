@@ -5,6 +5,7 @@ import traceback
 from asyncio import CancelledError
 from datetime import timezone
 from decimal import Decimal
+from typing import Union
 
 import pandas_market_calendars as mcal
 from alpaca.trading.client import TradingClient
@@ -509,6 +510,15 @@ class Alpaca(Broker):
             The order that was cancelled
         """
         self.api.cancel_order_by_id(order.identifier)
+
+    def _modify_order(self, order: Order, limit_price: Union[float, None] = None,
+                      stop_price: Union[float, None] = None):
+        """
+        Modify an order at the broker. Nothing will be done for orders that are already cancelled or filled. You are
+        only allowed to change the limit price and/or stop price. If you want to change the quantity,
+        you must cancel the order and submit a new one.
+        """
+        raise NotImplementedError("AlpacaBroker modify order is not implemented.")
 
     # =======Account functions=========
 

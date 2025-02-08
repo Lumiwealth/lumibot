@@ -1,6 +1,7 @@
 import datetime
 import logging
 from decimal import ROUND_DOWN, Decimal, getcontext
+from typing import Union
 
 from lumibot.data_sources import CcxtData
 from lumibot.entities import Asset, Order, Position
@@ -767,6 +768,15 @@ class Ccxt(Broker):
         """Cancel all open orders at the broker."""
         for order in self._pull_broker_all_orders():
             self.api.cancel_order(order["id"], symbol=order["symbol"])
+
+    def _modify_order(self, order: Order, limit_price: Union[float, None] = None,
+                      stop_price: Union[float, None] = None):
+        """
+        Modify an order at the broker. Nothing will be done for orders that are already cancelled or filled. You are
+        only allowed to change the limit price and/or stop price. If you want to change the quantity,
+        you must cancel the order and submit a new one.
+        """
+        raise NotImplementedError("CCXTBroker modify order is not implemented.")
 
     def get_historical_account_value(self):
         logging.error("The function get_historical_account_value is not " "implemented yet for CCXT.")

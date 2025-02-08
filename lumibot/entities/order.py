@@ -512,7 +512,7 @@ class Order:
                                  as a Bracket Order, OCO or OTO, please specify the type parameter when creating the order."
                 )
 
-        if self.type == "oco":
+        if self.type == self.OrderType.OCO:
             # This is a "One-Cancel-Other" advanced order
             self.order_class = self.OrderType.OCO
             self.type = self.OrderType.OCO

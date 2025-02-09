@@ -3767,8 +3767,8 @@ class Strategy(_Strategy):
     def backtest(
         self,
         datasource_class: Type[DataSource],
-        backtesting_start: datetime.datetime,
-        backtesting_end: datetime.datetime,
+        backtesting_start: datetime.datetime = None,
+        backtesting_end: datetime.datetime = None,
         minutes_before_closing: int = 1,
         minutes_before_opening: int = 60,
         sleeptime: int = 1,

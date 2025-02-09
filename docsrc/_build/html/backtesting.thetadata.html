@@ -145,7 +145,7 @@
           <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
         </button>
       </div>
-      <label class="toc-overlay-icon toc-header-icon no-toc" for="__toc">
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
         <div class="visually-hidden">Toggle table of contents sidebar</div>
         <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
       </label>
@@ -360,7 +360,7 @@
               <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
             </button>
           </div>
-          <label class="toc-overlay-icon toc-content-icon no-toc" for="__toc">
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
             <div class="visually-hidden">Toggle table of contents sidebar</div>
             <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
           </label>
@@ -370,7 +370,7 @@
 <h1>ThetaData Backtesting<a class="headerlink" href="#thetadata-backtesting" title="Link to this heading">#</a></h1>
 <div class="admonition important">
 <p class="admonition-title">Important</p>
-<p><strong>You can get an username and password at</strong> <a class="reference external" href="https://www.thetadata.net/">thetadata.net</a>. <strong>Please use the full link to give us credit for the sale (https://www.thetadata.net), it helps support this project. You can use the coupon code ‘LUMI’ for 10% off.</strong></p>
+<p><strong>You can get a username and password at</strong> <a class="reference external" href="https://www.thetadata.net/">thetadata.net</a>. <strong>Please use the full link to give us credit for the sale (https://www.thetadata.net), it helps support this project. You can use the coupon code ‘LUMI’ for 10% off.</strong></p>
 </div>
 <p>ThetaData backtester allows for flexible and robust backtesting. It uses the thetadata API to fetch pricing data for stocks, options, forex, and cryptocurrencies. This backtester simplifies the process of getting pricing data; simply use the thetadata DataSource and it will automatically fetch pricing data when you call <cite>get_last_price()</cite> or <cite>get_historical_prices()</cite>.</p>
 <p>As of this writing, ThetaData provides historical data for free. If you pay for an API you can get many years of data and the backtesting will download data much faster because it won’t be rate limited.</p>
@@ -384,7 +384,7 @@
 <span class="kn">from</span> <span class="nn">lumibot.traders</span> <span class="kn">import</span> <span class="n">Trader</span>
 </pre></div>
 </div>
-<p>Next, create a strategy class that inherits from the Strategy class. This class will be used to define the strategy that will be backtested. In this example, we will create a simple strategy that buys a stock on the first iteration and holds it until the end of the backtest. The strategy will be initialized with a symbol parameter that will be used to determine which stock to buy. The initialize method will be used to set the sleeptime to 1 day. The on_trading_iteration method will be used to buy the stock on the first iteration. The strategy will be run from 2023-01-01 to 2023-05-01.</p>
+<p>Next, create a strategy class that inherits from the Strategy class. This class will be used to define the strategy that will be backtested. In this example, we will create a simple strategy that buys a stock on the first iteration and holds it until the end of the backtest. The strategy will be initialized with a symbol parameter that will be used to determine which stock to buy. The initialize method will be used to set the sleeptime to 1 day. The on_trading_iteration method will be used to buy the stock on the first iteration. The strategy will be run from 2025-01-01 to 2025-01-31.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">MyStrategy</span><span class="p">(</span><span class="n">Strategy</span><span class="p">):</span>
     <span class="n">parameters</span> <span class="o">=</span> <span class="p">{</span>
         <span class="s2">&quot;symbol&quot;</span><span class="p">:</span> <span class="s2">&quot;AAPL&quot;</span><span class="p">,</span>
@@ -403,8 +403,8 @@
 </pre></div>
 </div>
 <p>Set the start and end dates for the backtest:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">backtesting_start</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">(</span><span class="mi">2023</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
-<span class="n">backtesting_end</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">(</span><span class="mi">2023</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">backtesting_start</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">2025</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+<span class="n">backtesting_end</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">2025</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">31</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>Finally, run the backtest:</p>
@@ -425,14 +425,14 @@ In this example, we are using thetadata for both stock and option data.</p>
     <span class="n">benchmark_asset</span><span class="o">=</span><span class="s2">&quot;SPY&quot;</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>Here’s the full code:</p>
+<section id="here-s-the-full-code-with-explicit-dates">
+<h2>Here’s the full code (with explicit dates):<a class="headerlink" href="#here-s-the-full-code-with-explicit-dates" title="Link to this heading">#</a></h2>
 <p><strong>Make sure to replace the `THETADATA_USERNAME` and `THETADATA_PASSWORD` (it’s free)</strong></p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">datetime</span>
 
 <span class="kn">from</span> <span class="nn">lumibot.backtesting</span> <span class="kn">import</span> <span class="n">BacktestingBroker</span><span class="p">,</span> <span class="n">ThetaDataBacktesting</span>
 <span class="kn">from</span> <span class="nn">lumibot.strategies</span> <span class="kn">import</span> <span class="n">Strategy</span>
 <span class="kn">from</span> <span class="nn">lumibot.traders</span> <span class="kn">import</span> <span class="n">Trader</span>
-
 
 <span class="k">class</span> <span class="nc">MyStrategy</span><span class="p">(</span><span class="n">Strategy</span><span class="p">):</span>
     <span class="n">parameters</span> <span class="o">=</span> <span class="p">{</span>
@@ -450,22 +450,85 @@ In this example, we are using thetadata for both stock and option data.</p>
             <span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">symbol</span><span class="p">,</span> <span class="n">quantity</span><span class="o">=</span><span class="n">qty</span><span class="p">,</span> <span class="n">side</span><span class="o">=</span><span class="s2">&quot;buy&quot;</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
 
-
 <span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
-    <span class="n">backtesting_start</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">2023</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
-    <span class="n">backtesting_end</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">2023</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">backtesting_start</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">2025</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">backtesting_end</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">2025</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">31</span><span class="p">)</span>
     <span class="n">result</span> <span class="o">=</span> <span class="n">MyStrategy</span><span class="o">.</span><span class="n">run_backtest</span><span class="p">(</span>
         <span class="n">ThetaDataBacktesting</span><span class="p">,</span>
         <span class="n">backtesting_start</span><span class="p">,</span>
         <span class="n">backtesting_end</span><span class="p">,</span>
-        <span class="n">benchmark_asset</span><span class="o">=</span><span class="s2">&quot;SPY&quot;</span><span class="p">)</span>
+        <span class="n">benchmark_asset</span><span class="o">=</span><span class="s2">&quot;SPY&quot;</span>
+    <span class="p">)</span>
 </pre></div>
 </div>
 <div class="admonition important">
 <p class="admonition-title">Important</p>
-<p><strong>You can get an username and password at</strong> <a class="reference external" href="https://www.thetadata.net/">thetadata.net</a>. <strong>Please use the full link to give us credit for the sale (https://www.thetadata.net), it helps support this project. You can use the coupon code ‘LUMI’ for 10% off.</strong></p>
+<p><strong>You can get a username and password at</strong> <a class="reference external" href="https://www.thetadata.net/">thetadata.net</a>. <strong>Please use the full link to give us credit for the sale (https://www.thetadata.net), it helps support this project. You can use the coupon code ‘LUMI’ for 10% off.</strong></p>
+</div>
+<section id="optional-environment-variables">
+<h3>Optional: Environment Variables<a class="headerlink" href="#optional-environment-variables" title="Link to this heading">#</a></h3>
+<p>Instead of specifying <cite>backtesting_start</cite> and <cite>backtesting_end</cite> in code, you can set these environment variables (along with <cite>IS_BACKTESTING</cite>). LumiBot will detect them automatically:</p>
+<div class="table-wrapper colwidths-given docutils container">
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 20.0%" />
+<col style="width: 60.0%" />
+<col style="width: 20.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p><strong>Variable</strong></p></th>
+<th class="head"><p><strong>Description</strong></p></th>
+<th class="head"><p><strong>Example</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>IS_BACKTESTING</p></td>
+<td><p>(Optional) <strong>“True”</strong> to enable backtesting, <strong>“False”</strong> for live trading.</p></td>
+<td><p>False</p></td>
+</tr>
+<tr class="row-odd"><td><p>BACKTESTING_START</p></td>
+<td><p>(Optional) Start date (YYYY-MM-DD).</p></td>
+<td><p>2025-01-01</p></td>
+</tr>
+<tr class="row-even"><td><p>BACKTESTING_END</p></td>
+<td><p>(Optional) End date (YYYY-MM-DD).</p></td>
+<td><p>2025-01-31</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Below is <strong>the full code</strong> that relies <em>entirely on environment variables</em>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">lumibot.backtesting</span> <span class="kn">import</span> <span class="n">BacktestingBroker</span><span class="p">,</span> <span class="n">ThetaDataBacktesting</span>
+<span class="kn">from</span> <span class="nn">lumibot.strategies</span> <span class="kn">import</span> <span class="n">Strategy</span>
+<span class="kn">from</span> <span class="nn">lumibot.traders</span> <span class="kn">import</span> <span class="n">Trader</span>
+
+<span class="k">class</span> <span class="nc">MyStrategy</span><span class="p">(</span><span class="n">Strategy</span><span class="p">):</span>
+    <span class="n">parameters</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">&quot;symbol&quot;</span><span class="p">:</span> <span class="s2">&quot;AAPL&quot;</span><span class="p">,</span>
+    <span class="p">}</span>
+
+    <span class="k">def</span> <span class="nf">initialize</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sleeptime</span> <span class="o">=</span> <span class="s2">&quot;1D&quot;</span>
+
+    <span class="k">def</span> <span class="nf">on_trading_iteration</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">first_iteration</span><span class="p">:</span>
+            <span class="n">symbol</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">[</span><span class="s2">&quot;symbol&quot;</span><span class="p">]</span>
+            <span class="n">price</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_last_price</span><span class="p">(</span><span class="n">symbol</span><span class="p">)</span>
+            <span class="n">qty</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">portfolio_value</span> <span class="o">/</span> <span class="n">price</span>
+            <span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">symbol</span><span class="p">,</span> <span class="n">quantity</span><span class="o">=</span><span class="n">qty</span><span class="p">,</span> <span class="n">side</span><span class="o">=</span><span class="s2">&quot;buy&quot;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+    <span class="c1"># No start/end in code. We rely on environment variables for backtesting dates.</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">MyStrategy</span><span class="o">.</span><span class="n">run_backtest</span><span class="p">(</span>
+        <span class="n">ThetaDataBacktesting</span><span class="p">,</span>
+        <span class="n">benchmark_asset</span><span class="o">=</span><span class="s2">&quot;SPY&quot;</span>
+    <span class="p">)</span>
+</pre></div>
 </div>
 <p>In summary, the ThetaData backtester is a powerful tool for fetching pricing data for backtesting various strategies. With its capability to cache data for faster subsequent backtesting and its easy integration with thetadata API, it is a versatile choice for any backtesting needs.</p>
+</section>
+</section>
 </section>
 
         </article>
@@ -511,8 +574,30 @@ In this example, we are using thetadata for both stock and option data.</p>
         
       </footer>
     </div>
-    <aside class="toc-drawer no-toc">
+    <aside class="toc-drawer">
       
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            On this page
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">ThetaData Backtesting</a><ul>
+<li><a class="reference internal" href="#here-s-the-full-code-with-explicit-dates">Here’s the full code (with explicit dates):</a><ul>
+<li><a class="reference internal" href="#optional-environment-variables">Optional: Environment Variables</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
       
       
     </aside>

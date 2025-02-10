@@ -9,6 +9,7 @@ import math
 from sys import exit
 from functools import reduce
 from termcolor import colored
+from typing import Union
 
 from dateutil import tz
 from ibapi.client import *
@@ -372,6 +373,15 @@ class InteractiveBrokers(Broker):
     def cancel_order(self, order):
         """Cancel an order"""
         self.ib.cancel_order(order)
+
+    def _modify_order(self, order: OrderLum, limit_price: Union[float, None] = None,
+                      stop_price: Union[float, None] = None):
+        """
+        Modify an order at the broker. Nothing will be done for orders that are already cancelled or filled. You are
+        only allowed to change the limit price and/or stop price. If you want to change the quantity,
+        you must cancel the order and submit a new one.
+        """
+        raise NotImplementedError("InteractiveBroker modify order is not implemented.")
 
     # =========Market functions=======================
     def _close_connection(self):

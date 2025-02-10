@@ -127,6 +127,30 @@ class TestTradierBroker:
         assert broker.name == "Tradier"
         assert broker._tradier_account_number == "1234"
 
+    def test_modify_order(self, mocker):
+        broker = Tradier(account_number="1234", access_token="a1b2c3", paper=True)
+        mock_modify = mocker.patch.object(broker.tradier.orders, "modify")
+
+        stock_asset = Asset("SPY")
+        order = Order("my_strat", stock_asset, 10, "sell", type="limit")
+
+        # Errors if no ID exists for this order
+        order.identifier = None
+        with pytest.raises(ValueError):
+            broker._modify_order(order, limit_price=100.0)
+        assert not mock_modify.called
+
+        # Modify sent to API
+        order.identifier = "123456"
+        broker._modify_order(order, limit_price=100.0)
+        assert mock_modify.called
+
+        # Filled or cancelled orders are not touched
+        mock_modify.reset_mock()
+        order.status = order.OrderStatus.FILLED
+        broker._modify_order(order, limit_price=100.0)
+        assert not mock_modify.called
+
     def test_tradier_side2lumi(self):
         broker = Tradier(account_number="1234", access_token="a1b2c3", paper=True)
         assert broker._tradier_side2lumi("buy") == "buy"

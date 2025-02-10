@@ -1623,6 +1623,40 @@ class Strategy(_Strategy):
         """
         return self.broker.cancel_open_orders(self.name)
 
+    def modify_order(self, order: Order, limit_price: Union[float, None] = None, stop_price: Union[float, None] = None):
+        """Modify an order.
+
+        Modifies a single open order provided.
+
+        Parameters
+        ----------
+        order : Order object
+            Order object to be modified.
+        limit_price : float
+            New limit price for a limit order. Default is None.
+        stop_price : float
+            New stop price for a stop order. Default is None.
+
+        Returns
+        -------
+        None
+
+        Example
+        -------
+        >>> # Modify an existing order
+        >>> order = self.create_order("SPY", 100, "buy", limit_price=100.00)
+        >>> self.submit_order(order)
+        >>> self.modify_order(order, limit_price=101.00)
+        """
+        # Check if the order is already cancelled or filled
+        if not order.is_active():
+            return
+
+        if not order.identifier:
+            raise ValueError("Order identifier is not set, unable to modify order. Did you remember to submit it?")
+
+        return self.broker.modify_order(order, limit_price=limit_price, stop_price=stop_price)
+
     def sell_all(self, cancel_open_orders: bool = True, is_multileg: bool = False):
         """Sell all strategy positions.
 

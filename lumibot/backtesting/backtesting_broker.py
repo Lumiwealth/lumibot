@@ -3,6 +3,7 @@ import traceback
 from datetime import timedelta
 from decimal import Decimal
 from functools import wraps
+from typing import Union
 
 import pytz
 
@@ -42,7 +43,7 @@ class BacktestingBroker(Broker):
             @wraps(attr)
             def new_func(order, *args, **kwargs):
                 result = attr(order, *args, **kwargs)
-                if result.was_transmitted() and result.order_class and result.order_class == "oco":
+                if result.was_transmitted() and result.order_class and result.order_class == Order.OrderClass.OCO:
                     orders = broker._flatten_order(result)
                     for order in orders:
                         logger.info(f"{order} was sent to broker {self.name}")
@@ -282,7 +283,7 @@ class BacktestingBroker(Broker):
                 stop_loss_order = self._parse_broker_order(stop_loss_order, order.strategy)
                 orders.append(stop_loss_order)
 
-        elif order.order_class == "oco":
+        elif order.order_class == Order.OrderClass.OCO:
             stop_loss_order = Order(
                 order.strategy,
                 order.asset,
@@ -449,6 +450,22 @@ class BacktestingBroker(Broker):
             self.CANCELED_ORDER,
             wait_until_complete=True,
             order=order,
+        )
+
+    def _modify_order(self, order: Order, limit_price: Union[float, None] = None,
+                      stop_price: Union[float, None] = None):
+        """Modify an order. Only limit/stop price is allowed to be modified by most brokers."""
+        price = None
+        if order.type == order.OrderType.LIMIT:
+            price = limit_price
+        elif order.type == order.OrderType.STOP:
+            price = stop_price
+
+        self.stream.dispatch(
+            self.MODIFIED_ORDER,
+            order=order,
+            price=price,
+            wait_until_complete=True,
         )
 
     def cash_settle_options_contract(self, position, strategy):
@@ -846,6 +863,18 @@ class BacktestingBroker(Broker):
                 broker._process_trade_event(
                     order,
                     broker.CANCELED_ORDER,
+                )
+                return True
+            except:
+                logging.error(traceback.format_exc())
+
+        @broker.stream.add_action(broker.MODIFIED_ORDER)
+        def on_trade_event(order, price):
+            try:
+                broker._process_trade_event(
+                    order,
+                    broker.MODIFIED_ORDER,
+                    price=price,
                 )
                 return True
             except:

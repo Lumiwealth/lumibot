@@ -42,6 +42,7 @@ class Broker(ABC):
     NEW_ORDER = "new"
     CANCELED_ORDER = "canceled"
     FILLED_ORDER = "fill"
+    MODIFIED_ORDER = "modified"
     PARTIALLY_FILLED_ORDER = "partial_fill"
     CASH_SETTLED = "cash_settled"
     ERROR_ORDER = "error"
@@ -112,6 +113,16 @@ class Broker(ABC):
     @abstractmethod
     def cancel_order(self, order: Order) -> None:
         """Cancel an order at the broker"""
+        pass
+
+    @abstractmethod
+    def _modify_order(self, order: Order, limit_price: Union[float, None] = None,
+                      stop_price: Union[float, None] = None):
+        """
+        Modify an order at the broker. Nothing will be done for orders that are already cancelled or filled. You are
+        only allowed to change the limit price and/or stop price. If you want to change the quantity,
+        you must cancel the order and submit a new one.
+        """
         pass
 
     @abstractmethod
@@ -943,6 +954,10 @@ class Broker(ABC):
         result = self._parse_broker_orders(response, strategy_name, strategy_object=strategy_object)
         return result
 
+    def modify_order(self, order, stop_price: Union[float, None] = None, limit_price: Union[float, None] = None):
+        """Modify an order"""
+        return self._modify_order(order, stop_price=stop_price, limit_price=limit_price)
+
     def submit_order(self, order) -> Order:
         """Conform an order for an asset to broker constraints and submit it."""
         self._conform_order(order)
@@ -1199,12 +1214,11 @@ class Broker(ABC):
             except ValueError:
                 raise error
 
-        if price is not None:
-            error = ValueError("price must be a positive float, received %r instead" % price)
+        if price is not None and not isinstance(price, float):
             try:
                 price = float(price)
             except ValueError:
-                raise error
+                raise ValueError(f"price must be a positive float, received {price} instead") from None
 
         if Order.is_equivalent_status(type_event, self.NEW_ORDER):
             stored_order = self._process_new_order(stored_order)
@@ -1214,6 +1228,12 @@ class Broker(ABC):
             if stored_order.is_active():
                 stored_order = self._process_canceled_order(stored_order)
                 self._on_canceled_order(stored_order)
+        elif Order.is_equivalent_status(type_event, self.MODIFIED_ORDER):
+            # Modify is only allowed to adjust the stop and limit price, not quantity or other attributes.
+            if stored_order.type == Order.OrderType.STOP:
+                stored_order.stop_price = price
+            elif stored_order.type == Order.OrderType.LIMIT:
+                stored_order.limit_price = price
         elif Order.is_equivalent_status(type_event, self.PARTIALLY_FILLED_ORDER):
             stored_order, position = self._process_partially_filled_order(stored_order, price, filled_quantity)
             self._on_partially_filled_order(position, stored_order, price, filled_quantity, multiplier)

@@ -267,6 +267,36 @@ class TestAlpacaBacktesting:
         assert df['open'].iloc[-1] == 225.84
         assert df['close'].iloc[-1] == 225.94
 
+    def test_fetch_data_from_source_stock_minute_60_bars(self):
+        backtesting_start = datetime(2025, 1, 13)
+        backtesting_end = datetime(2025, 1, 17)
+        data_source = AlpacaBacktesting(
+            datetime_start=backtesting_start,
+            datetime_end=backtesting_end,
+            config=ALPACA_CONFIG
+        )
+
+        base_asset = Asset(symbol="AMZN", asset_type="stock")
+        quote_asset = Asset(symbol="USD", asset_type="forex")
+        timestep = "minute"
+
+        df = data_source._fetch_data_from_source(
+            base_asset=base_asset,
+            quote_asset=quote_asset,
+            start_datetime=datetime(2025, 1, 13, 10, 0, tzinfo=data_source.datetime_end.tzinfo),
+            end_datetime=datetime(2025, 1, 13, 10, 59, tzinfo=data_source.datetime_end.tzinfo),
+            timestep=timestep
+        )
+
+        assert not df.empty
+        assert len(df.index) == 60
+        assert df['timestamp'].iloc[0].isoformat() == '2025-01-13T15:00:00+00:00'
+        assert df['timestamp'].iloc[-1].isoformat() == '2025-01-13T15:59:00+00:00'
+        assert df['open'].iloc[0] == 218.36
+        assert df['close'].iloc[0] == 218.05
+        assert df['open'].iloc[-1] == 217.64
+        assert df['close'].iloc[-1] == 217.635
+
     def test_fetch_data_from_source_crypto_daily_1_bar(self):
         backtesting_start = datetime(2025, 1, 13)
         backtesting_end = datetime(2025, 1, 17)
@@ -320,3 +350,33 @@ class TestAlpacaBacktesting:
         assert df['close'].iloc[0] == 94861.625
         assert df['timestamp'].iloc[-1].isoformat() == "2025-01-17T06:00:00+00:00"
         assert df['close'].iloc[-1] == 102846.0
+
+    def test_fetch_data_from_source_crypto_minute_60_bars(self):
+        backtesting_start = datetime(2025, 1, 13)
+        backtesting_end = datetime(2025, 1, 17)
+        data_source = AlpacaBacktesting(
+            datetime_start=backtesting_start,
+            datetime_end=backtesting_end,
+            config=ALPACA_CONFIG
+        )
+
+        base_asset = Asset(symbol="BTC", asset_type="crypto")
+        quote_asset = Asset(symbol="USD", asset_type="forex")
+        timestep = "minute"
+
+        df = data_source._fetch_data_from_source(
+            base_asset=base_asset,
+            quote_asset=quote_asset,
+            start_datetime=datetime(2025, 1, 13, 0, 0, tzinfo=data_source.datetime_end.tzinfo),
+            end_datetime=datetime(2025, 1, 13, 0, 59, tzinfo=data_source.datetime_end.tzinfo),
+            timestep=timestep
+        )
+
+        assert not df.empty
+        assert len(df.index) == 60
+        assert df['timestamp'].iloc[0].isoformat() == "2025-01-13T06:00:00+00:00"
+        assert df['timestamp'].iloc[-1].isoformat() == '2025-01-13T15:59:00+00:00'
+        assert df['close'].iloc[0] == 94861.625
+        assert df['close'].iloc[0] == 218.05
+        assert df['open'].iloc[-1] == 217.64
+        assert df['close'].iloc[-1] == 217.635

@@ -20,15 +20,14 @@ class BasePandasBacktesting(PandasData):
     and common fetch/update operations.
     """
 
-    def __init__(self, datetime_start, datetime_end, max_memory=None, **kwargs):
-        super().__init__(datetime_start=datetime_start, datetime_end=datetime_end, **kwargs)
+    def __init__(self, datetime_start, datetime_end, max_memory=None, pandas_data=None, **kwargs):
+        super().__init__(
+            datetime_start=datetime_start, datetime_end=datetime_end, pandas_data=pandas_data, **kwargs
+        )
 
         # Memory limit (optional)
         self.MAX_STORAGE_BYTES = max_memory
         self.START_BUFFER = timedelta(days=5)
-
-        # Initialize pandas data storage
-        self.pandas_data = OrderedDict()
 
     def _fetch_data_from_source(
             self,
@@ -144,7 +143,7 @@ class BasePandasBacktesting(PandasData):
                         # We don't have enough data, so we need to get more (but in minutes)
                         ts_unit = "minute"
 
-        # Download data from Polygon
+        # Download data from source
         try:
             df = self._fetch_data_from_source(
                 base_asset=asset_separated,

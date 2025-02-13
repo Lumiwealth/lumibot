@@ -56,6 +56,37 @@ class TestAlpacaBroker:
         broker._conform_order(order)
         assert order.limit_price == 0.1235
 
+    def test_mulitleg_options_order(self):
+        broker = Alpaca(ALPACA_CONFIG)
+        porders = broker._pull_all_orders('test', None)
+
+        spy_price = broker.get_last_price(asset='SPY')
+        casset = Asset('SPY', Asset.AssetType.OPTION, expiration=datetime.now(), strike=math.floor(spy_price), right='CALL')
+        passet = Asset('SPY', Asset.AssetType.OPTION, expiration=datetime.now(), strike=math.floor(spy_price), right='PUT')
+        orders = [Order(strategy='test', asset=passet, quantity=1, limit_price=0.01, side="buy"), Order(strategy='test', asset=casset, quantity=1, side="buy")]
+        broker.submit_orders(orders)
+
+        orders = broker._pull_all_orders('test', None)
+        oids = {o.identifier for o in porders}
+        orders = [o for o in orders if o.identifier not in oids]
+        assert len(orders) == 2
+        assert len([o.asset.right == 'CALL' and o.asset.symbol == 'SPY' for o in orders]) == 1
+        assert len([o.asset.right == 'PUT' and o.asset.symbol == 'SPY' for o in orders]) == 1
+
+    def test_option_order(self):
+        broker = Alpaca(ALPACA_CONFIG)
+        porders = broker._pull_all_orders('test', None)
+
+        spy_price = broker.get_last_price(asset='SPY')
+        casset = Asset('SPY', Asset.AssetType.OPTION, expiration=datetime.now(), strike=math.floor(spy_price), right='CALL')
+        broker.submit_order(Order('test', asset=casset))
+
+        orders = broker._pull_all_orders('test', None)
+        oids = {o.identifier for o in porders}
+        orders = [o for o in orders if o.identifier not in oids]
+        assert len(orders) == 1
+        assert len([o.asset.right == 'CALL' and o.asset.symbol == 'SPY' for o in orders]) == 1
+
     def test_option_get_last_price(self):
         broker = Alpaca(ALPACA_CONFIG)
         dte = datetime.now()
@@ -82,6 +113,5 @@ class TestAlpacaBroker:
         dte = datetime.now() - timedelta(days=2)
         spy_price = broker.get_last_price(asset='SPY')
         asset = Asset('SPY', Asset.AssetType.OPTION, expiration=dte, strike=math.floor(spy_price), right='CALL')
-        print(asset)
         bars = broker.data_source.get_historical_prices(asset, 10, "day")
         assert len(bars.df) > 0

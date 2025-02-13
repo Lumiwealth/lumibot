@@ -4,7 +4,7 @@ from collections import namedtuple
 from decimal import Decimal
 from threading import Event
 import datetime
-from typing import Union
+from typing import Union, List
 
 import lumibot.entities as entities
 from lumibot.tools.types import check_positive, check_price
@@ -119,6 +119,7 @@ class Order:
         child_orders: list = None,
         tag: str = "",
         status: OrderStatus = "unprocessed",
+        legs: List[dict] = None
     ):
         """Order class for managing individual orders.
 
@@ -332,6 +333,7 @@ class Order:
         self.broker_create_date = None  # The datetime the order was created by the broker
         self.broker_update_date = None  # The datetime the order was last updated by the broker
         self.status = status
+        self.legs = legs
 
         # Options:
         self.exchange = exchange

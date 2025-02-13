@@ -441,6 +441,126 @@ class Alpaca(Broker):
 
         return orders
 
+    def _submit_multileg_order(self, orders, order_type="market", duration="day", price=None, tag=None) -> Order:
+        """
+        Submit a multi-leg order to Tradier. This function will submit the multi-leg order to Tradier.
+
+        Parameters
+        ----------
+        orders: list[Order]
+            List of orders to submit
+        order_type: str
+            The type of multi-leg order to submit. Valid values are ('market', 'debit', 'credit', 'even'). Default is 'market'.
+        duration: str
+            The duration of the order. Valid values are ('day', 'gtc', 'pre', 'post'). Default is 'day'.
+        price: float
+            The limit price for the order. Required for 'debit' and 'credit' order types.
+        tag: str
+            The tag to associate with the order.
+
+        Returns
+        -------
+            parent order of the multi-leg orders
+        """
+
+        # Check if the order type is valid
+        if order_type not in ["market", "debit", "credit", "even"]:
+            raise ValueError(f"Invalid order type '{order_type}' for multi-leg order.")
+
+        # Check if the duration is valid
+        if duration not in ["day", "gtc", "pre", "post"]:   
+            raise ValueError(f"Invalid duration {duration} for multi-leg order.")
+
+        # Check if the price is required
+        if order_type in ["debit", "credit"] and price is None:
+            raise ValueError(f"Price is required for '{order_type}' order type.")
+
+        # Check that all the order objects have the same symbol
+        if len(set([order.asset.symbol for order in orders])) > 1:
+            raise ValueError("All orders in a multi-leg order must have the same symbol.")
+
+        # Get the symbol from the first order
+        symbol = orders[0].asset.symbol
+
+        # Create the legs for the multi-leg order
+        legs = []
+        for order in orders:
+            leg = {
+                "symbol": order.asset.symbol,
+                "ratio_qty": order.quantity,
+                "side": order.side,
+                "position_intent": order.position_intent
+            }
+            legs.append(leg)
+
+        parent_asset = Asset(symbol=symbol)
+        parent_order = Order(
+            asset=parent_asset,
+            strategy=orders[0].strategy,
+            order_class=Order.OrderClass.MULTILEG,
+            side=orders[0].side,
+            quantity=orders[0].quantity,
+            type=orders[0].type,
+            time_in_force=duration,
+            limit_price=price if price != None else orders[0].limit_price,
+            tag=tag,
+            status=Order.OrderStatus.SUBMITTED,
+            legs=legs
+        )
+        order_response = self.submit_order(parent_order)
+        for o in orders:
+            o.parent_identifier = order_response.identifier
+
+        parent_order.child_orders = orders
+        parent_order.update_raw(order_response)  # This marks order as 'transmitted'
+        self._unprocessed_orders.append(parent_order)
+        self.stream.dispatch(self.NEW_ORDER, order=parent_order)
+        return parent_order
+
+    def _submit_orders(self, orders, is_multileg=False, order_type=None, duration="day", price=None):
+        """
+        Submit multiple orders to the broker. This function will submit the orders in the order they are provided.
+        If any order fails to submit, the function will stop submitting orders and return the last successful order.
+
+        Parameters
+        ----------
+        orders: list[Order]
+            List of orders to submit
+        is_multileg: bool
+            Whether the order is a multi-leg order. Default is False.
+        order_type: str
+            The type of multi-leg order to submit, if applicable. Valid values are ('market', 'debit', 'credit', 'even'). Default is 'market'.
+        duration: str
+            The duration of the order. Valid values are ('day', 'gtc', 'pre', 'post'). Default is 'day'.
+        price: float
+            The limit price for the order. Required for 'debit' and 'credit' order types.
+
+        Returns
+        -------
+            Order
+                The list of processed order objects.
+        """
+
+        # Check if order_type is set, if not, set it to 'market'
+        if order_type is None:
+            order_type = "market"
+
+        # Check if the orders are empty
+        if not orders or len(orders) == 0:
+            return
+
+        # Check if it is a multi-leg order
+        if is_multileg:
+            parent_order = self._submit_multileg_order(orders, order_type, duration, price)
+            return [parent_order]
+
+        else:
+            # Submit each order
+            for order in orders:
+                self._submit_order(order)
+
+            return orders
+
     def _submit_order(self, order):
         """Submit an order for an asset"""
 
@@ -479,6 +599,7 @@ class Alpaca(Broker):
             "stop_price": str(order.stop_price) if order.stop_price else None,
             "trail_price": str(order.trail_price) if order.trail_price else None,
             "trail_percent": order.trail_percent,
+            "legs": order.legs
         }
         # Remove items with None values
         kwargs = {k: v for k, v in kwargs.items() if v}

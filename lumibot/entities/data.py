@@ -121,11 +121,11 @@ class Data:
         timezone=None,
     ):
         self.asset = asset
-        self.symbol = self.asset.symbol
+        # self.symbol = self.asset.symbol
 
         if self.asset.asset_type == "crypto" and quote is None:
             raise ValueError(
-                f"A crypto asset {self.symbol} was added to data without a corresponding"
+                f"A crypto asset {asset.symbol} was added to data without a corresponding"
                 f"`quote` asset. Please add the quote asset. For example, if trying to add "
                 f"`BTCUSD` to data, you would need to add `USD` as the quote asset."
                 f"Quote must be provided for crypto assets."

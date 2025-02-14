@@ -42,7 +42,7 @@ class AlpacaBacktesting(PandasData):
             refresh_cache: bool = False,
             adjustment: str = 'all',
             config: dict | None = None,
-            tz_name: str | None = None,
+            tz_name: str = timezone.utc,
     ):
         self.CACHE_SUBFOLDER = 'alpaca'
         self.tz_name = tz_name
@@ -58,8 +58,8 @@ class AlpacaBacktesting(PandasData):
         )
 
         # Convert the date string to UTC midnight datetime.
-        start_dt = pd.to_datetime(start_date).tz_localize(timezone.utc)
-        end_dt = pd.to_datetime(end_date).tz_localize(timezone.utc)
+        start_dt = pd.to_datetime(start_date).tz_localize(self.tz_name)
+        end_dt = pd.to_datetime(end_date).tz_localize(self.tz_name)
 
         pandas_data = self._fetch_cache_and_load_data(
             tickers=tickers,
@@ -131,7 +131,7 @@ class AlpacaBacktesting(PandasData):
                 try:
                     df = pd.read_csv(filepath, parse_dates=['timestamp'])
                     # Parse timestamp column and localize to the original timezone
-                    df["timestamp"] = df["timestamp"].apply(lambda ts: ts.tz_convert(timezone.utc))
+                    df["timestamp"] = df["timestamp"].apply(lambda ts: ts.tz_convert(self.tz_name))
                 except FileNotFoundError:
                     raise RuntimeError(f"No data found for {ticker}.")
             else:
@@ -164,6 +164,7 @@ class AlpacaBacktesting(PandasData):
                         adjustment=adjustment,
                     )
                 df = self._download_and_save_data(client, request_params, filepath, start_dt, end_dt)
+                df.set_index('timestamp', inplace=True)
 
             new_data = Data(
                 asset=base_asset,
@@ -172,7 +173,7 @@ class AlpacaBacktesting(PandasData):
                 date_end=end_dt,
                 timestep=timestep,
                 quote=quote_asset,
-                # timezone=tz_name
+                timezone=tz_name
             )
             data_list.append(new_data)
 

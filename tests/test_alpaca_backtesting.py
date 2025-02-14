@@ -71,7 +71,7 @@ class AlpacaBacktestTestStrategy(Strategy):
             self.cancel_open_orders()
 
 
-@pytest.mark.skip()
+# @pytest.mark.skip()
 @pytest.mark.skipif(
     not ALPACA_CONFIG['API_KEY'],
     reason="This test requires an alpaca API key"
@@ -92,7 +92,8 @@ class TestAlpacaBacktests:
         start_date = "2025-01-13"
         end_date = "2025-01-18"
         timestep = 'day'
-        refresh_cache = False
+        refresh_cache = True
+        tz_name = "America/New_York"
 
         data_source = AlpacaBacktesting(
             tickers=tickers,
@@ -100,7 +101,8 @@ class TestAlpacaBacktests:
             end_date=end_date,
             timestep=timestep,
             config=ALPACA_CONFIG,
-            refresh_cache=refresh_cache,
+            # refresh_cache=refresh_cache,
+            tz_name=tz_name,
         )
         broker = BacktestingBroker(data_source=data_source)
         strat_obj = AlpacaBacktestTestStrategy(
@@ -119,17 +121,18 @@ class TestAlpacaBacktests:
         assert results
         self.verify_backtest_results(strat_obj)
 
-        assert list(strat_obj.prices.values())[0] == 218.06
-        assert strat_obj.orders[0].avg_fill_price == 218.06
+        assert list(strat_obj.prices.values())[0] == 218.46
+        assert strat_obj.orders[0].avg_fill_price == 220.44
         assert list(strat_obj.order_time_tracker.values())[0]['fill'].isoformat() == '2025-01-13T09:30:00-05:00'
 
-    @pytest.mark.skip()
+    # @pytest.mark.skip()
     def test_minute_data_backtest(self):
         tickers = "AMZN"
         start_date = "2025-01-13"
         end_date = "2025-01-18"
         timestep = 'minute'
-        refresh_cache = False
+        refresh_cache = True
+        tz_name = "America/New_York"
 
         data_source = AlpacaBacktesting(
             tickers=tickers,
@@ -137,7 +140,8 @@ class TestAlpacaBacktests:
             end_date=end_date,
             timestep=timestep,
             config=ALPACA_CONFIG,
-            refresh_cache=refresh_cache,
+            # refresh_cache=refresh_cache,
+            tz_name=tz_name
         )
         broker = BacktestingBroker(data_source=data_source)
         strat_obj = AlpacaBacktestTestStrategy(
@@ -209,7 +213,7 @@ class TestAlpacaBacktesting:
         start_date = "2025-01-13"
         end_date = "2025-01-18"
         timestep = 'day'
-        refresh_cache = False
+        refresh_cache = True
 
         data_source = AlpacaBacktesting(
             tickers=tickers,
@@ -217,7 +221,7 @@ class TestAlpacaBacktesting:
             end_date=end_date,
             timestep=timestep,
             config=ALPACA_CONFIG,
-            refresh_cache=refresh_cache,
+            # refresh_cache=refresh_cache,
         )
 
         assert data_source.datetime_start.isoformat() == "2025-01-13T00:00:00+00:00"
@@ -244,7 +248,7 @@ class TestAlpacaBacktesting:
         start_date = "2025-01-13"
         end_date = "2025-01-14"
         timestep = 'minute'
-        refresh_cache = False
+        refresh_cache = True
 
         data_source = AlpacaBacktesting(
             tickers=tickers,
@@ -252,7 +256,7 @@ class TestAlpacaBacktesting:
             end_date=end_date,
             timestep=timestep,
             config=ALPACA_CONFIG,
-            refresh_cache=refresh_cache,
+            # refresh_cache=refresh_cache,
         )
 
         assert data_source.datetime_start.isoformat() == "2025-01-13T00:00:00+00:00"
@@ -279,8 +283,8 @@ class TestAlpacaBacktesting:
         start_date = "2025-01-13"
         end_date = "2025-01-18"
         timestep = 'day'
-        refresh_cache = False
-        tz_name = "America/New_York"
+        refresh_cache = True
+        tz_name = "US/Eastern"
 
         data_source = AlpacaBacktesting(
             tickers=tickers,
@@ -288,12 +292,12 @@ class TestAlpacaBacktesting:
             end_date=end_date,
             timestep=timestep,
             config=ALPACA_CONFIG,
-            refresh_cache=refresh_cache,
+            # refresh_cache=refresh_cache,
             tz_name=tz_name
         )
 
-        assert data_source.datetime_start.isoformat() == "2025-01-13T00:00:00+00:00"
-        assert data_source.datetime_end.isoformat() == "2025-01-17T23:59:00+00:00"
+        assert data_source.datetime_start.isoformat() == "2025-01-13T00:00:00-05:00"
+        assert data_source.datetime_end.isoformat() == "2025-01-17T23:59:00-05:00"
         assert isinstance(data_source.pandas_data, dict)
         assert next(iter(data_source.pandas_data))[0].symbol == "AMZN"
         assert next(iter(data_source.pandas_data))[1].symbol == "USD"
@@ -317,7 +321,7 @@ class TestAlpacaBacktesting:
         start_date = "2025-01-13"
         end_date = "2025-01-18"
         timestep = 'day'
-        refresh_cache = False
+        refresh_cache = True
 
         data_source = AlpacaBacktesting(
             tickers=tickers,
@@ -325,7 +329,7 @@ class TestAlpacaBacktesting:
             end_date=end_date,
             timestep=timestep,
             config=ALPACA_CONFIG,
-            refresh_cache=refresh_cache,
+            # refresh_cache=refresh_cache,
         )
 
         assert data_source.datetime_start.isoformat() == "2025-01-13T00:00:00+00:00"
@@ -352,7 +356,7 @@ class TestAlpacaBacktesting:
         start_date = "2025-01-13"
         end_date = "2025-01-14"
         timestep = 'minute'
-        refresh_cache = False
+        refresh_cache = True
 
         data_source = AlpacaBacktesting(
             tickers=tickers,
@@ -360,7 +364,7 @@ class TestAlpacaBacktesting:
             end_date=end_date,
             timestep=timestep,
             config=ALPACA_CONFIG,
-            refresh_cache=refresh_cache,
+            # refresh_cache=refresh_cache,
         )
 
         assert data_source.datetime_start.isoformat() == "2025-01-13T00:00:00+00:00"

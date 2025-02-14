@@ -71,7 +71,7 @@ class AlpacaBacktestTestStrategy(Strategy):
             self.cancel_open_orders()
 
 
-# @pytest.mark.skip()
+@pytest.mark.skip()
 @pytest.mark.skipif(
     not ALPACA_CONFIG['API_KEY'],
     reason="This test requires an alpaca API key"

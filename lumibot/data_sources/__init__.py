@@ -10,4 +10,4 @@ from .tradier_data import TradierData
 from .yahoo_data import YahooData
 from .ccxt_backtesting_data import CcxtBacktestingData
 from .interactive_brokers_rest_data import InteractiveBrokersRESTData
-from .example_broker_data import ExampleBrokerData
+from .example_data_source import ExampleDataSource

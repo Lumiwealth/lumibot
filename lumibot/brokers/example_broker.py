@@ -2,7 +2,8 @@ import logging
 from termcolor import colored
 from lumibot.brokers import Broker
 from lumibot.entities import Order, Asset, Position
-from lumibot.data_sources import ExampleBrokerData
+from lumibot.data_sources import ExampleDataSource
+
 
 class ExampleBroker(Broker):
     """
@@ -18,7 +19,7 @@ class ExampleBroker(Broker):
     ):
         # Check if the user has provided a data source, if not, create one
         if data_source is None:
-            data_source = ExampleBrokerData()
+            data_source = ExampleDataSource()
 
         super().__init__(
             name=self.NAME,

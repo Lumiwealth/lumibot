@@ -602,9 +602,9 @@ class TestDatasourceGetHistoricalPricesDailyData:
             access_token=TRADIER_CONFIG["ACCESS_TOKEN"],
             paper=TRADIER_CONFIG["PAPER"],
         )
-
-        bars = data_source.get_historical_prices(asset=self.asset, length=self.length, timestep=self.timestep)
-        check_bars(bars=bars, length=self.length)
+        length = 60
+        bars = data_source.get_historical_prices(asset=self.asset, length=length, timestep=self.timestep)
+        check_bars(bars=bars, length=length)
         self.check_date_of_last_bar_is_correct_for_live_data_sources(bars)
 
         # This simulates what the call to get_yesterday_dividends does (lookback of 1)

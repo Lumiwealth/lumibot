@@ -9,6 +9,7 @@ import pandas as pd
 from collections import OrderedDict
 from termcolor import colored
 
+from lumibot.components.cache_system import CacheSystem
 from lumibot.data_sources import PandasData
 from lumibot.entities import Asset, Data
 
@@ -20,10 +21,22 @@ class BasePandasBacktesting(PandasData):
     and common fetch/update operations.
     """
 
-    def __init__(self, datetime_start, datetime_end, max_memory=None, pandas_data=None, **kwargs):
+    def __init__(
+            self,
+            datetime_start: datetime,
+            datetime_end: datetime,
+            max_memory: int = None,
+            cache_system: CacheSystem = None,
+            **kwargs
+    ):
         super().__init__(
-            datetime_start=datetime_start, datetime_end=datetime_end, pandas_data=pandas_data, **kwargs
+            datetime_start=datetime_start, datetime_end=datetime_end, pandas_data=None, **kwargs
         )
+
+        if not isinstance(cache_system, CacheSystem):
+            raise TypeError('Expected CacheSystem, got {}'.format(type(cache_system)))
+        else:
+            self._cache_system = cache_system
 
         # Memory limit (optional)
         self.MAX_STORAGE_BYTES = max_memory
@@ -145,12 +158,18 @@ class BasePandasBacktesting(PandasData):
 
         # Download data from source
         try:
-            df = self._fetch_data_from_source(
-                base_asset=asset_separated,
-                quote_asset=quote,
-                start_datetime=start_datetime,
-                end_datetime=self.datetime_end,
+            # df = self._fetch_data_from_source(
+            #     base_asset=asset_separated,
+            #     quote_asset=quote,
+            #     start_datetime=start_datetime,
+            #     end_datetime=self.datetime_end,
+            #     timestep=ts_unit,
+            # )
+            df = self._cache_system.get_historical_prices_from_cache(
+                asset=asset_separated,
+                length=length,
                 timestep=ts_unit,
+                quote=quote,
             )
 
         except Exception as e:

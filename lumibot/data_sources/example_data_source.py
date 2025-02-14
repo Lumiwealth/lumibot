@@ -6,13 +6,14 @@ from termcolor import colored
 from lumibot.entities import Asset, Bars
 from lumibot.data_sources import DataSource
 
-class ExampleBrokerData(DataSource):
+
+class ExampleDataSource(DataSource):
     """
-    Data source that connects to the Example Broker API.
+    Concrete example data source.
     """
 
     MIN_TIMESTEP = "minute"
-    SOURCE = "ExampleBroker"
+    SOURCE = "ExampleDataSource"
 
     def __init__(self):
         super().__init__()

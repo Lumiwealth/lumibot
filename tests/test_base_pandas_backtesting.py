@@ -6,7 +6,9 @@ from collections import OrderedDict
 import pytest
 import pandas as pd
 from lumibot.backtesting.base_pandas_backtesting import BasePandasBacktesting
+from lumibot.data_sources import ExampleDataSource
 from lumibot.entities import Asset
+from lumibot.components.no_cache_system import NoCacheSystem
 
 
 def test_initialization():
@@ -14,7 +16,12 @@ def test_initialization():
     end_date = datetime(2023, 12, 31)
     max_memory = 1024
 
-    data_source = BasePandasBacktesting(datetime_start=start_date, datetime_end=end_date, max_memory=max_memory)
+    data_source = BasePandasBacktesting(
+        datetime_start=start_date,
+        datetime_end=end_date,
+        max_memory=max_memory,
+        cache_system=NoCacheSystem(data_source=ExampleDataSource()),
+    )
 
     assert data_source.datetime_start == start_date.replace(tzinfo=data_source.datetime_start.tzinfo)
     assert data_source.datetime_end == datetime(2023, 12, 30, 23, 59, tzinfo=data_source.datetime_end.tzinfo)
@@ -30,7 +37,12 @@ def test_enforce_storage_limit(mocker):
     start_date = datetime(2023, 1, 1)
     end_date = datetime(2023, 12, 31)
     max_memory = 1024
-    data_source = BasePandasBacktesting(datetime_start=start_date, datetime_end=end_date, max_memory=max_memory)
+    data_source = BasePandasBacktesting(
+        datetime_start=start_date,
+        datetime_end=end_date,
+        max_memory=max_memory,
+        cache_system=NoCacheSystem(data_source=ExampleDataSource()),
+    )
 
     # Mock data to emulate DataFrame with memory_usage() returning a pandas-like Series
     mock_data = mocker.MagicMock()
@@ -47,12 +59,16 @@ def test_enforce_storage_limit(mocker):
     assert mock_logging.call_count == 2
 
 
-def test_update_data_calls_fetch(mocker):
-    mock_fetch = mocker.patch.object(BasePandasBacktesting, "_fetch_data_from_source", return_value=pd.DataFrame())
+def test_update_data_calls_get_historical_prices_from_cache(mocker):
+    mock_fetch = mocker.patch.object(NoCacheSystem, "get_historical_prices_from_cache", return_value=pd.DataFrame())
 
     start_date = datetime(2023, 1, 1)
     end_date = datetime(2023, 12, 31)
-    data_source = BasePandasBacktesting(datetime_start=start_date, datetime_end=end_date)
+    data_source = BasePandasBacktesting(
+        datetime_start=start_date,
+        datetime_end=end_date,
+        cache_system=NoCacheSystem(data_source=ExampleDataSource()),
+    )
     base_asset = Asset(symbol="AAPL", asset_type="stock")
     quote_asset = Asset(symbol="USD", asset_type="forex")
     timestep = "1D"
@@ -65,11 +81,10 @@ def test_update_data_calls_fetch(mocker):
     )
 
     mock_fetch.assert_called_once_with(
-        base_asset=base_asset,
-        quote_asset=quote_asset,
-        start_datetime=datetime(2022, 12, 26, 0, 0, tzinfo=data_source.datetime_end.tzinfo),
-        end_datetime=datetime(2023, 12, 30, 23, 59, tzinfo=data_source.datetime_end.tzinfo),
-        timestep='d'
+        asset=base_asset,
+        length=1,
+        timestep='d',
+        quote=quote_asset
     )
 
 
@@ -81,7 +96,11 @@ def test_get_start_datetime_and_ts_unit():
     start_date = datetime(2023, 1, 1)
     end_date = datetime(2023, 12, 31)
 
-    data_source = BasePandasBacktesting(datetime_start=start_date, datetime_end=end_date)
+    data_source = BasePandasBacktesting(
+        datetime_start=start_date,
+        datetime_end=end_date,
+        cache_system=NoCacheSystem(data_source=ExampleDataSource()),
+    )
 
     current_dt = datetime(2023, 1, 11)
     start_dt, ts_unit = data_source.get_start_datetime_and_ts_unit(length, timestep, current_dt, start_buffer)

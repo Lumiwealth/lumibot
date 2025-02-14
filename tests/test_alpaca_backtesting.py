@@ -83,19 +83,24 @@ class AlpacaBacktestTestStrategy(Strategy):
 class TestAlpacaBacktests:
     """Tests for running backtests with AlpacaBacktesting, BacktestingBroker, and Trader."""
 
-    def test_1d_data_backtest(self):
+    def test_day_data_backtest(self):
         """
         Test AlpacaBacktesting with Lumibot Backtesting and real API calls to Alpaca.
         This test will buy 1 shares of something.
         """
-        # Parameters: True = Live Trading | False = Backtest
-        backtesting_start = datetime(2025, 1, 13)
-        backtesting_end = datetime(2025, 1, 18)
+        tickers = "AMZN"
+        start_date = "2025-01-13"
+        end_date = "2025-01-18"
+        timestep = 'day'
+        refresh_cache = False
 
         data_source = AlpacaBacktesting(
-            datetime_start=backtesting_start,
-            datetime_end=backtesting_end,
-            config=ALPACA_CONFIG
+            tickers=tickers,
+            start_date=start_date,
+            end_date=end_date,
+            timestep=timestep,
+            config=ALPACA_CONFIG,
+            refresh_cache=refresh_cache,
         )
         broker = BacktestingBroker(data_source=data_source)
         strat_obj = AlpacaBacktestTestStrategy(
@@ -118,16 +123,21 @@ class TestAlpacaBacktests:
         assert strat_obj.orders[0].avg_fill_price == 218.06
         assert list(strat_obj.order_time_tracker.values())[0]['fill'].isoformat() == '2025-01-13T09:30:00-05:00'
 
-    # @pytest.mark.skip()
-    def test_60m_data_backtest(self):
-        tzinfo = timezone(timedelta(hours=-5))  # Equivalent to America/New_York timezone
-        backtesting_start = datetime(2025, 1, 13, tzinfo=tzinfo)
-        backtesting_end = datetime(2025, 1, 18, tzinfo=tzinfo)
+    @pytest.mark.skip()
+    def test_minute_data_backtest(self):
+        tickers = "AMZN"
+        start_date = "2025-01-13"
+        end_date = "2025-01-18"
+        timestep = 'minute'
+        refresh_cache = False
 
         data_source = AlpacaBacktesting(
-            datetime_start=backtesting_start,
-            datetime_end=backtesting_end,
-            config=ALPACA_CONFIG
+            tickers=tickers,
+            start_date=start_date,
+            end_date=end_date,
+            timestep=timestep,
+            config=ALPACA_CONFIG,
+            refresh_cache=refresh_cache,
         )
         broker = BacktestingBroker(data_source=data_source)
         strat_obj = AlpacaBacktestTestStrategy(
@@ -181,7 +191,7 @@ class TestAlpacaBacktests:
         )
 
 
-@pytest.mark.skip()
+# @pytest.mark.skip()
 @pytest.mark.skipif(
     not ALPACA_CONFIG['API_KEY'],
     reason="This test requires an alpaca API key"
@@ -193,190 +203,180 @@ class TestAlpacaBacktests:
 class TestAlpacaBacktesting:
     """Tests for the AlpacaBacktesting class itself."""
 
-    def test_initialization(self):
-        """Test initializing the AlpacaBacktesting class."""
-        start_date = datetime(2023, 1, 1)
-        end_date = datetime(2023, 12, 31)
-        max_memory = 1024
+    # @pytest.mark.skip()
+    def test_single_stock_day_bars(self):
+        tickers = "AMZN"
+        start_date = "2025-01-13"
+        end_date = "2025-01-18"
+        timestep = 'day'
+        refresh_cache = False
 
         data_source = AlpacaBacktesting(
-            datetime_start=start_date,
-            datetime_end=end_date,
-            max_memory=max_memory,
-            config=ALPACA_CONFIG
+            tickers=tickers,
+            start_date=start_date,
+            end_date=end_date,
+            timestep=timestep,
+            config=ALPACA_CONFIG,
+            refresh_cache=refresh_cache,
         )
-        assert data_source.datetime_start == start_date.replace(tzinfo=data_source.datetime_start.tzinfo)
-        assert data_source.datetime_end == datetime(2023, 12, 30, 23, 59, tzinfo=data_source.datetime_end.tzinfo)
-        assert data_source.MAX_STORAGE_BYTES == max_memory
+
+        assert data_source.datetime_start.isoformat() == "2025-01-13T00:00:00+00:00"
+        assert data_source.datetime_end.isoformat() == "2025-01-17T23:59:00+00:00"
         assert isinstance(data_source.pandas_data, dict)
+        assert next(iter(data_source.pandas_data))[0].symbol == "AMZN"
+        assert next(iter(data_source.pandas_data))[1].symbol == "USD"
 
-    def test_fetch_data_from_source_stock_daily_1_bar(self):
-        backtesting_start = datetime(2025, 1, 13)
-        backtesting_end = datetime(2025, 1, 17)
-        data_source = AlpacaBacktesting(
-            datetime_start=backtesting_start,
-            datetime_end=backtesting_end,
-            config=ALPACA_CONFIG
-        )
-
-        base_asset = Asset(symbol="AMZN", asset_type="stock")
-        quote_asset = Asset(symbol="USD", asset_type="forex")
-        timestep = "day"
-
-        df = data_source._fetch_data_from_source(
-            base_asset=base_asset,
-            quote_asset=quote_asset,
-            start_datetime=datetime(2025, 1, 13, 0, 0, tzinfo=data_source.datetime_end.tzinfo),
-            end_datetime=datetime(2025, 1, 13, 23, 59, tzinfo=data_source.datetime_end.tzinfo),
-            timestep=timestep
-        )
-
-        assert not df.empty
-        assert len(df.index) == 1
-        assert df['timestamp'].iloc[0].isoformat() == "2025-01-13T05:00:00+00:00"
-        assert df['open'].iloc[0] == 218.06
-        assert df['close'].iloc[0] == 218.46
-
-    def test_fetch_data_from_source_stock_daily_5_bars(self):
-        backtesting_start = datetime(2025, 1, 13)
-        backtesting_end = datetime(2025, 1, 17)
-        data_source = AlpacaBacktesting(
-            datetime_start=backtesting_start,
-            datetime_end=backtesting_end,
-            config=ALPACA_CONFIG
-        )
-
-        base_asset = Asset(symbol="AMZN", asset_type="stock")
-        quote_asset = Asset(symbol="USD", asset_type="forex")
-        timestep = "day"
-
-        df = data_source._fetch_data_from_source(
-            base_asset=base_asset,
-            quote_asset=quote_asset,
-            start_datetime=datetime(2025, 1, 13, 0, 0, tzinfo=data_source.datetime_end.tzinfo),
-            end_datetime=datetime(2025, 1, 17, 23, 59, tzinfo=data_source.datetime_end.tzinfo),
-            timestep=timestep
-        )
+        data = list(data_source.pandas_data.values())[0]
+        df = data.df
 
         assert not df.empty
         assert len(df.index) == 5
-        assert df['timestamp'].iloc[0].isoformat() == "2025-01-13T05:00:00+00:00"
+        assert df.index[0].isoformat() == "2025-01-13T00:00:00-05:00"
         assert df['open'].iloc[0] == 218.06
         assert df['close'].iloc[0] == 218.46
-        assert df['timestamp'].iloc[-1].isoformat() == "2025-01-17T05:00:00+00:00"
+        assert df.index[-1].isoformat() == "2025-01-17T00:00:00-05:00"
         assert df['open'].iloc[-1] == 225.84
         assert df['close'].iloc[-1] == 225.94
 
-    def test_fetch_data_from_source_stock_minute_60_bars(self):
-        backtesting_start = datetime(2025, 1, 13)
-        backtesting_end = datetime(2025, 1, 17)
+    # @pytest.mark.skip()
+    def test_single_stock_minute_bars(self):
+        tickers = "AMZN"
+        start_date = "2025-01-13"
+        end_date = "2025-01-14"
+        timestep = 'minute'
+        refresh_cache = False
+
         data_source = AlpacaBacktesting(
-            datetime_start=backtesting_start,
-            datetime_end=backtesting_end,
-            config=ALPACA_CONFIG
+            tickers=tickers,
+            start_date=start_date,
+            end_date=end_date,
+            timestep=timestep,
+            config=ALPACA_CONFIG,
+            refresh_cache=refresh_cache,
         )
 
-        base_asset = Asset(symbol="AMZN", asset_type="stock")
-        quote_asset = Asset(symbol="USD", asset_type="forex")
-        timestep = "minute"
+        assert data_source.datetime_start.isoformat() == "2025-01-13T00:00:00+00:00"
+        assert data_source.datetime_end.isoformat() == "2025-01-13T23:59:00+00:00"
+        assert isinstance(data_source.pandas_data, dict)
+        assert next(iter(data_source.pandas_data))[0].symbol == "AMZN"
+        assert next(iter(data_source.pandas_data))[1].symbol == "USD"
 
-        df = data_source._fetch_data_from_source(
-            base_asset=base_asset,
-            quote_asset=quote_asset,
-            start_datetime=datetime(2025, 1, 13, 10, 0, tzinfo=data_source.datetime_end.tzinfo),
-            end_datetime=datetime(2025, 1, 13, 10, 59, tzinfo=data_source.datetime_end.tzinfo),
-            timestep=timestep
-        )
+        data = list(data_source.pandas_data.values())[0]
+        df = data.df
 
         assert not df.empty
-        assert len(df.index) == 60
-        assert df['timestamp'].iloc[0].isoformat() == '2025-01-13T15:00:00+00:00'
-        assert df['timestamp'].iloc[-1].isoformat() == '2025-01-13T15:59:00+00:00'
-        assert df['open'].iloc[0] == 218.36
-        assert df['close'].iloc[0] == 218.05
-        assert df['open'].iloc[-1] == 217.64
-        assert df['close'].iloc[-1] == 217.635
+        assert len(df.index) == 732
+        assert df.index[0].isoformat() == '2025-01-13T04:00:00-05:00'
+        assert df.index[-1].isoformat() == '2025-01-13T18:58:00-05:00'
+        assert df['open'].iloc[0] == 217.73
+        assert df['close'].iloc[0] == 216.68
+        assert df['open'].iloc[-1] == 219.27
+        assert df['close'].iloc[-1] == 219.27
 
-    def test_fetch_data_from_source_crypto_daily_1_bar(self):
-        backtesting_start = datetime(2025, 1, 13)
-        backtesting_end = datetime(2025, 1, 17)
+    # @pytest.mark.skip()
+    def test_tz_name_day_bars(self):
+        tickers = "AMZN"
+        start_date = "2025-01-13"
+        end_date = "2025-01-18"
+        timestep = 'day'
+        refresh_cache = False
+        tz_name = "America/New_York"
+
         data_source = AlpacaBacktesting(
-            datetime_start=backtesting_start,
-            datetime_end=backtesting_end,
-            config=ALPACA_CONFIG
+            tickers=tickers,
+            start_date=start_date,
+            end_date=end_date,
+            timestep=timestep,
+            config=ALPACA_CONFIG,
+            refresh_cache=refresh_cache,
+            tz_name=tz_name
         )
 
-        base_asset = Asset(symbol="BTC", asset_type="crypto")
-        quote_asset = Asset(symbol="USD", asset_type="forex")
-        timestep = "day"
+        assert data_source.datetime_start.isoformat() == "2025-01-13T00:00:00+00:00"
+        assert data_source.datetime_end.isoformat() == "2025-01-17T23:59:00+00:00"
+        assert isinstance(data_source.pandas_data, dict)
+        assert next(iter(data_source.pandas_data))[0].symbol == "AMZN"
+        assert next(iter(data_source.pandas_data))[1].symbol == "USD"
 
-        df = data_source._fetch_data_from_source(
-            base_asset=base_asset,
-            quote_asset=quote_asset,
-            start_datetime=datetime(2025, 1, 13, 0, 0, tzinfo=data_source.datetime_end.tzinfo),
-            end_datetime=datetime(2025, 1, 13, 23, 59, tzinfo=data_source.datetime_end.tzinfo),
-            timestep=timestep
-        )
-
-        assert not df.empty
-        assert len(df.index) == 1
-        assert df['timestamp'].iloc[0].isoformat() == "2025-01-13T06:00:00+00:00"
-        assert df['close'].iloc[0] == 94861.625
-
-    def test_fetch_data_from_source_crypto_daily_5_bars(self):
-        backtesting_start = datetime(2025, 1, 13)
-        backtesting_end = datetime(2025, 1, 17)
-        data_source = AlpacaBacktesting(
-            datetime_start=backtesting_start,
-            datetime_end=backtesting_end,
-            config=ALPACA_CONFIG
-        )
-
-        base_asset = Asset(symbol="BTC", asset_type="crypto")
-        quote_asset = Asset(symbol="USD", asset_type="forex")
-        timestep = "day"
-
-        df = data_source._fetch_data_from_source(
-            base_asset=base_asset,
-            quote_asset=quote_asset,
-            start_datetime=datetime(2025, 1, 13, 0, 0, tzinfo=data_source.datetime_end.tzinfo),
-            end_datetime=datetime(2025, 1, 17, 23, 59, tzinfo=data_source.datetime_end.tzinfo),
-            timestep=timestep
-        )
+        data = list(data_source.pandas_data.values())[0]
+        df = data.df
 
         assert not df.empty
         assert len(df.index) == 5
-        assert df['timestamp'].iloc[0].isoformat() == "2025-01-13T06:00:00+00:00"
-        assert df['close'].iloc[0] == 94861.625
-        assert df['timestamp'].iloc[-1].isoformat() == "2025-01-17T06:00:00+00:00"
-        assert df['close'].iloc[-1] == 102846.0
+        assert df.index[0].isoformat() == "2025-01-13T00:00:00-05:00"
+        assert df['open'].iloc[0] == 218.06
+        assert df['close'].iloc[0] == 218.46
+        assert df.index[-1].isoformat() == "2025-01-17T00:00:00-05:00"
+        assert df['open'].iloc[-1] == 225.84
+        assert df['close'].iloc[-1] == 225.94
 
-    def test_fetch_data_from_source_crypto_minute_60_bars(self):
-        backtesting_start = datetime(2025, 1, 13)
-        backtesting_end = datetime(2025, 1, 17)
+
+    # @pytest.mark.skip()
+    def test_single_crypto_daily_bars(self):
+        tickers = "BTC/USD"
+        start_date = "2025-01-13"
+        end_date = "2025-01-18"
+        timestep = 'day'
+        refresh_cache = False
+
         data_source = AlpacaBacktesting(
-            datetime_start=backtesting_start,
-            datetime_end=backtesting_end,
-            config=ALPACA_CONFIG
+            tickers=tickers,
+            start_date=start_date,
+            end_date=end_date,
+            timestep=timestep,
+            config=ALPACA_CONFIG,
+            refresh_cache=refresh_cache,
         )
 
-        base_asset = Asset(symbol="BTC", asset_type="crypto")
-        quote_asset = Asset(symbol="USD", asset_type="forex")
-        timestep = "minute"
+        assert data_source.datetime_start.isoformat() == "2025-01-13T00:00:00+00:00"
+        assert data_source.datetime_end.isoformat() == "2025-01-17T23:59:00+00:00"
+        assert isinstance(data_source.pandas_data, dict)
+        assert next(iter(data_source.pandas_data))[0].symbol == "BTC"
+        assert next(iter(data_source.pandas_data))[1].symbol == "USD"
 
-        df = data_source._fetch_data_from_source(
-            base_asset=base_asset,
-            quote_asset=quote_asset,
-            start_datetime=datetime(2025, 1, 13, 0, 0, tzinfo=data_source.datetime_end.tzinfo),
-            end_datetime=datetime(2025, 1, 13, 0, 59, tzinfo=data_source.datetime_end.tzinfo),
-            timestep=timestep
-        )
+        data = list(data_source.pandas_data.values())[0]
+        df = data.df
 
         assert not df.empty
-        assert len(df.index) == 60
-        assert df['timestamp'].iloc[0].isoformat() == "2025-01-13T06:00:00+00:00"
-        assert df['timestamp'].iloc[-1].isoformat() == '2025-01-13T15:59:00+00:00'
+        assert len(df.index) == 5
+        assert df.index[0].isoformat() == "2025-01-13T01:00:00-05:00"
+        assert df['open'].iloc[0] == 94066.35
         assert df['close'].iloc[0] == 94861.625
-        assert df['close'].iloc[0] == 218.05
-        assert df['open'].iloc[-1] == 217.64
-        assert df['close'].iloc[-1] == 217.635
+        assert df.index[-1].isoformat() == "2025-01-17T01:00:00-05:00"
+        assert df['open'].iloc[-1] == 101416.579115
+        assert df['close'].iloc[-1] == 102846.0
+
+    # @pytest.mark.skip()
+    def test_single_crypto_minute_bars(self):
+        tickers = "BTC/USD"
+        start_date = "2025-01-13"
+        end_date = "2025-01-14"
+        timestep = 'minute'
+        refresh_cache = False
+
+        data_source = AlpacaBacktesting(
+            tickers=tickers,
+            start_date=start_date,
+            end_date=end_date,
+            timestep=timestep,
+            config=ALPACA_CONFIG,
+            refresh_cache=refresh_cache,
+        )
+
+        assert data_source.datetime_start.isoformat() == "2025-01-13T00:00:00+00:00"
+        assert data_source.datetime_end.isoformat() == "2025-01-13T23:59:00+00:00"
+        assert isinstance(data_source.pandas_data, dict)
+        assert next(iter(data_source.pandas_data))[0].symbol == "BTC"
+        assert next(iter(data_source.pandas_data))[1].symbol == "USD"
+
+        data = list(data_source.pandas_data.values())[0]
+        df = data.df
+
+        assert not df.empty
+        assert len(df.index) == 1196
+        assert df.index[0].isoformat() == '2025-01-12T19:00:00-05:00'
+        assert df.index[-1].isoformat() == '2025-01-13T18:58:00-05:00'
+        assert df['open'].iloc[0] == 94558.75
+        assert df['close'].iloc[0] == 94558.75
+        assert df['open'].iloc[-1] == 94511.24
+        assert df['close'].iloc[-1] == 94511.24

@@ -168,6 +168,11 @@ class Data:
 
         if timezone is not None:
             self.df.index = self.df.index.tz_localize(timezone)
+        # if timezone is not None:
+        #     if self.df.index.tzinfo is None:
+        #         self.df.index = self.df.index.tz_localize(timezone)
+        #     else:
+        #         self.df.index = self.df.index.tz_convert(timezone)
 
         self.df = self.set_date_format(self.df)
         self.df = self.df.sort_index()

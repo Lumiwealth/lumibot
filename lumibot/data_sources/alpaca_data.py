@@ -155,10 +155,6 @@ class AlpacaData(DataSource):
                 symbol = f"{asset[0].symbol}/{quote.symbol}"
             else:
                 symbol = f"{asset.symbol}/{quote.symbol}"
-        elif type(asset) == Asset and asset.asset_type == Asset.AssetType.OPTION:
-            strike_formatted = f"{asset.strike:08.3f}".replace('.', '').rjust(8, '0')
-            date = asset.expiration.strftime("%y%m%d")
-            symbol = f"{asset.symbol}{date}{asset.right[0]}{strike_formatted}"
         elif isinstance(asset, tuple):
             symbol = f"{asset[0].symbol}/{asset[1].symbol}"
         elif isinstance(asset, str):
@@ -177,11 +173,12 @@ class AlpacaData(DataSource):
             # The price is the average of the bid and ask
             price = (quote.bid_price + quote.ask_price) / 2
         elif (isinstance(asset, tuple) and asset[0].asset_type == Asset.AssetType.OPTION) or (isinstance(asset, Asset) and asset.asset_type == Asset.AssetType.OPTION):
-            logging.info(f"Getting {asset} option price")
+            strike_formatted = f"{asset.strike:08.3f}".replace('.', '').rjust(8, '0')
+            date = asset.expiration.strftime("%y%m%d")
+            symbol = f"{asset.symbol}{date}{asset.right[0]}{strike_formatted}"
             client = OptionHistoricalDataClient(self.api_key, self.api_secret)
             params = OptionLatestTradeRequest(symbol_or_symbols=symbol)
             trade = client.get_option_latest_trade(params)
-            print(f'This {trade} {symbol}')
             price = trade[symbol].price
         else:
             # Stocks

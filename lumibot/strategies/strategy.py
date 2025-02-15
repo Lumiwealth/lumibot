@@ -115,11 +115,6 @@ class Strategy(_Strategy):
 
         The lifecycle method on_trading_iteration is executed inside a loop that stops only when there is only minutes_before_closing minutes remaining before market closes. By default equals to 5 minutes.
 
-        Parameters
-        ----------
-        minutes_before_closing : int
-            The number of minutes before market closes that the strategy will stop executing.
-
         Returns
         -------
         minutes_before_closing : int
@@ -3869,7 +3864,6 @@ class Strategy(_Strategy):
         show_progress_bar: bool = True,
         quiet_logs: bool = True,
         trader_class: Type[Trader] = Trader,
-        include_cash_positions=False,
         **kwargs,
     ):
         """Backtest a strategy.
@@ -4031,7 +4025,6 @@ class Strategy(_Strategy):
             show_progress_bar=show_progress_bar,
             quiet_logs=quiet_logs,
             trader_class=trader_class,
-            include_cash_positions=include_cash_positions,
             **kwargs,
         )
         return results

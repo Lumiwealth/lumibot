@@ -51,6 +51,8 @@ from ..credentials import (
     SHOW_TEARSHEET,
     LIVE_CONFIG,
     POLYGON_MAX_MEMORY_BYTES,
+    BACKTESTING_START,
+    BACKTESTING_END,
 )
 # Set the stats table name for when storing stats in a database, defined by db_connection_str
 STATS_TABLE_NAME = "strategy_tracker"
@@ -934,44 +936,43 @@ class _Strategy:
     def run_backtest(
         self,
         datasource_class,
-        backtesting_start: datetime,
-        backtesting_end: datetime,
-        minutes_before_closing=5,
-        minutes_before_opening=60,
-        sleeptime=1,
-        stats_file=None,
-        risk_free_rate=None,
-        logfile=None,
-        config=None,
-        auto_adjust=False,
-        name=None,
-        budget=None,
-        benchmark_asset="SPY",
-        plot_file_html=None,
-        trades_file=None,
-        settings_file=None,
-        pandas_data=None,
-        quote_asset=Asset(symbol="USD", asset_type="forex"),
-        starting_positions=None,
-        show_plot=None,
-        tearsheet_file=None,
-        save_tearsheet=True,
-        show_tearsheet=None,
-        parameters={},
-        buy_trading_fees=[],
-        sell_trading_fees=[],
-        polygon_api_key=None,
-        polygon_has_paid_subscription=False, # Deprecated, will be removed in future versions
-        use_other_option_source=False,
-        thetadata_username=None,
-        thetadata_password=None,
-        indicators_file=None,
-        show_indicators=None,
-        save_logfile=False,
-        use_quote_data=False,
-        show_progress_bar=True,
-        quiet_logs=False,
-        trader_class=Trader,
+        backtesting_start: datetime = None,
+        backtesting_end: datetime = None,
+        minutes_before_closing = 5,
+        minutes_before_opening = 60,
+        sleeptime = 1,
+        stats_file = None,
+        risk_free_rate = None,
+        logfile = None,
+        config = None,
+        auto_adjust = False,
+        name = None,
+        budget = None,
+        benchmark_asset = "SPY",
+        plot_file_html = None,
+        trades_file = None,
+        settings_file = None,
+        pandas_data = None,
+        quote_asset = Asset(symbol="USD", asset_type="forex"),
+        starting_positions = None,
+        show_plot = None,
+        tearsheet_file = None,
+        save_tearsheet = True,
+        show_tearsheet = None,
+        parameters = {},
+        buy_trading_fees = [],
+        sell_trading_fees = [],
+        polygon_api_key = None,
+        use_other_option_source = False,
+        thetadata_username = None,
+        thetadata_password = None,
+        indicators_file = None,
+        show_indicators = None,
+        save_logfile = False,
+        use_quote_data = False,
+        show_progress_bar = True,
+        quiet_logs = False,
+        trader_class = Trader,
         **kwargs,
     ):
         """Backtest a strategy.
@@ -1096,6 +1097,28 @@ class _Strategy:
 
         self._name = name
 
+        # If backtesting_start is None, then check the BACKTESTING_START environment variable
+        if backtesting_start is None and BACKTESTING_START is not None:
+            backtesting_start = BACKTESTING_START
+        # If backtesting_start is None, and BACKTESTING_START is not set, then set it to one year ago by default
+        elif backtesting_start is None:
+            backtesting_start = datetime.datetime.now() - datetime.timedelta(days=365)
+            # Warn the user that the backtesting_start is set to one year ago
+            logging.warning(
+                colored(f"backtesting_start is set to one year ago by default. You can set it to a specific date by passing in the backtesting_start parameter or by setting the BACKTESTING_START environment variable.", "yellow")
+            )
+
+        # If backtesting_end is None, then check the BACKTESTING_END environment variable
+        if backtesting_end is None and BACKTESTING_END is not None:
+            backtesting_end = BACKTESTING_END
+        # If backtesting_end is None, and BACKTESTING_END is not set, then set it to the current date by default
+        elif backtesting_end is None:
+            backtesting_end = datetime.datetime.now()
+            # Warn the user that the backtesting_end is set to the current date
+            logging.warning(
+                colored(f"backtesting_end is set to the current date by default. You can set it to a specific date by passing in the backtesting_end parameter or by setting the BACKTESTING_END environment variable.", "yellow")
+            )
+
         # Create an adapter with 'strategy_name' set to the instance's name
         if not hasattr(self, "logger") or self.logger is None:
             self.logger = CustomLoggerAdapter(logger, {'strategy_name': self._name})
@@ -1111,13 +1134,6 @@ class _Strategy:
         # If show_indicators is None, then set it to True
         if show_indicators is None:
             show_indicators = SHOW_INDICATORS
-
-        # Log a warning for polygon_has_paid_subscription as it is deprecated
-        if polygon_has_paid_subscription:
-            self.logger.warning(
-                "polygon_has_paid_subscription is deprecated and will be removed in future versions. "
-                "Please remove it from your code."
-            )
 
         # check if datasource_class is a class or a dictionary
         if isinstance(datasource_class, dict):

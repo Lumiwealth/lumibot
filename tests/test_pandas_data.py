@@ -11,7 +11,7 @@ class TestPandasData:
         assert pandas_data_fixture is not None
 
     def test_spy_has_dividends(self, pandas_data_fixture):
-        spy = list(pandas_data_fixture.values())[0]
+        spy = pandas_data_fixture[0]
         expected_columns = [
             "open",
             "high",

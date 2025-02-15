@@ -22,14 +22,14 @@ class TestPandasBacktest:
         backtesting_end = DateTime(2019, 1, 20)
 
         # Replace the strategy name now that it's known.
-        for data in pandas_data_fixture.values():
+        for data in pandas_data_fixture:
             data.strategy = strategy_name
 
         result = strategy_class.backtest(
             datasource_class=PandasDataBacktesting,
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
-            pandas_data=list(pandas_data_fixture.values()),
+            pandas_data=pandas_data_fixture,
             risk_free_rate=0,
             show_plot=False,
             save_tearsheet=False,

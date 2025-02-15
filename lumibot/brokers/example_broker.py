@@ -1,4 +1,6 @@
 import logging
+from typing import Union
+
 from termcolor import colored
 from lumibot.brokers import Broker
 from lumibot.entities import Order, Asset, Position
@@ -75,6 +77,16 @@ class ExampleBroker(Broker):
     def cancel_order(self, order_id) -> None:
         logging.error(colored(f"Method 'cancel_order' for order_id {order_id} is not yet implemented.", "red"))
         return None  # Explicitly return None
+
+    def _modify_order(self, order: Order, limit_price: Union[float, None] = None,
+                      stop_price: Union[float, None] = None):
+        """
+        Modify an order at the broker. Nothing will be done for orders that are already cancelled or filled. You are
+        only allowed to change the limit price and/or stop price. If you want to change the quantity,
+        you must cancel the order and submit a new one.
+        """
+        logging.error(colored(f"Method '_modify_order' for order {order} is not yet implemented.", "red"))
+        return None
 
     def get_historical_account_value(self) -> dict:
         logging.error(colored("Method 'get_historical_account_value' is not yet implemented.", "red"))

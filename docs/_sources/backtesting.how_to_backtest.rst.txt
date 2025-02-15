@@ -122,14 +122,74 @@ Here's an example of a backtest using **Polygon.io**:
 
     if __name__ == "__main__":
         polygon_api_key = "YOUR_POLYGON_API_KEY"  # Replace with your actual Polygon.io API key
-        backtesting_start = datetime(2023, 1, 1)
-        backtesting_end = datetime(2023, 5, 1)
+        backtesting_start = datetime(2025, 1, 1)
+        backtesting_end = datetime(2025, 5, 1)
         result = MyStrategy.run_backtest(
             PolygonDataBacktesting,
             backtesting_start,
             backtesting_end,
             benchmark_asset="SPY",
             polygon_api_key=polygon_api_key  # Pass the Polygon.io API key here
+        )
+
+Optional: Using Environment Variables for Backtest Dates
+-----------------------------------
+
+Instead of specifying `backtesting_start` and `backtesting_end` in your code, you can set these environment variables:
+
+- ``IS_BACKTESTING``
+- ``BACKTESTING_START``
+- ``BACKTESTING_END``
+
+If they are set, LumiBot will automatically pick them up. For example:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 60 20
+
+   * - **Variable**
+     - **Description**
+     - **Example**
+   * - IS_BACKTESTING
+     - Set to **"True"** to run in backtesting mode, or **"False"** for live (defaults to False).
+     - False
+   * - BACKTESTING_START
+     - Start date in the format "YYYY-MM-DD".
+     - 2025-01-01
+   * - BACKTESTING_END
+     - End date in the format "YYYY-MM-DD".
+     - 2025-05-01
+
+Below is a short example showing how you might rely *entirely* on environment variables and **omit** any explicit date definitions in code. The same `polygon_api_key` parameter is still required if you are using Polygon.io:
+
+.. code-block:: python
+
+    from lumibot.backtesting import PolygonDataBacktesting
+    from lumibot.strategies import Strategy
+
+    class MyStrategy(Strategy):
+        parameters = {
+            "symbol": "AAPL",
+        }
+
+        def initialize(self):
+            self.sleeptime = "1D"
+
+        def on_trading_iteration(self):
+            if self.first_iteration:
+                symbol = self.parameters["symbol"]
+                price = self.get_last_price(symbol)
+                qty = self.portfolio_value / price
+                order = self.create_order(symbol, quantity=qty, side="buy")
+                self.submit_order(order)
+
+    if __name__ == "__main__":
+        # If BACKTESTING_START/BACKTESTING_END are set in the environment,
+        # LumiBot will pick them up automatically.
+        polygon_api_key = "YOUR_POLYGON_API_KEY"
+        result = MyStrategy.run_backtest(
+            PolygonDataBacktesting,
+            polygon_api_key=polygon_api_key
         )
 
 For more information about running backtests, refer to the :ref:`Backtesting Function <backtesting.backtesting_function>` section.

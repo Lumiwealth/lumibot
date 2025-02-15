@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, List
 import os
 import pytest
 import logging
@@ -17,7 +17,7 @@ def polygon_data_backtesting():
     datetime_start = datetime.datetime(2023, 1, 1)
     datetime_end = datetime.datetime(2023, 2, 1)
     api_key = "fake_api_key"
-    pandas_data = {}
+    pandas_data = []
     
     polygon_data_instance = PolygonDataBacktesting(
         datetime_start=datetime_start,
@@ -30,13 +30,14 @@ def polygon_data_backtesting():
 
 
 @pytest.fixture(scope="function")
-def pandas_data_fixture() -> Dict[Asset, Data]:
+def pandas_data_fixture() -> List[Data]:
     """
     Get a dictionary of Lumibot Data objects from the test data in tests/data folder
     """
     symbols = ["SPY", "TLT", "GLD"]
-    pandas_data = dict()
+    pandas_data = []
     data_dir = os.getcwd() + "/data"
+    quote = Asset(symbol='USD', asset_type="forex")
     print(data_dir)
     for symbol in symbols:
         csv_path = data_dir + f"/{symbol}.csv"
@@ -44,12 +45,14 @@ def pandas_data_fixture() -> Dict[Asset, Data]:
             symbol=symbol,
             asset_type="stock",
         )
+
         df = pd.read_csv(
             csv_path,
             parse_dates=True,
             index_col=0,
             header=0,
         )
+
         df = df.rename(
             columns={
                 "Date": "date",
@@ -70,6 +73,7 @@ def pandas_data_fixture() -> Dict[Asset, Data]:
             date_start=datetime.datetime(2019, 1, 2),
             date_end=datetime.datetime(2019, 12, 31),
             timestep="day",
+            quote=quote,
         )
-        pandas_data[asset] = data
+        pandas_data.append(data)
     return pandas_data

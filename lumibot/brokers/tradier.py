@@ -1,5 +1,6 @@
 import logging
 import traceback
+from typing import Union
 
 import pandas as pd
 from lumiwealth_tradier import Tradier as _Tradier
@@ -111,6 +112,28 @@ class Tradier(Broker):
 
         # Cancel the order
         self.tradier.orders.cancel(order.identifier)
+
+    def _modify_order(self, order: Order,
+                      limit_price: Union[float, None] = None,
+                      stop_price: Union[float, None] = None):
+        """
+        Modify an order at the broker. Nothing will be done for orders that are already cancelled or filled. You are
+        only allowed to change the limit price and/or stop price. If you want to change the quantity,
+        you must cancel the order and submit a new one (Tradier limitation).
+        """
+        # Check if the order is already cancelled or filled
+        if order.is_filled() or order.is_canceled():
+            return
+
+        if not order.identifier:
+            raise ValueError("Order identifier is not set, unable to modify order. Did you remember to submit it?")
+
+        # Modify the order
+        self.tradier.orders.modify(
+            order.identifier,
+            limit_price=limit_price,
+            stop_price=stop_price,
+        )
 
     def _submit_orders(self, orders, is_multileg=False, order_type=None, duration="day", price=None):
         """
@@ -252,7 +275,7 @@ class Tradier(Broker):
         self._unprocessed_orders.append(parent_order)
         self.stream.dispatch(self.NEW_ORDER, order=parent_order)
         return parent_order
-            
+
     def _submit_order(self, order: Order):
         """
         Do checking and input sanitization, then submit the order to the broker.
@@ -273,14 +296,14 @@ class Tradier(Broker):
 
         try:
             # Check if the order is an OCO order
-            if isinstance(order.order_class, str) and order.order_class.lower() == "oco":
+            if isinstance(order.order_class, str) and order.order_class.lower() == Order.OrderClass.OCO:
                 # Create the legs for the OCO order
                 legs = []
                 for child_order in order.child_orders:
                     if child_order.asset is None:
                         logging.error(f"Asset {child_order.asset} not supported by Tradier.")
                         return None
-                    
+
                     # Check if the child order is an option or stock
                     if child_order.asset.asset_type == "option":
                         # Create the options symbol

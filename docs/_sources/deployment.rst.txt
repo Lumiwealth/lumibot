@@ -423,6 +423,12 @@ In addition to broker-specific secrets, the following environment variables are 
    * - IS_BACKTESTING
      - **(Optional)** Set to **"True"** to run the strategy in backtesting mode, set to **"False"** to run the strategy live (defaults to False).
      - False
+   * - BACKTESTING_START
+     - **(Optional)** The start date for backtesting in the format "YYYY-MM-DD". Only needed if you are backtesting.
+     - 2025-01-01
+   * - BACKTESTING_END
+     - **(Optional)** The end date for backtesting in the format "YYYY-MM-DD". Only needed if you are backtesting.
+     - 2025-01-31
    * - POLYGON_API_KEY
      - **(Optional)** Your API key from your Polygon account, only needed if you are backtesting.
      - a7py0zIdhxde6QkX8OjjKNp7cD87hwKU

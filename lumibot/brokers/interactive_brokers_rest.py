@@ -8,6 +8,7 @@ from decimal import Decimal
 from math import gcd
 import re
 import traceback
+from typing import Union
 from ..trading_builtins import PollingStream
 
 TYPE_MAP = dict(
@@ -770,6 +771,15 @@ class InteractiveBrokersREST(Broker):
 
     def cancel_order(self, order: Order) -> None:
         self.data_source.delete_order(order)
+
+    def _modify_order(self, order: Order, limit_price: Union[float, None] = None,
+                      stop_price: Union[float, None] = None):
+        """
+        Modify an order at the broker. Nothing will be done for orders that are already cancelled or filled. You are
+        only allowed to change the limit price and/or stop price. If you want to change the quantity,
+        you must cancel the order and submit a new one.
+        """
+        raise NotImplementedError("InteractiveBrokersREST modify order is not implemented.")
 
     def decode_conidex(self, conidex: str) -> dict:
         # Decode this format {spread_conid};;;{leg_conid1}/{ratio},{leg_conid2}/{ratio}

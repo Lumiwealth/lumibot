@@ -236,3 +236,15 @@ class TestOrderBasics:
         order1.status = "open"
         order2.status = ""
         assert not order1.equivalent_status("")
+
+    def test_to_position(self):
+        asset = Asset("SPY")
+        order = Order(strategy='abc', asset=asset, side="buy", quantity=100, avg_fill_price=100)
+        position = order.to_position(order.quantity)
+        assert position.strategy == order.strategy
+        assert position.asset == order.asset
+        assert position.quantity == order.quantity
+        assert position.orders == [order]
+        assert position.hold == 0
+        assert position.available == 0
+        assert position.avg_fill_price == order.avg_fill_price

@@ -5,6 +5,7 @@ import traceback
 from asyncio import CancelledError
 from datetime import timezone
 from decimal import Decimal
+from typing import Union
 
 import pandas_market_calendars as mcal
 from alpaca.trading.client import TradingClient
@@ -102,7 +103,7 @@ class Alpaca(Broker):
 
     ASSET_TYPE_MAP = dict(
         stock=["us_equity"],
-        option=[],
+        option=["us_option"],
         future=[],
         forex=[],
     )
@@ -266,6 +267,11 @@ class Alpaca(Broker):
                 symbol=position.symbol.replace("USD", ""),
                 asset_type="crypto",
             )
+        elif position.asset_class == "option":
+            asset = Asset(
+                symbol=position.symbol,
+                asset_type="option",
+            )
         else:
             asset = Asset(
                 symbol=position.symbol,
@@ -345,7 +351,7 @@ class Alpaca(Broker):
             strategy_name,
             Asset(
                 symbol=symbol,
-                asset_type=response.asset_class,
+                asset_type=self.map_asset_type(response.asset_class),
             ),
             Decimal(response.qty),
             response.side,
@@ -387,14 +393,21 @@ class Alpaca(Broker):
 
         # For Alpaca, only "gtc" and "ioc" orders are supported for crypto
         # TODO: change this if Alpaca allows new order types for crypto
-        if order.asset.asset_type == "crypto":
+        if order.asset.asset_type == Asset.AssetType.CRYPTO:
             if order.time_in_force != "gtc" or "ioc":
                 order.time_in_force = "gtc"
+        # For Alpaca, only "day" is supported for option orders
+        elif order.asset.asset_type == Asset.AssetType.OPTION:
+            order.time_in_force = "day"
 
         qty = str(order.quantity)
 
-        if order.asset.asset_type == "crypto":
+        if order.asset.asset_type == Asset.AssetType.CRYPTO:
             trade_symbol = f"{order.asset.symbol}/{order.quote.symbol}"
+        elif order.asset.asset_type == Asset.AssetType.OPTION:
+            strike_formatted = f"{order.asset.strike:08.3f}".replace('.', '').rjust(8, '0')
+            date = order.asset.expiration.strftime("%y%m%d")
+            trade_symbol = f"{order.asset.symbol}{date}{order.asset.right[0]}{strike_formatted}"
         else:
             trade_symbol = order.asset.symbol
 
@@ -509,6 +522,15 @@ class Alpaca(Broker):
             The order that was cancelled
         """
         self.api.cancel_order_by_id(order.identifier)
+
+    def _modify_order(self, order: Order, limit_price: Union[float, None] = None,
+                      stop_price: Union[float, None] = None):
+        """
+        Modify an order at the broker. Nothing will be done for orders that are already cancelled or filled. You are
+        only allowed to change the limit price and/or stop price. If you want to change the quantity,
+        you must cancel the order and submit a new one.
+        """
+        raise NotImplementedError("AlpacaBroker modify order is not implemented.")
 
     # =======Account functions=========
 

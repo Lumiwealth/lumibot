@@ -130,7 +130,7 @@ def get_price_data_from_polygon(
       to avoid multiple simultaneous sleeps.
     """
     # 1) Decide where to cache the data (based on asset & timespan).
-    cache_file = build_cache_filename(asset, timespan)
+    cache_file = build_cache_filename(asset, quote_asset, timespan)
 
     # 2) Possibly invalidate the cache if we detect changed splits, etc.
     force_cache_update = validate_cache(force_cache_update, asset, cache_file, api_key)
@@ -179,7 +179,7 @@ def get_price_data_from_polygon(
     # Helper function for each chunk
     def fetch_chunk(start_date, end_date):
         # This call may trigger the built-in rate-limit logic in polygon_client._get()
-        return polygon_client.get_aggs(
+        result = polygon_client.get_aggs(
             ticker=symbol,
             from_=start_date,
             to=end_date,
@@ -187,6 +187,8 @@ def get_price_data_from_polygon(
             timespan=timespan,
             limit=50000,
         )
+
+        return result
 
     # 8) Download chunks in parallel
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -372,8 +374,24 @@ def get_polygon_symbol(asset, polygon_client, quote_asset=None):
     return symbol
 
 
-def build_cache_filename(asset: Asset, timespan: str):
-    """Helper function to create the cache filename for a given asset and timespan"""
+def build_cache_filename(asset: Asset, quote_asset: Asset, timespan: str):
+    """
+    Helper function to create the cache filename for a given asset and timespan
+
+    Parameters
+    ----------
+    asset : Asset
+        Asset we are getting data for
+    quote_asset : Asset
+        Quote asset for the asset we are getting data for
+    timespan : str
+        Timespan for the data requested
+
+    Returns
+    -------
+    Path
+        The path to the cache file
+    """
 
     lumibot_polygon_cache_folder = Path(LUMIBOT_CACHE_FOLDER) / "polygon"
 
@@ -385,6 +403,8 @@ def build_cache_filename(asset: Asset, timespan: str):
         # Make asset.expiration datetime into a string like "YYMMDD"
         expiry_string = asset.expiration.strftime("%y%m%d")
         uniq_str = f"{asset.symbol}_{expiry_string}_{asset.strike}_{asset.right}"
+    elif quote_asset:
+        uniq_str = f"{asset.symbol}_{quote_asset.symbol}"
     else:
         uniq_str = asset.symbol
 

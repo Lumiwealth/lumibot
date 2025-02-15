@@ -1,7 +1,7 @@
 import os
 import re
 import sys
-import datetime as dt
+from datetime import datetime, timedelta, date
 
 import pandas_market_calendars as mcal
 from termcolor import colored
@@ -59,6 +59,41 @@ def get_trading_days(market="NYSE", start_date="1950-01-01", end_date=None):
     return days
 
 
+def date_n_bars_from_date(
+        n_bars: int,
+        start_datetime: datetime,
+        market: str = "NYSE",
+        buffer_bars: int = 10,
+) -> date:
+
+    if n_bars == 0:
+        return start_datetime.date()
+    if not isinstance(start_datetime, datetime):
+        raise ValueError("start_datetime must be datetime")
+
+    # Remove timezone information from a datetime object
+    start_datetime = start_datetime.replace(tzinfo=None)
+
+    # Get trading days around the backtesting_start date
+    trading_days = get_trading_days(
+        market=market,
+        start_date=(start_datetime - timedelta(days=n_bars+buffer_bars)).date().isoformat(),
+        end_date=(start_datetime + timedelta(days=n_bars+buffer_bars)).date().isoformat(),
+    )
+
+    # Check if start_datetime is in trading_days
+    if start_datetime in trading_days.index:
+        start_index = trading_days.index.get_loc(start_datetime)
+    else:
+        # Find the first trading date after start_datetime
+        start_index = trading_days.index.get_indexer([start_datetime], method='bfill')[0]
+
+
+    # get the date of the last trading n_bars before the start_datetime date
+    date_n_bars_away = trading_days.index[start_index - n_bars].date()
+    return date_n_bars_away
+
+
 class ComparaisonMixin:
     COMPARAISON_PROP = "timestamp"
 
@@ -101,7 +136,7 @@ def print_progress_bar(
     percent_str = ("  {:.%df}" % decimals).format(percent)
     percent_str = percent_str[-decimals - 4 :]
 
-    now = dt.datetime.now()
+    now = datetime.now()
     elapsed = now - backtesting_started
 
     if percent > 0:
@@ -135,16 +170,16 @@ def print_progress_bar(
 
 
 def get_lumibot_datetime():
-    return dt.datetime.now().astimezone(LUMIBOT_DEFAULT_PYTZ)
+    return datetime.now().astimezone(LUMIBOT_DEFAULT_PYTZ)
 
 
 def to_datetime_aware(dt_in):
     """Convert naive time to datetime aware on default timezone."""
     if not dt_in:
         return dt_in
-    elif isinstance(dt_in, dt.datetime) and (dt_in.tzinfo is None):
+    elif isinstance(dt_in, datetime) and (dt_in.tzinfo is None):
         return LUMIBOT_DEFAULT_PYTZ.localize(dt_in)
-    elif isinstance(dt_in, dt.datetime) and (dt_in.tzinfo.utcoffset(dt_in) is None):
+    elif isinstance(dt_in, datetime) and (dt_in.tzinfo.utcoffset(dt_in) is None):
         # TODO: This will fail because an exception is thrown if tzinfo is not None.
         return LUMIBOT_DEFAULT_PYTZ.localize(dt_in)
     else:
@@ -169,7 +204,7 @@ def parse_symbol(symbol):
     match = re.match(option_pattern, symbol)
     if match:
         stock_symbol, expiration, option_type, strike_price = match.groups()
-        expiration_date = dt.datetime.strptime(expiration, "%y%m%d").date()
+        expiration_date = datetime.strptime(expiration, "%y%m%d").date()
         option_type = "CALL" if option_type == "C" else "PUT"
         return {
             "type": "option",
@@ -190,7 +225,7 @@ def create_options_symbol(stock_symbol, expiration_date, option_type, strike_pri
     ----------
     stock_symbol : str
         The stock symbol, e.g., 'AAPL'.
-    expiration_date : dt.date or dt.datetime
+    expiration_date : dt.date or datetime
         The expiration date of the option.
     option_type : str
         The type of the option, either 'Call' or 'Put'.
@@ -204,7 +239,7 @@ def create_options_symbol(stock_symbol, expiration_date, option_type, strike_pri
     """
     # Format the expiration date
     if isinstance(expiration_date, str):
-        expiration_date = dt.datetime.strptime(expiration_date, "%Y-%m-%d").date()
+        expiration_date = datetime.strptime(expiration_date, "%Y-%m-%d").date()
     expiration_str = expiration_date.strftime("%y%m%d")
 
     # Determine the option type character

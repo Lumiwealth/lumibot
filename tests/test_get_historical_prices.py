@@ -2,7 +2,12 @@ from datetime import datetime, timedelta
 
 from pandas.testing import assert_series_equal
 
-from lumibot.backtesting import PolygonDataBacktesting, YahooDataBacktesting, CcxtBacktesting
+from lumibot.backtesting import (
+    PolygonDataBacktesting,
+    YahooDataBacktesting,
+    CcxtBacktesting,
+    AlpacaBacktesting
+)
 from lumibot.data_sources import AlpacaData, TradierData, PandasData
 from tests.fixtures import pandas_data_fixture
 from lumibot.tools import print_full_pandas_dataframes, set_pandas_float_display_precision
@@ -338,8 +343,8 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
         data_source = PolygonDataBacktesting(
             backtesting_start, backtesting_end, api_key=POLYGON_CONFIG["API_KEY"]
         )
-        bars = data_source.get_historical_prices(asset=self.asset, length=self.length, timestep=self.timestep)
-        check_bars(bars=bars, length=self.length)
+        bars = data_source.get_historical_prices(asset=self.asset, length=length, timestep=self.timestep)
+        check_bars(bars=bars, length=length)
         self.check_date_of_last_bar_is_date_of_last_trading_date_before_backtest_start(
             bars,
             backtesting_start=backtesting_start
@@ -418,8 +423,8 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
             datetime_end=backtesting_end,
             pandas_data=pandas_data_fixture
         )
-        bars = data_source.get_historical_prices(asset=self.asset, length=self.length, timestep=self.timestep)
-        check_bars(bars=bars, length=self.length)
+        bars = data_source.get_historical_prices(asset=self.asset, length=length, timestep=self.timestep)
+        check_bars(bars=bars, length=length)
         self.check_date_of_last_bar_is_date_of_last_trading_date_before_backtest_start(
             bars,
             backtesting_start=backtesting_start
@@ -452,6 +457,103 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
         )
         check_bars(bars=bars, length=self.length)
         self.check_date_of_last_bar_is_date_of_day_before_backtest_start_for_crypto(
+            bars,
+            backtesting_start=backtesting_start
+        )
+
+    # @pytest.mark.skip()
+    @pytest.mark.skipif(
+        not ALPACA_CONFIG['API_KEY'],
+        reason="This test requires an alpaca API key"
+    )
+    @pytest.mark.skipif(
+        ALPACA_CONFIG['API_KEY'] == '<your key here>',
+        reason="This test requires an alpaca API key"
+    )
+    def test_alpaca_backtesting_data_source_get_historical_prices_daily_bars_for_backtesting_broker(self):
+        # Test getting 2 bars into the future (which is what the backtesting does when trying to fill orders
+        # for the next trading day)
+        last_year = datetime.now().year - 1
+
+        # Get MLK day last year which is a non-trading monday
+        mlk_day = self.get_mlk_day(last_year)
+
+        # First trading day after MLK day
+        backtesting_start = mlk_day + timedelta(days=1)
+        backtesting_end = datetime(last_year, 2, 22)
+
+        tickers = self.asset.symbol
+        start_date = backtesting_start.date().isoformat()
+        end_date = backtesting_end.date().isoformat()
+        timestep = 'day'
+        refresh_cache = True
+        tz_name = "America/New_York"
+
+        data_source = AlpacaBacktesting(
+            tickers=tickers,
+            start_date=start_date,
+            end_date=end_date,
+            timestep=timestep,
+            config=ALPACA_CONFIG,
+            # refresh_cache=refresh_cache,
+            tz_name=tz_name,
+        )
+
+        length = 2
+        timeshift = -length  # negative length gets future bars
+        bars = data_source.get_historical_prices(
+            asset=self.asset,
+            length=length,
+            timeshift=timeshift,
+            timestep=self.timestep
+        )
+
+        check_bars(bars=bars, length=length)
+        self.check_date_of_last_bar_is_date_of_first_trading_date_on_or_after_backtest_start(
+            bars,
+            backtesting_start=backtesting_start
+        )
+
+    # @pytest.mark.skip()
+    @pytest.mark.skipif(
+        not ALPACA_CONFIG['API_KEY'],
+        reason="This test requires an alpaca API key"
+    )
+    @pytest.mark.skipif(
+        ALPACA_CONFIG['API_KEY'] == '<your key here>',
+        reason="This test requires an alpaca API key"
+    )
+    def test_alpaca_backtesting_data_source_get_historical_prices_daily_bars_over_long_weekend(self):
+        # Get MLK day for last year
+        last_year = datetime.now().year - 1
+        mlk_day = self.get_mlk_day(last_year)
+
+        # First trading day after MLK day
+        backtesting_start = mlk_day + timedelta(days=1)
+        backtesting_end = datetime(last_year, 2, 22)
+
+        tickers = self.asset.symbol
+        start_date = backtesting_start.date().isoformat()
+        end_date = backtesting_end.date().isoformat()
+        timestep = 'day'
+        refresh_cache = True
+        tz_name = "America/New_York"
+        length = 10
+
+        data_source = AlpacaBacktesting(
+            tickers=tickers,
+            start_date=start_date,
+            end_date=end_date,
+            timestep=timestep,
+            config=ALPACA_CONFIG,
+            # refresh_cache=refresh_cache,
+            tz_name=tz_name,
+            warm_up_bars=length,
+        )
+
+        bars = data_source.get_historical_prices(asset=self.asset, length=length, timestep=self.timestep)
+        check_bars(bars=bars, length=length)
+        self.check_date_of_last_bar_is_date_of_last_trading_date_before_backtest_start(
             bars,
             backtesting_start=backtesting_start
         )

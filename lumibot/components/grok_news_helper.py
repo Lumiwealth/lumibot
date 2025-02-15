@@ -67,6 +67,7 @@ class GrokNewsHelper:
         and instructing the model to avoid hallucinations and remain factual.
 
         The schema includes fields like 'symbol', 'confidence', 'magnitude', etc.
+        Now also includes an optional 'price_targets' object with float fields.
 
         Parameters
         ----------
@@ -100,6 +101,11 @@ JSON Schema:
       "volume_of_messages": "<integer, optional - if known>",
       "magnitude": "<integer, 0-10, required - overall impact level>",
       "type_of_news": "<string, optional - e.g. 'earnings', 'ipo', 'macro', 'ceo_tweet'>",
+      "price_targets": {{
+        "low": "<float, optional>",
+        "high": "<float, optional>",
+        "average": "<float, optional>"
+      }},
       "additional_info": {{
         "sector": "<string, optional>",
         "recent_events": "<string, optional>",
@@ -219,6 +225,8 @@ Return only valid JSON following the schema.
          - magnitude
          - volume_of_messages (if present)
 
+        Also handles optional price_targets as floats if present.
+
         Modifies the 'data' dictionary in-place.
 
         Parameters
@@ -241,22 +249,36 @@ Return only valid JSON following the schema.
                 except (ValueError, TypeError):
                     item["volume_of_messages"] = 0
 
+            # Optional price_targets handling
+            if "price_targets" in item and isinstance(item["price_targets"], dict):
+                for float_field in ("low", "high", "average"):
+                    if float_field in item["price_targets"]:
+                        try:
+                            item["price_targets"][float_field] = float(item["price_targets"][float_field])
+                        except (ValueError, TypeError):
+                            item["price_targets"][float_field] = None
 
-# # ------------------------------------------------------------------------------
-# # Example usage in a standalone script:
-# # ------------------------------------------------------------------------------
-# if __name__ == "__main__":
-#     # Attempt to retrieve xAI API key from environment
-#     xai_api_key = os.getenv("XAI_API_KEY")
-#     if not xai_api_key or xai_api_key == "YOUR_XAI_API_KEY":
-#         print("WARNING: No valid XAI_API_KEY found in environment!")
-#         xai_api_key = "YOUR_XAI_API_KEY"  # fallback
 
-#     nq_helper = NewsQueryHelper(api_key=xai_api_key)
+# ------------------------------------------------------------------------------
+# Example usage in a standalone script:
+# ------------------------------------------------------------------------------
+if __name__ == "__main__":
+    # Attempt to retrieve xAI API key from environment
+    import os
+    import dotenv
 
-#     # Example user query
-#     user_query = "What drugs from small biotech companies are expected to get FDA approvals soon?"
-#     result = nq_helper.execute_query(user_query)
+    dotenv.load_dotenv()
+    xai_api_key = os.getenv("XAI_API_KEY")
+    if not xai_api_key or xai_api_key == "YOUR_XAI_API_KEY":
+        print("WARNING: No valid XAI_API_KEY found in environment!")
+        xai_api_key = "YOUR_XAI_API_KEY"  # fallback
 
-#     # Print the structured response
-#     print(json.dumps(result, indent=2))
+    nq_helper = GrokNewsHelper(api_key=xai_api_key)
+
+    # Example user query
+    # user_query = "What drugs from small biotech companies are expected to get FDA approvals soon?"
+    user_query = "what is the twitter account @Banana3Stocks recommending to buy or sell right now and at what price targets? he usually says things like 'see you at XX price' or 'XX price soon' or 'run to XX' or 'pivot is XX' or 'XX later this year' or 'ready for $XX'"
+    result = nq_helper.execute_query(user_query)
+
+    # Print the structured response
+    print(json.dumps(result, indent=2))

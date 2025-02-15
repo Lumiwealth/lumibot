@@ -59,11 +59,10 @@ def get_trading_days(market="NYSE", start_date="1950-01-01", end_date=None):
     return days
 
 
-def date_n_bars_from_date(
+def date_n_days_from_date(
         n_bars: int,
         start_datetime: datetime,
         market: str = "NYSE",
-        buffer_bars: int = 10,
 ) -> date:
 
     if n_bars == 0:
@@ -73,6 +72,11 @@ def date_n_bars_from_date(
 
     # Remove timezone information from a datetime object
     start_datetime = start_datetime.replace(tzinfo=None)
+
+    # Let's add 3 days per week for weekends and holidays.
+    weeks_requested = n_bars // 5  # Full trading week is 5 days
+    extra_padding_days = weeks_requested * 3  # to account for 3day weekends
+    buffer_bars = max(10, n_bars + extra_padding_days)  # Get at least 10 days
 
     # Get trading days around the backtesting_start date
     trading_days = get_trading_days(
@@ -87,7 +91,6 @@ def date_n_bars_from_date(
     else:
         # Find the first trading date after start_datetime
         start_index = trading_days.index.get_indexer([start_datetime], method='bfill')[0]
-
 
     # get the date of the last trading n_bars before the start_datetime date
     date_n_bars_away = trading_days.index[start_index - n_bars].date()

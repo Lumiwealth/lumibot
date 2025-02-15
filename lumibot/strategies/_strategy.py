@@ -505,7 +505,7 @@ class _Strategy:
                 f"Order must be an Order object. You entered {order}."
             )
             return False
-        
+
         # Check if the order does not have a quantity of zero
         if order.quantity == 0:
             self.logger.error(

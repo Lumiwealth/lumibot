@@ -12,6 +12,7 @@ from alpaca.data.timeframe import TimeFrame
 from lumibot.data_sources import PandasData
 from lumibot.entities import Data, Asset
 from lumibot import LUMIBOT_CACHE_FOLDER
+from lumibot.tools.helpers import date_n_bars_from_date
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +44,35 @@ class AlpacaBacktesting(PandasData):
             adjustment: str = 'all',
             config: dict | None = None,
             tz_name: str = timezone.utc,
+            warm_up_bars: int = 0,
     ):
+        """
+        Initializes an instance for fetching and managing historical data from Alpaca,
+        either for crypto or stock symbols, with specified date range and adjustments.
+        Uses Alpaca's Crypto and Stock Historical Data clients to retrieve the data.
+        Supports caching and time interval customization. Also supports warm-up bars
+        for initializing strategies.
+
+        Args:
+            tickers (List[str] | str): List of ticker symbols or a single ticker symbol
+                for the required data.
+            start_date (str): The start date of the historical data range in string
+                format. Must comply with the `pandas.to_datetime` format.
+            end_date (str): The end date of the historical data range in string
+                format. Must comply with the `pandas.to_datetime` format.
+            timestep (str): The time interval for the historical data (e.g., 'minute',
+                'hour', 'day'). Default is 'day'.
+            refresh_cache (bool): Whether to refresh the cached historical data or use
+                existing cache. Default is False.
+            adjustment (str): The type of price adjustment to apply. Potential values
+                are defined by Alpaca API. Default is 'all'.
+            config (dict | None): Configuration dictionary containing `API_KEY` and
+                `API_SECRET` for authenticating with Alpaca APIs.
+            tz_name (str): The name of the timezone to localize datetime values.
+                Default is `timezone.utc`.
+            warm_up_bars (int): The number of additional data points to fetch before
+                `start_date`, useful for warming up trading algorithms. Default is 0.
+        """
         self.CACHE_SUBFOLDER = 'alpaca'
         self.tz_name = tz_name
 
@@ -61,9 +90,22 @@ class AlpacaBacktesting(PandasData):
         start_dt = pd.to_datetime(start_date).tz_localize(self.tz_name)
         end_dt = pd.to_datetime(end_date).tz_localize(self.tz_name)
 
+        if warm_up_bars > 0:
+            warm_up_start_dt = date_n_bars_from_date(
+                n_bars=warm_up_bars,
+                start_datetime=start_dt,
+            )
+            # Combine with a default time (midnight)
+            warm_up_start_dt = datetime.combine(warm_up_start_dt, datetime.min.time())
+            # Make it timezone-aware
+            warm_up_start_dt = pd.to_datetime(warm_up_start_dt).tz_localize(self.tz_name)
+
+        else:
+            warm_up_start_dt = start_dt
+
         pandas_data = self._fetch_cache_and_load_data(
             tickers=tickers,
-            start_dt=start_dt,
+            start_dt=warm_up_start_dt,
             end_dt=end_dt,
             timestep=timestep,
             refresh_cache=refresh_cache,

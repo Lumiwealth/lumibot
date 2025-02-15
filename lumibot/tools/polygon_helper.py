@@ -91,11 +91,11 @@ def get_price_data_from_polygon(
 ) -> Optional[pd.DataFrame]:
     """
     Query Polygon.io for historical pricing data for the given asset, using parallel downloads.
-    
+
     Data is cached locally (in LUMIBOT_CACHE_FOLDER/polygon) to avoid re-downloading data for dates
     that have already been checked. For any trading date with no data, a dummy row with a "missing"
     flag is stored in the cache. When returning data to the caller, dummy rows are filtered out.
-    
+
     Parameters
     ----------
     api_key : str
@@ -114,13 +114,13 @@ def get_price_data_from_polygon(
         If True, forces re-downloading data even if cached data exists. Defaults to False.
     max_workers : int, optional
         The number of parallel threads to use for downloading data. Defaults to 10.
-        
+
     Returns
     -------
     Optional[pd.DataFrame]
         The DataFrame containing the historical pricing data (with dummy rows removed),
         or None if a valid symbol could not be found.
-        
+
     Notes
     -----
     - If the cache file exists and is valid (and force_cache_update is False), cached data is loaded.
@@ -407,201 +407,157 @@ def build_cache_filename(asset: Asset, timespan: str, quote_asset: Asset = None)
     return cache_file
 
 
-def get_missing_dates(
-    df_all: Optional[pd.DataFrame],
-    asset: Asset,
-    start: datetime,
-    end: datetime
-) -> List[datetime.date]:
+def get_missing_dates(df_all, asset, start, end):
     """
-    Determine which trading dates are missing from the cache.
-    
-    A date is considered "checked" if any row exists in the cache (whether it contains real
-    data or a dummy row indicating a missing query). Trading dates are determined from the asset's
-    calendar (via `get_trading_dates()`).
-    
-    Parameters
-    ----------
-    df_all : Optional[pd.DataFrame]
-        The DataFrame loaded from the cache (may be None or empty).
-    asset : Asset
-        The asset for which data is being requested.
-    start : datetime
-        The start datetime of the requested range.
-    end : datetime
-        The end datetime of the requested range.
-        
-    Returns
-    -------
-    List[datetime.date]
-        A sorted list of date objects representing the trading dates that are missing from the cache.
-    """
-    # Get all trading dates from the asset calendar.
-    trading_dates = get_trading_dates(asset, start, end)
-    # For options, limit to dates on or before the expiration.
-    if asset.asset_type == "option":
-        trading_dates = [d for d in trading_dates if d <= asset.expiration]
-    if df_all is None or df_all.empty:
-        return trading_dates
-    # Use only the date portion of the cache index.
-    cached_dates = {d.date() for d in df_all.index}
-    missing_dates = sorted(set(trading_dates) - cached_dates)
-    # Ensure the missing dates fall within the requested range.
-    missing_dates = [d for d in missing_dates if start.date() <= d <= end.date()]
-    return missing_dates
+    Check if we have data for the full range
+    Later Query to Polygon will pad an extra full day to start/end dates so that there should never
+    be any gap with intraday data missing.
 
-
-def load_cache(cache_file: Path) -> pd.DataFrame:
-    """
-    Load cached data from a Feather file and return a DataFrame with a UTC‐aware DateTimeIndex.
-    
-    Parameters
-    ----------
-    cache_file : Path
-        The path to the Feather cache file.
-        
-    Returns
-    -------
-    pd.DataFrame
-        The DataFrame containing the cached data with the 'datetime' column set as the index.
-        
-    Raises
-    ------
-    KeyError
-        If the 'datetime' column is not found in the cache file.
-    """
-    df = pd.read_feather(cache_file)
-    if "datetime" not in df.columns:
-        raise KeyError(f"'datetime' column not found in {cache_file}")
-    # Set 'datetime' column as index and convert to datetime objects
-    df.set_index("datetime", inplace=True)
-    df.index = pd.to_datetime(df.index)
-    df = df.sort_index()
-    # Ensure index is UTC‐aware
-    if df.index.tzinfo is None:
-        df.index = df.index.tz_localize("UTC")
-    else:
-        df.index = df.index.tz_convert("UTC")
-    return df
-
-def update_cache(
-    cache_file: Path, 
-    df_all: Optional[pd.DataFrame], 
-    missing_dates: Optional[List[datetime.date]] = None
-) -> pd.DataFrame:
-    """
-    Update the cache file by adding any missing dates as dummy rows.
-    
-    For each date in `missing_dates` that is not already present in the cache,
-    a dummy row is added (with a "missing" flag set to True). This ensures that
-    dates which were queried but returned no data are recorded, so that they
-    will not be re-downloaded on subsequent runs.
-    
-    Parameters
-    ----------
-    cache_file : Path
-        The path to the cache file.
-    df_all : Optional[pd.DataFrame]
-        The existing cached DataFrame (may be None or empty).
-    missing_dates : Optional[List[datetime.date]]
-        List of date objects for which data is missing.
-        
-    Returns
-    -------
-    pd.DataFrame
-        The updated DataFrame (which is also saved to the cache file).
-    """
-    # Ensure we have a DataFrame to work with.
-    if df_all is None:
-        df_all = pd.DataFrame()
-
-    # If there is cached data, ensure the index is UTC‐aware and sorted.
-    if not df_all.empty:
-        df_all.index = pd.to_datetime(df_all.index)
-        if df_all.index.tzinfo is None:
-            df_all.index = df_all.index.tz_localize("UTC")
-        else:
-            df_all.index = df_all.index.tz_convert("UTC")
-        df_all = df_all.sort_index()
-
-    # Determine dates already present in the cache (from the index).
-    cached_dates = {d.date() for d in df_all.index} if not df_all.empty else set()
-    dummy_rows = []
-    # For every missing date not in the cache, create a dummy row.
-    for d in missing_dates or []:
-        if d not in cached_dates:
-            # Create a datetime at the start of the day using the default timezone,
-            # then convert to UTC.
-            dt = datetime(year=d.year, month=d.month, day=d.day, tzinfo=LUMIBOT_DEFAULT_PYTZ)
-            dt_utc = dt.astimezone(timezone.utc)
-            dummy_rows.append((dt_utc, {"missing": True}))
-    # If any dummy rows were created, add them to the DataFrame.
-    if dummy_rows:
-        missing_df = pd.DataFrame(
-            [row for dt, row in dummy_rows],
-            index=[dt for dt, row in dummy_rows]
-        )
-        missing_df.index.name = "datetime"
-        df_all = pd.concat([df_all, missing_df])
-        df_all = df_all.sort_index()
-    # Save the updated DataFrame to the cache file.
-    if not df_all.empty:
-        cache_file.parent.mkdir(parents=True, exist_ok=True)
-        df_to_save = df_all.reset_index()
-        df_to_save.to_feather(cache_file)
-    return df_all
-
-def update_polygon_data(df_all, result):
-    """
-    Update the DataFrame with the new data from Polygon.
-    
     Parameters
     ----------
     df_all : pd.DataFrame
-        A DataFrame with the data we already have.
-    result : list
-        A list of dictionaries with the new data from Polygon.
-        Format: [{'o': 1.0, 'h': 2.0, 'l': 3.0, 'c': 4.0, 'v': 5.0, 't': 116120000000}]
-        
+        Data loaded from the cache file
+    asset : Asset
+        Asset we are getting data for
+    start : datetime
+        Start date for the data requested
+    end : datetime
+        End date for the data requested
+
     Returns
     -------
-    pd.DataFrame
-        The updated DataFrame.
+    list[datetime.date]
+        A list of dates that we need to get data for
+    """
+    trading_dates = get_trading_dates(asset, start, end)
+
+    # For Options, don't need any dates passed the expiration date
+    if asset.asset_type == "option":
+        trading_dates = [x for x in trading_dates if x <= asset.expiration]
+
+    if df_all is None or not len(df_all) or df_all.empty:
+        return trading_dates
+
+    # It is possible to have full day gap in the data if previous queries were far apart
+    # Example: Query for 8/1/2023, then 8/31/2023, then 8/7/2023
+    # Whole days are easy to check for because we can just check the dates in the index
+    dates = pd.Series(df_all.index.date).unique()
+    missing_dates = sorted(set(trading_dates) - set(dates))
+
+    # Find any dates with nan values in the df_all DataFrame. This happens for some infrequently traded assets, but
+    # it is difficult to know if the data is actually missing or if it is just infrequent trading, query for it again.
+    missing_dates += df_all[df_all.isnull().all(axis=1)].index.date.tolist()
+
+    # make sure the dates are unique
+    missing_dates = list(set(missing_dates))
+    missing_dates.sort()
+
+    # finally, filter out any dates that are not in start/end range (inclusive)
+    missing_dates = [d for d in missing_dates if start.date() <= d <= end.date()]
+
+    return missing_dates
+
+
+def load_cache(cache_file):
+    """Load the data from the cache file and return a DataFrame with a DateTimeIndex"""
+    df_feather = pd.read_feather(cache_file)
+
+    # Set the 'datetime' column as the index of the DataFrame
+    df_feather.set_index("datetime", inplace=True)
+
+    df_feather.index = pd.to_datetime(
+        df_feather.index
+    )  # TODO: Is there some way to speed this up? It takes several times longer than just reading the feather file
+    df_feather = df_feather.sort_index()
+
+    # Check if the index is already timezone aware
+    if df_feather.index.tzinfo is None:
+        # Set the timezone to UTC
+        df_feather.index = df_feather.index.tz_localize("UTC")
+
+    return df_feather
+
+def update_cache(cache_file, df_all, missing_dates=None):
+    """Update the cache file with the new data.  Missing dates are added as empty (all NaN) 
+    rows before it is saved to the cache file.
+
+    Parameters
+    ----------
+    cache_file : Path
+        The path to the cache file
+    df_all : pd.DataFrame
+        The DataFrame with the data we want to cache
+    missing_dates : list[datetime.date]
+        A list of dates that are missing bars from Polygon"""
+
+    if df_all is None:
+        df_all = pd.DataFrame()
+
+    if missing_dates:
+        missing_df = pd.DataFrame(
+            [datetime(year=d.year, month=d.month, day=d.day, tzinfo=LUMIBOT_DEFAULT_PYTZ) for d in missing_dates],
+            columns=["datetime"])
+        missing_df.set_index("datetime", inplace=True)
+        # Set the timezone to UTC
+        missing_df.index = missing_df.index.tz_convert("UTC")
+        df_concat = pd.concat([df_all, missing_df]).sort_index()
+        # Let's be careful and check for duplicates to avoid corrupting the feather file.
+        if df_concat.index.duplicated().any():
+            logging.warn(f"Duplicate index entries found when trying to update Polygon cache {cache_file}")
+            if df_all.index.duplicated().any():
+                logging.warn("The duplicate index entries were already in df_all")
+        else:
+            # All good, persist with the missing dates added
+            df_all = df_concat
+
+    if len(df_all) > 0:
+        # Create the directory if it doesn't exist
+        cache_file.parent.mkdir(parents=True, exist_ok=True)
+
+        # Reset the index to convert DatetimeIndex to a regular column
+        df_all_reset = df_all.reset_index()
+
+        # Save the data to a feather file
+        df_all_reset.to_feather(cache_file)
+
+
+def update_polygon_data(df_all, result):
+    """
+    Update the DataFrame with the new data from Polygon
+    Parameters
+    ----------
+    df_all : pd.DataFrame
+        A DataFrame with the data we already have
+    result : list
+        A List of dictionaries with the new data from Polygon
+        Format: [{'o': 1.0, 'h': 2.0, 'l': 3.0, 'c': 4.0, 'v': 5.0, 't': 116120000000}]
     """
     df = pd.DataFrame(result)
-    if df.empty:
-        return df_all
+    if not df.empty:
+        # Rename columns
+        df = df.rename(
+            columns={
+                "o": "open",
+                "h": "high",
+                "l": "low",
+                "c": "close",
+                "v": "volume",
+            }
+        )
 
-    # Rename columns
-    df = df.rename(
-        columns={
-            "o": "open",
-            "h": "high",
-            "l": "low",
-            "c": "close",
-            "v": "volume",
-        }
-    )
+        # Create a datetime column and set it as the index
+        timestamp_col = "t" if "t" in df.columns else "timestamp"
+        df = df.assign(datetime=pd.to_datetime(df[timestamp_col], unit="ms"))
+        df = df.set_index("datetime").sort_index()
 
-    # Create a datetime column and set it as the index
-    timestamp_col = "t" if "t" in df.columns else "timestamp"
-    df = df.assign(datetime=pd.to_datetime(df[timestamp_col], unit="ms"))
-    df = df.set_index("datetime").sort_index()
+        # Set the timezone to UTC
+        df.index = df.index.tz_localize("UTC")
 
-    # Localize the index to UTC
-    df.index = df.index.tz_localize("UTC")
-
-    # Remove any existing rows that are completely empty so the new data can replace them
-    if df_all is not None:
-        df_all = df_all.dropna(how="all")
-
-    if df_all is None or df_all.empty:
-        df_all = df
-    else:
-        # Merge new data with existing data.
-        df_all = pd.concat([df_all, df]).sort_index()
-        # Remove duplicate rows – using keep="last" so that new data overrides cached NaNs.
-        df_all = df_all[~df_all.index.duplicated(keep="last")]
+        if df_all is None or df_all.empty:
+            df_all = df
+        else:
+            df_all = pd.concat([df_all, df]).sort_index()
+            df_all = df_all[~df_all.index.duplicated(keep="first")]  # Remove any duplicate rows
 
     return df_all
 

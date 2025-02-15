@@ -12,7 +12,7 @@ from alpaca.data.timeframe import TimeFrame
 from lumibot.data_sources import PandasData
 from lumibot.entities import Data, Asset
 from lumibot import LUMIBOT_CACHE_FOLDER
-from lumibot.tools.helpers import date_n_bars_from_date
+from lumibot.tools.helpers import date_n_days_from_date
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +61,7 @@ class AlpacaBacktesting(PandasData):
             end_date (str): The end date of the historical data range in string
                 format. Must comply with the `pandas.to_datetime` format.
             timestep (str): The time interval for the historical data (e.g., 'minute',
-                'hour', 'day'). Default is 'day'.
+                'day'). Default is 'day'.
             refresh_cache (bool): Whether to refresh the cached historical data or use
                 existing cache. Default is False.
             adjustment (str): The type of price adjustment to apply. Potential values
@@ -91,7 +91,7 @@ class AlpacaBacktesting(PandasData):
         end_dt = pd.to_datetime(end_date).tz_localize(self.tz_name)
 
         if warm_up_bars > 0:
-            warm_up_start_dt = date_n_bars_from_date(
+            warm_up_start_dt = date_n_days_from_date(
                 n_bars=warm_up_bars,
                 start_datetime=start_dt,
             )

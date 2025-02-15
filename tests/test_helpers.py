@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 
 from lumibot.tools.helpers import (
     has_more_than_n_decimal_places,
-    date_n_bars_from_date,
+    date_n_days_from_date,
 )
 
 
@@ -23,13 +23,13 @@ def test_has_more_than_n_decimal_places():
 def test_date_n_bars_from_date_valid_input(mocker):
 
     start_datetime = datetime(2025, 1, 17)
-    result = date_n_bars_from_date(
+    result = date_n_days_from_date(
         n_bars=1,
         start_datetime=start_datetime,
     )
     assert result == datetime(2025, 1, 16).date()
 
-    result = date_n_bars_from_date(
+    result = date_n_days_from_date(
         n_bars=4,
         start_datetime=start_datetime,
     )
@@ -37,16 +37,15 @@ def test_date_n_bars_from_date_valid_input(mocker):
 
     # test skipping holidays (MLK) (and also a long weekend)
     start_datetime = datetime(2025, 1, 21)
-    result = date_n_bars_from_date(
+    result = date_n_days_from_date(
         n_bars=1,
         start_datetime=start_datetime,
     )
     assert result == datetime(2025, 1, 17).date()
 
-
     # test days in the future using negative bars
     start_datetime = datetime(2025, 1, 16)
-    result = date_n_bars_from_date(
+    result = date_n_days_from_date(
         n_bars=-1,
         start_datetime=start_datetime,
     )
@@ -54,16 +53,25 @@ def test_date_n_bars_from_date_valid_input(mocker):
 
     # test skipping holidays (MLK) (and also a long weekend)
     start_datetime = datetime(2025, 1, 17)
-    result = date_n_bars_from_date(
+    result = date_n_days_from_date(
         n_bars=-1,
         start_datetime=start_datetime,
     )
     assert result == datetime(2025, 1, 21).date()
 
+    # test some more dates
+
+    start_datetime = datetime(2019, 3, 1)
+    result = date_n_days_from_date(
+        n_bars=30,
+        start_datetime=start_datetime,
+    )
+    assert result == datetime(2019, 1, 16).date()
+
 
 def test_date_n_bars_from_date_zero_bars():
     start_datetime = datetime(2023, 10, 15)
-    result = date_n_bars_from_date(
+    result = date_n_days_from_date(
         n_bars=0,
         start_datetime=start_datetime
     )

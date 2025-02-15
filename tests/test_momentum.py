@@ -9,9 +9,9 @@ import pandas as pd
 from pandas.testing import assert_series_equal
 
 from lumibot.strategies import Strategy
-from lumibot.backtesting import PandasDataBacktesting, YahooDataBacktesting, PolygonDataBacktesting
+from lumibot.backtesting import PandasDataBacktesting, YahooDataBacktesting, AlpacaBacktesting
 from tests.fixtures import pandas_data_fixture
-from lumibot.tools import print_full_pandas_dataframes, set_pandas_float_display_precision
+from lumibot.credentials import ALPACA_CONFIG
 
 
 logger = logging.getLogger(__name__)
@@ -201,5 +201,66 @@ class TestMomentum:
             comparison_df["expected_momo"],
             check_names=False,
             atol=1e-4,
+            rtol=0
+        )
+
+    # @pytest.mark.skip()
+    @pytest.mark.skipif(
+        not ALPACA_CONFIG['API_KEY'],
+        reason="This test requires an alpaca API key"
+    )
+    @pytest.mark.skipif(
+        ALPACA_CONFIG['API_KEY'] == '<your key here>',
+        reason="This test requires an alpaca API key"
+    )
+    def test_momo_alpaca_lookback_30(self):
+        tickers = "SPY"
+        start_date = self.backtesting_start.date().isoformat()
+        end_date = self.backtesting_end.date().isoformat()
+        timestep = 'day'
+        refresh_cache = True
+        tz_name = "America/New_York"
+        lookback_period = 30
+
+        data_source = AlpacaBacktesting(
+            tickers=tickers,
+            start_date=start_date,
+            end_date=end_date,
+            timestep=timestep,
+            config=ALPACA_CONFIG,
+            # refresh_cache=refresh_cache,
+            tz_name=tz_name,
+            warm_up_bars=lookback_period
+        )
+
+        parameters = {
+            "lookback_period": lookback_period,
+        }
+
+        results, strat_obj = MomoTester.run_backtest(
+            datasource_class=PandasDataBacktesting,
+            pandas_data=data_source.pandas_data,
+            backtesting_start=self.backtesting_start,
+            backtesting_end=self.backtesting_end,
+            parameters=parameters,
+            show_plot=False,
+            show_tearsheet=False,
+            save_tearsheet=False,
+            show_indicators=False,
+            save_logfile=False,
+            show_progress_bar=False,
+            quiet_logs=False
+        )
+        comparison_df = self.build_comparison_df(strat_obj)
+        # print(f"\n{comparison_df}")
+
+        # Remove the first row
+        comparison_df = comparison_df.iloc[1:]
+
+        assert_series_equal(
+            comparison_df["actual_momo"],
+            comparison_df["expected_momo"],
+            check_names=False,
+            atol=1e-3,
             rtol=0
         )

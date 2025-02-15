@@ -1083,15 +1083,7 @@ class Strategy(_Strategy):
 
         """
 
-        tracked_positions = self.broker.get_tracked_positions(self.name)
-
-        # Remove the quote asset from the positions list if it is there
-        clean_positions = []
-        for position in tracked_positions:
-            if position.asset != self.quote_asset:
-                clean_positions.append(position)
-
-        return clean_positions
+        return self.broker.get_tracked_positions(self.name)
 
     def get_historical_bot_stats(self):
         """Get the historical account value.

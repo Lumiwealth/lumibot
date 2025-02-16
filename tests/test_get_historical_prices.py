@@ -622,7 +622,7 @@ class TestDatasourceGetHistoricalPricesDailyData:
         check_bars(bars=bars, length=1, check_timezone=False)
         self.check_date_of_last_bar_is_correct_for_live_data_sources(bars)
 
-    @pytest.mark.skip()
+    # @pytest.mark.skip()
     @pytest.mark.skipif(
         not ALPACA_CONFIG['API_KEY'],
         reason="This test requires an alpaca API key"

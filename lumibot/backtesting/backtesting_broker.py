@@ -34,34 +34,6 @@ class BacktestingBroker(Broker):
         if not isinstance(self.data_source, DataSourceBacktesting):
             raise ValueError("Must provide a backtesting data_source to run with a BacktestingBroker")
 
-    def __getattribute__(self, name):
-        attr = object.__getattribute__(self, name)
-
-        if name == "submit_order":
-            broker = self
-
-            @wraps(attr)
-            def new_func(order, *args, **kwargs):
-                result = attr(order, *args, **kwargs)
-                if result.was_transmitted() and result.order_class and result.order_class == Order.OrderClass.OCO:
-                    orders = broker._flatten_order(result)
-                    for order in orders:
-                        logger.info(f"{order} was sent to broker {self.name}")
-                        broker._new_orders.append(order)
-
-                    # Remove the original order from the list of new orders because
-                    # it's been replaced by the individual orders
-                    broker._new_orders.remove(result)
-                elif order not in broker._new_orders:
-                    # David M: This seems weird and I don't understand why we're doing this.  It seems like
-                    # we're adding the order to the new orders list twice, so checking first.
-                    broker._new_orders.append(order)
-                return result
-
-            return new_func
-        else:
-            return attr
-
     @property
     def datetime(self):
         return self.data_source.get_datetime()
@@ -267,11 +239,36 @@ class BacktestingBroker(Broker):
     def _flatten_order(self, order):
         """Some submitted orders may triggers other orders.
         _flatten_order returns a list containing the derived orders"""
-
+        # OCO order does not include the main parent (entry) order becuase that has been placed earlier. Only the
+        # child (exit) orders are included in the list
         orders = []
-        if order.order_class == "":
+        if order.order_class != Order.OrderClass.OCO:
             orders.append(order)
-            if order.stop_price:
+
+        if order.is_parent():
+            for child_order in order.child_orders:
+                orders.extend(self._flatten_order(child_order))
+
+        # This entire else block should be depricated as child orders should be built in the Order.__init__()
+        # to ensure that the proper orders are created up front.
+        else:
+            # David M - Note sure what case this "empty" block is supposed to support.  Why is it adding itself and
+            # a stop loss order?  But not a potential limit order?
+            if order.order_class == "" or order.order_class is None:
+                orders.append(order)
+                if order.stop_price:
+                    stop_loss_order = Order(
+                        order.strategy,
+                        order.asset,
+                        order.quantity,
+                        order.side,
+                        stop_price=order.stop_price,
+                        quote=order.quote,
+                    )
+                    stop_loss_order = self._parse_broker_order(stop_loss_order, order.strategy)
+                    orders.append(stop_loss_order)
+
+            elif order.order_class == Order.OrderClass.OCO:
                 stop_loss_order = Order(
                     order.strategy,
                     order.asset,
@@ -280,61 +277,53 @@ class BacktestingBroker(Broker):
                     stop_price=order.stop_price,
                     quote=order.quote,
                 )
-                stop_loss_order = self._parse_broker_order(stop_loss_order, order.strategy)
                 orders.append(stop_loss_order)
 
-        elif order.order_class == Order.OrderClass.OCO:
-            stop_loss_order = Order(
-                order.strategy,
-                order.asset,
-                order.quantity,
-                order.side,
-                stop_price=order.stop_loss_price,
-                quote=order.quote,
-            )
-            orders.append(stop_loss_order)
-
-            limit_order = Order(
-                order.strategy,
-                order.asset,
-                order.quantity,
-                order.side,
-                limit_price=order.take_profit_price,
-                quote=order.quote,
-            )
-            orders.append(limit_order)
-
-            stop_loss_order.dependent_order = limit_order
-            limit_order.dependent_order = stop_loss_order
-
-        elif order.order_class in ["bracket", "oto"]:
-            side = "sell" if order.side == "buy" else "buy"
-            if order.order_class == "bracket" or (order.order_class == "oto" and order.stop_loss_price):
-                stop_loss_order = Order(
-                    order.strategy,
-                    order.asset,
-                    order.quantity,
-                    side,
-                    stop_price=order.stop_loss_price,
-                    limit_price=order.stop_loss_limit_price,
-                    quote=order.quote,
-                )
-                orders.append(stop_loss_order)
-
-            if order.order_class == "bracket" or (order.order_class == "oto" and order.take_profit_price):
                 limit_order = Order(
                     order.strategy,
                     order.asset,
                     order.quantity,
-                    side,
-                    limit_price=order.take_profit_price,
+                    order.side,
+                    limit_price=order.limit_price,
                     quote=order.quote,
                 )
                 orders.append(limit_order)
 
-            if order.order_class == "bracket":
                 stop_loss_order.dependent_order = limit_order
                 limit_order.dependent_order = stop_loss_order
+
+            elif order.order_class in [Order.OrderClass.BRACKET, Order.OrderClass.OTO]:
+                side = Order.OrderSide.SELL if order.is_buy_order() else Order.OrderSide.BUY
+                if (order.order_class == Order.OrderClass.BRACKET or
+                        (order.order_class == Order.OrderClass.OTO and order.secondary_stop_price)):
+                    stop_loss_order = Order(
+                        order.strategy,
+                        order.asset,
+                        order.quantity,
+                        side,
+                        stop_price=order.secondary_stop_price,
+                        stop_limit_price=order.secondary_stop_limit_price,
+                        trail_price=order.secondary_trail_price,
+                        trail_percent=order.secondary_trail_percent,
+                        quote=order.quote,
+                    )
+                    orders.append(stop_loss_order)
+
+                if (order.order_class == Order.OrderClass.BRACKET or
+                        (order.order_class == Order.OrderClass.OTO and order.secondary_limit_price)):
+                    limit_order = Order(
+                        order.strategy,
+                        order.asset,
+                        order.quantity,
+                        side,
+                        limit_price=order.secondary_limit_price,
+                        quote=order.quote,
+                    )
+                    orders.append(limit_order)
+
+                if order.order_class == Order.OrderClass.BRACKET:
+                    stop_loss_order.dependent_order = limit_order
+                    limit_order.dependent_order = stop_loss_order
 
         return orders
 
@@ -393,17 +382,40 @@ class BacktestingBroker(Broker):
         # NOTE: This code is to address Tradier API requirements, they want is as "to_open" or "to_close" instead of just "buy" or "sell"
         # If the order has a "buy_to_open" or "buy_to_close" side, then we should change it to "buy"
         if order.is_buy_order():
-            order.side = "buy"
+            order.side = Order.OrderSide.BUY
         # If the order has a "sell_to_open" or "sell_to_close" side, then we should change it to "sell"
         if order.is_sell_order():
-            order.side = "sell"
+            order.side = Order.OrderSide.SELL
 
-        order.update_raw(order)
-        self.stream.dispatch(
-            self.NEW_ORDER,
-            wait_until_complete=True,
-            order=order,
-        )
+        # Submit regular and Bracket/OTO orders now.
+        # OCO orders have no parent orders, so do not submit this "main" order. The children of an OCO will be
+        # submitted below. Bracket/OTO orders will be submitted here, but their child orders will not be submitted
+        # until the parent order is filled
+        if order.order_class != Order.OrderClass.OCO:
+            order.update_raw(order)
+            self.stream.dispatch(
+                self.NEW_ORDER,
+                wait_until_complete=True,
+                order=order,
+            )
+
+        # Only an OCO order submits the child orders immediately. Bracket/OTO child orders are not submitted until
+        # the parent order is filled
+        else:
+            for child in order.child_orders:
+                if child.is_buy_order():
+                    child.side = Order.OrderSide.BUY
+                elif child.is_sell_order():
+                    child.side = Order.OrderSide.SELL
+
+                child.parent_identifier = order.identifier
+                child.update_raw(child)
+                self.stream.dispatch(
+                    self.NEW_ORDER,
+                    wait_until_complete=True,
+                    order=child,
+                )
+
         return order
 
     def _submit_orders(self, orders, is_multileg=False, **kwargs):
@@ -429,7 +441,7 @@ class BacktestingBroker(Broker):
                 order_class=Order.OrderClass.MULTILEG,
                 side=orders[0].side,
                 quantity=orders[0].quantity,
-                type=orders[0].type,
+                order_type=orders[0].order_type,
                 tag=orders[0].tag,
                 status=Order.OrderStatus.SUBMITTED
             )
@@ -451,14 +463,17 @@ class BacktestingBroker(Broker):
             wait_until_complete=True,
             order=order,
         )
+        # Cancel all child orders as well
+        for child in order.child_orders:
+            self.cancel_order(child)
 
     def _modify_order(self, order: Order, limit_price: Union[float, None] = None,
                       stop_price: Union[float, None] = None):
         """Modify an order. Only limit/stop price is allowed to be modified by most brokers."""
         price = None
-        if order.type == order.OrderType.LIMIT:
+        if order.order_type == order.OrderType.LIMIT:
             price = limit_price
-        elif order.type == order.OrderType.STOP:
+        elif order.order_type == order.OrderType.STOP:
             price = stop_price
 
         self.stream.dispatch(
@@ -584,13 +599,13 @@ class BacktestingBroker(Broker):
             trading_fees: list[TradingFee] = strategy.sell_trading_fees
 
         for trading_fee in trading_fees:
-            if trading_fee.taker == True and order.type in [
+            if trading_fee.taker == True and order.order_type in [
                 "market",
                 "stop",
             ]:
                 trade_cost += trading_fee.flat_fee
                 trade_cost += Decimal(price) * Decimal(order.quantity) * trading_fee.percent_fee
-            elif trading_fee.maker == True and order.type in [
+            elif trading_fee.maker == True and order.order_type in [
                 "limit",
                 "stop_limit",
             ]:
@@ -627,7 +642,7 @@ class BacktestingBroker(Broker):
                 continue
 
             # Multileg parent orders will wait for child orders to fill before processing
-            if order.is_parent():
+            if order.order_class == Order.OrderClass.MULTILEG:
                 # If this is the final fill for a multileg order, mark the parent order as filled
                 if all([o.is_filled() for o in order.child_orders]):
                     parent_qty = sum([abs(o.quantity) for o in order.child_orders])
@@ -714,38 +729,39 @@ class BacktestingBroker(Broker):
             #############################
             # Determine transaction price.
             #############################
-
-            if order.type == "market":
+            simple_side = "buy" if order.is_buy_order() else "sell"
+            if order.order_type == Order.OrderType.MARKET:
                 price = open
 
-            elif order.type == "limit":
-                price = self.limit_order(order.limit_price, order.side, open, high, low)
+            elif order.order_type == Order.OrderType.LIMIT:
+                price = self.limit_order(order.limit_price, simple_side, open, high, low)
 
-            elif order.type == "stop":
-                price = self.stop_order(order.stop_price, order.side, open, high, low)
+            elif order.order_type == Order.OrderType.STOP:
+                price = self.stop_order(order.stop_price, simple_side, open, high, low)
 
-            elif order.type == "stop_limit":
+            elif order.order_type == Order.OrderType.STOP_LIMIT:
                 if not order.price_triggered:
-                    price = self.stop_order(order.stop_price, order.side, open, high, low)
+                    price = self.stop_order(order.stop_price, simple_side, open, high, low)
                     if price is not None:
-                        price = self.limit_order(order.limit_price, order.side, price, high, low)
+                        price = self.limit_order(order.limit_price, simple_side, price, high, low)
                         order.price_triggered = True
                 elif order.price_triggered:
-                    price = self.limit_order(order.limit_price, order.side, open, high, low)
+                    price = self.limit_order(order.limit_price, simple_side, open, high, low)
 
-            elif order.type == "trailing_stop":
-                if order._trail_stop_price:
+            elif order.order_type == Order.OrderType.TRAIL:
+                current_trail_stop_price = order.get_current_trail_stop_price()
+                if current_trail_stop_price:
                     # Check if we have hit the trail stop price for both sell/buy orders
-                    price = self.stop_order(order._trail_stop_price, order.side, open, high, low)
+                    price = self.stop_order(current_trail_stop_price, simple_side, open, high, low)
 
                 # Update the stop price if the price has moved
-                if order.side == "sell":
+                if order.is_sell_order():
                     order.update_trail_stop_price(high)
-                elif order.side == "buy":
+                elif order.is_buy_order():
                     order.update_trail_stop_price(low)
 
             else:
-                raise ValueError(f"Order type {order.type} is not implemented for backtesting.")
+                raise ValueError(f"Order type {order.order_type} is not implemented for backtesting.")
 
             #############################
             # Fill the order.
@@ -756,14 +772,14 @@ class BacktestingBroker(Broker):
                 if order.dependent_order:
                     order.dependent_order.dependent_order_filled = True
                     strategy.broker.cancel_order(order.dependent_order)
-
                     # self.cancel_order(order.dependent_order)
 
-                if order.order_class in ["bracket", "oto"]:
-                    orders = self._flatten_order(order)
-                    for flat_order in orders:
-                        logger.info(f"{order} was sent to broker {self.name}")
-                        self._new_orders.append(flat_order)
+                # Child orders of Bracket and OTO are not submitted until the parent order is filled
+                if order.order_class in [Order.OrderClass.BRACKET, Order.OrderClass.OTO]:
+                    for child_order in order.child_orders:
+                        logger.info(f"{child_order} was sent to broker {self.name} now that the parent Bracket/OTO "
+                                    f"order has been filled")
+                        self._new_orders.append(child_order)
 
                 trade_cost = self.calculate_trade_cost(order, strategy, price)
 

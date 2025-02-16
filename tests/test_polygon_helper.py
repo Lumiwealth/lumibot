@@ -21,17 +21,17 @@ class TestPolygonHelpers:
         timespan = "1D"
         mocker.patch.object(ph, "LUMIBOT_CACHE_FOLDER", tmpdir)
         expected = tmpdir / "polygon" / "stock_SPY_1D.feather"
-        assert ph.build_cache_filename(asset, timespan) == expected
+        assert ph.build_cache_filename(asset, None, timespan) == expected
 
         expire_date = datetime.date(2023, 8, 1)
         option_asset = Asset("SPY", asset_type="option", expiration=expire_date, strike=100, right="CALL")
         expected = tmpdir / "polygon" / "option_SPY_230801_100_CALL_1D.feather"
-        assert ph.build_cache_filename(option_asset, timespan) == expected
+        assert ph.build_cache_filename(option_asset, None, timespan) == expected
 
         # Bad option asset with no expiration
         option_asset = Asset("SPY", asset_type="option", strike=100, right="CALL")
         with pytest.raises(ValueError):
-            ph.build_cache_filename(option_asset, timespan)
+            ph.build_cache_filename(option_asset, None, timespan)
 
     def test_missing_dates(self):
         # Setup some basics
@@ -309,7 +309,7 @@ class TestPolygonPriceData:
         start_date = tz_e.localize(datetime.datetime(2023, 8, 2, 6, 30))  # Include PreMarket
         end_date = tz_e.localize(datetime.datetime(2023, 8, 2, 13, 0))
         timespan = "minute"
-        expected_cachefile = ph.build_cache_filename(asset, timespan)
+        expected_cachefile = ph.build_cache_filename(asset, None, timespan)
 
         assert not expected_cachefile.exists()
         assert not expected_cachefile.parent.exists()
@@ -403,7 +403,7 @@ class TestPolygonPriceData:
         tz_e = pytz.timezone("US/Eastern")
         start_date = tz_e.localize(datetime.datetime(2023, 8, 2, 6, 30))  # Include PreMarket
         end_date = tz_e.localize(datetime.datetime(2023, 8, 2, 13, 0))
-        expected_cachefile = ph.build_cache_filename(asset, timespan)
+        expected_cachefile = ph.build_cache_filename(asset, None, timespan)
         assert not expected_cachefile.exists()
 
         # Fake some data from Polygon between start and end date

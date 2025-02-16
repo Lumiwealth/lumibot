@@ -486,7 +486,7 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
         start_date = backtesting_start.date().isoformat()
         end_date = backtesting_end.date().isoformat()
         timestep = 'day'
-        refresh_cache = True
+        refresh_cache = False
         tz_name = "America/New_York"
 
         data_source = AlpacaBacktesting(
@@ -495,7 +495,7 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
             end_date=end_date,
             timestep=timestep,
             config=ALPACA_CONFIG,
-            # refresh_cache=refresh_cache,
+            refresh_cache=refresh_cache,
             tz_name=tz_name,
         )
 
@@ -536,7 +536,7 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
         start_date = backtesting_start.date().isoformat()
         end_date = backtesting_end.date().isoformat()
         timestep = 'day'
-        refresh_cache = True
+        refresh_cache = False
         tz_name = "America/New_York"
         length = 10
 
@@ -546,7 +546,7 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
             end_date=end_date,
             timestep=timestep,
             config=ALPACA_CONFIG,
-            # refresh_cache=refresh_cache,
+            refresh_cache=refresh_cache,
             tz_name=tz_name,
             warm_up_bars=length,
         )
@@ -622,7 +622,7 @@ class TestDatasourceGetHistoricalPricesDailyData:
         check_bars(bars=bars, length=1, check_timezone=False)
         self.check_date_of_last_bar_is_correct_for_live_data_sources(bars)
 
-    @pytest.mark.skip()
+    # @pytest.mark.skip()
     @pytest.mark.skipif(
         not ALPACA_CONFIG['API_KEY'],
         reason="This test requires an alpaca API key"

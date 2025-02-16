@@ -45,6 +45,7 @@ class AlpacaBacktesting(PandasData):
             config: dict | None = None,
             tz_name: str = timezone.utc,
             warm_up_bars: int = 0,
+            auto_adjust: bool = True,
     ):
         """
         Initializes an instance for fetching and managing historical data from Alpaca,
@@ -113,7 +114,12 @@ class AlpacaBacktesting(PandasData):
             tz_name=tz_name
         )
 
-        super().__init__(datetime_start=start_dt, datetime_end=end_dt, pandas_data=pandas_data)
+        super().__init__(
+            datetime_start=start_dt,
+            datetime_end=end_dt,
+            pandas_data=pandas_data,
+            auto_adjust=auto_adjust
+        )
 
     def _fetch_cache_and_load_data(
             self,

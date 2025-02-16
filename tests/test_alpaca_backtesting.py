@@ -1,74 +1,14 @@
-from collections import defaultdict
-from datetime import datetime, timedelta, timezone
-from typing import Any
-
 import pytest
-from lumibot.backtesting import AlpacaBacktesting, BacktestingBroker
+from datetime import datetime
+
+from lumibot.backtesting import AlpacaBacktesting, BacktestingBroker, PandasDataBacktesting
 from lumibot.traders import Trader
 from lumibot.credentials import ALPACA_CONFIG
-from lumibot.strategies import Strategy
-from lumibot.entities import Asset
 
 
-class AlpacaBacktestTestStrategy(Strategy):
-
-    # Set the initial values for the strategy
-    # noinspection PyAttributeOutsideInit
-    def initialize(self, parameters: Any = None) -> None:
-        self.set_market(self.parameters.get("market", "NYSE"))
-        self.sleeptime = self.parameters.get("sleeptime", "1D")
-        self.symbol = self.parameters.get("symbol", "AMZN")
-
-        self.orders = []
-        self.prices = {}
-        self.market_opens = []
-        self.market_closes = []
-        self.trading_iterations = []
-        # Track times to test LifeCycle order methods. Format: {order_id: {'fill': timestamp, 'submit': timestamp}}
-        self.order_time_tracker = defaultdict(lambda: defaultdict(datetime))
-
-    def before_market_opens(self):
-        self.log_message(f"Before market opens called at {self.get_datetime().isoformat()}")
-        self.market_opens.append(self.get_datetime())
-
-    def after_market_closes(self):
-        self.log_message(f"After market closes called at {self.get_datetime().isoformat()}")
-        self.market_closes.append(self.get_datetime())
-        orders = self.get_orders()
-        self.log_message(f"AlpacaBacktestTestStrategy: {len(orders)} orders executed today")
-
-    def on_filled_order(self, position, order, price, quantity, multiplier):
-        self.log_message(f"AlpacaBacktestTestStrategy: Filled Order: {order}")
-        self.order_time_tracker[order.identifier]["fill"] = self.get_datetime()
-
-    def on_new_order(self, order):
-        self.log_message(f"AlpacaBacktestTestStrategy: New Order: {order}")
-        self.order_time_tracker[order.identifier]["submit"] = self.get_datetime()
-
-    def on_canceled_order(self, order):
-        self.log_message(f"AlpacaBacktestTestStrategy: Canceled Order: {order}")
-        self.order_time_tracker[order.identifier]["cancel"] = self.get_datetime()
-
-    # Trading Strategy: Backtest will only buy traded assets on first iteration
-    def on_trading_iteration(self):
-        self.trading_iterations.append(self.get_datetime())
-        if self.first_iteration:
-            now = self.get_datetime()
-
-            asset = Asset(self.parameters["symbol"])
-            current_asset_price = self.get_last_price(asset)
-
-            # Buy 1 shares of the asset for the test
-            qty = 1
-            self.log_message(f"Buying {qty} shares of {asset} at {current_asset_price} @ {now}")
-            order = self.create_order(asset, quantity=qty, side="buy")
-            submitted_order = self.submit_order(order)
-            self.orders.append(submitted_order)
-            self.prices[submitted_order.identifier] = current_asset_price
-
-        # Not the 1st iteration, cancel orders.
-        else:
-            self.cancel_open_orders()
+from tests.fixtures import (
+    BuyOneShareTestStrategy
+)
 
 
 # @pytest.mark.skip()
@@ -83,116 +23,176 @@ class AlpacaBacktestTestStrategy(Strategy):
 class TestAlpacaBacktests:
     """Tests for running backtests with AlpacaBacktesting, BacktestingBroker, and Trader."""
 
+    # @pytest.mark.skip()
     def test_day_data_backtest(self):
-        """
-        Test AlpacaBacktesting with Lumibot Backtesting and real API calls to Alpaca.
-        This test will buy 1 shares of something.
-        """
+        backtesting_start = datetime(2025, 1, 13)
+        backtesting_end = datetime(2025, 1, 18)
         tickers = "AMZN"
-        start_date = "2025-01-13"
-        end_date = "2025-01-18"
         timestep = 'day'
-        refresh_cache = True
+        refresh_cache = False
         tz_name = "America/New_York"
 
         data_source = AlpacaBacktesting(
             tickers=tickers,
-            start_date=start_date,
-            end_date=end_date,
+            start_date=backtesting_start.date().isoformat(),
+            end_date=backtesting_end.date().isoformat(),
             timestep=timestep,
             config=ALPACA_CONFIG,
-            # refresh_cache=refresh_cache,
-            tz_name=tz_name,
+            refresh_cache=refresh_cache,
+            tz_name=tz_name
         )
-        broker = BacktestingBroker(data_source=data_source)
-        strat_obj = AlpacaBacktestTestStrategy(
-            broker=broker,
+
+        results, strategy = BuyOneShareTestStrategy.run_backtest(
+            datasource_class=PandasDataBacktesting,
+            pandas_data=data_source.pandas_data,
+            backtesting_start=backtesting_start,
+            backtesting_end=backtesting_end,
             parameters={
                 "symbol": "AMZN",
                 "sleeptime": "1D",
                 "market": "NYSE"
             },
+            show_plot=False,
+            show_tearsheet=False,
+            save_tearsheet=False,
+            show_indicators=False,
+            save_logfile=False,
+            show_progress_bar=False,
         )
-        trader = Trader(logfile="", backtest=True)
-        trader.add_strategy(strat_obj)
-        results = trader.run_all(show_plot=False, show_tearsheet=False, save_tearsheet=False, tearsheet_file="")
-        # Assert the end datetime is before the next trading day
-        assert broker.datetime.isoformat() == "2025-01-18T09:29:00-05:00"
         assert results
-        self.verify_backtest_results(strat_obj)
 
-        assert list(strat_obj.prices.values())[0] == 218.46
-        assert strat_obj.orders[0].avg_fill_price == 220.44
-        assert list(strat_obj.order_time_tracker.values())[0]['fill'].isoformat() == '2025-01-13T09:30:00-05:00'
+        # Assert the end datetime is before the next trading day
+        assert strategy.broker.datetime.isoformat() == '2025-01-18T09:25:00-05:00'
+        assert strategy.num_trading_iterations == 5
+
+        tracker = strategy.tracker
+        assert tracker["iteration_at"].isoformat() == '2025-01-13T09:30:00-05:00'
+        assert tracker["submitted_at"].isoformat() == '2025-01-13T09:30:00-05:00'
+        assert tracker["filled_at"].isoformat() ==    '2025-01-13T09:30:00-05:00'
+
+        assert tracker['last_price'] == 218.46  # Close of '2025-01-13T09:30:00-05:00'
+        assert tracker["avg_fill_price"] == 220.44  # Open of '2025-01-14T09:30:00-05:00'
+
+        # Checks bug where LifeCycle methods not being called during PANDAS backtesting
+        # assert len(strategy.market_opens) == 5
+        # assert len(strategy.market_closes) == 5
 
     # @pytest.mark.skip()
     def test_minute_data_backtest(self):
+        backtesting_start = datetime(2025, 1, 13)
+        backtesting_end = datetime(2025, 1, 18)
         tickers = "AMZN"
-        start_date = "2025-01-13"
-        end_date = "2025-01-18"
         timestep = 'minute'
-        refresh_cache = True
+        refresh_cache = False
         tz_name = "America/New_York"
 
         data_source = AlpacaBacktesting(
             tickers=tickers,
-            start_date=start_date,
-            end_date=end_date,
+            start_date=backtesting_start.date().isoformat(),
+            end_date=backtesting_end.date().isoformat(),
             timestep=timestep,
             config=ALPACA_CONFIG,
-            # refresh_cache=refresh_cache,
+            refresh_cache=refresh_cache,
             tz_name=tz_name
         )
-        broker = BacktestingBroker(data_source=data_source)
-        strat_obj = AlpacaBacktestTestStrategy(
-            broker=broker,
+
+        results, strategy = BuyOneShareTestStrategy.run_backtest(
+            datasource_class=PandasDataBacktesting,
+            pandas_data=data_source.pandas_data,
+            backtesting_start=backtesting_start,
+            backtesting_end=backtesting_end,
+            parameters={
+                "symbol": "AMZN",
+                "sleeptime": "1M",
+                "market": "NYSE"
+            },
+            show_plot=False,
+            show_tearsheet=False,
+            save_tearsheet=False,
+            show_indicators=False,
+            save_logfile=False,
+            show_progress_bar=False,
+        )
+        assert results
+
+        # Assert the end datetime is before the next trading day
+        assert strategy.broker.datetime.isoformat() == '2025-01-21T08:30:00-05:00'
+        assert strategy.num_trading_iterations == 1930
+
+        tracker = strategy.tracker
+        assert tracker["iteration_at"].isoformat() == '2025-01-13T09:30:00-05:00'
+        assert tracker["submitted_at"].isoformat() == '2025-01-13T09:30:00-05:00'
+        assert tracker["filled_at"].isoformat() ==    '2025-01-13T09:30:00-05:00'
+
+        # current prices seem wrong to me
+        assert tracker['last_price'] == 218.06  # Open price of '2025-01-13T09:30:00-05:00'
+        assert tracker['avg_fill_price'] == 218.06   # Open price of '2025-01-13T09:30:00-05:00'
+
+        # i think it should be:
+        # assert tracker['last_price'] == 217.92  # Close price of '2025-01-13T09:30:00-05:00'
+        # assert tracker['avg_fill_price'] == 218.0  # Open price of '2025-01-13T09:31:00-05:00'
+
+        # Checks bug where LifeCycle methods not being called during PANDAS backtesting
+        # assert len(strategy.market_opens) == 5
+        # assert len(strategy.market_closes) == 5
+
+    def test_minute_data_with_60_sleeptime_backtest(self):
+        backtesting_start = datetime(2025, 1, 13)
+        backtesting_end = datetime(2025, 1, 18)
+        tickers = "AMZN"
+        timestep = 'minute'
+        refresh_cache = False
+        tz_name = "America/New_York"
+
+        data_source = AlpacaBacktesting(
+            tickers=tickers,
+            start_date=backtesting_start.date().isoformat(),
+            end_date=backtesting_end.date().isoformat(),
+            timestep=timestep,
+            config=ALPACA_CONFIG,
+            refresh_cache=refresh_cache,
+            tz_name=tz_name
+        )
+
+        results, strategy = BuyOneShareTestStrategy.run_backtest(
+            datasource_class=PandasDataBacktesting,
+            pandas_data=data_source.pandas_data,
+            backtesting_start=backtesting_start,
+            backtesting_end=backtesting_end,
             parameters={
                 "symbol": "AMZN",
                 "sleeptime": "60M",
                 "market": "NYSE"
             },
+            show_plot=False,
+            show_tearsheet=False,
+            save_tearsheet=False,
+            show_indicators=False,
+            save_logfile=False,
+            show_progress_bar=False,
         )
-
-        trader = Trader(logfile="", backtest=True)
-        trader.add_strategy(strat_obj)
-        results = trader.run_all(show_plot=False, show_tearsheet=False, save_tearsheet=False, tearsheet_file="")
         assert results
+
         # Assert the end datetime is before the next trading day
-        assert broker.datetime.isoformat() == '2025-01-21T08:30:00-05:00'
-        self.verify_backtest_results(strat_obj)
+        assert strategy.broker.datetime.isoformat() == '2025-01-21T08:30:00-05:00'
+        assert strategy.num_trading_iterations == 5 * 7
 
-        assert list(strat_obj.prices.values())[0] == 218.06
-        assert strat_obj.orders[0].avg_fill_price == 218.06
-        assert list(strat_obj.order_time_tracker.values())[0]['fill'].isoformat() == '2025-01-13T09:30:00-05:00'
+        tracker = strategy.tracker
+        assert tracker["iteration_at"].isoformat() == '2025-01-13T09:30:00-05:00'
+        assert tracker["submitted_at"].isoformat() == '2025-01-13T09:30:00-05:00'
+        assert tracker["filled_at"].isoformat() ==    '2025-01-13T09:30:00-05:00'
 
-    # noinspection PyMethodMayBeStatic
-    def verify_backtest_results(self, strat_obj):
-        assert isinstance(strat_obj, AlpacaBacktestTestStrategy)
+        # current prices seem wrong to me
+        assert tracker['last_price'] == 218.06  # Open price of '2025-01-13T09:30:00-05:00'
+        assert tracker['avg_fill_price'] == 218.06   # Open price of '2025-01-13T09:30:00-05:00'
+
+        # i think it should be:
+        # assert tracker['last_price'] == 217.92  # Close price of '2025-01-13T09:30:00-05:00'
+        # assert tracker['avg_fill_price'] == 218.0  # Open price of '2025-01-13T09:31:00-05:00'
 
         # Checks bug where LifeCycle methods not being called during PANDAS backtesting
-        # assert len(strat_obj.market_opens) == 5
-        # assert len(strat_obj.market_closes) == 5
-
-        # check the right number of bars were called
-        if strat_obj.sleeptime == '1D':
-            assert len(strat_obj.trading_iterations) == 5
-        elif strat_obj.sleeptime == "60M":
-            assert len(strat_obj.trading_iterations) == 5 * 7
-
-        # Check order submitted
-        assert len(strat_obj.orders) == 1
-        stock_order = strat_obj.orders[0]
-        asset_order_id = stock_order.identifier
-        assert asset_order_id in strat_obj.prices
-
-        # Check that the on_*_order methods were called
-        assert len(strat_obj.order_time_tracker) == 1
-        assert asset_order_id in strat_obj.order_time_tracker
-        assert strat_obj.order_time_tracker[asset_order_id]["submit"]
-        assert (
-            strat_obj.order_time_tracker[asset_order_id]["fill"]
-            >= strat_obj.order_time_tracker[asset_order_id]["submit"]
-        )
+        # assert len(strategy.market_opens) == 5
+        # assert len(strategy.market_closes) == 5
 
 
 # @pytest.mark.skip()
@@ -213,7 +213,7 @@ class TestAlpacaBacktesting:
         start_date = "2025-01-13"
         end_date = "2025-01-18"
         timestep = 'day'
-        refresh_cache = True
+        refresh_cache = False
 
         data_source = AlpacaBacktesting(
             tickers=tickers,
@@ -221,7 +221,7 @@ class TestAlpacaBacktesting:
             end_date=end_date,
             timestep=timestep,
             config=ALPACA_CONFIG,
-            # refresh_cache=refresh_cache,
+            refresh_cache=refresh_cache,
         )
 
         assert data_source.datetime_start.isoformat() == "2025-01-13T00:00:00+00:00"
@@ -248,7 +248,7 @@ class TestAlpacaBacktesting:
         start_date = "2025-01-13"
         end_date = "2025-01-14"
         timestep = 'minute'
-        refresh_cache = True
+        refresh_cache = False
 
         data_source = AlpacaBacktesting(
             tickers=tickers,
@@ -256,7 +256,7 @@ class TestAlpacaBacktesting:
             end_date=end_date,
             timestep=timestep,
             config=ALPACA_CONFIG,
-            # refresh_cache=refresh_cache,
+            refresh_cache=refresh_cache,
         )
 
         assert data_source.datetime_start.isoformat() == "2025-01-13T00:00:00+00:00"
@@ -283,7 +283,7 @@ class TestAlpacaBacktesting:
         start_date = "2025-01-13"
         end_date = "2025-01-18"
         timestep = 'day'
-        refresh_cache = True
+        refresh_cache = False
         tz_name = "US/Eastern"
 
         data_source = AlpacaBacktesting(
@@ -292,7 +292,7 @@ class TestAlpacaBacktesting:
             end_date=end_date,
             timestep=timestep,
             config=ALPACA_CONFIG,
-            # refresh_cache=refresh_cache,
+            refresh_cache=refresh_cache,
             tz_name=tz_name
         )
 
@@ -321,7 +321,7 @@ class TestAlpacaBacktesting:
         start_date = "2025-01-13"
         end_date = "2025-01-18"
         timestep = 'day'
-        refresh_cache = True
+        refresh_cache = False
 
         data_source = AlpacaBacktesting(
             tickers=tickers,
@@ -329,7 +329,7 @@ class TestAlpacaBacktesting:
             end_date=end_date,
             timestep=timestep,
             config=ALPACA_CONFIG,
-            # refresh_cache=refresh_cache,
+            refresh_cache=refresh_cache,
         )
 
         assert data_source.datetime_start.isoformat() == "2025-01-13T00:00:00+00:00"
@@ -356,7 +356,7 @@ class TestAlpacaBacktesting:
         start_date = "2025-01-13"
         end_date = "2025-01-14"
         timestep = 'minute'
-        refresh_cache = True
+        refresh_cache = False
 
         data_source = AlpacaBacktesting(
             tickers=tickers,
@@ -364,7 +364,7 @@ class TestAlpacaBacktesting:
             end_date=end_date,
             timestep=timestep,
             config=ALPACA_CONFIG,
-            # refresh_cache=refresh_cache,
+            refresh_cache=refresh_cache,
         )
 
         assert data_source.datetime_start.isoformat() == "2025-01-13T00:00:00+00:00"

@@ -59,7 +59,7 @@ class TestPandasBacktest:
         backtesting_start = pandas_data_fixture_amzn_day[0].df.index[0]
         backtesting_end = pandas_data_fixture_amzn_day[0].df.index[-1] + timedelta(minutes=1)
 
-        result, strat_obj = strategy_class.run_backtest(
+        result, strategy = strategy_class.run_backtest(
             datasource_class=PandasDataBacktesting,
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
@@ -77,7 +77,7 @@ class TestPandasBacktest:
                 "symbol": "AMZN"
             }
         )
-        tracker = strat_obj.tracker
+        tracker = strategy.tracker
         assert tracker["iteration_at"].isoformat() == '2025-01-13T09:30:00-05:00'
         assert tracker["submitted_at"].isoformat() == '2025-01-13T09:30:00-05:00'
         assert tracker["filled_at"].isoformat() ==    '2025-01-13T09:30:00-05:00'
@@ -91,7 +91,7 @@ class TestPandasBacktest:
         backtesting_start = pandas_data_fixture_amzn_minute[0].df.index[0]
         backtesting_end = pandas_data_fixture_amzn_minute[0].df.index[-1] + timedelta(minutes=1)
 
-        result, strat_obj = strategy_class.run_backtest(
+        result, strategy = strategy_class.run_backtest(
             datasource_class=PandasDataBacktesting,
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
@@ -110,7 +110,7 @@ class TestPandasBacktest:
             }
         )
 
-        tracker = strat_obj.tracker
+        tracker = strategy.tracker
         assert tracker["iteration_at"].isoformat() == '2025-01-13T09:30:00-05:00'
         assert tracker["submitted_at"].isoformat() == '2025-01-13T09:30:00-05:00'
         assert tracker["filled_at"].isoformat() ==    '2025-01-13T09:30:00-05:00'
@@ -129,7 +129,7 @@ class TestPandasBacktest:
         backtesting_start = pandas_data_fixture_amzn_minute[0].df.index[0]
         backtesting_end = pandas_data_fixture_amzn_minute[0].df.index[-1] + timedelta(minutes=1)
 
-        result, strat_obj = strategy_class.run_backtest(
+        result, strategy = strategy_class.run_backtest(
             datasource_class=PandasDataBacktesting,
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
@@ -148,7 +148,7 @@ class TestPandasBacktest:
             }
         )
 
-        tracker = strat_obj.tracker
+        tracker = strategy.tracker
         assert tracker["iteration_at"].isoformat() == '2025-01-13T09:30:00-05:00'
         assert tracker["submitted_at"].isoformat() == '2025-01-13T09:30:00-05:00'
         assert tracker["filled_at"].isoformat() == '2025-01-13T09:30:00-05:00'

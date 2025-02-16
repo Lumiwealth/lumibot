@@ -83,7 +83,7 @@ class TestPandasBacktest:
     def test_pandas_data_fixture(self, pandas_data_fixture):
         assert pandas_data_fixture is not None
 
-    @pytest.mark.skip()
+    # @pytest.mark.skip()
     def test_pandas_datasource_with_daily_data_in_backtest(self, pandas_data_fixture):
         strategy_name = "LifecycleLogger"
         strategy_class = LifecycleLogger
@@ -112,7 +112,7 @@ class TestPandasBacktest:
             }
         )
 
-    @pytest.mark.skip()
+    # @pytest.mark.skip()
     def test_day_data(self, pandas_data_fixture_amzn_day):
         strategy_class = BuyOneShareTestStrategy
         backtesting_start = pandas_data_fixture_amzn_day[0].df.index[0]
@@ -144,7 +144,7 @@ class TestPandasBacktest:
         assert iteration_obj['last_price'] == 218.46  # Close of '2025-01-13T09:30:00-05:00'
         assert iteration_obj["avg_fill_price"] == 220.44  # Open of '2025-01-14T09:30:00-05:00'
 
-    @pytest.mark.skip()
+    # @pytest.mark.skip()
     def test_minute_data(self, pandas_data_fixture_amzn_minute):
         strategy_class = BuyOneShareTestStrategy
         backtesting_start = pandas_data_fixture_amzn_minute[0].df.index[0]
@@ -213,6 +213,10 @@ class TestPandasBacktest:
         assert iteration_obj["filled_at"].isoformat() == '2025-01-13T09:30:00-05:00'
         assert iteration_obj['last_price'] == 218.06  # Open price of '2025-01-13T09:30:00-05:00'
         assert iteration_obj['avg_fill_price'] == 218.06   # Open price of '2025-01-13T09:30:00-05:00'
+
+        # i think it should be:
+        # assert iteration_obj['last_price'] == 217.92  # Close price of '2025-01-13T09:30:00-05:00'
+        # assert iteration_obj['avg_fill_price'] == 218.0  # Open price of '2025-01-13T09:31:00-05:00'
 
 
 

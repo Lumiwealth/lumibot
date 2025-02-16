@@ -1,8 +1,11 @@
 from datetime import datetime, timedelta
 
 from lumibot.data_sources import PandasData
-
-from tests.fixtures import pandas_data_fixture
+from tests.fixtures import (
+    pandas_data_fixture,
+    pandas_data_fixture_amzn_day,
+    pandas_data_fixture_amzn_minute
+)
 
 
 class TestPandasData:
@@ -37,4 +40,22 @@ class TestPandasData:
         extra_padding_days = (length // 5) * 3
         expected_datetime = datetime(2023, 3, 25) - timedelta(days=length + extra_padding_days)
         assert start_datetime == expected_datetime
+
+    def test_pandas_data_fixture_amzn_day(self, pandas_data_fixture_amzn_day):
+        assert pandas_data_fixture_amzn_day is not None
+        data = pandas_data_fixture_amzn_day[0]
+        assert data.asset.symbol == 'AMZN'
+        assert data.timestep == 'day'
+        assert data.df.index[0].isoformat() == '2025-01-13T00:00:00-05:00'
+        assert data.df.index[-1].isoformat() == '2025-01-17T00:00:00-05:00'
+
+    def test_pandas_data_fixture_amzn_minute(self, pandas_data_fixture_amzn_minute):
+        assert pandas_data_fixture_amzn_minute is not None
+        data = pandas_data_fixture_amzn_minute[0]
+        assert data.asset.symbol == 'AMZN'
+        assert data.timestep == 'minute'
+        assert data.df.index[0].isoformat() == '2025-01-13T04:00:00-05:00'
+        assert data.df.index[-1].isoformat() == '2025-01-17T19:59:00-05:00'
+
+
 

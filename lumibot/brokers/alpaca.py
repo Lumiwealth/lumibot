@@ -454,24 +454,18 @@ class Alpaca(Broker):
             if child_limit:
                 kwargs["take_profit"] = {
                     "limit_price": float(round(child_limit.limit_price, 2))
-                    if isinstance(order.limit_price, Decimal)
-                    else order.limit_price,
+                    if isinstance(child_limit.limit_price, Decimal) else child_limit.limit_price,
                 }
 
-            if order.stop_price:
+            if child_stop:
                 kwargs["stop_loss"] = {
-                    "stop_price": float(round(order.stop_price, 2))
-                    if isinstance(order.stop_loss_price, Decimal)
-                    else order.stop_loss_price,
+                    "stop_price": float(round(child_stop.stop_price, 2))
+                    if isinstance(child_stop.stop_price, Decimal) else child_stop.stop_price,
                 }
-                if order.stop_limit_price:
+                if child_stop.stop_limit_price:
                     kwargs["stop_loss"]["limit_price"] = float(
-                        round(order.stop_limit_price, 2)
-                        if isinstance(
-                            order.stop_limit_price,
-                            Decimal,
-                        )
-                        else order.stop_limit_price
+                        round(child_stop.stop_limit_price, 2)
+                        if isinstance(child_stop.stop_limit_price, Decimal) else child_stop.stop_limit_price
                     )
 
         try:

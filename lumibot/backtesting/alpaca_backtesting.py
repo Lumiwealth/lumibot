@@ -44,7 +44,7 @@ class AlpacaBacktesting(PandasData):
             adjustment: str = 'all',
             config: dict | None = None,
             tz_name: str = timezone.utc,
-            warm_up_bars: int = 0,
+            warm_up_trading_days: int = 0,
             auto_adjust: bool = True,
     ):
         """
@@ -71,7 +71,7 @@ class AlpacaBacktesting(PandasData):
                 `API_SECRET` for authenticating with Alpaca APIs.
             tz_name (str): The name of the timezone to localize datetime values.
                 Default is `timezone.utc`.
-            warm_up_bars (int): The number of additional data points to fetch before
+            warm_up_trading_days (int): The number of additional trading days to fetch before
                 `start_date`, useful for warming up trading algorithms. Default is 0.
         """
         self.CACHE_SUBFOLDER = 'alpaca'
@@ -91,9 +91,9 @@ class AlpacaBacktesting(PandasData):
         start_dt = pd.to_datetime(start_date).tz_localize(self.tz_name)
         end_dt = pd.to_datetime(end_date).tz_localize(self.tz_name)
 
-        if warm_up_bars > 0:
+        if warm_up_trading_days > 0:
             warm_up_start_dt = date_n_days_from_date(
-                n_bars=warm_up_bars,
+                n_bars=warm_up_trading_days,
                 start_datetime=start_dt,
             )
             # Combine with a default time (midnight)

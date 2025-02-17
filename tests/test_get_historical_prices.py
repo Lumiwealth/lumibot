@@ -51,6 +51,7 @@ def check_bars(
     assert bars.df["return"].iloc[-1] is not None
 
 
+# @pytest.mark.skip()
 class TestDatasourceBacktestingGetHistoricalPricesDailyData:
     """These tests check the daily Bars returned from get_historical_prices for backtesting data sources."""
 
@@ -548,7 +549,7 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
             config=ALPACA_CONFIG,
             refresh_cache=refresh_cache,
             tz_name=tz_name,
-            warm_up_bars=length,
+            warm_up_trading_days=length,
         )
 
         bars = data_source.get_historical_prices(asset=self.asset, length=length, timestep=self.timestep)
@@ -557,6 +558,56 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
             bars,
             backtesting_start=backtesting_start
         )
+
+    @pytest.mark.skipif(
+        not ALPACA_CONFIG['API_KEY'],
+        reason="This test requires an alpaca API key"
+    )
+    @pytest.mark.skipif(
+        ALPACA_CONFIG['API_KEY'] == '<your key here>',
+        reason="This test requires an alpaca API key"
+    )
+    def test_alpaca_backtesting_data_source_get_historical_daily_prices_when_minute_bars_provided(self):
+
+        length = 3
+        warm_up_days = length * 2
+        ticker = "SPY"
+        asset = Asset(ticker)
+        timestep = "day"
+
+        # Get MLK day last year which is a non-trading monday
+        last_year = datetime.now().year - 1
+        mlk_day = self.get_mlk_day(last_year)
+
+        # First trading day after MLK day
+        backtesting_start = mlk_day + timedelta(days=1)
+        backtesting_end = backtesting_start + timedelta(days=2)
+
+        tickers = ticker
+        start_date = backtesting_start.date().isoformat()
+        end_date = backtesting_end.date().isoformat()
+        timestep = 'minute'  # using minute bars, but asking for daily bars in get_historical_prices
+        refresh_cache = False
+        tz_name = "America/New_York"
+
+        data_source = AlpacaBacktesting(
+            tickers=tickers,
+            start_date=start_date,
+            end_date=end_date,
+            timestep="minute",
+            config=ALPACA_CONFIG,
+            refresh_cache=refresh_cache,
+            tz_name=tz_name,
+            warm_up_trading_days=warm_up_days,
+        )
+
+        bars = data_source.get_historical_prices(
+            asset=asset,
+            length=length,
+            timestep="day"
+        )
+
+        check_bars(bars=bars, length=length)
 
 
 # @pytest.mark.skip()

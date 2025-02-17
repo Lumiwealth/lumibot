@@ -426,7 +426,7 @@ class Alpaca(Broker):
         alpaca_type = order.order_type
         if order.order_class == Order.OrderClass.OCO:
             alpaca_type = Order.OrderType.LIMIT
-        elif order.order_class in [Order.OrderType.BRACKET, Order.OrderType.OTO]:
+        elif order.order_class in [Order.OrderClass.BRACKET, Order.OrderClass.OTO]:
             alpaca_type = Order.OrderType.MARKET
 
         limit_price = order.limit_price if order.order_type != Order.OrderType.STOP_LIMIT else order.stop_limit_price

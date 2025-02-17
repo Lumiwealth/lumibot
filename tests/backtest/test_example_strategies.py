@@ -13,7 +13,7 @@ from lumibot.example_strategies.stock_limit_and_trailing_stops import (
 )
 from lumibot.example_strategies.stock_oco import StockOco
 from lumibot.example_strategies.ccxt_backtesting_example import CcxtBacktestingExampleStrategy
-from lumibot.entities import Asset
+from lumibot.entities import Asset, Order
 
 # Global parameters
 # API Key for testing Polygon.io
@@ -43,6 +43,7 @@ class TestExampleStrategies:
         )
         assert results
         assert isinstance(strat_obj, StockBracket)
+        assert strat_obj.submitted_bracket_order is not None
 
         trades_df = strat_obj.broker._trade_event_log_df
 
@@ -53,6 +54,24 @@ class TestExampleStrategies:
         assert filled_orders.iloc[1]["type"] == "limit"
         assert filled_orders.iloc[1]["filled_quantity"] == 10
         assert filled_orders.iloc[1]["price"] >= 405
+
+        all_orders = strat_obj.broker.get_all_orders()
+        assert len(all_orders) == 3
+        entry_order = [o for o in all_orders if o.order_type == Order.OrderType.MARKET][0]
+        limit_order = [o for o in all_orders if o.order_type == Order.OrderType.LIMIT][0]
+        stop_order = [o for o in all_orders if o.order_type == Order.OrderType.STOP][0]
+
+        assert entry_order.quantity == 10
+        assert limit_order.quantity == 10
+        assert stop_order.quantity == 10
+
+        assert strat_obj.submitted_bracket_order.is_filled(), "Should be same as entry order"
+        assert entry_order.is_filled()
+        assert limit_order.is_filled()
+        assert stop_order.is_canceled()
+
+        assert entry_order.get_fill_price() > 1
+        assert limit_order.get_fill_price() >= 405
 
     def test_stock_oco(self):
         """
@@ -86,6 +105,23 @@ class TestExampleStrategies:
         assert filled_orders.iloc[1]["type"] == "limit"
         assert filled_orders.iloc[1]["filled_quantity"] == 10
         assert filled_orders.iloc[1]["price"] >= 405
+
+        all_orders = strat_obj.broker.get_all_orders()
+        assert len(all_orders) == 3
+        entry_order = [o for o in all_orders if o.order_type == Order.OrderType.MARKET][0]
+        limit_order = [o for o in all_orders if o.order_type == Order.OrderType.LIMIT][0]
+        stop_order = [o for o in all_orders if o.order_type == Order.OrderType.STOP][0]
+
+        assert entry_order.quantity == 10
+        assert limit_order.quantity == 10
+        assert stop_order.quantity == 10
+
+        assert entry_order.is_filled()
+        assert limit_order.is_filled()
+        assert stop_order.is_canceled()
+
+        assert entry_order.get_fill_price() > 1
+        assert limit_order.get_fill_price() >= 405
 
     def test_stock_buy_and_hold(self):
         """

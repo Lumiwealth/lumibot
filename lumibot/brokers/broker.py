@@ -1230,9 +1230,9 @@ class Broker(ABC):
                 self._on_canceled_order(stored_order)
         elif Order.is_equivalent_status(type_event, self.MODIFIED_ORDER):
             # Modify is only allowed to adjust the stop and limit price, not quantity or other attributes.
-            if stored_order.type == Order.OrderType.STOP:
+            if stored_order.order_type == Order.OrderType.STOP:
                 stored_order.stop_price = price
-            elif stored_order.type == Order.OrderType.LIMIT:
+            elif stored_order.order_type == Order.OrderType.LIMIT:
                 stored_order.limit_price = price
         elif Order.is_equivalent_status(type_event, self.PARTIALLY_FILLED_ORDER):
             stored_order, position = self._process_partially_filled_order(stored_order, price, filled_quantity)
@@ -1242,7 +1242,7 @@ class Broker(ABC):
             self._on_filled_order(position, stored_order, price, filled_quantity, multiplier)
         elif Order.is_equivalent_status(type_event, self.CASH_SETTLED):
             self._process_cash_settlement(stored_order, price, filled_quantity)
-            stored_order.type = self.CASH_SETTLED
+            stored_order.order_type = self.CASH_SETTLED
         else:
             self.logger.info(f"Unhandled type event {type_event} for {stored_order}")
 
@@ -1254,7 +1254,7 @@ class Broker(ABC):
             "identifier": stored_order.identifier,
             "symbol": stored_order.symbol,
             "side": stored_order.side,
-            "type": stored_order.type,
+            "type": stored_order.order_type,
             "status": stored_order.status,
             "price": price,
             "filled_quantity": filled_quantity,

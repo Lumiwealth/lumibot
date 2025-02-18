@@ -1413,7 +1413,7 @@ class TestDriftRebalancer:
     backtesting_end = datetime(2019, 2, 28)
 
     # @pytest.mark.skip()
-    def test_classic_60_60(self, pandas_data_fixture):
+    def test_classic_60_40(self, pandas_data_fixture):
         parameters = {
             "market": "NYSE",
             "sleeptime": "1D",
@@ -1467,7 +1467,7 @@ class TestDriftRebalancer:
         assert filled_orders.iloc[2]["filled_quantity"] == 7.0
 
     # @pytest.mark.skip()
-    def test_classic_60_60_with_fractional(self, pandas_data_fixture):
+    def test_classic_60_40_with_fractional(self, pandas_data_fixture):
         parameters = {
             "market": "NYSE",
             "sleeptime": "1D",

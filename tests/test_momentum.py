@@ -230,7 +230,7 @@ class TestMomentum:
             config=ALPACA_CONFIG,
             refresh_cache=refresh_cache,
             tz_name=tz_name,
-            warm_up_bars=lookback_period
+            warm_up_trading_days=lookback_period
         )
 
         results, strategy = MomoTester.run_backtest(

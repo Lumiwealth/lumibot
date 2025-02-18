@@ -28,6 +28,8 @@ def alpaca_timeframe_from_timestep(timestep: str) -> TimeFrame:
         return TimeFrame.Day
     elif timestep == 'minute':
         return TimeFrame.Minute
+    elif timestep == 'hour':
+        return TimeFrame.Hour
     else:
         raise ValueError(f"Unsupported timestep: {timestep}")
 
@@ -41,7 +43,6 @@ class AlpacaBacktesting(PandasData):
             end_date: str,
             timestep: str = 'day',
             refresh_cache: bool = False,
-            adjustment: str = 'all',
             config: dict | None = None,
             tz_name: str = timezone.utc,
             warm_up_trading_days: int = 0,
@@ -61,12 +62,11 @@ class AlpacaBacktesting(PandasData):
                 format. Must comply with the `pandas.to_datetime` format.
             end_date (str): The end date of the historical data range in string
                 format. Must comply with the `pandas.to_datetime` format.
-            timestep (str): The time interval for the historical data (e.g., 'minute',
-                'day'). Default is 'day'.
+            timestep (str): The time interval for the historical data (e.g., 'minute', 'hour' and
+                'day'). Default is 'day'. When hour bars are used, the timestep will be set to minute.
             refresh_cache (bool): Whether to refresh the cached historical data or use
                 existing cache. Default is False.
-            adjustment (str): The type of price adjustment to apply. Potential values
-                are defined by Alpaca API. Default is 'all'.
+            auto_adjust (bool): Split and dividend adjusted if true, split adjusted only if false.
             config (dict | None): Configuration dictionary containing `API_KEY` and
                 `API_SECRET` for authenticating with Alpaca APIs.
             tz_name (str): The name of the timezone to localize datetime values.
@@ -76,6 +76,7 @@ class AlpacaBacktesting(PandasData):
         """
         self.CACHE_SUBFOLDER = 'alpaca'
         self.tz_name = tz_name
+        self._timestep = timestep
 
         self._crypto_client = CryptoHistoricalDataClient(
             api_key=config["API_KEY"],
@@ -110,7 +111,7 @@ class AlpacaBacktesting(PandasData):
             end_dt=end_dt,
             timestep=timestep,
             refresh_cache=refresh_cache,
-            adjustment=adjustment,
+            auto_adjust=auto_adjust,
             tz_name=tz_name
         )
 
@@ -129,7 +130,7 @@ class AlpacaBacktesting(PandasData):
             end_dt: datetime,
             timestep: str = '1d',
             refresh_cache: bool = False,
-            adjustment: str = 'all',
+            auto_adjust: bool = True,
             tz_name: str = None,
     ) -> List[Data]:
         """ Fetches, caches, and loads data for a list of tickers.
@@ -138,9 +139,9 @@ class AlpacaBacktesting(PandasData):
             tickers: A list of tickers to fetch data for.
             start_dt: The start date to fetch data for (inclusive from midnight) in YYYY-MM-DD format.
             end_dt: The end date to fetch data for (exclusive) in YYYY-MM-DD format.
-            timestep: The interval to fetch data for. Default is '1d' Options are 1d 60m, 1m.
+            timestep: The interval to fetch data for. Options: 'day' (default), 'minute', 'hour'.
             refresh_cache: Ignore current cache and fetch from source again. Default is False.
-            adjustment: The adjustment to make to the data. Default is 'all'.
+            auto_adjust (bool): Split and dividend adjusted if true, split adjusted only if false.
             tz_name : If not None, then localize the timezone of the dataframe to the 
             given timezone as a string. The values can be any supported by tz_localize,
             e.g. "US/Eastern", "UTC", etc.
@@ -157,9 +158,11 @@ class AlpacaBacktesting(PandasData):
         if isinstance(tickers, str):
             tickers = [tickers]
 
+        adj = 'aat' if not auto_adjust else 'aaf'
+
         for ticker in tickers:
             cleaned_ticker = replace_slashes(ticker)
-            filename = f"{cleaned_ticker}_{timestep}_{adjustment}_{start_dt.date().isoformat()}_{end_dt.date().isoformat()}.csv"
+            filename = f"{cleaned_ticker}_{timestep}_{adj}_{start_dt.date().isoformat()}_{end_dt.date().isoformat()}.csv"
             filename = replace_slashes(filename).upper()
             filepath = os.path.join(cache_dir, filename)
 
@@ -197,6 +200,9 @@ class AlpacaBacktesting(PandasData):
                         end=end_dt,
                     )
                 else:
+                    # all is dividend and split adjusted. 
+                    adjustment = 'all' if auto_adjust else 'split'
+
                     logger.info(
                         f"Fetching stock data from for {ticker} "
                         f"from {start_dt.isoformat()} to {end_dt.isoformat()} with timestep {timestep} "
@@ -214,12 +220,17 @@ class AlpacaBacktesting(PandasData):
                 df = self._download_and_save_data(client, request_params, filepath, start_dt, end_dt)
                 df.set_index('timestamp', inplace=True)
 
+            # If we were using hourly data, set the timestep to minute since the rest of lumibot only operates
+            # with day or minute timestep.
+            if self._timestep == 'hour':
+                self._timestep = 'minute'
+
             new_data = Data(
                 asset=base_asset,
                 df=df,
                 date_start=start_dt,
                 date_end=end_dt,
-                timestep=timestep,
+                timestep=self._timestep,
                 quote=quote_asset,
                 timezone=tz_name
             )
@@ -230,7 +241,7 @@ class AlpacaBacktesting(PandasData):
     # noinspection PyMethodMayBeStatic
     def _download_and_save_data(
             self,
-            client ,
+            client,
             request_params,
             filepath,
             start_dt,
@@ -263,5 +274,3 @@ class AlpacaBacktesting(PandasData):
 
         df.to_csv(filepath, index=False)
         return df
-
-

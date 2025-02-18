@@ -1448,6 +1448,7 @@ class TestDriftRebalancer:
             show_indicators=False,
             save_logfile=False,
             show_progress_bar=False,
+            include_cash_positions=True,
             # quiet_logs=False,
         )
 
@@ -1503,6 +1504,7 @@ class TestDriftRebalancer:
             show_indicators=False,
             save_logfile=False,
             show_progress_bar=False,
+            include_cash_positions=True,
             # quiet_logs=False,
         )
 
@@ -1521,7 +1523,7 @@ class TestDriftRebalancer:
         assert filled_orders.iloc[2]["symbol"] == "SPY"
         assert filled_orders.iloc[2]["filled_quantity"] == 8.346738268
 
-    # @pytest.mark.skip()
+    @pytest.mark.skip("Currently broken with Yahoo interaction. Uncomment when fixed.")
     def test_crypto_50_50_with_yahoo(self):
         parameters = {
             "market": "24/7",
@@ -1560,6 +1562,7 @@ class TestDriftRebalancer:
             show_indicators=False,
             save_logfile=False,
             show_progress_bar=False,
+            include_cash_positions=True,
         )
 
         trades_df = strat_obj.broker._trade_event_log_df
@@ -1623,6 +1626,7 @@ class TestDriftRebalancer:
             show_indicators=False,
             save_logfile=False,
             show_progress_bar=False,
+            include_cash_positions=True,
         )
 
         trades_df = strat_obj.broker._trade_event_log_df

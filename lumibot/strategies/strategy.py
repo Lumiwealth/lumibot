@@ -1114,12 +1114,13 @@ class Strategy(_Strategy):
         """
         return self.cash
 
-    def get_positions(self):
+    def get_positions(self, include_cash_positions: bool = False):
         """Get all positions for the account.
 
         Parameters
         ----------
-        None
+        include_cash_positions : bool
+            If True, include cash positions in the returned list. If False, exclude cash positions.
 
         Returns
         -------
@@ -1139,13 +1140,13 @@ class Strategy(_Strategy):
         >>>     self.log_message(position.asset)
 
         """
-
+        include_cash = include_cash_positions or self.include_cash_positions
         tracked_positions = self.broker.get_tracked_positions(self.name)
 
         # Remove the quote asset from the positions list if it is there
         clean_positions = []
         for position in tracked_positions:
-            if position.asset != self.quote_asset:
+            if position.asset != self.quote_asset or include_cash:
                 clean_positions.append(position)
 
         return clean_positions
@@ -3868,6 +3869,7 @@ class Strategy(_Strategy):
         show_progress_bar: bool = True,
         quiet_logs: bool = True,
         trader_class: Type[Trader] = Trader,
+        include_cash_positions=False,
         **kwargs,
     ):
         """Backtest a strategy.
@@ -4029,6 +4031,7 @@ class Strategy(_Strategy):
             show_progress_bar=show_progress_bar,
             quiet_logs=quiet_logs,
             trader_class=trader_class,
+            include_cash_positions=include_cash_positions,
             **kwargs,
         )
         return results

@@ -1,5 +1,7 @@
 import datetime
 import logging
+from typing import Union, List, Dict
+
 from termcolor import colored
 from asyncio.log import logger
 from decimal import Decimal
@@ -23,7 +25,7 @@ from sqlalchemy import create_engine, inspect, text
 import pandas as pd
 from lumibot import LUMIBOT_DEFAULT_PYTZ
 from ..backtesting import BacktestingBroker, PolygonDataBacktesting, ThetaDataBacktesting
-from ..entities import Asset, Position, Order
+from ..entities import Asset, Position, Order, Data
 from ..tools import (
     create_tearsheet,
     day_deduplicate,
@@ -952,7 +954,7 @@ class _Strategy:
         plot_file_html = None,
         trades_file = None,
         settings_file = None,
-        pandas_data = None,
+        pandas_data: Union[List, Dict[Asset, Data]] = None,
         quote_asset = Asset(symbol="USD", asset_type="forex"),
         starting_positions = None,
         show_plot = None,

@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="lumibot",
-    version="3.9.15",
+    version="3.9.16",
     author="Robert Grzesik",
     author_email="rob@lumiwealth.com",
     description="Backtesting and Trading Library, Made by Lumiwealth",
@@ -18,7 +18,7 @@ setuptools.setup(
         "alpaca-py>=0.28.1",
         "alpha_vantage",
         "ibapi==9.81.1.post1",
-        "yfinance>=0.2.46",
+        "yfinance>=0.2.54",
         "matplotlib>=3.3.3",
         "quandl",
         # Numpy greater than 1.20.0 and less than 2 because v2 has compatibility issues with a few libraries

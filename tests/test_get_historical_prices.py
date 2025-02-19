@@ -151,7 +151,10 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
         assert bars.df["dividend"].iloc[-1] is not None
 
         # assert that there was a dividend paid on 3/15
-        assert bars.df["dividend"].loc["2019-03-15"] != 0.0
+        dividend_value = bars.df.loc["2019-03-15", "dividend"]
+        if isinstance(dividend_value, pd.Series):
+            dividend_value = dividend_value.iloc[0]
+        assert dividend_value != 0.0
 
         # make a new dataframe where the index is Date and the columns are the actual returns
         actual_df = pd.DataFrame(columns=["actual_return"])

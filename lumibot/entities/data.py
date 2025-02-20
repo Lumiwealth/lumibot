@@ -1,6 +1,5 @@
 import datetime
 import logging
-import re
 from decimal import Decimal
 from typing import Union
 
@@ -10,6 +9,9 @@ from lumibot.tools.helpers import parse_timestep_qty_and_unit, to_datetime_aware
 
 from .asset import Asset
 from .dataline import Dataline
+
+# Set the option to raise an error if downcasting is not possible
+pd.set_option('future.no_silent_downcasting', True)
 
 
 class Data:
@@ -281,12 +283,26 @@ class Data:
 
         # After all time series merged, adjust the local dataframe to reindex and fill nan's.
         df = self.df.reindex(idx, method="ffill")
-        df.loc[df["volume"].isna(), "volume"] = 0
+        # Check if we have a volume column, if not then add it and fill with NaN
+        if "volume" in df.columns:
+            df.loc[df["volume"].isna(), "volume"] = 0
+        else:
+            df["volume"] = None
         df.loc[:, ~df.columns.isin(["open", "high", "low"])] = df.loc[
             :, ~df.columns.isin(["open", "high", "low"])
         ].ffill()
+
+        # Check if are missing any of close, open, high, low columns, if so then fill with NaN
+        for col in ["close", "open", "high", "low"]:
+            if col not in df.columns:
+                df[col] = None
+
+        # Check if we have open, high, low columns, if not then fill with close
         for col in ["open", "high", "low"]:
-            df.loc[df[col].isna(), col] = df.loc[df[col].isna(), "close"]
+            try:
+                df.loc[df[col].isna(), col] = df.loc[df[col].isna(), "close"]
+            except Exception as e:
+                logging.error(f"Error filling {col} column: {e}")
 
         self.df = df
 

@@ -130,7 +130,7 @@ def get_price_data_from_polygon(
       to avoid multiple simultaneous sleeps.
     """
     # 1) Decide where to cache the data (based on asset & timespan).
-    cache_file = build_cache_filename(asset, quote_asset, timespan)
+    cache_file = build_cache_filename(asset, timespan, quote_asset)
 
     # 2) Possibly invalidate the cache if we detect changed splits, etc.
     force_cache_update = validate_cache(force_cache_update, asset, cache_file, api_key)
@@ -374,7 +374,7 @@ def get_polygon_symbol(asset, polygon_client, quote_asset=None):
     return symbol
 
 
-def build_cache_filename(asset: Asset, quote_asset: Asset, timespan: str):
+def build_cache_filename(asset: Asset, timespan: str, quote_asset: Asset = None):
     """
     Helper function to create the cache filename for a given asset and timespan
 

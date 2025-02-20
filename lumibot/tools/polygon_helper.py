@@ -415,54 +415,49 @@ def build_cache_filename(asset: Asset, quote_asset: Asset, timespan: str):
 
 def get_missing_dates(df_all, asset, start, end):
     """
-    Check if we have data for the full range
-    Later Query to Polygon will pad an extra full day to start/end dates so that there should never
-    be any gap with intraday data missing.
+    Check if we have data for the full range.
+    For crypto and other assets, if a date is present in the cache—even with all NaN values—
+    then it is considered as having been checked by Polygon, so it won't be re-downloaded.
 
     Parameters
     ----------
     df_all : pd.DataFrame
-        Data loaded from the cache file
+        Data loaded from the cache file.
     asset : Asset
-        Asset we are getting data for
+        Asset we are getting data for.
     start : datetime
-        Start date for the data requested
+        Start date for the data requested.
     end : datetime
-        End date for the data requested
+        End date for the data requested.
 
     Returns
     -------
     list[datetime.date]
-        A list of dates that we need to get data for
+        A list of dates for which data is missing (i.e. not present in the cache).
     """
+    # Get trading dates from the asset calendar
     trading_dates = get_trading_dates(asset, start, end)
 
-    # For Options, don't need any dates passed the expiration date
+    # For Options, don't need any dates past the expiration date
     if asset.asset_type == "option":
         trading_dates = [x for x in trading_dates if x <= asset.expiration]
 
-    if df_all is None or not len(df_all) or df_all.empty:
+    if df_all is None or df_all.empty:
         return trading_dates
 
     # It is possible to have full day gap in the data if previous queries were far apart
     # Example: Query for 8/1/2023, then 8/31/2023, then 8/7/2023
     # Whole days are easy to check for because we can just check the dates in the index
+    # Get unique dates from the DataFrame's index (as date objects)
     dates = pd.Series(df_all.index.date).unique()
+
+    # Only treat dates that are entirely missing from the DataFrame as missing.
     missing_dates = sorted(set(trading_dates) - set(dates))
 
-    # Find any dates with nan values in the df_all DataFrame. This happens for some infrequently traded assets, but
-    # it is difficult to know if the data is actually missing or if it is just infrequent trading, query for it again.
-    missing_dates += df_all[df_all.isnull().all(axis=1)].index.date.tolist()
-
-    # make sure the dates are unique
-    missing_dates = list(set(missing_dates))
-    missing_dates.sort()
-
-    # finally, filter out any dates that are not in start/end range (inclusive)
+    # Filter to keep only dates within the [start, end] range
     missing_dates = [d for d in missing_dates if start.date() <= d <= end.date()]
 
     return missing_dates
-
 
 def load_cache(cache_file):
     """Load the data from the cache file and return a DataFrame with a DateTimeIndex"""
@@ -529,41 +524,55 @@ def update_cache(cache_file, df_all, missing_dates=None):
 
 def update_polygon_data(df_all, result):
     """
-    Update the DataFrame with the new data from Polygon
+    Update the DataFrame with the new data from Polygon.
+    
     Parameters
     ----------
     df_all : pd.DataFrame
-        A DataFrame with the data we already have
+        A DataFrame with the data we already have.
     result : list
-        A List of dictionaries with the new data from Polygon
+        A list of dictionaries with the new data from Polygon.
         Format: [{'o': 1.0, 'h': 2.0, 'l': 3.0, 'c': 4.0, 'v': 5.0, 't': 116120000000}]
+        
+    Returns
+    -------
+    pd.DataFrame
+        The updated DataFrame.
     """
     df = pd.DataFrame(result)
-    if not df.empty:
-        # Rename columns
-        df = df.rename(
-            columns={
-                "o": "open",
-                "h": "high",
-                "l": "low",
-                "c": "close",
-                "v": "volume",
-            }
-        )
+    if df.empty:
+        return df_all
 
-        # Create a datetime column and set it as the index
-        timestamp_col = "t" if "t" in df.columns else "timestamp"
-        df = df.assign(datetime=pd.to_datetime(df[timestamp_col], unit="ms"))
-        df = df.set_index("datetime").sort_index()
+    # Rename columns
+    df = df.rename(
+        columns={
+            "o": "open",
+            "h": "high",
+            "l": "low",
+            "c": "close",
+            "v": "volume",
+        }
+    )
 
-        # Set the timezone to UTC
-        df.index = df.index.tz_localize("UTC")
+    # Create a datetime column and set it as the index
+    timestamp_col = "t" if "t" in df.columns else "timestamp"
+    df = df.assign(datetime=pd.to_datetime(df[timestamp_col], unit="ms"))
+    df = df.set_index("datetime").sort_index()
 
-        if df_all is None or df_all.empty:
-            df_all = df
-        else:
-            df_all = pd.concat([df_all, df]).sort_index()
-            df_all = df_all[~df_all.index.duplicated(keep="first")]  # Remove any duplicate rows
+    # Localize the index to UTC
+    df.index = df.index.tz_localize("UTC")
+
+    # Remove any existing rows that are completely empty so the new data can replace them
+    if df_all is not None:
+        df_all = df_all.dropna(how="all")
+
+    if df_all is None or df_all.empty:
+        df_all = df
+    else:
+        # Merge new data with existing data.
+        df_all = pd.concat([df_all, df]).sort_index()
+        # Remove duplicate rows – using keep="last" so that new data overrides cached NaNs.
+        df_all = df_all[~df_all.index.duplicated(keep="last")]
 
     return df_all
 

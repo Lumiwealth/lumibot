@@ -428,6 +428,37 @@ class Data:
         -------
         dict
         """
+        # Check if this data object at least has open, high, low, close, and volume columns
+        if not all(
+            [
+                "open" in self.datalines,
+                "high" in self.datalines,
+                "low" in self.datalines,
+                "close" in self.datalines,
+                "volume" in self.datalines,
+            ]
+        ):
+            raise ValueError(
+                f"The data object for {self.asset} does not have the necessary columns to get the quote. Please make sure that the data object has at least the following columns: open, high, low, close, and volume. This could be an issue with the data source or the data itself, consider changing the data source you are using or check that the data you are looking for exists in the data source."
+            )
+        
+        # Check if this data object has bid and ask
+        if not all(
+            [
+                "bid" in self.datalines,
+                "ask" in self.datalines,
+                "bid_size" in self.datalines,
+                "bid_condition" in self.datalines,
+                "bid_exchange" in self.datalines,
+                "ask_size" in self.datalines,
+                "ask_condition" in self.datalines,
+                "ask_exchange" in self.datalines,
+            ]
+        ):
+            raise ValueError(
+                f"The data object for {self.asset} does not have the necessary columns to get the quote. Please make sure that the data object has at least the following columns: bid and ask. This could be an issue with the data source or the data itself, consider changing the data source you are using or check that the data you are looking for exists in the data source. For example, Polygon does not provide bid and ask data."
+            )
+
         iter_count = self.get_iter_count(dt)
         open = round(self.datalines["open"].dataline[iter_count], 2)
         high = round(self.datalines["high"].dataline[iter_count], 2)

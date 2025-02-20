@@ -1,7 +1,7 @@
 # This file contains helper functions for getting data from Polygon.io
 import logging
 import time
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from urllib3.exceptions import MaxRetryError
 from urllib.parse import urlparse, urlunparse

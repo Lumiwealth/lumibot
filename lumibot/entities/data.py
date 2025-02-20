@@ -1,6 +1,5 @@
 import datetime
 import logging
-import re
 from decimal import Decimal
 from typing import Union
 
@@ -10,6 +9,9 @@ from lumibot.tools.helpers import parse_timestep_qty_and_unit, to_datetime_aware
 
 from .asset import Asset
 from .dataline import Dataline
+
+# Set the option to raise an error if downcasting is not possible
+pd.set_option('future.no_silent_downcasting', True)
 
 
 class Data:
@@ -281,12 +283,26 @@ class Data:
 
         # After all time series merged, adjust the local dataframe to reindex and fill nan's.
         df = self.df.reindex(idx, method="ffill")
-        df.loc[df["volume"].isna(), "volume"] = 0
+        # Check if we have a volume column, if not then add it and fill with NaN
+        if "volume" in df.columns:
+            df.loc[df["volume"].isna(), "volume"] = 0
+        else:
+            df["volume"] = None
         df.loc[:, ~df.columns.isin(["open", "high", "low"])] = df.loc[
             :, ~df.columns.isin(["open", "high", "low"])
         ].ffill()
+
+        # Check if are missing any of close, open, high, low columns, if so then fill with NaN
+        for col in ["close", "open", "high", "low"]:
+            if col not in df.columns:
+                df[col] = None
+
+        # Check if we have open, high, low columns, if not then fill with close
         for col in ["open", "high", "low"]:
-            df.loc[df[col].isna(), col] = df.loc[df[col].isna(), "close"]
+            try:
+                df.loc[df[col].isna(), col] = df.loc[df[col].isna(), "close"]
+            except Exception as e:
+                logging.error(f"Error filling {col} column: {e}")
 
         self.df = df
 
@@ -428,6 +444,37 @@ class Data:
         -------
         dict
         """
+        # Check if this data object at least has open, high, low, close, and volume columns
+        if not all(
+            [
+                "open" in self.datalines,
+                "high" in self.datalines,
+                "low" in self.datalines,
+                "close" in self.datalines,
+                "volume" in self.datalines,
+            ]
+        ):
+            raise ValueError(
+                f"The data object for {self.asset} does not have the necessary columns to get the quote. Please make sure that the data object has at least the following columns: open, high, low, close, and volume. This could be an issue with the data source or the data itself, consider changing the data source you are using or check that the data you are looking for exists in the data source."
+            )
+        
+        # Check if this data object has bid and ask
+        if not all(
+            [
+                "bid" in self.datalines,
+                "ask" in self.datalines,
+                "bid_size" in self.datalines,
+                "bid_condition" in self.datalines,
+                "bid_exchange" in self.datalines,
+                "ask_size" in self.datalines,
+                "ask_condition" in self.datalines,
+                "ask_exchange" in self.datalines,
+            ]
+        ):
+            raise ValueError(
+                f"The data object for {self.asset} does not have the necessary columns to get the quote. Please make sure that the data object has at least the following columns: bid and ask. This could be an issue with the data source or the data itself, consider changing the data source you are using or check that the data you are looking for exists in the data source. For example, Polygon does not provide bid and ask data."
+            )
+
         iter_count = self.get_iter_count(dt)
         open = round(self.datalines["open"].dataline[iter_count], 2)
         high = round(self.datalines["high"].dataline[iter_count], 2)

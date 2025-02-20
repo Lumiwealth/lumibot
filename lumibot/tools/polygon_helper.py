@@ -172,8 +172,8 @@ def get_price_data_from_polygon(
 
     # Download data in parallel with a progress bar.
     pbar = tqdm(total=total_queries,
-                desc=f"Downloading and caching {asset} / {quote_asset.symbol if quote_asset else ''} '{timespan}'",
-                dynamic_ncols=True)
+            desc=f"Downloading and caching {asset} / {quote_asset.symbol if quote_asset else ''} '{timespan}'",
+            dynamic_ncols=True)
 
     def fetch_chunk(start_date: datetime, end_date: datetime):
         return polygon_client.get_aggs(

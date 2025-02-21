@@ -1117,9 +1117,9 @@ class _Strategy:
         # If backtesting_end is None, then check the BACKTESTING_END environment variable
         if backtesting_end is None and BACKTESTING_END is not None:
             backtesting_end = BACKTESTING_END
-        # If backtesting_end is None, and BACKTESTING_END is not set, then set it to the current date by default
+        # If backtesting_end is None, and BACKTESTING_END is not set, then set it to the current date minus one day by default
         elif backtesting_end is None:
-            backtesting_end = datetime.datetime.now()
+            backtesting_end = datetime.datetime.now() - datetime.timedelta(days=1)
             # Warn the user that the backtesting_end is set to the current date
             logging.warning(
                 colored(f"backtesting_end is set to the current date by default. You can set it to a specific date by passing in the backtesting_end parameter or by setting the BACKTESTING_END environment variable.", "yellow")

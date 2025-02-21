@@ -15,7 +15,7 @@ from termcolor import colored
 
 from lumibot.data_sources import AlpacaData
 from lumibot.entities import Asset, Order, Position
-from lumibot.tools.helpers import has_more_than_n_decimal_places
+from lumibot.tools.helpers import has_more_than_n_decimal_places, parse_symbol
 
 from .broker import Broker
 
@@ -267,25 +267,15 @@ class Alpaca(Broker):
                 symbol=position.symbol.replace("USD", ""),
                 asset_type="crypto",
             )
-        elif position.asset_class == "us_option":
-            underlying = ''.join([char for char in position.symbol[:-9] if not char.isdigit()])
-
-            year = int('20' + position.symbol[len(position.symbol)-15:len(position.symbol)-13])
-            month = int(position.symbol[len(position.symbol)-13:len(position.symbol)-11])
-            day = int(position.symbol[len(position.symbol)-11:len(position.symbol)-9])
-            exp = datetime.datetime(year, month, day).date()
-
-            right = 'CALL' if position.symbol[-9] == 'C' else 'PUT'
-
-            strike_price = position.symbol[-8:-3]
-            strike_price = float(strike_price)
+        elif position.asset_class == Asset.AssetType.OPTION:
+            parsed = parse_symbol(position.symbol)
 
             asset = Asset(
-                symbol=underlying,
-                asset_type="option",
-                expiration=exp,
-                strike=strike_price,
-                right=right
+                symbol=parsed["stock_symbol"],
+                asset_type=Asset.AssetType.OPTION,
+                expiration=parsed["expiration_date"],
+                strike=parsed["strike_price"],
+                right=parsed["option_type"]
             )
         else:
             asset = Asset(
@@ -368,24 +358,14 @@ class Alpaca(Broker):
         fill_price = Decimal(response.filled_avg_price) if response.filled_avg_price != None else 0
 
         if asset_type == Asset.AssetType.OPTION:
-            underlying = ''.join([char for char in symbol[:-9] if not char.isdigit()])
-
-            year = int('20' + symbol[len(symbol)-15:len(symbol)-13])
-            month = int(symbol[len(symbol)-13:len(symbol)-11])
-            day = int(symbol[len(symbol)-11:len(symbol)-9])
-            exp = datetime.datetime(year, month, day).date()
-
-            right = 'CALL' if symbol[-9] == 'C' else 'PUT'
-
-            strike_price = symbol[-8:-3]
-            strike_price = float(strike_price)
+            parsed = parse_symbol(symbol)
 
             asset = Asset(
-                symbol=underlying,
+                symbol=parsed["stock_symbol"],
                 asset_type=Asset.AssetType.OPTION,
-                expiration=exp,
-                strike=strike_price,
-                right=right
+                expiration=parsed["expiration_date"],
+                strike=parsed["strike_price"],
+                right=parsed["option_type"]
             )
             order = Order(
                 strategy_name,
@@ -488,8 +468,8 @@ class Alpaca(Broker):
             leg = {
                 "symbol": order.asset.symbol,
                 "ratio_qty": order.quantity,
-                "side": order.side,
-                "position_intent": order.position_intent
+                "side": Order.OrderSide.BUY if order.is_buy_order() else Order.OrderSide.SELL,
+                "position_intent": Order.OrderSide.BUY_TO_OPEN
             }
             legs.append(leg)
 
@@ -511,10 +491,7 @@ class Alpaca(Broker):
         for o in orders:
             o.parent_identifier = order_response.identifier
 
-        parent_order.child_orders = orders
-        parent_order.update_raw(order_response)  # This marks order as 'transmitted'
-        self._unprocessed_orders.append(parent_order)
-        self.stream.dispatch(self.NEW_ORDER, order=parent_order)
+        parent_order.child_orders = order.legs
         return parent_order
 
     def _submit_orders(self, orders, is_multileg=False, order_type=None, duration="day", price=None):
@@ -548,7 +525,7 @@ class Alpaca(Broker):
         # Check if the orders are empty
         if not orders or len(orders) == 0:
             return
-
+        
         # Check if it is a multi-leg order
         if is_multileg:
             parent_order = self._submit_multileg_order(orders, order_type, duration, price)
@@ -556,10 +533,12 @@ class Alpaca(Broker):
 
         else:
             # Submit each order
+            submittted_orders = []
             for order in orders:
-                self._submit_order(order)
+                submittted_order = self._submit_order(order)
+                submittted_orders.append(submittted_order)
 
-            return orders
+            return submittted_orders
 
     def _submit_order(self, order):
         """Submit an order for an asset"""

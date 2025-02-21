@@ -1523,7 +1523,7 @@ class TestDriftRebalancer:
         assert filled_orders.iloc[2]["symbol"] == "SPY"
         assert filled_orders.iloc[2]["filled_quantity"] == 8.346738268
 
-    @pytest.mark.skip("Currently broken with Yahoo interaction. Uncomment when fixed.")
+    # @pytest.mark.skip()
     def test_crypto_50_50_with_yahoo(self):
         parameters = {
             "market": "24/7",

@@ -333,9 +333,10 @@ class BacktestingBroker(Broker):
         """
         # This is a parent order, typically for a Multileg strategy. The parent order itself is expected to be
         # filled after all child orders are filled.
-        if order.is_parent():
+        if order.is_parent() and order.order_class in [Order.OrderClass.MULTILEG, Order.OrderClass.OCO]:
             order.avg_fill_price = price
             order.quantity = quantity
+            self._update_parent_order_status(order)
             return super()._process_filled_order(order, price, quantity)  # Do not store parent order positions
 
         existing_position = self.get_tracked_position(order.strategy, order.asset)
@@ -351,6 +352,11 @@ class BacktestingBroker(Broker):
                 self._filled_positions.remove(position)
         else:
             self._filled_positions.append(position)  # New position, add it to the tracker
+
+        # If this is a child order, update the parent order status if all children are filled or cancelled.
+        if order.parent_identifier:
+            parent_order = self.get_tracked_order(order.parent_identifier, use_placeholders=True)
+            self._update_parent_order_status(parent_order)
         return position
 
     def _process_partially_filled_order(self, order, price, quantity):
@@ -375,6 +381,23 @@ class BacktestingBroker(Broker):
             if existing_position.quantity == 0:
                 logger.info("Position %r liquidated" % existing_position)
                 self._filled_positions.remove(existing_position)
+
+    def _update_parent_order_status(self, order: Order):
+        """
+        Update the status of a parent order based on the status of its child orders
+        """
+        if (order.is_parent() and order.is_active() and
+                order.order_class in [Order.OrderClass.OCO]):
+            # No changes to parent order status if any of the child orders are still active
+            if any([o.is_active() for o in order.child_orders]):
+                return
+            elif any([o.is_filled() for o in order.child_orders]):
+                order.status = Order.OrderStatus.FILLED
+                order.set_filled()
+                self._new_orders.remove(order.identifier, key="identifier")
+                self._unprocessed_orders.remove(order.identifier, key="identifier")
+            elif all([o.is_cancelled() for o in order.child_orders]):
+                self.cancel_order(order)
 
     def _submit_order(self, order):
         """Submit an order for an asset"""
@@ -402,6 +425,12 @@ class BacktestingBroker(Broker):
         # Only an OCO order submits the child orders immediately. Bracket/OTO child orders are not submitted until
         # the parent order is filled
         else:
+            # Keep the OCO parent as a placeholder order so it can still be looked up by ID.
+            self.stream.dispatch(
+                self.PLACEHOLDER_ORDER,
+                wait_until_complete=True,
+                order=order,
+            )
             for child in order.child_orders:
                 if child.is_buy_order():
                     child.side = Order.OrderSide.BUY
@@ -641,6 +670,10 @@ class BacktestingBroker(Broker):
             if order.dependent_order_filled or order.status == self.CANCELED_ORDER:
                 continue
 
+            # OCO parent orders do not get filled
+            if order.order_class == Order.OrderClass.OCO:
+                continue
+
             # Multileg parent orders will wait for child orders to fill before processing
             if order.order_class == Order.OrderClass.MULTILEG:
                 # If this is the final fill for a multileg order, mark the parent order as filled
@@ -854,6 +887,17 @@ class BacktestingBroker(Broker):
                 broker._process_trade_event(
                     order,
                     broker.NEW_ORDER,
+                )
+                return True
+            except:
+                logging.error(traceback.format_exc())
+
+        @broker.stream.add_action(broker.PLACEHOLDER_ORDER)
+        def on_trade_event(order):
+            try:
+                broker._process_trade_event(
+                    order,
+                    broker.PLACEHOLDER_ORDER,
                 )
                 return True
             except:

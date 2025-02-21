@@ -864,6 +864,10 @@ class Order:
         quantity = Decimal(value)
         self._quantity = quantity
 
+        # Update the quantity for all child orders
+        for child_order in self.child_orders:
+            child_order.quantity = quantity
+
     def __hash__(self):
         return hash(self.identifier)
 
@@ -906,14 +910,14 @@ class Order:
         if self.child_orders:
             # If there is an order class, use that in the repr instead of the type
             if self.order_class:
-                repr_str = f"{self.order_class} order |"
+                repr_str = f"{self.order_class} {self.quantity} order |"
             else:
-                repr_str = f"{self.order_type} order |"
+                repr_str = f"{self.order_type} {self.quantity} order |"
 
             # Add the child orders to the repr
             for child_order in self.child_orders:
-                repr_str = (f"{repr_str} {child_order.order_type} {child_order.side} {child_order.quantity} "
-                            f"{child_order.asset} |")
+                child_str = str(child_order).replace('|', '')
+                repr_str = f"{repr_str} child {child_str} |"
         else:
             repr_str = f"{self.order_type} order of | {self.quantity} {self.rep_asset} {self.side} |"
         if price:

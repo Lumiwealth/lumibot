@@ -5,9 +5,9 @@
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" />
 
-    <!-- Generated with Sphinx 7.2.6 and Furo 2024.01.29 -->
+    <!-- Generated with Sphinx 7.2.6 and Furo 2023.09.10 -->
         <title>Backtesting - Lumibot Documentation</title>
-      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=a746c00c" />
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=362ab14a" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=135e06be" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=36a5483c" />
     <link rel="stylesheet" type="text/css" href="_static/custom.css?v=3791830b" />
@@ -288,7 +288,6 @@
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.cash.html">self.cash</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.portfolio_value.html">self.portfolio_value</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.first_iteration.html">self.first_iteration</a></li>
-<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.is_backtesting.html">self.is_backtesting</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.quote_asset.html">self.quote_asset</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.name.html">self.name</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.initial_budget.html">self.initial_budget</a></li>
@@ -372,7 +371,7 @@
 <span id="backtesting-broker"></span><h2>Backtesting Broker<a class="headerlink" href="#module-lumibot.backtesting.backtesting_broker" title="Link to this heading">#</a></h2>
 <dl class="py class">
 <dt class="sig sig-object py" id="lumibot.backtesting.backtesting_broker.BacktestingBroker">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">lumibot.backtesting.backtesting_broker.</span></span><span class="sig-name descname"><span class="pre">BacktestingBroker</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_source</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">connect_stream</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_workers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">20</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">config</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker" title="Link to this definition">#</a></dt>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">lumibot.backtesting.backtesting_broker.</span></span><span class="sig-name descname"><span class="pre">BacktestingBroker</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_source</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">option_source</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">connect_stream</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_workers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">20</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">config</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker" title="Link to this definition">#</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Broker</span></code></p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="lumibot.backtesting.backtesting_broker.BacktestingBroker.IS_BACKTESTING_BROKER">
@@ -485,18 +484,6 @@ check if the limit datetime was reached</p>
 <dd><p>Stop order logic.</p>
 </dd></dl>
 
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.backtesting.backtesting_broker.BacktestingBroker.submit_order">
-<span class="sig-name descname"><span class="pre">submit_order</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">order</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.submit_order" title="Link to this definition">#</a></dt>
-<dd><p>Submit an order for an asset</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.backtesting.backtesting_broker.BacktestingBroker.submit_orders">
-<span class="sig-name descname"><span class="pre">submit_orders</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">orders</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.submit_orders" title="Link to this definition">#</a></dt>
-<dd><p>Submit orders</p>
-</dd></dl>
-
 </dd></dl>
 
 </section>
@@ -504,7 +491,7 @@ check if the limit datetime was reached</p>
 <span id="data-source-backtesting"></span><h2>Data Source Backtesting<a class="headerlink" href="#module-lumibot.data_sources.data_source_backtesting" title="Link to this heading">#</a></h2>
 <dl class="py class">
 <dt class="sig sig-object py" id="lumibot.data_sources.data_source_backtesting.DataSourceBacktesting">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">lumibot.data_sources.data_source_backtesting.</span></span><span class="sig-name descname"><span class="pre">DataSourceBacktesting</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">datetime_start</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">datetime_end</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">backtesting_started</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">config</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">api_key</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pandas_data</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.data_sources.data_source_backtesting.DataSourceBacktesting" title="Link to this definition">#</a></dt>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">lumibot.data_sources.data_source_backtesting.</span></span><span class="sig-name descname"><span class="pre">DataSourceBacktesting</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">datetime_start</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">datetime_end</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">backtesting_started</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">config</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">api_key</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pandas_data</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">show_progress_bar</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.data_sources.data_source_backtesting.DataSourceBacktesting" title="Link to this definition">#</a></dt>
 <dd><p>Bases: <a class="reference internal" href="lumibot.data_sources.html#lumibot.data_sources.data_source.DataSource" title="lumibot.data_sources.data_source.DataSource"><code class="xref py py-class docutils literal notranslate"><span class="pre">DataSource</span></code></a>, <code class="xref py py-class docutils literal notranslate"><span class="pre">ABC</span></code></p>
 <p>This class is the base class for all backtesting data sources.  It is also an abstract class and should not be
 instantiated directly because it does not define all necessary methods. Instead, instantiate one of the
@@ -596,8 +583,6 @@ child classes like PandasData.</p>
 <li><a class="reference internal" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.process_pending_orders"><code class="docutils literal notranslate"><span class="pre">BacktestingBroker.process_pending_orders()</span></code></a></li>
 <li><a class="reference internal" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.should_continue"><code class="docutils literal notranslate"><span class="pre">BacktestingBroker.should_continue()</span></code></a></li>
 <li><a class="reference internal" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.stop_order"><code class="docutils literal notranslate"><span class="pre">BacktestingBroker.stop_order()</span></code></a></li>
-<li><a class="reference internal" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.submit_order"><code class="docutils literal notranslate"><span class="pre">BacktestingBroker.submit_order()</span></code></a></li>
-<li><a class="reference internal" href="#lumibot.backtesting.backtesting_broker.BacktestingBroker.submit_orders"><code class="docutils literal notranslate"><span class="pre">BacktestingBroker.submit_orders()</span></code></a></li>
 </ul>
 </li>
 </ul>

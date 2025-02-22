@@ -8,6 +8,7 @@ from lumibot.brokers import Alpaca
 from lumibot.example_strategies.drift_rebalancer import DriftRebalancer
 from lumibot.components.drift_rebalancer_logic import DriftType
 from lumibot.entities import Order, Asset
+from lumibot.traders.debug_log_trader import DebugLogTrader
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,7 @@ if __name__ == "__main__":
         "shorting": False,
         "fractional_shares": True,
         "only_rebalance_drifted_assets": False,
+
     }
 
     if not is_live:
@@ -54,7 +56,9 @@ if __name__ == "__main__":
             save_tearsheet=False,
             show_indicators=False,
             save_logfile=False,
-            show_progress_bar=True
+            show_progress_bar=True,
+            include_cash_positions=True,
+            trader_class=DebugLogTrader
         )
 
     elif isinstance(broker, Alpaca):

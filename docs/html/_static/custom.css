@@ -1,0 +1,116 @@
+.center {
+    margin-left: auto;
+    margin-right: auto;
+    text-align: center;
+}
+
+.data-image {
+    display: block;
+    width: 60%;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.title {
+    margin-bottom: 10px;
+}
+
+.lib-feature {
+    border: 1px solid #e3e3e3;
+    border-radius: 4px;
+    margin-bottom: 20px;
+    padding: 8px;
+}
+
+.bash {
+    font-size: large;
+    font-weight: bold;
+    border: 1px solid #e3e3e3;
+    border-radius: 6px;
+    text-align: center;
+    padding: 8px;
+    margin: 14px;
+}
+
+.course-list {
+    margin-bottom: 60px;
+}
+
+/* Ensure the sidebar and other elements have padding/margin to avoid overlap */
+.sidebar-scroll {
+    padding-bottom: 150px; /* Adjust according to footer height */
+}
+.content {
+    margin-bottom: 150px; /* Adjust according to footer height */
+}
+
+.announcement {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    z-index: 1000;
+    box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.15);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    height: 90px; /* Default height for larger devices */
+    overflow-x: hidden; /* Prevent horizontal overflow */
+    box-sizing: border-box; /* Ensure padding is included in width */
+}
+
+/* Media query for very small devices */
+@media (max-width: 480px) {
+    .announcement {
+        height: 120px; /* Override height for very small devices */
+    }
+}
+
+.announcement-content {
+    padding: 0;
+    height: 90px;
+    width: 100%;
+    box-sizing: border-box; /* Ensure padding is included in width */
+}
+
+/* Media query for very small devices */
+@media (max-width: 480px) {
+    .announcement-content {
+        height: 120px; /* Override height for very small devices */
+    }
+}
+
+.footer-banner {
+    height: 100%;
+    width: 100%;
+    box-sizing: border-box; /* Ensure padding is included in width */
+}
+
+.footer-banner h5 {
+    margin: 0;
+    width: 100%;
+    box-sizing: border-box; /* Ensure padding is included in width */
+}
+
+.footer-banner p {
+    margin: 0;
+    word-wrap: break-word;
+    word-break: break-word; /* Add this for better word breaking */
+    padding: 0 15px; /* Add padding for better text wrapping */
+    width: 100%;
+    box-sizing: border-box; /* Ensure padding is included in width */
+}
+
+.footer-banner a {
+    text-decoration: underline;
+    width: 100%;
+    box-sizing: border-box; /* Ensure padding is included in width */
+}
+
+@media (max-width: 480px) {
+    .footer-banner p {
+        padding: 0 10px; /* Adjust padding for smaller screens */
+        white-space: normal; /* Ensure text wraps on small screens */
+    }
+}

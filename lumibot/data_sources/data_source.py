@@ -317,6 +317,8 @@ class DataSource(ABC):
         include_after_hours=True,
     ):
         """Get bars for the list of assets"""
+        if not isinstance(assets, list):
+            assets = [assets]
 
         def process_chunk(chunk):
             chunk_result = {}
@@ -343,10 +345,15 @@ class DataSource(ABC):
             return chunk_result
 
         # Convert strings to Asset objects
-        assets = [Asset(symbol=a) if isinstance(a, str) else a for a in assets]
+        cleaned_assets = []
+        for a in assets:
+            if isinstance(a, str):
+                cleaned_assets.append(Asset(symbol=a))
+            else:
+                cleaned_assets.append(a)
 
         # Chunk the assets
-        chunks = [assets[i : i + chunk_size] for i in range(0, len(assets), chunk_size)]
+        chunks = [cleaned_assets[i : i + chunk_size] for i in range(0, len(cleaned_assets), chunk_size)]
 
         results = {}
         with ThreadPoolExecutor(max_workers=max_workers) as executor:

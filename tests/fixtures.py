@@ -85,7 +85,7 @@ def pandas_data_fixture() -> List[Data]:
 
 @pytest.fixture(scope="function")
 def pandas_data_fixture_amzn_day() -> List[Data]:
-    return pandas_data_from_alpaca_cached_data(
+    return load_pandas_data_from_alpaca_cached_data(
         symbol="AMZN",
         filename="AMZN_1D.csv",
         timestep="day"
@@ -94,21 +94,37 @@ def pandas_data_fixture_amzn_day() -> List[Data]:
 
 @pytest.fixture(scope="function")
 def pandas_data_fixture_amzn_minute() -> List[Data]:
-    return pandas_data_from_alpaca_cached_data(
+    return load_pandas_data_from_alpaca_cached_data(
         symbol="AMZN",
         filename="AMZN_1M.csv",
         timestep="minute"
     )
 
 
-def pandas_data_from_alpaca_cached_data(symbol: str, filename: str, timestep: str) -> List[Data]:
+@pytest.fixture(scope="function")
+def pandas_data_fixture_btc_hourly() -> List[Data]:
+    return load_pandas_data_from_alpaca_cached_data(
+        symbol="BTC",
+        filename="BTC-USD_HOUR.csv",
+        timestep="minute",
+        asset_type="crypto"
+    )
+
+
+def load_pandas_data_from_alpaca_cached_data(
+        symbol: str,
+        filename: str,
+        timestep: str,
+        asset_type: str = "stock"
+) -> List[Data]:
     pandas_data = []
     data_dir = os.getcwd() + "/data"
     quote = Asset(symbol='USD', asset_type="forex")
     csv_path = data_dir + f"/" + filename
+
     asset = Asset(
         symbol=symbol,
-        asset_type="stock",
+        asset_type=asset_type,
     )
 
     df = pd.read_csv(

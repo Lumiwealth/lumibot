@@ -9,15 +9,12 @@ class TestOrderBasics:
         assert Order(asset=Asset("SPY"), quantity=10, side="sell", strategy='abc').side == 'sell'
 
     def test_blank_oco(self):
-        # Create an OCO order without any child 
-        order = Order(
-            strategy="",
-            type=Order.OrderType.OCO,
-        )
-
-        assert order.avg_fill_price == None
-        assert order.quantity == None
-        assert order.status == "unprocessed"
+        # Create an OCO order without any child or limit/stop settings -- Error!
+        with pytest.raises(ValueError):
+            Order(
+                strategy="",
+                type=Order.OrderClass.OCO,
+            )
 
         # Add a child order
         child_order = Order(
@@ -33,19 +30,8 @@ class TestOrderBasics:
         # Assert that the child order does not have any child orders of its own
         assert child_order.child_orders == []
 
-        # Add a child order to the OCO order
-        order.child_orders.append(child_order)
-
         # Assert that the child order still does not have any child orders of its own
         assert child_order.child_orders == []
-
-        # Check that the original order did not change as a result of adding a child order
-        assert order.avg_fill_price == None
-        assert order.quantity == None
-        assert order.status == "unprocessed"
-        assert order.side == None
-        assert order.asset == None
-        assert order.child_orders == [child_order]
 
         # Add another child order to the OCO order
         child_order_2 = Order(
@@ -57,6 +43,14 @@ class TestOrderBasics:
             limit_price=200,
         )
 
+        order = Order(
+            strategy="",
+            type=Order.OrderClass.OCO,
+            asset=Asset("SPY"),
+            side=Order.OrderSide.SELL,
+            quantity=10,
+            child_orders=[child_order, child_order_2]
+        )
         order.add_child_order(child_order_2)
 
         # Print the order and child order 
@@ -65,7 +59,7 @@ class TestOrderBasics:
         first_child_order_text = str(first_child_order).lower()
 
         # Assert the order text contains the order type
-        assert Order.OrderType.OCO in order_text
+        assert order.order_class == Order.OrderClass.OCO
 
         # Check that both child orders are present in the parent order text
         assert "buy" in order_text
@@ -83,7 +77,8 @@ class TestOrderBasics:
         assert "55" not in first_child_order_text
 
     def test_price_doesnt_exist(self):
-        # Test that the price does not exist for any orders, we should be more specific such as limit_price, stop_price, fill_price, etc.
+        # Test that the price does not exist for any orders, we should be more specific such as limit_price,
+        # stop_price, fill_price, etc.
         with pytest.raises(TypeError):
             Order(
                 strategy="",
@@ -198,6 +193,24 @@ class TestOrderBasics:
         order.status = 'submitted'
         assert order.is_active()
 
+    def test_active_oco(self):
+        asset = Asset("SPY")
+        order = Order(strategy='abc', asset=asset, side=Order.OrderSide.SELL, quantity=100,
+                      order_class=Order.OrderClass.OCO, limit_price=100, stop_price=90)
+        assert order.is_active()
+        assert order.is_parent()
+
+        assert len(order.child_orders) == 2
+        assert order.child_orders[0].is_active()
+        assert order.child_orders[1].is_active()
+
+        order.status = 'filled'
+        assert order.is_active(), "OCO is still active while child orders are active"
+        order.child_orders[0].status = 'filled'
+        assert order.is_active(), "OCO is still active while child orders are active"
+        order.child_orders[1].status = 'filled'
+        assert not order.is_active()
+
     def test_status(self):
         asset = Asset("SPY")
         order = Order(strategy='abc', asset=asset, side="buy", quantity=100)
@@ -236,3 +249,76 @@ class TestOrderBasics:
         order1.status = "open"
         order2.status = ""
         assert not order1.equivalent_status("")
+
+    def test_to_position(self):
+        asset = Asset("SPY")
+        order = Order(strategy='abc', asset=asset, side="buy", quantity=100, avg_fill_price=100)
+        position = order.to_position(order.quantity)
+        assert position.strategy == order.strategy
+        assert position.asset == order.asset
+        assert position.quantity == order.quantity
+        assert position.orders == [order]
+        assert position.hold == 0
+        assert position.available == 0
+        assert position.avg_fill_price == order.avg_fill_price
+
+
+class TestOrderAdvanced:
+    def test_oco_type_reassigned(self):
+        order = Order(
+            strategy="",
+            type=Order.OrderClass.OCO,  # This is depricated, should use order_class=Order.OrderClass.OCO
+            asset=Asset("SPY"),
+            side=Order.OrderSide.SELL,
+            limit_price=101.0,
+            stop_price=100.0,
+            quantity=10,
+        )
+        assert order.order_class == Order.OrderClass.OCO
+        assert order.order_type == Order.OrderType.LIMIT
+        assert len(order.child_orders) == 2
+
+        # Desired case
+        order = Order(
+            strategy="",
+            asset=Asset("SPY"),
+            side=Order.OrderSide.SELL,
+            limit_price=101.0,
+            stop_price=100.0,
+            quantity=10,
+            order_class=Order.OrderClass.OCO,
+        )
+        assert order.order_class == Order.OrderClass.OCO
+        assert order.order_type == Order.OrderType.LIMIT
+        assert len(order.child_orders) == 2
+        assert order.child_orders[0].order_type == Order.OrderType.LIMIT
+        assert order.child_orders[0].limit_price == 101.0
+        assert order.child_orders[1].order_type == Order.OrderType.STOP
+        assert order.child_orders[1].stop_price == 100.0
+
+    def test_bracket_standard(self):
+        # Expecting the parent entry order plus two child orders
+        order = Order(
+            strategy="",
+            asset=Asset("SPY"),
+            side=Order.OrderSide.BUY,
+            limit_price=101.0,
+            quantity=10,
+            order_class=Order.OrderClass.BRACKET,
+            secondary_limit_price=102.0,
+            secondary_stop_price=99.0,
+            secondary_stop_limit_price=99.10,
+        )
+        assert order.order_class == Order.OrderClass.BRACKET
+        assert order.side == Order.OrderSide.BUY
+        assert order.order_type == Order.OrderType.LIMIT
+        assert order.limit_price == 101.0
+        assert len(order.child_orders) == 2
+        assert order.child_orders[0].order_type == Order.OrderType.LIMIT
+        assert order.child_orders[0].limit_price == 102.0
+        assert order.child_orders[0].is_sell_order()
+        assert order.child_orders[1].order_type == Order.OrderType.STOP_LIMIT
+        assert order.child_orders[1].is_sell_order()
+        assert order.child_orders[1].is_stop_order()
+        assert order.child_orders[1].stop_price == 99.0
+        assert order.child_orders[1].stop_limit_price == 99.10

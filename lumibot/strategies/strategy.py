@@ -391,18 +391,26 @@ class Strategy(_Strategy):
         side: str,
         limit_price: float = None,
         stop_price: float = None,
-        time_in_force: str = "gtc",
-        good_till_date: datetime.datetime = None,
-        take_profit_price: float = None,
-        stop_loss_price: float = None,
-        stop_loss_limit_price: float = None,
+        stop_limit_price: float = None,
         trail_price: float = None,
         trail_percent: float = None,
+        secondary_limit_price: float = None,
+        secondary_stop_price: float = None,
+        secondary_stop_limit_price: float = None,
+        secondary_trail_price: float = None,
+        secondary_trail_percent: float = None,
+        time_in_force: str = "gtc",
+        good_till_date: datetime.datetime = None,
+        take_profit_price: float = None,  # Deprecated, use 'secondary_limit_price' instead
+        stop_loss_price: float = None,  # Deprecated, use 'secondary_stop_price' instead
+        stop_loss_limit_price: float = None,  # Deprecated, use 'secondary_stop_limit_price' instead
         position_filled: float = None,
         exchange: str = None,
         quote: Asset = None,
         pair: str = None,
-        type: str = None,
+        order_type: Union[Order.OrderType, None] = None,
+        order_class: Union[Order.OrderClass, None] = None,
+        type: Union[Order.OrderType, None] = None,  # Deprecated, use 'order_type' instead
         custom_params: dict = None,
     ):
         # noinspection PyShadowingNames,PyUnresolvedReferences
@@ -438,11 +446,13 @@ class Strategy(_Strategy):
             eg: Decimal("3.213"). Internally all will convert to Decimal.
         side : str
             Whether the order is ``buy`` or ``sell``.
-        type : str
+        order_type : Order.OrderType
             The type of order. Order types include: ``'market'``, ``'limit'``, ``'stop'``, ``'stop_limit'``,
-            ``trailing_stop``, ``'oco'``, ``'bracket'``, ``'oto'``.
-            We will try to determine the order type if you do not specify it. It is mandatory to set the type
-            for advanced order types such as ``'oco'``, ``'bracket'``, ``'oto'``.
+            ``trailing_stop``
+            We will try to determine the order type if you do not specify it.
+        order_class: Order.OrderClass
+            The class of the order. Order classes include: ``'simple'``, ``'bracket'``, ``'oco'``, ``'oto'``,
+            ``'multileg'``
         limit_price : float
             A Limit order is an order to buy or sell at a specified
             price or better. The Limit order ensures that if the
@@ -452,6 +462,31 @@ class Strategy(_Strategy):
             A Stop order is an instruction to submit a buy or sell
             market order if and when the user-specified stop trigger
             price is attained or penetrated.
+        stop_limit_price : float
+            Stop loss with limit price used to ensure a specific fill price
+            when the stop price is reached. For more information, visit:
+            https://www.investopedia.com/terms/s/stop-limitorder.asp
+        secondary_limit_price : float
+            Limit price used for child orders of Advanced Orders like
+            Bracket Orders and One Triggers Other (OTO) orders. One Cancels
+            Other (OCO) orders do not use this field as the primary prices
+            can specify all info needed to execute the OCO (because there is
+            no corresponding Entry Order).
+        secondary_stop_price : float
+            Stop price used for child orders of Advanced Orders like
+            Bracket Orders and One Triggers Other (OTO) orders. One Cancels
+            Other (OCO) orders do not use this field as the primary prices
+            can specify all info needed to execute the OCO (because there is
+            no corresponding Entry Order).
+        secondary_stop_limit_price : float
+            Stop limit price used for child orders of Advanced Orders like
+            Bracket Orders and One Triggers Other (OTO) orders. One Cancels
+            Other (OCO) orders do not use this field as the primary prices
+            can specify all info needed to execute the OCO (because there is
+            no corresponding Entry Order).
+        stop_loss_limit_price : float
+            Stop loss with limit price used for bracket orders and one
+            cancels other orders. (Depricated, use 'stop_limit_price` instead)
         time_in_force : str
             Amount of time the order is in force. Order types include:
                 - ``'day'`` Orders valid for the remainder of the day.
@@ -462,13 +497,10 @@ class Strategy(_Strategy):
             This is the time order is valid for Good Though Date orders.
         take_profit_price : float
             Limit price used for bracket orders and one cancels other
-            orders.
+            orders. (Depricated, use 'secondary_limit_price` instead)
         stop_loss_price : float
             Stop price used for bracket orders and one cancels other
-            orders.
-        stop_loss_limit_price : float
-            Stop loss with limit price used for bracket orders and one
-            cancels other orders.
+            orders. (Depricated, use 'secondary_stop_price` instead)
         trail_price : float
             Trailing stop orders allow you to continuously and
             automatically keep updating the stop price threshold based
@@ -479,6 +511,10 @@ class Strategy(_Strategy):
             automatically keep updating the stop price threshold based
             on the stock price movement. E.g. 0.05 would be a 5% trailing stop.
             `trail_percent` sets the trailing price in percent.
+        secondary_trail_price : float
+            Trailing stop price for child orders of Advanced Orders like Bracket or OTO orders.
+        secondary_trail_percent : float
+            Trailing stop percent for child orders of Advanced Orders like Bracket or OTO orders.
         exchange : str
             The exchange where the order will be placed.
             ``Default = 'SMART'``
@@ -489,6 +525,14 @@ class Strategy(_Strategy):
         custom_params : dict
             A dictionary of custom parameters that can be used to pass additional information to the broker. This is useful for passing custom parameters to the broker that are not supported by Lumibot.
             E.g. `custom_params={"leverage": 3}` for Kraken margin trading.
+        type : Order.OrderType
+            Deprecated, use 'order_type' instead
+
+        Further Reading
+        -------
+        - Although the term "stop_limit" can be confusing, it is important to remember that this is a StopLoss modifier
+            not a true limit price nor bracket-style order. For more information, visit:
+            https://www.investopedia.com/terms/s/stop-limitorder.asp
 
         Returns
         -------
@@ -514,7 +558,7 @@ class Strategy(_Strategy):
         >>> self.submit_order(order)
 
         >>> # For a stop limit order
-        >>> order = self.create_order("SPY", 100, "buy", limit_price=100.00, stop_price=100.00)
+        >>> order = self.create_order("SPY", 100, "buy", stop_price=100.00, stop_limit_price=99.95)
         >>> self.submit_order(order)
 
         >>> # For a market sell order
@@ -529,47 +573,49 @@ class Strategy(_Strategy):
         >>> order = self.create_order("SPY", 100, "buy", trail_price=100.00)
         >>> self.submit_order(order)
 
-        >>> # For an OCO order
+        >>> # For an OCO order - No entry order specified, only exit order info.
         >>> order = self.create_order(
         >>>                "SPY",
         >>>                100,
         >>>                "sell",
-        >>>                take_profit_price=limit,
-        >>>                stop_loss_price=stop_loss,
-        >>>                type="oco",
+        >>>                limit_price=limit,  # Exit Profit point
+        >>>                stop_price=stop_loss,  # Exit Loss point
+        >>>                stop_limit_price=stop_loss_limit,  # Stop loss modifier (optional)
+        >>>                order_class=Order.OrderClass.OCO,
         >>>            )
 
-        >>> # For a bracket order
+        >>> # For a bracket order - One Entry order with a Profit and Loss exit orders (2 child orders).
         >>> order = self.create_order(
         >>>                "SPY",
         >>>                100,
-        >>>                "sell",
-        >>>                take_profit_price=limit,
-        >>>                stop_loss_price=stop_loss,
-        >>>                stop_loss_limit_price=stop_loss_limit,
-        >>>                type="bracket",
+        >>>                "buy",
+        >>>                limit_price=limit,  # When the Entry order will execute
+        >>>                secondary_limit_price=sec_limit,  # When the child Profit Exit order will execute
+        >>>                secondary_stop_price=stop_loss,  # When the child Loss Exit order will execute
+        >>>                secondary_stop_limit_price=stop_loss_limit,  # Child loss modifier (optional)
+        >>>                order_class=Order.OrderClass.BRACKET,
         >>>            )
 
         >>> # For a bracket order with a trailing stop
         >>> order = self.create_order(
         >>>                "SPY",
         >>>                100,
-        >>>                "sell",
-        >>>                trail_percent=trail_percent,
-        >>>                take_profit_price=limit,
-        >>>                stop_loss_price=stop_loss,
-        >>>                stop_loss_limit_price=stop_loss_limit,
-        >>>                type="bracket",
+        >>>                "buy",
+        >>>                limit_price=limit,  # When to Enter
+        >>>                secondary_limit_price=sec_limit,  # When to Exit Profit
+        >>>                secondary_stop_price=stop_loss,  # When to Exit Loss
+        >>>                secondary_trail_percent=trail_percent,  # Exit stop modifier (optional)
+        >>>                order_class=Order.OrderClass.BRACKET,
         >>>            )
 
-        >>> # For an OTO order
+        >>> # For an OTO order - One Entry, only a single Exit criteria is allowed (1/2 of a bracket order)
         >>> order = self.create_order(
         >>>                "SPY",
         >>>                100,
-        >>>                "sell",
-        >>>                take_profit_price=limit,
-        >>>                stop_loss_price=stop_loss,
-        >>>                type="oto",
+        >>>                "buy",
+        >>>                limit_price=limit,  # When to Enter
+        >>>                secondary_stop_price=stop_loss,  # When to Exit
+        >>>                order_class=Order.OrderClass.OTO,
         >>>            )
 
         >>> # For a futures order
@@ -587,9 +633,10 @@ class Strategy(_Strategy):
         >>>                asset,
         >>>                100,
         >>>                "buy",
-        >>>                trail_percent=trail_percent,
-        >>>                limit_price=limit,
-        >>>                stop_price=stop_loss,
+        >>>                limit_price=limit,  # When to Enter
+        >>>                secondary_stop_price=stop_loss,  # When to Exit
+        >>>                secondary_trail_percent=trail_percent,  # Exit modifier (optional)
+        >>>                order_class=Order.OrderClass.OTO,
         >>>            )
         >>> self.submit_order(order)
 
@@ -608,9 +655,10 @@ class Strategy(_Strategy):
         >>>                asset,
         >>>                100,
         >>>                "buy",
-        >>>                trail_percent=trail_percent,
         >>>                limit_price=limit,
-        >>>                stop_price=stop_loss,
+        >>>                secondary_stop_price=stop_loss,
+        >>>                secondary_trail_percent=trail_percent,
+        >>>                order_class=Order.OrderClass.BRACKET,
         >>>            )
         >>> self.submit_order(order)
 
@@ -640,9 +688,10 @@ class Strategy(_Strategy):
         >>>                asset,
         >>>                100,
         >>>                "buy",
-        >>>                trail_percent=trail_percent,
-        >>>                limit_price=limit,
-        >>>                stop_price=stop_loss,
+        >>>                limit_price=limit,  # When to Enter
+        >>>                secondary_stop_price=stop_loss,  # When to Exit
+        >>>                secondary_trail_percent=trail_percent,  # Exit modifier (optional)
+        >>>                order_class=Order.OrderClass.OTO,
         >>>            )
         >>> self.submit_order(order)
 
@@ -674,19 +723,27 @@ class Strategy(_Strategy):
             side,
             limit_price=limit_price,
             stop_price=stop_price,
+            stop_limit_price=stop_limit_price,
+            secondary_limit_price=secondary_limit_price,
+            secondary_stop_price=secondary_stop_price,
+            secondary_stop_limit_price=secondary_stop_limit_price,
             time_in_force=time_in_force,
             good_till_date=good_till_date,
-            take_profit_price=take_profit_price,
-            stop_loss_price=stop_loss_price,
-            stop_loss_limit_price=stop_loss_limit_price,
+            take_profit_price=take_profit_price,  # Depricated, use 'secondary_limit_price' instead
+            stop_loss_price=stop_loss_price,  # Depricated, use 'secondary_stop_price' instead
+            stop_loss_limit_price=stop_loss_limit_price,  # Depricated, use 'secondary_stop_limit_price' instead
             trail_price=trail_price,
             trail_percent=trail_percent,
+            secondary_trail_price=secondary_trail_price,
+            secondary_trail_percent=secondary_trail_percent,
             exchange=exchange,
             position_filled=position_filled,
             date_created=self.get_datetime(),
             quote=quote,
             pair=pair,
             type=type,
+            order_type=order_type,
+            order_class=order_class,
             custom_params=custom_params,
         )
         return order
@@ -1057,12 +1114,13 @@ class Strategy(_Strategy):
         """
         return self.cash
 
-    def get_positions(self):
+    def get_positions(self, include_cash_positions: bool = False):
         """Get all positions for the account.
 
         Parameters
         ----------
-        None
+        include_cash_positions : bool
+            If True, include cash positions in the returned list. If False, exclude cash positions.
 
         Returns
         -------
@@ -1082,8 +1140,16 @@ class Strategy(_Strategy):
         >>>     self.log_message(position.asset)
 
         """
+        include_cash = include_cash_positions or self.include_cash_positions
+        tracked_positions = self.broker.get_tracked_positions(self.name)
 
-        return self.broker.get_tracked_positions(self.name)
+        # Remove the quote asset from the positions list if it is there
+        clean_positions = []
+        for position in tracked_positions:
+            if position.asset != self.quote_asset or include_cash:
+                clean_positions.append(position)
+
+        return clean_positions
 
     def get_historical_bot_stats(self):
         """Get the historical account value.
@@ -1622,6 +1688,40 @@ class Strategy(_Strategy):
 
         """
         return self.broker.cancel_open_orders(self.name)
+
+    def modify_order(self, order: Order, limit_price: Union[float, None] = None, stop_price: Union[float, None] = None):
+        """Modify an order.
+
+        Modifies a single open order provided.
+
+        Parameters
+        ----------
+        order : Order object
+            Order object to be modified.
+        limit_price : float
+            New limit price for a limit order. Default is None.
+        stop_price : float
+            New stop price for a stop order. Default is None.
+
+        Returns
+        -------
+        None
+
+        Example
+        -------
+        >>> # Modify an existing order
+        >>> order = self.create_order("SPY", 100, "buy", limit_price=100.00)
+        >>> self.submit_order(order)
+        >>> self.modify_order(order, limit_price=101.00)
+        """
+        # Check if the order is already cancelled or filled
+        if not order.is_active():
+            return
+
+        if not order.identifier:
+            raise ValueError("Order identifier is not set, unable to modify order. Did you remember to submit it?")
+
+        return self.broker.modify_order(order, limit_price=limit_price, stop_price=stop_price)
 
     def sell_all(self, cancel_open_orders: bool = True, is_multileg: bool = False):
         """Sell all strategy positions.
@@ -2352,7 +2452,7 @@ class Strategy(_Strategy):
         """
         return self.broker.data_source.get_timestamp()
 
-    def get_round_minute(self, timeshif: int = 0):
+    def get_round_minute(self, timeshift: int = 0):
         """Returns the current minute rounded to the nearest minute. In a backtest this will be the current bar's timestamp. In live trading this will be the current timestamp on the exchange.
 
         Parameters
@@ -3769,6 +3869,7 @@ class Strategy(_Strategy):
         show_progress_bar: bool = True,
         quiet_logs: bool = True,
         trader_class: Type[Trader] = Trader,
+        include_cash_positions=False,
         **kwargs,
     ):
         """Backtest a strategy.
@@ -3930,6 +4031,7 @@ class Strategy(_Strategy):
             show_progress_bar=show_progress_bar,
             quiet_logs=quiet_logs,
             trader_class=trader_class,
+            include_cash_positions=include_cash_positions,
             **kwargs,
         )
         return results

@@ -8,6 +8,7 @@ from decimal import Decimal
 from math import gcd
 import re
 import traceback
+from typing import Union
 from ..trading_builtins import PollingStream
 
 TYPE_MAP = dict(
@@ -771,6 +772,15 @@ class InteractiveBrokersREST(Broker):
     def cancel_order(self, order: Order) -> None:
         self.data_source.delete_order(order)
 
+    def _modify_order(self, order: Order, limit_price: Union[float, None] = None,
+                      stop_price: Union[float, None] = None):
+        """
+        Modify an order at the broker. Nothing will be done for orders that are already cancelled or filled. You are
+        only allowed to change the limit price and/or stop price. If you want to change the quantity,
+        you must cancel the order and submit a new one.
+        """
+        raise NotImplementedError("InteractiveBrokersREST modify order is not implemented.")
+
     def decode_conidex(self, conidex: str) -> dict:
         # Decode this format {spread_conid};;;{leg_conid1}/{ratio},{leg_conid2}/{ratio}
         string = conidex
@@ -798,7 +808,7 @@ class InteractiveBrokersREST(Broker):
                 logging.error(colored("Order Side Not Found", "red"))
                 return None
 
-            orderType = ORDERTYPE_MAPPING[order.type]
+            orderType = ORDERTYPE_MAPPING[order.order_type]
 
             conid = self.data_source.get_conid_from_asset(order.asset)
 
@@ -958,7 +968,7 @@ class InteractiveBrokersREST(Broker):
         order = orders[0]
 
         # Determine the order type, defaulting to "MKT" if not specified
-        order_type_value = order_type if order_type is not None else order.type
+        order_type_value = order_type if order_type is not None else order.order_type
         if order_type_value is None:
             order_type_value = "MKT"
             logging.info("Order type not specified. Defaulting to 'MKT'.")

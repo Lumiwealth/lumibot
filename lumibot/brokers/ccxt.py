@@ -1,6 +1,7 @@
 import datetime
 import logging
 from decimal import ROUND_DOWN, Decimal, getcontext
+from typing import Union
 
 from lumibot.data_sources import CcxtData
 from lumibot.entities import Asset, Order, Position
@@ -304,7 +305,7 @@ class Ccxt(Broker):
                 symbol=pair[1],
                 asset_type="crypto",
             ),
-            type=response["type"] if "type" in response else None,
+            order_type=response["type"] if "type" in response else None,
         )
         order.set_identifier(response["id"])
         order.status = response["status"]
@@ -403,8 +404,8 @@ class Ccxt(Broker):
             logging.error(f"A compound order of {order.order_class} was entered. " f"{markets_error_message}")
             return
 
-        if order.type not in order_types:
-            logging.error(f"An order type of {order.type} was entered which is not " f"valid. {markets_error_message}")
+        if order.order_type not in order_types:
+            logging.error(f"An order type of {order.order_type} was entered which is not " f"valid. {markets_error_message}")
             return
 
         # Check order within limits.
@@ -552,7 +553,7 @@ class Ccxt(Broker):
         if self.is_margin_enabled() and self.api.exchangeId != "binance":
             params["tradeType"] = "MARGIN_TRADE"
 
-        # if self.api.exchangeId == "coinbase" and order.type == "market":
+        # if self.api.exchangeId == "coinbase" and order.order_type == "market":
         #     params["createMarketBuyOrderRequiresPrice"] = False
 
         try:
@@ -685,7 +686,7 @@ class Ccxt(Broker):
         broker = self.api.exchangeId
         if broker == "binance":
             params = {}
-            if order.type in ["stop_limit"]:
+            if order.order_type in ["stop_limit"]:
                 params = {
                     "stopPrice": str(order.stop_price),
                 }
@@ -696,11 +697,11 @@ class Ccxt(Broker):
 
             args = [
                 order.pair,
-                order_type_map[order.type],
+                order_type_map[order.order_type],
                 order.side,
                 str(order.quantity),
             ]
-            if order.type in ["limit", "stop_limit"]:
+            if order.order_type in ["limit", "stop_limit"]:
                 args.append(str(order.limit_price))
 
             if len(params) > 0:
@@ -710,7 +711,7 @@ class Ccxt(Broker):
 
         elif broker in ["kraken", "kucoin", "coinbasepro", "coinbase"]:
             params = {}
-            if order.type in ["stop_limit"]:
+            if order.order_type in ["stop_limit"]:
                 params = {
                     "stop": "entry" if order.side == "buy" else "loss",
                     "stop_price": str(order.stop_price),
@@ -728,15 +729,15 @@ class Ccxt(Broker):
 
             args = [
                 order.pair,
-                order_type_map[order.type],
+                order_type_map[order.order_type],
                 order.side,
                 str(order.quantity),  # check this with coinbase.
             ]
-            if order_type_map[order.type] == "limit":
+            if order_type_map[order.order_type] == "limit":
                 args.append(str(order.limit_price))
 
             # If coinbase, you need to pass the price even with a market order
-            if broker == "coinbase" and order_type_map[order.type] == "market":
+            if broker == "coinbase" and order_type_map[order.order_type] == "market":
                 price = self.data_source.get_last_price(order.asset, quote=order.quote)
                 args.append(str(price))
 
@@ -767,6 +768,15 @@ class Ccxt(Broker):
         """Cancel all open orders at the broker."""
         for order in self._pull_broker_all_orders():
             self.api.cancel_order(order["id"], symbol=order["symbol"])
+
+    def _modify_order(self, order: Order, limit_price: Union[float, None] = None,
+                      stop_price: Union[float, None] = None):
+        """
+        Modify an order at the broker. Nothing will be done for orders that are already cancelled or filled. You are
+        only allowed to change the limit price and/or stop price. If you want to change the quantity,
+        you must cancel the order and submit a new one.
+        """
+        raise NotImplementedError("CCXTBroker modify order is not implemented.")
 
     def get_historical_account_value(self):
         logging.error("The function get_historical_account_value is not " "implemented yet for CCXT.")

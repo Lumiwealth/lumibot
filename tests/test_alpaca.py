@@ -1,3 +1,5 @@
+import os
+import pytest
 from unittest.mock import MagicMock
 
 from lumibot.entities import Asset, Order
@@ -10,12 +12,13 @@ from datetime import datetime, timedelta
 import math
 import unittest
 
+
 # Fake credentials, they do not need to be real
 ALPACA_CONFIG = {  # Paper trading!
     # Put your own Alpaca key here:
-    "API_KEY": "PK6Q6HBUH97A8CO3Y6W2",
+    "API_KEY": os.getenv("ALPACA_API_KEY_PAPER", None),
     # Put your own Alpaca secret here:
-    "API_SECRET": "7GbAGWUyFehoWiPe1xLUUtTsaTZQMQLUMuGQOlKA",
+    "API_SECRET": os.getenv("ALPACA_API_SECRET_PAPER", None),
     # If you want to use real money you must change this to False
     "PAPER": True,
 }
@@ -26,6 +29,14 @@ def next_friday(date):
 
     return date + timedelta(days=days_until_friday+7)
 
+@pytest.mark.skipif(
+        not ALPACA_CONFIG['API_KEY'] or not ALPACA_CONFIG['API_SECRET'],
+        reason="This test requires an alpaca API key"
+    )
+@pytest.mark.skipif(
+    ALPACA_CONFIG['API_KEY'] == '<your key here>',
+    reason="This test requires an alpaca API key"
+)
 class TestAlpacaBroker(unittest.TestCase):
 
     @classmethod

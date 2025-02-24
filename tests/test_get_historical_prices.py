@@ -151,15 +151,16 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
         assert bars.df["dividend"].iloc[-1] is not None
 
         # assert that there was a dividend paid on 3/15
-        assert bars.df["dividend"].loc["2019-03-15"] != 0.0
+        dividend_value = bars.df.loc["2019-03-15", "dividend"]
+        if isinstance(dividend_value, pd.Series):
+            dividend_value = dividend_value.iloc[0]
+        assert dividend_value != 0.0
 
         # make a new dataframe where the index is Date and the columns are the actual returns
         actual_df = pd.DataFrame(columns=["actual_return"])
         for dt, row in bars.df.iterrows():
             actual_return = row["return"]
-            actual_df.loc[dt.date()] = {
-                "actual_return": actual_return,
-            }
+            actual_df.loc[dt.date()] = {"actual_return": actual_return}
 
         # We load the SPY data directly and calculate the adjusted returns.
         file_path = os.getcwd() + "/data/SPY.csv"
@@ -171,8 +172,9 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
 
         comparison_df = pd.concat(
             [actual_df["actual_return"],
-             expected_df["expected_return"]],
-            axis=1).reindex(actual_df.index)
+            expected_df["expected_return"]],
+            axis=1
+        ).reindex(actual_df.index)
 
         comparison_df = comparison_df.dropna()
         # print(f"\n{comparison_df}")
@@ -481,7 +483,7 @@ class TestDatasourceGetHistoricalPricesDailyData:
         If you ask for one bar after the market is closed, you should get a complete bar from the current trading day.
         """
 
-        if self.today in self.trading_days.index.date:
+        if self.today in list(self.trading_days.index.date):
             market_open = self.trading_days.loc[str(self.today), 'market_open']
 
             if self.now < market_open:

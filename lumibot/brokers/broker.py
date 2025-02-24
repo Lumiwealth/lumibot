@@ -42,9 +42,11 @@ class Broker(ABC):
     NEW_ORDER = "new"
     CANCELED_ORDER = "canceled"
     FILLED_ORDER = "fill"
+    MODIFIED_ORDER = "modified"
     PARTIALLY_FILLED_ORDER = "partial_fill"
     CASH_SETTLED = "cash_settled"
     ERROR_ORDER = "error"
+    PLACEHOLDER_ORDER = "placeholder"
 
     def __init__(self, name="", connect_stream=True, data_source: DataSource = None, option_source: DataSource = None,
                  config=None, max_workers=20, extended_trading_minutes=0):
@@ -53,6 +55,7 @@ class Broker(ABC):
         self.name = name
         self._lock = RLock()
         self._unprocessed_orders = SafeList(self._lock)
+        self._placeholder_orders = SafeList(self._lock)
         self._new_orders = SafeList(self._lock)
         self._canceled_orders = SafeList(self._lock)
         self._partially_filled_orders = SafeList(self._lock)
@@ -112,6 +115,16 @@ class Broker(ABC):
     @abstractmethod
     def cancel_order(self, order: Order) -> None:
         """Cancel an order at the broker"""
+        pass
+
+    @abstractmethod
+    def _modify_order(self, order: Order, limit_price: Union[float, None] = None,
+                      stop_price: Union[float, None] = None):
+        """
+        Modify an order at the broker. Nothing will be done for orders that are already cancelled or filled. You are
+        only allowed to change the limit price and/or stop price. If you want to change the quantity,
+        you must cancel the order and submit a new one.
+        """
         pass
 
     @abstractmethod
@@ -587,6 +600,14 @@ class Broker(ABC):
         self._new_orders.append(order)
         return order
 
+    def _process_placeholder_order(self, order):
+        """Used to track a placeholder order that never gets filled. I.e. OCO parent order"""
+        self._unprocessed_orders.remove(order.identifier, key="identifier")
+        order.status = self.NEW_ORDER
+        order.set_new()
+        self._placeholder_orders.append(order)
+        return order
+
     def _process_canceled_order(self, order):
         self._new_orders.remove(order.identifier, key="identifier")
         self._unprocessed_orders.remove(order.identifier, key="identifier")
@@ -837,9 +858,10 @@ class Broker(ABC):
 
     # =========Orders and assets functions=================
 
-    def get_tracked_order(self, identifier):
+    def get_tracked_order(self, identifier, use_placeholders=False):
         """get a tracked order given an identifier"""
-        for order in self._tracked_orders:
+        tracked_orders = list(self._tracked_orders) + (self._placeholder_orders.get_list() if use_placeholders else [])
+        for order in tracked_orders:
             if order.identifier == identifier:
                 return order
         return None
@@ -942,6 +964,10 @@ class Broker(ABC):
         response = self._pull_broker_all_orders()
         result = self._parse_broker_orders(response, strategy_name, strategy_object=strategy_object)
         return result
+
+    def modify_order(self, order, stop_price: Union[float, None] = None, limit_price: Union[float, None] = None):
+        """Modify an order"""
+        return self._modify_order(order, stop_price=stop_price, limit_price=limit_price)
 
     def submit_order(self, order) -> Order:
         """Conform an order for an asset to broker constraints and submit it."""
@@ -1199,21 +1225,29 @@ class Broker(ABC):
             except ValueError:
                 raise error
 
-        if price is not None:
-            error = ValueError("price must be a positive float, received %r instead" % price)
+        if price is not None and not isinstance(price, float):
             try:
                 price = float(price)
             except ValueError:
-                raise error
+                raise ValueError(f"price must be a positive float, received {price} instead") from None
 
         if Order.is_equivalent_status(type_event, self.NEW_ORDER):
             stored_order = self._process_new_order(stored_order)
+            self._on_new_order(stored_order)
+        if Order.is_equivalent_status(type_event, self.PLACEHOLDER_ORDER):
+            stored_order = self._process_placeholder_order(stored_order)
             self._on_new_order(stored_order)
         elif Order.is_equivalent_status(type_event, self.CANCELED_ORDER):
             # Do not cancel or re-cancel already completed orders
             if stored_order.is_active():
                 stored_order = self._process_canceled_order(stored_order)
                 self._on_canceled_order(stored_order)
+        elif Order.is_equivalent_status(type_event, self.MODIFIED_ORDER):
+            # Modify is only allowed to adjust the stop and limit price, not quantity or other attributes.
+            if stored_order.order_type == Order.OrderType.STOP:
+                stored_order.stop_price = price
+            elif stored_order.order_type == Order.OrderType.LIMIT:
+                stored_order.limit_price = price
         elif Order.is_equivalent_status(type_event, self.PARTIALLY_FILLED_ORDER):
             stored_order, position = self._process_partially_filled_order(stored_order, price, filled_quantity)
             self._on_partially_filled_order(position, stored_order, price, filled_quantity, multiplier)
@@ -1222,7 +1256,7 @@ class Broker(ABC):
             self._on_filled_order(position, stored_order, price, filled_quantity, multiplier)
         elif Order.is_equivalent_status(type_event, self.CASH_SETTLED):
             self._process_cash_settlement(stored_order, price, filled_quantity)
-            stored_order.type = self.CASH_SETTLED
+            stored_order.order_type = self.CASH_SETTLED
         else:
             self.logger.info(f"Unhandled type event {type_event} for {stored_order}")
 
@@ -1234,7 +1268,7 @@ class Broker(ABC):
             "identifier": stored_order.identifier,
             "symbol": stored_order.symbol,
             "side": stored_order.side,
-            "type": stored_order.type,
+            "type": stored_order.order_type,
             "status": stored_order.status,
             "price": price,
             "filled_quantity": filled_quantity,

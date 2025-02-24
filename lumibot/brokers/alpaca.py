@@ -665,7 +665,6 @@ class Alpaca(Broker):
         except Exception as e:
             order.set_error(e)
             message = str(e)
-            print(message)
             if "stop price must not be greater than base price / 1.001" in message:
                 logging.info(
                     colored(

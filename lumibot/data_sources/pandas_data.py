@@ -208,19 +208,15 @@ class PandasData(DataSourceBacktesting):
 
         if tuple_to_find in self._data_store:
             data = self._data_store[tuple_to_find]
-            try:
-                dt = self.get_datetime()
-                ohlcv_bid_ask_dict = data.get_quote(dt)
+            dt = self.get_datetime()
+            ohlcv_bid_ask_dict = data.get_quote(dt)
 
-                # Check if ohlcv_bid_ask_dict is NaN
-                if pd.isna(ohlcv_bid_ask_dict):
-                    logging.info(f"Error getting ohlcv_bid_ask for {tuple_to_find}: ohlcv_bid_ask_dict is NaN")
-                    return None
-
-                return ohlcv_bid_ask_dict
-            except Exception as e:
-                logging.info(f"Error getting ohlcv_bid_ask for {tuple_to_find}: {e}")
+            # Check if ohlcv_bid_ask_dict is NaN
+            if pd.isna(ohlcv_bid_ask_dict):
+                logging.info(f"Error getting ohlcv_bid_ask for {tuple_to_find}: ohlcv_bid_ask_dict is NaN")
                 return None
+
+            return ohlcv_bid_ask_dict
         else:
             return None
 

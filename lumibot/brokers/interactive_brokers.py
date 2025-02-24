@@ -9,6 +9,7 @@ import math
 from sys import exit
 from functools import reduce
 from termcolor import colored
+from typing import Union
 
 from dateutil import tz
 from ibapi.client import *
@@ -325,9 +326,9 @@ class InteractiveBrokers(Broker):
             #If price is not None, then set the limit price for for the parent order and set the type to limit.
             if price is not None:
                 multileg_order.limit_price = price
-                multileg_order.type = OrderLum.OrderType.LIMIT
+                multileg_order.order_type = OrderLum.OrderType.LIMIT
             else:
-                multileg_order.type = OrderLum.OrderType.MARKET
+                multileg_order.order_type = OrderLum.OrderType.MARKET
 
             # Submit the multileg order.
             self._orders_queue.put(multileg_order)
@@ -341,7 +342,7 @@ class InteractiveBrokers(Broker):
         # Initial order
         order.identifier = self.ib.nextOrderId()
         kwargs = {
-            "type": order.type,
+            "type": order.order_type,
             "order_class": order.order_class,
             "time_in_force": order.time_in_force,
             "good_till_date": order.good_till_date,
@@ -353,17 +354,18 @@ class InteractiveBrokers(Broker):
         # Remove items with None values
         kwargs = {k: v for k, v in kwargs.items() if v}
 
-        if order.take_profit_price:
-            kwargs["take_profit"] = {"limit_price": order.take_profit_price}
-
-        if order.stop_loss_price:
-            kwargs["stop_loss"] = {"stop_price": order.stop_loss_price}
-            if order.stop_loss_limit_price:
-                kwargs["stop_loss"]["limit_price"] = order.stop_loss_limit_price
+        if order.child_orders:
+            for child_order in order.child_orders:
+                if child_order.order_type == OrderLum.OrderType.LIMIT:
+                    kwargs["take_profit"] = {"limit_price": child_order.limit_price}
+                elif child_order.order_type in [OrderLum.OrderType.STOP, OrderLum.OrderType.STOP_LIMIT]:
+                    kwargs["stop_loss"] = {"stop_price": child_order.stop_price}
+                    if child_order.order_type == OrderLum.OrderType.STOP_LIMIT:
+                        kwargs["stop_loss"]["limit_price"] = child_order.stop_limit_price
 
         if self.subaccount is not None:
             order.account = self.subaccount # to be tested
-        
+
         self._unprocessed_orders.append(order)
         self.ib.execute_order(order)
         order.status = "submitted"
@@ -372,6 +374,15 @@ class InteractiveBrokers(Broker):
     def cancel_order(self, order):
         """Cancel an order"""
         self.ib.cancel_order(order)
+
+    def _modify_order(self, order: OrderLum, limit_price: Union[float, None] = None,
+                      stop_price: Union[float, None] = None):
+        """
+        Modify an order at the broker. Nothing will be done for orders that are already cancelled or filled. You are
+        only allowed to change the limit price and/or stop price. If you want to change the quantity,
+        you must cancel the order and submit a new one.
+        """
+        raise NotImplementedError("InteractiveBroker modify order is not implemented.")
 
     # =========Market functions=======================
     def _close_connection(self):
@@ -1473,8 +1484,9 @@ class IBApp(IBWrapper, IBClient):
         elif asset.asset_type == "index":
             pass
         else:
+            valid_types = [a.value for a in Asset.AssetType]
             raise ValueError(
-                f"The asset {asset.symbol} has a type of {asset.asset_type}. " f"It must be one of {asset._asset_types}"
+                f"The asset {asset.symbol} has a type of {asset.asset_type}. " f"It must be one of {valid_types}"
             )
 
         return contract
@@ -1501,7 +1513,7 @@ class IBApp(IBWrapper, IBClient):
             takeProfit.action = "SELL" if self.get_safe_action(parent.action) == "BUY" else "BUY"
             takeProfit.orderType = "LMT"
             takeProfit.totalQuantity = order.quantity
-            takeProfit.lmtPrice = order.take_profit_price
+            takeProfit.lmtPrice = order.limit_price
             takeProfit.parentId = parent.orderId
             takeProfit.transmit = False
 
@@ -1509,7 +1521,7 @@ class IBApp(IBWrapper, IBClient):
             stopLoss.orderId = self.nextOrderId()
             stopLoss.action = "SELL" if self.get_safe_action(parent.action) == "BUY" else "BUY"
             stopLoss.orderType = "STP"
-            stopLoss.auxPrice = order.stop_loss_price
+            stopLoss.auxPrice = order.stop_price
             stopLoss.totalQuantity = order.quantity
             stopLoss.parentId = parent.orderId
             stopLoss.transmit = True
@@ -1534,23 +1546,23 @@ class IBApp(IBWrapper, IBClient):
             parent.lmtPrice = order.limit_price
             parent.transmit = False
 
-            if order.take_profit_price:
+            if order.limit_price:
                 takeProfit = Order()
                 takeProfit.orderId = self.nextOrderId()
                 takeProfit.action = "SELL" if self.get_safe_action(parent.action) == "BUY" else "BUY"
                 takeProfit.orderType = "LMT"
                 takeProfit.totalQuantity = order.quantity
-                takeProfit.lmtPrice = order.take_profit_price
+                takeProfit.lmtPrice = order.limit_price
                 takeProfit.parentId = parent.orderId
                 takeProfit.transmit = True
                 return [parent, takeProfit]
 
-            elif order.stop_loss_price:
+            elif order.stop_price:
                 stopLoss = Order()
                 stopLoss.orderId = self.nextOrderId()
                 stopLoss.action = "SELL" if self.get_safe_action(parent.action) == "BUY" else "BUY"
                 stopLoss.orderType = "STP"
-                stopLoss.auxPrice = order.stop_loss_price
+                stopLoss.auxPrice = order.stop_price
                 stopLoss.totalQuantity = order.quantity
                 stopLoss.parentId = parent.orderId
                 stopLoss.transmit = True
@@ -1562,7 +1574,7 @@ class IBApp(IBWrapper, IBClient):
             takeProfit.action = self.get_safe_action(order.side)
             takeProfit.orderType = "LMT"
             takeProfit.totalQuantity = order.quantity
-            takeProfit.lmtPrice = order.take_profit_price
+            takeProfit.lmtPrice = order.limit_price
             takeProfit.transmit = False
 
             oco_Group = f"oco_{takeProfit.orderId}"
@@ -1574,7 +1586,7 @@ class IBApp(IBWrapper, IBClient):
             stopLoss.action = self.get_safe_action(order.side)
             stopLoss.orderType = "STP"
             stopLoss.totalQuantity = order.quantity
-            stopLoss.auxPrice = order.stop_loss_price
+            stopLoss.auxPrice = order.stop_price
             stopLoss.transmit = True
 
             stopLoss.ocaGroup = oco_Group
@@ -1583,7 +1595,7 @@ class IBApp(IBWrapper, IBClient):
             return [takeProfit, stopLoss]
         else:
             ib_order.action = self.get_safe_action(order.side)
-            ib_order.orderType = ORDERTYPE_MAPPING[order.type]
+            ib_order.orderType = ORDERTYPE_MAPPING[order.order_type]
             ib_order.totalQuantity = order.quantity
             ib_order.lmtPrice = order.limit_price if order.limit_price else 0
             ib_order.auxPrice = order.stop_price if order.stop_price else ""
@@ -1641,13 +1653,13 @@ class IBApp(IBWrapper, IBClient):
         combo_order = Order()
         combo_order.action = "BUY" # TODO: This is a placeholder. This should be set based on the order side
         combo_order.orderId = combo_order_id
-        combo_order.orderType = ORDERTYPE_MAPPING[order.type]
+        combo_order.orderType = ORDERTYPE_MAPPING[order.order_type]
         combo_order.tif = order.time_in_force.upper()
         combo_order.goodTillDate = order.good_till_date if order.good_till_date else ""
         combo_order.totalQuantity = min([child_order.quantity for child_order in order.child_orders])
 
         # Set the limit price if this is a limit order and a price is provided
-        if order.type == OrderLum.OrderType.LIMIT and order.limit_price:
+        if order.order_type == OrderLum.OrderType.LIMIT and order.limit_price:
             combo_order.lmtPrice = order.limit_price
 
         # Return the combo contract and order        

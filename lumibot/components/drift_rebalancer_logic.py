@@ -258,8 +258,9 @@ class DriftCalculationLogic:
         A positive drift means we need to buy more of the asset,
         a negative drift means we need to sell some of the asset.
         """
+        # Don't let total_value be zero - to avoid division by zero
         total_value = self.df["current_value"].sum()
-        self.df["current_weight"] = self.df["current_value"] / total_value
+        self.df["current_weight"] = self.df["current_value"] / total_value if total_value > 0 else Decimal(0)
         self.df["target_value"] = self.df["target_weight"] * total_value
         self.df["drift"] = self.df.apply(self._calculate_drift_row, axis=1)
         return self.df.copy()

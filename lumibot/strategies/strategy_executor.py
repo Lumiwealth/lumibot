@@ -169,7 +169,8 @@ class StrategyExecutor(Thread):
                     order_attrs = [
                         # "position_filled",
                         # "status",
-                        "limit_price"
+                        "limit_price",
+                        "stop_price",
                     ]
                     for order_attr in order_attrs:
                         olumi = getattr(order_lumi, order_attr)
@@ -389,8 +390,6 @@ class StrategyExecutor(Thread):
     @lifecycle_method
     @trace_stats
     def _on_trading_iteration(self):
-        # Call the send_update_to_cloud method to send the strategy's data to the cloud.
-        self.strategy.send_update_to_cloud()
         self._in_trading_iteration = True
 
         # If we are running live, we need to check if it's time to execute the trading iteration.
@@ -954,7 +953,7 @@ class StrategyExecutor(Thread):
                     break
                 
                 # Send data to cloud every minute. Ensure not being in a trading iteration currently as it can cause an incomplete data sync
-                if (not hasattr(self, '_last_updated_cloud')) or (datetime.now() - self._last_updated_cloud >= timedelta(minutes=1)):
+                if (not hasattr(self, '_last_updated_cloud')) or ((datetime.now() - self._last_updated_cloud) >= timedelta(minutes=1)):
                     self.strategy.send_update_to_cloud()
                     self._last_updated_cloud = datetime.now()
                 

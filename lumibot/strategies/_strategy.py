@@ -150,6 +150,7 @@ class _Strategy:
         should_send_summary_to_discord=True,
         save_logfile=False,
         lumiwealth_api_key=None,
+        include_cash_positions=False,
         **kwargs,
     ):
         """Initializes a Strategy object.
@@ -233,6 +234,9 @@ class _Strategy:
         save_logfile : bool
             Whether to save the logfile. Defaults to False. If True, the logfile will be saved to the logs directory.
             Turning on this option will slow down the backtest.
+        include_cash_positions : bool
+            If True, the strategy will include cash positions in the positions list returned by the get_positions
+            method. Defaults to False.
         lumiwealth_api_key : str
             The API key to use for the LumiWealth data source. Defaults to None (saving to the cloud is off).
         kwargs : dict
@@ -272,6 +276,7 @@ class _Strategy:
 
         self.hide_positions = HIDE_POSITIONS
         self.hide_trades = HIDE_TRADES
+        self.include_cash_positions = include_cash_positions
 
         # If the MARKET env variable is set, use it as the market
         if MARKET:
@@ -499,7 +504,7 @@ class _Strategy:
                 f"Order must be an Order object. You entered {order}."
             )
             return False
-
+        
         # Check if the order does not have a quantity of zero
         if order.quantity == 0:
             self.logger.error(
@@ -973,6 +978,7 @@ class _Strategy:
         show_progress_bar = True,
         quiet_logs = False,
         trader_class = Trader,
+        include_cash_positions=False,
         **kwargs,
     ):
         """Backtest a strategy.
@@ -1111,9 +1117,9 @@ class _Strategy:
         # If backtesting_end is None, then check the BACKTESTING_END environment variable
         if backtesting_end is None and BACKTESTING_END is not None:
             backtesting_end = BACKTESTING_END
-        # If backtesting_end is None, and BACKTESTING_END is not set, then set it to the current date by default
+        # If backtesting_end is None, and BACKTESTING_END is not set, then set it to the current date minus one day by default
         elif backtesting_end is None:
-            backtesting_end = datetime.datetime.now()
+            backtesting_end = datetime.datetime.now() - datetime.timedelta(days=1)
             # Warn the user that the backtesting_end is set to the current date
             logging.warning(
                 colored(f"backtesting_end is set to the current date by default. You can set it to a specific date by passing in the backtesting_end parameter or by setting the BACKTESTING_END environment variable.", "yellow")
@@ -1134,13 +1140,6 @@ class _Strategy:
         # If show_indicators is None, then set it to True
         if show_indicators is None:
             show_indicators = SHOW_INDICATORS
-
-        # Log a warning for polygon_has_paid_subscription as it is deprecated
-        if polygon_has_paid_subscription:
-            self.logger.warning(
-                "polygon_has_paid_subscription is deprecated and will be removed in future versions. "
-                "Please remove it from your code."
-            )
 
         # check if datasource_class is a class or a dictionary
         if isinstance(datasource_class, dict):
@@ -1292,6 +1291,7 @@ class _Strategy:
             buy_trading_fees=buy_trading_fees,
             sell_trading_fees=sell_trading_fees,
             save_logfile=save_logfile,
+            include_cash_positions=include_cash_positions,
             **kwargs,
         )
         self._trader.add_strategy(strategy)

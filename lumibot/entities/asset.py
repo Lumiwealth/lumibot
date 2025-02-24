@@ -1,6 +1,7 @@
 import logging
 from collections import UserDict
 from datetime import date, datetime
+from enum import StrEnum
 
 from lumibot.tools import parse_symbol
 
@@ -55,8 +56,6 @@ class Asset:
         Contract leverage over the underlying.
     precision : str (required if asset_type is 'crypto')
         Conversion currency.
-    _asset_types : list of str
-        Acceptable asset types.
     _right : list of str
         Acceptable values for right.
 
@@ -102,11 +101,11 @@ class Asset:
     >>> self.submit_order(order)
     """
 
-    class OptionRight:
+    class OptionRight(StrEnum):
         CALL = "CALL"
         PUT = "PUT"
 
-    class AssetType:
+    class AssetType(StrEnum):
         STOCK = "stock"
         OPTION = "option"
         FUTURE = "future"
@@ -114,18 +113,6 @@ class Asset:
         CRYPTO = "crypto"
         INDEX = "index"
         MULTILEG = "multileg"
-
-    symbol: str
-    asset_type: str = "stock"
-    expiration: date = None
-    strike: float = 0.0
-    right: str = None
-    multiplier: int = 1
-    precision: str = None
-    underlying_asset: "Asset" = None
-
-    # Pull the asset types from the AssetType class
-    _asset_types: list = [v for k, v in AssetType.__dict__.items() if not k.startswith("__")]
 
     # Pull the rights from the OptionRight class
     _right: list = [v for k, v in OptionRight.__dict__.items() if not k.startswith("__")]
@@ -194,15 +181,15 @@ class Asset:
             self.expiration = expiration
 
         # Multiplier for options must always be 100
-        if asset_type == "option":
+        if asset_type == self.AssetType.OPTION:
             self.multiplier = 100
 
         # Make sure right is upper case
         if right is not None:
             self.right = right.upper()
 
-        self.asset_type_must_be_one_of(self.asset_type)
-        self.right_must_be_one_of(self.right)
+        self.asset_type = self.asset_type_must_be_one_of(asset_type)
+        self.right = self.right_must_be_one_of(right)
 
     @classmethod
     def symbol2asset(cls, symbol: str):
@@ -282,18 +269,27 @@ class Asset:
         # TODO: check if this works!
         if v == "us_equity":
             v = "stock"
-        elif v not in self._asset_types:
+        if v is None or isinstance(v, self.AssetType):
+            return v
+
+        v = v.lower()
+        try:
+            asset_type = self.AssetType(v)
+        except ValueError:
             raise ValueError(f"`asset_type` must be one of {', '.join(self._asset_types)}")
-        return v
+        return asset_type
 
     def right_must_be_one_of(self, v):
-        if v is None:
-            return
+        if v is None or isinstance(v, self.OptionRight):
+            return v
 
         v = v.upper()
-        if v not in self._right:
-            raise ValueError(f"`right` is {v} must be one of {', '.join(self._right)}, upper case.")
-        return v
+        try:
+            right = self.OptionRight(v)
+        except ValueError:
+            valid_rights = ", ".join([x for x in self.OptionRight])
+            raise ValueError(f"`right` must be one of {valid_rights}, uppercase") from None
+        return right
 
     def is_valid(self):
         # All assets should have a symbol

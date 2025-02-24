@@ -1,5 +1,6 @@
 from datetime import datetime
 
+from lumibot.entities import Order
 from lumibot.strategies.strategy import Strategy
 
 """
@@ -27,6 +28,8 @@ class StockOco(Strategy):
 
         # Our Own Variables
         self.counter = 0
+        self.submitted_oco_order = None  # Useful for updating/cancelling orders
+
 
     def on_trading_iteration(self):
         """Buys the self.buy_symbol once, then never again"""
@@ -43,7 +46,7 @@ class StockOco(Strategy):
         if self.first_iteration:
             # Market order
                 main_order = self.create_order(
-                    buy_symbol, quantity, "buy",
+                    buy_symbol, quantity, Order.OrderSide.BUY,
                 )
                 self.submit_order(main_order)
 
@@ -51,12 +54,12 @@ class StockOco(Strategy):
                 order = self.create_order(
                     buy_symbol,
                     quantity,
-                    "sell",
-                    take_profit_price=take_profit_price,
-                    stop_loss_price=stop_loss_price,
-                    type="oco",
+                    Order.OrderSide.SELL,
+                    limit_price=take_profit_price,
+                    stop_price=stop_loss_price,
+                    order_class=Order.OrderClass.OCO,
                 )
-                self.submit_order(order)
+                self.submitted_oco_order = self.submit_order(order)
 
 
 if __name__ == "__main__":

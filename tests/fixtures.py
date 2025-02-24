@@ -3,9 +3,11 @@ import os
 import pytest
 import logging
 import datetime
+from pathlib import Path
 
 import pandas as pd
 
+from lumibot import LUMIBOT_SOURCE_PATH
 from lumibot.entities import Data, Asset
 from lumibot.backtesting import PolygonDataBacktesting
 
@@ -36,10 +38,11 @@ def pandas_data_fixture() -> Dict[Asset, Data]:
     """
     symbols = ["SPY", "TLT", "GLD"]
     pandas_data = dict()
-    data_dir = os.getcwd() + "/data"
+    lumibot_git_dir = Path(LUMIBOT_SOURCE_PATH).parent
+    data_dir = lumibot_git_dir / "data"
     print(data_dir)
     for symbol in symbols:
-        csv_path = data_dir + f"/{symbol}.csv"
+        csv_path = data_dir / f"{symbol}.csv"
         asset = Asset(
             symbol=symbol,
             asset_type="stock",

@@ -5,6 +5,7 @@ import traceback
 from asyncio import CancelledError
 from datetime import timezone
 from decimal import Decimal
+from typing import Union
 
 import pandas_market_calendars as mcal
 from alpaca.trading.client import TradingClient
@@ -102,7 +103,7 @@ class Alpaca(Broker):
 
     ASSET_TYPE_MAP = dict(
         stock=["us_equity"],
-        option=[],
+        option=["us_option"],
         future=[],
         forex=[],
     )
@@ -264,7 +265,12 @@ class Alpaca(Broker):
         if position.asset_class == "crypto":
             asset = Asset(
                 symbol=position.symbol.replace("USD", ""),
-                asset_type="crypto",
+                asset_type=Asset.AssetType.CRYPTO,
+            )
+        elif position.asset_class == "option":
+            asset = Asset(
+                symbol=position.symbol,
+                asset_type=Asset.AssetType.OPTION,
             )
         else:
             asset = Asset(
@@ -324,11 +330,11 @@ class Alpaca(Broker):
         return result
 
     # =======Orders and assets functions=========
-    def map_asset_type(self, type):
+    def map_asset_type(self, alpaca_type):
         for k, v in self.ASSET_TYPE_MAP.items():
-            if type in v:
+            if alpaca_type in v:
                 return k
-        raise ValueError(f"The type {type} is not in the ASSET_TYPE_MAP in the Alpaca Module.")
+        raise ValueError(f"The type {alpaca_type} is not in the ASSET_TYPE_MAP in the Alpaca Module.")
 
     def _parse_broker_order(self, response, strategy_name, strategy_object=None):
         """parse a broker order representation
@@ -341,17 +347,28 @@ class Alpaca(Broker):
         else:
             symbol = response.symbol
 
+        # Alpaca Order type/class mostly matches LumiBot's Order type/class with exceptons of 'mleg' and 'trailing_stop'
+        limit_price = response.limit_price if response.order_type != Order.OrderType.STOP_LIMIT else None
+        stop_limit_price = response.limit_price if response.order_type == Order.OrderType.STOP_LIMIT else None
+        order_class = response.order_class if response.order_class != "mleg" else Order.OrderClass.MULTILEG
+        order_type = response.order_type if response.order_type != "trailing_stop" else Order.OrderType.TRAIL
         order = Order(
             strategy_name,
             Asset(
                 symbol=symbol,
-                asset_type=response.asset_class,
+                asset_type=self.map_asset_type(response.asset_class),
             ),
             Decimal(response.qty),
             response.side,
-            limit_price=response.limit_price,
+            limit_price=limit_price,  # order.py always converts to 'float'. Crypto issue?
             stop_price=response.stop_price,
+            stop_limit_price=stop_limit_price,
+            trail_price=response.trail_price if response.trail_price else None,
+            trail_percent=response.trail_percent if response.trail_percent else None,
             time_in_force=response.time_in_force,
+            order_class=order_class,
+            order_type=order_type,
+
             # TODO: remove hardcoding in case Alpaca allows crypto to crypto trading
             quote=Asset(symbol="USD", asset_type="forex"),
         )
@@ -387,58 +404,69 @@ class Alpaca(Broker):
 
         # For Alpaca, only "gtc" and "ioc" orders are supported for crypto
         # TODO: change this if Alpaca allows new order types for crypto
-        if order.asset.asset_type == "crypto":
+        if order.asset.asset_type == Asset.AssetType.CRYPTO:
             if order.time_in_force != "gtc" or "ioc":
                 order.time_in_force = "gtc"
+        # For Alpaca, only "day" is supported for option orders
+        elif order.asset.asset_type == Asset.AssetType.OPTION:
+            order.time_in_force = "day"
 
         qty = str(order.quantity)
 
-        if order.asset.asset_type == "crypto":
+        if order.asset.asset_type == Asset.AssetType.CRYPTO:
             trade_symbol = f"{order.asset.symbol}/{order.quote.symbol}"
+        elif order.asset.asset_type == Asset.AssetType.OPTION:
+            strike_formatted = f"{order.asset.strike:08.3f}".replace('.', '').rjust(8, '0')
+            date = order.asset.expiration.strftime("%y%m%d")
+            trade_symbol = f"{order.asset.symbol}{date}{order.asset.right[0]}{strike_formatted}"
         else:
             trade_symbol = order.asset.symbol
 
-        # If order type is OCO, set to limit (Alpaca wants this for OCO)
-        if order.type == Order.OrderType.OCO:
-            order.type = Order.OrderType.LIMIT
+        # If order class is OCO, set to type limit (Alpaca wants this for OCO), Bracket becomes 'market'
+        alpaca_type = order.order_type
+        if order.order_class == Order.OrderClass.OCO:
+            alpaca_type = Order.OrderType.LIMIT
+        elif order.order_class in [Order.OrderClass.BRACKET, Order.OrderClass.OTO]:
+            alpaca_type = Order.OrderType.MARKET
 
+        limit_price = order.limit_price if order.order_type != Order.OrderType.STOP_LIMIT else order.stop_limit_price
         kwargs = {
             "symbol": trade_symbol,
             "qty": qty,
             "side": order.side,
-            "type": order.type,
+            "type": alpaca_type,
             "order_class": order.order_class,
             "time_in_force": order.time_in_force,
-            "limit_price": str(order.limit_price) if order.limit_price else None,
+            # Crypto can use 9 decimal places on Alpaca
+            "limit_price": str(limit_price) if limit_price else None,
             "stop_price": str(order.stop_price) if order.stop_price else None,
             "trail_price": str(order.trail_price) if order.trail_price else None,
-            "trail_percent": order.trail_percent,
+            "trail_percent": str(order.trail_percent) if order.trail_percent else None,
         }
         # Remove items with None values
         kwargs = {k: v for k, v in kwargs.items() if v}
 
-        if order.take_profit_price:
-            kwargs["take_profit"] = {
-                "limit_price": float(round(order.take_profit_price, 2))
-                if isinstance(order.take_profit_price, Decimal)
-                else order.take_profit_price,
-            }
+        if order.order_class in [Order.OrderClass.OCO, Order.OrderClass.OTO, Order.OrderClass.BRACKET]:
+            child_limit_orders = [child for child in order.child_orders if child.order_type == Order.OrderType.LIMIT]
+            child_stop_orders = [child for child in order.child_orders if child.is_stop_order()]
+            child_limit = child_limit_orders[0] if child_limit_orders else None
+            child_stop = child_stop_orders[0] if child_stop_orders else None
+            if child_limit:
+                kwargs["take_profit"] = {
+                    "limit_price": float(round(child_limit.limit_price, 2))
+                    if isinstance(child_limit.limit_price, Decimal) else child_limit.limit_price,
+                }
 
-        if order.stop_loss_price:
-            kwargs["stop_loss"] = {
-                "stop_price": float(round(order.stop_loss_price, 2))
-                if isinstance(order.stop_loss_price, Decimal)
-                else order.stop_loss_price,
-            }
-            if order.stop_loss_limit_price:
-                kwargs["stop_loss"]["limit_price"] = float(
-                    round(order.stop_loss_limit_price, 2)
-                    if isinstance(
-                        order.stop_loss_limit_price,
-                        Decimal,
+            if child_stop:
+                kwargs["stop_loss"] = {
+                    "stop_price": float(round(child_stop.stop_price, 2))
+                    if isinstance(child_stop.stop_price, Decimal) else child_stop.stop_price,
+                }
+                if child_stop.stop_limit_price:
+                    kwargs["stop_loss"]["limit_price"] = float(
+                        round(child_stop.stop_limit_price, 2)
+                        if isinstance(child_stop.stop_limit_price, Decimal) else child_stop.stop_limit_price
                     )
-                    else order.stop_loss_limit_price
-                )
 
         try:
             order_data = OrderData(**kwargs)
@@ -473,7 +501,7 @@ class Alpaca(Broker):
         """Conform an order to Alpaca's requirements
         See: https://docs.alpaca.markets/docs/orders-at-alpaca
         """
-        if order.asset.asset_type == "stock" and order.type == "limit":
+        if order.asset.asset_type == Asset.AssetType.STOCK and order.order_type == Order.OrderType.LIMIT:
             """
             The minimum price variance exists for limit orders.
             Orders received in excess of the minimum price variance will be rejected.
@@ -510,6 +538,15 @@ class Alpaca(Broker):
         """
         self.api.cancel_order_by_id(order.identifier)
 
+    def _modify_order(self, order: Order, limit_price: Union[float, None] = None,
+                      stop_price: Union[float, None] = None):
+        """
+        Modify an order at the broker. Nothing will be done for orders that are already cancelled or filled. You are
+        only allowed to change the limit price and/or stop price. If you want to change the quantity,
+        you must cancel the order and submit a new one.
+        """
+        raise NotImplementedError("AlpacaBroker modify order is not implemented.")
+
     # =======Account functions=========
 
     def get_historical_account_value(self):
@@ -533,7 +570,6 @@ class Alpaca(Broker):
         Get the broker stream connection
         """
         stream = TradingStream(self.api_key, self.api_secret, paper=self.is_paper)
-
         return stream
 
     def _register_stream_events(self):

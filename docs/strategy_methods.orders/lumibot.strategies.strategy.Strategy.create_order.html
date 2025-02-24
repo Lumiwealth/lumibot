@@ -5,9 +5,9 @@
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="index" title="Index" href="../genindex.html" /><link rel="search" title="Search" href="../search.html" /><link rel="next" title="self.submit_order" href="lumibot.strategies.strategy.Strategy.submit_order.html" /><link rel="prev" title="Order Management" href="../strategy_methods.orders.html" />
 
-    <!-- Generated with Sphinx 7.2.6 and Furo 2024.01.29 -->
+    <!-- Generated with Sphinx 7.2.6 and Furo 2023.09.10 -->
         <title>self.create_order - Lumibot Documentation</title>
-      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=a746c00c" />
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=362ab14a" />
     <link rel="stylesheet" type="text/css" href="../_static/styles/furo.css?v=135e06be" />
     <link rel="stylesheet" type="text/css" href="../_static/styles/furo-extensions.css?v=36a5483c" />
     <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=3791830b" />
@@ -288,7 +288,6 @@
 <li class="toctree-l2"><a class="reference internal" href="../strategy_properties/lumibot.strategies.strategy.Strategy.cash.html">self.cash</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../strategy_properties/lumibot.strategies.strategy.Strategy.portfolio_value.html">self.portfolio_value</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../strategy_properties/lumibot.strategies.strategy.Strategy.first_iteration.html">self.first_iteration</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../strategy_properties/lumibot.strategies.strategy.Strategy.is_backtesting.html">self.is_backtesting</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../strategy_properties/lumibot.strategies.strategy.Strategy.quote_asset.html">self.quote_asset</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../strategy_properties/lumibot.strategies.strategy.Strategy.name.html">self.name</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../strategy_properties/lumibot.strategies.strategy.Strategy.initial_budget.html">self.initial_budget</a></li>
@@ -370,7 +369,7 @@
 <h1>self.create_order<a class="headerlink" href="#self-create-order" title="Link to this heading">#</a></h1>
 <dl class="py function">
 <dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.create_order">
-<span class="sig-prename descclassname"><span class="pre">lumibot.strategies.strategy.Strategy.</span></span><span class="sig-name descname"><span class="pre">create_order</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quantity</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">side</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">limit_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stop_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_in_force</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'gtc'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">good_till_date</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">take_profit_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stop_loss_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stop_loss_limit_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">trail_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">trail_percent</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">position_filled</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exchange</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quote</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pair</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">custom_params</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">{}</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.create_order" title="Link to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">lumibot.strategies.strategy.Strategy.</span></span><span class="sig-name descname"><span class="pre">create_order</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">asset</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quantity</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Decimal</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">side</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">limit_price</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stop_price</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stop_limit_price</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">trail_price</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">trail_percent</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">secondary_limit_price</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">secondary_stop_price</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">secondary_stop_limit_price</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">secondary_trail_price</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">secondary_trail_percent</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_in_force</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'gtc'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">good_till_date</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">datetime</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">take_profit_price</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stop_loss_price</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stop_loss_limit_price</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">position_filled</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exchange</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quote</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Asset</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pair</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">order_type</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">OrderType</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">order_class</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">OrderClass</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">type</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">OrderType</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">custom_params</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.create_order" title="Link to this definition">#</a></dt>
 <dd><p>Creates a new order for this specific strategy. Once created, an order must still be submitted.</p>
 <p>Some notes on Crypto markets:</p>
 <p>Crypto markets require both a base currency and a quote currency to create an order. For example, use the quote parameter.:</p>
@@ -397,10 +396,11 @@ must use <code class="docutils literal notranslate"><span class="pre">Asset</spa
 int, a string number eg: “3.213”, or a Decimal obect,
 eg: Decimal(“3.213”). Internally all will convert to Decimal.</p></li>
 <li><p><strong>side</strong> (<em>str</em>) – Whether the order is <code class="docutils literal notranslate"><span class="pre">buy</span></code> or <code class="docutils literal notranslate"><span class="pre">sell</span></code>.</p></li>
-<li><p><strong>type</strong> (<em>str</em>) – The type of order. Order types include: <code class="docutils literal notranslate"><span class="pre">'market'</span></code>, <code class="docutils literal notranslate"><span class="pre">'limit'</span></code>, <code class="docutils literal notranslate"><span class="pre">'stop'</span></code>, <code class="docutils literal notranslate"><span class="pre">'stop_limit'</span></code>,
-<code class="docutils literal notranslate"><span class="pre">trailing_stop</span></code>, <code class="docutils literal notranslate"><span class="pre">'oco'</span></code>, <code class="docutils literal notranslate"><span class="pre">'bracket'</span></code>, <code class="docutils literal notranslate"><span class="pre">'oto'</span></code>.
-We will try to determine the order type if you do not specify it. It is mandatory to set the type
-for advanced order types such as <code class="docutils literal notranslate"><span class="pre">'oco'</span></code>, <code class="docutils literal notranslate"><span class="pre">'bracket'</span></code>, <code class="docutils literal notranslate"><span class="pre">'oto'</span></code>.</p></li>
+<li><p><strong>order_type</strong> (<a class="reference internal" href="../entities.order.html#entities.order.Order.OrderType" title="entities.order.Order.OrderType"><em>Order.OrderType</em></a>) – The type of order. Order types include: <code class="docutils literal notranslate"><span class="pre">'market'</span></code>, <code class="docutils literal notranslate"><span class="pre">'limit'</span></code>, <code class="docutils literal notranslate"><span class="pre">'stop'</span></code>, <code class="docutils literal notranslate"><span class="pre">'stop_limit'</span></code>,
+<code class="docutils literal notranslate"><span class="pre">trailing_stop</span></code>
+We will try to determine the order type if you do not specify it.</p></li>
+<li><p><strong>order_class</strong> (<a class="reference internal" href="../entities.order.html#entities.order.Order.OrderClass" title="entities.order.Order.OrderClass"><em>Order.OrderClass</em></a>) – The class of the order. Order classes include: <code class="docutils literal notranslate"><span class="pre">'simple'</span></code>, <code class="docutils literal notranslate"><span class="pre">'bracket'</span></code>, <code class="docutils literal notranslate"><span class="pre">'oco'</span></code>, <code class="docutils literal notranslate"><span class="pre">'oto'</span></code>,
+<code class="docutils literal notranslate"><span class="pre">'multileg'</span></code></p></li>
 <li><p><strong>limit_price</strong> (<em>float</em>) – A Limit order is an order to buy or sell at a specified
 price or better. The Limit order ensures that if the
 order fills, it will not fill at a price less favorable
@@ -408,6 +408,26 @@ than your limit price, but it does not guarantee a fill.</p></li>
 <li><p><strong>stop_price</strong> (<em>float</em>) – A Stop order is an instruction to submit a buy or sell
 market order if and when the user-specified stop trigger
 price is attained or penetrated.</p></li>
+<li><p><strong>stop_limit_price</strong> (<em>float</em>) – Stop loss with limit price used to ensure a specific fill price
+when the stop price is reached. For more information, visit:
+<a class="reference external" href="https://www.investopedia.com/terms/s/stop-limitorder.asp">https://www.investopedia.com/terms/s/stop-limitorder.asp</a></p></li>
+<li><p><strong>secondary_limit_price</strong> (<em>float</em>) – Limit price used for child orders of Advanced Orders like
+Bracket Orders and One Triggers Other (OTO) orders. One Cancels
+Other (OCO) orders do not use this field as the primary prices
+can specify all info needed to execute the OCO (because there is
+no corresponding Entry Order).</p></li>
+<li><p><strong>secondary_stop_price</strong> (<em>float</em>) – Stop price used for child orders of Advanced Orders like
+Bracket Orders and One Triggers Other (OTO) orders. One Cancels
+Other (OCO) orders do not use this field as the primary prices
+can specify all info needed to execute the OCO (because there is
+no corresponding Entry Order).</p></li>
+<li><p><strong>secondary_stop_limit_price</strong> (<em>float</em>) – Stop limit price used for child orders of Advanced Orders like
+Bracket Orders and One Triggers Other (OTO) orders. One Cancels
+Other (OCO) orders do not use this field as the primary prices
+can specify all info needed to execute the OCO (because there is
+no corresponding Entry Order).</p></li>
+<li><p><strong>stop_loss_limit_price</strong> (<em>float</em>) – Stop loss with limit price used for bracket orders and one
+cancels other orders. (Depricated, use ‘stop_limit_price` instead)</p></li>
 <li><p><strong>time_in_force</strong> (<em>str</em>) – <dl class="simple">
 <dt>Amount of time the order is in force. Order types include:</dt><dd><ul>
 <li><p><code class="docutils literal notranslate"><span class="pre">'day'</span></code> Orders valid for the remainder of the day.</p></li>
@@ -420,11 +440,9 @@ price is attained or penetrated.</p></li>
 </p></li>
 <li><p><strong>good_till_date</strong> (<em>datetime.datetime</em>) – This is the time order is valid for Good Though Date orders.</p></li>
 <li><p><strong>take_profit_price</strong> (<em>float</em>) – Limit price used for bracket orders and one cancels other
-orders.</p></li>
+orders. (Depricated, use ‘secondary_limit_price` instead)</p></li>
 <li><p><strong>stop_loss_price</strong> (<em>float</em>) – Stop price used for bracket orders and one cancels other
-orders.</p></li>
-<li><p><strong>stop_loss_limit_price</strong> (<em>float</em>) – Stop loss with limit price used for bracket orders and one
-cancels other orders.</p></li>
+orders. (Depricated, use ‘secondary_stop_price` instead)</p></li>
 <li><p><strong>trail_price</strong> (<em>float</em>) – Trailing stop orders allow you to continuously and
 automatically keep updating the stop price threshold based
 on the stock price movement. <cite>trail_price</cite> sets the
@@ -433,6 +451,8 @@ trailing price in dollars.</p></li>
 automatically keep updating the stop price threshold based
 on the stock price movement. E.g. 0.05 would be a 5% trailing stop.
 <cite>trail_percent</cite> sets the trailing price in percent.</p></li>
+<li><p><strong>secondary_trail_price</strong> (<em>float</em>) – Trailing stop price for child orders of Advanced Orders like Bracket or OTO orders.</p></li>
+<li><p><strong>secondary_trail_percent</strong> (<em>float</em>) – Trailing stop percent for child orders of Advanced Orders like Bracket or OTO orders.</p></li>
 <li><p><strong>exchange</strong> (<em>str</em>) – The exchange where the order will be placed.
 <code class="docutils literal notranslate"><span class="pre">Default</span> <span class="pre">=</span> <span class="pre">'SMART'</span></code></p></li>
 <li><p><strong>quote</strong> (<a class="reference internal" href="../entities.asset.html#entities.asset.Asset" title="entities.asset.Asset"><em>Asset</em></a>) – This is the currency that the main coin being bought or sold
@@ -440,6 +460,13 @@ will exchange in. For example, if trading <code class="docutils literal notransl
 parameter will be ‘ETH’ (as an Asset object).</p></li>
 <li><p><strong>custom_params</strong> (<em>dict</em>) – A dictionary of custom parameters that can be used to pass additional information to the broker. This is useful for passing custom parameters to the broker that are not supported by Lumibot.
 E.g. <cite>custom_params={“leverage”: 3}</cite> for Kraken margin trading.</p></li>
+<li><p><strong>type</strong> (<a class="reference internal" href="../entities.order.html#entities.order.Order.OrderType" title="entities.order.Order.OrderType"><em>Order.OrderType</em></a>) – Deprecated, use ‘order_type’ instead</p></li>
+<li><p><strong>Reading</strong> (<em>Further</em>) – </p></li>
+<li><p><strong>-------</strong> – </p></li>
+<li><p><strong>confusing</strong> (<em>- Although the term &quot;stop_limit&quot; can be</em>) – not a true limit price nor bracket-style order. For more information, visit:
+<a class="reference external" href="https://www.investopedia.com/terms/s/stop-limitorder.asp">https://www.investopedia.com/terms/s/stop-limitorder.asp</a></p></li>
+<li><p><strong>modifier</strong> (<em>it is important to remember that this is a StopLoss</em>) – not a true limit price nor bracket-style order. For more information, visit:
+<a class="reference external" href="https://www.investopedia.com/terms/s/stop-limitorder.asp">https://www.investopedia.com/terms/s/stop-limitorder.asp</a></p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -471,7 +498,7 @@ E.g. <cite>custom_params={“leverage”: 3}</cite> for Kraken margin trading.</
 </pre></div>
 </div>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For a stop limit order</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="s2">&quot;SPY&quot;</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="s2">&quot;buy&quot;</span><span class="p">,</span> <span class="n">limit_price</span><span class="o">=</span><span class="mf">100.00</span><span class="p">,</span> <span class="n">stop_price</span><span class="o">=</span><span class="mf">100.00</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="s2">&quot;SPY&quot;</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="s2">&quot;buy&quot;</span><span class="p">,</span> <span class="n">stop_price</span><span class="o">=</span><span class="mf">100.00</span><span class="p">,</span> <span class="n">stop_limit_price</span><span class="o">=</span><span class="mf">99.95</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
 </pre></div>
 </div>
@@ -490,26 +517,28 @@ E.g. <cite>custom_params={“leverage”: 3}</cite> for Kraken margin trading.</
 <span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
 </pre></div>
 </div>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For an OCO order</span>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For an OCO order - No entry order specified, only exit order info.</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span>
 <span class="gp">&gt;&gt;&gt; </span>               <span class="s2">&quot;SPY&quot;</span><span class="p">,</span>
 <span class="gp">&gt;&gt;&gt; </span>               <span class="mi">100</span><span class="p">,</span>
 <span class="gp">&gt;&gt;&gt; </span>               <span class="s2">&quot;sell&quot;</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="n">take_profit_price</span><span class="o">=</span><span class="n">limit</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="n">stop_loss_price</span><span class="o">=</span><span class="n">stop_loss</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;oco&quot;</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="n">limit_price</span><span class="o">=</span><span class="n">limit</span><span class="p">,</span>  <span class="c1"># Exit Profit point</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="n">stop_price</span><span class="o">=</span><span class="n">stop_loss</span><span class="p">,</span>  <span class="c1"># Exit Loss point</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="n">stop_limit_price</span><span class="o">=</span><span class="n">stop_loss_limit</span><span class="p">,</span>  <span class="c1"># Stop loss modifier (optional)</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="n">order_class</span><span class="o">=</span><span class="n">Order</span><span class="o">.</span><span class="n">OrderClass</span><span class="o">.</span><span class="n">OCO</span><span class="p">,</span>
 <span class="gp">&gt;&gt;&gt; </span>           <span class="p">)</span>
 </pre></div>
 </div>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For a bracket order</span>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For a bracket order - One Entry order with a Profit and Loss exit orders (2 child orders).</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span>
 <span class="gp">&gt;&gt;&gt; </span>               <span class="s2">&quot;SPY&quot;</span><span class="p">,</span>
 <span class="gp">&gt;&gt;&gt; </span>               <span class="mi">100</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="s2">&quot;sell&quot;</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="n">take_profit_price</span><span class="o">=</span><span class="n">limit</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="n">stop_loss_price</span><span class="o">=</span><span class="n">stop_loss</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="n">stop_loss_limit_price</span><span class="o">=</span><span class="n">stop_loss_limit</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;bracket&quot;</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="s2">&quot;buy&quot;</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="n">limit_price</span><span class="o">=</span><span class="n">limit</span><span class="p">,</span>  <span class="c1"># When the Entry order will execute</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="n">secondary_limit_price</span><span class="o">=</span><span class="n">sec_limit</span><span class="p">,</span>  <span class="c1"># When the child Profit Exit order will execute</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="n">secondary_stop_price</span><span class="o">=</span><span class="n">stop_loss</span><span class="p">,</span>  <span class="c1"># When the child Loss Exit order will execute</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="n">secondary_stop_limit_price</span><span class="o">=</span><span class="n">stop_loss_limit</span><span class="p">,</span>  <span class="c1"># Child loss modifier (optional)</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="n">order_class</span><span class="o">=</span><span class="n">Order</span><span class="o">.</span><span class="n">OrderClass</span><span class="o">.</span><span class="n">BRACKET</span><span class="p">,</span>
 <span class="gp">&gt;&gt;&gt; </span>           <span class="p">)</span>
 </pre></div>
 </div>
@@ -517,23 +546,23 @@ E.g. <cite>custom_params={“leverage”: 3}</cite> for Kraken margin trading.</
 <span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span>
 <span class="gp">&gt;&gt;&gt; </span>               <span class="s2">&quot;SPY&quot;</span><span class="p">,</span>
 <span class="gp">&gt;&gt;&gt; </span>               <span class="mi">100</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="s2">&quot;sell&quot;</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="n">trail_percent</span><span class="o">=</span><span class="n">trail_percent</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="n">take_profit_price</span><span class="o">=</span><span class="n">limit</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="n">stop_loss_price</span><span class="o">=</span><span class="n">stop_loss</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="n">stop_loss_limit_price</span><span class="o">=</span><span class="n">stop_loss_limit</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;bracket&quot;</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="s2">&quot;buy&quot;</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="n">limit_price</span><span class="o">=</span><span class="n">limit</span><span class="p">,</span>  <span class="c1"># When to Enter</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="n">secondary_limit_price</span><span class="o">=</span><span class="n">sec_limit</span><span class="p">,</span>  <span class="c1"># When to Exit Profit</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="n">secondary_stop_price</span><span class="o">=</span><span class="n">stop_loss</span><span class="p">,</span>  <span class="c1"># When to Exit Loss</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="n">secondary_trail_percent</span><span class="o">=</span><span class="n">trail_percent</span><span class="p">,</span>  <span class="c1"># Exit stop modifier (optional)</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="n">order_class</span><span class="o">=</span><span class="n">Order</span><span class="o">.</span><span class="n">OrderClass</span><span class="o">.</span><span class="n">BRACKET</span><span class="p">,</span>
 <span class="gp">&gt;&gt;&gt; </span>           <span class="p">)</span>
 </pre></div>
 </div>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For an OTO order</span>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For an OTO order - One Entry, only a single Exit criteria is allowed (1/2 of a bracket order)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span>
 <span class="gp">&gt;&gt;&gt; </span>               <span class="s2">&quot;SPY&quot;</span><span class="p">,</span>
 <span class="gp">&gt;&gt;&gt; </span>               <span class="mi">100</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="s2">&quot;sell&quot;</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="n">take_profit_price</span><span class="o">=</span><span class="n">limit</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="n">stop_loss_price</span><span class="o">=</span><span class="n">stop_loss</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;oto&quot;</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="s2">&quot;buy&quot;</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="n">limit_price</span><span class="o">=</span><span class="n">limit</span><span class="p">,</span>  <span class="c1"># When to Enter</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="n">secondary_stop_price</span><span class="o">=</span><span class="n">stop_loss</span><span class="p">,</span>  <span class="c1"># When to Exit</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="n">order_class</span><span class="o">=</span><span class="n">Order</span><span class="o">.</span><span class="n">OrderClass</span><span class="o">.</span><span class="n">OTO</span><span class="p">,</span>
 <span class="gp">&gt;&gt;&gt; </span>           <span class="p">)</span>
 </pre></div>
 </div>
@@ -553,9 +582,10 @@ E.g. <cite>custom_params={“leverage”: 3}</cite> for Kraken margin trading.</
 <span class="gp">&gt;&gt;&gt; </span>               <span class="n">asset</span><span class="p">,</span>
 <span class="gp">&gt;&gt;&gt; </span>               <span class="mi">100</span><span class="p">,</span>
 <span class="gp">&gt;&gt;&gt; </span>               <span class="s2">&quot;buy&quot;</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="n">trail_percent</span><span class="o">=</span><span class="n">trail_percent</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="n">limit_price</span><span class="o">=</span><span class="n">limit</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="n">stop_price</span><span class="o">=</span><span class="n">stop_loss</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="n">limit_price</span><span class="o">=</span><span class="n">limit</span><span class="p">,</span>  <span class="c1"># When to Enter</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="n">secondary_stop_price</span><span class="o">=</span><span class="n">stop_loss</span><span class="p">,</span>  <span class="c1"># When to Exit</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="n">secondary_trail_percent</span><span class="o">=</span><span class="n">trail_percent</span><span class="p">,</span>  <span class="c1"># Exit modifier (optional)</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="n">order_class</span><span class="o">=</span><span class="n">Order</span><span class="o">.</span><span class="n">OrderClass</span><span class="o">.</span><span class="n">OTO</span><span class="p">,</span>
 <span class="gp">&gt;&gt;&gt; </span>           <span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
 </pre></div>
@@ -576,9 +606,10 @@ E.g. <cite>custom_params={“leverage”: 3}</cite> for Kraken margin trading.</
 <span class="gp">&gt;&gt;&gt; </span>               <span class="n">asset</span><span class="p">,</span>
 <span class="gp">&gt;&gt;&gt; </span>               <span class="mi">100</span><span class="p">,</span>
 <span class="gp">&gt;&gt;&gt; </span>               <span class="s2">&quot;buy&quot;</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="n">trail_percent</span><span class="o">=</span><span class="n">trail_percent</span><span class="p">,</span>
 <span class="gp">&gt;&gt;&gt; </span>               <span class="n">limit_price</span><span class="o">=</span><span class="n">limit</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="n">stop_price</span><span class="o">=</span><span class="n">stop_loss</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="n">secondary_stop_price</span><span class="o">=</span><span class="n">stop_loss</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="n">secondary_trail_percent</span><span class="o">=</span><span class="n">trail_percent</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="n">order_class</span><span class="o">=</span><span class="n">Order</span><span class="o">.</span><span class="n">OrderClass</span><span class="o">.</span><span class="n">BRACKET</span><span class="p">,</span>
 <span class="gp">&gt;&gt;&gt; </span>           <span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
 </pre></div>
@@ -611,9 +642,10 @@ E.g. <cite>custom_params={“leverage”: 3}</cite> for Kraken margin trading.</
 <span class="gp">&gt;&gt;&gt; </span>               <span class="n">asset</span><span class="p">,</span>
 <span class="gp">&gt;&gt;&gt; </span>               <span class="mi">100</span><span class="p">,</span>
 <span class="gp">&gt;&gt;&gt; </span>               <span class="s2">&quot;buy&quot;</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="n">trail_percent</span><span class="o">=</span><span class="n">trail_percent</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="n">limit_price</span><span class="o">=</span><span class="n">limit</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="n">stop_price</span><span class="o">=</span><span class="n">stop_loss</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="n">limit_price</span><span class="o">=</span><span class="n">limit</span><span class="p">,</span>  <span class="c1"># When to Enter</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="n">secondary_stop_price</span><span class="o">=</span><span class="n">stop_loss</span><span class="p">,</span>  <span class="c1"># When to Exit</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="n">secondary_trail_percent</span><span class="o">=</span><span class="n">trail_percent</span><span class="p">,</span>  <span class="c1"># Exit modifier (optional)</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="n">order_class</span><span class="o">=</span><span class="n">Order</span><span class="o">.</span><span class="n">OrderClass</span><span class="o">.</span><span class="n">OTO</span><span class="p">,</span>
 <span class="gp">&gt;&gt;&gt; </span>           <span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
 </pre></div>

@@ -8,10 +8,14 @@ import pytest
 from lumibot.brokers.tradier import Tradier
 from lumibot.data_sources.tradier_data import TradierData
 from lumibot.entities import Asset, Order, Position
+from lumibot.credentials import TRADIER_CONFIG
 
-TRADIER_ACCOUNT_ID_PAPER = os.getenv("TRADIER_ACCOUNT_ID_PAPER")
-TRADIER_TOKEN_PAPER = os.getenv("TRADIER_TOKEN_PAPER")
-
+if not TRADIER_CONFIG['PAPER']:
+    # Skip all the tests in this file
+    pytest.skip("Live tradier paper key used for testing; skipping", allow_module_level=True)
+else:
+    TRADIER_ACCOUNT_ID_PAPER = TRADIER_CONFIG['ACCOUNT_NUMBER']
+    TRADIER_TOKEN_PAPER = TRADIER_CONFIG['ACCESS_TOKEN']
 
 @pytest.fixture
 def tradier_ds():

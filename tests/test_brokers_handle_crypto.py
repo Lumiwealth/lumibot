@@ -57,47 +57,6 @@ class TestBrokerHandlesCrypto:
         assert order.status == "new"
         broker.cancel_order(order)
 
-    @pytest.mark.skip(reason="Yahoo does not support base and quote assets")
-    def test_yahoo_backtesting_with_base_and_quote(self):
-        data_source = YahooDataBacktesting(datetime_start=self.start, datetime_end=self.end, pandas_data={})
-        broker = BacktestingBroker(data_source=data_source)
-
-        # test_get_last_price
-        last_price = broker.get_last_price(self.base, self.quote)
-        assert_type(last_price, float)
-        assert last_price > 0.0
-
-        # test_get_historical_prices
-        bars = broker.data_source.get_historical_prices(
-            asset=self.base,
-            length=self.length,
-            timestep=self.timestep,
-            quote=self.quote
-        )
-
-        assert_type(bars, Bars)
-        assert len(bars.df) == self.length
-        # get the date of the last bar, which should be the day before the start date
-        last_date = bars.df.index[-1]
-        assert last_date.date() == (self.start - timedelta(days=1)).date()
-        last_price = bars.df['close'].iloc[-1]
-        assert last_price > 0.0
-
-        # test_submit_limit_order
-        limit_price = 1.0  # Make sure we never hit this price
-        order = Order(
-            strategy="test",
-            asset=self.base,
-            quantity=1,
-            side=Order.OrderSide.BUY,
-            limit_price=limit_price,
-            quote=self.quote
-        )
-        assert order.status == "unprocessed"
-        broker.submit_order(order)
-        assert order.status == "new"
-        broker.cancel_order(order)
-
     @pytest.mark.skipif(
         not POLYGON_CONFIG["API_KEY"],
         reason="This test requires a Polygon.io API key"

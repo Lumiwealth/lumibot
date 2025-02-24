@@ -6,21 +6,15 @@ from lumibot.entities import Asset, Order
 from lumibot.brokers.alpaca import Alpaca
 from lumibot.data_sources.alpaca_data import AlpacaData
 from lumibot.example_strategies.stock_buy_and_hold import BuyAndHold
+from lumibot.credentials import ALPACA_CONFIG
 
 from datetime import datetime, timedelta
 
 import math
 
-
-# Fake credentials, they do not need to be real
-ALPACA_CONFIG = {  # Paper trading!
-    # Put your own Alpaca key here:
-    "API_KEY": os.getenv("ALPACA_API_KEY_PAPER", None),
-    # Put your own Alpaca secret here:
-    "API_SECRET": os.getenv("ALPACA_API_SECRET_PAPER", None),
-    # If you want to use real money you must change this to False
-    "PAPER": True,
-}
+if not ALPACA_CONFIG['PAPER']:
+    # Skip all the tests in this file
+    pytest.skip("Live alpaca paper key used for testing; skipping", allow_module_level=True)
 
 
 @pytest.mark.skipif(

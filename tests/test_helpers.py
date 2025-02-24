@@ -77,6 +77,23 @@ def test_date_n_bars_from_date_zero_bars():
     )
     assert result == datetime(2023, 10, 15).date()
 
+def test_date_n_days_from_date_with_24_7_market():
+    start_datetime = datetime(2023, 1, 1)
+    result = date_n_days_from_date(
+        n_bars=5,
+        start_datetime=start_datetime,
+        market="24/7"
+    )
+    assert result == datetime(2022, 12, 27).date()
+
+    result = date_n_days_from_date(
+        n_bars=-5,
+        start_datetime=start_datetime,
+        market="24/7"
+    )
+    assert result == datetime(2023, 1, 6).date()
+
+
 
 
 

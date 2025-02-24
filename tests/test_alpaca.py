@@ -13,13 +13,18 @@ import unittest
 # Fake credentials, they do not need to be real
 ALPACA_CONFIG = {  # Paper trading!
     # Put your own Alpaca key here:
-    "API_KEY": "PKFOSVDLDLR592N9U5AD",
+    "API_KEY": "PK6Q6HBUH97A8CO3Y6W2",
     # Put your own Alpaca secret here:
-    "API_SECRET": "eRJM2FGnQLOtCbQz2TJfhvWJeK5bTc5XO2iHZsj1",
+    "API_SECRET": "7GbAGWUyFehoWiPe1xLUUtTsaTZQMQLUMuGQOlKA",
     # If you want to use real money you must change this to False
     "PAPER": True,
 }
 
+def next_friday(date):
+    days_until_friday = (4 - date.weekday() + 7) % 7
+    days_until_friday = 7 if days_until_friday == 0 else days_until_friday
+
+    return date + timedelta(days=days_until_friday+7)
 
 class TestAlpacaBroker(unittest.TestCase):
 
@@ -57,28 +62,58 @@ class TestAlpacaBroker(unittest.TestCase):
         self.broker._conform_order(order)
         assert order.limit_price == 0.1235
 
-    def test_mulitleg_options_order(self):
+    def test_mulitleg_options_order_spread(self):
         porders = self.broker._pull_all_orders('test', None)
 
         spy_price = self.broker.get_last_price(asset='SPY')
-        casset = Asset('SPY', Asset.AssetType.OPTION, expiration=datetime.now(), strike=math.floor(spy_price), right='CALL')
-        passet = Asset('SPY', Asset.AssetType.OPTION, expiration=datetime.now(), strike=math.floor(spy_price), right='PUT')
-        orders = [Order(strategy='test', asset=passet, quantity=1, limit_price=0.01, side="buy"), Order(strategy='test', asset=casset, quantity=1, side="buy")]
+        dte = next_friday(datetime.now())
+        basset = Asset('SPY', Asset.AssetType.OPTION, expiration=dte, strike=math.floor(spy_price), right='CALL')
+        sasset = Asset('SPY', Asset.AssetType.OPTION, expiration=dte, strike=math.floor(spy_price) + 2, right='CALL')
+        orders = [
+            Order(strategy='test', asset=basset, quantity=1, type='limit', limit_price=0.01, side="buy"), 
+            Order(strategy='test', asset=sasset, quantity=1, side="sell", limit_price=0.01, type='limit')
+        ]
         self.broker.submit_orders(orders, is_multileg=True)
 
         orders = self.broker._pull_all_orders('test', None)
         oids = {o.identifier for o in porders}
         orders = [o for o in orders if o.identifier not in oids]
-        assert len(orders) == 2
-        assert len([o.asset.right == 'CALL' and o.asset.symbol == 'SPY' for o in orders]) == 1
-        assert len([o.asset.right == 'PUT' and o.asset.symbol == 'SPY' for o in orders]) == 1
+        assert len(orders) == 1
+        o = orders[0]
+        assert sum([o.asset.right == 'CALL' and o.asset.symbol == 'SPY' for o in o.child_orders]) == 2
+
+    def test_mulitleg_options_order_condor(self):
+        porders = self.broker._pull_all_orders('test', None)
+
+        spy_price = self.broker.get_last_price(asset='SPY')
+        dte = next_friday(datetime.now())
+        basset = Asset('SPY', Asset.AssetType.OPTION, expiration=dte, strike=math.floor(spy_price), right='CALL')
+        sasset = Asset('SPY', Asset.AssetType.OPTION, expiration=dte, strike=math.floor(spy_price) - 3, right='CALL')
+        b1asset = Asset('SPY', Asset.AssetType.OPTION, expiration=dte, strike=math.floor(spy_price), right='PUT')
+        s1asset = Asset('SPY', Asset.AssetType.OPTION, expiration=dte, strike=math.floor(spy_price) + 3, right='PUT')
+        orders = [
+            Order(strategy='test', asset=basset, quantity=1, type='limit', limit_price=0.01, side="buy"), 
+            Order(strategy='test', asset=sasset, quantity=1, side="sell", limit_price=0.01, type='limit'),
+            Order(strategy='test', asset=b1asset, quantity=1, side="buy", limit_price=0.01, type='limit'),
+            Order(strategy='test', asset=s1asset, quantity=1, side="sell", limit_price=0.01, type='limit')
+        ]
+        self.broker.submit_orders(orders, is_multileg=True)
+
+        orders = self.broker._pull_all_orders('test', None)
+        oids = {o.identifier for o in porders}
+        orders = [o for o in orders if o.identifier not in oids]
+        assert len(orders) == 1
+        o = orders[0]
+        assert sum([o.asset.right == 'CALL' and o.asset.symbol == 'SPY' for o in o.child_orders]) == 2
+        assert sum([o.asset.right == 'PUT' and o.asset.symbol == 'SPY' for o in o.child_orders]) == 2
 
     def test_option_order(self):
         porders = self.broker._pull_all_orders('test', None)
 
-        spy_price = self.broker.get_last_price(asset='SPY')
-        casset = Asset('SPY', Asset.AssetType.OPTION, expiration=datetime.now(), strike=math.floor(spy_price), right='CALL')
-        self.broker.submit_order(Order('test', asset=casset))
+        spy_price = self.broker.get_last_price(asset='QQQ')
+        dte = next_friday(datetime.now())
+        casset = Asset('QQQ', Asset.AssetType.OPTION, expiration=dte, strike=math.floor(spy_price), right='CALL')
+        self.broker.submit_order(Order('test', asset=casset, quantity=1, side="buy", limit_price=0.01, type='limit'))
 
         orders = self.broker._pull_all_orders('test', None)
         oids = {o.identifier for o in porders}
@@ -87,7 +122,7 @@ class TestAlpacaBroker(unittest.TestCase):
         assert len([o.asset.right == 'CALL' and o.asset.symbol == 'SPY' for o in orders]) == 1
 
     def test_option_get_last_price(self):
-        dte = datetime.now()
+        dte = next_friday(datetime.now())
         spy_price = self.broker.get_last_price(asset='SPY')
         price = self.broker.get_last_price(asset=Asset('SPY', Asset.AssetType.OPTION, expiration=dte, strike=math.floor(spy_price), right='CALL'))
         assert price != 0
@@ -105,7 +140,7 @@ class TestAlpacaBroker(unittest.TestCase):
         assert price != 0
 
     def test_option_get_historical_prices(self):
-        dte = datetime.now() - timedelta(days=2)
+        dte = next_friday(datetime.now())
         spy_price = self.broker.get_last_price(asset='SPY')
         asset = Asset('SPY', Asset.AssetType.OPTION, expiration=dte, strike=math.floor(spy_price), right='CALL')
         bars = self.broker.data_source.get_historical_prices(asset, 10, "day")

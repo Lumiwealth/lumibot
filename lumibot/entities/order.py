@@ -118,8 +118,7 @@ class Order:
         error_message: str = None,
         child_orders: list = None,
         tag: str = "",
-        status: OrderStatus = "unprocessed",
-        legs: List[dict] = None
+        status: OrderStatus = "unprocessed"
     ):
         """Order class for managing individual orders.
 
@@ -333,7 +332,6 @@ class Order:
         self.broker_create_date = None  # The datetime the order was created by the broker
         self.broker_update_date = None  # The datetime the order was last updated by the broker
         self.status = status
-        self.legs = legs
 
         # Options:
         self.exchange = exchange

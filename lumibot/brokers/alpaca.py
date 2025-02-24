@@ -15,7 +15,7 @@ from termcolor import colored
 
 from lumibot.data_sources import AlpacaData
 from lumibot.entities import Asset, Order, Position
-from lumibot.tools.helpers import has_more_than_n_decimal_places, parse_symbol
+from lumibot.tools.helpers import has_more_than_n_decimal_places, parse_symbol, create_options_symbol
 
 from .broker import Broker
 
@@ -345,27 +345,14 @@ class Alpaca(Broker):
         """parse a broker order representation
         to an order object"""
 
-        # If the symbol includes a slash, then it is a crypto order and only the first part of
-        # the symbol is the real symbol
-        if "/" in response.symbol:
-            symbol = response.symbol.split("/")[0]
-        else:
-            symbol = response.symbol
-
-        asset_type = self.map_asset_type(response.asset_class)
-
         qty = Decimal(response.qty) if response.qty != None else Decimal(response.filled_qty)
         fill_price = Decimal(response.filled_avg_price) if response.filled_avg_price != None else 0
 
-        if asset_type == Asset.AssetType.OPTION:
-            parsed = parse_symbol(symbol)
-
+        # Check for multileg first its a bit different
+        if response.order_class == "mleg":
             asset = Asset(
-                symbol=parsed["stock_symbol"],
+                symbol=response.legs[0].symbol,
                 asset_type=Asset.AssetType.OPTION,
-                expiration=parsed["expiration_date"],
-                strike=parsed["strike_price"],
-                right=parsed["option_type"]
             )
             order = Order(
                 strategy_name,
@@ -377,22 +364,73 @@ class Alpaca(Broker):
                 time_in_force=response.time_in_force,
                 avg_fill_price=fill_price
             )
+
+            for l in response.legs:
+                parsed = parse_symbol(l.symbol)
+
+                leg_asset = Asset(
+                    symbol=parsed["stock_symbol"],
+                    asset_type=Asset.AssetType.OPTION,
+                    expiration=parsed["expiration_date"],
+                    strike=parsed["strike_price"],
+                    right=parsed["option_type"]
+                )
+                order.add_child_order(Order(
+                    strategy_name,
+                    leg_asset,
+                    Decimal(l.qty) if l.qty != None else Decimal(l.filled_qty),
+                    l.side,
+                    limit_price=l.limit_price,
+                    stop_price=l.stop_price,
+                    time_in_force=l.time_in_force,
+                    avg_fill_price=fill_price
+                ))
         else:
-            order = Order(
-                strategy_name,
-                Asset(
-                    symbol=symbol,
-                    asset_type=asset_type,
-                ),
-                qty,
-                response.side,
-                limit_price=response.limit_price,
-                stop_price=response.stop_price,
-                time_in_force=response.time_in_force,
-                avg_fill_price=fill_price,
-                # TODO: remove hardcoding in case Alpaca allows crypto to crypto trading
-                quote=Asset(symbol="USD", asset_type="forex"),
-            )
+            # If the symbol includes a slash, then it is a crypto order and only the first part of
+            # the symbol is the real symbol
+            if "/" in response.symbol:
+                symbol = response.symbol.split("/")[0]
+            else:
+                symbol = response.symbol
+
+            asset_type = self.map_asset_type(response.asset_class)
+
+            if asset_type == Asset.AssetType.OPTION:
+                parsed = parse_symbol(symbol)
+
+                asset = Asset(
+                    symbol=parsed["stock_symbol"],
+                    asset_type=Asset.AssetType.OPTION,
+                    expiration=parsed["expiration_date"],
+                    strike=parsed["strike_price"],
+                    right=parsed["option_type"]
+                )
+                order = Order(
+                    strategy_name,
+                    asset,
+                    qty,
+                    response.side,
+                    limit_price=response.limit_price,
+                    stop_price=response.stop_price,
+                    time_in_force=response.time_in_force,
+                    avg_fill_price=fill_price
+                )
+            else:
+                order = Order(
+                    strategy_name,
+                    Asset(
+                        symbol=symbol,
+                        asset_type=asset_type,
+                    ),
+                    qty,
+                    response.side,
+                    limit_price=response.limit_price,
+                    stop_price=response.stop_price,
+                    time_in_force=response.time_in_force,
+                    avg_fill_price=fill_price,
+                    # TODO: remove hardcoding in case Alpaca allows crypto to crypto trading
+                    quote=Asset(symbol="USD", asset_type="forex"),
+                )
         order.set_identifier(response.id)
         order.status = response.status
         order.update_raw(response)
@@ -461,19 +499,9 @@ class Alpaca(Broker):
 
         # Get the symbol from the first order
         symbol = orders[0].asset.symbol
+        parent_asset = Asset(symbol=symbol)
 
         # Create the legs for the multi-leg order
-        legs = []
-        for order in orders:
-            leg = {
-                "symbol": order.asset.symbol,
-                "ratio_qty": order.quantity,
-                "side": Order.OrderSide.BUY if order.is_buy_order() else Order.OrderSide.SELL,
-                "position_intent": Order.OrderSide.BUY_TO_OPEN
-            }
-            legs.append(leg)
-
-        parent_asset = Asset(symbol=symbol)
         parent_order = Order(
             asset=parent_asset,
             strategy=orders[0].strategy,
@@ -485,13 +513,27 @@ class Alpaca(Broker):
             limit_price=price if price != None else orders[0].limit_price,
             tag=tag,
             status=Order.OrderStatus.SUBMITTED,
-            legs=legs
         )
+        for order in orders:
+            child_order = Order(
+                asset=order.asset,
+                strategy=order.strategy,
+                order_class=Order.OrderClass.MULTILEG,
+                side=order.side,
+                quantity=order.quantity,
+                type=order.type,
+                time_in_force=duration,
+                limit_price=price if price != None else orders[0].limit_price,
+                tag=tag,
+                status=Order.OrderStatus.SUBMITTED,
+            )
+            parent_order.add_child_order(child_order)
+
         order_response = self.submit_order(parent_order)
         for o in orders:
             o.parent_identifier = order_response.identifier
 
-        parent_order.child_orders = order.legs
+        parent_order.child_orders = order.child_orders
         return parent_order
 
     def _submit_orders(self, orders, is_multileg=False, order_type=None, duration="day", price=None):
@@ -567,18 +609,30 @@ class Alpaca(Broker):
         if order.type == Order.OrderType.OCO:
             order.type = Order.OrderType.LIMIT
 
+        legs = []
+        if len(order.child_orders) > 0:
+            for order in order.child_orders:
+                leg = {
+                    "symbol": create_options_symbol(order.asset.symbol, order.asset.expiration, order.asset.right, order.asset.strike),
+                    "ratio_qty": order.quantity,
+                    "side": Order.OrderSide.BUY if order.is_buy_order() else Order.OrderSide.SELL,
+                    "position_intent": order.side if order.side != Order.OrderSide.BUY and order.side != Order.OrderSide.SELL else None,
+                    "type": order.type
+                }
+                legs.append(leg)
+
         kwargs = {
-            "symbol": trade_symbol,
+            "symbol": trade_symbol if len(legs) == 0 else None,
             "qty": qty,
             "side": order.side,
             "type": order.type,
-            "order_class": order.order_class,
+            "order_class": order.order_class if len(legs) == 0 else 'mleg',
             "time_in_force": order.time_in_force,
             "limit_price": str(order.limit_price) if order.limit_price else None,
             "stop_price": str(order.stop_price) if order.stop_price else None,
             "trail_price": str(order.trail_price) if order.trail_price else None,
             "trail_percent": order.trail_percent,
-            "legs": order.legs
+            "legs": legs if len(legs) > 0 else None
         }
         # Remove items with None values
         kwargs = {k: v for k, v in kwargs.items() if v}
@@ -618,6 +672,7 @@ class Alpaca(Broker):
         except Exception as e:
             order.set_error(e)
             message = str(e)
+            print(message)
             if "stop price must not be greater than base price / 1.001" in message:
                 logging.info(
                     colored(

@@ -497,7 +497,7 @@ class Alpaca(Broker):
             order_class=Order.OrderClass.MULTILEG,
             side=orders[0].side,
             quantity=orders[0].quantity,
-            type=orders[0].type,
+            order_type=orders[0].order_type,
             time_in_force=duration,
             limit_price=price if price != None else orders[0].limit_price,
             tag=tag,
@@ -510,7 +510,7 @@ class Alpaca(Broker):
                 order_class=Order.OrderClass.MULTILEG,
                 side=order.side,
                 quantity=order.quantity,
-                type=order.type,
+                order_type=order.order_type,
                 time_in_force=duration,
                 limit_price=price if price != None else orders[0].limit_price,
                 tag=tag,
@@ -609,7 +609,7 @@ class Alpaca(Broker):
                     "ratio_qty": order.quantity,
                     "side": Order.OrderSide.BUY if order.is_buy_order() else Order.OrderSide.SELL,
                     "position_intent": order.side if order.side != Order.OrderSide.BUY and order.side != Order.OrderSide.SELL else None,
-                    "type": order.type
+                    "type": order.order_type
                 }
                 legs.append(leg)
 
@@ -626,6 +626,7 @@ class Alpaca(Broker):
             "stop_price": str(order.stop_price) if order.stop_price else None,
             "trail_price": str(order.trail_price) if order.trail_price else None,
             "trail_percent": str(order.trail_percent) if order.trail_percent else None,
+            "legs": legs if len(legs) > 0 else None
         }
         # Remove items with None values
         kwargs = {k: v for k, v in kwargs.items() if v}

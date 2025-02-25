@@ -8,38 +8,51 @@ import pytest
 from lumibot.brokers.tradier import Tradier
 from lumibot.data_sources.tradier_data import TradierData
 from lumibot.entities import Asset, Order, Position
+from lumibot.credentials import TRADIER_TEST_CONFIG
 
-TRADIER_ACCOUNT_ID_PAPER = os.getenv("TRADIER_ACCOUNT_ID_PAPER")
-TRADIER_TOKEN_PAPER = os.getenv("TRADIER_TOKEN_PAPER")
+if not TRADIER_TEST_CONFIG['ACCESS_TOKEN'] or TRADIER_TEST_CONFIG['ACCESS_TOKEN'] == '<your key here>':
+    pytest.skip("These tests requires a Tradier API key", allow_module_level=True)
 
 
 @pytest.fixture
 def tradier_ds():
-    return TradierData(account_number=TRADIER_ACCOUNT_ID_PAPER, access_token=TRADIER_TOKEN_PAPER, paper=True)
+    return TradierData(
+        account_number=TRADIER_TEST_CONFIG['ACCOUNT_NUMBER'],
+        access_token=TRADIER_TEST_CONFIG['ACCESS_TOKEN'],
+        paper=True
+    )
 
 
 @pytest.fixture
 def tradier():
-    return Tradier(account_number=TRADIER_ACCOUNT_ID_PAPER, access_token=TRADIER_TOKEN_PAPER, paper=True)
+    return Tradier(
+        account_number=TRADIER_TEST_CONFIG['ACCOUNT_NUMBER'],
+        access_token=TRADIER_TEST_CONFIG['ACCESS_TOKEN'],
+        paper=True
+    )
 
 
 @pytest.mark.apitest
-@pytest.mark.skipif(not TRADIER_ACCOUNT_ID_PAPER or not TRADIER_TOKEN_PAPER, reason="No Tradier credentials provided.")
 class TestTradierDataAPI:
     """
     API Tests skipped by default. To run all API tests, use the following command:
     python -m pytest -m apitest
     """
+
     def test_basics(self):
-        tdata = TradierData(account_number=TRADIER_ACCOUNT_ID_PAPER, access_token=TRADIER_TOKEN_PAPER, paper=True)
-        assert tdata._account_number == TRADIER_ACCOUNT_ID_PAPER
+        tdata = TradierData(
+            account_number=TRADIER_TEST_CONFIG['ACCOUNT_NUMBER'],
+            access_token=TRADIER_TEST_CONFIG['ACCESS_TOKEN'],
+            paper=True
+        )
+        assert tdata._account_number == TRADIER_TEST_CONFIG['ACCOUNT_NUMBER']
 
     def test_get_last_price(self, tradier_ds):
         asset = Asset("AAPL")
         price = tradier_ds.get_last_price(asset)
         assert isinstance(price, float)
         assert price > 0.0
-               
+
     def test_get_chains(self, tradier_ds):
         asset = Asset("SPY")
         chain = tradier_ds.get_chains(asset)
@@ -93,12 +106,12 @@ class TestTradierDataAPI:
 
 
 @pytest.mark.apitest
-@pytest.mark.skipif(not TRADIER_ACCOUNT_ID_PAPER or not TRADIER_TOKEN_PAPER, reason="No Tradier credentials provided.")
 class TestTradierBrokerAPI:
     """
     API Tests skipped by default. To run all API tests, use the following command:
     python -m pytest -m apitest
     """
+
     def test_get_last_price(self, tradier):
         asset = Asset("AAPL")
         price = tradier.get_last_price(asset)
@@ -117,11 +130,11 @@ class TestTradierBrokerAPI:
         tradier.cancel_order(submitted_order)
 
 
-@pytest.mark.skipif(not TRADIER_ACCOUNT_ID_PAPER or not TRADIER_TOKEN_PAPER, reason="No Tradier credentials provided.")
 class TestTradierBroker:
     """
     Unit tests for the Tradier broker. These tests do not require any API calls.
     """
+
     def test_basics(self):
         broker = Tradier(account_number="1234", access_token="a1b2c3", paper=True)
         assert broker.name == "Tradier"
@@ -525,7 +538,7 @@ class TestTradierBroker:
         sleep(sleep_amt)  # Sleep gives a chance for order processing thread to finish
         known_orders = broker.get_tracked_orders(strategy=strategy)
         assert len(known_orders) == 5, "Filled orders are still being tracked."
-        assert len(broker._new_orders) == 0 # New order is no longer new
+        assert len(broker._new_orders) == 0  # New order is no longer new
         assert not len(broker._unprocessed_orders)
         assert len(broker.get_all_orders()) == 5, "Includes Filled/Cancelled orders and order not in Broker info"
         order = broker.get_order(127)

@@ -6,7 +6,7 @@ import pytz
 from lumibot.entities import Asset, Order, Bars
 from lumibot.backtesting import BacktestingBroker, PolygonDataBacktesting, YahooDataBacktesting, CcxtBacktesting
 from lumibot.brokers.alpaca import Alpaca
-from lumibot.credentials import ALPACA_CONFIG, POLYGON_CONFIG
+from lumibot.credentials import ALPACA_TEST_CONFIG, POLYGON_CONFIG
 
 
 class TestBrokerHandlesCrypto:
@@ -118,15 +118,11 @@ class TestBrokerHandlesCrypto:
         broker.cancel_order(order)
 
     @pytest.mark.skipif(
-        not ALPACA_CONFIG['API_KEY'],
-        reason="This test requires an alpaca API key"
-    )
-    @pytest.mark.skipif(
-        ALPACA_CONFIG['API_KEY'] == '<your key here>',
+        not ALPACA_TEST_CONFIG['API_KEY'] or ALPACA_TEST_CONFIG['API_KEY'] == '<your key here>',
         reason="This test requires an alpaca API key"
     )
     def test_alpaca_broker_with_base_and_quote(self):
-        broker = Alpaca(ALPACA_CONFIG)
+        broker = Alpaca(ALPACA_TEST_CONFIG)
 
         # test_get_last_price
         last_price = broker.data_source.get_last_price(asset=self.base, quote=self.quote)

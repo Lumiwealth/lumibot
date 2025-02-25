@@ -9,9 +9,9 @@ import pandas as pd
 from pandas.testing import assert_series_equal
 
 from lumibot.strategies import Strategy
-from lumibot.backtesting import PandasDataBacktesting, YahooDataBacktesting, PolygonDataBacktesting
+from lumibot.backtesting import PandasDataBacktesting, YahooDataBacktesting, AlpacaBacktesting
 from tests.fixtures import pandas_data_fixture
-from lumibot.tools import print_full_pandas_dataframes, set_pandas_float_display_precision
+from lumibot.credentials import ALPACA_CONFIG
 
 
 logger = logging.getLogger(__name__)
@@ -77,13 +77,13 @@ class TestMomentum:
         df['expected_momo'] = df['Adj Close'].pct_change(lookback_period)
         return df
 
-    def build_comparison_df(self, strat_obj) -> pd.DataFrame:
+    def build_comparison_df(self, strategy) -> pd.DataFrame:
         # This helper function just gets the dataframe of actual momentum values from the strategy object
         # and the dataframe of expected momentum values calculated from the adjusted close prices,
         # and puts them side by side for comparison.
-        actual_df = strat_obj.actual_df
+        actual_df = strategy.actual_df
         actual_df.set_index("date", inplace=True)
-        expected_df = self.calculate_expected_momo(self.df, strat_obj.lookback_period)
+        expected_df = self.calculate_expected_momo(self.df, strategy.lookback_period)
 
         # make a new dataframe with the actual and expected momentum values side by side but for the dates in the actual_df
         comparison_df = pd.concat([actual_df["actual_momo"], expected_df["expected_momo"]], axis=1).reindex(actual_df.index)
@@ -94,11 +94,11 @@ class TestMomentum:
             "lookback_period": 2,
         }
 
-        results, strat_obj = MomoTester.run_backtest(
+        results, strategy = MomoTester.run_backtest(
             datasource_class=PandasDataBacktesting,
             backtesting_start=self.backtesting_start,
             backtesting_end=self.backtesting_end,
-            pandas_data=list(pandas_data_fixture.values()),
+            pandas_data=pandas_data_fixture,
             parameters=parameters,
             show_plot=False,
             show_tearsheet=False,
@@ -107,7 +107,7 @@ class TestMomentum:
             save_logfile=False,
             show_progress_bar=False,
         )
-        comparison_df = self.build_comparison_df(strat_obj)
+        comparison_df = self.build_comparison_df(strategy)
         # print(f"\n{comparison_df}")
 
         assert_series_equal(
@@ -123,11 +123,11 @@ class TestMomentum:
             "lookback_period": 30,
         }
 
-        results, strat_obj = MomoTester.run_backtest(
+        results, strategy = MomoTester.run_backtest(
             datasource_class=PandasDataBacktesting,
             backtesting_start=self.backtesting_start,
             backtesting_end=self.backtesting_end,
-            pandas_data=list(pandas_data_fixture.values()),
+            pandas_data=pandas_data_fixture,
             parameters=parameters,
             show_plot=False,
             show_tearsheet=False,
@@ -136,7 +136,7 @@ class TestMomentum:
             save_logfile=False,
             show_progress_bar=False,
         )
-        comparison_df = self.build_comparison_df(strat_obj)
+        comparison_df = self.build_comparison_df(strategy)
         # print(f"\n{comparison_df}")
 
         assert_series_equal(
@@ -152,7 +152,7 @@ class TestMomentum:
             "lookback_period": 2,
         }
 
-        results, strat_obj = MomoTester.run_backtest(
+        results, strategy = MomoTester.run_backtest(
             datasource_class=YahooDataBacktesting,
             backtesting_start=self.backtesting_start,
             backtesting_end=self.backtesting_end,
@@ -164,7 +164,7 @@ class TestMomentum:
             save_logfile=False,
             show_progress_bar=False,
         )
-        comparison_df = self.build_comparison_df(strat_obj)
+        comparison_df = self.build_comparison_df(strategy)
         # print(f"\n{comparison_df}")
 
         assert_series_equal(
@@ -180,7 +180,7 @@ class TestMomentum:
             "lookback_period": 30,
         }
 
-        results, strat_obj = MomoTester.run_backtest(
+        results, strategy = MomoTester.run_backtest(
             datasource_class=YahooDataBacktesting,
             backtesting_start=self.backtesting_start,
             backtesting_end=self.backtesting_end,
@@ -193,7 +193,7 @@ class TestMomentum:
             show_progress_bar=False,
             quiet_logs=False
         )
-        comparison_df = self.build_comparison_df(strat_obj)
+        comparison_df = self.build_comparison_df(strategy)
         # print(f"\n{comparison_df}")
 
         assert_series_equal(
@@ -201,5 +201,63 @@ class TestMomentum:
             comparison_df["expected_momo"],
             check_names=False,
             atol=1e-4,
+            rtol=0
+        )
+
+    # @pytest.mark.skip()
+    @pytest.mark.skipif(
+        not ALPACA_CONFIG['API_KEY'],
+        reason="This test requires an alpaca API key"
+    )
+    @pytest.mark.skipif(
+        ALPACA_CONFIG['API_KEY'] == '<your key here>',
+        reason="This test requires an alpaca API key"
+    )
+    def test_momo_alpaca_lookback_30(self):
+        tickers = "SPY"
+        start_date = self.backtesting_start.date().isoformat()
+        end_date = self.backtesting_end.date().isoformat()
+        timestep = 'day'
+        refresh_cache = False
+        tz_name = "America/New_York"
+        lookback_period = 30
+
+        data_source = AlpacaBacktesting(
+            tickers=tickers,
+            start_date=start_date,
+            end_date=end_date,
+            timestep=timestep,
+            config=ALPACA_CONFIG,
+            refresh_cache=refresh_cache,
+            tz_name=tz_name,
+            warm_up_trading_days=lookback_period
+        )
+
+        results, strategy = MomoTester.run_backtest(
+            datasource_class=PandasDataBacktesting,
+            pandas_data=data_source.pandas_data,
+            backtesting_start=self.backtesting_start,
+            backtesting_end=self.backtesting_end,
+            parameters={
+                "lookback_period": lookback_period,
+            },
+            show_plot=False,
+            show_tearsheet=False,
+            save_tearsheet=False,
+            show_indicators=False,
+            save_logfile=False,
+            show_progress_bar=False,
+            quiet_logs=False
+        )
+        comparison_df = self.build_comparison_df(strategy)
+
+        # Remove the first row
+        comparison_df = comparison_df.iloc[1:]
+
+        assert_series_equal(
+            comparison_df["actual_momo"],
+            comparison_df["expected_momo"],
+            check_names=False,
+            atol=1e-3,
             rtol=0
         )

@@ -91,11 +91,11 @@ def get_price_data_from_polygon(
 ) -> Optional[pd.DataFrame]:
     """
     Query Polygon.io for historical pricing data for the given asset, using parallel downloads.
-    
+
     Data is cached locally (in LUMIBOT_CACHE_FOLDER/polygon) to avoid re-downloading data for dates
     that have already been checked. For any trading date with no data, a dummy row with a "missing"
     flag is stored in the cache. When returning data to the caller, dummy rows are filtered out.
-    
+
     Parameters
     ----------
     api_key : str
@@ -114,13 +114,13 @@ def get_price_data_from_polygon(
         If True, forces re-downloading data even if cached data exists. Defaults to False.
     max_workers : int, optional
         The number of parallel threads to use for downloading data. Defaults to 10.
-        
+
     Returns
     -------
     Optional[pd.DataFrame]
         The DataFrame containing the historical pricing data (with dummy rows removed),
         or None if a valid symbol could not be found.
-        
+
     Notes
     -----
     - If the cache file exists and is valid (and force_cache_update is False), cached data is loaded.
@@ -142,6 +142,7 @@ def get_price_data_from_polygon(
     # Determine missing trading dates.
     missing_dates = get_missing_dates(df_all, asset, start, end)
     if not missing_dates:
+        # If none are missing, just drop known empty rows and return
         if df_all is not None:
             df_all = df_all.dropna(how="all")
         return df_all
@@ -158,6 +159,8 @@ def get_price_data_from_polygon(
     # Determine overall download range from the earliest to the latest missing date.
     poly_start = missing_dates[0]
     poly_end = missing_dates[-1]
+
+    # We'll break this into multiple ~30-day chunks to avoid the 50k limit
     total_days = (poly_end - poly_start).days + 1
     total_queries = (total_days // MAX_POLYGON_DAYS) + 1
 
@@ -415,11 +418,11 @@ def get_missing_dates(
 ) -> List[datetime.date]:
     """
     Determine which trading dates are missing from the cache.
-    
+
     A date is considered "checked" if any row exists in the cache (whether it contains real
     data or a dummy row indicating a missing query). Trading dates are determined from the asset's
     calendar (via `get_trading_dates()`).
-    
+
     Parameters
     ----------
     df_all : Optional[pd.DataFrame]
@@ -430,13 +433,12 @@ def get_missing_dates(
         The start datetime of the requested range.
     end : datetime
         The end datetime of the requested range.
-        
+
     Returns
     -------
     List[datetime.date]
         A sorted list of date objects representing the trading dates that are missing from the cache.
     """
-    # Get all trading dates from the asset calendar.
     trading_dates = get_trading_dates(asset, start, end)
     # For options, limit to dates on or before the expiration.
     if asset.asset_type == "option":
@@ -454,17 +456,17 @@ def get_missing_dates(
 def load_cache(cache_file: Path) -> pd.DataFrame:
     """
     Load cached data from a Feather file and return a DataFrame with a UTC‐aware DateTimeIndex.
-    
+
     Parameters
     ----------
     cache_file : Path
         The path to the Feather cache file.
-        
+
     Returns
     -------
     pd.DataFrame
         The DataFrame containing the cached data with the 'datetime' column set as the index.
-        
+
     Raises
     ------
     KeyError
@@ -485,18 +487,18 @@ def load_cache(cache_file: Path) -> pd.DataFrame:
     return df
 
 def update_cache(
-    cache_file: Path, 
-    df_all: Optional[pd.DataFrame], 
+    cache_file: Path,
+    df_all: Optional[pd.DataFrame],
     missing_dates: Optional[List[datetime.date]] = None
 ) -> pd.DataFrame:
     """
     Update the cache file by adding any missing dates as dummy rows.
-    
+
     For each date in `missing_dates` that is not already present in the cache,
     a dummy row is added (with a "missing" flag set to True). This ensures that
     dates which were queried but returned no data are recorded, so that they
     will not be re-downloaded on subsequent runs.
-    
+
     Parameters
     ----------
     cache_file : Path
@@ -505,7 +507,7 @@ def update_cache(
         The existing cached DataFrame (may be None or empty).
     missing_dates : Optional[List[datetime.date]]
         List of date objects for which data is missing.
-        
+
     Returns
     -------
     pd.DataFrame
@@ -554,7 +556,7 @@ def update_cache(
 def update_polygon_data(df_all, result):
     """
     Update the DataFrame with the new data from Polygon.
-    
+
     Parameters
     ----------
     df_all : pd.DataFrame
@@ -562,7 +564,7 @@ def update_polygon_data(df_all, result):
     result : list
         A list of dictionaries with the new data from Polygon.
         Format: [{'o': 1.0, 'h': 2.0, 'l': 3.0, 'c': 4.0, 'v': 5.0, 't': 116120000000}]
-        
+
     Returns
     -------
     pd.DataFrame

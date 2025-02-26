@@ -172,16 +172,111 @@ class Tradeovate(Broker):
         return None  # Return None as a placeholder
 
     def _parse_broker_order(self, response: dict, strategy_name: str, strategy_object=None) -> Order:
-        logging.error(colored("Method '_parse_broker_order' is not yet implemented.", "red"))
-        return None
+        """
+        Convert a Tradeovate order dictionary into a Lumibot Order object.
+        
+        Expected Tradeovate fields:
+        - id: order id
+        - contractId: used to get asset details (for futures, asset_type is "future")
+        - orderQty: the quantity
+        - action: "Buy" or "Sell" (will be normalized to lowercase)
+        - ordStatus: order status; possible values include "Working", "Filled", "PartialFill",
+                    "Canceled", "Rejected", "Expired", "Submitted", etc.
+        - timestamp: an ISO timestamp string (with a trailing 'Z' for UTC)
+        - orderType, price, stopPrice: if provided
+        
+        This function retrieves contract details (using _get_contract_details) to create an Asset,
+        maps raw statuses to Lumibot's expected statuses, converts the timestamp into a datetime object,
+        and creates the Order. The quote is set to USD.
+        """
+        try:
+            order_id = response.get("id")
+            contract_id = response.get("contractId")
+            asset = None
+            if contract_id:
+                try:
+                    contract_details = self._get_contract_details(contract_id)
+                    # For Tradeovate futures, assume asset_type is "future" and use the contract's name as the symbol.
+                    symbol = contract_details.get("name", "")
+                    asset = Asset(symbol=symbol, asset_type="future")
+                except Exception as e:
+                    logging.error(colored(f"Failed to retrieve contract details for order {order_id}: {e}", "red"))
+            
+            quantity = response.get("orderQty", 0)
+            action = response.get("action", "").lower()
+            order_type = response.get("orderType", "market").lower()
+            limit_price = response.get("price")
+            stop_price = response.get("stopPrice")
+            
+            # Map raw status to Lumibot's order status using common aliases.
+            raw_status = response.get("ordStatus", "").lower()
+            if raw_status in ["working"]:
+                status = "open"
+            elif raw_status in ["filled"]:
+                status = "fill"
+            elif raw_status in ["partialfill", "partial_fill", "partially_filled"]:
+                status = "partial_fill"
+            elif raw_status in ["canceled", "cancelled", "cancel"]:
+                status = "canceled"
+            elif raw_status in ["rejected"]:
+                status = "error"
+            elif raw_status in ["expired"]:
+                status = "canceled"
+            elif raw_status in ["submitted", "new", "pending"]:
+                status = "new"
+            else:
+                status = raw_status
 
-    def _pull_broker_all_orders(self) -> list[Order]:
-        logging.error(colored("Method '_pull_broker_all_orders' is not yet implemented.", "red"))
-        return []
+            timestamp_str = response.get("timestamp")
+            date_created = None
+            if timestamp_str:
+                # Replace the trailing 'Z' with '+00:00' to properly parse UTC time.
+                date_created = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
+            
+            # Create the Lumibot Order. For unknown fields, we simply leave them out.
+            order_obj = Order(
+                strategy=strategy_name,
+                asset=asset,
+                quantity=quantity,
+                side=action,
+                type=order_type,
+                identifier=order_id,
+                quote=Asset("USD", asset_type="forex")
+            )
+            order_obj.status = status
+            return order_obj
+        except Exception as e:
+            logging.error(colored(f"Error parsing order: {e}", "red"))
+            return None
+
+    def _pull_broker_all_orders(self) -> list:
+        """
+        Retrieve all orders from Tradeovate via the /order/list endpoint.
+        Returns the raw JSON list of orders (dictionaries) without parsing.
+        """
+        url = f"{self.trading_api_url}/order/list"
+        headers = {"Authorization": f"Bearer {self.trading_token}", "Accept": "application/json"}
+        response = requests.get(url, headers=headers)
+        if response.status_code == 200:
+            orders_data = response.json()
+            return orders_data
+        else:
+            raise Exception(f"Failed to retrieve orders: {response.status_code}, {response.text}")
 
     def _pull_broker_order(self, identifier: str) -> Order:
-        logging.error(colored(f"Method '_pull_broker_order' for order_id {identifier} is not yet implemented.", "red"))
-        return None
+        """
+        Retrieve a specific order by its order id using the /order/item endpoint.
+        """
+        url = f"{self.trading_api_url}/order/item"
+        params = {"id": identifier}
+        headers = {"Authorization": f"Bearer {self.trading_token}", "Accept": "application/json"}
+        response = requests.get(url, params=params, headers=headers)
+        if response.status_code == 200:
+            order_data = response.json()
+            order_obj = self._parse_broker_order(order_data, strategy_name="")  # set strategy as needed
+            return order_obj
+        else:
+            raise Exception(f"Failed to retrieve order {identifier}: {response.status_code}, {response.text}")
 
     def _pull_position(self, strategy, asset: Asset) -> Position:
         logging.error(colored(f"Method '_pull_position' for asset {asset} is not yet implemented.", "red"))

@@ -271,7 +271,9 @@ class Tradeovate(Broker):
         elif order.type.lower() == "stop_limit":
             order_type = "StopLimit"
         else:
-            logging.warning(colored(f"Order type '{order.type}' is not fully supported. Defaulting to Market order.", "yellow"))
+            logging.warning(
+                f"Order type '{order.type}' is not fully supported. Defaulting to Market order."
+            )
             order_type = "Market"
 
         # Build the payload with numeric values sent as numbers and booleans as True/False.
@@ -280,7 +282,8 @@ class Tradeovate(Broker):
             "accountId": self.account_id,
             "action": action,
             "symbol": symbol,
-            "orderQty": float(order.quantity),
+            # Convert order.quantity to an integer rather than a float.
+            "orderQty": int(order.quantity),
             "orderType": order_type,
             "isAutomated": True
         }
@@ -301,16 +304,16 @@ class Tradeovate(Broker):
         response = requests.post(url, json=payload, headers=headers)
         if response.status_code == 200:
             data = response.json()
-            logging.info(colored(f"Order successfully submitted: {data}", "green"))
+            logging.info(f"Order successfully submitted: {data}")
             order.status = "submitted"
             order.update_raw(data)
             return order
         else:
             error_message = f"Failed to submit order: {response.status_code}, {response.text}"
-            logging.error(colored(error_message, "red"))
+            logging.error(error_message)
             order.set_error(error_message)
             return order
-
+        
     def cancel_order(self, order_id) -> None:
         logging.error(colored(f"Method 'cancel_order' for order_id {order_id} is not yet implemented.", "red"))
         return None
